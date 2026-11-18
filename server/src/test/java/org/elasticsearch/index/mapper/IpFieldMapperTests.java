@@ -766,4 +766,14 @@ public class IpFieldMapperTests extends MapperTestCase {
     protected Object[] getThreeSampleValues() {
         return new Object[] { "192.168.0.1", "192.168.0.2", "192.168.0.3" };
     }
+
+    /** Runs the check of {@code MapperTestCase#testMultiValueFalseOnFailureIgnoreBlockLoaderSeesOneValue}, which this class skips. */
+    public void testOnFailureIgnoreDivertedValueIsNotLoaded() throws IOException {
+        assertDivertedValueIsNotLoaded(getSampleValueForDocument());
+    }
+
+    public void testScriptedFieldIsNotStaticallySingleValued() throws IOException {
+        assertScriptedFieldIsNotStaticallySingleValued("non-empty");
+    }
+
 }

@@ -38,7 +38,7 @@ The `unmapped_fields` setting accepts the following values, which range from str
 | --- | --- | --- |
 | `DEFAULT` | The query fails when it references a field that is not mapped in any queried index. For a partially mapped field, documents from indices where the field is not mapped return `null`. This is the default behavior. | You want strict schema enforcement and prefer an error when a field is completely unmapped. |
 | `NULLIFY` | When a query references a field that is not mapped in any queried index, that field returns `null`. Fully unmapped fields that the query never mentions do not appear in the output. Partially mapped fields behave as they do in `DEFAULT`: documents from indices where the field is not mapped return `null`. | You want a reusable query to continue working when a field is not available in a dataset. |
-| `LOAD` {applies_to}`stack: preview =9.4, ga 9.5+` | When a query references a fully unmapped field, {{esql}} loads it from the stored [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) as `keyword` and fills with the `null` value if absent from `_source`. Fully unmapped fields that the query never mentions are not loaded. For a partially mapped field, {{esql}} loads values from `_source` where the field is unmapped, even if the query does not mention the field.<br><br>{applies_to}`stack: ga 9.5+` For a partially mapped field with a non-`keyword` type, `LOAD` converts the loaded values to the field's mapped type where possible. | You need the real values of a fully or partially unmapped field, so that you can filter or aggregate on it. |
+| `LOAD` {applies_to}`stack: preview =9.4, ga 9.5+` | Loads the unmapped fields that the query names from [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) as `keyword`, or `null` if absent. Also loads partially mapped fields in the indices where they're unmapped. | You need the real values of a fully or partially unmapped field, so that you can filter or aggregate on it. |
 | `LOAD_ALL` {applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview` | Does everything `LOAD` does. In addition, returns every unmapped field that the query does not name in a single `_unmapped_fields` column, so you can discover fields without knowing their names. | You want to explore documents whose fields you don't know yet. |
 
 For the full syntax, refer to the [`SET unmapped_fields`](directives/set.md#esql-unmapped_fields) reference.
@@ -48,6 +48,23 @@ For the full syntax, refer to the [`SET unmapped_fields`](directives/set.md#esql
 
 Reading the real values of an unmapped field with `LOAD` is newer than the other behaviors. Earlier versions can nullify unmapped fields (`NULLIFY`) but can't load their real values.
 :::
+
+## Load specific unmapped fields [esql-unmapped-fields-load]
+
+```{applies_to}
+stack: preview =9.4, ga 9.5+
+```
+
+With `LOAD`, {{esql}} reads the unmapped fields that your query names from [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) and returns them as `keyword` columns. A named field that is absent from `_source` returns `null`.
+
+:::{include} _snippets/generated/x-pack-esql/commands/examples/unmapped-load.csv-spec/unmapped-load-named-field.md
+:::
+
+`message` is mapped and `unmapped_message` isn't, but both are returned as regular columns.
+
+For a partially mapped field, one that is mapped in some queried indices but not others, `LOAD` reads values from `_source` in the indices where it's unmapped, even if the query doesn't name the field. For example, in `FROM idx1, idx2`, a field mapped only in `idx1` is loaded from `idx2`.
+
+{applies_to}`stack: ga 9.5+` If the field's mapped type isn't `keyword`, `LOAD` converts the loaded values to that type where possible.
 
 ## Load all unmapped fields [esql-unmapped-fields-load-all]
 
@@ -68,7 +85,8 @@ Mapped fields are returned as columns as usual. Every unmapped field is returned
 - **One column, one JSON object per row.** `_unmapped_fields` holds the unmapped fields of the row. It is `null` for a row that has none.
 - **Flattened, like a [`flattened`](/reference/elasticsearch/mapping-reference/flattened.md) field.** Nested objects are flattened into dotted paths such as `unmapped.nested`, in the order the fields appear in `_source`. Values keep their JSON form from `_source`, so a field with several values is a JSON array. They become typed `keyword` columns only when the query names them.
 - **Empty values are left out.** Explicit `null` values, empty arrays, and empty objects don't appear in the column.
-- **Fields you name become their own column.** A field that the query refers to, for example in `WHERE`, `KEEP`, or `EVAL`, is loaded the same way as with `LOAD`, as a `keyword` column, and is no longer part of `_unmapped_fields`. The same applies if a command creates a column with the same name as an unmapped field, for example with `EVAL` or `RENAME`.
+- **Fields you name become their own column and are no longer part of `_unmapped_fields`.** A field that the query refers to, for example in `WHERE`, `KEEP`, or `EVAL`, is loaded the same way as with `LOAD`, as a `keyword` column. The same applies if a command creates a column with the same name as an unmapped field, for example with `EVAL` or `RENAME`.
+  - A named field is always a `keyword` column, even when its value in `_source` is a number: `1` in `_unmapped_fields` becomes `"1"`, and an array of numbers becomes a multivalued `keyword`. To get the original type back, convert it, for example with `TO_LONG(field)` or `field::long`.
 - **`KEEP` and `DROP` with wildcards apply to the unmapped fields.** `DROP unmapped_*` removes the matching fields from `_unmapped_fields`. `KEEP @timestamp, unmapped_*` keeps only the matching fields in `_unmapped_fields`. A `KEEP` with only exact names doesn't return `_unmapped_fields` at all.
 - **Commands and functions that take field patterns don't see them.** For example, full-text search functions such as `KQL` and `QSTR` don't search the fields in `_unmapped_fields`.
 - **Partially mapped fields behave as in `LOAD`.** Where a field is mapped in some of the queried indices only, {{esql}} reads it from the mapping where it exists and from `_source` where it doesn't. These fields are columns, not part of `_unmapped_fields`.
@@ -107,10 +125,18 @@ In both cases, {{esql}} cannot use a Lucene index on `unmapped`, so it must read
 
 `LOAD` does not actually load every field from `_source`. It loads:
 
-- **Partially mapped fields**: if a field is mapped in some queried indices but not others, {{esql}} loads it from `_source` in the indices where it is unmapped. For example, in `FROM idx1, idx2`, a field mapped only in `idx1` is loaded from `idx2` even when the rest of the query never mentions that field.
+- **Partially mapped fields**: {{esql}} loads them from `_source` in the indices where they are unmapped, even when the query never mentions them. Refer to [Load specific unmapped fields](#esql-unmapped-fields-load).
 - **Fully unmapped fields**: fields that are not mapped in any queried index are loaded only when the query references them.
 
 `LOAD_ALL` also loads the fully unmapped fields that the query doesn't reference. It returns them in the `_unmapped_fields` column.
+
+### Fields that are mapped after documents were indexed [esql-unmapped-fields-mapped-later]
+
+`LOAD` and `LOAD_ALL` read a field from `_source` only while the index doesn't map it. Once you add the field to the mapping, {{esql}} reads it like any other mapped field, from the data structures that were built when each document was indexed. Documents indexed before the mapping update have no such data for the field, so it is `null` for them, even though `_source` still contains the value. This is the same behavior as for any mapped field that you add to an existing index, and it applies with or without `SET unmapped_fields`.
+
+For example, with `"dynamic": false`, a field `f` that is first read with `LOAD` returns its values for every document. After you map `f` as `keyword`, the same query returns `null` for the documents that were indexed before the mapping, and the real value only for newer documents. If the query uses `LOAD_ALL`, the old value is also missing from the `_unmapped_fields` column, because `f` is no longer an unmapped field.
+
+The value is not lost. It remains in `_source`, and the [get API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-get) still returns it. To make the older documents readable through the mapped field, rewrite them, for example with the [update by query API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-update-by-query) or by [reindexing](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-reindex) into an index with the new mapping.
 
 ### Other restrictions [esql-unmapped-fields-other-restrictions]
 
@@ -122,6 +148,17 @@ In both cases, {{esql}} cannot use a Lucene index on `unmapped`, so it must read
 
 For the full list of restrictions, refer to the [`SET unmapped_fields`](directives/set.md#esql-unmapped_fields) reference.
 
+### Search loaded fields [esql-unmapped-fields-search]
+
+Search functions can search a loaded field:
+
+- {applies_to}`stack: preview =9.5, ga 9.6+` {applies_to}`serverless: ga` `MATCH`
+- {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` `MATCH_PHRASE`
+
+Because the loaded values have no index behind them, this is a
+[runtime search](/reference/query-languages/esql/esql-runtime-search.md): it scans values row by row, and analyzes
+`text` values with the `standard` analyzer rather than the analyzer in the mapping, where the field is mapped.
+
 ### Limitations specific to `LOAD_ALL` [esql-unmapped-fields-load-all-limitations]
 
 ```{applies_to}
@@ -131,7 +168,7 @@ serverless: preview
 
 In addition to the restrictions above, `LOAD_ALL` has these limitations:
 
-- It supports only a subset of the processing commands, and a query that uses another command fails with an error that lists the supported ones. Notably, the [`TS`](commands/ts.md) source command is not supported.
+- It supports most commands, and a query that uses another command fails with an error that lists the supported ones. Notably, the [`TS`](commands/ts.md) source command is not supported.
 - It doesn't apply inside [views](/reference/query-languages/esql/esql-views.md). The setting stops at a view's boundary: a view doesn't return an `_unmapped_fields` column, and the query returns `null` with a warning for an unmapped field that the view doesn't output. To load such fields, the view definition must itself `SET unmapped_fields="load"` and reference them. A view definition can't use `LOAD_ALL`. Indices and subqueries next to a view are loaded as usual.
 - Reading every unmapped field uses more memory than `LOAD`, especially on documents with many fields or large arrays. If you know which fields you need, name them and use `LOAD`.
 

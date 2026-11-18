@@ -274,7 +274,9 @@ These results contain an array of buckets, where each bucket is a JSON object wi
 ## Grouping with time-series [search-aggregations-metrics-geo-line-grouping-time-series]
 
 ::::{warning}
-This functionality is in technical preview and may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
+Using the `geo_line` aggregation inside a `time_series` aggregation is deprecated and will be removed in a future version, because the [`time_series` aggregation](/reference/aggregations/search-aggregations-bucket-time-series-aggregation.md) is deprecated. Each search request that uses it returns a deprecation warning. Use the [{{esql}} `TS` command](/reference/query-languages/esql/commands/ts.md) instead.
+
+Before it was deprecated, this functionality was in technical preview. Features in technical preview are not subject to the support SLA of official GA features.
 ::::
 
 

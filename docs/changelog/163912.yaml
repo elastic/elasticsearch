@@ -1,0 +1,7 @@
+area: ES|QL
+issues:
+ - 163885
+pr: 163912
+summary: Expand the tests to the entire combination of supported data types for SPARKLINE
+  arguments
+type: bug

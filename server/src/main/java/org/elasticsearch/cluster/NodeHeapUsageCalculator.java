@@ -12,6 +12,7 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -30,6 +31,19 @@ public final class NodeHeapUsageCalculator {
     private NodeHeapUsageCalculator() {}
 
     /**
+     * Derives each node's heap estimate from the routing table on {@code clusterState}.
+     *
+     * @see #calculateForRoutingNodes(RoutingNodes, long, ShardHeapUsageEstimates)
+     */
+    public static RoutingNodeHeapCalculation calculateForRoutingNodes(
+        ClusterState clusterState,
+        long nonShardHeapUsage,
+        ShardHeapUsageEstimates shardHeapUsageEstimates
+    ) {
+        return calculateForRoutingNodes(clusterState.getRoutingNodes(), nonShardHeapUsage, shardHeapUsageEstimates);
+    }
+
+    /**
      * Derives each node's heap estimate from the routing table.
      * <p>
      * A node's heap usage is the sum of the heap used by the shards the routing table currently places on that node, plus a fixed
@@ -42,25 +56,26 @@ public final class NodeHeapUsageCalculator {
      * Indexing node heap totals all use the largest postings sum found on any indexing node, so each of those nodes is charged at least as
      * much as the heaviest one. Search node postings are left out of that maximum since search nodes hold replicas of the same shards
      * and would otherwise raise every indexing node's total. Search nodes themselves publish hosted-shards heap only, with their total
-     * and non-shard values intentionally left unmodelled as {@code 0}. Shards that are still initializing are skipped, because finishing
-     * an in-flight recovery is the simulator's job.
+     * and non-shard values intentionally left unmodelled as {@code 0}. Shards that are still initializing are skipped. Callers that
+     * simulate a recovery completing, such as desired-balance computation, start the shard on {@code routingNodes} before reading the
+     * result.
      *
-     * @param clusterState             routing table that says which shards sit on which nodes
+     * @param routingNodes             routing table that says which shards sit on which nodes
      * @param nonShardHeapUsage        per-node overhead that does not move with shard placement, applicable to indexing nodes only
      * @param shardHeapUsageEstimates  shard and index heap for each shard, plus the default for a shard with no metrics yet
      * @return node estimates keyed by node id
      */
     public static RoutingNodeHeapCalculation calculateForRoutingNodes(
-        ClusterState clusterState,
+        RoutingNodes routingNodes,
         long nonShardHeapUsage,
         ShardHeapUsageEstimates shardHeapUsageEstimates
     ) {
         assert nonShardHeapUsage >= 0;
         final Map<DiscoveryNode, NodeHeapUsageComponents> nodeHeapUsageComponentsByNode = Maps.newHashMapWithExpectedSize(
-            clusterState.getRoutingNodes().size()
+            routingNodes.size()
         );
         long maxIndexingNodePostingsHeapUsage = 0L;
-        for (RoutingNode routingNode : clusterState.getRoutingNodes()) {
+        for (RoutingNode routingNode : routingNodes) {
             final DiscoveryNode discoveryNode = routingNode.node();
             if (isIndexingNode(discoveryNode) == false && isSearchNode(discoveryNode) == false) {
                 continue;
@@ -143,8 +158,7 @@ public final class NodeHeapUsageCalculator {
     ) {
         final NodeHeapUsageComponentsAccumulator accumulator = new NodeHeapUsageComponentsAccumulator(shardHeapUsageEstimates);
         for (var shardRouting : routingNode) {
-            // Only active shards contribute. Ongoing recoveries are completed by the simulator, which adds the heap to the target and
-            // removes it from the source when the shard is relocating.
+            // Only active shards contribute. A relocating shard is still active on its source until the caller starts it on the target.
             if (shardRouting.active() == false) {
                 continue;
             }

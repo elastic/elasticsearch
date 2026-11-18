@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources.cache;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
+import org.elasticsearch.xpack.esql.datasources.spi.StripeStatsSink;
 
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -48,7 +49,13 @@ import java.util.TreeMap;
  * accumulators (CSV from the output page / raw record, NDJSON from the output page / widened decoded page),
  * because the value-extraction differs by format; everything downstream of attribution is shared here.
  * <p>
- * Not thread-safe: each instance is owned by exactly one batch iterator over that iterator's lifetime.
+ * A harvester lives for one chunk, so on its own it publishes one contribution per stripe the chunk overlapped
+ * and several chunks each publish the whole summary of a stripe they share. A read that supplies a
+ * {@link StripeStatsSink} instead hands each piece there, where the pieces of one stripe are joined and the
+ * stripe is published once; see that class for the join and for what a read that leaves a gap publishes.
+ * <p>
+ * Not thread-safe: each instance is owned by exactly one batch iterator over that iterator's lifetime. The
+ * staging area it hands pieces to is shared across a read's chunks and is thread-safe in its own right.
  */
 public final class StripeStatsHarvester {
 
@@ -70,12 +77,23 @@ public final class StripeStatsHarvester {
 
     private final long stripeSize;
     private final boolean fileFinal;
+    /**
+     * Where a stripe's pieces are joined across the chunks of one read, or {@code null} when this read has no
+     * cross-chunk staging (a reader driven directly, in a test or a benchmark). Without it each chunk stages its
+     * own piece of every stripe it overlapped, which is what the staging area exists to stop.
+     */
+    private final StripeStatsSink staging;
     /** Per-stripe accumulators keyed by ordinal; the emit loop reads them by byte-range geometry. */
     private final TreeMap<Long, StripeAccum> stripeAccums = new TreeMap<>();
 
     public StripeStatsHarvester(long stripeSize, boolean fileFinal) {
+        this(stripeSize, fileFinal, null);
+    }
+
+    public StripeStatsHarvester(long stripeSize, boolean fileFinal, StripeStatsSink staging) {
         this.stripeSize = stripeSize;
         this.fileFinal = fileFinal;
+        this.staging = staging;
     }
 
     /** Stripe ordinal a record starting at {@code recordStartOffset} is attributed to. */
@@ -192,6 +210,13 @@ public final class StripeStatsHarvester {
         if (chunkBytes <= 0) {
             return; // unknown / empty byte range — safe miss
         }
+        StripeStatsSink.ReadIdentity identity = new StripeStatsSink.ReadIdentity(
+            pinnedMtimeMillis,
+            fingerprint,
+            readConfig,
+            rowCountReadConfigIndependent,
+            stripeSize
+        );
         long chunkAbsEnd = splitStartByte + chunkBytes;
         long firstOrdinal = Math.floorDiv(splitStartByte, stripeSize);
         long lastOrdinal = Math.floorDiv(chunkAbsEnd - 1, stripeSize);
@@ -208,32 +233,74 @@ public final class StripeStatsHarvester {
             // PROJECTED/COUNT commit acc.cols (projected columns / none). ALL additionally commits acc.allCols
             // (every file column), so the committed set is a strict superset of PROJECTED's.
             Map<String, ExternalStats.ColumnStats> cols = mergeColumnStats(acc == null ? null : acc.cols, acc == null ? null : acc.allCols);
-            ExternalStats.Stats statsRecord = new ExternalStats.Stats(rows, OptionalLong.empty(), cols);
-            SourceStatistics sourceStats = TextFormatStats.build(Optional.of(statsRecord), OptionalLong.empty(), schema);
-            Map<String, Object> base = new HashMap<>();
-            base.put(ExternalStats.MTIME_MILLIS_KEY, pinnedMtimeMillis);
-            base.put(ExternalStats.CONFIG_FINGERPRINT_KEY, fingerprint);
-            // Absent means UNKNOWN — the producing path had no coordinator-minted read schema. Stamping the empty
-            // string instead would be indistinguishable, so leave the key off and let the comparators treat absence
-            // as "shape unknown, do not share".
-            if (readConfig != null && readConfig.isEmpty() == false) {
-                base.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, readConfig);
+            if (staging != null) {
+                // The staging area holds this piece in compact form and stages the stripe once its grid cell is
+                // covered, so the flat map below is built once per stripe read rather than once per chunk that
+                // touched it. TextFormatStats.build is applied here, not there, so what the staging area retains
+                // is already filtered to the schema the published record is serialized against.
+                staging.contribute(
+                    sourceLocation,
+                    identity,
+                    ordinal,
+                    start,
+                    end,
+                    atStart,
+                    atEnd,
+                    eof,
+                    TextFormatStats.build(
+                        Optional.of(new ExternalStats.Stats(rows, OptionalLong.empty(), cols)),
+                        OptionalLong.empty(),
+                        schema
+                    ),
+                    schema
+                );
+                continue;
             }
-            // The licence rides per fragment, exactly as on the whole-file publishes: without it a chunked FAIL_FAST
-            // read could never license the crossing an unchunked one can, purely because of how the file was split.
-            if (rowCountReadConfigIndependent) {
-                base.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
-            }
-            base.put(ExternalStats.PARTIAL_CHUNK_KEY, Boolean.TRUE);
-            base.put(ExternalStats.STRIPE_SIZE_KEY, stripeSize);
-            base.put(ExternalStats.STRIPE_ORDINAL_KEY, ordinal);
-            base.put(ExternalStats.COVERAGE_START_KEY, start);
-            base.put(ExternalStats.COVERAGE_END_KEY, end);
-            base.put(ExternalStats.STRIPE_AT_START_KEY, atStart);
-            base.put(ExternalStats.STRIPE_AT_END_KEY, atEnd);
-            base.put(ExternalStats.COVERAGE_IS_LAST_KEY, eof);
-            Map<String, Object> flat = SourceStatisticsSerializer.embedStatistics(base, sourceStats);
-            ExternalStatsCapture.record(sourceLocation, flat);
+            ExternalStatsCapture.record(sourceLocation, flatten(identity, ordinal, start, end, atStart, atEnd, eof, rows, cols, schema));
         }
+    }
+
+    /**
+     * The flat {@code _stats.*} map one stripe-addressed contribution is published as — the whole of the wire
+     * vocabulary this path speaks, in one place, so the per-chunk emit above and the cross-chunk staging area
+     * publish the same shape and a reader of either sees one definition of it.
+     */
+    static Map<String, Object> flatten(
+        StripeStatsSink.ReadIdentity identity,
+        long ordinal,
+        long start,
+        long end,
+        boolean atStart,
+        boolean atEnd,
+        boolean eof,
+        long rows,
+        Map<String, ExternalStats.ColumnStats> cols,
+        List<Attribute> schema
+    ) {
+        ExternalStats.Stats statsRecord = new ExternalStats.Stats(rows, OptionalLong.empty(), cols);
+        SourceStatistics sourceStats = TextFormatStats.build(Optional.of(statsRecord), OptionalLong.empty(), schema);
+        Map<String, Object> base = new HashMap<>();
+        base.put(ExternalStats.MTIME_MILLIS_KEY, identity.mtimeMillis());
+        base.put(ExternalStats.CONFIG_FINGERPRINT_KEY, identity.configFingerprint());
+        // Absent means UNKNOWN — the producing path had no coordinator-minted read schema. Stamping the empty
+        // string instead would be indistinguishable, so leave the key off and let the comparators treat absence
+        // as "shape unknown, do not share".
+        if (identity.readConfig() != null && identity.readConfig().isEmpty() == false) {
+            base.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, identity.readConfig());
+        }
+        // The licence rides per fragment, exactly as on the whole-file publishes: without it a chunked FAIL_FAST
+        // read could never license the crossing an unchunked one can, purely because of how the file was split.
+        if (identity.rowCountReadConfigIndependent()) {
+            base.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
+        }
+        base.put(ExternalStats.PARTIAL_CHUNK_KEY, Boolean.TRUE);
+        base.put(ExternalStats.STRIPE_SIZE_KEY, identity.stripeSize());
+        base.put(ExternalStats.STRIPE_ORDINAL_KEY, ordinal);
+        base.put(ExternalStats.COVERAGE_START_KEY, start);
+        base.put(ExternalStats.COVERAGE_END_KEY, end);
+        base.put(ExternalStats.STRIPE_AT_START_KEY, atStart);
+        base.put(ExternalStats.STRIPE_AT_END_KEY, atEnd);
+        base.put(ExternalStats.COVERAGE_IS_LAST_KEY, eof);
+        return SourceStatisticsSerializer.embedStatistics(base, sourceStats);
     }
 }

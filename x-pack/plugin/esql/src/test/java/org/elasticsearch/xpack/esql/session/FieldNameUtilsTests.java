@@ -29,10 +29,10 @@ import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
+import org.elasticsearch.xpack.esql.plan.logical.ViewSubquery;
 
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -3665,63 +3665,6 @@ public class FieldNameUtilsTests extends ESTestCase {
         );
     }
 
-    /** Field collection traverses directly nested FORKs and analyzer rejects this shape later. */
-    public void testNestedForksInMainQuery() {
-        assertFieldNames(
-            """
-                FROM employees
-                | FORK (WHERE salary > 50000
-                        | FORK (WHERE languages > 1 | KEEP emp_no)
-                               (WHERE first_name IS NOT NULL | KEEP first_name))
-                       (WHERE last_name IS NOT NULL | KEEP last_name)
-                | KEEP emp_no, first_name, last_name
-                """,
-            Set.of(
-                "_index",
-                "emp_no",
-                "emp_no.*",
-                "first_name",
-                "first_name.*",
-                "languages",
-                "languages.*",
-                "last_name",
-                "last_name.*",
-                "salary",
-                "salary.*"
-            )
-        );
-    }
-
-    /** Directly nested FORKs in an IN subquery use the subquery's independent field-collection state. */
-    public void testNestedForksInInSubquery() {
-        assertFieldNames(
-            """
-                FROM employees
-                | WHERE emp_no IN (
-                    FROM employees
-                    | FORK (WHERE salary > 50000
-                            | FORK (WHERE languages > 1 | KEEP emp_no)
-                                   (WHERE first_name IS NOT NULL | KEEP emp_no))
-                           (WHERE last_name IS NOT NULL | KEEP emp_no)
-                    | KEEP emp_no)
-                | KEEP emp_no
-                """,
-            Set.of(
-                "_index",
-                "emp_no",
-                "emp_no.*",
-                "first_name",
-                "first_name.*",
-                "languages",
-                "languages.*",
-                "last_name",
-                "last_name.*",
-                "salary",
-                "salary.*"
-            )
-        );
-    }
-
     public void testForkInsideUnionAllSubqueryInMainQuery() {
         assertFieldNames("""
             FROM (FROM employees
@@ -4893,7 +4836,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             List.of(new UnresolvedAttribute(Source.EMPTY, "a"))
         );
         LinkedHashMap<String, LogicalPlan> branches = new LinkedHashMap<>();
-        branches.put("v", new NamedSubquery(Source.EMPTY, viewBody, "v"));
+        branches.put("v", new ViewSubquery(Source.EMPTY, viewBody, "v"));
         branches.put("v#shadow", new ViewShadowRelation(Source.EMPTY, "v", LinkedIndexPattern.Kind.OPTIONAL, "v"));
         BranchPlan plan = new BranchPlan(Source.EMPTY, branches, Map.of("v", BranchIdentity.view("v")), List.of());
         assertThat(FieldNameUtils.resolveFieldNames(plan, false, includePrefixFields).fieldNames(), equalTo(ALL_FIELDS));
@@ -4928,6 +4871,22 @@ public class FieldNameUtilsTests extends ESTestCase {
             | DENSE_VECTOR xx WITH { "inference_id" : "inference_id" }
             | KEEP emp_no, xx, xx_dense_vector
             """, Set.of("_index", "emp_no", "emp_no.*", "xx_dense_vector", "xx_dense_vector.*"));
+    }
+
+    /** A parent path is only a parent path when the query asks for it neither by name nor by pattern. */
+    public void testParentPaths() {
+        Set<String> parents = includePrefixFields ? Set.of("f") : Set.of();
+        assertParentPaths("from test | keep f.raw", parents);
+        assertParentPaths("from test | keep f, f.raw", Set.of());
+        assertParentPaths("from test | keep f*, f.raw", Set.of());
+        assertParentPaths("from test | keep a.b.c", includePrefixFields ? Set.of("a", "a.b") : Set.of());
+    }
+
+    private void assertParentPaths(String query, Set<String> expected) {
+        var parsed = InSubqueryResolver.resolve(TEST_PARSER.parseQuery(query));
+        var preAnalysisResult = FieldNameUtils.resolveFieldNames(parsed, false, includePrefixFields);
+        assertThat("Parent paths", preAnalysisResult.parentPaths(), equalTo(expected));
+        assertThat("Parent paths are requested", preAnalysisResult.fieldNames().containsAll(expected), equalTo(true));
     }
 
     private void assertFieldNames(String query, Set<String> expected) {

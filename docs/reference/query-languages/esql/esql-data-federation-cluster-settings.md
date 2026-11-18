@@ -29,10 +29,18 @@ $$$esql-federation-enabled$$$
 `esql.federation.enabled`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Enables {{esql}} Data Federation, including the data source and dataset APIs, on the node. On {{ech}}, add this setting to your deployment's [user settings](docs-content://deploy-manage/deploy/elastic-cloud/edit-stack-settings.md).
 
-    - **Default:** `false`
+    - **Default:**
+      - {applies_to}`stack: preview 9.6+` `true`
+      - {applies_to}`stack: experimental =9.5` `false`
     - **Valid values:** `true`, `false`
 
-    {applies_to}`stack: preview 9.6+` {{esql}} Data Federation isn't available on Windows. If this setting is `true` on a Windows node, {{es}} ignores it and logs an error at startup. The node still starts.
+    Configure the same value on every node and restart each node after changing it. This setting can't be updated with the cluster settings API. The {{kib}} UI setting is separate and doesn't change this setting. Refer to [](esql-data-federation.md#enable-the-feature).
+
+    When this setting is `false`, the data source and dataset APIs aren't available, and a query on a dataset fails with `Unknown index [<dataset>]`. Existing data sources and datasets aren't deleted. They stay in the cluster state, and when you set it back to `true`, they're available again with their stored credentials.
+
+    {applies_to}`stack: preview 9.6+` During a rolling upgrade from 9.5, upgraded nodes have this setting on by default and older nodes have it off. Refer to [errors for a dataset that exists](esql-data-federation-querying.md#unknown-index-dataset).
+
+    {applies_to}`stack: preview 9.6+` {{esql}} Data Federation isn't available on Windows. If you explicitly set this setting to `true` on a Windows node, {{es}} ignores it and logs an error at startup. The node still starts.
 
 ## Object limits
 
@@ -90,18 +98,6 @@ $$$esql-external-admission-rescue-enabled$$$
 
     - **Default:** `true`
     - **Valid values:** `true`, `false`
-
-## Cluster state catch-up
-
-A node that has just joined the cluster, or that is behind a dataset change, can receive external reads before it has applied the cluster state the query was planned from. When another node can take the work, the coordinator sends it to the next node that can run it, trying each other node in turn. When no further node can take it, the node that has it waits for the state. This setting bounds that wait.
-
-$$$esql-external-worker-ready-timeout$$$
-
-`esql.external.worker_ready_timeout` {applies_to}`stack: preview 9.7+`
-:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) How long a node waits to catch up with the cluster state before failing the query with a retryable `503` error whose `external_condition` is `worker_not_ready`. The wait applies only when no other node can run the query's external reads. If you see these errors while nodes join the cluster, increase this value or retry the query.
-
-    - **Default:** `10s`
-    - **Valid values:** A [time value](/reference/elasticsearch/rest-apis/api-conventions.md#time-units) of `0` or more. `0` disables waiting, so the query fails immediately.
 
 ## Glob and file-discovery limits
 

@@ -16,7 +16,9 @@ products:
 
 In the {{kib}} UI, you create and manage datasets from the **Datasets** tab under **Data management** > **{{esql}} Data Federation**.
 
-To use the UI, [enable it in {{kib}}](esql-data-federation.md#enable-the-feature) first. Every dataset reads from a [data source](esql-data-federation-sources.md). If you haven't connected one yet, you can connect it from the **Add dataset** wizard: select **Connect new data source** in the **Data source** menu.
+{applies_to}`stack: experimental =9.5` To use the UI, [enable it in {{kib}}](esql-data-federation.md#enable-the-feature) first.
+
+Every dataset reads from a [data source](esql-data-federation-sources.md). If you haven't connected one yet, you can connect it from the **Add dataset** wizard: select **Connect new data source** in the **Data source** menu.
 
 ## View datasets
 
@@ -114,12 +116,10 @@ To change a dataset:
 
 1. Click **More actions** ({icon}`ellipsis`) at the end of the dataset's row.
 2. Select **Edit**. The wizard opens with the dataset's current configuration.
-3. Update the settings in any step.
+3. Update the settings in any step. You can't change the **Dataset name**.
 4. On the **Review** step, click **Save**.
 
-:::{warning}
-Changing the **Dataset name** saves the dataset under the new name and then deletes the dataset with the old name. Queries that use the old name stop working.
-:::
+To use a different name, [add a new dataset](#add-a-new-dataset) with that name, then delete the old one. Queries and views that use the old name stop working.
 
 ## Next steps
 

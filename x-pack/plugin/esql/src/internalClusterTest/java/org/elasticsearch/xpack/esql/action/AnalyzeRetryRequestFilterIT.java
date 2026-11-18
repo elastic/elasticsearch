@@ -398,7 +398,9 @@ public class AnalyzeRetryRequestFilterIT extends AbstractEsqlIntegTestCase {
         String body = "FROM test1,test2 | KEEP k, labels.env | SORT k";
         QueryBuilder filter = QueryBuilders.existsQuery("k"); // present so the retry path is active; matches both indices, prunes nothing
 
-        List<List<Object>> expectedValues = List.of(Arrays.asList(1, "prod"), Arrays.asList(2, null));
+        // Where a name under a flattened field is its key, test2 reads its key, and load reads it too
+        boolean keys = EsqlCapabilities.Cap.FLATTENED_KEYS.isEnabled();
+        List<List<Object>> expectedValues = List.of(Arrays.asList(1, "prod"), Arrays.asList(2, keys ? "dev" : null));
 
         try (var def = runFiltered(null, body, filter)) {
             assertThat(def.isPartial(), equalTo(false));
@@ -412,6 +414,12 @@ public class AnalyzeRetryRequestFilterIT extends AbstractEsqlIntegTestCase {
             assertThat(getValuesList(nullify), equalTo(expectedValues));
         }
 
+        if (keys) {
+            try (var load = runFiltered("load", body, filter)) {
+                assertThat(getValuesList(load), equalTo(expectedValues));
+            }
+            return;
+        }
         Exception e = expectThrows(Exception.class, () -> runFiltered("load", body, filter).close());
         assertThat(
             e.getMessage(),

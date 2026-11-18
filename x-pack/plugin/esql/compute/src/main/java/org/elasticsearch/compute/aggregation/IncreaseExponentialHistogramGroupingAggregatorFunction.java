@@ -93,10 +93,9 @@ public final class IncreaseExponentialHistogramGroupingAggregatorFunction extend
     private final Warnings warnings;
     private final ExponentialHistogramMerger.Factory mergerFactory;
     private final ExponentialHistogramCircuitBreaker histoBreaker;
-    // track lastSliceIndex to allow flushing the raw buffer when the slice index changed
-    private int lastSliceIndex = -1;
 
     public IncreaseExponentialHistogramGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext, Warnings warnings) {
+        super(channels.get(3));
         this.channels = channels;
         this.driverContext = driverContext;
         this.bigArrays = driverContext.bigArrays();
@@ -130,17 +129,13 @@ public final class IncreaseExponentialHistogramGroupingAggregatorFunction extend
     }
 
     @Override
-    public boolean canEmitPartialResultsPeriodically() {
-        return false;
-    }
-
-    @Override
     public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
         // manage nulls via buffers/reducedStates arrays
     }
 
     @Override
     public AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds, Page page) {
+        maybeFlushOnNewSlice(page);
         ExponentialHistogramBlock valuesBlock = page.getBlock(channels.get(0));
         if (valuesBlock.areAllValuesNull()) {
             return new AddInput() {
@@ -173,15 +168,8 @@ public final class IncreaseExponentialHistogramGroupingAggregatorFunction extend
         }
         BytesRefBlock temporalityBlock = page.getBlock(channels.get(2));
         TemporalityAccessor temporalityAccessor = TemporalityAccessor.create(temporalityBlock, Temporality.DELTA);
-        IntVector sliceIndices = ((IntBlock) page.getBlock(channels.get(3))).asVector();
-        assert sliceIndices != null : "expected slice indices vector in time-series aggregation";
         LongVector futureMaxTimestamps = ((LongBlock) page.getBlock(channels.get(4))).asVector();
         assert futureMaxTimestamps != null : "expected future max timestamps vector in time-series aggregation";
-        int sliceIndex = sliceIndices.getInt(0);
-        if (sliceIndex > lastSliceIndex) {
-            flushRawBuffers();
-            lastSliceIndex = sliceIndex;
-        }
         return new AddInput() {
             @Override
             public void add(int positionOffset, IntArrayBlock groupIds) {
@@ -689,6 +677,16 @@ public final class IncreaseExponentialHistogramGroupingAggregatorFunction extend
         GroupingAggregatorEvaluationContext ctx
     ) {
         flushRawBuffers();
+        for (int p = 0; p < selected.getPositionCount(); p++) {
+            int group = selected.getInt(p);
+            var state = group < reducedStates.size() ? reducedStates.get(group) : null;
+            if (state != null && state.samples > 1) {
+                state.combineIntervals();
+            }
+        }
+        if (ctx instanceof TimeSeriesGroupingAggregatorEvaluationContext tsContext) {
+            tsContext.computeAdjacentGroupIds();
+        }
         return (blocks, offset, selectedInPage) -> evaluateFinal(blocks, offset, selectedInPage, ctx);
     }
 
@@ -703,17 +701,6 @@ public final class IncreaseExponentialHistogramGroupingAggregatorFunction extend
             for (int p = 0; p < positionCount; p++) {
                 int group = selectedInPage.getInt(p);
                 var state = group < reducedStates.size() ? reducedStates.get(group) : null;
-                if (state != null && state.samples > 1) {
-                    state.combineIntervals();
-                }
-            }
-            if (ctx instanceof TimeSeriesGroupingAggregatorEvaluationContext tsContext) {
-                tsContext.computeAdjacentGroupIds();
-            }
-            for (int p = 0; p < positionCount; p++) {
-                int group = selectedInPage.getInt(p);
-                var state = group < reducedStates.size() ? reducedStates.get(group) : null;
-
                 final ExponentialHistogram rate;
                 if (state == null || state.samples == 0) {
                     rate = null;

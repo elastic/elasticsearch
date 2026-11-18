@@ -14,6 +14,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VersionMode;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.AlignMergeBranches;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.List;
 
@@ -44,5 +46,14 @@ public abstract class AnalyzerTestCase extends ESTestCase {
     /** This instance's version, or {@code floor} when it does not support it, for analyzers that need a version-gated feature. */
     protected TransportVersion minimumVersionAtLeast(TransportVersion floor) {
         return minimumVersion.supports(floor) ? minimumVersion : floor;
+    }
+
+    /**
+     * {@code plan} with the branches of every merge aligned with the merge's output, as the optimizer aligns them first thing. The
+     * analyzer leaves them unaligned; a test about what each branch contributes to the merge's columns (including the nulls of a
+     * column it lacks) checks this plan.
+     */
+    protected static LogicalPlan aligned(LogicalPlan plan) {
+        return new AlignMergeBranches().apply(plan);
     }
 }

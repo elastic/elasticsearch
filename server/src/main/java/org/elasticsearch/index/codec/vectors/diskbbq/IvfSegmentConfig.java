@@ -9,7 +9,13 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
+import org.elasticsearch.core.Nullable;
+
+import java.util.Collections;
+import java.util.Map;
+import java.util.NavigableMap;
 import java.util.Set;
+import java.util.TreeMap;
 
 /**
  * Per-segment (per-field) IVF configuration persisted in {@code mivf}. It has four parts:
@@ -53,15 +59,21 @@ public record IvfSegmentConfig(
      * quantization precision. The writer uses document-side parameters for indexing; the reader uses
      * {@code queryBitsPerDim} for scoring. Set {@code queryBitsPerDim} to 0 for the float scoring path.
      *
-     * <p>Use {@link #of(int, int, float)} to construct with validation, analogous to
+     * <p>Use {@link #of(int, int, float, int)} to construct with validation, analogous to
      * {@link QuantEncoding#fromDocAndQueryBits(byte, byte)} for OSQ.
      */
-    public record AshConfig(float projectedDimsFraction, int bitsPerDim, int queryBitsPerDim, int trainingIterations, int trainingFactor)
-        implements
-            QuantConfig {
+    public record AshConfig(
+        float projectedDimsFraction,
+        int maxProjectedDims,
+        int bitsPerDim,
+        int queryBitsPerDim,
+        int trainingIterations,
+        int trainingFactor
+    ) implements QuantConfig {
         private static final Set<Integer> SUPPORTED_BITS_PER_DIM = Set.of(1, 2, 3, 4, 8);
 
         public static final float DEFAULT_PROJECTED_DIMS_FRACTION = 0.5f;
+        public static final int DEFAULT_MAX_PROJECTED_DIMS = 1024;
         public static final int DEFAULT_BITS_PER_DIM = 2;
         public static final int DEFAULT_QUERY_BITS_PER_DIM = 4;
         /**
@@ -71,6 +83,47 @@ public record IvfSegmentConfig(
          */
         public static final int DEFAULT_TRAINING_ITERATIONS = 0;
         public static final int DEFAULT_TRAINING_FACTOR = 10;
+
+        /**
+         * A size tier of {@link #forDims}: the bits per projected dimension and the fraction of the dimensions projected
+         * to. The two are chosen together, so that every tier spends about one bit per original dimension, the size of
+         * 1-bit OSQ.
+         */
+        record DimsTier(int bitsPerDim, float projectedDimsFraction) {}
+
+        /**
+         * The tiers {@link #forDims} picks from, keyed by the largest vector dimension each one applies to, so that the
+         * tier for a dimension is its {@link NavigableMap#ceilingEntry}:
+         * <ul>
+         *     <li>up to 511 dimensions: 1 bit, without reducing the dimension. There is little to gain from projecting
+         *     such small vectors.</li>
+         *     <li>up to 2048 dimensions: 2 bits over half of the dimensions. At 2048 that half reaches
+         *     {@link #DEFAULT_MAX_PROJECTED_DIMS}.</li>
+         *     <li>above that: 4 bits over a quarter of the dimensions. At these sizes building and applying the
+         *     projection dominates indexing cost.</li>
+         * </ul>
+         * Because bits left unset are not stored in the mapping, this table decides what new segments of existing indices
+         * look like. Once ASH ships, changing it requires selecting the table by {@code IndexVersion}.
+         * {@code IvfSegmentConfigTests#testAshForDimsDerivesBitsAndProjectedDims} pins the current table.
+         */
+        static final NavigableMap<Integer, DimsTier> DIMS_TIERS = Collections.unmodifiableNavigableMap(
+            new TreeMap<>(
+                Map.of(
+                    511,
+                    new DimsTier(1, 1.0f),
+                    2048,
+                    new DimsTier(DEFAULT_BITS_PER_DIM, DEFAULT_PROJECTED_DIMS_FRACTION),
+                    Integer.MAX_VALUE,
+                    new DimsTier(4, 0.25f)
+                )
+            )
+        );
+
+        /**
+         * {@link #forDims} rounds the number of projected dimensions to a multiple of this, so that the packed codes
+         * and the query projection stay aligned to SIMD-friendly widths.
+         */
+        public static final int PROJECTED_DIMS_ALIGNMENT = 64;
 
         /**
          * Training-sample factor used on the flush path. Training streams the sample through a
@@ -112,9 +165,10 @@ public record IvfSegmentConfig(
          * @param bitsPerDim document encoding bits per projected dimension
          * @param queryBitsPerDim query quantization bits (0 for float scoring path)
          * @param projectedDimsFraction fraction of original dimensions to project to, in (0, 1]
+         * @param maxProjectedDims maximum projected dims to use
          * @throws IllegalArgumentException if any parameter is out of range
          */
-        public static AshConfig of(int bitsPerDim, int queryBitsPerDim, float projectedDimsFraction) {
+        public static AshConfig of(int bitsPerDim, int queryBitsPerDim, float projectedDimsFraction, int maxProjectedDims) {
             validateBitsPerDim(bitsPerDim);
             if (queryBitsPerDim < 0 || queryBitsPerDim > 8) {
                 throw new IllegalArgumentException(
@@ -124,13 +178,77 @@ public record IvfSegmentConfig(
             if (projectedDimsFraction <= 0 || projectedDimsFraction > 1.0f) {
                 throw new IllegalArgumentException("ASH projectedDimsFraction must be in (0, 1], got: " + projectedDimsFraction);
             }
-            return new AshConfig(projectedDimsFraction, bitsPerDim, queryBitsPerDim, DEFAULT_TRAINING_ITERATIONS, DEFAULT_TRAINING_FACTOR);
+            return new AshConfig(
+                projectedDimsFraction,
+                maxProjectedDims,
+                bitsPerDim,
+                queryBitsPerDim,
+                DEFAULT_TRAINING_ITERATIONS,
+                DEFAULT_TRAINING_FACTOR
+            );
+        }
+
+        /**
+         * Returns the ASH configuration for a field with {@code dims} dimensions, deriving whatever the user left unset
+         * from the size tier of the dimension, see {@link #DIMS_TIERS}.
+         * The number of projected dimensions always follows from {@code dims} alone, so that changing {@code bitsPerDim}
+         * on a field never changes the shape of its projection.
+         * <p>
+         * The returned configuration fixes the number of projected dimensions exactly, as {@link #maxProjectedDims} with a
+         * {@link #projectedDimsFraction} of 1, so it is only valid for vectors of {@code dims} dimensions:
+         * {@link #projectedDims} gives a wrong answer for any other dimension.
+         *
+         * @param dims the vector dimension of the field
+         * @param bitsPerDim the bits per projected dimension the user configured, or {@code null} to derive them
+         * @param queryBitsPerDim query quantization bits (0 for the float scoring path)
+         */
+        public static AshConfig forDims(int dims, @Nullable Integer bitsPerDim, int queryBitsPerDim) {
+            if (dims <= 0) {
+                throw new IllegalArgumentException("ASH dims must be > 0, got: " + dims);
+            }
+            int bits = bitsPerDim != null ? bitsPerDim : defaultBitsPerDim(dims);
+            // The projected dims are fixed exactly, so express them through maxProjectedDims with nothing left to
+            // the fraction.
+            return of(bits, queryBitsPerDim, 1.0f, defaultProjectedDims(dims));
+        }
+
+        /** Returns the bits per projected dimension {@link #forDims} uses when the user did not configure them. */
+        public static int defaultBitsPerDim(int dims) {
+            return DIMS_TIERS.ceilingEntry(dims).getValue().bitsPerDim();
+        }
+
+        /**
+         * Returns the number of projected dimensions {@link #forDims} uses: all of {@code dims} when its tier does not
+         * reduce the dimension, otherwise the tier's fraction of {@code dims}, capped at {@link #DEFAULT_MAX_PROJECTED_DIMS}
+         * and rounded to the nearest multiple of {@link #PROJECTED_DIMS_ALIGNMENT}.
+         */
+        static int defaultProjectedDims(int dims) {
+            float fraction = DIMS_TIERS.ceilingEntry(dims).getValue().projectedDimsFraction();
+            if (fraction == 1.0f) {
+                return dims;
+            }
+            int target = Math.min(DEFAULT_MAX_PROJECTED_DIMS, (int) (dims * fraction));
+            int aligned = Math.max(
+                PROJECTED_DIMS_ALIGNMENT,
+                Math.round((float) target / PROJECTED_DIMS_ALIGNMENT) * PROJECTED_DIMS_ALIGNMENT
+            );
+            return Math.min(aligned, dims);
+        }
+
+        /**
+         * Returns the number of dimensions vectors of {@code originalDim} dimensions are projected to under this
+         * configuration: {@code min(maxProjectedDims, (int) (originalDim * projectedDimsFraction))}. For a configuration
+         * from {@link #forDims}, only the dimension it was built for gives a meaningful answer.
+         */
+        public int projectedDims(int originalDim) {
+            return Math.min(maxProjectedDims, (int) (originalDim * projectedDimsFraction));
         }
 
         /** Returns an AshConfig with all default values. */
         public static AshConfig defaults() {
             return new AshConfig(
                 DEFAULT_PROJECTED_DIMS_FRACTION,
+                DEFAULT_MAX_PROJECTED_DIMS,
                 DEFAULT_BITS_PER_DIM,
                 DEFAULT_QUERY_BITS_PER_DIM,
                 DEFAULT_TRAINING_ITERATIONS,
@@ -200,9 +318,9 @@ public record IvfSegmentConfig(
         return new IvfSegmentConfig(raw.centroidIndexFormat(), raw.quantConfig(), raw.usePrecondition(), effective);
     }
 
-    /** Per-leaf IVF collector size (includes 2x factor for overspill duplicates). */
+    /** Per-leaf IVF collector size: twice {@link #shardMergeBudget} to absorb overspill duplicates. */
     public static int leafCollectorBudget(int resultK, float segmentOversample) {
-        return Math.round(2f * resultK * Math.max(1, segmentOversample));
+        return 2 * shardMergeBudget(resultK, segmentOversample);
     }
 
     /** Shard-level merge cap across segments after approximate search. */

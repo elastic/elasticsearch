@@ -23,12 +23,14 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.ExecutionException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -36,7 +38,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 @LuceneTestCase.SuppressFileSystems(value = "HandleLimitFS") // we sometimes have >2048 open files
 public class SearchWithRandomDisconnectsIT extends AbstractDisruptionTestCase {
 
-    public void testSearchWithRandomDisconnects() throws InterruptedException, ExecutionException {
+    public void testSearchWithRandomDisconnects() throws Exception {
         // make sure we have a couple data nodes
         int minDataNodes = randomIntBetween(3, 7);
         internalCluster().ensureAtLeastNumDataNodes(minDataNodes);
@@ -63,22 +65,24 @@ public class SearchWithRandomDisconnectsIT extends AbstractDisruptionTestCase {
         }
         final AtomicBoolean done = new AtomicBoolean();
         final int concurrentSearches = randomIntBetween(2, 5);
-        final List<PlainActionFuture<Void>> futures = new ArrayList<>(concurrentSearches);
+        // Capture the last submitted search for each concurrent search future so any exceptions encountered aren't lost
+        final Map<PlainActionFuture<Void>, AtomicReference<Future<?>>> futures = new HashMap<>(concurrentSearches);
         // Do not call runMoreSearches() inline on the transport thread as it may block Netty event loops
         final ExecutorService searchExecutor = Executors.newFixedThreadPool(concurrentSearches);
+        Exception searchException = null;
         try {
             for (int i = 0; i < concurrentSearches; i++) {
                 final PlainActionFuture<Void> finishFuture = new PlainActionFuture<>();
-                futures.add(finishFuture);
+                futures.put(finishFuture, new AtomicReference<>());
                 prepareRandomSearch().execute(new ActionListener<>() {
                     @Override
                     public void onResponse(SearchResponse searchResponse) {
-                        searchExecutor.submit(this::runMoreSearches);
+                        futures.get(finishFuture).getAndSet(searchExecutor.submit(this::runMoreSearches));
                     }
 
                     @Override
                     public void onFailure(Exception e) {
-                        searchExecutor.submit(this::runMoreSearches);
+                        futures.get(finishFuture).getAndSet(searchExecutor.submit(this::runMoreSearches));
                     }
 
                     private void runMoreSearches() {
@@ -109,14 +113,27 @@ public class SearchWithRandomDisconnectsIT extends AbstractDisruptionTestCase {
             // Stop the background searches before teardown, on every exit path: a search left running
             // into teardown hits the closing cluster and crashes the whole suite with a fatal AssertionError.
             done.set(true);
-            for (PlainActionFuture<Void> future : futures) {
+            for (Map.Entry<PlainActionFuture<Void>, AtomicReference<Future<?>>> entry : futures.entrySet()) {
                 try {
-                    future.get();
+                    entry.getValue().get().get(SAFE_AWAIT_TIMEOUT.getMillis(), TimeUnit.MILLISECONDS);
+                } catch (Exception e) {
+                    // Preserve exceptions thrown when submitting a search
+                    if (searchException == null) {
+                        searchException = e;
+                    } else {
+                        searchException.addSuppressed(e);
+                    }
+                }
+                try {
+                    entry.getKey().get(SAFE_AWAIT_TIMEOUT.getMillis(), TimeUnit.MILLISECONDS);
                 } catch (Exception e) {
                     // best-effort drain
                 }
             }
             searchExecutor.shutdown();
+        }
+        if (searchException != null) {
+            throw searchException;
         }
         ensureGreen(new TimeValue(DISRUPTION_HEALING_OVERHEAD.millis() + 2000L * indexNames.length), indexNames);
         assertAcked(indicesAdmin().prepareDelete(indexNames));

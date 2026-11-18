@@ -235,7 +235,7 @@ final class BatchRouterSet implements Releasable {
                 );
             }
         }
-        router.route(bulkItem, request, abstraction, concreteIndex, routing, project, requestsByShard);
+        router.route(bulkItem, request, concreteIndex, routing, project, requestsByShard);
     }
 
     /** Completes routing for every router and populates {@code requestsByShard}. Must be called once per bulk. */

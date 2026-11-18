@@ -45,8 +45,9 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 
 /**
- * Per-bulk router: decides each item's destination shard and builds the per-shard {@link SourceBatch}.
- * Provided-batch mode maps pre-built {@link EscfBatch} rows to shards and scatters; x-content mode
+ * Router of the items of a bulk that are in one batch: decides each item's destination shard and builds the
+ * per-shard {@link SourceBatch}es. A bulk has one for each pre-built batch it carries, and {@link BatchRouterSet}
+ * holds them. Provided-batch mode maps pre-built {@link EscfBatch} rows to shards and scatters; x-content mode
  * delegates encoding and routing to {@link BulkBatchEncoders} (TODO: temporary — goes away once all
  * producers build ESCF at the index-abstraction level). In x-content mode only indices with
  * {@code index.batch_indexing} enabled are encoded; items of other indices keep their inline source.
@@ -344,7 +345,6 @@ final class BatchModeRouter implements Releasable {
     void route(
         BulkItemRequest bulkItem,
         DocWriteRequest<?> request,
-        IndexAbstraction abstraction,
         Index concreteIndex,
         IndexRouting routing,
         ProjectMetadata project,

@@ -478,6 +478,56 @@ public class ArrowResponseTests extends ESTestCase {
         }
     };
 
+    private record HistogramValue(List<Double> values, List<Long> counts) {}
+
+    static final ValueType HISTOGRAM_VALUES = new ValueTypeImpl<BytesRefBlock.Builder, BytesRefBlock, StructVector>(
+        "histogram",
+        factory -> factory.newBytesRefBlockBuilder(0),
+        builder -> {
+            int size = randomIntBetween(0, 4);
+            List<Double> values = new ArrayList<>(size);
+            List<Long> counts = new ArrayList<>(size);
+            for (int i = 0; i < size; i++) {
+                values.add(randomDouble());
+                counts.add(randomLongBetween(1, 1000));
+            }
+            builder.appendBytesRef(EncodedTDigest.encodeCentroids(values, counts));
+        },
+        (block, index, scratch) -> {
+            EncodedTDigest digest = new EncodedTDigest(block.getBytesRef(index, scratch));
+            List<Double> values = new ArrayList<>();
+            List<Long> counts = new ArrayList<>();
+            var centroids = digest.centroidIterator();
+            while (centroids.next()) {
+                values.add(centroids.currentMean());
+                counts.add(centroids.currentCount());
+            }
+            return new HistogramValue(values, counts);
+        },
+        (vector, position) -> new HistogramValue(
+            doubleList((ListVector) vector.getChild("values"), position),
+            longList((ListVector) vector.getChild("counts"), position)
+        )
+    );
+
+    private static List<Double> doubleList(ListVector vector, int position) {
+        Float8Vector values = (Float8Vector) vector.getDataVector();
+        List<Double> result = new ArrayList<>();
+        for (int i = vector.getElementStartIndex(position); i < vector.getElementEndIndex(position); i++) {
+            result.add(values.get(i));
+        }
+        return result;
+    }
+
+    private static List<Long> longList(ListVector vector, int position) {
+        BigIntVector values = (BigIntVector) vector.getDataVector();
+        List<Long> result = new ArrayList<>();
+        for (int i = vector.getElementStartIndex(position); i < vector.getElementEndIndex(position); i++) {
+            result.add(values.get(i));
+        }
+        return result;
+    }
+
     static final Map<DataType, ValueType> VALUE_TYPES = Map.ofEntries(
         Map.entry(DataType.INTEGER, INTEGER_VALUES),
         Map.entry(DataType.COUNTER_INTEGER, INTEGER_VALUES),
@@ -517,6 +567,7 @@ public class ArrowResponseTests extends ESTestCase {
         Map.entry(DataType.DATE_RANGE, DATE_RANGE_VALUES),
         Map.entry(DataType.DOUBLE_RANGE, DOUBLE_RANGE_VALUES),
         Map.entry(DataType.AGGREGATE_METRIC_DOUBLE, AGGREGATE_METRIC_DOUBLE_VALUES),
+        Map.entry(DataType.HISTOGRAM, HISTOGRAM_VALUES),
         Map.entry(DataType.TDIGEST, TDIGEST_VALUES)
     );
 
@@ -663,6 +714,52 @@ public class ArrowResponseTests extends ESTestCase {
             TestCase testCase = new TestCase(List.of(testColumn), pages);
 
             compareEsqlAndArrow(testCase);
+        }
+    }
+
+    public void testHistogramMultivalued() throws IOException {
+        TestColumn column = TestColumn.create("histogram", DataType.HISTOGRAM, true);
+        Block block;
+        try (Block.Builder builder = column.valueType.createBlockBuilder(blockFactory)) {
+            builder.beginPositionEntry();
+            column.valueType.addValue(builder, Density.Dense);
+            column.valueType.addValue(builder, Density.Dense);
+            builder.endPositionEntry();
+            builder.appendNull();
+            column.valueType.addValue(builder, Density.Dense);
+            block = builder.build();
+        }
+        try (
+            TestCase testCase = new TestCase(List.of(column), List.of(new TestPage(List.of(TestBlock.create(column, block)))));
+            VectorSchemaRoot root = toArrowVectors(testCase)
+        ) {
+            compareEsqlAndArrow(testCase, root);
+            assertListLayout((ListVector) root.getVector("histogram"), 0, 2, 2, 3);
+        }
+    }
+
+    public void testEmptyHistogramIsNotNull() throws IOException {
+        BytesRefBlock classic;
+        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(2)) {
+            builder.appendNull();
+            builder.appendBytesRef(EncodedTDigest.encodeCentroids(List.of(), List.of()));
+            classic = builder.build();
+        }
+        TestColumn classicColumn = TestColumn.create("classic", DataType.HISTOGRAM, false);
+        try (
+            TestCase testCase = new TestCase(
+                List.of(classicColumn),
+                List.of(new TestPage(List.of(TestBlock.create(classicColumn, classic))))
+            );
+            VectorSchemaRoot root = toArrowVectors(testCase)
+        ) {
+            compareEsqlAndArrow(testCase, root);
+            StructVector classicVector = (StructVector) root.getVector("classic");
+            assertEquals(List.of("values", "counts"), classicVector.getField().getChildren().stream().map(Field::getName).toList());
+            assertTrue(classicVector.isNull(0));
+            assertFalse(classicVector.isNull(1));
+            assertEquals(List.of(), ((ListVector) classicVector.getChild("values")).getObject(1));
+            assertEquals(List.of(), ((ListVector) classicVector.getChild("counts")).getObject(1));
         }
     }
 

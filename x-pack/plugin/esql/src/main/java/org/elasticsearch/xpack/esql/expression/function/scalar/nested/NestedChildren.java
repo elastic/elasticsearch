@@ -31,6 +31,7 @@ import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.expression.function.BlockLoaderWarnings;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
@@ -83,7 +84,7 @@ public final class NestedChildren implements Releasable {
         String path,
         List<String> paths,
         List<DataType> types,
-        List<ValuesSourceReaderOperator.ConverterFactory> keyCasts,
+        List<UnionTypeEsField> unionTypes,
         PlannerSettings settings
     ) {
         List<String> fields = paths.stream().map(p -> path + "." + p).toList();
@@ -109,7 +110,7 @@ public final class NestedChildren implements Releasable {
         for (int f = 0; f < fields.size(); f++) {
             String name = fields.get(f);
             DataType type = types.get(f);
-            ValuesSourceReaderOperator.ConverterFactory keyCast = keyCasts.get(f);
+            UnionTypeEsField union = unionTypes.get(f);
             infos.add(new ValuesSourceReaderOperator.FieldInfo(name, PlannerUtils.toElementType(type), false, (driverContext, shard) -> {
                 var context = (EsPhysicalOperationProviders.DefaultShardContext) shardContexts.get(shard);
                 BlockLoader loader = context.nestedChildBlockLoader(
@@ -143,10 +144,10 @@ public final class NestedChildren implements Releasable {
                     loader = ConstantNull.INSTANCE;
                 }
                 if (DataType.isString(type) == false && context.readsKey(name)) {
-                    // A key is a keyword: a column of the type another index maps reads it through a cast, as a parent does
-                    return keyCast == null
-                        ? ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS
-                        : ValuesSourceReaderOperator.loadAndConvert(loader, keyCast);
+                    return ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS;
+                }
+                if (union != null) {
+                    return context.convertedNestedChild(union, name, loader);
                 }
                 return ValuesSourceReaderOperator.load(loader);
             }));

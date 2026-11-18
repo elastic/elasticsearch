@@ -396,23 +396,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             );
             return ValuesSourceReaderOperator.load(blockLoader);
         }
-        Expression conversion = switch (unionTypes) {
-            case CompactMultiTypeEsField compact -> {
-                MappedFieldType mft = shardContext.fieldType(fieldName);
-                // Match what field_caps reports on the coordinator: family type (e.g., constant_keyword -> keyword) rather than the
-                // concrete mapper type, so the lookup key here aligns with how typeToConversionExpressions was keyed upstream.
-                yield mft == null
-                    ? null
-                    : compact.getConversionExpressionForType(
-                        EsqlDataTypeRegistry.INSTANCE.fromEs(mft.familyTypeName(), mft.getMetricType())
-                    );
-            }
-            case MultiTypeEsField legacy -> {
-                // Use the fully qualified name `cluster:index-name` because multiple types are resolved on coordinator with cluster prefix
-                String indexName = shardContext.ctx.getFullyQualifiedIndex().getName();
-                yield legacy.getConversionExpressionForIndex(indexName);
-            }
-        };
+        Expression conversion = conversionFor(unionTypes, shardContext, fieldName);
         if (conversion == null) {
             Expression potentiallyUnmapped = unionTypes.getUnmappedConversionExpression();
             if (!(potentiallyUnmapped instanceof AbstractConvertFunction convert)) {
@@ -500,7 +484,28 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         );
     }
 
-    private static @Nullable UnionTypeEsField findUnionTypes(Attribute attr) {
+    /** The conversion {@code unionTypes} applies to {@code fieldName} on the shard of {@code shardContext}, or {@code null}. */
+    private static @Nullable Expression conversionFor(UnionTypeEsField unionTypes, DefaultShardContext shardContext, String fieldName) {
+        return switch (unionTypes) {
+            case CompactMultiTypeEsField compact -> {
+                MappedFieldType mft = shardContext.fieldType(fieldName);
+                // Match what field_caps reports on the coordinator: family type (e.g., constant_keyword -> keyword) rather than the
+                // concrete mapper type, so the lookup key here aligns with how typeToConversionExpressions was keyed upstream.
+                yield mft == null
+                    ? null
+                    : compact.getConversionExpressionForType(
+                        EsqlDataTypeRegistry.INSTANCE.fromEs(mft.familyTypeName(), mft.getMetricType())
+                    );
+            }
+            case MultiTypeEsField legacy -> {
+                // Use the fully qualified name `cluster:index-name` because multiple types are resolved on coordinator with cluster prefix
+                String indexName = shardContext.ctx.getFullyQualifiedIndex().getName();
+                yield legacy.getConversionExpressionForIndex(indexName);
+            }
+        };
+    }
+
+    public static @Nullable UnionTypeEsField findUnionTypes(Attribute attr) {
         if (attr instanceof FieldAttribute fa && fa.field() instanceof UnionTypeEsField unionTypeEsField) {
             return unionTypeEsField;
         }
@@ -916,6 +921,21 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
          */
         public boolean storesFilteredSource() {
             return ctx.getMappingLookup().storesFilteredSource();
+        }
+
+        /**
+         * Reads the child field {@code name} with {@code loader}, as the type this shard maps it as, and converts it with the
+         * conversion {@code unionTypes} holds for this shard, or gives nulls where it holds none.
+         */
+        public ValuesSourceReaderOperator.LoaderAndConverter convertedNestedChild(
+            UnionTypeEsField unionTypes,
+            String name,
+            BlockLoader loader
+        ) {
+            Expression conversion = conversionFor(unionTypes, this, name);
+            return conversion == null
+                ? ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS
+                : ValuesSourceReaderOperator.loadAndConvert(loader, new TypeConverter((EsqlScalarFunction) conversion));
         }
 
         /**

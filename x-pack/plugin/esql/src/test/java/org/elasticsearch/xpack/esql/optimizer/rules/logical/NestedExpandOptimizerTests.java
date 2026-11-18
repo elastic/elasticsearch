@@ -198,6 +198,13 @@ public class NestedExpandOptimizerTests extends AbstractLogicalPlanOptimizerTest
         assertThat(fieldNames(local), hasItem("items.small"));
     }
 
+    public void testLocalOptimizerKeepsAChildTheExpansionConverts() {
+        LogicalPlan local = localPlan(
+            nestedPlan("FROM ne_types | NESTED_EXPAND items | EVAL p = TO_LONG(items.v) + 1 | WHERE p > 2 | KEEP p")
+        );
+        assertThat(fieldNames(local), hasItem("$$items.v$converted_to$long"));
+    }
+
     /** A data node's stats count a field of a nested object as not extractable from its parent, so none exists there. */
     private static LogicalPlan localPlan(LogicalPlan plan) {
         var stats = new EsqlTestUtils.TestSearchStats() {

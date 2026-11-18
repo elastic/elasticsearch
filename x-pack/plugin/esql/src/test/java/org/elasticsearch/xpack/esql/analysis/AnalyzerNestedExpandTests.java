@@ -20,8 +20,10 @@ import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.NestedScopeField;
+import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -43,6 +45,7 @@ import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -133,6 +136,38 @@ public class AnalyzerNestedExpandTests extends AnalyzerTestCase {
     public void testSmallNumericChildIsWidenedLikeAnOrdinaryColumn() {
         LogicalPlan plan = nestedAnalyzer().query("FROM ne_types | NESTED_EXPAND items | KEEP items.small");
         assertThat(plan.output().getFirst().dataType(), equalTo(DataType.INTEGER));
+    }
+
+    public void testCastOfConflictingChildIsGeneratedByTheExpansion() {
+        LogicalPlan plan = nestedAnalyzer().query("FROM ne_types | NESTED_EXPAND items | EVAL x = TO_LONG(items.v) | KEEP x");
+        NestedExpand expand = expand(plan);
+        List<String> names = names(expand.expanded());
+        int generated = names.indexOf("$$items.v$converted_to$long");
+        assertThat(names, hasItem("$$items.v$converted_to$long"));
+        assertThat(expand.paths().get(generated), equalTo("v"));
+        assertThat(expand.expanded().get(generated).dataType(), equalTo(DataType.LONG));
+        assertThat(((FieldAttribute) expand.expanded().get(generated)).field(), instanceOf(UnionTypeEsField.class));
+        List<EsRelation> relations = new ArrayList<>();
+        plan.forEachDown(EsRelation.class, relations::add);
+        assertThat(relations, hasSize(1));
+        assertThat(names(relations.getFirst().output()), everyItem(not(containsString("converted_to"))));
+    }
+
+    public void testSameCastOfConflictingChildIsGeneratedOnce() {
+        LogicalPlan plan = nestedAnalyzer().query(
+            "FROM ne_types | NESTED_EXPAND items | EVAL x = TO_LONG(items.v), y = TO_LONG(items.v) + 1 | KEEP x, y"
+        );
+        assertThat(names(expand(plan).expanded()).stream().filter(n -> n.contains("converted_to")).toList(), hasSize(1));
+    }
+
+    public void testDifferentCastsOfConflictingChildAreGeneratedSeparately() {
+        LogicalPlan plan = nestedAnalyzer().query(
+            "FROM ne_types | NESTED_EXPAND items | EVAL x = TO_LONG(items.v), y = TO_STRING(items.v) | KEEP x, y"
+        );
+        assertThat(
+            names(expand(plan).expanded()).stream().filter(n -> n.contains("converted_to")).toList(),
+            contains("$$items.v$converted_to$long", "$$items.v$converted_to$keyword")
+        );
     }
 
     public void testWithoutNestedExpandChildrenAreUnknown() {

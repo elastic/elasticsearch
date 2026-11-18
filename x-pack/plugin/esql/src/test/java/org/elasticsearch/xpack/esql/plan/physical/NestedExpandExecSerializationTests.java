@@ -9,8 +9,11 @@ package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.xpack.esql.SerializationTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
 
 import java.io.IOException;
@@ -18,7 +21,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTestUtils.randomReferenceAttribute;
+import static org.elasticsearch.xpack.esql.plan.logical.NestedExpandSerializationTests.analyzedExpand;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class NestedExpandExecSerializationTests extends AbstractPhysicalPlanSerializationTests<NestedExpandExec> {
     @Override
@@ -61,6 +66,14 @@ public class NestedExpandExecSerializationTests extends AbstractPhysicalPlanSeri
             IOException e = expectThrows(IOException.class, () -> createTestInstance().writeTo(out));
             assertThat(e.getMessage(), containsString("NESTED_EXPAND requires nested expansion transport support"));
         }
+    }
+
+    public void testRoundTripsAChildTheExpansionConverts() throws IOException {
+        NestedExpand logical = analyzedExpand("FROM ne_types | NESTED_EXPAND items | EVAL x = TO_LONG(items.v) | KEEP x | LIMIT 10");
+        NestedExpandExec exec = new NestedExpandExec(logical.source(), randomChild(0), logical.path(), logical.expanded(), logical.paths());
+        Attribute converted = exec.expanded().stream().filter(a -> a.name().contains("converted_to")).findFirst().orElseThrow();
+        assertThat(((FieldAttribute) converted).field(), instanceOf(UnionTypeEsField.class));
+        SerializationTestUtils.assertSerialization(exec);
     }
 
     private static List<Attribute> randomExpanded(int size) {

@@ -4423,6 +4423,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private static class UnionTypeResolutionState {
             private final List<Attribute.IdIgnoringWrapper> unionFieldAttributes = new ArrayList<>();
             private boolean isAfterAggregate = false;
+            /** The children a {@code NESTED_EXPAND} reads, by id, with the relative path each is read from. */
+            private final Map<NameId, String> expandedChildren = new HashMap<>();
+            /** The generated attributes that convert an expanded child, by id, with the child they convert. */
+            private final Map<NameId, FieldAttribute> convertedChildren = new HashMap<>();
         }
 
         private static LogicalPlan doRule(LogicalPlan plan, UnionTypeResolutionState state, AnalyzerContext context) {
@@ -4438,6 +4442,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
             }
 
+            if (plan instanceof NestedExpand expand && expand.bound()) {
+                for (int i = 0; i < expand.expanded().size(); i++) {
+                    state.expandedChildren.put(expand.expanded().get(i).id(), expand.paths().get(i));
+                }
+            }
+
             if (state.isAfterAggregate) {
                 return plan;
             }
@@ -4447,7 +4457,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // Replace the entire convert function with a new FieldAttribute (containing type conversion knowledge)
             plan = plan.transformExpressionsOnly(e -> {
                 if (e instanceof ConvertFunction convert) {
-                    return resolveConvertFunction(convert, state.unionFieldAttributes, context);
+                    int before = state.unionFieldAttributes.size();
+                    Expression resolved = resolveConvertFunction(convert, state.unionFieldAttributes, context);
+                    if (convertedField(convert) instanceof FieldAttribute child && state.expandedChildren.containsKey(child.id())) {
+                        for (int i = before; i < state.unionFieldAttributes.size(); i++) {
+                            state.convertedChildren.put(state.unionFieldAttributes.get(i).inner().id(), child);
+                        }
+                    }
+                    return resolved;
                 }
                 return e;
             });
@@ -4458,9 +4475,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             if (generatedUnionFields) {
+                List<FieldAttribute> generated = state.unionFieldAttributes.stream().map(attr -> (FieldAttribute) attr.inner()).toList();
+                // An expanded child is not a field of the relation: its conversion is part of the expansion that reads it.
+                plan = addGeneratedFieldsToNestedExpands(plan, generated, state);
                 plan = addGeneratedFieldsToEsRelations(
                     plan,
-                    state.unionFieldAttributes.stream().map(attr -> (FieldAttribute) attr.inner()).toList(),
+                    generated.stream().filter(fa -> state.convertedChildren.containsKey(fa.id()) == false).toList(),
                     context.unmappedResolution().loadsAllUnmappedFields()
                 );
             }
@@ -4471,6 +4491,50 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 state.isAfterAggregate = true;
             }
             return plan;
+        }
+
+        /** The field a convert reads, looking through the converts it is nested in, as in {@code foo::long::double}. */
+        private static Expression convertedField(ConvertFunction convert) {
+            Expression field = convert.field();
+            while (field instanceof ConvertFunction inner) {
+                field = inner.field();
+            }
+            return field;
+        }
+
+        /**
+         * Adds the generated attributes that convert a child of a {@code NESTED_EXPAND} to that expansion, which reads the child
+         * from each shard's mapping and converts it there.
+         */
+        private static LogicalPlan addGeneratedFieldsToNestedExpands(
+            LogicalPlan plan,
+            List<FieldAttribute> unionFieldAttributes,
+            UnionTypeResolutionState state
+        ) {
+            return plan.transformDown(NestedExpand.class, expand -> {
+                if (expand.bound() == false) {
+                    return expand;
+                }
+                List<Attribute> expanded = new ArrayList<>(expand.expanded());
+                List<String> paths = new ArrayList<>(expand.paths());
+                for (FieldAttribute generated : unionFieldAttributes) {
+                    FieldAttribute child = state.convertedChildren.get(generated.id());
+                    int index = -1;
+                    for (int i = 0; child != null && i < expand.expanded().size(); i++) {
+                        if (expand.expanded().get(i).id().equals(child.id())) {
+                            index = i;
+                            break;
+                        }
+                    }
+                    if (index >= 0 && expanded.contains(generated) == false) {
+                        expanded.add(generated);
+                        paths.add(expand.paths().get(index));
+                    }
+                }
+                return expanded.size() == expand.expanded().size()
+                    ? expand
+                    : new NestedExpand(expand.source(), expand.child(), null, expand.path(), expanded, paths);
+            });
         }
 
         /**

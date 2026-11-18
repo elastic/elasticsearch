@@ -11,10 +11,10 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
-import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.hamcrest.Matcher;
 
@@ -34,7 +34,7 @@ public class NestedExpandOperatorTests extends NestedIndexOperatorTestCase {
             "items",
             List.of("price", "note"),
             List.of(DataType.LONG, DataType.TEXT),
-            Collections.nCopies(2, (ValuesSourceReaderOperator.ConverterFactory) null),
+            Collections.nCopies(2, (UnionTypeEsField) null),
             PlannerSettings.DEFAULTS
         );
         return new NestedExpandOperator.Factory(0, children, "items", List.of(DataType.LONG, DataType.TEXT));

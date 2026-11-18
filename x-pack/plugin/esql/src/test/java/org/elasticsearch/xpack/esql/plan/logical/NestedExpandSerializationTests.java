@@ -9,15 +9,20 @@ package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.xpack.esql.SerializationTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerNestedExpandTests.nestedAnalyzer;
 import static org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTestUtils.randomReferenceAttribute;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 
 /** Only a bound {@link NestedExpand} is serialized, and it is read back without the name the user wrote. */
 public class NestedExpandSerializationTests extends AbstractLogicalPlanSerializationTests<NestedExpand> {
@@ -61,6 +66,23 @@ public class NestedExpandSerializationTests extends AbstractLogicalPlanSerializa
             IOException e = expectThrows(IOException.class, () -> createTestInstance().writeTo(out));
             assertThat(e.getMessage(), containsString("NESTED_EXPAND requires nested expansion transport support"));
         }
+    }
+
+    public void testRoundTripsChildrenTheTypesOfTwoIndicesMerged() throws IOException {
+        SerializationTestUtils.assertSerialization(analyzedExpand("FROM ne_types | NESTED_EXPAND items | KEEP items.small | LIMIT 10"));
+    }
+
+    public void testRoundTripsAChildTheExpansionConverts() throws IOException {
+        NestedExpand expand = analyzedExpand("FROM ne_types | NESTED_EXPAND items | EVAL x = TO_LONG(items.v) | KEEP x | LIMIT 10");
+        Attribute converted = expand.expanded().stream().filter(a -> a.name().contains("converted_to")).findFirst().orElseThrow();
+        assertThat(((FieldAttribute) converted).field(), instanceOf(UnionTypeEsField.class));
+        SerializationTestUtils.assertSerialization(expand);
+    }
+
+    public static NestedExpand analyzedExpand(String query) {
+        List<NestedExpand> found = new ArrayList<>();
+        nestedAnalyzer(NestedExpand.VERSION).query(query).forEachDown(NestedExpand.class, found::add);
+        return found.getFirst();
     }
 
     private static List<Attribute> randomExpanded(int size) {

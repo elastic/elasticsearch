@@ -43,7 +43,6 @@ import org.elasticsearch.compute.lucene.query.LuceneOperator;
 import org.elasticsearch.compute.lucene.query.SharedSortBound;
 import org.elasticsearch.compute.lucene.query.TimeSeriesSourceOperator;
 import org.elasticsearch.compute.lucene.read.FieldPresenceOperator;
-import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.ChangePointOperator;
 import org.elasticsearch.compute.operator.ColumnExtractOperator;
 import org.elasticsearch.compute.operator.ColumnLoadOperator;
@@ -2963,7 +2962,7 @@ public class LocalExecutionPlanner {
             expand.path(),
             expand.paths(),
             types,
-            Collections.nCopies(types.size(), (ValuesSourceReaderOperator.ConverterFactory) null),
+            expand.expanded().stream().map(EsPhysicalOperationProviders::findUnionTypes).toList(),
             context.plannerSettings
         );
         return source.with(new NestedExpandOperator.Factory(docChannel, children, expand.path(), types), layout.build());

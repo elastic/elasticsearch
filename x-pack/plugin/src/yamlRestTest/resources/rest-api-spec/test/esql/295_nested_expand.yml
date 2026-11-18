@@ -897,3 +897,109 @@ setup:
   - match: { values.2: ["1", null, null] }
   - match: { values.3: ["2", 4, "d"] }
   - match: { values.4: ["2", 5, "e"] }
+
+---
+"A child mapped with different types in two indices converts through the cast the query settles it with":
+  - do:
+      indices.create:
+        index: ne_price_a
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              id:
+                type: keyword
+              items:
+                type: nested
+                properties:
+                  price:
+                    type: integer
+  - do:
+      indices.create:
+        index: ne_price_b
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              id:
+                type: keyword
+              items:
+                type: nested
+                properties:
+                  price:
+                    type: keyword
+  - do:
+      indices.create:
+        index: ne_price_c
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              id:
+                type: keyword
+              items:
+                type: nested
+                properties:
+                  note:
+                    type: keyword
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "ne_price_a", "_id": "1" } }
+          - { "id": "a1", "items": [ { "price": 1 }, { "price": 2 } ] }
+          - { "index": { "_index": "ne_price_b", "_id": "1" } }
+          - { "id": "b1", "items": [ { "price": "30" }, { "price": "40" } ] }
+          - { "index": { "_index": "ne_price_c", "_id": "1" } }
+          - { "id": "c1", "items": [ { "note": "x" } ] }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM ne_price_a, ne_price_b | NESTED_EXPAND items | EVAL p = TO_LONG(items.price) | KEEP id, p | SORT p | LIMIT 10'
+  - length: { values: 4 }
+  - match: { values.0: ["a1", 1] }
+  - match: { values.1: ["a1", 2] }
+  - match: { values.2: ["b1", 30] }
+  - match: { values.3: ["b1", 40] }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM ne_price_a, ne_price_b | NESTED_EXPAND items | EVAL p = TO_LONG(items.price) + 1 | WHERE p > 2 | KEEP id, p | SORT p | LIMIT 10'
+  - length: { values: 3 }
+  - match: { values.0: ["a1", 3] }
+  - match: { values.1: ["b1", 31] }
+  - match: { values.2: ["b1", 41] }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM ne_price_a, ne_price_b | NESTED_EXPAND items | EVAL s = TO_STRING(items.price) | KEEP id, s | SORT s | LIMIT 10'
+  - length: { values: 4 }
+  - match: { values.0: ["a1", "1"] }
+  - match: { values.3: ["b1", "40"] }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM ne_price_a, ne_price_b | NESTED_EXPAND items | EVAL p = items.price::long | STATS total = SUM(p), n = COUNT(*) BY id | SORT id | LIMIT 10'
+  - length: { values: 2 }
+  - match: { values.0: [3, 2, "a1"] }
+  - match: { values.1: [70, 2, "b1"] }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM ne_price_a, ne_price_b | NESTED_EXPAND items | KEEP id | SORT id | LIMIT 10'
+  - length: { values: 4 }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM ne_price_a, ne_price_b, ne_price_c | NESTED_EXPAND items | EVAL p = TO_LONG(items.price) | KEEP id, p | SORT id, p | LIMIT 10'
+  - length: { values: 5 }
+  - match: { values.0: ["a1", 1] }
+  - match: { values.4: ["c1", null] }
+  - do:
+      catch: /Cannot use field \[items\.price\] due to ambiguities being mapped as \[2\] incompatible types/
+      esql.query:
+        body:
+          query: 'FROM ne_price_a, ne_price_b | NESTED_EXPAND items | WHERE items.price IS NOT NULL'

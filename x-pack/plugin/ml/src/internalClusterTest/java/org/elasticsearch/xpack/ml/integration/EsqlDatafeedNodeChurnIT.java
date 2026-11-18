@@ -114,7 +114,8 @@ public class EsqlDatafeedNodeChurnIT extends BaseMlIntegTestCase {
         CountDownLatch releaseRequest = new CountDownLatch(1);
         victimTransport.addRequestHandlingBehavior(ESQL_DATA_ACTION_NAME, (handler, request, channel, task) -> {
             requestReceived.countDown();
-            releaseRequest.await(10, TimeUnit.SECONDS);
+            // Times out as a test failure without forwarding, so the request can never complete before the disruption starts.
+            safeAwait(releaseRequest, TimeValue.timeValueSeconds(60));
             handler.messageReceived(request, channel, task);
         });
 
@@ -135,10 +136,19 @@ public class EsqlDatafeedNodeChurnIT extends BaseMlIntegTestCase {
                 Level.ERROR,
                 "*"
             );
-            // Register both expectations before triggering anything: the "no ERROR" check must span
+            // The retry cannot find another shard copy while the partition is up, so the cycle ends in this WARN.
+            // Its arrival is the completion barrier for the disrupted cycle.
+            MockLog.SeenEventExpectation failedCycleLoggedAtWarn = new MockLog.SeenEventExpectation(
+                "failed extraction cycle logged at WARN",
+                DATAFEED_JOB_LOGGER,
+                Level.WARN,
+                "*error while extracting data*"
+            );
+            // Register all expectations before triggering anything: the "no ERROR" check must span
             // the whole window from before the disruption starts through the retry, its resolution,
             // and the datafeed settling back to STARTED -- not just an instant sampled after the fact.
             mockLog.addExpectation(churnLoggedAtDebug);
+            mockLog.addExpectation(failedCycleLoggedAtWarn);
             mockLog.addExpectation(noErrorLogged);
 
             try {
@@ -164,6 +174,8 @@ public class EsqlDatafeedNodeChurnIT extends BaseMlIntegTestCase {
 
                 // Confirms the disconnection was classified as a node failure and retried once.
                 churnLoggedAtDebug.awaitMatched(TimeValue.timeValueSeconds(30).millis());
+                // Heal only after the failed cycle has completed; healing right after the DEBUG line would let the retry succeed.
+                failedCycleLoggedAtWarn.awaitMatched(TimeValue.timeValueSeconds(30).millis());
             } finally {
                 releaseRequest.countDown();
                 if (networkDisruption != null) {

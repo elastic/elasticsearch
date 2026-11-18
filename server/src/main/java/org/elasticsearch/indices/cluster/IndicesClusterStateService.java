@@ -1106,7 +1106,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 return;
             }
 
-            final Optional<PendingAllocationState.InFlight> claim = tryClaimInFlight(key, primaryTerm);
+            final Optional<PendingAllocationState.InFlight> claim = tryClaimInFlightTicket(key, primaryTerm);
             if (claim.isEmpty()) {
                 // Something already owns creating this allocation, or master already knows it failed.
                 logger.debug("{} not creating shard: already owned by ticket [{}]", key, pendingAllocationStates.get(key));
@@ -1184,7 +1184,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     /// Claims ownership of creating shard identified by `key`. Refuses (and returns empty) if an attempt is
     /// already creating the shard, or if master already knows this allocation failed. Carries the retry count
     /// forward from whatever [PendingAllocationState.AwaitingRecoveryRetry] (or absent) state preceded it.
-    private Optional<PendingAllocationState.InFlight> tryClaimInFlight(ShardAllocationKey key, long primaryTerm) {
+    private Optional<PendingAllocationState.InFlight> tryClaimInFlightTicket(ShardAllocationKey key, long primaryTerm) {
         assert Thread.holdsLock(this);
         PendingAllocationState current = pendingAllocationStates.get(key);
         assert current == null || current.primaryTerm() == primaryTerm
@@ -1193,9 +1193,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             return Optional.empty();
         }
         int retries = current instanceof PendingAllocationState.AwaitingRecoveryRetry(var n, var ignoredTerm) ? n : 0;
-        var candidate = new PendingAllocationState.InFlight(threadPool.relativeTimeInMillis(), retries, primaryTerm);
-        pendingAllocationStates.put(key, candidate);
-        return Optional.of(candidate);
+        var inFlightTicket = new PendingAllocationState.InFlight(threadPool.relativeTimeInMillis(), retries, primaryTerm);
+        pendingAllocationStates.put(key, inFlightTicket);
+        return Optional.of(inFlightTicket);
     }
 
     private void createShardWhenLockAvailable(

@@ -127,9 +127,7 @@ This functionality is in technical preview and may be changed or removed in a fu
 ::::
 
 
-{{esql}} has a way to handle [field type mismatches](#esql-multi-index-invalid-mapping). When the same field is mapped to multiple types in multiple indices, the type of the field is understood to be a *union* of the various types in the index mappings. As seen in the preceding examples, this *union type* cannot be used in the results, and cannot be referred to by the query, except in `KEEP`, `DROP`, or when it’s passed to a type conversion function that converts the field to a single type. {{esql}} offers a suite of [type conversion functions](functions-operators/type-conversion-functions.md) to achieve this.
-
-{applies_to}`stack: ga 9.7` {applies_to}`serverless: ga` The conversion doesn't have to accept every mapped type. Types it can convert are returned as the target type. Types it can't convert are returned as `null`, and the response includes a warning naming those types and, usually, the indices they come from. If no mapped type can be converted, the result is `null` in every index, with the same warning. With [`SET unmapped_fields`](directives/set.md#esql-unmapped_fields) set to `"load"`, the values loaded from `_source` for indices that don't map the field are converted when they can be. Indices that map the field to a type {{esql}} doesn't support, such as `rank_feature`, are also returned as `null` with a warning. Without a conversion function, the query fails with an unsupported type error. In earlier versions, the conversion function must accept every mapped type, and a field with an unsupported type in any index can't be used.
+{{esql}} has a way to handle [field type mismatches](#esql-multi-index-invalid-mapping). When the same field is mapped to multiple types in multiple indices, the type of the field is understood to be a *union* of the various types in the index mappings. As seen in the preceding examples, this *union type* cannot be used in the results, and cannot be referred to by the query, except in `KEEP`, `DROP`, or when it’s passed to a type conversion function that accepts all the types in the *union* and converts the field to a single type. {{esql}} offers a suite of [type conversion functions](functions-operators/type-conversion-functions.md) to achieve this.
 
 In the above examples, the query can use a command like `EVAL client_ip = TO_IP(client_ip)` to resolve the union of `ip` and `keyword` to just `ip`. You can also use the type-conversion syntax `EVAL client_ip = client_ip::IP`. Alternatively, the query could use [`TO_STRING`](functions-operators/type-conversion-functions/to_string.md) to convert all supported types into `KEYWORD`.
 
@@ -156,6 +154,19 @@ FROM events_*
 A `MATCH` search on a converted union-typed field, such as `MATCH(TO_TEXT(message), "error")`, is a
 [runtime search](/reference/query-languages/esql/esql-runtime-search.md): it scans values row by row instead of
 using the index, and analyzes `text` values with the `standard` analyzer rather than the analyzers in the mappings.
+
+### Types that can't be converted [esql-multi-index-lenient-conversion]
+```{applies_to}
+stack: ga 9.7
+serverless: ga
+```
+The conversion function doesn't have to accept every mapped type. Types it can convert are returned as the target type. Types it can't convert are returned as `null`, and the response includes a warning naming those types and, usually, the indices they come from.
+
+If no mapped type can be converted, the result is `null` in every index, with the same warning.
+
+With [`SET unmapped_fields`](directives/set.md#esql-unmapped_fields) set to `"load"`, the values loaded from `_source` for indices that don't map the field are converted when they can be.
+
+Indices that map the field to a type {{esql}} doesn't support, such as `rank_feature`, are also returned as `null` with a warning when you use a conversion function. Without one, the query fails with an unsupported type error.
 
 ### Date and date_nanos union type [esql-multi-index-date-date-nanos-union]
 ```{applies_to}

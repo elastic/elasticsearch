@@ -325,7 +325,7 @@ serial_event_id:long
 
 eventQueryExitCodeGteZero
 required_capability: eql_command
-EQL endgame-140 "process where exit_code >= 0" | LIMIT 100 | SORT serial_event_id | KEEP serial_event_id;
+EQL endgame-140 "process where exit_code >= 0" WITH {"size": 100} | LIMIT 100 | SORT serial_event_id | KEEP serial_event_id;
 
 serial_event_id:long
 58
@@ -340,10 +340,45 @@ serial_event_id:long
 75303
 ;
 
-// LIMIT directly above the source is pushed as the EQL request size (here 100) instead of the ES|QL truncation cap.
-eventQueryLimitPushedAsSize
+eventQueryDefaultSizeReturnsLastTenMatches
 required_capability: eql_command
-EQL endgame-140 "process where serial_event_id <= 12" | LIMIT 100 | SORT serial_event_id | KEEP serial_event_id;
+required_capability: eql_command_size_independent_of_limit
+EQL endgame-140 "process where serial_event_id <= 12" WITH {"tiebreaker_field": "serial_event_id"} | KEEP serial_event_id | SORT serial_event_id;
+
+serial_event_id:long
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+;
+
+eventQueryLimitDoesNotRaiseTheDefaultSize
+required_capability: eql_command
+required_capability: eql_command_size_independent_of_limit
+EQL endgame-140 "process where serial_event_id <= 12" WITH {"tiebreaker_field": "serial_event_id"} | LIMIT 100 | SORT serial_event_id | KEEP serial_event_id;
+
+serial_event_id:long
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+;
+
+eventQuerySizeOptionRaisesTheResultSize
+required_capability: eql_command
+EQL endgame-140 "process where serial_event_id <= 12" WITH {"size": 100, "tiebreaker_field": "serial_event_id"} | LIMIT 100 | SORT serial_event_id | KEEP serial_event_id;
 
 serial_event_id:long
 1
@@ -495,52 +530,51 @@ serial_event_id:long
 3
 ;
 
-eventQueryLimitReturnsMostRecent
+eventQueryTailLimitReturnsFirstRowsOfLastTenMatches
 required_capability: eql_command
+required_capability: eql_command_size_independent_of_limit
 EQL endgame-140 "process where serial_event_id <= 12" WITH {"tiebreaker_field": "serial_event_id"} | LIMIT 5 | KEEP serial_event_id | SORT serial_event_id;
 
 serial_event_id:long
-8
-9
-10
-11
-12
-;
-
-eventQueryLimitBehindKeepReturnsMostRecent
-required_capability: eql_command
-EQL endgame-140 "process where serial_event_id <= 12" WITH {"tiebreaker_field": "serial_event_id"} | KEEP serial_event_id | LIMIT 5 | SORT serial_event_id;
-
-serial_event_id:long
-8
-9
-10
-11
-12
-;
-
-eventQueryTailPositionLimitReturnsMostRecent
-required_capability: eql_command
-EQL endgame-140 "process where serial_event_id <= 12" WITH {"result_position": "tail", "tiebreaker_field": "serial_event_id"} | LIMIT 5 | KEEP serial_event_id | SORT serial_event_id;
-
-serial_event_id:long
-8
-9
-10
-11
-12
-;
-
-eventQueryLimitUnderBlockingWhereTrimsResponse
-required_capability: eql_command
-EQL endgame-140 "process where serial_event_id <= 12" WITH {"tiebreaker_field": "serial_event_id"} | WHERE serial_event_id > 0 | LIMIT 5 | KEEP serial_event_id | SORT serial_event_id;
-
-serial_event_id:long
-1
-2
 3
 4
 5
+6
+7
+;
+
+eventQueryTailLimitBehindKeepTrimsRows
+required_capability: eql_command
+required_capability: eql_command_size_independent_of_limit
+EQL endgame-140 "process where serial_event_id <= 12" WITH {"tiebreaker_field": "serial_event_id"} | KEEP serial_event_id | LIMIT 5 | SORT serial_event_id;
+
+serial_event_id:long
+3
+4
+5
+6
+7
+;
+
+eventQueryTailLimitBehindEvalTrimsRows
+required_capability: eql_command
+required_capability: eql_command_size_independent_of_limit
+EQL endgame-140 "process where serial_event_id <= 12" WITH {"tiebreaker_field": "serial_event_id"} | EVAL next = serial_event_id + 1 | LIMIT 3 | KEEP serial_event_id, next | SORT serial_event_id;
+
+serial_event_id:long | next:long
+3                    | 4
+4                    | 5
+5                    | 6
+;
+
+eventQueryLimitAfterWhereTrimsFetchedMatches
+required_capability: eql_command
+required_capability: eql_command_size_independent_of_limit
+EQL endgame-140 "process where serial_event_id <= 12" WITH {"tiebreaker_field": "serial_event_id"} | WHERE serial_event_id < 5 | LIMIT 5 | KEEP serial_event_id | SORT serial_event_id;
+
+serial_event_id:long
+3
+4
 ;
 
 // An explicit tail inside the EQL query composed with a smaller outer LIMIT: the query's tail 3 yields [92,95,96]
@@ -576,4 +610,156 @@ serial_event_id:long
 3
 4
 5
+;
+
+eventQueryHeadPositionWithoutLimitReturnsFirstTenMatches
+required_capability: eql_command
+required_capability: eql_command_size_independent_of_limit
+EQL endgame-140 "process where serial_event_id <= 12" WITH {"result_position": "head", "tiebreaker_field": "serial_event_id"} | KEEP serial_event_id | SORT serial_event_id;
+
+serial_event_id:long
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+;
+
+eventQueryHeadPositionLimitBehindEvalReturnsOldest
+required_capability: eql_command
+EQL endgame-140 "process where serial_event_id <= 12" WITH {"result_position": "head", "tiebreaker_field": "serial_event_id"} | EVAL next = serial_event_id + 1 | LIMIT 3 | KEEP serial_event_id, next | SORT serial_event_id;
+
+serial_event_id:long | next:long
+1                    | 2
+2                    | 3
+3                    | 4
+;
+
+eventQueryHeadPositionSizeBoundsTheLimit
+required_capability: eql_command
+EQL endgame-140 "process where serial_event_id <= 12" WITH {"result_position": "head", "size": 4, "tiebreaker_field": "serial_event_id"} | LIMIT 100 | KEEP serial_event_id | SORT serial_event_id;
+
+serial_event_id:long
+1
+2
+3
+4
+;
+
+eventQueryHeadPositionSmallerLimitThanSize
+required_capability: eql_command
+EQL endgame-140 "process where serial_event_id <= 12" WITH {"result_position": "head", "size": 8, "tiebreaker_field": "serial_event_id"} | LIMIT 3 | KEEP serial_event_id | SORT serial_event_id;
+
+serial_event_id:long
+1
+2
+3
+;
+
+eventQuerySizeOptionReturnsMostRecentMatches
+required_capability: eql_command
+EQL endgame-140 "process where serial_event_id <= 12" WITH {"size": 5, "tiebreaker_field": "serial_event_id"} | LIMIT 100 | KEEP serial_event_id | SORT serial_event_id;
+
+serial_event_id:long
+8
+9
+10
+11
+12
+;
+
+eventQuerySizeOptionAndTailLimitCombine
+required_capability: eql_command
+EQL endgame-140 "process where serial_event_id <= 12" WITH {"size": 8, "tiebreaker_field": "serial_event_id"} | LIMIT 3 | KEEP serial_event_id | SORT serial_event_id;
+
+serial_event_id:long
+5
+6
+7
+;
+
+eventQueryStatsCountsAtMostTheDefaultSize
+required_capability: eql_command
+required_capability: eql_command_size_independent_of_limit
+EQL endgame-140 "process where serial_event_id <= 12" WITH {"tiebreaker_field": "serial_event_id"} | STATS count = COUNT(*);
+
+count:long
+10
+;
+
+eventQueryStatsCountsAtMostTheSizeOption
+required_capability: eql_command
+EQL endgame-140 "process where serial_event_id <= 12" WITH {"size": 11, "tiebreaker_field": "serial_event_id"} | STATS count = COUNT(*);
+
+count:long
+11
+;
+
+sequenceTailLimitCutsAMatchPartWay
+required_capability: eql_command
+required_capability: eql_command_size_independent_of_limit
+EQL endgame-140 "sequence [process where serial_event_id < 5] [process where serial_event_id < 5]" WITH {"tiebreaker_field": "serial_event_id"} | LIMIT 1 | KEEP _sequence, serial_event_id;
+
+_sequence:long |serial_event_id:long
+0              |1
+;
+
+eventQueryExplicitHeadPipeIsBoundedByTheDefaultSize
+required_capability: eql_command
+required_capability: eql_command_size_independent_of_limit
+EQL endgame-140 "process where serial_event_id <= 12 | head 12" WITH {"tiebreaker_field": "serial_event_id"} | KEEP serial_event_id | SORT serial_event_id;
+
+serial_event_id:long
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+;
+
+eventQueryExplicitHeadPipeWithSizeOption
+required_capability: eql_command
+EQL endgame-140 "process where serial_event_id <= 12 | head 12" WITH {"size": 12, "tiebreaker_field": "serial_event_id"} | KEEP serial_event_id | SORT serial_event_id;
+
+serial_event_id:long
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+;
+
+eventQueryExplicitTailPipeIsBoundedByTheDefaultSize
+required_capability: eql_command
+required_capability: eql_command_size_independent_of_limit
+EQL endgame-140 "process where serial_event_id <= 12 | tail 12" WITH {"tiebreaker_field": "serial_event_id"} | KEEP serial_event_id | SORT serial_event_id;
+
+serial_event_id:long
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
 ;

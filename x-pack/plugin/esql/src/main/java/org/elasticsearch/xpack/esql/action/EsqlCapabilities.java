@@ -3172,6 +3172,12 @@ public class EsqlCapabilities {
         EQL_IN_SUBQUERY(Build.current().isSnapshot()),
 
         /**
+         * The EQL source command takes its number of matches only from {@code WITH {"size"}} (EQL's default of 10) and
+         * {@code LIMIT} only trims rows. Snapshot-only, gated together with {@link #EQL_COMMAND}. Added in #165563.
+         */
+        EQL_COMMAND_SIZE_INDEPENDENT_OF_LIMIT(Build.current().isSnapshot()),
+
+        /**
          * Support for the EXTERNAL command (datasource access).
          */
         EXTERNAL_CSV_IP_SUPPORT,

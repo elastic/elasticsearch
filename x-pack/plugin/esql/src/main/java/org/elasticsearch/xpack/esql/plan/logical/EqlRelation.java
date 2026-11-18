@@ -89,10 +89,9 @@ public class EqlRelation extends LeafPlan {
     private final boolean hasExplicitLimit;
     private final List<Attribute> output;
     /**
-     * The row {@code LIMIT} folded into the EQL request {@code size} by {@code PushLimitIntoEqlRelation}, or
-     * {@code null} when no limit was pushed. Applies in every mode: {@code size} bounds the number of matches and
-     * each match unnests to at least one row, so a pushed size can never yield fewer rows than the retained
-     * {@code LIMIT} trims to. Null means the request falls back to the ES|QL result-truncation cap.
+     * The row {@code LIMIT} that may lower the EQL request {@code size}, set by {@code PushLimitIntoEqlRelation}, or {@code null}
+     * when none was pushed. Each match unnests to at least one row, so a pushed size can never yield fewer rows than the retained
+     * {@code LIMIT} trims to.
      */
     private final Integer pushedLimit;
     /**

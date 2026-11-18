@@ -43,10 +43,8 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
  * under {@code SET unmapped_fields} follow their kind: nullified ({@code NULL}) columns carry no fetch, LOAD columns
  * fetch from {@code _source} with {@code include_unmapped}.
  *
- * <p>The request {@code size} follows an explicit precedence: a {@code WITH {"size"}} option wins; otherwise the
- * row {@code LIMIT} folded into the plan ({@code pushedLimit}); otherwise the ES|QL result-truncation cap
- * ({@link EnclosingQuery#truncationCap}). Only the last case can silently truncate, so the caller warns on it (see
- * {@link #usesTruncationCapSize}).
+ * <p>The request {@code size} is the EQL engine's default unless a {@code WITH {"size"}} option sets it. A row
+ * {@code LIMIT} folded into the plan ({@code pushedLimit}) can only lower it, never raise it.
  *
  * <p>The supported {@code WITH} options are the single source of truth in {@link #OPTIONS}: {@link #validateOptions}
  * rejects anything else (or a wrong-typed value) at parse time, and {@link #applyOptions} applies exactly these.
@@ -167,17 +165,12 @@ public final class EqlRequests {
     /**
      * The settings an EQL source inherits from the ES|QL query that hosts it — bridged from the query, not from the
      * command's own {@code WITH} options, so an EQL source honors the same contract as a {@code FROM} source in the
-     * same query: the result-truncation cap (the {@code size} fallback), the partial-results contract, and cross-project
-     * routing. The out-of-band request {@code filter} is reserved for a future bridge and is always null today —
-     * {@code EsqlSession} rejects a query that combines a request filter with an EQL source rather than applying it
-     * post-hoc, which would strip events out of sequence matches.
+     * same query: the partial-results contract and cross-project routing. The out-of-band request {@code filter} is
+     * reserved for a future bridge and is always null today — {@code EsqlSession} rejects a query that combines a
+     * request filter with an EQL source rather than applying it post-hoc, which would strip events out of sequence
+     * matches.
      */
-    public record EnclosingQuery(
-        int truncationCap,
-        boolean allowPartialSearchResults,
-        @Nullable String projectRouting,
-        @Nullable QueryBuilder filter
-    ) {}
+    public record EnclosingQuery(boolean allowPartialSearchResults, @Nullable String projectRouting, @Nullable QueryBuilder filter) {}
 
     public static EqlSearchRequest build(
         String query,
@@ -215,18 +208,11 @@ public final class EqlRequests {
         if (fetchFields.isEmpty() == false) {
             request.fetchFields(fetchFields);
         }
-        // Effective size default; a WITH {"size"} option overrides it in applyOptions.
-        request.size(pushedLimit != null ? pushedLimit : enclosing.truncationCap());
         applyOptions(request, options);
+        if (pushedLimit != null) {
+            request.size(Math.min(pushedLimit, request.size()));
+        }
         return request;
-    }
-
-    /**
-     * Whether the effective request size came from the truncation cap (no {@code WITH {"size"}} and no pushed
-     * {@code LIMIT}) — the only case where a full response may be silently incomplete, so the caller warns on it.
-     */
-    public static boolean usesTruncationCapSize(Map<String, Object> options, Integer pushedLimit) {
-        return options.get("size") instanceof Number == false && pushedLimit == null;
     }
 
     /**

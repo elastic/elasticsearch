@@ -17,8 +17,6 @@ import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.xpack.eql.action.EqlSearchAction;
 import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
-import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
-import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
@@ -37,14 +35,9 @@ import java.util.List;
  */
 public class EqlSourceOperator extends SourceOperator {
 
-    public record Factory(
-        Client client,
-        EqlSearchRequest request,
-        EqlRelation.Mode mode,
-        List<Attribute> schema,
-        Source source,
-        boolean warnOnTruncation
-    ) implements SourceOperatorFactory {
+    public record Factory(Client client, EqlSearchRequest request, EqlRelation.Mode mode, List<Attribute> schema, Source source)
+        implements
+            SourceOperatorFactory {
         @Override
         public String describe() {
             return "EqlSourceOperator[mode=" + mode + ", indices=" + String.join(",", request.indices()) + "]";
@@ -52,7 +45,7 @@ public class EqlSourceOperator extends SourceOperator {
 
         @Override
         public SourceOperator get(DriverContext driverContext) {
-            return new EqlSourceOperator(driverContext, client, request, mode, schema, source, warnOnTruncation);
+            return new EqlSourceOperator(driverContext, client, request, mode, schema, source);
         }
     }
 
@@ -62,16 +55,12 @@ public class EqlSourceOperator extends SourceOperator {
     private final EqlRelation.Mode mode;
     private final List<Attribute> schema;
     private final Source source;
-    // When the request size came from the truncation cap (no LIMIT, no WITH size), warn if the response fills it.
-    private final boolean warnOnTruncation;
 
     private boolean requested;
     private boolean emitted;
     private SubscribableListener<Void> blocked;
     private volatile Page page;
     private volatile Exception failure;
-    // Number of top-level results (events, or sequences/samples) the response carried; set in the response callback.
-    private volatile int topLevelCount;
     // Whether the EQL response was partial (a shard failed or timed out). Only possible when the enclosing ES|QL query
     // allows partial results; surfaced as a warning so the incomplete result is not reported as complete.
     private volatile boolean partial;
@@ -85,8 +74,7 @@ public class EqlSourceOperator extends SourceOperator {
         EqlSearchRequest request,
         EqlRelation.Mode mode,
         List<Attribute> schema,
-        Source source,
-        boolean warnOnTruncation
+        Source source
     ) {
         this.driverContext = driverContext;
         this.client = client;
@@ -94,7 +82,6 @@ public class EqlSourceOperator extends SourceOperator {
         this.mode = mode;
         this.schema = schema;
         this.source = source;
-        this.warnOnTruncation = warnOnTruncation;
     }
 
     private void ensureRequested() {
@@ -115,7 +102,6 @@ public class EqlSourceOperator extends SourceOperator {
                 // decRef it ourselves (doing so over-releases).
                 // This callback runs on the EQL response thread, outside the driver run loop, so the blocks must come from
                 // the root factory: the driver's local breaker may only be touched by the driver thread.
-                topLevelCount = topLevelResultCount(response);
                 partial = response.isPartial();
                 Page built = EqlPageConverter.toPage(response, mode, schema, driverContext.blockFactory().parent());
                 synchronized (this) {
@@ -160,33 +146,12 @@ public class EqlSourceOperator extends SourceOperator {
         if (page != null) {
             // Warn before handing off the page: if a warning throws, the page is still held and close() releases it.
             maybeWarnPartial();
-            maybeWarnTruncated();
             Page result = page;
             page = null;
             emitted = true;
             return result;
         }
         return null;
-    }
-
-    /**
-     * Emits a truncation warning on the driver thread (never the transport-response thread, whose thread-context
-     * headers are not collected) when the size came from the cap and the response filled it — results may be
-     * incomplete. Single-shot: this operator emits at most one page.
-     */
-    private void maybeWarnTruncated() {
-        if (warnOnTruncation && topLevelCount >= request.size()) {
-            // A row LIMIT can only shrink the size (it is itself capped at the truncation max), so the remedy is the
-            // size option or raising the cluster cap — not LIMIT.
-            driverContext.createOnlyWarnings(source)
-                .registerWarning(
-                    "EQL query returned the maximum number of results ["
-                        + request.size()
-                        + "]; results may be incomplete. Raise the size option or the ["
-                        + AnalyzerSettings.QUERY_RESULT_TRUNCATION_MAX_SIZE.getKey()
-                        + "] setting"
-                );
-        }
     }
 
     /**
@@ -203,14 +168,6 @@ public class EqlSourceOperator extends SourceOperator {
             driverContext.createOnlyWarnings(source)
                 .registerWarning("EQL query returned partial results (one or more shards failed or timed out); some events may be missing");
         }
-    }
-
-    private int topLevelResultCount(EqlSearchResponse response) {
-        var hits = response.hits();
-        if (mode == EqlRelation.Mode.EVENT) {
-            return hits.events() == null ? 0 : hits.events().size();
-        }
-        return hits.sequences() == null ? 0 : hits.sequences().size();
     }
 
     @Override

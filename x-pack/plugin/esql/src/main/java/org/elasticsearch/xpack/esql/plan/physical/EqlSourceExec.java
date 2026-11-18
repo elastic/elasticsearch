@@ -113,7 +113,7 @@ public class EqlSourceExec extends LeafExec {
         return indices;
     }
 
-    /** The row {@code LIMIT} folded into the request size, or {@code null} to fall back to the truncation cap. */
+    /** The row {@code LIMIT} that may lower the request size, or {@code null} when none was pushed. */
     public Integer pushedLimit() {
         return pushedLimit;
     }

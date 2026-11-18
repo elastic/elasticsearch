@@ -73,16 +73,17 @@ public class SearchWithRandomDisconnectsIT extends AbstractDisruptionTestCase {
         try {
             for (int i = 0; i < concurrentSearches; i++) {
                 final PlainActionFuture<Void> finishFuture = new PlainActionFuture<>();
-                futures.put(finishFuture, new AtomicReference<>());
+                AtomicReference<Future<?>> lastSubmitted = new AtomicReference<>();
+                futures.put(finishFuture, lastSubmitted);
                 prepareRandomSearch().execute(new ActionListener<>() {
                     @Override
                     public void onResponse(SearchResponse searchResponse) {
-                        futures.get(finishFuture).getAndSet(searchExecutor.submit(this::runMoreSearches));
+                        lastSubmitted.getAndSet(searchExecutor.submit(this::runMoreSearches));
                     }
 
                     @Override
                     public void onFailure(Exception e) {
-                        futures.get(finishFuture).getAndSet(searchExecutor.submit(this::runMoreSearches));
+                        lastSubmitted.getAndSet(searchExecutor.submit(this::runMoreSearches));
                     }
 
                     private void runMoreSearches() {
@@ -115,7 +116,10 @@ public class SearchWithRandomDisconnectsIT extends AbstractDisruptionTestCase {
             done.set(true);
             for (Map.Entry<PlainActionFuture<Void>, AtomicReference<Future<?>>> entry : futures.entrySet()) {
                 try {
-                    entry.getValue().get().get(SAFE_AWAIT_TIMEOUT.getMillis(), TimeUnit.MILLISECONDS);
+                    Future<?> future = entry.getValue().get();
+                    if (future != null) {
+                        future.get(SAFE_AWAIT_TIMEOUT.getMillis(), TimeUnit.MILLISECONDS);
+                    }
                 } catch (Exception e) {
                     // Preserve exceptions thrown when submitting a search
                     if (searchException == null) {

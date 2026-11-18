@@ -20,6 +20,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
@@ -1464,12 +1465,13 @@ public class EsqlSessionTests extends ESTestCase {
     }
 
     public void testEqlSourceInsideViewIsFilteredWhenTheViewOutputRewriteCannotRun() {
-        assertFalse(ViewRequestFilterRewriter.supportsRewrite(TransportVersion.minimumCompatible()));
+        TransportVersion tooOld = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("esql_request_filter_on_dataset"));
+        assertFalse(ViewRequestFilterRewriter.supportsRewrite(tooOld));
         QueryBuilder filter = QueryBuilders.termQuery("host", "a");
         LogicalPlan stamped = EsqlSession.applyRequestFilterToEqlSources(
             analyzed(viewNextToBareBranch(eqlRelation(), eqlRelation())),
             filter,
-            TransportVersion.minimumCompatible()
+            tooOld
         );
         stamped.forEachDown(LogicalPlan.class, p -> assertTrue(p.analyzed()));
         List<LogicalPlan> eqlSources = stamped.collect(EqlRelation.class::isInstance);

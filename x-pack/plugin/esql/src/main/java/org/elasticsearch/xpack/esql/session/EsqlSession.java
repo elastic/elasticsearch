@@ -2895,6 +2895,9 @@ public class EsqlSession {
         if (requestFilter == null && queryTimeFilteredPatterns.isEmpty()) {
             return plan;
         }
+        if (plan.anyMatch(UnresolvedEqlRelation.class::isInstance) == false) {
+            return plan;
+        }
         return plan.transformUp(
             UnresolvedEqlRelation.class,
             r -> requestFilter != null || queryTimeFilteredPatterns.contains(r.indexPattern())
@@ -2919,7 +2922,7 @@ public class EsqlSession {
         @Nullable QueryBuilder requestFilter,
         TransportVersion minimumVersion
     ) {
-        if (requestFilter == null) {
+        if (requestFilter == null || analyzed.anyMatch(EqlRelation.class::isInstance) == false) {
             return analyzed;
         }
         // An EQL source inside a view is left to the view-output filter, under the same gate as view fragments in
@@ -2927,7 +2930,9 @@ public class EsqlSession {
         LogicalPlan stamped = ViewRequestFilterRewriter.supportsRewrite(minimumVersion)
             ? ViewUtils.transformUpOutsideViews(analyzed, EqlRelation.class, r -> r.withRequestFilter(requestFilter))
             : analyzed.transformUp(EqlRelation.class, r -> r.withRequestFilter(requestFilter));
-        stamped.forEachDown(LogicalPlan.class, LogicalPlan::setAnalyzed);
+        if (stamped != analyzed) {
+            stamped.forEachDown(LogicalPlan.class, LogicalPlan::setAnalyzed);
+        }
         return stamped;
     }
 

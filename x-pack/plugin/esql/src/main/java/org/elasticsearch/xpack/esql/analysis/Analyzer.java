@@ -4466,14 +4466,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         if (anyMapped == false && unmappedKeywordSupported == false) {
                             // No type converts, so the cast is null in every index.
                             if (unmappedExprForSupport != null) {
-                                context.deferredHeaderWarnings()
-                                    .add(
-                                        lenientNullWarning(
-                                            fa.name(),
-                                            "[keyword] due to loading from _source",
-                                            castTargetName(convertExpression)
-                                        )
-                                    );
+                                warnLenientDroppedSourceKeyword(context, fa.name(), convertExpression);
                             }
                             return new Literal(convertExpression.source(), null, convertExpression.dataType());
                         }
@@ -4494,6 +4487,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         } else {
                             // At the moment this path is exercised by TO_DEGREES/TO_RADIANS for single-type PUNKs under LOAD.
                             // Function cannot consume keyword, so keep mapped branches and nullify unmapped ones. See #150378.
+                            if (context.minimumVersion().supports(ESQL_LENIENT_UNION_CAST)) {
+                                warnLenientDroppedSourceKeyword(context, fa.name(), convertExpression);
+                            }
                             rewrapped = rewrapped.withPotentiallyUnmappedExpression(null);
                         }
                     } else if (unmappedExpr != null) {
@@ -4634,8 +4630,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 context.deferredHeaderWarnings().add(lenientNullWarning(fieldName, tcf.describeTypes(dropped), target));
             }
             if (tcf.isPotentiallyUnmapped() && supportedTypes.contains(KEYWORD) == false && dropped.contains(KEYWORD.typeName()) == false) {
-                context.deferredHeaderWarnings().add(lenientNullWarning(fieldName, "[keyword] due to loading from _source", target));
+                warnLenientDroppedSourceKeyword(context, fieldName, convertExpression);
             }
+        }
+
+        /**
+         * Warns that the indices that don't map the field, read from {@code _source} as {@code keyword}, are null under the cast.
+         */
+        private static void warnLenientDroppedSourceKeyword(AnalyzerContext context, String fieldName, Expression convertExpression) {
+            context.deferredHeaderWarnings()
+                .add(lenientNullWarning(fieldName, "[keyword] due to loading from _source", castTargetName(convertExpression)));
         }
 
         private static void warnLenientDroppedUnionTypes(

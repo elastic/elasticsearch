@@ -62,6 +62,7 @@ setup:
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
+        - "Field \\[foo\\] of type \\[keyword\\] due to loading from _source cannot be converted to \\[DOUBLE\\] and will be null in those indices."
       esql.query:
         body:
           # [foo] is double in index1
@@ -85,6 +86,7 @@ setup:
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
+        - "Field \\[foo\\] of type \\[keyword\\] due to loading from _source cannot be converted to \\[DOUBLE\\] and will be null in those indices."
       esql.query:
         body:
           # [foo] is long in index2
@@ -95,6 +97,28 @@ setup:
   - match: { columns.1.name: "x" }
   - length: { values: 2 }
   - match: { values.0: [ "index2", 0.0 ] }
+  - match: { values.1: [ "index3", null ] }
+---
+'to_degrees on single-type punk field warns about the unmapped index':
+  - requires:
+      test_runner_features: [capabilities, warnings, allowed_warnings_regex]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [lenient_impossible_casts]
+      reason: "the unmapped index is null under a cast that can't convert keyword, with a warning"
+  - do:
+      warnings:
+        - "Field [foo] of type [keyword] due to loading from _source cannot be converted to [DOUBLE] and will be null in those indices."
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          # [foo] is double in index1
+          # [foo] is unmapped in index3
+          query: 'SET unmapped_fields="load"; FROM index1,index3 METADATA _index | EVAL x = TO_DEGREES(foo) | KEEP _index, x | SORT _index'
+  - match: { values.0: [ "index1", 0.0 ] }
   - match: { values.1: [ "index3", null ] }
 ---
 'aggregate_metric_double cast on fully unmapped field':

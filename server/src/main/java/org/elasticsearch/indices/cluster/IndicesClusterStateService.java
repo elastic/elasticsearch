@@ -1683,17 +1683,17 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
             // FailedShardHandler's own call into failAndRemoveShard is synchronized on this same monitor
             // (see FailedShardHandler#accept), so a concurrent engine failure can only interleave with
-            // handleRecoveryFailure/retry-attemp in one of three ways:
+            // handleRecoveryFailure/retry-attempt in one of three ways:
             // 1. FailedShardHandler runs before handleRecoveryFailure: it overwrites the inFlightTicket
             // -> early exit above
-            // 2. FailedShardHandler runs between the retry ticket is registered below and the applier-thread
+            // 2. FailedShardHandler runs between the retry ticket being registered below and the applier-thread
             // dispatch running: it overwrites the retry ticket -> early exit on retry attempt
             // 3. FailedShardHandler runs after the retry has already recreated the shard: it closes the
             // new, recovering or started, (possibly) healthy shard and reports failure to master anyway,
             // since failAndRemoveShard doesn't check ticket ownership, only that the routing still matches.
             // Wasteful (a possibly successful retry gets thrown away) but not incorrect -- master will simply
             // reallocate.
-            // todo: Is it worth the extra plumbing to avoid this wasteful situation?
+            // TODO: Is it worth the extra plumbing to avoid this wasteful situation?
             if (finalStrategy == FailureStrategy.RETRY) {
                 final int bumpedLocalRetries = inFlightTicket.localRecoveryRetries() + 1;
                 final Type type = shardRouting.recoverySource().getType();

@@ -658,6 +658,19 @@ public class AnalyzerInSubqueryTests extends AnalyzerTestCase {
         assertConvertedFields(plan, List.of("$$id$converted_to$keyword"), List.of("$$id$converted_to$integer"));
     }
 
+    public void testUnionTypeCastAfterInSubqueryDoesNotWidenSubqueryKeep() {
+        LogicalPlan plan = analyzer().addIndex(unionIndexResolution()).addEmployees().query("""
+            FROM union_index*
+            | WHERE name IN (FROM union_index* | EVAL k = id::integer | KEEP name)
+            | EVAL id_string = id::keyword
+            """);
+
+        List<AbstractSubqueryJoin> joins = new ArrayList<>();
+        plan.forEachDown(AbstractSubqueryJoin.class, joins::add);
+        assertThat(joins, hasSize(1));
+        assertThat(joins.getFirst().right().output().stream().map(Attribute::name).toList(), equalTo(List.of("name")));
+    }
+
     // LET bindings are substituted into the plan before analysis, so an IN over a binding must scope union types like an inline one.
 
     public void testUnionTypeCastAfterInLetBindingWithStats() {

@@ -6626,7 +6626,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * overload that also gates synthetics against the enclosing {@link MergePlan} output.
      */
     private static LogicalPlan carryOverSyntheticAttributesThroughProjects(LogicalPlan plan, boolean preserveResolvingProject) {
-        return plan.transformUp(Project.class, p -> {
+        // The right side of an IndependentSubqueryJoin is a separate query: synthetics of the main query are not its to carry.
+        return plan.transformUpSkipBranch(IndependentSubqueryJoin::isSubqueryBranch, node -> {
+            if (node instanceof Project == false) {
+                return node;
+            }
+            Project p = (Project) node;
             // Skip Projects whose projections are not yet resolved (e.g. an unexpanded KEEP wildcard sitting above a still-unresolved
             // union-typed field reference). Their output cannot be computed yet — calling p.output() would throw UnresolvedException.
             // Such Projects are revisited in a later analyzer iteration once they resolve.

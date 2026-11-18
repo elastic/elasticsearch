@@ -148,3 +148,23 @@ doc_values false is still honoured for geo_point outside columnar modes:
       indices.get_mapping:
         index: test
   - match: { test.mappings.properties.location.doc_values: false }
+
+---
+
+doc_values false is ignored for _routing in columnar:
+  - do:
+      warnings:
+        - "The [doc_values] parameter of field [_routing] is ignored in columnar index modes, because doc values are always enabled. Remove the parameter."
+      indices.create:
+        index: test
+        body:
+          settings:
+            index.mode: logsdb_columnar
+          mappings:
+            _routing:
+              doc_values: false
+
+  - do:
+      indices.get_mapping:
+        index: test
+  - is_false: test.mappings._routing.doc_values

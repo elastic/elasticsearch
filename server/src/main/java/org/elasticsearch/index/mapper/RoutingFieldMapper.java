@@ -76,7 +76,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
             this.requiredByDefault = requiredByDefault;
             this.docValuesEnabledByDefault = docValuesEnabledByDefault;
             this.required = Parameter.boolParam("required", false, requiredByDefault);
-            this.docValues = Parameter.boolParam("doc_values", false, docValuesEnabledByDefault);
+            this.docValues = Parameter.docValuesParam(docValuesEnabledByDefault);
         }
 
         @Override

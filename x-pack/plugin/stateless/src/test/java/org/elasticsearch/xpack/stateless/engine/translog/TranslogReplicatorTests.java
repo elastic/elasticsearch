@@ -1120,6 +1120,44 @@ public class TranslogReplicatorTests extends ESTestCase {
         translogReplicator.unregister(shardId);
     }
 
+    /**
+     * The primary term is looked up in the live cluster state, so the index may be deleted while an upload is being validated. Here the
+     * deletion lands just after the sync has been accepted, at which point the lookup starts returning {@link Long#MIN_VALUE}. The sync
+     * must still complete rather than tripping an assertion on the changed term.
+     */
+    public void testIndexDeletedAfterSyncAccepted() throws IOException {
+        ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
+        long primaryTerm = randomLongBetween(0, 10);
+        AtomicLong currentPrimaryTerm = new AtomicLong(primaryTerm);
+
+        ArrayList<BytesReference> compoundFiles = new ArrayList<>();
+        ObjectStoreService objectStoreService = mockObjectStoreService(compoundFiles);
+        StatelessClusterConsistencyService consistencyService = mockConsistencyService();
+
+        TranslogReplicator translogReplicator = new TranslogReplicator(
+            threadPool,
+            getSettings(),
+            objectStoreService,
+            consistencyService,
+            false,
+            (sId) -> currentPrimaryTerm.get()
+        );
+        translogReplicator.doStart();
+        // The persisted seqNos consumer runs after the sync has been accepted, so use it to simulate the index deletion at that point
+        translogReplicator.register(shardId, primaryTerm, seqNos -> currentPrimaryTerm.set(Long.MIN_VALUE));
+
+        Translog.Operation[] operations = generateRandomOperations(1);
+        Translog.Serialized[] serialized = serializeOperations(operations);
+        translogReplicator.add(shardId, serialized[0], 0, new Translog.Location(0, 0, serialized[0].length()));
+
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
+        translogReplicator.syncAll(shardId, future);
+        safeGet(future);
+
+        assertThat(currentPrimaryTerm.get(), equalTo(Long.MIN_VALUE));
+        translogReplicator.unregister(shardId);
+    }
+
     public void testTranslogReplicatorReaderCanCancel() throws Exception {
         ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
         long primaryTerm = randomLongBetween(0, 10);

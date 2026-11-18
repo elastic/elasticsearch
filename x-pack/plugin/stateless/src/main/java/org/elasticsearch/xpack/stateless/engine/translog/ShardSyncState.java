@@ -150,7 +150,23 @@ class ShardSyncState {
         }
     }
 
-    public boolean markSyncFinished(SyncMarker syncMarker) {
+    /**
+     * The outcome of {@link #markSyncFinished}. The current primary term is read from the live cluster state, so callers must act on this
+     * outcome rather than re-reading the term, which may have changed (or the index may have been deleted) in the meantime.
+     */
+    enum SyncFinishedResult {
+        /** The sync marker matched the current primary term and the synced location advanced. */
+        SYNCED,
+        /** The primary term has advanced past this state's own term, so its pending listeners should be failed. */
+        STALE_PRIMARY_TERM,
+        /**
+         * The sync marker does not match the current primary term, but this state's own term is not stale either: the marker relates to
+         * an earlier incarnation of this shard, or the index is no longer in the cluster state.
+         */
+        IGNORED
+    }
+
+    public SyncFinishedResult markSyncFinished(SyncMarker syncMarker) {
         final long currentTerm = currentPrimaryTerm();
         if (syncMarker.primaryTerm() == currentTerm) {
             assert syncMarker.location().compareTo(syncedLocation) > 0;
@@ -159,13 +175,16 @@ class ShardSyncState {
             final LongArrayList syncedSeqNos = syncMarker.syncedSeqNos();
             persistedSeqNosConsumer.accept(new LongsRef(syncedSeqNos.buffer, 0, syncedSeqNos.size()));
             syncedLocation = syncMarker.location();
-            return true;
+            return SyncFinishedResult.SYNCED;
+        } else if (startingPrimaryTerm < currentTerm) {
+            assert syncMarker.primaryTerm() < currentTerm : syncMarker.primaryTerm() + " >= " + currentTerm + " for shard " + shardId;
+            // This state's own term is no longer current. The caller fails pending listeners after releasing a lock.
+            primaryTermIsStale = true;
+            return SyncFinishedResult.STALE_PRIMARY_TERM;
         } else {
-            if (startingPrimaryTerm < currentTerm) {
-                // This state's own term is no longer current. The caller fails pending listeners after releasing a lock.
-                primaryTermIsStale = true;
-            } // else syncMarker relates to an earlier incarnation of this shard with an older term, so there are no listeners to fail.
-            return false;
+            // syncMarker relates to an earlier incarnation of this shard with an older term, or the index is no longer in the cluster
+            // state, so there are no listeners to fail.
+            return SyncFinishedResult.IGNORED;
         }
     }
 

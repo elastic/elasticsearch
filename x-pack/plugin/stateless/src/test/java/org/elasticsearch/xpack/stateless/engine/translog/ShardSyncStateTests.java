@@ -29,6 +29,9 @@ import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 
+import static org.elasticsearch.xpack.stateless.engine.translog.ShardSyncState.SyncFinishedResult.IGNORED;
+import static org.elasticsearch.xpack.stateless.engine.translog.ShardSyncState.SyncFinishedResult.STALE_PRIMARY_TERM;
+import static org.elasticsearch.xpack.stateless.engine.translog.ShardSyncState.SyncFinishedResult.SYNCED;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -233,7 +236,7 @@ public class ShardSyncStateTests extends ESTestCase {
         assertThat(seqNos, empty());
 
         shardSyncState.markSyncStarting(primaryTerm, activeTranslogFile);
-        assertTrue(shardSyncState.markSyncFinished(syncMarker));
+        assertThat(shardSyncState.markSyncFinished(syncMarker), equalTo(SYNCED));
         shardSyncState.notifyListeners();
 
         assertThat(seqNos, contains(0L, 1L, 2L));
@@ -267,7 +270,7 @@ public class ShardSyncStateTests extends ESTestCase {
 
         shardSyncState.markSyncStarting(primaryTerm, activeTranslogFile);
         currentPrimaryTerm.incrementAndGet();
-        assertFalse(shardSyncState.markSyncFinished(syncMarker));
+        assertThat(shardSyncState.markSyncFinished(syncMarker), equalTo(STALE_PRIMARY_TERM));
         shardSyncState.notifyListeners();
 
         assertThat(seqNos, empty());
@@ -310,7 +313,7 @@ public class ShardSyncStateTests extends ESTestCase {
         assertThat(seqNos, empty());
 
         shardSyncState.markSyncStarting(primaryTerm, activeTranslogFile);
-        assertTrue(shardSyncState.markSyncFinished(syncMarker));
+        assertThat(shardSyncState.markSyncFinished(syncMarker), equalTo(SYNCED));
         shardSyncState.notifyListeners();
 
         assertThat(seqNos, contains(0L));
@@ -334,8 +337,9 @@ public class ShardSyncStateTests extends ESTestCase {
         PlainActionFuture<Void> listenerBeforeRejection = new PlainActionFuture<>();
         assertFalse(shardSyncState.ensureSynced(locationBeforeRejection, listenerBeforeRejection));
 
-        assertFalse(
-            shardSyncState.markSyncFinished(new ShardSyncState.SyncMarker(primaryTerm, locationBeforeRejection, longArrayListOf(1L)))
+        assertThat(
+            shardSyncState.markSyncFinished(new ShardSyncState.SyncMarker(primaryTerm, locationBeforeRejection, longArrayListOf(1L))),
+            equalTo(STALE_PRIMARY_TERM)
         );
         shardSyncState.notifyListeners();
         assertFalse(queuedListener.isDone());
@@ -366,7 +370,10 @@ public class ShardSyncStateTests extends ESTestCase {
         assertFalse(shardSyncState.ensureSynced(queuedLocation, queuedListener));
 
         final var earlierTerm = randomLongBetween(0, currentTerm - 1);
-        assertFalse(shardSyncState.markSyncFinished(new ShardSyncState.SyncMarker(earlierTerm, queuedLocation, longArrayListOf(0L))));
+        assertThat(
+            shardSyncState.markSyncFinished(new ShardSyncState.SyncMarker(earlierTerm, queuedLocation, longArrayListOf(0L))),
+            equalTo(IGNORED)
+        );
         shardSyncState.notifyListeners();
         assertFalse(queuedListener.isDone());
         assertFalse(shardSyncState.isPrimaryTermStale());
@@ -376,7 +383,10 @@ public class ShardSyncStateTests extends ESTestCase {
         PlainActionFuture<Void> laterListener = new PlainActionFuture<>();
         assertFalse(shardSyncState.ensureSynced(laterLocation, laterListener));
 
-        assertTrue(shardSyncState.markSyncFinished(new ShardSyncState.SyncMarker(currentTerm, laterLocation, longArrayListOf(1L))));
+        assertThat(
+            shardSyncState.markSyncFinished(new ShardSyncState.SyncMarker(currentTerm, laterLocation, longArrayListOf(1L))),
+            equalTo(SYNCED)
+        );
         shardSyncState.notifyListeners();
         assertNull(queuedListener.actionGet());
         assertNull(laterListener.actionGet());
@@ -396,9 +406,15 @@ public class ShardSyncStateTests extends ESTestCase {
         assertFalse(shardSyncState.ensureSynced(coveredLocation, coveredListener));
         assertFalse(shardSyncState.ensureSynced(beyondLocation, beyondListener));
 
-        assertTrue(shardSyncState.markSyncFinished(new ShardSyncState.SyncMarker(primaryTerm, coveredLocation, longArrayListOf(0L))));
+        assertThat(
+            shardSyncState.markSyncFinished(new ShardSyncState.SyncMarker(primaryTerm, coveredLocation, longArrayListOf(0L))),
+            equalTo(SYNCED)
+        );
         currentPrimaryTerm.addAndGet(between(1, 100));
-        assertFalse(shardSyncState.markSyncFinished(new ShardSyncState.SyncMarker(primaryTerm, beyondLocation, longArrayListOf(1L))));
+        assertThat(
+            shardSyncState.markSyncFinished(new ShardSyncState.SyncMarker(primaryTerm, beyondLocation, longArrayListOf(1L))),
+            equalTo(STALE_PRIMARY_TERM)
+        );
         shardSyncState.notifyListeners();
 
         assertTrue(coveredListener.isDone());
@@ -418,6 +434,35 @@ public class ShardSyncStateTests extends ESTestCase {
 
         shardSyncState.failPendingListeners(ShardSyncState.stalePrimaryTermException(shardId));
         assertStalePrimaryTerm(beyondListener);
+    }
+
+    /**
+     * Once the primary term has become stale the shard stays marked as stale until it is closed. If the index is then deleted, the
+     * primary term lookup returns {@link Long#MIN_VALUE}, so a later marker must be ignored rather than reported as stale again.
+     */
+    public void testMarkerIgnoredWhenIndexDeletedAfterPrimaryTermBecomesStale() {
+        final var shardId = new ShardId(new Index(randomIndexName(), UUIDs.randomBase64UUID()), between(0, 5));
+        final var primaryTerm = randomLongBetween(1, 20);
+        AtomicLong currentPrimaryTerm = new AtomicLong(primaryTerm);
+        ShardSyncState shardSyncState = getShardSyncState(shardId, primaryTerm, currentPrimaryTerm::get, longsRef -> {});
+
+        final var firstLocation = new Translog.Location(0, between(1, 100), 0);
+        final var secondLocation = new Translog.Location(0, firstLocation.translogLocation() + between(1, 100), 0);
+        shardSyncState.updateProcessedLocation(secondLocation);
+
+        currentPrimaryTerm.addAndGet(between(1, 100));
+        assertThat(
+            shardSyncState.markSyncFinished(new ShardSyncState.SyncMarker(primaryTerm, firstLocation, longArrayListOf(0L))),
+            equalTo(STALE_PRIMARY_TERM)
+        );
+        assertTrue(shardSyncState.isPrimaryTermStale());
+
+        currentPrimaryTerm.set(Long.MIN_VALUE);
+        assertThat(
+            shardSyncState.markSyncFinished(new ShardSyncState.SyncMarker(primaryTerm, secondLocation, longArrayListOf(1L))),
+            equalTo(IGNORED)
+        );
+        assertTrue(shardSyncState.isPrimaryTermStale());
     }
 
     private static void assertStalePrimaryTerm(PlainActionFuture<Void> listener) {

@@ -67,14 +67,14 @@ public abstract class PartitionedGroupingAggregatorFunctionTestCase extends Grou
         assumeTrue("partitioned block hashes are not supported on this platform", PartitionedBlockHash.supportPartitioning());
         DriverContext driverContext = driverContext();
         try (var agg = aggregatorFunction().groupingAggregator(driverContext, channels(AggregatorMode.SINGLE))) {
-            assumeTrue("aggregator [" + agg + "] doesn't support partitioning", agg.supportPartitioning());
+            assumeTrue("aggregator [" + agg + "] doesn't support partitioning", agg.supportPartitioning(AggregatorMode.SINGLE));
         }
         var pages = pagesWithKeys(driverContext.blockFactory());
         try {
             List<AggResult> singlePassResult = runAggregation(driverContext(), pages, Integer.MAX_VALUE);
             assertThat(singlePassResult, not(empty()));
             List<AggResult> partitioningResult = runAggregation(driverContext(), pages, between(128, 1024));
-            assertThat(partitioningResult, equalTo(singlePassResult));
+            assertAggregatedResults(singlePassResult, partitioningResult);
         } finally {
             Releasables.close(pages);
         }
@@ -87,7 +87,7 @@ public abstract class PartitionedGroupingAggregatorFunctionTestCase extends Grou
         assumeTrue("partitioned block hashes are not supported on this platform", PartitionedBlockHash.supportPartitioning());
         DriverContext driverContext = driverContext();
         try (var agg = aggregatorFunction().groupingAggregator(driverContext, channels(AggregatorMode.SINGLE))) {
-            assumeTrue("aggregator [" + agg + "] doesn't support partitioning", agg.supportPartitioning());
+            assumeTrue("aggregator [" + agg + "] doesn't support partitioning", agg.supportPartitioning(AggregatorMode.SINGLE));
         }
         var pages = pagesWithKeys(driverContext.blockFactory());
         try {
@@ -95,7 +95,7 @@ public abstract class PartitionedGroupingAggregatorFunctionTestCase extends Grou
             assertThat(partitioningResult, not(empty()));
             // if succeeds, then the result should be the same as single pass
             List<AggResult> singlePassResult = runAggregation(driverContext(), pages, Integer.MAX_VALUE);
-            assertThat(partitioningResult, equalTo(singlePassResult));
+            assertAggregatedResults(singlePassResult, partitioningResult);
         } catch (CircuitBreakingException e) {
             assertThat(e.getMessage(), containsString("cranky breaker"));
         } finally {
@@ -132,6 +132,10 @@ public abstract class PartitionedGroupingAggregatorFunctionTestCase extends Grou
             pages.set(i, new Page(blocks));
         }
         return pages;
+    }
+
+    protected void assertAggregatedResults(List<AggResult> singlePassResult, List<AggResult> partitioningResult) {
+        assertThat(partitioningResult, equalTo(singlePassResult));
     }
 
     record Key(Long longKey, Integer intKey) implements Comparable<Key> {
@@ -262,7 +266,7 @@ public abstract class PartitionedGroupingAggregatorFunctionTestCase extends Grou
     private void runTimeSeriesPartitioningTest(AggregatorFunctionSupplier supplier) {
         DriverContext driverContext = driverContext();
         try (var agg = supplier.groupingAggregator(driverContext, channels(AggregatorMode.SINGLE))) {
-            assumeTrue("aggregator [" + agg + "] doesn't support partitioning", agg.supportPartitioning());
+            assumeTrue("aggregator [" + agg + "] doesn't support partitioning", agg.supportPartitioning(AggregatorMode.SINGLE));
         }
         var pages = pagesWithTimeSeriesKeys(driverContext.blockFactory());
         try {

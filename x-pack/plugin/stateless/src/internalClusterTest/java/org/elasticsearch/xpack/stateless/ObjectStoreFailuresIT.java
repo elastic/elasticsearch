@@ -28,6 +28,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntConsumer;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.xpack.stateless.recovery.StatelessPrimaryRelocationSourceService.TRANSFER_HOLLOW_COMMIT_METADATA_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -210,7 +211,11 @@ public class ObjectStoreFailuresIT extends AbstractStatelessPluginIntegTestCase 
 
     public void testRelocateIndexingShardWithObjectStoreFailures() {
         startMasterOnlyNode();
-        final String indexNodeA = startIndexNode(disableIndexingDiskAndMemoryControllersNodeSettings());
+        // transferring the hollow commit metadata skips the object store reads on the target
+        final var transferDisabled = Settings.builder().put(TRANSFER_HOLLOW_COMMIT_METADATA_SETTING.getKey(), false).build();
+        final String indexNodeA = startIndexNode(
+            Settings.builder().put(disableIndexingDiskAndMemoryControllersNodeSettings()).put(transferDisabled).build()
+        );
         ensureStableCluster(2);
         final String indexName = "test";
         createIndex(
@@ -218,7 +223,7 @@ public class ObjectStoreFailuresIT extends AbstractStatelessPluginIntegTestCase 
             indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), new TimeValue(1, TimeUnit.MINUTES)).build()
         );
 
-        final String indexNodeB = startIndexNode();
+        final String indexNodeB = startIndexNode(transferDisabled);
         ensureStableCluster(3);
 
         int numDocs = scaledRandomIntBetween(1, 10);

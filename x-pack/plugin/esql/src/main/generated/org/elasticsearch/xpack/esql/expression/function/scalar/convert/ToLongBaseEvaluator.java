@@ -74,7 +74,7 @@ public final class ToLongBaseEvaluator implements ExpressionEvaluator {
   }
 
   public LongBlock eval(int positionCount, BytesRefBlock stringBlock, IntBlock baseBlock) {
-    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount, true)) {
       BytesRef stringScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         if (stringBlock.isNull(p)) {
@@ -115,7 +115,7 @@ public final class ToLongBaseEvaluator implements ExpressionEvaluator {
   }
 
   public LongBlock eval(int positionCount, BytesRefVector stringVector, IntVector baseVector) {
-    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount, true)) {
       BytesRef stringScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         BytesRef string = stringVector.getBytesRef(p, stringScratch);

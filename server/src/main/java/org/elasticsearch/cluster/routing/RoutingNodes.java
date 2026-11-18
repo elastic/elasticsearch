@@ -944,7 +944,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         if (failedShard.primary() && failedShard.recoverySource().getType() == RecoverySource.Type.RESHARD_SPLIT) {
             final IndexReshardingMetadata reshardingMetadata = metadata.indexMetadata(failedShard.index()).getReshardingMetadata();
             // The resharding metadata is added along with the split target shards and only removed once all of them are done,
-            // and only split target shards use a RESHARD_SPLIT recovery source.
+            // and only split target shards use a RESHARD_SPLIT recovery source. IndexRoutingTable#validate asserts this.
             assert reshardingMetadata != null : "missing resharding metadata for failed split target shard: " + failedShard;
             assert IndexReshardingMetadata.isSplitTarget(failedShard.shardId(), reshardingMetadata)
                 : "failed shard with a RESHARD_SPLIT recovery source must be a split target: " + failedShard;

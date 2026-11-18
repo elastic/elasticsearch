@@ -9,7 +9,10 @@
 package org.elasticsearch.action.search;
 
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -18,50 +21,203 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.fetch.FetchSearchResult;
+import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
 import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.query.QuerySearchRequest;
+import org.elasticsearch.search.rank.feature.RankFeatureShardRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.transport.AbstractTransportRequest;
+import org.elasticsearch.transport.TestProxyConnections;
+import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportResponseHandler;
+import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction.CHUNKED_FETCH_DOC_ID_ORDER;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class SearchTransportServiceTests extends ESTestCase {
 
-    /**
-     * Verifies that the free-context executor concurrency is half the allocated processors, with a minimum of 1.
-     * A node with many processors must be able to drain free-context requests concurrently; with a single drainer
-     * the queue can grow unboundedly under burst traffic and exhaust the heap.
-     */
-    public void testFreeContextConcurrency() {
-        // single processor → minimum of 1
-        assertThat(SearchTransportService.freeContextConcurrency(settings(1)), equalTo(1));
-        // two processors → 1
-        assertThat(SearchTransportService.freeContextConcurrency(settings(2)), equalTo(1));
-        // four processors → 2
-        assertThat(SearchTransportService.freeContextConcurrency(settings(4)), equalTo(2));
-        // eight processors → 4
-        assertThat(SearchTransportService.freeContextConcurrency(settings(8)), equalTo(4));
-        // default settings use Runtime.availableProcessors() → at least 1
-        assertThat(SearchTransportService.freeContextConcurrency(Settings.EMPTY), greaterThanOrEqualTo(1));
+    /** A shard request route whose response handler reserves and reports trips. */
+    private interface TripRoute {
+        /**
+         * Sends a request over {@code service} with a reservation against {@code breaker}, and returns what the search got told of a trip.
+         */
+        Supplier<Throwable> send(
+            SearchTransportService service,
+            Transport.Connection connection,
+            CircuitBreaker breaker,
+            Consumer<Exception> onFailure
+        );
     }
 
-    private static Settings settings(int processors) {
-        return Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), processors).build();
+    /**
+     * The handler of every shard request route except scroll charges the response's pieces to the reservation it is given while they
+     * arrive, and reports a trip to the search before failing the listener.
+     */
+    public void testShardResponseHandlersReserveAndReportTripWhileArriving() {
+        for (Map.Entry<String, TripRoute> route : shardResponseRoutes().entrySet()) {
+            CircuitBreaker breaker = newLimitedBreaker(ShardResponseReservationTests.TRIPPING_LIMIT);
+            AtomicReference<TransportResponseHandler<?>> handler = new AtomicReference<>();
+            SearchTransportService service = newHandlerCapturingService(handler);
+            List<Exception> failures = new ArrayList<>();
+            AtomicReference<Supplier<Throwable>> reportedTrip = new AtomicReference<>();
+            // The listener guards on the trip, so the search must have it by the time the listener fails
+            List<Throwable> reportedWhenFailed = new ArrayList<>();
+
+            reportedTrip.set(
+                route.getValue().send(service, new SearchAsyncActionTests.MockConnection(DiscoveryNodeUtils.create("node")), breaker, e -> {
+                    reportedWhenFailed.add(reportedTrip.get().get());
+                    failures.add(e);
+                })
+            );
+            assertNotNull(route.getKey(), handler.get());
+
+            Releasable piece = handler.get().reserveResponseBytes(40);
+            assertThat(route.getKey(), breaker.getUsed(), equalTo(40L));
+            piece.close();
+            assertThat(route.getKey(), breaker.getUsed(), equalTo(0L));
+
+            CircuitBreakingException trip = ShardResponseReservationTests.tripWhileArriving(handler.get());
+            assertThat(route.getKey(), reportedTrip.get().get(), sameInstance(trip));
+            assertThat(route.getKey(), reportedWhenFailed, contains(sameInstance(trip)));
+            assertThat(route.getKey(), failures, hasSize(1));
+            assertThat(route.getKey(), ExceptionsHelper.unwrap(failures.getFirst(), CircuitBreakingException.class), sameInstance(trip));
+        }
+    }
+
+    /**
+     * Through a gateway node, the routes whose response names a reader context the coordinator doesn't know yet charge nothing while it
+     * arrives, since a trip would leave that context to the reaper. The other routes still charge.
+     * {@link #testShardResponseHandlersReserveAndReportTripWhileArriving} is the control, over a direct connection.
+     */
+    public void testOnlyResponsesNamingKnownContextsChargeThroughGateway() {
+        Set<String> uncharged = Set.of("dfs", "query");
+        Transport.Connection gateway = new SearchAsyncActionTests.MockConnection(DiscoveryNodeUtils.create("gateway"));
+        Transport.Connection proxied = TestProxyConnections.newProxyConnection(gateway, DiscoveryNodeUtils.create("node"));
+        for (Map.Entry<String, TripRoute> route : shardResponseRoutes().entrySet()) {
+            CircuitBreaker breaker = newLimitedBreaker(ShardResponseReservationTests.TRIPPING_LIMIT);
+            AtomicReference<TransportResponseHandler<?>> handler = new AtomicReference<>();
+            SearchTransportService service = newHandlerCapturingService(handler);
+
+            route.getValue().send(service, proxied, breaker, e -> fail(route.getKey() + " must not fail"));
+            assertNotNull(route.getKey(), handler.get());
+
+            Releasable piece = handler.get().reserveResponseBytes(40);
+            assertThat(route.getKey(), breaker.getUsed(), equalTo(uncharged.contains(route.getKey()) ? 0L : 40L));
+            piece.close();
+        }
+    }
+
+    private static Map<String, TripRoute> shardResponseRoutes() {
+        // The transport is captured rather than run, so the requests are never serialized and can be mocks
+        Map<String, TripRoute> routes = new LinkedHashMap<>();
+        routes.put(
+            "dfs",
+            reserving((s, c, r, f) -> s.sendExecuteDfs(c, mock(ShardSearchRequest.class), null, r, failing(f), l -> {}, l -> {}))
+        );
+        routes.put(
+            "query",
+            reserving((s, c, r, f) -> s.sendExecuteQuery(c, mock(ShardSearchRequest.class), null, r, failing(f), l -> {}, l -> {}))
+        );
+        routes.put(
+            "query by id",
+            reserving((s, c, r, f) -> s.sendExecuteQuery(c, mock(QuerySearchRequest.class), null, r, failing(f), l -> {}, l -> {}))
+        );
+        routes.put(
+            "rank feature",
+            reserving(
+                (s, c, r, f) -> s.sendExecuteRankFeature(c, mock(RankFeatureShardRequest.class), null, r, failing(f), l -> {}, l -> {})
+            )
+        );
+        // The fetch phase builds its reservation from the search, so a trip fails the search through it
+        routes.put("fetch", (service, connection, breaker, onFailure) -> {
+            MockSearchPhaseContext context = new MockSearchPhaseContext(1, breaker);
+            context.results.close();
+            service.sendExecuteFetch(
+                connection,
+                mock(ShardFetchSearchRequest.class),
+                context,
+                new SearchShardTarget(connection.getNode().getId(), new ShardId("idx", "_na_", 0), null),
+                failing(onFailure),
+                l -> {},
+                l -> {}
+            );
+            return context.phaseFailure::get;
+        });
+
+        return routes;
+    }
+
+    /** A service whose requests are captured rather than sent, so that a test can drive the handler of the last one. */
+    private static SearchTransportService newHandlerCapturingService(AtomicReference<TransportResponseHandler<?>> handler) {
+        var transportService = mock(TransportService.class);
+        doAnswer(invocation -> {
+            handler.set(invocation.getArgument(4));
+            return null;
+        }).when(transportService).sendChildRequest(any(Transport.Connection.class), any(), any(), any(), any());
+        SearchTransportService service = new SearchTransportService(transportService, null, (connection, listener) -> listener);
+        // Only asked whether fetch is chunked, and the classic fetch route is the one under test
+        SearchService searchService = mock(SearchService.class);
+        when(searchService.fetchPhaseChunked()).thenReturn(false);
+        service.setSearchService(searchService);
+        return service;
+    }
+
+    /** A route that is handed its reservation, which reports trips to a list. */
+    private interface ReservingRoute {
+        void send(
+            SearchTransportService service,
+            Transport.Connection connection,
+            ShardResponseReservation reservation,
+            Consumer<Exception> onFailure
+        );
+    }
+
+    private static TripRoute reserving(ReservingRoute route) {
+        return (service, connection, breaker, onFailure) -> {
+            List<Exception> trips = new ArrayList<>();
+            route.send(
+                service,
+                connection,
+                new ShardResponseReservation(breaker, ShardResponseReservation.BREAKER_LABEL, trips::add),
+                onFailure
+            );
+            return () -> trips.isEmpty() ? null : trips.getFirst();
+        };
+    }
+
+    private static <T> ActionListener<T> failing(Consumer<Exception> onFailure) {
+        return ActionListener.wrap(r -> fail("the response must be rejected"), onFailure::accept);
     }
 
     /** A held last chunk stays charged while the coordinator keeps slices of it, and the charge goes with its pages. */

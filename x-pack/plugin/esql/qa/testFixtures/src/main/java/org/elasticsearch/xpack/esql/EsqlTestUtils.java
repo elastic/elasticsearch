@@ -14,6 +14,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.RemoteException;
+import org.elasticsearch.cluster.metadata.Dataset;
+import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -108,6 +110,10 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.datasources.DatasetRewriter;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSpec;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FlattenedCases;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohash;
@@ -223,6 +229,7 @@ import static org.elasticsearch.test.ESTestCase.randomLong;
 import static org.elasticsearch.test.ESTestCase.randomLongBetween;
 import static org.elasticsearch.test.ESTestCase.randomMillisUpToYear9999;
 import static org.elasticsearch.test.ESTestCase.randomShort;
+import static org.elasticsearch.test.ESTestCase.randomUnicodeOfLength;
 import static org.elasticsearch.test.ESTestCase.randomZone;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
@@ -669,6 +676,50 @@ public final class EsqlTestUtils {
             QueryPragmas.EMPTY,
             EsqlFlags.DEFAULTS
         );
+    }
+
+    /**
+     * An {@link ExternalSourceResolution} whose keys are exactly the ones the analyzer will compute for the relations
+     * {@link #rewriteDatasetsUnsecured} produces from {@code projectMetadata}.
+     * <p>
+     * A resolution is keyed by {@link ExternalSourceSpec} — the resource <i>and</i> the configuration it is read under — so a
+     * test that spells the key out by hand installs it under a configuration the rewriter never builds, the analyzer
+     * finds nothing, and the relation stays unresolved: the test then fails for a reason that has nothing to do with
+     * what it asserts. This builds each key through {@link DatasetRewriter#datasetConfig}, the one builder the rewriter
+     * itself uses, so the keys match by construction and before any plan exists.
+     * <p>
+     * Every dataset in the project whose {@link Dataset#resource()} appears in {@code byResource} gets an entry, so one
+     * resource registered under two dataset names yields two keys mapped to the same source — which is what two
+     * relations over one resource resolve against. A resource in {@code byResource} that no dataset declares is a typo
+     * that would otherwise resolve to nothing: it throws instead.
+     */
+    public static ExternalSourceResolution externalResolutionFor(
+        ProjectMetadata projectMetadata,
+        Map<String, ExternalSourceResolution.ResolvedSource> byResource
+    ) {
+        DataSourceMetadata dataSources = DataSourceMetadata.get(projectMetadata);
+        Map<ExternalSourceSpec, ExternalSourceResolution.ResolvedSource> resolved = new HashMap<>();
+        Set<String> matched = new HashSet<>();
+        for (Dataset dataset : DatasetMetadata.get(projectMetadata).datasets().values()) {
+            ExternalSourceResolution.ResolvedSource source = byResource.get(dataset.resource());
+            if (source == null) {
+                continue;
+            }
+            DataSource parent = dataSources.get(dataset.dataSource().getName());
+            if (parent == null) {
+                throw new IllegalArgumentException(
+                    "dataset [" + dataset.name() + "] references unknown data source [" + dataset.dataSource().getName() + "]"
+                );
+            }
+            resolved.put(new ExternalSourceSpec(dataset.resource(), DatasetRewriter.datasetConfig(parent, dataset)), source);
+            matched.add(dataset.resource());
+        }
+        if (matched.containsAll(byResource.keySet()) == false) {
+            Set<String> unmatched = new HashSet<>(byResource.keySet());
+            unmatched.removeAll(matched);
+            throw new IllegalArgumentException("no dataset in the project declares resource(s) " + unmatched);
+        }
+        return new ExternalSourceResolution(resolved);
     }
 
     // TODO: make this even simpler, remove the enrichResolution for tests that do not require it (most tests)
@@ -1418,6 +1469,15 @@ public final class EsqlTestUtils {
             }
             case FLATTENED -> FlattenedCases.RANDOM.get();
             case TSID_DATA_TYPE -> randomTsId().toBytesRef();
+            case TIME_SERIES_METADATA_DATA_TYPE -> {
+                try {
+                    yield BytesReference.bytes(
+                        JsonXContent.contentBuilder().startObject().field(randomAlphaOfLength(3), randomUnicodeOfLength(10)).endObject()
+                    ).toBytesRef();
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
             case HISTOGRAM -> randomHistogram();
             case DENSE_VECTOR -> Arrays.asList(randomArray(10, 10, i -> new Float[10], ESTestCase::randomFloat));
             case EXPONENTIAL_HISTOGRAM -> EsqlTestUtils.randomExponentialHistogram();

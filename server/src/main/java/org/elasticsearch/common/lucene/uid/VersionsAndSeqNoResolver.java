@@ -389,12 +389,13 @@ public final class VersionsAndSeqNoResolver {
 
             @Override
             protected void setPivot(int i) {
-                pivot = i;
+                // Save the element, not the slot: the sorter moves elements between slots while it partitions.
+                pivot = order[i];
             }
 
             @Override
             protected int comparePivot(int j) {
-                return uids[order[pivot]].compareTo(uids[order[j]]);
+                return uids[pivot].compareTo(uids[order[j]]);
             }
 
             @Override

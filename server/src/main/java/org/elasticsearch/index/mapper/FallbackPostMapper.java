@@ -158,6 +158,11 @@ public final class FallbackPostMapper {
             && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.MALFORMED_VALUES_IN_ON_FAILURE_COLUMN);
     }
 
+    /** Whether a value routed to {@link Destination#ON_FAILURE} is written at all: only when the source is reconstructed from the index. */
+    static boolean storesOnFailureValues(MappingLookup mappingLookup) {
+        return mappingLookup.isSourceSynthetic() || mappingLookup.isSourceColumnarStored();
+    }
+
     /**
      * Maps a {@link Reason} to its {@link Destination}.
      * In strict-columnar index modes created on or after {@link IndexVersions#MALFORMED_VALUES_IN_ON_FAILURE_COLUMN},
@@ -252,7 +257,7 @@ public final class FallbackPostMapper {
             // multi_value violations require columnar mode, which disables canAddIgnoredField(), so
             // pre-capture is never active for the same field simultaneously.
             assert parseCtx == context : "multi_value violation on pre-captured field [" + fieldPath + "]";
-            if (context.mappingLookup().isSourceSynthetic() || context.mappingLookup().isSourceColumnarStored()) {
+            if (storesOnFailureValues(context.mappingLookup())) {
                 OnFailureStoredValues.storeEncoded(context, fieldPath, mvv.capturedValue());
             }
         }
@@ -272,7 +277,7 @@ public final class FallbackPostMapper {
                 yield true;
             }
             case ON_FAILURE -> {
-                if (context.mappingLookup().isSourceSynthetic() || context.mappingLookup().isSourceColumnarStored()) {
+                if (storesOnFailureValues(context.mappingLookup())) {
                     OnFailureStoredValues.storeEncoded(context, fieldPath, XContentDataHelper.encodeXContentBuilder(builder));
                 }
                 yield true;
@@ -294,7 +299,7 @@ public final class FallbackPostMapper {
                 yield true;
             }
             case ON_FAILURE -> {
-                if (context.mappingLookup().isSourceSynthetic() || context.mappingLookup().isSourceColumnarStored()) {
+                if (storesOnFailureValues(context.mappingLookup())) {
                     OnFailureStoredValues.storeValueForOnFailureIgnore(context, fieldPath, context.parser());
                 }
                 yield true;
@@ -347,7 +352,7 @@ public final class FallbackPostMapper {
                 yield true;
             }
             case ON_FAILURE -> {
-                if (context.mappingLookup().isSourceSynthetic() || context.mappingLookup().isSourceColumnarStored()) {
+                if (storesOnFailureValues(context.mappingLookup())) {
                     OnFailureStoredValues.storeEncoded(context, fieldPath, encoded);
                 }
                 yield true;

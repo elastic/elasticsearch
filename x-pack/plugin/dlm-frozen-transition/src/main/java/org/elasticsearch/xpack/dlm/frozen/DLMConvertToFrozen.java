@@ -372,7 +372,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
         try {
             BroadcastResponse forceMergeResponse = client.projectClient(projectId).admin().indices().forceMerge(req).get();
             if (forceMergeResponse.getFailedShards() > 0) {
-                List<DefaultShardOperationFailedException> failures = forceMergeResponse.shardFailuresList();
+                List<DefaultShardOperationFailedException> failures = forceMergeResponse.getShardFailures();
                 String message = Strings.format(
                     "DLM failed to force merge %d shards for index [%s] due to failures [%s]",
                     forceMergeResponse.getFailedShards(),

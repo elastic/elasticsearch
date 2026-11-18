@@ -60,7 +60,7 @@ public class InlineStats extends UnaryPlan
     );
 
     private final Aggregate aggregate;
-    private List<Attribute> lazyOutput;
+    private volatile List<Attribute> lazyOutput;
 
     public InlineStats(Source source, Aggregate aggregate) {
         super(source, aggregate);

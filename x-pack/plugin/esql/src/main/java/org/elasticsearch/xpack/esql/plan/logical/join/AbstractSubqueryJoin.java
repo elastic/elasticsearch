@@ -723,6 +723,8 @@ public abstract class AbstractSubqueryJoin extends Join
         Attribute sentinelAttr = new ReferenceAttribute(source, null, "$$matched", DataType.BOOLEAN, Nullability.TRUE, null, false);
         List<Attribute> extendedSchema = new ArrayList<>(schema);
         extendedSchema.add(sentinelAttr);
+        // Concurrently planned branches on this node can share this page; see EsqlSession#resultToPlan.
+        dedupPage.allowPassingToDifferentDriver();
         LocalRelation deduplicatedData = new LocalRelation(source, extendedSchema, LocalSupplier.of(dedupPage));
 
         // SV guard: pipe the left key through {@link MvSingleValueOrNull} via an EVAL so multi-valued left positions become NULL
@@ -954,6 +956,8 @@ public abstract class AbstractSubqueryJoin extends Join
         Attribute sentinelAttr = new ReferenceAttribute(source, null, "$$matched", DataType.BOOLEAN, Nullability.TRUE, null, false);
         List<Attribute> extendedSchema = new ArrayList<>(schema);
         extendedSchema.add(sentinelAttr);
+        // Concurrently planned branches on this node can share this page; see EsqlSession#resultToPlan.
+        dedupPage.allowPassingToDifferentDriver();
         LocalRelation deduplicatedData = new LocalRelation(source, extendedSchema, LocalSupplier.of(dedupPage));
 
         List<Attribute> leftFields = subqueryJoin.config().leftFields();

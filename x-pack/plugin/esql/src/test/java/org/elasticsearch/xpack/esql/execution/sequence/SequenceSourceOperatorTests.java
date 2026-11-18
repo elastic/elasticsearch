@@ -1214,7 +1214,6 @@ public class SequenceSourceOperatorTests extends ESTestCase {
             }
             assertTrue(harness.client.pending.isEmpty());
             assertEquals(2, harness.stageExecutions);
-            assertEquals(0L, harness.source.status().payloadSearchRequests());
             finishLatest(harness);
         }
     }
@@ -1297,7 +1296,6 @@ public class SequenceSourceOperatorTests extends ESTestCase {
             );
             assertEquals(1, harness.stageExecutions);
             assertEquals(1L, harness.source.status().candidateSearchRequests());
-            assertEquals(0L, harness.source.status().payloadSearchRequests());
             harness.finishDriver();
             harness.client.take(TransportClosePointInTimeAction.TYPE).listener.onResponse(new ClosePointInTimeResponse(true, 2));
             harness.assertFinished();
@@ -1357,7 +1355,6 @@ public class SequenceSourceOperatorTests extends ESTestCase {
             assertEquals(0, harness.stagePlans);
             assertEquals(0, harness.stageExecutions);
             assertEquals(1L, harness.source.status().candidateSearchRequests());
-            assertEquals(0L, harness.source.status().payloadSearchRequests());
             harness.finishDriver();
             harness.client.take(TransportClosePointInTimeAction.TYPE).listener.onResponse(new ClosePointInTimeResponse(true, 2));
             harness.assertFinished();
@@ -1405,7 +1402,6 @@ public class SequenceSourceOperatorTests extends ESTestCase {
             assertTrue(emitted);
             assertEquals(2, searches);
             assertEquals(2, harness.stageExecutions);
-            assertEquals(0L, harness.source.status().payloadSearchRequests());
             harness.finishDriver();
             harness.client.take(TransportClosePointInTimeAction.TYPE).listener.onResponse(new ClosePointInTimeResponse(true, 2));
             harness.assertFinished();
@@ -1734,7 +1730,6 @@ public class SequenceSourceOperatorTests extends ESTestCase {
                 assertTrue("the bounded fixture must finish", harness.source.isFinished());
                 assertEquals(limit == 999_999_999 ? 0 : 1, rows);
                 assertEquals(2, searches);
-                assertEquals(0L, harness.source.status().payloadSearchRequests());
                 harness.finishDriver();
                 harness.client.take(TransportClosePointInTimeAction.TYPE).listener.onResponse(new ClosePointInTimeResponse(true, 2));
                 harness.assertFinished();
@@ -2192,7 +2187,6 @@ public class SequenceSourceOperatorTests extends ESTestCase {
                 );
             });
             assertEquals(List.of(List.of(List.of("shared"))), rows);
-            assertEquals(0L, harness.source.status().payloadSearchRequests());
             finishLatest(harness);
         }
     }
@@ -2245,7 +2239,6 @@ public class SequenceSourceOperatorTests extends ESTestCase {
                     assertTrue(rows.getFirst().contains(List.of("shared/late")));
                 }
                 assertTrue(calls.get() > 0);
-                assertEquals(0L, harness.source.status().payloadSearchRequests());
                 finishLatest(harness);
             }
 
@@ -2296,7 +2289,6 @@ public class SequenceSourceOperatorTests extends ESTestCase {
             }
             assertEquals(2L, harness.source.status().completedMatches());
             assertEquals(3L, harness.source.status().candidateSearchRequests());
-            assertEquals(0L, harness.source.status().payloadSearchRequests());
             finishLatest(harness);
         }
 
@@ -2455,7 +2447,6 @@ public class SequenceSourceOperatorTests extends ESTestCase {
                 };
             });
             assertEquals(2, rows.size());
-            assertEquals(0L, harness.source.status().payloadSearchRequests());
             for (List<List<String>> row : rows) {
                 assertEquals(List.of("value"), sourceCell(sequence, row, 0, "visible"));
                 assertEquals(List.of("shared/late"), sourceCell(sequence, row, 0, "late"));
@@ -2532,7 +2523,6 @@ public class SequenceSourceOperatorTests extends ESTestCase {
                 assertEquals(1, rows.size());
                 assertEquals(List.of("left"), sourceCell(sequence, rows.getFirst(), 0, "artifact"));
                 assertEquals(List.of(exported.equals("renamed") ? "left" : "LEFT"), sourceCell(sequence, rows.getFirst(), 1, exported));
-                assertEquals(0L, harness.source.status().payloadSearchRequests());
                 finishLatest(harness);
             }
 

@@ -89,8 +89,6 @@ public class SequenceRuntimeProfileIT extends AbstractSequenceIntegTestCase {
             assertNull(off.status());
             SequenceSourceStatus status = on.status();
             assertNotNull(status);
-            assertEquals("the mapped selection alias must remain retained", 0L, status.payloadSearchRequests());
-            assertEquals(0L, status.payloadRowsFetched());
             assertEquals(2L, status.stageDrivers());
             SequenceSourceStatus.RuntimeProfile runtime = status.runtime();
             assertNotNull(runtime);

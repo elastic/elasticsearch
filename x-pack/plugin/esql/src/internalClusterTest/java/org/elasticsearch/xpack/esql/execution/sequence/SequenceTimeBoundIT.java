@@ -161,8 +161,6 @@ public class SequenceTimeBoundIT extends AbstractSequenceIntegTestCase {
         assertEquals(32L, result.status.candidateRowsFetched());
         assertEquals(2L, result.status.candidateSearchRequests());
         // Selection already owns the key; untouched original IDs need no late fields or replay.
-        assertEquals(0L, result.status.payloadRowsFetched());
-        assertEquals(0L, result.status.payloadSearchRequests());
         assertEquals(2L, result.status.stageDrivers());
         assertEquals(16L, result.status.completedMatches());
     }
@@ -214,8 +212,6 @@ public class SequenceTimeBoundIT extends AbstractSequenceIntegTestCase {
         assertEquals(2L, result.status.candidateRowsFetched());
         assertEquals(2L, result.status.candidateSearchRequests());
         // The hidden timestamp stays native at selection; retained key/ID output does not demand it again.
-        assertEquals(0L, result.status.payloadRowsFetched());
-        assertEquals(0L, result.status.payloadSearchRequests());
         assertEquals(2L, result.status.stageDrivers());
         assertEquals(1L, result.status.completedMatches());
     }

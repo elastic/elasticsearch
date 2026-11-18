@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -37,6 +39,8 @@ import java.util.Set;
 
 /** Coordinator bindings for processed PRIMARY fields and explicit MEMBER references. */
 public final class SequenceMatchOutput {
+    private static final String PROVENANCE = "sequence_provenance";
+
     private SequenceMatchOutput() {}
 
     /** A member field demand resolved against the stage's processed output, never an original-source lookup. */
@@ -507,6 +511,8 @@ public final class SequenceMatchOutput {
     /** Adds actual member field demands without removing ordinary fields that happen to match a diagnostic label. */
     public static Set<String> discoverFields(LogicalPlan parsed, Set<String> original) {
         Set<String> fields = new HashSet<>(original);
+        // Validate the public column even when later projections would otherwise hide a mapped collision.
+        parsed.forEachDown(Scope.class, scope -> fields.add(PROVENANCE));
         parsed.forEachExpressionDown(MemberReference.class, member -> fields.add(member.field()));
         return fields;
     }
@@ -608,16 +614,19 @@ public final class SequenceMatchOutput {
                 Attribute value = sequence.output().get(i);
                 int stage = sequence.sourceStages().get(i);
                 if (Sequence.isProvenanceAttribute(input)) {
-                    Set<String> names = new HashSet<>();
-                    ((SequenceStage) sequence.children().get(context.primary())).output()
-                        .stream()
-                        .filter(attribute -> attribute.synthetic() == false)
-                        .forEach(attribute -> names.add(attribute.name()));
-                    String name = "sequence_provenance";
-                    int suffix = 1;
-                    while (names.add(name) == false)
-                        name = "sequence_provenance_" + suffix++;
-                    output.add(SequenceSchema.projection(value, name, keepUnmapped ? value.id() : null, false));
+                    var primary = (SequenceStage) sequence.children().get(context.primary());
+                    if (primary.output().stream().anyMatch(a -> a.synthetic() == false && PROVENANCE.equals(a.name()))) {
+                        throw new VerificationException(
+                            List.of(
+                                Failure.fail(
+                                    primary,
+                                    "Column [{}] is reserved for SEQUENCE output. DROP or RENAME it inside the PRIMARY step.",
+                                    PROVENANCE
+                                )
+                            )
+                        );
+                    }
+                    output.add(SequenceSchema.projection(value, PROVENANCE, keepUnmapped ? value.id() : null, false));
                     continue;
                 }
                 if (input.synthetic() == false && (i < keyCount || stage == context.primary())) {

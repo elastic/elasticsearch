@@ -49,6 +49,60 @@ public class SequenceWildcardPrefilterIT extends AbstractSequenceIntegTestCase {
         return CollectionUtils.appendToCopy(super.nodePlugins(), CommonAnalysisPlugin.class);
     }
 
+    public void testRemoteLikeListInFirstStep() {
+        assertRemoteList("value LIKE (\"n?de\", \"p?thon*\")", true);
+    }
+
+    public void testRemoteLikeListInLaterStep() {
+        assertRemoteList("value LIKE (\"n?de\", \"p?thon*\")", false);
+    }
+
+    public void testRemoteRlikeListInFirstStep() {
+        assertRemoteList("value RLIKE (\"n.de\", \"p.thon.*\")", true);
+    }
+
+    public void testRemoteRlikeListInLaterStep() {
+        assertRemoteList("value RLIKE (\"n.de\", \"p.thon.*\")", false);
+    }
+
+    private void assertRemoteList(String list, boolean inFirstStep) {
+        create(START, KEYWORD, KEYWORD, Settings.EMPTY);
+        create(END, KEYWORD, KEYWORD, Settings.EMPTY);
+        assertFalse(
+            client().prepareBulk()
+                .add(event(START, "start", "target", "node", 0))
+                .add(event(START, "start-noise", "only-before", "other", 1))
+                .add(event(START, "miss", "before-only", "node", 1))
+                .add(event(END, "end", "target", "python3", 2))
+                .add(event(END, "end-noise", "only-after", "other", 3))
+                .add(event(END, "miss", "after-only", "python3", 3))
+                .get()
+                .hasFailures()
+        );
+        refresh(START, END);
+        String where = " | WHERE " + list + " AND TO_LOWER(other) LIKE \"out*\"";
+        String query = "SEQUENCE BY key WITHIN 1m PRIMARY 2 (FROM "
+            + START
+            + " METADATA _id"
+            + (inFirstStep ? where : "")
+            + "), (FROM "
+            + END
+            + " METADATA _id"
+            + (inFirstStep ? "" : where)
+            + ") | KEEP _id, sequence_provenance | LIMIT 20";
+        var neither = observe(query, false, false, "DOC_VALUES");
+        var wildcard = observe(query, false, true, "DOC_VALUES");
+        var on = observe(query, true, true, "DOC_VALUES");
+        assertSameResults(neither, wildcard, "end");
+        assertSameResults(wildcard, on, "end");
+        assertEquals(neither.fetched() - 1, wildcard.fetched());
+        assertTrue(on.appliedKeys() > 0);
+        assertEquals(
+            List.of(new SequenceProvenance.Member(1, START, "start"), new SequenceProvenance.Member(2, END, "end")),
+            SequenceProvenance.decode(on.rows().getFirst().getLast())
+        );
+    }
+
     public void testPositiveListAndSingleAlongsideMixedConjunctsWithKibanaFilter() {
         fixture(KEYWORD, KEYWORD, Settings.EMPTY);
         for (String where : List.of(LIKE, "TO_LOWER(value) LIKE \"n?d*\"")) {

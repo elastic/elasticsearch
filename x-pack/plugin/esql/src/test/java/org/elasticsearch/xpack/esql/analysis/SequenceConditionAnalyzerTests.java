@@ -77,7 +77,7 @@ public class SequenceConditionAnalyzerTests extends ESTestCase {
     }
 
     public void testOlderClusterRejectsEverySequenceShape() {
-        TransportVersion old = TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE_R6_SOURCE_SCOPE);
+        TransportVersion old = TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE);
         for (String stages : List.of(
             "(FROM a),(FROM b)",
             "(FROM a),(FROM b) WITHIN 5s",

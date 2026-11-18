@@ -738,10 +738,6 @@ public class SequenceRetainedExpansionIT extends AbstractSequenceIntegTestCase {
                         assertEquals(List.of(cells((long) wanted.size())), count.values);
                         assertTrue("candidate reads must run", typed.status.candidateSearchRequests() > 0);
                         assertTrue("candidate rows must be read", typed.status.candidateRowsFetched() > 0);
-                        assertEquals(0L, count.status.payloadSearchRequests());
-                        assertEquals(0L, count.status.payloadRowsFetched());
-                        assertEquals(0L, typed.status.payloadSearchRequests());
-                        assertEquals(0L, typed.status.payloadRowsFetched());
                         assertEquals(count.status.candidateSearchRequests(), typed.status.candidateSearchRequests());
                         assertEquals(count.status.candidateRowsFetched(), typed.status.candidateRowsFetched());
                         emit(
@@ -1083,8 +1079,6 @@ public class SequenceRetainedExpansionIT extends AbstractSequenceIntegTestCase {
                 result.status.candidateSearchRequests(),
                 "candidate_rows",
                 result.status.candidateRowsFetched(),
-                "payload_requests",
-                result.status.payloadSearchRequests(),
                 "stage_drivers",
                 result.status.stageDrivers()
             )

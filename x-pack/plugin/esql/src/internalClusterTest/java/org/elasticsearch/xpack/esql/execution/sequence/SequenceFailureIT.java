@@ -574,7 +574,6 @@ public class SequenceFailureIT extends AbstractSequenceIntegTestCase {
                     .toList();
                 assertThat(statuses, hasSize(1));
                 assertEquals("both stages must compute their output once", 2L, statuses.getFirst().stageDrivers());
-                assertEquals(0L, statuses.getFirst().payloadSearchRequests());
             }
             assertReleased();
         }

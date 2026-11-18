@@ -40,6 +40,7 @@ import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.esql.plan.logical.Sequence;
 
 import java.io.IOException;
 import java.util.List;
@@ -53,7 +54,6 @@ import java.util.function.Consumer;
 public final class SequenceSourceQueryBuilder extends AbstractQueryBuilder<SequenceSourceQueryBuilder> {
     private static final String KEY_FILTER_ENVELOPE = "__esql_sequence_waiting_keys_v1";
     private static final String WILDCARD_OPTION = "__esql_sequence_wildcard_option_v1";
-    public static final TransportVersion ESQL_SEQUENCE_R6_SOURCE_SCOPE = TransportVersion.fromName("esql_sequence_r6_source_scope");
     public static final String NAME = "esql_sequence_source_scope";
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         QueryBuilder.class,
@@ -98,7 +98,7 @@ public final class SequenceSourceQueryBuilder extends AbstractQueryBuilder<Seque
     }
 
     private static void checkSupported(TransportVersion version) {
-        if (version.supports(ESQL_SEQUENCE_R6_SOURCE_SCOPE) == false) {
+        if (version.supports(Sequence.ESQL_SEQUENCE) == false) {
             throw new IllegalArgumentException("SEQUENCE source isolation is not supported by transport version [" + version + "]");
         }
     }
@@ -449,7 +449,7 @@ public final class SequenceSourceQueryBuilder extends AbstractQueryBuilder<Seque
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return ESQL_SEQUENCE_R6_SOURCE_SCOPE;
+        return Sequence.ESQL_SEQUENCE;
     }
 
     @Override

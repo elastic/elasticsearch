@@ -192,8 +192,6 @@ public class SequenceMappedFieldsIT extends AbstractSequenceIntegTestCase {
                     SequenceSourceStatus status = statuses.getFirst();
                     assertEquals(2L, status.candidateSearchRequests());
                     assertEquals(2L, status.candidateRowsFetched());
-                    assertEquals(0L, status.payloadSearchRequests());
-                    assertEquals(0L, status.payloadRowsFetched());
                     assertEquals(1L, status.completedMatches());
                     assertEquals(1L, status.rowsEmitted());
                     assertEquals(2L, status.stageDrivers());

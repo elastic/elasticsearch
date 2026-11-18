@@ -175,7 +175,7 @@ public class SequenceSecurityIT extends ESRestTestCase {
                     assertTrue(sample >= 0 && sample < 1000000);
                 }
                 // Selecting these demands succeeds while the independent throwing field remains unrequested.
-                assertDirectSequenceProfile(result, 0, 0, 1);
+                assertDirectSequenceProfile(result, 1);
             }
         }
     }
@@ -612,7 +612,7 @@ public class SequenceSecurityIT extends ESRestTestCase {
                     row.subList(0, 5)
                 );
                 assertEquals(List.of(selected), ordinaryColumnValues(result, "_source"));
-                assertDirectSequenceProfile(result, 0, 0, 1);
+                assertDirectSequenceProfile(result, 1);
             }
             Map<String, Object> unrestricted = sequenceQuery("test-admin", stages.formatted(1, first, second, 2, 2));
             assertEquals(Set.of("hidden-A", "orphan-A"), new java.util.HashSet<>(provenanceRoleValues(unrestricted, 1, "id")));
@@ -638,7 +638,7 @@ public class SequenceSecurityIT extends ESRestTestCase {
             List.of(List.of("shared", "visible-A", "sequence-security-events", "visible-B", "sequence-security-events")),
             restricted.get("values")
         );
-        assertDirectSequenceProfile(restricted, 0, 0, 1);
+        assertDirectSequenceProfile(restricted, 1);
         Map<String, Object> ordinary = sequenceQuery("sequence_dls_fls", """
             FROM sequence-security-events METADATA _id
             | KEEP _id | SORT _id | LIMIT 10
@@ -650,7 +650,7 @@ public class SequenceSecurityIT extends ESRestTestCase {
             Set.of("hidden-A", "orphan-A"),
             rows.stream().map(row -> requireType(List.class, row).get(1)).collect(java.util.stream.Collectors.toSet())
         );
-        assertDirectSequenceProfile(unrestricted, 0, 0, 2);
+        assertDirectSequenceProfile(unrestricted, 2);
         assertRetentionFieldDenied("sequence_dls_fls", "FROM sequence-security-events | KEEP secret | LIMIT 10");
         String forbidden = """
             SEQUENCE BY key WITHIN 30s PRIMARY 1
@@ -686,13 +686,13 @@ public class SequenceSecurityIT extends ESRestTestCase {
         return result;
     }
 
-    private static void assertDirectSequenceProfile(Map<String, Object> result, long payloadSearches, long payloadRows, long emittedRows) {
+    private static void assertDirectSequenceProfile(Map<String, Object> result, long emittedRows) {
         Map<?, ?> profile = requireType(Map.class, result.get("profile"));
         List<Map<?, ?>> statuses = new ArrayList<>();
         for (Object driver : requireType(List.class, profile.get("drivers"))) {
             for (Object operator : requireType(List.class, requireType(Map.class, driver).get("operators"))) {
                 Object status = requireType(Map.class, operator).get("status");
-                if (status instanceof Map<?, ?> values && values.containsKey("payload_search_requests")) {
+                if (status instanceof Map<?, ?> values && values.containsKey("candidate_search_requests")) {
                     statuses.add(values);
                 }
             }
@@ -705,8 +705,6 @@ public class SequenceSecurityIT extends ESRestTestCase {
             2L,
             requireType(Number.class, status.get("stage_drivers")).longValue()
         );
-        assertEquals(payloadSearches, requireType(Number.class, status.get("payload_search_requests")).longValue());
-        assertEquals(payloadRows, requireType(Number.class, status.get("payload_rows_fetched")).longValue());
         assertEquals(emittedRows, requireType(Number.class, status.get("rows_emitted")).longValue());
     }
 
@@ -1100,7 +1098,7 @@ public class SequenceSecurityIT extends ESRestTestCase {
                         List.of("routed", primary == 1 ? "visible-A" : "visible-B", primary == 1 ? "visible-B" : "visible-A", "secret-B"),
                         row.subList(0, 4)
                     );
-                    assertDirectSequenceProfile(result, 0, 0, 1);
+                    assertDirectSequenceProfile(result, 1);
                     Map<String, Object> ids = profiledRetentionQuery(user, """
                         SEQUENCE BY key WITHIN 30s PRIMARY %s
                         (FROM sequence-pit-routed-*,-sequence-pit-routed-b,-sequence-pit-routed-excluded
@@ -1122,7 +1120,7 @@ public class SequenceSecurityIT extends ESRestTestCase {
                         ),
                         ids.get("values")
                     );
-                    assertDirectSequenceProfile(ids, 0, 0, 1);
+                    assertDirectSequenceProfile(ids, 1);
                 }
             } finally {
                 assertOK(adminClient().performRequest(new Request("DELETE", "_security/user/" + user)));

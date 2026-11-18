@@ -21,11 +21,6 @@ import java.util.List;
 
 /** Supplies valid stages and aligned output bindings to the generic node-contract tests. */
 public class SequenceTests extends AbstractNodeTestCase<Sequence, LogicalPlan> {
-    public void testSingleEngineVersionFollowsPrivateCheckpoint() {
-        assertTrue(Sequence.ESQL_SEQUENCE_R5.supports(Sequence.ESQL_SEQUENCE_LATEST_VALID_LANGUAGE));
-        assertFalse(Sequence.ESQL_SEQUENCE_LATEST_VALID_LANGUAGE.supports(Sequence.ESQL_SEQUENCE_R5));
-    }
-
     /** Supplies the generic node generator with coherent stage outputs. */
     public static Sequence randomSequence() {
         List<LogicalPlan> stages = new ArrayList<>();

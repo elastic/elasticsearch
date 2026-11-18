@@ -68,21 +68,9 @@ public class SequenceSerializationTests extends AbstractLogicalPlanSerialization
         return true;
     }
 
-    /** R5 peers do not understand the new internal query, so the logical plan fails before writing any bytes. */
-    public void testR5PeerIsRejectedBeforeWritingSourceScopePlan() throws Exception {
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.setTransportVersion(Sequence.ESQL_SEQUENCE_R5);
-            assertThat(
-                expectThrows(IllegalArgumentException.class, () -> createTestInstance().writeTo(out)).getMessage(),
-                containsString("SEQUENCE is not supported")
-            );
-            assertEquals(0, out.size());
-        }
-    }
-
     public void testRejectUnsupportedPeerBeforeWriting() throws Exception {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.setTransportVersion(TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE_R5));
+            out.setTransportVersion(TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE));
             assertThat(
                 expectThrows(IllegalArgumentException.class, () -> createTestInstance().writeTo(out)).getMessage(),
                 containsString("SEQUENCE is not supported")
@@ -95,7 +83,7 @@ public class SequenceSerializationTests extends AbstractLogicalPlanSerialization
     public void testOlderPeerIsRejectedBeforeReadingAnyLogicalPlanBytes() throws Exception {
         for (var entry : List.of(Sequence.ENTRY, SequenceStage.ENTRY, SequenceCondition.ENTRY)) {
             try (var in = StreamInput.wrap(new byte[0])) {
-                in.setTransportVersion(TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE_R5));
+                in.setTransportVersion(TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE));
                 assertThat(
                     expectThrows(IllegalArgumentException.class, () -> entry.reader.read(in)).getMessage(),
                     containsString("SEQUENCE is not supported")
@@ -144,7 +132,7 @@ public class SequenceSerializationTests extends AbstractLogicalPlanSerialization
         assertEquals(condition, restored.collect(SequenceCondition.class).getFirst());
         for (LogicalPlan plan : List.of(sequence, later, condition)) {
             try (BytesStreamOutput out = new BytesStreamOutput()) {
-                out.setTransportVersion(TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE_R5));
+                out.setTransportVersion(TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE));
                 assertThat(
                     expectThrows(IllegalArgumentException.class, () -> plan.writeTo(out)).getMessage(),
                     containsString("SEQUENCE is not supported")
@@ -216,7 +204,7 @@ public class SequenceSerializationTests extends AbstractLogicalPlanSerialization
         assertEquals(limit, ((SequenceStage) restored.children().get(1)).maxGapNanos());
         for (LogicalPlan plan : List.of(sequence, sequence.children().get(1))) {
             try (BytesStreamOutput out = new BytesStreamOutput()) {
-                out.setTransportVersion(TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE_R5));
+                out.setTransportVersion(TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE));
                 assertThat(
                     expectThrows(IllegalArgumentException.class, () -> plan.writeTo(out)).getMessage(),
                     containsString("SEQUENCE is not supported")
@@ -230,7 +218,7 @@ public class SequenceSerializationTests extends AbstractLogicalPlanSerialization
     public void testUnconstrainedStageRejectsOlderPeerBeforeWriting() throws Exception {
         var stage = (SequenceStage) createTestInstance().children().getFirst();
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.setTransportVersion(TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE_R5));
+            out.setTransportVersion(TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE));
             assertThat(
                 expectThrows(IllegalArgumentException.class, () -> stage.writeTo(out)).getMessage(),
                 containsString("SEQUENCE is not supported")

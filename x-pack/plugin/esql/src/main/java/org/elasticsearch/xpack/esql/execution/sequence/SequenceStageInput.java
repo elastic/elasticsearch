@@ -386,7 +386,10 @@ public final class SequenceStageInput {
                     && predicate.references().stream().noneMatch(MetadataAttribute::isScoreAttribute)) {
                     if (TranslationAware.translatable(predicate, LucenePushdownPredicates.DEFAULT)
                         .finish() != TranslationAware.FinishedTranslatable.NO) {
-                        predicates.add(predicate);
+                        // Step searches are ordinary PIT requests. Keep plan-stream-only expressions in the original WHERE.
+                        if (CANDIDATE_TRANSLATOR_HANDLER.asQuery(LucenePushdownPredicates.DEFAULT, predicate).containsPlan() == false) {
+                            predicates.add(predicate);
+                        }
                     } else if (wildcards.isEmpty() && stage.isOriginalWildcard(predicate)) {
                         var wildcard = SequenceWildcardPrefilter.fromConjunct(predicate);
                         if (wildcard != null) {

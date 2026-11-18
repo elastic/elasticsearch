@@ -59,14 +59,6 @@ public final class Sequence extends LogicalPlan
         PostOptimizationVerificationAware.CoordinatorOnly,
         TelemetryAware {
     public static final TransportVersion ESQL_SEQUENCE = TransportVersion.fromName("esql_sequence_repeatable_input");
-    // Reserve private checkpoint IDs so generation cannot reuse them for the incompatible single-engine wire.
-    public static final TransportVersion ESQL_SEQUENCE_PER_LINK_TIME = TransportVersion.fromName("esql_sequence_per_link_time");
-    public static final TransportVersion ESQL_SEQUENCE_LATEST_VALID_LANGUAGE = TransportVersion.fromName(
-        "esql_sequence_latest_valid_language"
-    );
-    public static final TransportVersion ESQL_SEQUENCE_SINGLE_ENGINE = TransportVersion.fromName("esql_sequence_single_engine");
-    public static final TransportVersion ESQL_SEQUENCE_R5 = TransportVersion.fromName("esql_sequence_r5");
-    public static final TransportVersion ESQL_SEQUENCE_R6_SOURCE_SCOPE = TransportVersion.fromName("esql_sequence_r6_source_scope");
 
     /** Structural capacity for parsing and plan decoding. Execution admission is checked separately. */
     public static final int MAX_STAGES = 256;
@@ -138,16 +130,9 @@ public final class Sequence extends LogicalPlan
         return Source.readFrom((PlanStreamInput) in);
     }
 
-    /** Fails before writing a partial plan to peers which cannot execute this command. */
-    public static void checkSupported(TransportVersion version) {
-        if (version.supports(ESQL_SEQUENCE) == false) {
-            throw new IllegalArgumentException("SEQUENCE is not supported in transport version [" + version + "]");
-        }
-    }
-
     /** Rejects peers which cannot run the current provenance and profiling contract before any enclosing plan bytes are read or written. */
     public static void checkPlanSupported(TransportVersion version) {
-        if (version.supports(ESQL_SEQUENCE_R6_SOURCE_SCOPE) == false) {
+        if (version.supports(ESQL_SEQUENCE) == false) {
             throw new IllegalArgumentException("SEQUENCE is not supported in transport version [" + version + "]");
         }
     }

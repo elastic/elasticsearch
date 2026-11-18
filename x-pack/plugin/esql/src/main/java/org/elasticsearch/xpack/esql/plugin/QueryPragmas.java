@@ -346,7 +346,7 @@ public final class QueryPragmas implements Writeable {
         return SEQUENCE_URI_PARTS.get(settings);
     }
 
-    /** Enables bounded waiting-key pruning only when the request explicitly opts in. */
+    /** Bounded waiting-key pruning is enabled by default and can be disabled per request. */
     public boolean sequenceKeyFilter() {
         return SEQUENCE_KEY_FILTER.get(settings);
     }

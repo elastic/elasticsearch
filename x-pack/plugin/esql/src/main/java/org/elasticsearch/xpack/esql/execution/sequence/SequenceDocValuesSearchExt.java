@@ -52,7 +52,7 @@ public final class SequenceDocValuesSearchExt extends SearchExtBuilder {
 
     /** Restores an internal projection only on nodes supporting the native sequence command. */
     public SequenceDocValuesSearchExt(StreamInput in) throws IOException {
-        Sequence.checkSupported(in.getTransportVersion());
+        Sequence.checkPlanSupported(in.getTransportVersion());
         fields = in.readCollectionAsImmutableList(FieldAndFormat::new);
         fieldExtractPreference = in.readEnum(MappedFieldType.FieldExtractPreference.class);
     }
@@ -77,7 +77,7 @@ public final class SequenceDocValuesSearchExt extends SearchExtBuilder {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        Sequence.checkSupported(out.getTransportVersion());
+        Sequence.checkPlanSupported(out.getTransportVersion());
         out.writeCollection(fields);
         out.writeEnum(fieldExtractPreference);
     }

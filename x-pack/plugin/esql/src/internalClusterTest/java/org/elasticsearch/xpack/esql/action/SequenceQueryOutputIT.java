@@ -631,22 +631,41 @@ public class SequenceQueryOutputIT extends AbstractSequenceIntegTestCase {
         try (var response = query(base + " | EVAL sequence_provenance=\"replacement\" | KEEP sequence_provenance")) {
             assertEquals(List.of(List.of("replacement")), checkConsumers(response).rows.stream().map(Row::ordinary).toList());
         }
-        String collisions = base.replace(
-            "FROM demo-executions",
-            "FROM demo-executions | EVAL sequence_provenance=\"caller\", sequence_provenance_1=\"reserved\", value=\"private-name-caller\" | RENAME value AS _sequence_provenance"
-        );
-        try (
-            var response = query(
-                collisions
-                    + " | KEEP sequence_provenance,sequence_provenance_1,_sequence_provenance,sequence_provenance_2 | RENAME sequence_provenance_2 AS events"
-            )
-        ) {
-            List<Object> row = checkConsumers(response).rows.getFirst().ordinary;
-            assertEquals(List.of("caller", "reserved", "private-name-caller"), row.subList(0, 3));
+    }
+
+    public void testPrimaryMappingCannotReplaceGeneratedProvenance() throws Exception {
+        String step = "FROM demo-executions";
+        String statement = "SEQUENCE BY host.id WITHIN 1m PRIMARY 2 (FROM demo-downloads), (" + step + ") | KEEP sequence_provenance";
+        var expected = List.of(new SequenceProvenance.Member(1, A, "D1"), new SequenceProvenance.Member(2, B, "E1"));
+        try (var response = query(statement)) {
             assertEquals(
-                List.of(new SequenceProvenance.Member(1, A, "D1"), new SequenceProvenance.Member(2, B, "E1")),
-                SequenceProvenance.decode(row.get(3))
+                List.of(expected),
+                checkConsumers(response).rows.stream().map(row -> SequenceProvenance.decode(row.ordinary.getFirst())).toList()
             );
+        }
+
+        assertAcked(
+            indicesAdmin().preparePutMapping(B).setSource(Map.of("properties", Map.of("sequence_provenance", Map.of("type", "keyword"))))
+        );
+        for (String query : List.of(statement, statement.replace("KEEP sequence_provenance", "KEEP user.name"))) {
+            Exception failure = expectThrows(Exception.class, () -> { try (var ignored = query(query)) {} });
+            assertThat(
+                failure.getMessage(),
+                containsString("Column [sequence_provenance] is reserved for SEQUENCE output. DROP or RENAME it inside the PRIMARY step.")
+            );
+        }
+
+        for (String allowed : List.of(
+            statement.replace("PRIMARY 2", "PRIMARY 1"),
+            statement.replace(step, step + " | DROP sequence_provenance"),
+            statement.replace(step, step + " | RENAME sequence_provenance AS source_provenance")
+        )) {
+            try (var response = query(allowed)) {
+                assertEquals(
+                    List.of(expected),
+                    checkConsumers(response).rows.stream().map(row -> SequenceProvenance.decode(row.ordinary.getFirst())).toList()
+                );
+            }
         }
     }
 

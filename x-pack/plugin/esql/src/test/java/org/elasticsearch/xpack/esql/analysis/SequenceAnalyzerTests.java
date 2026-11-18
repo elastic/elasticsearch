@@ -323,19 +323,11 @@ public class SequenceAnalyzerTests extends ESTestCase {
                 configured().statement(base + " | EVAL sequence_provenance=\"ordinary\" | KEEP sequence_provenance")
             );
             assertTrue(replaced.collect(Sequence.class).getFirst().sourceAttributes().stream().noneMatch(Sequence::isProvenanceAttribute));
-            String collisions = base.replace(
-                "KEEP host.id,label",
-                "EVAL sequence_provenance=\"caller\", sequence_provenance_1=\"reserved\", _sequence_provenance=\"private-name-caller\" | KEEP host.id,label,sequence_provenance,sequence_provenance_1,_sequence_provenance"
+            String collision = base.replace("KEEP host.id,label", "EVAL sequence_provenance = label");
+            configured().statementError(
+                collision + " | KEEP host.id",
+                containsString("Column [sequence_provenance] is reserved for SEQUENCE output. DROP or RENAME it inside the PRIMARY step.")
             );
-            LogicalPlan collision = configured().statement(
-                collisions + " | KEEP sequence_provenance,sequence_provenance_1,_sequence_provenance,sequence_provenance_2"
-            );
-            assertEquals(
-                List.of("sequence_provenance", "sequence_provenance_1", "_sequence_provenance", "sequence_provenance_2"),
-                collision.output().stream().map(Attribute::name).toList()
-            );
-            Sequence owned = collision.collect(Sequence.class).getFirst();
-            assertEquals(1, owned.sourceAttributes().stream().filter(Sequence::isProvenanceAttribute).count());
             assertFalse(
                 Sequence.isProvenanceAttribute(
                     new org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute(
@@ -747,7 +739,7 @@ public class SequenceAnalyzerTests extends ESTestCase {
     }
 
     public void testOldClusterRejectedBeforePlanning() {
-        configured().minimumTransportVersion(TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE_R5)).statementError("""
+        configured().minimumTransportVersion(TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE)).statementError("""
             sequence by host.id WITHIN 30s PRIMARY 1 (from a), (from b)
             """, containsString("SEQUENCE is not supported by all nodes in the cluster"));
         assertWarnings("No limit defined, adding default limit of [1000]");

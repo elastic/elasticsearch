@@ -302,7 +302,7 @@ public class SequenceLatestValidMatcherTests extends ESTestCase {
                 h.matcher.snapshotForTests().stream().map(SequenceLatestValidMatcher.RowState::used).toList()
             );
             h.add(0, 3, 40, "k", "a3", 3);
-            assertEquals(1, h.matcher.boundDrops());
+            assertEquals(0, h.matcher.boundDrops());
             assertEquals(2, h.matcher.retainedCandidates());
             h.add(1, 4, 50, "k", "f2", 2);
             assertEquals(List.of("a1 f1", "a2 f2"), h.matches);

@@ -6,7 +6,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ sequence_command, sequence_light_provenance ]
+          capabilities: [ sequence_command ]
       reason: "Requires native SEQUENCE with light provenance"
 
   - do:

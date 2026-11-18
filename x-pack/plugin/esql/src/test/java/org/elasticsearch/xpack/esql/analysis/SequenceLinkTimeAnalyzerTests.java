@@ -51,7 +51,7 @@ public class SequenceLinkTimeAnalyzerTests extends ESTestCase {
 
     /** Every query requires the sole engine, including a query with no incoming limit. */
     public void testIncomingLimitRequiresSupportingCluster() {
-        TransportVersion older = TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE_R5);
+        TransportVersion older = TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE);
         LogicalPlan unconstrained = configured(TransportVersion.current()).statement(QUERY);
         assertFalse(unconstrained.collect(Sequence.class).getFirst().hasLinkTimeLimits());
         LogicalPlan constrained = configured(TransportVersion.current()).buildAnalyzer().analyze(withLimit());
@@ -104,7 +104,7 @@ public class SequenceLinkTimeAnalyzerTests extends ESTestCase {
         LogicalPlan optimized = optimizer.optimize(analyzed);
         assertEquals(analyzed.output(), optimized.output());
         assertEquals(5_000_000_000L, ((SequenceStage) optimized.collect(Sequence.class).getFirst().children().get(1)).maxGapNanos());
-        configured(TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE_R5)).statementError(
+        configured(TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE)).statementError(
             query,
             containsString("SEQUENCE is not supported by all nodes in the cluster")
         );

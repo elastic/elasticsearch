@@ -1391,16 +1391,13 @@ public final class SequenceSourceOperator extends SourceOperator {
         }
         return new SequenceSourceStatus(
             candidateSearchRequests,
-            0,
             candidateRowsFetched,
-            0,
             completedMatches,
             rowsEmitted,
             stageDrivers,
             stageDriverCpuNanos,
             stageDriverIterations,
             candidateSearchTookMillis,
-            0,
             maxPendingCandidates,
             matcher.latestValidCounters(),
             profiler.snapshot()

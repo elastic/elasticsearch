@@ -33,16 +33,13 @@ import java.util.Objects;
  */
 public record SequenceSourceStatus(
     long candidateSearchRequests,
-    long payloadSearchRequests,
     long candidateRowsFetched,
-    long payloadRowsFetched,
     long completedMatches,
     long rowsEmitted,
     long stageDrivers,
     long stageDriverCpuNanos,
     long stageDriverIterations,
     long candidateSearchTookMillis,
-    long payloadSearchTookMillis,
     long maxPendingCandidates,
     LatestValidCounters latestValidCounters,
     RuntimeProfile runtime
@@ -73,15 +70,13 @@ public record SequenceSourceStatus(
         "sequence_source",
         SequenceSourceStatus::readFrom
     );
-    /** Describes the existing counters and optional human-readable times without changing their JSON or transport form. */
+    /** Describes the candidate reader and its optional human-readable times. */
     public static final ProfileSchema<SequenceSourceStatus> PROFILE_SCHEMA = ProfileSchema.of(
         SequenceSourceStatus.class,
         (builder, status, params) -> status.writeProfile(builder, params)
     )
         .required("candidate_search_requests", ProfileSchema.integer())
-        .required("payload_search_requests", ProfileSchema.integer())
         .required("candidate_rows_fetched", ProfileSchema.integer())
-        .required("payload_rows_fetched", ProfileSchema.integer())
         .required("completed_matches", ProfileSchema.integer())
         .required("rows_emitted", ProfileSchema.integer())
         .required("stage_drivers", ProfileSchema.integer())
@@ -89,9 +84,7 @@ public record SequenceSourceStatus(
         .optional("stage_driver_cpu_time", ProfileSchema.string())
         .required("stage_driver_iterations", ProfileSchema.integer())
         .required("candidate_search_took_millis", ProfileSchema.integer())
-        .required("payload_search_took_millis", ProfileSchema.integer())
         .optional("candidate_search_took", ProfileSchema.string())
-        .optional("payload_search_took", ProfileSchema.string())
         .required("max_pending_candidates", ProfileSchema.integer())
         .required("candidates_dropped_at_bound", ProfileSchema.integer())
         .required("searches_abandoned_at_work_limit", ProfileSchema.integer())
@@ -107,17 +100,14 @@ public record SequenceSourceStatus(
     public static SequenceSourceStatus readFrom(StreamInput in) throws IOException {
         Sequence.checkPlanSupported(in.getTransportVersion());
         return new SequenceSourceStatus(
+            readBeforeRetiredSlot(in),
+            readBeforeRetiredSlot(in),
             in.readVLong(),
             in.readVLong(),
             in.readVLong(),
             in.readVLong(),
             in.readVLong(),
-            in.readVLong(),
-            in.readVLong(),
-            in.readVLong(),
-            in.readVLong(),
-            in.readVLong(),
-            in.readVLong(),
+            readBeforeRetiredSlot(in),
             in.readVLong(),
             new LatestValidCounters(
                 in.readVLong(),
@@ -132,20 +122,27 @@ public record SequenceSourceStatus(
         );
     }
 
+    /** Historical status records are unframed. Consume the old zero after its preceding candidate counter. */
+    private static long readBeforeRetiredSlot(StreamInput in) throws IOException {
+        long value = in.readVLong();
+        in.readVLong();
+        return value;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         Sequence.checkPlanSupported(out.getTransportVersion());
         out.writeVLong(candidateSearchRequests);
-        out.writeVLong(payloadSearchRequests);
+        out.writeVLong(0); // Retired wire slot.
         out.writeVLong(candidateRowsFetched);
-        out.writeVLong(payloadRowsFetched);
+        out.writeVLong(0); // Retired wire slot.
         out.writeVLong(completedMatches);
         out.writeVLong(rowsEmitted);
         out.writeVLong(stageDrivers);
         out.writeVLong(stageDriverCpuNanos);
         out.writeVLong(stageDriverIterations);
         out.writeVLong(candidateSearchTookMillis);
-        out.writeVLong(payloadSearchTookMillis);
+        out.writeVLong(0); // Retired wire slot.
         out.writeVLong(maxPendingCandidates);
         out.writeVLong(latestValidCounters.candidatesDroppedAtBound());
         out.writeVLong(latestValidCounters.searchesAbandonedAtWorkLimit());
@@ -164,20 +161,18 @@ public record SequenceSourceStatus(
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return Sequence.ESQL_SEQUENCE_R6_SOURCE_SCOPE;
+        return Sequence.ESQL_SEQUENCE;
     }
 
     @Override
     public long documentsFound() {
-        return candidateRowsFetched + payloadRowsFetched;
+        return candidateRowsFetched;
     }
 
     private XContentBuilder writeProfile(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field("candidate_search_requests", candidateSearchRequests);
-        builder.field("payload_search_requests", payloadSearchRequests);
         builder.field("candidate_rows_fetched", candidateRowsFetched);
-        builder.field("payload_rows_fetched", payloadRowsFetched);
         builder.field("completed_matches", completedMatches);
         builder.field("rows_emitted", rowsEmitted);
         builder.field("stage_drivers", stageDrivers);
@@ -187,10 +182,8 @@ public record SequenceSourceStatus(
         }
         builder.field("stage_driver_iterations", stageDriverIterations);
         builder.field("candidate_search_took_millis", candidateSearchTookMillis);
-        builder.field("payload_search_took_millis", payloadSearchTookMillis);
         if (builder.humanReadable()) {
             builder.field("candidate_search_took", TimeValue.timeValueMillis(candidateSearchTookMillis).toString());
-            builder.field("payload_search_took", TimeValue.timeValueMillis(payloadSearchTookMillis).toString());
         }
         builder.field("max_pending_candidates", maxPendingCandidates);
         builder.field("candidates_dropped_at_bound", latestValidCounters.candidatesDroppedAtBound());

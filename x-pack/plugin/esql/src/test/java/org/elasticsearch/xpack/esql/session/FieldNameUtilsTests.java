@@ -207,6 +207,12 @@ public class FieldNameUtilsTests extends ESTestCase {
     /** Public sequence field discovery runs after PRIMARY and MEMBER declarations have been prepared. */
     private void assertSequenceStatementFieldNames(String query, Set<String> expected) {
         var parsed = InSubqueryResolver.resolve(TEST_PARSER.createStatement(query).plan());
+        // The analyzer must see a mapped PRIMARY collision even when the outer projection omits provenance.
+        if (expected.equals(ALL_FIELDS) == false) {
+            expected = new HashSet<>(expected);
+            expected.add("sequence_provenance");
+            expected.add("sequence_provenance.*");
+        }
         assertThat(FieldNameUtils.resolveFieldNames(parsed, false, includePrefixFields).fieldNames(), equalTo(expected));
     }
 

@@ -200,8 +200,6 @@ public class SequencePhysicalIdentityIT extends AbstractSequenceIntegTestCase {
                 assertEquals(1, statuses.size());
                 SequenceSourceStatus status = statuses.getFirst();
                 assertEquals("one candidate search per stage", 2L, status.candidateSearchRequests());
-                assertEquals("selected values must not be reread", 0L, status.payloadSearchRequests());
-                assertEquals("selected values must not produce payload hits", 0L, status.payloadRowsFetched());
                 assertEquals("one candidate page per stage", 2L, status.stageDrivers());
             }
             return getValuesList(response);

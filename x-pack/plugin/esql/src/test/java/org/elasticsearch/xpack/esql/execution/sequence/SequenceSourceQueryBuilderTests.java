@@ -25,6 +25,7 @@ import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.esql.plan.logical.Sequence;
 
 import java.util.List;
 
@@ -165,7 +166,7 @@ public class SequenceSourceQueryBuilderTests extends AbstractWireSerializingTest
 
     public void testRejectUnsupportedPeer() throws Exception {
         try (var out = new BytesStreamOutput()) {
-            out.setTransportVersion(TransportVersionUtils.getPreviousVersion(SequenceSourceQueryBuilder.ESQL_SEQUENCE_R6_SOURCE_SCOPE));
+            out.setTransportVersion(TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE));
             assertThat(
                 expectThrows(IllegalArgumentException.class, () -> createTestInstance().writeTo(out)).getMessage(),
                 containsString("SEQUENCE source isolation is not supported")

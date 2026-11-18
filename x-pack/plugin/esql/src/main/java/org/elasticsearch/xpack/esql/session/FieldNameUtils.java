@@ -213,9 +213,9 @@ public class FieldNameUtils {
                     // 1. No KEEP commands in this branch (currentBranchKeepRefs is empty)
                     // 2. AND either:
                     // a) No field references were collected (referencesBuilder is empty), OR
-                    // b) The branch's main pipeline contains no commands that require explicit field collection
+                    // b) The branch contains no commands that require explicit field collection
                     // (e.g., no PROJECT or STATS commands that would limit field selection)
-                    // A membership subquery's KEEP or STATS only constrains that independent subquery.
+                    // For a SEQUENCE stage, KEEP or STATS inside a membership subquery only constrains that subquery.
                     //
                     // Examples:
                     // - "fork (where true) (where a is not null)" → needs all fields (no KEEP, only filters)
@@ -224,7 +224,10 @@ public class FieldNameUtils {
                     // - "fork (eval x = 1 | keep x) (eval y = 2 | keep y)" → specific fields only (both branches have KEEP)
                     // - "fork (eval x = 1 | keep x) (where true) | stats c = count(*)" → specific fields (stats reduces columns)
                     if (currentBranchKeepRefs.get().isEmpty()
-                        && (referencesBuilder.get().isEmpty() || false == mainQueryRequiresFieldCollection(branch, inlinestatsAggs))
+                        && (referencesBuilder.get().isEmpty()
+                            || false == (p instanceof Sequence
+                                ? mainQueryRequiresFieldCollection(branch, inlinestatsAggs)
+                                : branch.anyMatch(branchPlan -> shouldCollectReferencedFields(branchPlan, inlinestatsAggs))))
                         && false == reduceColumnsAfterMerge.get()) {
                         projectAll.set(true);
                         // Return early, we'll be returning all references no matter what the remainder of the query is.

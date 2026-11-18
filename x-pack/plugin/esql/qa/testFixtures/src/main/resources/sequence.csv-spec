@@ -33,7 +33,6 @@ BETA        | b-finish      | 4         | b-start             | 3
 
 primaryLastNamedStagePayload
 required_capability: sequence_command
-required_capability: sequence_named_stages
 
 SEQUENCE BY key WITHIN 30s PRIMARY execution
 (FROM sequence_events | WHERE phase == "start" | KEEP key, label, n) AS download,
@@ -94,8 +93,6 @@ matches:long | start_total:long | finish_total:long
 
 stageLocalKeysPrimaryProcessPreservesOppositePayload
 required_capability: sequence_command
-required_capability: sequence_named_stages
-required_capability: sequence_stage_keys
 
 SEQUENCE BY key WITHIN 30s PRIMARY proc
 (FROM sequence_events | WHERE phase == "start"
@@ -115,8 +112,6 @@ BETA        | BETA                      | process-parent-BETA               | BE
 
 stageLocalKeysPrimaryConnectionPreservesOppositePayload
 required_capability: sequence_command
-required_capability: sequence_named_stages
-required_capability: sequence_stage_keys
 
 SEQUENCE BY key WITHIN 30s PRIMARY conn
 (FROM sequence_events | WHERE phase == "start"
@@ -136,7 +131,6 @@ BETA        | BETA                             | connection-process-BETA    | BE
 
 stageLocalKeysMatchComputedSharedAlias
 required_capability: sequence_command
-required_capability: sequence_stage_keys
 required_capability: date_nanos_type
 
 SEQUENCE WITHIN 30s PRIMARY 2
@@ -154,8 +148,6 @@ beta             | 4         | 3               | 2026-11-11T00:00:31.000Z | 2026
 
 overallWithinMatchesMapWindow
 required_capability: sequence_command
-required_capability: sequence_named_stages
-required_capability: sequence_within
 
 SEQUENCE BY key WITHIN 30 seconds PRIMARY execution
 (FROM sequence_events | WHERE phase == "start" | KEEP key,label,n) AS download,
@@ -171,8 +163,6 @@ BETA        | b-finish      | 4         | b-start             | 3
 
 overallWithinAndStageKeysMatchMap
 required_capability: sequence_command
-required_capability: sequence_stage_keys
-required_capability: sequence_within
 required_capability: date_nanos_type
 
 SEQUENCE WITHIN 30seconds PRIMARY 2
@@ -190,7 +180,6 @@ beta             | 4         | 3               | 2026-11-11T00:00:31.000Z | 2026
 
 perLinkEqualOverallMatchesUnconstrained
 required_capability: sequence_command
-required_capability: sequence_per_link_time
 required_capability: date_nanos_type
 
 SEQUENCE BY join_key WITHIN 30s PRIMARY 2
@@ -207,7 +196,6 @@ beta             | 4         | 3               | 2026-11-11T00:00:31.000Z | 2026
 
 perLinkOneNanosecondBelowBoundary
 required_capability: sequence_command
-required_capability: sequence_per_link_time
 required_capability: date_nanos_type
 
 SEQUENCE BY key WITHIN 30s PRIMARY 2
@@ -220,10 +208,6 @@ key:keyword | label:keyword
 
 perLinkMeasuredFromPreviousAndInclusive
 required_capability: sequence_command
-required_capability: sequence_named_stages
-required_capability: sequence_stage_keys
-required_capability: sequence_within
-required_capability: sequence_per_link_time
 
 SEQUENCE WITHIN 30 seconds PRIMARY execution
 (FROM sequence_events | WHERE key == "ALPHA" AND phase == "start"
@@ -241,10 +225,6 @@ chain                 | a-finish      | a-start             | b-start           
 
 perLinkTooShortDoesNotMatch
 required_capability: sequence_command
-required_capability: sequence_named_stages
-required_capability: sequence_stage_keys
-required_capability: sequence_within
-required_capability: sequence_per_link_time
 
 SEQUENCE WITHIN 30 seconds PRIMARY execution
 (FROM sequence_events | WHERE key == "ALPHA" AND phase == "start"
@@ -260,10 +240,6 @@ execution_key:keyword | label:keyword
 
 perLinkStillRequiresOverallMaxspan
 required_capability: sequence_command
-required_capability: sequence_named_stages
-required_capability: sequence_stage_keys
-required_capability: sequence_within
-required_capability: sequence_per_link_time
 
 SEQUENCE WITHIN 29 seconds PRIMARY execution
 (FROM sequence_events | WHERE key == "ALPHA" AND phase == "start"
@@ -279,10 +255,6 @@ execution_key:keyword | label:keyword
 
 withinIdentifierAndAliasBesideIncomingConstraint
 required_capability: sequence_command
-required_capability: sequence_named_stages
-required_capability: sequence_stage_keys
-required_capability: sequence_within
-required_capability: sequence_per_link_time
 
 SEQUENCE WITHIN 30 seconds PRIMARY within
 (FROM sequence_events | WHERE phase == "start" | EVAL within=key | KEEP within,n) AS other BY within,

@@ -31,19 +31,19 @@ import static org.hamcrest.Matchers.containsString;
 public class SequenceSourceStatusTests extends AbstractWireSerializingTestCase<SequenceSourceStatus> {
     @Override
     protected SequenceSourceStatus createTestInstance() {
-        return status(randomValues(12), counters(randomValues(7)), randomBoolean() ? runtime() : null);
+        return status(randomValues(9), counters(randomValues(7)), randomBoolean() ? runtime() : null);
     }
 
     @Override
     protected SequenceSourceStatus mutateInstance(SequenceSourceStatus instance) {
         long[] base = baseValues(instance);
         long[] work = workValues(instance.latestValidCounters());
-        int field = between(0, 19);
-        if (field == 19) {
+        int field = between(0, 16);
+        if (field == 16) {
             return status(base, counters(work), instance.runtime() == null ? runtime() : null);
         }
-        long[] values = field < 12 ? base : work;
-        int index = field < 12 ? field : field - 12;
+        long[] values = field < 9 ? base : work;
+        int index = field < 9 ? field : field - 9;
         values[index] = randomValueOtherThan(values[index], ESTestCase::randomNonNegativeLong);
         return status(base, counters(work), instance.runtime());
     }
@@ -54,29 +54,28 @@ public class SequenceSourceStatusTests extends AbstractWireSerializingTestCase<S
     }
 
     public void testEveryZeroCounterIsPresentInProfile() {
-        var status = status(new long[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 }, counters(new long[7]));
+        var status = status(new long[] { 1, 3, 5, 6, 7, 8, 9, 10, 12 }, counters(new long[7]));
         assertEquals(
             """
-                {"candidate_search_requests":1,"payload_search_requests":2,"candidate_rows_fetched":3,
-                "payload_rows_fetched":4,"completed_matches":5,"rows_emitted":6,"stage_drivers":7,
+                {"candidate_search_requests":1,"candidate_rows_fetched":3,"completed_matches":5,"rows_emitted":6,"stage_drivers":7,
                 "stage_driver_cpu_nanos":8,"stage_driver_iterations":9,"candidate_search_took_millis":10,
-                "payload_search_took_millis":11,"max_pending_candidates":12,"candidates_dropped_at_bound":0,
+                "max_pending_candidates":12,"candidates_dropped_at_bound":0,
                 "searches_abandoned_at_work_limit":0,"keys_that_hit_bound":0,"search_steps":0,
                 "max_search_steps_per_final_row":0,"condition_evaluations":0,"largest_ring_fill":0}""".replace("\n", ""),
             Strings.toString(status)
         );
-        assertEquals(7L, status.documentsFound());
+        assertEquals(3L, status.documentsFound());
         String human = Strings.toString(status, false, true);
         assertThat(human, containsString("\"stage_driver_cpu_time\":\"8nanos\""));
         assertThat(human, containsString("\"candidate_search_took\":\"10ms\""));
-        assertThat(human, containsString("\"payload_search_took\":\"11ms\""));
+        assertFalse(human.contains("payload_search_took"));
         assertFalse(human.contains("latest_valid"));
         assertFalse(human.contains("condition_false_or_null"));
         assertFalse(human.contains("candidates_used_without_report"));
     }
 
     public void testEveryWorkCounterAffectsEqualityAndProfile() {
-        long[] base = new long[12];
+        long[] base = new long[9];
         long[] work = new long[] { 13, 14, 15, 16, 17, 18, 19 };
         var original = status(base, counters(work));
         String json = Strings.toString(original);
@@ -97,16 +96,17 @@ public class SequenceSourceStatusTests extends AbstractWireSerializingTestCase<S
     }
 
     public void testWireLayoutHasSevenMandatoryCountersAndNoTrailingBytes() throws IOException {
-        long[] base = randomValues(12);
+        long[] base = randomValues(9);
+        long[] wire = { base[0], 0, base[1], 0, base[2], base[3], base[4], base[5], base[6], base[7], 0, base[8] };
         long[] work = randomValues(7);
         var original = status(base, counters(work));
-        for (TransportVersion version : new TransportVersion[] { Sequence.ESQL_SEQUENCE_R6_SOURCE_SCOPE, TransportVersion.current() }) {
+        for (TransportVersion version : new TransportVersion[] { Sequence.ESQL_SEQUENCE, TransportVersion.current() }) {
             try (var out = new BytesStreamOutput()) {
                 out.setTransportVersion(version);
                 original.writeTo(out);
                 try (var in = out.bytes().streamInput()) {
                     in.setTransportVersion(version);
-                    for (long value : base) {
+                    for (long value : wire) {
                         assertEquals(value, in.readVLong());
                     }
                     for (long value : work) {
@@ -119,7 +119,7 @@ public class SequenceSourceStatusTests extends AbstractWireSerializingTestCase<S
             // Assemble the independent expected layout as a second check of the reader.
             try (var out = new BytesStreamOutput()) {
                 out.setTransportVersion(version);
-                for (long value : base) {
+                for (long value : wire) {
                     out.writeVLong(value);
                 }
                 for (long value : work) {
@@ -148,20 +148,16 @@ public class SequenceSourceStatusTests extends AbstractWireSerializingTestCase<S
     }
 
     public void testRejectUnsupportedPeerBeforeWritingOrReading() throws IOException {
-        for (TransportVersion unsupported : new TransportVersion[] {
-            TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE_R5),
-            Sequence.ESQL_SEQUENCE_R5,
-            TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE_R6_SOURCE_SCOPE) }) {
-            try (var out = new BytesStreamOutput()) {
-                out.setTransportVersion(unsupported);
-                expectThrows(IllegalArgumentException.class, () -> createTestInstance().writeTo(out));
-                assertEquals(0, out.size());
-                out.writeByte((byte) 42);
-                try (var in = out.bytes().streamInput()) {
-                    in.setTransportVersion(unsupported);
-                    expectThrows(IllegalArgumentException.class, () -> SequenceSourceStatus.readFrom(in));
-                    assertEquals(1, in.available());
-                }
+        TransportVersion unsupported = TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE);
+        try (var out = new BytesStreamOutput()) {
+            out.setTransportVersion(unsupported);
+            expectThrows(IllegalArgumentException.class, () -> createTestInstance().writeTo(out));
+            assertEquals(0, out.size());
+            out.writeByte((byte) 42);
+            try (var in = out.bytes().streamInput()) {
+                in.setTransportVersion(unsupported);
+                expectThrows(IllegalArgumentException.class, () -> SequenceSourceStatus.readFrom(in));
+                assertEquals(1, in.available());
             }
         }
     }
@@ -169,15 +165,11 @@ public class SequenceSourceStatusTests extends AbstractWireSerializingTestCase<S
     public void testOperatorStatusOmitsUnsupportedSnapshot() throws IOException {
         var registry = new NamedWriteableRegistry(new EsqlPlugin().getNamedWriteables());
         var snapshot = createTestInstance();
-        assertEquals(Sequence.ESQL_SEQUENCE_R6_SOURCE_SCOPE, snapshot.getMinimalSupportedVersion());
+        assertEquals(Sequence.ESQL_SEQUENCE, snapshot.getMinimalSupportedVersion());
         var original = new OperatorStatus("SequenceSource[stages=2]", snapshot);
         for (TransportVersion version : new TransportVersion[] {
-            TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE_SINGLE_ENGINE),
-            Sequence.ESQL_SEQUENCE_SINGLE_ENGINE,
-            TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE_R5),
-            Sequence.ESQL_SEQUENCE_R5,
-            TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE_R6_SOURCE_SCOPE),
-            Sequence.ESQL_SEQUENCE_R6_SOURCE_SCOPE,
+            TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE),
+            Sequence.ESQL_SEQUENCE,
             TransportVersion.current() }) {
             try (var out = new BytesStreamOutput()) {
                 out.setTransportVersion(version);
@@ -186,7 +178,7 @@ public class SequenceSourceStatusTests extends AbstractWireSerializingTestCase<S
                     in.setTransportVersion(version);
                     var restored = OperatorStatus.readFrom(in);
                     assertEquals(original.operator(), restored.operator());
-                    assertEquals(version.supports(Sequence.ESQL_SEQUENCE_R6_SOURCE_SCOPE) ? snapshot : null, restored.status());
+                    assertEquals(version.supports(Sequence.ESQL_SEQUENCE) ? snapshot : null, restored.status());
                     assertEquals(0, in.available());
                 }
             }
@@ -204,7 +196,7 @@ public class SequenceSourceStatusTests extends AbstractWireSerializingTestCase<S
         assertEquals(equal.hashCode(), runtime.hashCode());
         expectThrows(UnsupportedOperationException.class, () -> runtime.rowsFetched().add(1L));
         expectThrows(UnsupportedOperationException.class, () -> runtime.candidatesAdmitted().add(1L));
-        var original = status(new long[12], counters(new long[7]), runtime);
+        var original = status(new long[9], counters(new long[7]), runtime);
         assertThat(
             Strings.toString(original),
             containsString(
@@ -214,10 +206,10 @@ public class SequenceSourceStatusTests extends AbstractWireSerializingTestCase<S
             )
         );
         try (var out = new BytesStreamOutput()) {
-            out.setTransportVersion(Sequence.ESQL_SEQUENCE_R6_SOURCE_SCOPE);
+            out.setTransportVersion(Sequence.ESQL_SEQUENCE);
             original.writeTo(out);
             try (var in = out.bytes().streamInput()) {
-                in.setTransportVersion(Sequence.ESQL_SEQUENCE_R6_SOURCE_SCOPE);
+                in.setTransportVersion(Sequence.ESQL_SEQUENCE);
                 assertEquals(original, SequenceSourceStatus.readFrom(in));
                 assertEquals(0, in.available());
             }
@@ -240,7 +232,7 @@ public class SequenceSourceStatusTests extends AbstractWireSerializingTestCase<S
         );
         for (var variant : variants) {
             assertNotEquals(expected, variant);
-            assertNotEquals(status(new long[12], counters(new long[7]), expected), status(new long[12], counters(new long[7]), variant));
+            assertNotEquals(status(new long[9], counters(new long[7]), expected), status(new long[9], counters(new long[7]), variant));
         }
     }
 
@@ -274,16 +266,13 @@ public class SequenceSourceStatusTests extends AbstractWireSerializingTestCase<S
     private static long[] baseValues(SequenceSourceStatus status) {
         return new long[] {
             status.candidateSearchRequests(),
-            status.payloadSearchRequests(),
             status.candidateRowsFetched(),
-            status.payloadRowsFetched(),
             status.completedMatches(),
             status.rowsEmitted(),
             status.stageDrivers(),
             status.stageDriverCpuNanos(),
             status.stageDriverIterations(),
             status.candidateSearchTookMillis(),
-            status.payloadSearchTookMillis(),
             status.maxPendingCandidates() };
     }
 
@@ -321,9 +310,6 @@ public class SequenceSourceStatusTests extends AbstractWireSerializingTestCase<S
             values[6],
             values[7],
             values[8],
-            values[9],
-            values[10],
-            values[11],
             work,
             runtime
         );

@@ -114,8 +114,6 @@ public class SequenceCapacityIT extends AbstractSequenceIntegTestCase {
         // Three full first-stage pages require an empty continuation; the second stage fits in one page.
         assertEquals(5L, projected.source().candidateSearchRequests());
         assertEquals(4L, projected.source().stageDrivers());
-        assertEquals(0L, projected.source().payloadRowsFetched());
-        assertEquals(0L, projected.source().payloadSearchRequests());
         assertEquals(6L, projected.source().completedMatches());
         assertEquals(6L, projected.source().rowsEmitted());
         Measured counted = measure("sparse_count_only", SEQUENCE + "| stats count(*) | limit 1", shape);
@@ -123,8 +121,6 @@ public class SequenceCapacityIT extends AbstractSequenceIntegTestCase {
         assertEquals(774L, counted.source().candidateRowsFetched());
         assertEquals(5L, counted.source().candidateSearchRequests());
         assertEquals(4L, counted.source().stageDrivers());
-        assertEquals(0L, counted.source().payloadRowsFetched());
-        assertEquals(0L, counted.source().payloadSearchRequests());
         assertEquals(6L, counted.source().completedMatches());
         assertEquals(6L, counted.source().rowsEmitted());
         // The source counters above measure exact request and driver work. Cluster shard-phase deltas are diagnostic.
@@ -168,8 +164,6 @@ public class SequenceCapacityIT extends AbstractSequenceIntegTestCase {
         Measured measured = measure("many_live_keys", SEQUENCE + PROJECT + "| limit 1", new Shape(2049, 1536, 1));
         assertEquals(List.of(List.of(matchedKey, "A1535", "B", payload("A", 1535), payload("B", 1535))), measured.values());
         assertEquals(1537L, measured.source().candidateRowsFetched());
-        assertEquals(0L, measured.source().payloadSearchRequests());
-        assertEquals(0L, measured.source().payloadRowsFetched());
         assertEquals(1536L, measured.source().maxPendingCandidates());
         assertEquals(1L, measured.source().completedMatches());
         assertEquals(1L, measured.source().rowsEmitted());
@@ -236,16 +230,12 @@ public class SequenceCapacityIT extends AbstractSequenceIntegTestCase {
         assertEquals(expected, complete.values());
         assertEquals(900L, complete.source().candidateRowsFetched());
         assertEquals(5L, complete.source().candidateSearchRequests());
-        assertEquals(0L, complete.source().payloadRowsFetched());
-        assertEquals(0L, complete.source().payloadSearchRequests());
         // The five candidate pages retain all demanded values in their only stage executions.
         assertEquals(5L, complete.source().stageDrivers());
         assertEquals(300L, complete.source().completedMatches());
         assertEquals(300L, complete.source().rowsEmitted());
         Measured limited = measure("many_completed_limit_one", SEQUENCE + PROJECT + "| limit 1", shape);
         assertEquals(List.of(expected.getFirst()), limited.values());
-        assertEquals(0L, limited.source().payloadRowsFetched());
-        assertEquals(0L, limited.source().payloadSearchRequests());
         assertEquals(1L, limited.source().completedMatches());
         assertEquals(1L, limited.source().rowsEmitted());
         assertTrue(limited.source().candidateRowsFetched() < complete.source().candidateRowsFetched());
@@ -304,8 +294,6 @@ public class SequenceCapacityIT extends AbstractSequenceIntegTestCase {
         assertEquals(150L, measured.source().rowsEmitted());
         assertEquals(2L, measured.source().candidateRowsFetched());
         assertEquals(2L, measured.source().candidateSearchRequests());
-        assertEquals(0L, measured.source().payloadRowsFetched());
-        assertEquals(0L, measured.source().payloadSearchRequests());
         // Both drivers retain the selected expansion values across all output pages without replay.
         assertEquals(2L, measured.source().stageDrivers());
     }
@@ -382,8 +370,6 @@ public class SequenceCapacityIT extends AbstractSequenceIntegTestCase {
         assertEquals(3L, measured.source().rowsEmitted());
         assertEquals(7L, measured.source().candidateRowsFetched());
         assertEquals(2L, measured.source().candidateSearchRequests());
-        assertEquals(0L, measured.source().payloadRowsFetched());
-        assertEquals(0L, measured.source().payloadSearchRequests());
         // The selected payloads come from the original candidate page for each stage.
         assertEquals(2L, measured.source().stageDrivers());
     }
@@ -468,8 +454,6 @@ public class SequenceCapacityIT extends AbstractSequenceIntegTestCase {
             assertEquals(9L, measured.source().candidateRowsFetched());
             assertEquals(2L, measured.source().candidateSearchRequests());
             assertEquals(2L, measured.source().stageDrivers());
-            assertEquals(0L, measured.source().payloadSearchRequests());
-            assertEquals(0L, measured.source().payloadRowsFetched());
         }
     }
 

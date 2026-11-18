@@ -435,8 +435,6 @@ public class SequenceKeyFilterIT extends AbstractSequenceIntegTestCase {
         assertEquals(off.queryWarnings(), on.queryWarnings());
         assertEquals(off.status().completedMatches(), on.status().completedMatches());
         assertEquals(off.status().rowsEmitted(), on.status().rowsEmitted());
-        assertEquals(off.status().payloadSearchRequests(), on.status().payloadSearchRequests());
-        assertEquals(off.status().payloadRowsFetched(), on.status().payloadRowsFetched());
         logger.info("key-filter comparison off={} on={}", off.status(), on.status());
         return new Compared(off, on);
     }

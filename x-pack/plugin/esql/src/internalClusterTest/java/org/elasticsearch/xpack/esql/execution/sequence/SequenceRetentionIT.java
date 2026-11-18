@@ -79,7 +79,6 @@ public class SequenceRetentionIT extends AbstractSequenceIntegTestCase {
             Observed result = observe(query, preference);
             assertEquals(List.of(expected), result.values());
             assertTrue(result.warnings().isEmpty());
-            assertEquals(0L, result.status().payloadSearchRequests());
             assertEquals(2L, result.status().stageDrivers());
         }
     }
@@ -116,8 +115,6 @@ public class SequenceRetentionIT extends AbstractSequenceIntegTestCase {
         assertFalse(invalid.warnings().stream().anyMatch(warning -> warning.contains("selected-bad")));
         assertEquals(1, invalid.warnings().stream().filter(warning -> warning.contains("Only first 20 failures recorded.")).count());
         assertEquals(2L, invalid.status().stageDrivers());
-        assertEquals(0L, invalid.status().payloadSearchRequests());
-        assertEquals(0L, invalid.status().payloadRowsFetched());
 
         Observed filtered = observe(query.formatted("| WHERE key==\"shared\""), "NONE");
         assertEquals(invalid.values(), filtered.values());
@@ -125,7 +122,6 @@ public class SequenceRetentionIT extends AbstractSequenceIntegTestCase {
         assertFalse(filtered.warnings().stream().anyMatch(warning -> warning.contains("unmatched-bad")));
         assertEquals(1, filtered.warnings().stream().filter(warning -> warning.contains("Only first 20 failures recorded.")).count());
         assertEquals(2L, filtered.status().stageDrivers());
-        assertEquals(0L, filtered.status().payloadRowsFetched());
     }
 
     public void testSelectionDependentWarningsKeepTheirCandidateAllowance() {
@@ -149,7 +145,6 @@ public class SequenceRetentionIT extends AbstractSequenceIntegTestCase {
         assertEquals(List.of(Arrays.asList("shared", null)), result.values());
         assertEquals(20, result.warnings().stream().filter(warning -> warning.contains("Cannot parse number [bad-")).count());
         assertEquals(1, result.warnings().stream().filter(warning -> warning.contains("Only first 20 failures recorded.")).count());
-        assertEquals(0L, result.status().payloadSearchRequests());
         assertEquals(result.warnings(), observe(query, "NONE").warnings());
     }
 
@@ -179,8 +174,6 @@ public class SequenceRetentionIT extends AbstractSequenceIntegTestCase {
             """, "NONE");
         assertEquals(List.of(List.of("shared")), pruned.values());
         assertTrue(pruned.warnings().isEmpty());
-        assertEquals(0L, pruned.status().payloadSearchRequests());
-        assertEquals(0L, pruned.status().payloadRowsFetched());
         assertEquals(2L, pruned.status().stageDrivers());
     }
 
@@ -211,8 +204,6 @@ public class SequenceRetentionIT extends AbstractSequenceIntegTestCase {
         assertEquals(List.of(List.of("good", 7L)), limited.values());
         assertTrue(limited.warnings().isEmpty());
         assertEquals(ordinary(good, "KEEP key,failure", "NONE"), limited.values());
-        assertEquals(0L, limited.status().payloadSearchRequests());
-        assertEquals(0L, limited.status().payloadRowsFetched());
     }
 
     public void testProcessedMetadataNamesAndExplicitSourceRemainOrdinaryValues() {
@@ -239,8 +230,6 @@ public class SequenceRetentionIT extends AbstractSequenceIntegTestCase {
             """, "NONE");
         assertEquals(List.of(List.of(first)), original.values());
         assertEquals(2L, original.status().stageDrivers());
-        assertEquals(0L, original.status().payloadSearchRequests());
-        assertEquals(0L, original.status().payloadRowsFetched());
     }
 
     /** Predicate-dependent and output-only branches retain their own processed values without a selected-row replay. */
@@ -264,8 +253,6 @@ public class SequenceRetentionIT extends AbstractSequenceIntegTestCase {
             Observed result = observe(query, "NONE");
             assertEquals(List.of(List.of("one", "alpha"), List.of("two", "BETA")), result.values());
             assertTrue(result.warnings().isEmpty());
-            assertEquals(0L, result.status().payloadSearchRequests());
-            assertEquals(0L, result.status().payloadRowsFetched());
             assertEquals(3L, result.status().stageDrivers());
         }
     }

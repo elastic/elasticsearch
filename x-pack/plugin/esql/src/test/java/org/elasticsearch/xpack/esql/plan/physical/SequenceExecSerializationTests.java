@@ -64,7 +64,7 @@ public class SequenceExecSerializationTests extends AbstractPhysicalPlanSerializ
 
     public void testRejectUnsupportedPeerBeforeWriting() throws Exception {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.setTransportVersion(TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE_R5));
+            out.setTransportVersion(TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE));
             assertThat(
                 expectThrows(IllegalArgumentException.class, () -> createTestInstance().writeTo(out)).getMessage(),
                 containsString("SEQUENCE is not supported")
@@ -75,7 +75,7 @@ public class SequenceExecSerializationTests extends AbstractPhysicalPlanSerializ
 
     public void testOlderPeerIsRejectedBeforeReadingAnyPhysicalPlanBytes() throws Exception {
         try (var in = StreamInput.wrap(new byte[0])) {
-            in.setTransportVersion(TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE_R5));
+            in.setTransportVersion(TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE));
             assertThat(
                 expectThrows(IllegalArgumentException.class, () -> SequenceExec.ENTRY.reader.read(in)).getMessage(),
                 containsString("SEQUENCE is not supported")
@@ -95,7 +95,7 @@ public class SequenceExecSerializationTests extends AbstractPhysicalPlanSerializ
         SequenceExec restored = copyInstance(constrained, TransportVersion.current());
         assertEquals(constrained, restored);
         assertEquals(limit, ((SequenceStage) restored.sequence().children().get(1)).maxGapNanos());
-        TransportVersion old = TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE_R5);
+        TransportVersion old = TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE);
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setTransportVersion(old);
             assertThat(

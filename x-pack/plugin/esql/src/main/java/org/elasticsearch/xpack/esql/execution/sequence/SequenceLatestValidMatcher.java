@@ -448,7 +448,7 @@ final class SequenceLatestValidMatcher implements SequencePairing {
         }
         System.arraycopy(ring.kept, position + 1, ring.kept, position, ring.keptSize - position - 1);
         ring.kept[--ring.keptSize] = null;
-        if (atBound) {
+        if (atBound && row.used == false) {
             recordBoundDrop(state);
         }
         try {

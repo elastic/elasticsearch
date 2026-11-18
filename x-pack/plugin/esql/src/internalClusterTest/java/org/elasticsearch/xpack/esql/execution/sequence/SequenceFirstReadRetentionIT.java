@@ -153,8 +153,6 @@ public class SequenceFirstReadRetentionIT extends AbstractSequenceIntegTestCase 
     }
 
     private static void assertFirstReadOnly(Observed result) {
-        assertEquals(0, result.status().payloadSearchRequests());
-        assertEquals(0, result.status().payloadRowsFetched());
         assertEquals(2, result.status().stageDrivers());
         assertTrue(result.warnings().isEmpty());
     }

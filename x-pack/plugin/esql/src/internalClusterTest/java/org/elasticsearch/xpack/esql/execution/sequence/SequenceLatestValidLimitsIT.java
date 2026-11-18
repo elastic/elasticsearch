@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.execution.sequence;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
@@ -26,6 +27,7 @@ import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.After;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -404,6 +406,80 @@ public class SequenceLatestValidLimitsIT extends AbstractSequenceIntegTestCase {
         assertEquals(List.of(List.of("shared")), observed.values());
         assertEquals(1, observed.status().latestValidCounters().searchSteps());
         assertEquals(List.of(), observed.warnings());
+    }
+
+    public void testNineAlternatingStartsAndFinalsDoNotWarn() {
+        createIndices(2);
+        var bulk = client().prepareBulk();
+        List<List<Object>> expected = new ArrayList<>();
+        for (int i = 0; i < 9; i++) {
+            addLimitRow(bulk, "a", 2 * i, "a" + i, i);
+            addLimitRow(bulk, "b", 2 * i + 1, "b" + i, i);
+            expected.add(List.of("a" + i, "b" + i));
+        }
+        assertFalse(bulk.get().hasFailures());
+        refresh(PREFIX + "a", PREFIX + "b");
+        var observed = observe("""
+            SEQUENCE BY key WITHIN 1m PRIMARY 2 (FROM sequence-limits-a), (FROM sequence-limits-b)
+            | EVAL start_label = MEMBER(1,label) | KEEP start_label,label | LIMIT 20
+            """);
+        assertEquals(expected, observed.values());
+        assertEquals(0L, observed.status().latestValidCounters().candidatesDroppedAtBound());
+        assertEquals(List.of(), observed.warnings());
+    }
+
+    public void testOnlyMatchingStartEvictedAtBoundStillWarns() {
+        createIndices(2);
+        var bulk = client().prepareBulk();
+        for (int i = 0; i < 9; i++) {
+            addLimitRow(bulk, "a", i, "a" + i, i);
+        }
+        addLimitRow(bulk, "b", 9, "final", 0);
+        assertFalse(bulk.get().hasFailures());
+        refresh(PREFIX + "a", PREFIX + "b");
+        var observed = observe("""
+            SEQUENCE BY key WITHIN 1m PRIMARY 2 (FROM sequence-limits-a), (FROM sequence-limits-b | WHERE v == MEMBER(1,v))
+            | KEEP label | LIMIT 20
+            """);
+        assertEquals(List.of(), observed.values());
+        assertEquals(1L, observed.status().latestValidCounters().candidatesDroppedAtBound());
+        assertEquals(
+            List.of("SEQUENCE dropped [1] candidates at the limit of [8] per stage and key; matches may be missing"),
+            observed.warnings()
+        );
+    }
+
+    public void testEvictionOfUsedMiddleWarnsForItsLastUnusedRememberedStart() {
+        createIndices(3);
+        var bulk = client().prepareBulk();
+        addLimitRow(bulk, "a", 0, "Ay", 1);
+        addLimitRow(bulk, "a", 1, "Ax", 2);
+        addLimitRow(bulk, "b", 2, "B0", 0); // B0 remembers Ax.
+        addLimitRow(bulk, "c", 3, "C", 1);  // The final selects Ay and marks B0, leaving Ax unused.
+        addLimitRow(bulk, "a", 4, "Ap", 9);
+        addLimitRow(bulk, "a", 5, "Aq", 9); // Ax leaves its list but B0 still holds it.
+        addLimitRow(bulk, "b", 6, "B1", 0);
+        addLimitRow(bulk, "b", 7, "B2", 0); // Releasing B0 loses Ax.
+        addLimitRow(bulk, "c", 8, "C2", 2);
+        assertFalse(bulk.get().hasFailures());
+        refresh(PREFIX + "a", PREFIX + "b", PREFIX + "c");
+        var observed = observe("""
+            SEQUENCE BY key WITHIN 1m PRIMARY 3 (FROM sequence-limits-a), (FROM sequence-limits-b),
+            (FROM sequence-limits-c | WHERE v == MEMBER(1,v))
+            | EVAL start_label = MEMBER(1,label), middle_label = MEMBER(2,label) | KEEP start_label,middle_label,label | LIMIT 20
+            """, 2);
+        assertEquals(List.of(List.of("Ay", "B0", "C")), observed.values());
+        assertEquals(1L, observed.status().latestValidCounters().candidatesDroppedAtBound());
+        assertEquals(
+            List.of("SEQUENCE dropped [1] candidates at the limit of [2] per stage and key; matches may be missing"),
+            observed.warnings()
+        );
+    }
+
+    private static void addLimitRow(BulkRequestBuilder bulk, String stage, int tick, String label, int value) {
+        bulk.add(
+            prepareIndex(PREFIX + stage).setSource("@timestamp", BASE.plusMillis(tick).toString(), "key", "k", "label", label, "v", value)
+        );
     }
 
     private Observed observe(String query) {

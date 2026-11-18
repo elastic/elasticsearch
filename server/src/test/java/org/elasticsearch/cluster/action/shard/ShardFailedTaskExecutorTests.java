@@ -22,13 +22,13 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardAllocationKey;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
-import org.elasticsearch.cluster.routing.allocation.StaleShard;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.common.UUIDs;
@@ -130,7 +130,11 @@ public class ShardFailedTaskExecutorTests extends ESAllocationTestCase {
         List<ShardFailedTaskExecutor.Task> nonExistentTasks = createNonExistentShards(currentState, reason);
         ShardFailedTaskExecutor failingExecutor = new ShardFailedTaskExecutor(allocationService, null) {
             @Override
-            ClusterState applyFailedShards(ClusterState currentState, List<FailedShard> failedShards, List<StaleShard> staleShards) {
+            ClusterState applyFailedShards(
+                ClusterState currentState,
+                List<FailedShard> failedShards,
+                List<ShardAllocationKey> staleShards
+            ) {
                 throw new RuntimeException("simulated applyFailedShards failure");
             }
         };

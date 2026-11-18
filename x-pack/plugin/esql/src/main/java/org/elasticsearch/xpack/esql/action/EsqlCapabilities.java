@@ -2809,6 +2809,13 @@ public class EsqlCapabilities {
         FIX_PROMQL_OFFSET_PRECEDENCE(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
+         * PromQL reads and rewrites labels in {@code _timeseries} with the label container functions, which every node of the
+         * cluster must know: the shapes this admits, and the canonical {@code _timeseries} the command outputs. A cluster with a
+         * node that does not know them keeps rejecting those shapes. Gates test coverage of both.
+         */
+        PROMQL_TIMESERIES_METADATA_FUNCTIONS(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
          * PromQL shapes the translation admits by reading labels through references bound after it, rather than from
          * concrete label columns: the {@code and} and {@code unless} set operators, vector matching between operands whose
          * labels stay in the label container, unmatched comparisons nested under aggregations, {@code label_replace}

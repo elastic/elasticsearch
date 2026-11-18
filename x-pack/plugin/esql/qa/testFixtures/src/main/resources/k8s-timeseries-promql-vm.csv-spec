@@ -204,6 +204,7 @@ vector_match_and_keeps_all
 required_capability: promql_command_v0
 required_capability: promql_vector_matching_v0
 required_capability: promql_label_references
+required_capability: promql_timeseries_metadata_functions
 PROMQL index=k8s step=10m result=(sum by (cluster) (network.eth0.tx) and on (cluster) sum by (cluster) (network.eth0.rx))
 | SORT cluster, step;
 
@@ -224,6 +225,7 @@ vector_match_and_filters
 required_capability: promql_command_v0
 required_capability: promql_vector_matching_v0
 required_capability: promql_label_references
+required_capability: promql_timeseries_metadata_functions
 PROMQL index=k8s step=10m result=(sum by (cluster) (network.eth0.tx) and on (cluster) sum by (cluster) (network.eth0.rx{cluster="prod"}))
 | SORT cluster, step;
 
@@ -359,6 +361,7 @@ vector_match_and_default
 required_capability: promql_command_v0
 required_capability: promql_vector_matching_v0
 required_capability: promql_label_references
+required_capability: promql_timeseries_metadata_functions
 PROMQL index=k8s step=10m result=(sum by (cluster) (network.eth0.tx) and sum by (cluster) (network.eth0.rx))
 | SORT cluster, step;
 
@@ -692,6 +695,7 @@ vector_match_and_ignoring
 required_capability: promql_command_v0
 required_capability: promql_vector_matching_v0
 required_capability: promql_label_references
+required_capability: promql_timeseries_metadata_functions
 PROMQL index=k8s step=10m result=(sum by (cluster, pod) (network.eth0.tx) and ignoring (pod) sum by (cluster) (network.eth0.rx{cluster="prod"}))
 | SORT cluster, pod, step;
 
@@ -837,6 +841,7 @@ vector_match_matrix_opaque_ignoring
 required_capability: promql_command_v0
 required_capability: promql_vector_matching_v0
 required_capability: promql_binary_opaque_signature_match
+required_capability: promql_timeseries_metadata_functions
 PROMQL index=k8s step=10m r=(network.eth0.tx / ignoring (pod, region) group_left sum by (cluster) (network.eth0.rx))
 | WHERE step == "2024-05-10T00:10:00.000Z"
 | KEEP r, _timeseries
@@ -861,6 +866,7 @@ vector_match_matrix_opaque_ignoring_group_left_include
 required_capability: promql_command_v0
 required_capability: promql_vector_matching_v0
 required_capability: promql_binary_opaque_signature_match
+required_capability: promql_timeseries_metadata_functions
 PROMQL index=k8s step=10m r=(network.eth0.tx / ignoring (pod, region) group_left (region) sum by (cluster, region) (network.eth0.rx{cluster="staging"}))
 | WHERE step == "2024-05-10T00:10:00.000Z"
 | KEEP r, region, _timeseries
@@ -929,6 +935,7 @@ r:double           | cluster:keyword | pod:keyword | step:datetime
 vector_match_matrix_opaque_many_group_left
 required_capability: promql_command_v0
 required_capability: promql_vector_matching_v0
+required_capability: promql_timeseries_metadata_functions
 PROMQL index=k8s step=10m r=(network.eth0.tx / on (cluster) group_left sum by (cluster) (network.eth0.rx))
 | WHERE step == "2024-05-10T00:10:00.000Z"
 | KEEP r, cluster, _timeseries
@@ -951,6 +958,7 @@ r:double            | cluster:keyword | _timeseries:keyword
 vector_match_matrix_opaque_many_group_right
 required_capability: promql_command_v0
 required_capability: promql_vector_matching_v0
+required_capability: promql_timeseries_metadata_functions
 PROMQL index=k8s step=10m r=(sum by (cluster) (network.eth0.tx) / on (cluster) group_right network.eth0.rx)
 | WHERE step == "2024-05-10T00:10:00.000Z"
 | KEEP r, cluster, _timeseries
@@ -972,6 +980,7 @@ r:double           | cluster:keyword | _timeseries:keyword
 vector_match_matrix_opaque_many_group_left_overwrite
 required_capability: promql_command_v0
 required_capability: promql_vector_matching_v0
+required_capability: promql_timeseries_metadata_functions
 PROMQL index=k8s step=10m r=(network.eth0.tx / on (cluster) group_left (region) sum by (cluster, region) (network.eth0.rx{cluster="staging"}))
 | WHERE step == "2024-05-10T00:10:00.000Z"
 | KEEP r, cluster, region, _timeseries
@@ -988,6 +997,7 @@ r:double            | cluster:keyword | region:keyword | _timeseries:keyword
 vector_match_matrix_opaque_many_group_left_delete
 required_capability: promql_command_v0
 required_capability: promql_vector_matching_v0
+required_capability: promql_timeseries_metadata_functions
 PROMQL index=k8s step=10m r=(network.eth0.tx{cluster="prod"} / on (cluster, pod) group_left (region) sum by (cluster, pod) (network.eth0.rx))
 | WHERE step == "2024-05-10T00:10:00.000Z"
 | KEEP r, cluster, pod, region, _timeseries
@@ -1069,6 +1079,7 @@ vector_match_matrix_and
 required_capability: promql_command_v0
 required_capability: promql_vector_matching_v0
 required_capability: fn_json_extract
+required_capability: promql_timeseries_metadata_functions
 PROMQL index=k8s step=10m r=(network.eth0.tx and on (cluster, pod) network.eth0.rx)
 | WHERE step == "2024-05-10T00:10:00.000Z"
 | EVAL cluster = JSON_EXTRACT(_timeseries, "cluster"), pod = JSON_EXTRACT(_timeseries, "pod")
@@ -1250,6 +1261,7 @@ vector_match_nested_join_in_and
 required_capability: promql_command_v0
 required_capability: promql_vector_matching_v0
 required_capability: promql_label_references
+required_capability: promql_timeseries_metadata_functions
 PROMQL index=k8s step=10m result=((sum by (cluster) (network.eth0.tx) / on (cluster) sum by (cluster) (network.eth0.rx)) and on (cluster) sum by (cluster) (network.eth0.rx{cluster="prod"}))
 | SORT cluster, step;
 
@@ -1348,6 +1360,7 @@ result:double | step:datetime | cluster:keyword
 vector_match_ignoring_opaque_vs_labelless_is_empty
 required_capability: promql_command_v0
 required_capability: promql_vector_matching_v0
+required_capability: promql_timeseries_metadata_functions
 PROMQL index=k8s step=10m result=(network.eth0.tx + ignoring (pod) sum(network.eth0.tx))
 | KEEP result, step;
 
@@ -1360,6 +1373,7 @@ vector_match_label_replace_over_opaque_group_left
 required_capability: promql_command_v0
 required_capability: promql_vector_matching_v0
 required_capability: promql_label_functions
+required_capability: promql_timeseries_metadata_functions
 PROMQL index=k8s step=10m result=(label_replace(network.eth0.tx / on (cluster) group_left (region) sum by (cluster, region) (network.eth0.rx{cluster="staging"}), "dst", "$1", "pod", "(.+)"))
 | WHERE step == "2024-05-10T00:10:00.000Z"
 | KEEP result, dst, cluster, region, _timeseries
@@ -1376,6 +1390,7 @@ vector_match_nested_label_replace_group_left_sum_by
 required_capability: promql_command_v0
 required_capability: promql_vector_matching_v0
 required_capability: promql_label_functions
+required_capability: promql_timeseries_metadata_functions
 PROMQL index=k8s step=10m result=(sum by (dst) (label_replace(sum by (cluster, pod) (network.eth0.tx) / on (cluster) group_left sum by (cluster) (network.eth0.rx), "dst", "$1", "pod", "(.+)")))
 | EVAL result = ROUND(result, 9)
 | WHERE step == "2024-05-10T00:10:00.000Z"
@@ -1425,6 +1440,7 @@ required_capability: promql_command_v0
 required_capability: promql_vector_matching_v0
 required_capability: promql_binary_independent_join
 required_capability: promql_topk
+required_capability: promql_timeseries_metadata_functions
 PROMQL index=k8s step=10m result=(topk(1, network.eth0.tx{cluster="prod", pod="one"}) * network.eth0.rx{cluster="prod", pod="one"})
 | WHERE step == "2024-05-10T00:10:00.000Z"
 | KEEP result, _timeseries;
@@ -1450,6 +1466,7 @@ labeled_times_labelless_default_match_is_empty
 required_capability: promql_command_v0
 required_capability: promql_vector_matching_v0
 required_capability: promql_binary_opaque_signature_match
+required_capability: promql_timeseries_metadata_functions
 PROMQL index=k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(max without (cluster) (last_over_time(network.eth0.tx[5m])) * sum without (cluster, pod, region) (last_over_time(network.eth0.tx[5m])))
 | KEEP result;
 
@@ -1461,6 +1478,7 @@ group_left_empty_include_keeps_left_labels
 required_capability: promql_command_v0
 required_capability: promql_vector_matching_v0
 required_capability: promql_binary_opaque_signature_match
+required_capability: promql_timeseries_metadata_functions
 PROMQL index=k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(floor(last_over_time(network.eth0.tx{cluster="qa"}[5m])) * on (cluster, pod) group_left () ceil(last_over_time(network.eth0.tx{cluster="qa"}[5m])))
 | WHERE step == "2024-05-10T00:10:00.000Z"
 | KEEP result, cluster, pod
@@ -1477,6 +1495,7 @@ group_left_empty_include_other_metric_keeps_left_labels
 required_capability: promql_command_v0
 required_capability: promql_vector_matching_v0
 required_capability: promql_binary_opaque_signature_match
+required_capability: promql_timeseries_metadata_functions
 PROMQL index=k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(floor(last_over_time(network.eth0.tx{cluster="qa"}[5m])) * on (cluster, pod) group_left () ceil(last_over_time(network.eth0.rx{cluster="qa"}[5m])))
 | WHERE step == "2024-05-10T00:10:00.000Z"
 | KEEP result, cluster, pod

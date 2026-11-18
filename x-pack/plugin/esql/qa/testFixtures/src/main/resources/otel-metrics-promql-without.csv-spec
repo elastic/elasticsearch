@@ -14,6 +14,7 @@ required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: promql_without_grouping
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_timeseries_metadata_functions
 PROMQL index=otel-metrics step=1h result=(sum without (cpu) (metrics.cpu_time))
 | EVAL has_cpu = _timeseries LIKE "*cpu*"
 | KEEP result, _timeseries, has_cpu
@@ -32,6 +33,7 @@ required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: promql_without_grouping
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_timeseries_metadata_functions
 PROMQL index=otel-metrics step=1h result=(sum without (state) (metrics.cpu_time))
 | EVAL has_state = _timeseries LIKE "*state*"
 | KEEP result, _timeseries, has_state
@@ -49,6 +51,7 @@ required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: promql_without_grouping
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_timeseries_metadata_functions
 PROMQL index=otel-metrics step=1h result=(sum without (cpu) (metrics.cpu_time))
 | SORT result;
 
@@ -64,6 +67,7 @@ required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: promql_without_grouping
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_timeseries_metadata_functions
 PROMQL index=otel-metrics step=1h result=(sum without (state) (metrics.cpu_time))
 | SORT result;
 
@@ -96,6 +100,7 @@ required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: promql_without_grouping
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_timeseries_metadata_functions
 PROMQL index=prom-metrics step=1h result=(sum without (cpu) (metrics.cpu_time))
 | EVAL has_cpu = _timeseries LIKE "*cpu*"
 | KEEP result, _timeseries, has_cpu
@@ -114,6 +119,7 @@ required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: promql_without_grouping
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_timeseries_metadata_functions
 PROMQL index=prom-metrics step=1h result=(sum without (state) (metrics.cpu_time))
 | EVAL has_state = _timeseries LIKE "*state*"
 | KEEP result, _timeseries, has_state
@@ -131,6 +137,7 @@ required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: promql_without_grouping
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_timeseries_metadata_functions
 PROMQL index=prom-metrics step=1h result=(sum without (cpu) (metrics.cpu_time))
 | SORT result;
 
@@ -146,6 +153,7 @@ required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: promql_without_grouping
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_timeseries_metadata_functions
 PROMQL index=prom-metrics step=1h result=(sum without (state) (metrics.cpu_time))
 | SORT result;
 
@@ -232,6 +240,7 @@ required_capability: promql_without_grouping
 required_capability: promql_nested_aggregates
 required_capability: promql_nested_without
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_timeseries_metadata_functions
 PROMQL index=otel-metrics step=1h result=(sum without (attributes.state) (max without (cpu) (metrics.cpu_time)))
 | KEEP result, step, _timeseries
 | SORT step, _timeseries;

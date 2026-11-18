@@ -355,6 +355,7 @@ required_capability: fix_promql_time_bucket_v2
 required_capability: promql_without_grouping
 required_capability: promql_nested_aggregates
 required_capability: promql_nested_without
+required_capability: promql_timeseries_metadata_functions
 PROMQL index=prometheus-k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(sum without (cluster) (max without (pod) (last_over_time(network.eth0.tx[5m]))))
 | WHERE step == "2024-05-10T00:10:00.000Z"
 | KEEP result, _timeseries
@@ -412,6 +413,7 @@ required_capability: fix_promql_time_bucket_v2
 required_capability: promql_without_grouping
 required_capability: promql_nested_aggregates
 required_capability: promql_nested_without
+required_capability: promql_timeseries_metadata_functions
 PROMQL index=prometheus-k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(max without (region) (sum without (pod) (last_over_time(network.eth0.tx[5m]))))
 | WHERE step == "2024-05-10T00:10:00.000Z"
 | KEEP result, _timeseries
@@ -431,6 +433,7 @@ required_capability: fix_promql_time_bucket_v2
 required_capability: promql_without_grouping
 required_capability: promql_nested_aggregates
 required_capability: promql_nested_without
+required_capability: promql_timeseries_metadata_functions
 PROMQL index=prometheus-k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(max without (pod) (sum without (pod) (last_over_time(network.eth0.tx[5m]))))
 | WHERE step == "2024-05-10T00:10:00.000Z"
 | KEEP result, _timeseries
@@ -449,6 +452,7 @@ required_capability: fix_promql_time_bucket_v2
 required_capability: promql_without_grouping
 required_capability: promql_nested_aggregates
 required_capability: promql_nested_without
+required_capability: promql_timeseries_metadata_functions
 PROMQL index=prometheus-k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(avg without (region, cluster) (sum without (pod, region) (last_over_time(network.eth0.tx[5m]))))
 | WHERE step == "2024-05-10T00:10:00.000Z"
 | KEEP result, _timeseries
@@ -465,6 +469,7 @@ required_capability: fix_promql_time_bucket_v2
 required_capability: promql_without_grouping
 required_capability: promql_nested_aggregates
 required_capability: promql_nested_without
+required_capability: promql_timeseries_metadata_functions
 PROMQL index=prometheus-k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(avg without (pod) (sum without () (last_over_time(network.eth0.tx[5m]))))
 | WHERE step == "2024-05-10T00:10:00.000Z"
 | KEEP result, _timeseries
@@ -484,6 +489,7 @@ required_capability: fix_promql_time_bucket_v2
 required_capability: promql_without_grouping
 required_capability: promql_nested_aggregates
 required_capability: promql_nested_without
+required_capability: promql_timeseries_metadata_functions
 PROMQL index=prometheus-k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(count without (region) (max without (pod) (last_over_time(network.eth0.tx[5m]))))
 | WHERE step == "2024-05-10T00:10:00.000Z"
 | KEEP result, _timeseries
@@ -502,6 +508,7 @@ required_capability: fix_promql_time_bucket_v2
 required_capability: promql_without_grouping
 required_capability: promql_nested_aggregates
 required_capability: promql_nested_without
+required_capability: promql_timeseries_metadata_functions
 PROMQL index=prometheus-k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(avg without (cluster) (sum without (region) (max without (pod) (last_over_time(network.eth0.tx[5m])))))
 | WHERE step == "2024-05-10T00:10:00.000Z"
 | KEEP result, _timeseries
@@ -537,6 +544,7 @@ required_capability: fix_promql_time_bucket_v2
 required_capability: promql_without_grouping
 required_capability: promql_nested_aggregates
 required_capability: promql_nested_without
+required_capability: promql_timeseries_metadata_functions
 PROMQL index=prometheus-k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(max without (cluster) (sum without (pod) (avg_over_time(network.eth0.tx[5m]))))
 | WHERE step == "2024-05-10T00:10:00.000Z"
 | KEEP result, _timeseries
@@ -588,6 +596,7 @@ required_capability: fix_promql_time_bucket_v2
 required_capability: promql_without_grouping
 required_capability: promql_nested_aggregates
 required_capability: promql_nested_without
+required_capability: promql_timeseries_metadata_functions
 PROMQL index=prometheus-k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(max without (cluster) (sum without (pod) (last_over_time(network.eth0.tx{pod!="two"}[5m]))))
 | WHERE step == "2024-05-10T00:10:00.000Z"
 | KEEP result, _timeseries

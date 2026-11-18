@@ -2083,6 +2083,7 @@ required_capability: promql_command_v0
 required_capability: promql_topk
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_timeseries_metadata_functions
 PROMQL index=prometheus-k8s step=1h result=(topk(2, network.total_bytes_in{cluster="prod"}))
 | SORT result DESC;
 
@@ -2097,6 +2098,7 @@ required_capability: promql_command_v0
 required_capability: promql_topk
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_timeseries_metadata_functions
 PROMQL index=prometheus-k8s step=1h result=(topk(5, network.total_bytes_in{cluster="prod"}))
 | SORT result DESC;
 
@@ -2114,6 +2116,7 @@ required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
 required_capability: promql_binary_comparison_v0
 required_capability: promql_label_references
+required_capability: promql_timeseries_metadata_functions
 PROMQL index=prometheus-k8s step=1h result=(topk(1, network.total_bytes_in{cluster="prod"} < 10000))
 | SORT result DESC;
 
@@ -2130,6 +2133,7 @@ required_capability: promql_topk
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_timeseries_metadata_functions
 PROMQL index=prometheus-k8s step=5m start="2024-05-10T00:20:00.000Z" end="2024-05-10T00:25:00.000Z" result=(topk(1, network.total_bytes_in{cluster="prod"}))
 | SORT step, result DESC;
 
@@ -2158,6 +2162,7 @@ required_capability: promql_command_v0
 required_capability: promql_topk
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_timeseries_metadata_functions
 PROMQL index=prometheus-k8s step=1h result=(topk(100000, network.total_bytes_in{cluster="prod"}))
 | SORT result DESC;
 
@@ -2175,6 +2180,7 @@ required_capability: promql_command_v0
 required_capability: promql_topk
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_timeseries_metadata_functions
 PROMQL index=prometheus-k8s step=1h result=(topk(2, network.total_bytes_in) by (pod));
 
 result:double | step:datetime            | _timeseries:keyword
@@ -2208,6 +2214,7 @@ required_capability: promql_command_v0
 required_capability: promql_bottomk
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_timeseries_metadata_functions
 PROMQL index=prometheus-k8s step=1h result=(bottomk(2, network.total_bytes_in{cluster="prod"}))
 | SORT result ASC;
 
@@ -2222,6 +2229,7 @@ required_capability: promql_command_v0
 required_capability: promql_bottomk
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_timeseries_metadata_functions
 PROMQL index=prometheus-k8s step=1h result=(bottomk(5, network.total_bytes_in{cluster="prod"}))
 | SORT result ASC;
 
@@ -2240,6 +2248,7 @@ required_capability: promql_bottomk
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_timeseries_metadata_functions
 PROMQL index=prometheus-k8s step=5m start="2024-05-10T00:20:00.000Z" end="2024-05-10T00:25:00.000Z" result=(bottomk(1, network.total_bytes_in{cluster="prod"}))
 | SORT step, result ASC;
 
@@ -2266,6 +2275,7 @@ required_capability: promql_command_v0
 required_capability: promql_bottomk
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_timeseries_metadata_functions
 PROMQL index=prometheus-k8s step=1h result=(bottomk(2, network.total_bytes_in) by (pod));
 
 result:double | step:datetime            | _timeseries:keyword
@@ -2299,6 +2309,7 @@ required_capability: promql_command_v0
 required_capability: fix_promql_drop_stored_metric_name
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_timeseries_metadata_functions
 PROMQL index=prometheus-k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(abs(last_over_time(network.eth0.rx{cluster="qa"}[5m])))
 | WHERE step == "2024-05-10T00:10:00.000Z"
 | KEEP result, _timeseries
@@ -2316,6 +2327,7 @@ required_capability: promql_command_v0
 required_capability: fix_promql_drop_stored_metric_name
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_timeseries_metadata_functions
 PROMQL index=prometheus-k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(rate(network.total_bytes_in{cluster="qa"}[10m]))
 | WHERE step == "2024-05-10T00:10:00.000Z"
 | KEEP result, _timeseries
@@ -2334,6 +2346,7 @@ required_capability: promql_command_v0
 required_capability: fix_ts_block_loader_passthrough_aliasing
 required_capability: promql_topk
 required_capability: promql_reduction_without
+required_capability: promql_timeseries_metadata_functions
 PROMQL index=prometheus-k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(topk without (pod) (1, last_over_time(network.eth0.tx[5m])))
 | WHERE step == "2024-05-10T00:10:00.000Z"
 | KEEP result, _timeseries
@@ -2350,6 +2363,7 @@ required_capability: promql_command_v0
 required_capability: fix_ts_block_loader_passthrough_aliasing
 required_capability: promql_bottomk
 required_capability: promql_reduction_without
+required_capability: promql_timeseries_metadata_functions
 PROMQL index=prometheus-k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(bottomk without (pod) (1, last_over_time(network.eth0.tx[5m])))
 | WHERE step == "2024-05-10T00:10:00.000Z"
 | KEEP result, _timeseries
@@ -2367,6 +2381,7 @@ required_capability: promql_command_v0
 required_capability: fix_ts_block_loader_passthrough_aliasing
 required_capability: promql_topk
 required_capability: promql_reduction_without
+required_capability: promql_timeseries_metadata_functions
 PROMQL index=prometheus-k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(topk without (cluster, pod, region) (1, last_over_time(network.eth0.rx[5m])))
 | WHERE step == "2024-05-10T00:10:00.000Z"
 | KEEP result, _timeseries;
@@ -2380,6 +2395,7 @@ required_capability: promql_command_v0
 required_capability: fix_ts_block_loader_passthrough_aliasing
 required_capability: promql_limitk
 required_capability: promql_reduction_without
+required_capability: promql_timeseries_metadata_functions
 PROMQL index=prometheus-k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(count by (cluster) (limitk without (pod) (1, last_over_time(network.eth0.tx[5m]))))
 | WHERE step == "2024-05-10T00:10:00.000Z"
 | KEEP result, cluster
@@ -2413,6 +2429,7 @@ or_under_binary_operator
 required_capability: promql_command_v0
 required_capability: promql_set_operator_matching
 required_capability: promql_binary_independent_join
+required_capability: promql_timeseries_metadata_functions
 PROMQL index=prometheus-k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=((last_over_time(network.eth0.tx[5m]) or last_over_time(network.eth0.rx[5m])) / ((last_over_time(network.eth0.tx[5m]) or last_over_time(network.eth0.rx[5m])) + (last_over_time(network.eth0.rx[5m]) or last_over_time(network.eth0.tx[5m]))))
 | WHERE step == "2024-05-10T00:10:00.000Z"
 | KEEP result, _timeseries
@@ -2435,6 +2452,7 @@ or_on_nothing_under_division
 required_capability: promql_command_v0
 required_capability: promql_set_operator_matching
 required_capability: promql_binary_independent_join
+required_capability: promql_timeseries_metadata_functions
 PROMQL index=prometheus-k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(sum(rate(network.total_bytes_in[10m])) / (sum(rate(network.total_bytes_in[10m])) or on () vector(1)))
 | KEEP result, step
 | SORT step;

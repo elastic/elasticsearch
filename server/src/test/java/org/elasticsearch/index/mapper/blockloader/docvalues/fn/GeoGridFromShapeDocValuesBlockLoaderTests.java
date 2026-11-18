@@ -88,7 +88,7 @@ public class GeoGridFromShapeDocValuesBlockLoaderTests extends ESTestCase {
                     doc.add(
                         new BinaryDocValuesField(
                             FIELD,
-                            GeometryDocValueWriter.write(INDEXER.indexShape(geometry), CoordinateEncoder.GEO, centroid)
+                            GeometryDocValueWriter.write(INDEXER.indexShape(geometry), CoordinateEncoder.GEO, centroid, List.of(geometry))
                         )
                     );
                 }

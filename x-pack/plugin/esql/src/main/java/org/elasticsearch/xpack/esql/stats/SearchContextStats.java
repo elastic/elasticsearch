@@ -23,6 +23,7 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.codec.tsdb.PartitionedDocValues;
+import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper;
 import org.elasticsearch.index.mapper.AbstractScriptFieldType;
 import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.DocCountFieldMapper.DocCountFieldType;
@@ -592,6 +593,23 @@ public class SearchContextStats implements SearchStats {
     @Override
     public MappedFieldType fieldType(FieldName field) {
         return cache.computeIfAbsent(field.string(), this::makeFieldStats).config.fieldType;
+    }
+
+    /**
+     * Returns true if any shard supports reconstruction, since each shard's block loader falls back to loading from
+     * source when its own doc-values cannot reconstruct the geometry, for example in indices created before the V2
+     * doc-values format.
+     */
+    @Override
+    public boolean supportsGeometryDocValueReconstruction(FieldName field) {
+        for (SearchExecutionContext context : contexts) {
+            if (isExtractableMappedField(context, field.string())
+                && context.getFieldType(field.string()) instanceof AbstractGeometryFieldMapper.AbstractGeometryFieldType<?> geoFieldType
+                && geoFieldType.supportsGeometryDocValueReconstruction()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     //

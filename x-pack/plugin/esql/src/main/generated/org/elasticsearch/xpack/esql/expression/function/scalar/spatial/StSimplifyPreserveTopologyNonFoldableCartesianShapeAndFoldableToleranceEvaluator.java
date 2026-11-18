@@ -16,34 +16,29 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.locationtech.jts.operation.buffer.BufferParameters;
 
 /**
- * {@link ExpressionEvaluator} implementation for {@link StBuffer}.
+ * {@link ExpressionEvaluator} implementation for {@link StSimplifyPreserveTopology}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class StBufferNonFoldableGeometryAndFoldableDistanceEvaluator implements ExpressionEvaluator {
-  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StBufferNonFoldableGeometryAndFoldableDistanceEvaluator.class);
+public final class StSimplifyPreserveTopologyNonFoldableCartesianShapeAndFoldableToleranceEvaluator implements ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StSimplifyPreserveTopologyNonFoldableCartesianShapeAndFoldableToleranceEvaluator.class);
 
   private final Source source;
 
   private final ExpressionEvaluator geometry;
 
-  private final double distance;
-
-  private final BufferParameters bufferParameters;
+  private final double tolerance;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public StBufferNonFoldableGeometryAndFoldableDistanceEvaluator(Source source,
-      ExpressionEvaluator geometry, double distance, BufferParameters bufferParameters,
-      DriverContext driverContext) {
+  public StSimplifyPreserveTopologyNonFoldableCartesianShapeAndFoldableToleranceEvaluator(
+      Source source, ExpressionEvaluator geometry, double tolerance, DriverContext driverContext) {
     this.source = source;
     this.geometry = geometry;
-    this.distance = distance;
-    this.bufferParameters = bufferParameters;
+    this.tolerance = tolerance;
     this.driverContext = driverContext;
   }
 
@@ -73,7 +68,7 @@ public final class StBufferNonFoldableGeometryAndFoldableDistanceEvaluator imple
           continue position;
         }
         try {
-          StBuffer.processNonFoldableGeometryAndConstantDistance(result, p, geometryBlock, this.distance, this.bufferParameters);
+          StSimplifyPreserveTopology.processCartesianShapeAndConstantTolerance(result, p, geometryBlock, this.tolerance);
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -85,7 +80,7 @@ public final class StBufferNonFoldableGeometryAndFoldableDistanceEvaluator imple
 
   @Override
   public String toString() {
-    return "StBufferNonFoldableGeometryAndFoldableDistanceEvaluator[" + "geometry=" + geometry + ", distance=" + distance + "]";
+    return "StSimplifyPreserveTopologyNonFoldableCartesianShapeAndFoldableToleranceEvaluator[" + "geometry=" + geometry + ", tolerance=" + tolerance + "]";
   }
 
   @Override
@@ -105,26 +100,23 @@ public final class StBufferNonFoldableGeometryAndFoldableDistanceEvaluator imple
 
     private final ExpressionEvaluator.Factory geometry;
 
-    private final double distance;
+    private final double tolerance;
 
-    private final BufferParameters bufferParameters;
-
-    public Factory(Source source, ExpressionEvaluator.Factory geometry, double distance,
-        BufferParameters bufferParameters) {
+    public Factory(Source source, ExpressionEvaluator.Factory geometry, double tolerance) {
       this.source = source;
       this.geometry = geometry;
-      this.distance = distance;
-      this.bufferParameters = bufferParameters;
+      this.tolerance = tolerance;
     }
 
     @Override
-    public StBufferNonFoldableGeometryAndFoldableDistanceEvaluator get(DriverContext context) {
-      return new StBufferNonFoldableGeometryAndFoldableDistanceEvaluator(source, geometry.get(context), distance, bufferParameters, context);
+    public StSimplifyPreserveTopologyNonFoldableCartesianShapeAndFoldableToleranceEvaluator get(
+        DriverContext context) {
+      return new StSimplifyPreserveTopologyNonFoldableCartesianShapeAndFoldableToleranceEvaluator(source, geometry.get(context), tolerance, context);
     }
 
     @Override
     public String toString() {
-      return "StBufferNonFoldableGeometryAndFoldableDistanceEvaluator[" + "geometry=" + geometry + ", distance=" + distance + "]";
+      return "StSimplifyPreserveTopologyNonFoldableCartesianShapeAndFoldableToleranceEvaluator[" + "geometry=" + geometry + ", tolerance=" + tolerance + "]";
     }
   }
 }

@@ -19,11 +19,11 @@ import static org.elasticsearch.lucene.spatial.TriangleTreeWriter.POINT;
 import static org.elasticsearch.lucene.spatial.TriangleTreeWriter.RIGHT;
 
 /**
- * A tree reader for a previous serialized {@link org.elasticsearch.geometry.Geometry} using
- * {@link TriangleTreeWriter}.
+ * A tree reader for a previously serialized {@link org.elasticsearch.geometry.Geometry} using
+ * {@link TriangleTreeWriter}. Reads the legacy format where vertex coordinates are stored as
+ * VLong deltas from the parent node's maxX/maxY bounds.
  *
- * The tree structure is navigated using a {@link TriangleTreeVisitor}.
- *
+ * @see V2TriangleTreeReader for a version that reads the new format
  */
 class TriangleTreeReader {
 

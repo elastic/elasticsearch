@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -19,10 +20,12 @@ import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.EntryExpression;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
@@ -38,7 +41,9 @@ import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.io.ParseException;
 import org.locationtech.jts.operation.buffer.BufferOp;
@@ -64,9 +69,13 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
 import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isSpatial;
 
-public class StBuffer extends SpatialDocValuesFunction implements OptionalArgument, AnyNullIsNull {
+public class StBuffer extends SpatialDocValuesFunction implements OptionalArgument, AnyNullIsNull, BlockLoaderExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "StBuffer", StBuffer::new);
-    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(StBuffer.class).ternary(StBuffer::new).name("st_buffer");
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(StBuffer.class)
+        .ternary(StBuffer::new)
+        // Non-constant inputs are quantized to the Lucene grid, matching the coordinates of shape fields buffered from doc values
+        .capabilities("quantized")
+        .name("st_buffer");
 
     /**
      * Adds the optional {@code options} {@link MapExpression} (quad_segs, endcap, join, mitre_limit)
@@ -87,6 +96,7 @@ public class StBuffer extends SpatialDocValuesFunction implements OptionalArgume
         Map.of(QUAD_SEGS_OPTION, INTEGER, ENDCAP_OPTION, KEYWORD, JOIN_OPTION, KEYWORD, MITRE_LIMIT_OPTION, DOUBLE)
     );
 
+    /** Used for constant geometries, which are not quantized. */
     private static final SpatialGeometryBlockProcessor processor = new SpatialGeometryBlockProcessor(UNSPECIFIED, StBuffer::bufferOp);
     private static final SpatialGeometryBlockProcessor geoProcessor = new SpatialGeometryBlockProcessor(GEO, StBuffer::bufferOp);
     private static final SpatialGeometryBlockProcessor cartesianProcessor = new SpatialGeometryBlockProcessor(
@@ -126,7 +136,9 @@ public class StBuffer extends SpatialDocValuesFunction implements OptionalArgume
             + "The distance is in the units of the input spatial reference system. "
             + "Positive distances expand the geometry, negative distances shrink it. "
             + "A distance of zero will return the input geometry unchanged. "
-            + "Points and lines become polygons when buffered, unless a zero distance is provided.",
+            + "Points and lines become polygons when buffered, unless a zero distance is provided. "
+            + "Except for constant geometries, input coordinates are first rounded to the precision of indexed spatial fields, "
+            + "so results do not depend on whether the geometry is loaded from the index or from the document source.",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.4.0") },
         examples = {
@@ -362,17 +374,68 @@ public class StBuffer extends SpatialDocValuesFunction implements OptionalArgume
                 bufferParameters
             );
         }
-        return new StBufferNonFoldableGeometryAndFoldableDistanceEvaluator.Factory(
-            source(),
-            geometryEvaluator,
-            inputDistance,
-            bufferParameters
+        // For WKB, we need to know if it is Geo or Cartesian to quantize the inputs to match Lucene grids
+        return DataType.isSpatialGeo(geometry.dataType())
+            ? new StBufferNonFoldableGeoShapeAndFoldableDistanceEvaluator.Factory(
+                source(),
+                geometryEvaluator,
+                inputDistance,
+                bufferParameters
+            )
+            : new StBufferNonFoldableCartesianShapeAndFoldableDistanceEvaluator.Factory(
+                source(),
+                geometryEvaluator,
+                inputDistance,
+                bufferParameters
+            );
+    }
+
+    /**
+     * Fuses this function into the loading of shape doc values that can reconstruct the original geometry, like
+     * {@link StSimplify#tryPushToFieldLoading}. Distances that are not constant numbers, and invalid options, keep using
+     * the evaluator so that it reports the error. The options are part of the fused configuration, so buffers of the
+     * same field with different styles are loaded separately.
+     */
+    @Override
+    public PushedBlockLoaderExpression tryPushToFieldLoading(SearchStats stats) {
+        FieldAttribute field = fusableShapeField(geometry, stats);
+        Double inputDistance = constantNumber(distance);
+        if (field == null || inputDistance == null) {
+            return null;
+        }
+        BufferParameters bufferParameters;
+        try {
+            bufferParameters = bufferParameters();
+        } catch (InvalidArgumentException e) {
+            return null;
+        }
+        String canonicalOptions = Strings.format(
+            "%s=%d, %s=%d, %s=%d, %s=%s",
+            QUAD_SEGS_OPTION,
+            bufferParameters.getQuadrantSegments(),
+            ENDCAP_OPTION,
+            bufferParameters.getEndCapStyle(),
+            JOIN_OPTION,
+            bufferParameters.getJoinStyle(),
+            MITRE_LIMIT_OPTION,
+            bufferParameters.getMitreLimit()
+        );
+        var bufferProcessor = new SpatialGeometryBlockProcessor(UNSPECIFIED, (g, d) -> bufferOp(g, d, bufferParameters));
+        return new PushedBlockLoaderExpression(
+            field,
+            new BlockLoaderFunctionConfig.GeometryTransform(
+                BlockLoaderFunctionConfig.Function.ST_BUFFER,
+                inputDistance,
+                canonicalOptions,
+                bufferProcessor.transformers(inputDistance)
+            )
         );
     }
 
     @Override
     public boolean foldable() {
-        return geometry.foldable() && distance.foldable() && (options == null || options.foldable());
+        // Options are always a literal map, but a MapExpression is never foldable
+        return geometry.foldable() && distance.foldable();
     }
 
     @Override
@@ -398,18 +461,40 @@ public class StBuffer extends SpatialDocValuesFunction implements OptionalArgume
         };
     }
 
-    @Evaluator(extraName = "NonFoldableGeometryAndFoldableDistance", warnExceptions = { IllegalArgumentException.class })
-    static void processNonFoldableGeometryAndConstantDistance(
+    @Evaluator(extraName = "NonFoldableGeoShapeAndFoldableDistance", warnExceptions = { IllegalArgumentException.class })
+    static void processGeoShapeAndConstantDistance(
         BytesRefBlock.Builder builder,
         @Position int p,
         BytesRefBlock geometry,
         @Fixed double distance,
         @Fixed(includeInToString = false) BufferParameters bufferParameters
     ) {
+        processGeometries(geoProcessor, builder, p, geometry, distance, bufferParameters);
+    }
+
+    @Evaluator(extraName = "NonFoldableCartesianShapeAndFoldableDistance", warnExceptions = { IllegalArgumentException.class })
+    static void processCartesianShapeAndConstantDistance(
+        BytesRefBlock.Builder builder,
+        @Position int p,
+        BytesRefBlock geometry,
+        @Fixed double distance,
+        @Fixed(includeInToString = false) BufferParameters bufferParameters
+    ) {
+        processGeometries(cartesianProcessor, builder, p, geometry, distance, bufferParameters);
+    }
+
+    private static void processGeometries(
+        SpatialGeometryBlockProcessor processor,
+        BytesRefBlock.Builder builder,
+        int p,
+        BytesRefBlock geometry,
+        double distance,
+        BufferParameters bufferParameters
+    ) {
         if (geometry.isNull(p)) {
             builder.appendNull();
         } else {
-            Geometry jts = processor.asJtsGeometry(geometry, p);
+            Geometry jts = processor.quantize(processor.asJtsGeometry(geometry, p));
             Geometry result = bufferOp(jts, distance, bufferParameters);
             builder.appendBytesRef(UNSPECIFIED.jtsGeometryToWkb(result));
         }

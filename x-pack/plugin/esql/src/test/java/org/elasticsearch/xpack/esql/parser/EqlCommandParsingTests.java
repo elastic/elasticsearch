@@ -277,6 +277,25 @@ public class EqlCommandParsingTests extends AbstractStatementParserTests {
         assertThat(options.get("size"), equalTo(100));
     }
 
+    public void testWithOptionNullLiteralThrows() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+
+        // A null option value must be rejected: dropping it silently would behave as if the option were never set.
+        ParsingException pe = expectThrows(ParsingException.class, () -> query("EQL logs-* \"process where true\" WITH { \"k\": null }"));
+        assertThat(pe.getMessage(), containsString("EQL option [k] has null value"));
+    }
+
+    public void testWithOptionUnboundParameterThrows() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+
+        // An unbound parameter never reaches foldOptionLiterals: the parameter-count check fires first.
+        ParsingException pe = expectThrows(
+            ParsingException.class,
+            () -> query("EQL logs-* \"process where true\" WITH { \"k\": ? }", new QueryParams(List.of()))
+        );
+        assertThat(pe.getMessage(), containsString("Not enough actual parameters"));
+    }
+
     public void testWithOversizedUnsignedLongSizeRejected() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
 
@@ -291,7 +310,7 @@ public class EqlCommandParsingTests extends AbstractStatementParserTests {
     }
 
     /**
-     * Regression guard mirroring {@code IcebergParsingTests#testExternalCommandUnavailableOnRealReleaseBuild}:
+     * Regression guard mirroring {@code ExternalCommandRemovedTests#testExternalCommandDoesNotParseWithDefaultParser}:
      * only meaningfully executes on a genuine release build (e.g. {@code -Dbuild.snapshot=false}), where it
      * asserts the {@code EQL} grammar surface is rejected.
      */

@@ -43,6 +43,7 @@ import static org.elasticsearch.compute.gen.Types.SOURCE;
 import static org.elasticsearch.compute.gen.Types.VECTOR;
 import static org.elasticsearch.compute.gen.Types.blockType;
 import static org.elasticsearch.compute.gen.Types.builderType;
+import static org.elasticsearch.compute.gen.Types.vectorFixedBuilderType;
 import static org.elasticsearch.compute.gen.Types.vectorType;
 
 public class ConvertEvaluatorImplementer {
@@ -183,6 +184,24 @@ public class ConvertEvaluatorImplementer {
             }, () -> builder.addStatement("return driverContext.blockFactory().newConstantNullBlock(positionCount)"));
         }
         builder.endControlFlow();
+
+        if (warnExceptions.isEmpty() && processFunction.returnType().isPrimitive()) {
+            // nothing can turn a value into null, so the result is a vector
+            TypeName fixedBuilderType = vectorFixedBuilderType(processFunction.returnType());
+            builder.beginControlFlow(
+                "try ($T builder = driverContext.blockFactory().$L)",
+                fixedBuilderType,
+                buildResultFromFactory(fixedBuilderType, true)
+            );
+            {
+                builder.beginControlFlow("for (int p = 0; p < positionCount; p++)");
+                builder.addStatement("builder.$L(p, $N)", processFunction.appendMethod(), evalValueCall("vector", "p", scratchPadName));
+                builder.endControlFlow();
+                builder.addStatement("return builder.build().asBlock()");
+            }
+            builder.endControlFlow();
+            return builder.build();
+        }
 
         ClassName resultBuilderType = builderType(processFunction.resultDataType(true));
         builder.beginControlFlow(

@@ -158,7 +158,10 @@ public class StatelessAbortRunningMergesOnRelocationIT extends AbstractStateless
         indexDocs(slotHoldingIndex, randomIntBetween(20, 50));
 
         final var uploadGate = blockPreFlushUpload(sourceNode);
-        final var targetNode = startIndexNode();
+        // The queue this test asserts on is the source's single outgoing slot, so the target must be able to accept both
+        // relocations at once. A randomized incoming limit of one would hold the second one back on the target instead,
+        // where it never reaches the source and so is never counted as queued there.
+        final var targetNode = startIndexNode(unthrottledIncomingRecoveryNodeSettings());
         ensureStableCluster(2);
 
         ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(slotHoldingIndex, 0, sourceNode, targetNode));

@@ -33,7 +33,7 @@ public final class FetchExec extends UnaryExec implements EstimatesRowSize {
     private final String indexPattern;
     private final List<String> originalIndices;
     private final Integer estimatedRowSize;
-    private List<Attribute> lazyOutput;
+    private volatile List<Attribute> lazyOutput;
 
     /**
      * @param doc               the {@code _doc} column of {@code child}

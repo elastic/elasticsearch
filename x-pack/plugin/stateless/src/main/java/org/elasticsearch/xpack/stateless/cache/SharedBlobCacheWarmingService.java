@@ -1730,7 +1730,9 @@ public class SharedBlobCacheWarmingService {
         protected boolean isCancelled() {
             // A direct recovery cancellation does not close the store, so also stop warming once one has been requested, otherwise the
             // recovery cannot notice it until warming completes or times out. Only while the recovery is waiting on this warming though:
-            // afterwards it may no longer check for cancellation, and the shard can go on to start despite the request.
+            // afterwards it may no longer check for cancellation, and the shard can go on to start despite the request. Stopping early is
+            // only safe because TransportStatelessUnpromotableRelocationAction#doExecute calls ensureRecoveryNotCancelled() straight after
+            // the wait on warming, failing the recovery instead of letting the shard start with a partially warmed cache.
             return super.isCancelled()
                 || (indexShard.isRecoveryCancellationRequested() && shardsAwaitingRecoveryWarming.contains(indexShard));
         }

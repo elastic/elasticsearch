@@ -2028,16 +2028,19 @@ public final class RestoreService implements ClusterStateApplier {
         if (changed == false) {
             return currentState;
         }
-        final Metadata.Builder metadata = Metadata.builder(currentState.metadata());
-        updatedCustoms.forEach(
-            (projectId, custom) -> metadata.put(
-                ProjectMetadata.builder(currentState.metadata().getProject(projectId)).putCustom(customType, custom)
-            )
-        );
-        return ClusterState.builder(currentState)
-            .metadata(metadata)
-            .putCustom(RestoreInProgress.TYPE, restoreInProgressBuilder.build())
-            .build();
+        // Only the projects that an updater changed are replaced. Anything else, including every project when nothing is maintained, is
+        // kept as it is rather than rebuilt.
+        Metadata metadata = currentState.metadata();
+        for (Map.Entry<ProjectId, Metadata.ProjectCustom> updated : updatedCustoms.entrySet()) {
+            metadata = metadata.withUpdatedProject(
+                ProjectMetadata.builder(metadata.getProject(updated.getKey())).putCustom(customType, updated.getValue()).build()
+            );
+        }
+        final ClusterState.Builder builder = ClusterState.builder(currentState);
+        if (metadata != currentState.metadata()) {
+            builder.metadata(metadata);
+        }
+        return builder.putCustom(RestoreInProgress.TYPE, restoreInProgressBuilder.build()).build();
     }
 
     // run a cluster state update that removes all completed restores from the cluster state

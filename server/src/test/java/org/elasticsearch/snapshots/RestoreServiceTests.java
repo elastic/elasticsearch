@@ -1411,6 +1411,8 @@ public class RestoreServiceTests extends ESTestCase {
         ClusterState withCompleted = stateWithCompletedRestore();
         ClusterState cleaned = service.executeRestoreCleanup(withCompleted);
         assertTrue(RestoreInProgress.get(cleaned).isEmpty());
+        // Nothing was maintained, so no project was rebuilt.
+        assertSame(withCompleted.metadata(), cleaned.metadata());
     }
 
     /**
@@ -1501,6 +1503,36 @@ public class RestoreServiceTests extends ESTestCase {
         assertEquals(Set.copyOf(uuids), Set.of(seen.getData().split(",")));
         assertEquals(3, seen.getData().split(",").length);
         assertTrue(RestoreInProgress.get(result).isEmpty());
+    }
+
+    /** Only the project whose custom changed is replaced: the others are the same instances afterwards. */
+    public void testOnlyTheProjectWhoseCustomChangedIsReplaced() {
+        final ProjectId updatedProject = randomUniqueProjectId();
+        final ProjectId otherProject = randomUniqueProjectId();
+        final ShardId shardId = new ShardId(randomIdentifier(), randomUUID(), 0);
+        final var rip = new RestoreInProgress.Builder().add(
+            new RestoreInProgress.Entry(
+                UUIDs.randomBase64UUID(),
+                new Snapshot(updatedProject, randomIdentifier(), new SnapshotId(randomIdentifier(), randomUUID())),
+                RestoreInProgress.State.SUCCESS,
+                false,
+                List.of(shardId.getIndexName()),
+                Map.of(shardId, new RestoreInProgress.ShardRestoreStatus(randomUUID(), RestoreInProgress.State.SUCCESS))
+            )
+        ).build();
+        final ClusterState input = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .putProjectMetadata(ProjectMetadata.builder(updatedProject))
+            .putProjectMetadata(ProjectMetadata.builder(otherProject))
+            .putCustom(RestoreInProgress.TYPE, rip)
+            .build();
+        RestoreService service = createMinimalRestoreService(
+            completionUpdater((entry, project, current) -> new SeenRestores(entry.uuid()))
+        );
+
+        final ClusterState result = service.executeRestoreCleanup(input);
+
+        assertNotNull(result.metadata().getProject(updatedProject).custom(CUSTOM_TYPE));
+        assertSame(input.metadata().getProject(otherProject), result.metadata().getProject(otherProject));
     }
 
     /** Returning {@code null} leaves the project's custom as it is, including when it has none. */

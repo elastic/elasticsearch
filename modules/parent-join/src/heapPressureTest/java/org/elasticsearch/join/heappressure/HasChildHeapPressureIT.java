@@ -67,12 +67,12 @@ public class HasChildHeapPressureIT extends SearchHeapPressureTestCase {
 
     /** Each clause reaches nearly every parent and keeps a bit per parent. */
     public void testHasChildClausesWithoutScores() throws IOException {
-        assertSucceedsOrTripsWhenLarge(n -> hasChildSearch(n, "none"), 20, 4000);
+        assertTripsOnlyWhenLarge(n -> hasChildSearch(n, "none"), 20, 4000, null);
     }
 
     /** Each clause reaches nearly every parent and keeps a float and an int per parent. */
     public void testHasChildClausesWithAvgScores() throws IOException {
-        assertSucceedsOrTripsWhenLarge(n -> hasChildSearch(n, "avg"), 2, 100);
+        assertTripsOnlyWhenLarge(n -> hasChildSearch(n, "avg"), 2, 100, null);
     }
 
     /** A {@code bool} of {@code count} {@code has_child} clauses, each with a different child query so that they are not merged. */

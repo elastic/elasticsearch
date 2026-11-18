@@ -98,7 +98,7 @@ public class AggregationBitsetHeapPressureIT extends SearchHeapPressureTestCase 
     }
 
     private void assertOnlyTripsOrSucceeds(IntFunction<Request> request) throws IOException {
-        assertSucceedsOrTripsWhenLarge(request, FEW_AGGS, AGGS);
+        assertTripsOnlyWhenLarge(request, FEW_AGGS, AGGS, null);
     }
 
     private static String searchBody(String aggs) {

@@ -13,6 +13,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
 import org.junit.After;
@@ -285,22 +286,19 @@ public abstract class SearchHeapPressureTestCase extends HeapPressureTestCase {
 
     /**
      * Asserts that {@code request} succeeds at size {@code small} and is rejected under {@code label} at size {@code large}, so a case
-     * cannot pass on a node that rejects every such request.
+     * cannot pass on a node that rejects every such request. The start of the large request is logged, so that a node that dies is seen
+     * to die on it.
+     *
+     * <p>With a {@code null} label the large request may also succeed, or be rejected by any circuit breaker, and only a node that dies
+     * fails the case. This is for memory that may well fit and that no breaker charges yet, so there is no label to expect.
      */
-    protected void assertTripsOnlyWhenLarge(IntFunction<Request> request, int small, int large, String label) throws IOException {
+    protected void assertTripsOnlyWhenLarge(IntFunction<Request> request, int small, int large, @Nullable String label) throws IOException {
         assertSucceeds(request.apply(small));
         logger.info("Searching with {} items", large);
-        assertCircuitBreaks(request.apply(large), label);
-    }
-
-    /**
-     * Asserts that {@code request} succeeds at size {@code small}, and at size {@code large} either succeeds or is rejected by a circuit
-     * breaker, and that every node survives. For memory that may well fit, where only running out of it is a failure. The start of the
-     * large request is logged, so that a node that dies is seen to die on it.
-     */
-    protected void assertSucceedsOrTripsWhenLarge(IntFunction<Request> request, int small, int large) throws IOException {
-        assertSucceeds(request.apply(small));
-        logger.info("Searching with {} items", large);
+        if (label != null) {
+            assertCircuitBreaks(request.apply(large), label);
+            return;
+        }
         Map<String, Object> body = errorBodyOrNull(request.apply(large));
         if (body != null) {
             assertTrue("expected only a circuit_breaking_exception, but got: " + body, containsCircuitBreakingException(body));

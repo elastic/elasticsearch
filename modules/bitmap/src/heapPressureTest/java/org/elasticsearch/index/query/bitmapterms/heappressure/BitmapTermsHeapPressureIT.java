@@ -61,7 +61,7 @@ public class BitmapTermsHeapPressureIT extends SearchHeapPressureTestCase {
 
     /** Each clause matches half the documents. */
     public void testBitmapTermsClauses() throws IOException {
-        assertSucceedsOrTripsWhenLarge(BitmapTermsHeapPressureIT::bitmapTermsSearch, FEW_CLAUSES, MANY_CLAUSES);
+        assertTripsOnlyWhenLarge(BitmapTermsHeapPressureIT::bitmapTermsSearch, FEW_CLAUSES, MANY_CLAUSES, null);
     }
 
     /** A {@code bool} of {@code count} clauses, each with a different bitmap so that they are not merged. */

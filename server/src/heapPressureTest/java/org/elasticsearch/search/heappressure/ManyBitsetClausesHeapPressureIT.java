@@ -118,7 +118,7 @@ public class ManyBitsetClausesHeapPressureIT extends SearchHeapPressureTestCase 
     }
 
     private void assertOnlyTripsOrSucceeds(IntFunction<Request> request) throws IOException {
-        assertSucceedsOrTripsWhenLarge(request, FEW_CLAUSES, MANY_CLAUSES);
+        assertTripsOnlyWhenLarge(request, FEW_CLAUSES, MANY_CLAUSES, null);
     }
 
     /** A coordinate in [-10, 10) spread over the documents by {@code seed}. */

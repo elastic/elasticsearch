@@ -63,13 +63,18 @@ public class GeoShapeHeapPressureIT extends SearchHeapPressureTestCase {
 
     /** Each clause is a point that the octagon of one document contains, and builds two bit sets of which it keeps one. */
     public void testContainsPointClauses() throws IOException {
-        assertSucceedsOrTripsWhenLarge(n -> shapeSearch(n, i -> Strings.format("""
-            {"geo_shape": {"shape": {"relation": "contains", "shape": "POINT (%s %s)"}}}""", fmt(lon(i)), fmt(lat(i)))), SMALL, LARGE);
+        assertTripsOnlyWhenLarge(
+            n -> shapeSearch(n, i -> Strings.format("""
+                {"geo_shape": {"shape": {"relation": "contains", "shape": "POINT (%s %s)"}}}""", fmt(lon(i)), fmt(lat(i)))),
+            SMALL,
+            LARGE,
+            null
+        );
     }
 
     /** Each clause is a small square around the octagon of one document, and costs one bit set. */
     public void testIntersectsPolygonClauses() throws IOException {
-        assertSucceedsOrTripsWhenLarge(n -> shapeSearch(n, i -> {
+        assertTripsOnlyWhenLarge(n -> shapeSearch(n, i -> {
             double lat = lat(i);
             double lon = lon(i);
             double d = RADIUS / 2;
@@ -87,7 +92,7 @@ public class GeoShapeHeapPressureIT extends SearchHeapPressureTestCase {
                 fmt(lon - d),
                 fmt(lat - d)
             );
-        }), SMALL, LARGE);
+        }), SMALL, LARGE, null);
     }
 
     /** A {@code bool} of {@code count} clauses, each about a different document so that they are not merged. */

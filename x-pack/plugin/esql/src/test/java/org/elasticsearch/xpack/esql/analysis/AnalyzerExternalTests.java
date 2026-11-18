@@ -855,7 +855,7 @@ public class AnalyzerExternalTests extends ESTestCase {
     }
 
     /** A single-dataset {@link ProjectMetadata}: {@link #DATASET_NAME} pointing at {@code resource}. */
-    private static ProjectMetadata datasetProject(String resource) {
+    public static ProjectMetadata datasetProject(String resource) {
         DataSource dataSource = new DataSource("ds_source", "test", null, Map.of());
         Dataset dataset = new Dataset(DATASET_NAME, new DataSourceReference("ds_source"), resource, null, Map.of(), null);
         return ProjectMetadata.builder(ProjectId.DEFAULT)

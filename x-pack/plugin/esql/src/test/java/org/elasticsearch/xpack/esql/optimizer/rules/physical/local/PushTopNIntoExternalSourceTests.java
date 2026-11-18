@@ -45,6 +45,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.alias;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.logicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerExternalTests.analyzeDataset;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerExternalTests.datasetProject;
 import static org.hamcrest.Matchers.hasSize;
 
 public class PushTopNIntoExternalSourceTests extends ESTestCase {
@@ -220,7 +221,7 @@ public class PushTopNIntoExternalSourceTests extends ESTestCase {
         List<Attribute> schema = List.of(referenceAttribute("user_id", DataType.KEYWORD), referenceAttribute("region", DataType.KEYWORD));
 
         LogicalPlan analyzed = analyzeDataset(
-            EsqlTestUtils.analyzer().externalSourceUnresolved(path, schema),
+            EsqlTestUtils.analyzer().externalSourceUnresolved(datasetProject(path), path, schema),
             path,
             "FROM my_dataset | STATS count(*) BY user_id, region | SORT user_id ASC, region ASC | LIMIT 10"
         );

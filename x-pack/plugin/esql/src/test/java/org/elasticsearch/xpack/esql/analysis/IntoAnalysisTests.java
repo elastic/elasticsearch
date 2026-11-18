@@ -13,6 +13,8 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.plan.logical.Into;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.junit.Before;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
@@ -65,5 +67,17 @@ public class IntoAnalysisTests extends AnalyzerTestCase {
         analyzer().addEmployees().error("FROM employees | INTO dst", containsString(error));
         analyzer().addK8s().error("TS k8s | INTO dst", containsString(error));
         analyzer().error("ROW a = 1 | FORK (WHERE true) (WHERE false) | INTO dst", containsString(error));
+    }
+
+    public void testDescribeOfRowRemainsEligible() {
+        assumeTrue("DESCRIBE is only enabled in snapshot builds", EsqlCapabilities.Cap.DESCRIBE_COMMAND.isEnabled());
+        LogicalPlan plan = analyzer().query("ROW a = 1 | DESCRIBE | INTO dst");
+        Into into = as(plan, Into.class);
+        assertThat(into.child().anyMatch(LocalRelation.class::isInstance), equalTo(true));
+        assertThat(into.child().anyMatch(Row.class::isInstance), equalTo(false));
+
+        String error = "INTO currently only supports ROW as a source, without FORK";
+        analyzer().addEmployees().error("FROM employees | DESCRIBE | INTO dst", containsString(error));
+        analyzer().error("ROW a = 1 | FORK (WHERE true) (WHERE false) | DESCRIBE | INTO dst", containsString(error));
     }
 }

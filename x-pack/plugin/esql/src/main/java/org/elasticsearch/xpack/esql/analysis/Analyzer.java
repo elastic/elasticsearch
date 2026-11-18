@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.AnalyzerRule;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.ParameterizedAnalyzerRule;
 import org.elasticsearch.xpack.esql.analysis.rules.DetermineUnmappedFieldsToKeep;
 import org.elasticsearch.xpack.esql.analysis.rules.ResolveFunctions;
@@ -365,6 +366,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new Batch<>(
                 "Finish Analysis",
                 Limiter.ONCE,
+                // Before ResolveDescribe replaces a ROW producer with a LocalRelation.
+                new RejectUnsupportedIntoSource(),
                 new ResolveDescribe(),
                 new DetermineUnmappedFieldsToKeep(),
                 new ResolveImplicitTimeSeriesIdentityGrouping(),
@@ -456,6 +459,26 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             throw new VerificationException(failures);
         }
         return plan;
+    }
+
+    /**
+     * Rejects an INTO whose producer is not ROW while that producer is still in the plan.
+     * {@link ResolveDescribe} then replaces a supported producer with a {@link LocalRelation}.
+     */
+    private static class RejectUnsupportedIntoSource extends AnalyzerRule<Into> {
+        @Override
+        protected boolean skipResolved() {
+            // Into is resolved by this batch, and the check still has to see it.
+            return false;
+        }
+
+        @Override
+        protected LogicalPlan rule(Into into) {
+            if (Into.unsupportedSource(into.child(), false)) {
+                throw new VerificationException(List.of(Failure.fail(into, "INTO currently only supports ROW as a source, without FORK")));
+            }
+            return into;
+        }
     }
 
     /**

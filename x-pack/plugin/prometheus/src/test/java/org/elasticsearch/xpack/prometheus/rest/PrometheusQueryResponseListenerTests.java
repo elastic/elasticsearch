@@ -11,14 +11,21 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.TestBlockFactory;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.rest.FakeRestChannel;
+import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
+import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
+import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.prometheus.rest.PrometheusQueryResponseListener.QueryMode;
 
 import java.io.IOException;
@@ -33,6 +40,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 public class PrometheusQueryResponseListenerTests extends ESTestCase {
 
@@ -745,5 +753,44 @@ public class PrometheusQueryResponseListenerTests extends ESTestCase {
         ) {
             return new ObjectPath(parser.map());
         }
+    }
+
+    /**
+     * The response is written to the channel's builder, whose format would follow the {@code format} parameter and the {@code Accept}
+     * header, and which would apply {@code filter_path}: none of which the Prometheus API has.
+     */
+    public void testResponseIsUnfilteredJsonWhateverTheRequestAsksFor() throws Exception {
+        List<ColumnInfoImpl> columns = List.of(col("value", "double"), col("__name__", "keyword"), col("step", "long"));
+        List<Page> pages = pagesOf(List.of(List.<Object>of(List.of(1.0, 2.0), "http_requests_total", List.of(1_000L, 2_000L))));
+        RestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withParams(
+            Map.of("format", "yaml", "filter_path", "status", "pretty", "false")
+        ).withHeaders(Map.of("Accept", List.of("application/yaml"))).build();
+        FakeRestChannel channel = new FakeRestChannel(request, true);
+        EsqlQueryResponse response = new EsqlQueryResponse(
+            columns,
+            pages,
+            0,
+            0,
+            null,
+            false,
+            false,
+            ZoneOffset.UTC,
+            0,
+            0,
+            new EsqlExecutionInfo(cluster -> false, EsqlExecutionInfo.IncludeExecutionMetadata.NEVER)
+        );
+        try {
+            new PrometheusQueryResponseListener(channel, "matrix", QueryMode.RANGE, Integer.MAX_VALUE).onResponse(response);
+        } finally {
+            response.decRef();
+        }
+
+        assertThat(channel.responses().get(), equalTo(1));
+        assertThat(channel.capturedResponse().status(), equalTo(RestStatus.OK));
+        assertThat(channel.capturedResponse().contentType(), startsWith("application/json"));
+        ObjectPath path = ObjectPath.createFromXContent(JsonXContent.jsonXContent, channel.capturedResponse().content());
+        assertSuccessMatrix(path);
+        assertThat(path.evaluate("data.result.0.metric.__name__"), equalTo("http_requests_total"));
+        assertThat(path.evaluate("data.result.0.values"), hasSize(2));
     }
 }

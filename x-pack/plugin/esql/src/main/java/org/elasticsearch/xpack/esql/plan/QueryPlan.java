@@ -48,7 +48,7 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
      */
     private PlanId planId;
     /** Nodes this one was derived from. Empty until a translation such as logical-to-physical records them. */
-    private List<PlanId> origin;
+    private volatile List<PlanId> origin;
     /** The exchange this node is one side of. Only exchange nodes have one. See {@link ExchangeRef}. */
     private ExchangeRef exchange;
 
@@ -119,8 +119,9 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
         if (ids == null || ids.length == 0) {
             return (PlanType) this;
         }
-        List<PlanId> merged = new ArrayList<>(origin.size() + ids.length);
-        merged.addAll(origin);
+        List<PlanId> current = origin;
+        List<PlanId> merged = new ArrayList<>(current.size() + ids.length);
+        merged.addAll(current);
         for (PlanId id : ids) {
             if (id != null) {
                 merged.add(id);

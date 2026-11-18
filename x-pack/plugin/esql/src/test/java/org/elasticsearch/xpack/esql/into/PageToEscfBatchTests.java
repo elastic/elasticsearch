@@ -226,15 +226,43 @@ public class PageToEscfBatchTests extends ComputeTestCase {
     }
 
     public void testSourceBigIntegerIsRejected() {
-        BigInteger big = BigInteger.TWO.pow(63).add(BigInteger.ONE);
+        assertSourceRejected("{\"n\":" + oversizedInteger() + "}");
+    }
+
+    public void testSourceNestedBigIntegerIsRejected() {
+        String big = oversizedInteger().toString();
+        assertSourceRejected("{\"a\":{\"n\":" + big + "}}");
+        assertSourceRejected("{\"a\":[1," + big + "]}");
+        assertSourceRejected("{\"a\":[{\"n\":" + big + "}]}");
+    }
+
+    public void testSourceMultiValueBigIntegerIsRejected() {
         try (BytesRefBlock.Builder b = blockFactory().newBytesRefBlockBuilder(1)) {
-            b.appendBytesRef(new BytesRef("{\"n\":" + big + "}"));
+            b.beginPositionEntry()
+                .appendBytesRef(new BytesRef("{\"n\":1}"))
+                .appendBytesRef(new BytesRef("{\"a\":{\"n\":" + oversizedInteger() + "}}"))
+                .endPositionEntry();
             EsqlIllegalArgumentException e = expectThrows(
                 EsqlIllegalArgumentException.class,
                 () -> rows(List.of(DataType.SOURCE), b.build())
             );
             assertThat(e.getMessage(), containsString("SOURCE"));
         }
+    }
+
+    private void assertSourceRejected(String json) {
+        try (BytesRefBlock.Builder b = blockFactory().newBytesRefBlockBuilder(1)) {
+            b.appendBytesRef(new BytesRef(json));
+            EsqlIllegalArgumentException e = expectThrows(
+                EsqlIllegalArgumentException.class,
+                () -> rows(List.of(DataType.SOURCE), b.build())
+            );
+            assertThat(json, e.getMessage(), containsString("SOURCE"));
+        }
+    }
+
+    private static BigInteger oversizedInteger() {
+        return BigInteger.TWO.pow(63).add(BigInteger.ONE);
     }
 
     public void testSourceColumnIsAnObject() throws IOException {

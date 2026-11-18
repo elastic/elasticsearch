@@ -31,7 +31,6 @@ import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequestHandler;
-import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceAuthorizer;
@@ -137,21 +136,26 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                         return r.getCompletionInfo();
                     });
                     ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
+                    var sinkPart = computeService.remoteSinkPart(computeService.queryId(rootTask), groupTask);
+                    var remoteSink = computeService.newRemoteSink(groupTask, childSessionId, cluster.connection, sinkPart);
                     transportService.sendChildRequest(
                         cluster.connection,
                         ComputeService.CLUSTER_ACTION_NAME,
                         clusterRequest,
                         groupTask,
-                        TransportRequestOptions.EMPTY,
-                        new ActionListenerResponseHandler<>(clusterListener, in -> new ComputeResponse(in, threadContext), searchExecutor)
+                        computeService.planRequestOptions(),
+                        new ActionListenerResponseHandler<>(
+                            ComputeService.finishRemoteSinkIfNotSent(remoteSink, clusterListener),
+                            in -> new ComputeResponse(in, threadContext),
+                            searchExecutor
+                        )
                     );
-                    var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, cluster.connection);
                     exchangeSource.addRemoteSink(
                         remoteSink,
                         failFast,
                         () -> pagesFetched.set(true),
                         queryPragmas.concurrentExchangeClients(),
-                        computeListener.acquireAvoid()
+                        ActionListener.releaseAfter(computeListener.acquireAvoid(), sinkPart)
                     );
                 }
             })
@@ -381,6 +385,8 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                     originalIndices,
                     exchangeSource,
                     cancelQueryOnFailure,
+                    // the usage of a failed compute on a remote cluster is not reported yet
+                    usage -> {},
                     computeListener.acquireCompute().map(r -> {
                         finalResponse.set(r);
                         return r.getCompletionInfo();

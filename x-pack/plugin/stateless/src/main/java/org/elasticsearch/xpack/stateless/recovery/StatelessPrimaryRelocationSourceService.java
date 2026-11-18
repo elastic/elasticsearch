@@ -118,7 +118,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
      */
     public static final Setting<Boolean> TRANSFER_HOLLOW_COMMIT_METADATA_SETTING = Setting.boolSetting(
         "stateless.cluster.primary_relocation.transfer_hollow_commit_metadata",
-        false,
+        true,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );

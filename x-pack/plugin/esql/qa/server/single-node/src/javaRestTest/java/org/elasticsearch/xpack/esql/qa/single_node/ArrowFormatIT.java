@@ -10,18 +10,30 @@ package org.elasticsearch.xpack.esql.qa.single_node;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.apache.arrow.memory.RootAllocator;
+import org.apache.arrow.vector.BigIntVector;
+import org.apache.arrow.vector.Float8Vector;
 import org.apache.arrow.vector.IntVector;
+import org.apache.arrow.vector.UInt1Vector;
+import org.apache.arrow.vector.UInt4Vector;
+import org.apache.arrow.vector.UInt8Vector;
 import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
+import org.apache.arrow.vector.complex.ListVector;
+import org.apache.arrow.vector.complex.StructVector;
 import org.apache.arrow.vector.ipc.ArrowStreamReader;
+import org.apache.arrow.vector.types.Types;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.util.VectorSchemaRootAppender;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.geometry.utils.Geohash;
+import org.elasticsearch.h3.H3;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -92,6 +104,36 @@ public class ArrowFormatIT extends ESRestTestCase {
             {"value": 3, "ip": "2001:db8::1:0:0:1"}
             {"index": {"_id": "4"}}
             {"value": 4, "ip": "::afff:4567:890a", "v": "1.0.4", "description": "number four"}
+            """);
+        assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+    }
+
+    @Before
+    public void initGeoIndex() throws IOException {
+        Request request = new Request("PUT", "/arrow-geo-test");
+        request.setJsonEntity("""
+            {
+              "mappings": {
+                "properties": {
+                  "value": { "type": "integer" },
+                  "location": { "type": "geo_point" }
+                }
+              }
+            }
+            """);
+        assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+
+        request = new Request("POST", "/_bulk?index=arrow-geo-test&refresh=true");
+        // Document 3 has no location, so that all geo grid columns contain a null
+        request.setJsonEntity("""
+            {"index": {"_id": "1"}}
+            {"value": 1, "location": {"lon": 4.9, "lat": 52.37}}
+            {"index": {"_id": "2"}}
+            {"value": 2, "location": {"lon": -122.42, "lat": 37.77}}
+            {"index": {"_id": "3"}}
+            {"value": 3}
+            {"index": {"_id": "4"}}
+            {"value": 4, "location": {"lon": 151.21, "lat": -33.87}}
             """);
         assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
     }
@@ -183,6 +225,213 @@ public class ArrowFormatIT extends ESRestTestCase {
             assertDescription(root);
             assertValues(root);
         }
+    }
+
+    /**
+     * Geohash is an unsigned 64-bit long (60 bits of hash and 4 bits of level). The expected value is
+     * computed from the string representation of the JSON output.
+     */
+    public void testGeohash() throws Exception {
+        var expected = geoGridStrings("ST_GEOHASH(location, 5)");
+        try (VectorSchemaRoot root = esql(geoGridQuery("ST_GEOHASH(location, 5)"))) {
+            assertEquals(1, root.getSchema().getFields().size());
+
+            var vector = (UInt8Vector) root.getVector("cell");
+            assertEquals(4, vector.getValueCount());
+            for (int i = 0; i < expected.size(); i++) {
+                if (expected.get(i) == null) {
+                    assertTrue("row " + i, vector.isNull(i));
+                } else {
+                    assertEquals("row " + i, Geohash.longEncode(expected.get(i)), vector.get(i));
+                }
+            }
+        }
+    }
+
+    /**
+     * Geotile is a struct of non-nullable zoom:uint8, x:uint32 and y:uint32 fields. Only the struct itself can be null.
+     */
+    public void testGeotile() throws Exception {
+        var expected = geoGridStrings("ST_GEOTILE(location, 6)");
+        try (VectorSchemaRoot root = esql(geoGridQuery("ST_GEOTILE(location, 6)"))) {
+            assertEquals(1, root.getSchema().getFields().size());
+
+            var vector = (StructVector) root.getVector("cell");
+            assertEquals(List.of("zoom", "x", "y"), vector.getField().getChildren().stream().map(Field::getName).toList());
+            for (Field child : vector.getField().getChildren()) {
+                assertFalse("field [" + child.getName() + "] must not be nullable", child.isNullable());
+            }
+
+            var zoom = (UInt1Vector) vector.getChild("zoom");
+            var x = (UInt4Vector) vector.getChild("x");
+            var y = (UInt4Vector) vector.getChild("y");
+
+            assertEquals(4, vector.getValueCount());
+            for (int i = 0; i < expected.size(); i++) {
+                if (expected.get(i) == null) {
+                    assertTrue("row " + i, vector.isNull(i));
+                } else {
+                    int[] zxy = GeoTileUtils.parseHash(expected.get(i));
+                    assertFalse("row " + i, vector.isNull(i));
+                    assertEquals("row " + i, zxy[0], Byte.toUnsignedInt(zoom.get(i)));
+                    assertEquals("row " + i, zxy[1], x.get(i));
+                    assertEquals("row " + i, zxy[2], y.get(i));
+                }
+            }
+        }
+    }
+
+    public void testGeohex() throws Exception {
+        var expected = geoGridStrings("ST_GEOHEX(location, 3)");
+        try (VectorSchemaRoot root = esql(geoGridQuery("ST_GEOHEX(location, 3)"))) {
+            assertEquals(1, root.getSchema().getFields().size());
+
+            var vector = (BigIntVector) root.getVector("cell");
+            assertEquals(4, vector.getValueCount());
+            for (int i = 0; i < expected.size(); i++) {
+                if (expected.get(i) == null) {
+                    assertTrue("row " + i, vector.isNull(i));
+                } else {
+                    assertEquals("row " + i, H3.stringToH3(expected.get(i)), vector.get(i));
+                }
+            }
+        }
+    }
+
+    private static String geoGridQuery(String gridExpression) {
+        return "{\"query\": \"FROM arrow-geo-test | SORT value | LIMIT 100 | EVAL cell = " + gridExpression + " | KEEP cell\"}";
+    }
+
+    /** The string representation of grid cells, as output by the JSON format, with a null for missing values. */
+    private List<String> geoGridStrings(String gridExpression) throws IOException {
+        Request request = new Request("POST", "/_query");
+        request.setJsonEntity(geoGridQuery(gridExpression));
+        List<List<String>> rows = ObjectPath.createFromResponse(client().performRequest(request)).evaluate("values");
+        return rows.stream().map(row -> row.get(0)).toList();
+    }
+
+    public void testAggregateMetricDouble() throws Exception {
+        Request request = new Request("PUT", "/arrow-aggregate-test");
+        request.setJsonEntity("""
+            {
+              "mappings": {
+                "properties": {
+                  "value": { "type": "integer" },
+                  "metric": { "type": "aggregate_metric_double", "metrics": ["min", "max", "sum", "value_count"] }
+                }
+              }
+            }
+            """);
+        assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+
+        request = new Request("POST", "/_bulk?index=arrow-aggregate-test&refresh=true");
+        request.setJsonEntity("""
+            {"index": {"_id": "1"}}
+            {"value": 1, "metric": {"min": 1.0, "max": 3.0, "sum": 6.0, "value_count": 3}}
+            {"index": {"_id": "2"}}
+            {"value": 2}
+            {"index": {"_id": "3"}}
+            {"value": 3, "metric": {"min": -2.0, "max": 0.0, "sum": -2.0, "value_count": 2}}
+            """);
+        assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+
+        try (VectorSchemaRoot root = esql("""
+            {
+                "query": "FROM arrow-aggregate-test | SORT value | LIMIT 100 | KEEP metric"
+            }""")) {
+            assertEquals(3, root.getRowCount());
+            assertEquals(1, root.getSchema().getFields().size());
+            StructVector metric = (StructVector) root.getVector("metric");
+            Field field = metric.getField();
+            assertEquals(Types.MinorType.STRUCT.getType(), field.getType());
+            assertTrue(field.isNullable());
+            assertEquals("aggregate_metric_double", field.getMetadata().get("elastic:type"));
+            assertEquals(List.of("min", "max", "sum", "value_count"), field.getChildren().stream().map(Field::getName).toList());
+            for (Field child : field.getChildren()) {
+                assertTrue(child.isNullable());
+                assertEquals(
+                    child.getName().equals("value_count") ? Types.MinorType.INT.getType() : Types.MinorType.FLOAT8.getType(),
+                    child.getType()
+                );
+            }
+
+            Float8Vector min = (Float8Vector) metric.getChild("min");
+            Float8Vector max = (Float8Vector) metric.getChild("max");
+            Float8Vector sum = (Float8Vector) metric.getChild("sum");
+            IntVector count = (IntVector) metric.getChild("value_count");
+            assertFalse(metric.isNull(0));
+            assertEquals(1.0, min.get(0), 0.0);
+            assertEquals(3.0, max.get(0), 0.0);
+            assertEquals(6.0, sum.get(0), 0.0);
+            assertEquals(3, count.get(0));
+            assertTrue(metric.isNull(1));
+            assertTrue(min.isNull(1));
+            assertTrue(max.isNull(1));
+            assertTrue(sum.isNull(1));
+            assertTrue(count.isNull(1));
+            assertFalse(metric.isNull(2));
+            assertEquals(-2.0, min.get(2), 0.0);
+            assertEquals(0.0, max.get(2), 0.0);
+            assertEquals(-2.0, sum.get(2), 0.0);
+            assertEquals(2, count.get(2));
+        }
+    }
+
+    public void testMappedDenseVectors() throws IOException {
+        Request request = new Request("PUT", "/arrow-dense-vector-test");
+        request.setJsonEntity("""
+            {
+              "mappings": {
+                "properties": {
+                  "id": { "type": "integer" },
+                  "float_vector": { "type": "dense_vector", "dims": 3, "index": false },
+                  "byte_vector": { "type": "dense_vector", "dims": 3, "element_type": "byte", "index": false }
+                }
+              }
+            }
+            """);
+        assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+
+        request = new Request("POST", "/_bulk?index=arrow-dense-vector-test&refresh=true");
+        request.setJsonEntity("""
+            {"index": {"_id": "1"}}
+            {"id": 1, "float_vector": [1.25, -2.5, 3.75], "byte_vector": [-128, 0, 127]}
+            {"index": {"_id": "2"}}
+            {"id": 2, "float_vector": [-4.5, 0.0, 6.25]}
+            {"index": {"_id": "3"}}
+            {"id": 3, "byte_vector": [1, -2, 3]}
+            """);
+        assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+
+        try (VectorSchemaRoot root = esql("""
+            {
+                "query": "FROM arrow-dense-vector-test | SORT id | LIMIT 100 | KEEP float_vector, byte_vector"
+            }""")) {
+            assertEquals(3, root.getRowCount());
+
+            ListVector floatVector = (ListVector) root.getVector("float_vector");
+            assertDenseVectorSchema(floatVector);
+            assertEquals(List.of(1.25f, -2.5f, 3.75f), floatVector.getObject(0));
+            assertEquals(List.of(-4.5f, 0.0f, 6.25f), floatVector.getObject(1));
+            assertTrue(floatVector.isNull(2));
+
+            ListVector byteVector = (ListVector) root.getVector("byte_vector");
+            assertDenseVectorSchema(byteVector);
+            assertEquals(List.of(-128.0f, 0.0f, 127.0f), byteVector.getObject(0));
+            assertTrue(byteVector.isNull(1));
+            assertEquals(List.of(1.0f, -2.0f, 3.0f), byteVector.getObject(2));
+        }
+    }
+
+    private void assertDenseVectorSchema(ListVector vector) {
+        Field field = vector.getField();
+        assertEquals(Types.MinorType.LIST.getType(), field.getType());
+        assertEquals("dense_vector", field.getMetadata().get("elastic:type"));
+        assertEquals(1, field.getChildren().size());
+        Field values = field.getChildren().get(0);
+        assertEquals("$data$", values.getName());
+        assertEquals(Types.MinorType.FLOAT4.getType(), values.getType());
+        assertFalse(values.isNullable());
     }
 
     private VectorSchemaRoot readArrow(InputStream input) throws IOException {

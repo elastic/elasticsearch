@@ -70,7 +70,8 @@ public class StringColumnTempFileTests extends ColumnarStringTestCase {
                         ColumNARDocValuesFormat.MAX_BLOCK_SIZE
                     ),
                     StringColumnOptions.DEFAULT_SINGLE_VALUED,
-                    StringColumnOptions.DEFAULT_ENABLE_SKIP_INDEX
+                    StringColumnOptions.DEFAULT_ENABLE_SKIP_INDEX,
+                    StringColumnOptions.DEFAULT_ENABLE_PLAIN_SKIP_INDEX
                 ),
                 null,
                 null,
@@ -270,7 +271,8 @@ public class StringColumnTempFileTests extends ColumnarStringTestCase {
             randomChunkCodec(),
             sizes,
             StringColumnOptions.DEFAULT_SINGLE_VALUED,
-            skipIndex
+            skipIndex,
+            StringColumnOptions.DEFAULT_ENABLE_PLAIN_SKIP_INDEX
         );
         final long numValues = numValues(docSlots);
         withColumn(docSlots, options, (metadata, reader) -> {

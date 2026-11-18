@@ -297,6 +297,7 @@ emp_no:integer | last_name:keyword
 
 Variants that look for field names in the query text, like `CsvLoadAllUnmappedKeywordIT`, skip tests where a
 parameter can be a field name: a `??` reference, or a parameter declared as an identifier or pattern.
+The cross-cluster tests skip tests that use parameters in the source command, like `PROMQL index=?idx ...`.
 
 ### Query pragmas
 

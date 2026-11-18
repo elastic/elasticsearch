@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.CsvTestUtils;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.plan.logical.SourceCommand;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import org.junit.AfterClass;
 import org.junit.ClassRule;
@@ -202,6 +203,7 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
 
     @Override
     protected void shouldSkipTest(String testName) throws IOException {
+        assumeFalse("query parameters in the source command aren't supported in CCS tests", paramsInSourceCommand(testCase));
         boolean remoteMetadata = testCase.requiredCapabilities.contains(METADATA_FIELDS_REMOTE_TEST.capabilityName());
         if (remoteMetadata) {
             // remove the capability from the test to enable it
@@ -464,12 +466,30 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
         return clones;
     }
 
+    private static final Pattern LEADING_SET_STATEMENTS = Pattern.compile("^(\\s*SET\\b[^;]+;)+", Pattern.CASE_INSENSITIVE);
+
+    /**
+     * Whether the query parameters are used in the source command, like {@code PROMQL index=?idx ...}. The conversion to remote
+     * indices parses the source command without the parameters, and can't rewrite an index name passed as a parameter.
+     */
+    private static boolean paramsInSourceCommand(CsvSpecReader.CsvTestCase testCase) {
+        if (testCase.params.isEmpty()) {
+            return false;
+        }
+        String firstCommand = LEADING_SET_STATEMENTS.matcher(testCase.query.split("\\|")[0]).replaceFirst("").trim();
+        return SourceCommand.isSourceCommand(firstCommand.split("\\s+", 2)[0]) && firstCommand.contains("?");
+    }
+
     /**
      * Convert FROM employees ... => FROM *:employees,employees
      */
     static CsvSpecReader.CsvTestCase convertToRemoteIndices(CsvSpecReader.CsvTestCase testCase) {
         if (dataLocation == null) {
             dataLocation = randomFrom(DataLocation.values());
+        }
+        if (paramsInSourceCommand(testCase)) {
+            // skipped in shouldSkipTest
+            return testCase;
         }
         if (testCase.requiredCapabilities.contains(WHERE_IN_SUBQUERY_WITHOUT_VIEW.capabilityName())
             || testCase.requiredCapabilities.contains(WHERE_IN_SUBQUERY_WITH_VIEW.capabilityName())

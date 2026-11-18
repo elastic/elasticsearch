@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractConfigurationFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataEncoding;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
@@ -36,6 +37,7 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.test.ReadableMatchers.matchesBytesRef;
@@ -168,14 +170,14 @@ public class ToStringTests extends AbstractConfigurationFunctionTestCase {
         TestCaseSupplier.forUnaryStrings(suppliers, read, DataType.KEYWORD, bytesRef -> bytesRef, List.of());
         TestCaseSupplier.forUnaryFlattened(suppliers, read, DataType.KEYWORD, bytesRef -> bytesRef, List.of());
         if (DataType.TIME_SERIES_METADATA_DATA_TYPE.supportedVersion().supportedLocally()) {
-            // A typed label container is already its JSON display form.
+            // A typed label container renders as the JSON object of its labels.
             suppliers.add(new TestCaseSupplier("_timeseries", List.of(DataType.TIME_SERIES_METADATA_DATA_TYPE), () -> {
-                BytesRef labels = new BytesRef("{\"job\":\"api\",\"pod\":\"a\"}");
+                BytesRef labels = TimeSeriesMetadataEncoding.encode(Map.of("job", List.of("api"), "pod", List.of("b", "a")));
                 return new TestCaseSupplier.TestCase(
                     List.of(new TestCaseSupplier.TypedData(labels, DataType.TIME_SERIES_METADATA_DATA_TYPE, "labels")),
-                    read,
+                    "ToStringFromTimeSeriesMetadataEvaluator[labels=" + read + "]",
                     DataType.KEYWORD,
-                    is(labels)
+                    is(new BytesRef("{\"job\":\"api\",\"pod\":[\"b\",\"a\"]}"))
                 );
             }));
         }

@@ -99,7 +99,7 @@ public class TimeSeriesMetadataPathTests extends AbstractScalarFunctionTestCase 
     ) {
         return new TestCaseSupplier(name, List.of(type, labelType), () -> {
             List<TestCaseSupplier.TypedData> data = List.of(
-                new TestCaseSupplier.TypedData(new BytesRef(labelContainer), type, "labelContainer"),
+                new TestCaseSupplier.TypedData(TimeSeriesMetadataFilterTests.container(labelContainer, type), type, "labelContainer"),
                 new TestCaseSupplier.TypedData(new BytesRef(label), labelType, "label").forceLiteral()
             );
             String evaluator = "TimeSeriesMetadataFunctionEvaluator[operation=GET"

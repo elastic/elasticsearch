@@ -11,6 +11,9 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
@@ -19,9 +22,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper.ToEvaluator;
@@ -33,11 +33,13 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Evaluates reads and rewrites of labels in a label container. A typed label container is the canonical JSON object
- * {@link TimeSeriesMetadataConverter} loads - labels sorted by name - so every operation streams over it: a read stops at its
- * label, and a rewrite copies the labels it keeps in their order, writing a set label at its sorted position, which keeps the
- * result canonical. A keyword {@code _timeseries} is the JSON object of a series' dimensions as the source holds them, so it is
- * first read into that canonical form; a rewrite of it is canonical too. Label names are folded once.
+ * Evaluates reads and rewrites of labels in a label container. Every operation streams over the bytes of a typed label container
+ * (see {@link TimeSeriesMetadataEncoding}): a read stops at its label, and a rewrite copies the labels it keeps, writing a set label
+ * at its position in name order. A keyword {@code _timeseries} is the JSON object of a series' dimensions as the source holds them,
+ * so it is read into a label container first, and a rewrite of it is written back as the JSON object of the result.
+ * <p>
+ * A label container block is dictionary encoded, each distinct label set once and an ordinal per row, so an operation that only
+ * depends on the label container runs once per label set and keeps the ordinals: a series has a row per time bucket.
  */
 public final class TimeSeriesMetadataFunctionEvaluator implements ExpressionEvaluator {
     enum Operation {
@@ -51,12 +53,14 @@ public final class TimeSeriesMetadataFunctionEvaluator implements ExpressionEval
 
     private final Operation operation;
     private final ExpressionEvaluator labelContainer;
-    /** Whether the label container is a keyword {@code _timeseries}, read into the canonical form first. */
+    /** Whether the label container is a keyword {@code _timeseries}, read into a typed label container first. */
     private final boolean keyword;
     private final List<String> names;
+    private final List<BytesRef> nameBytes;
     /** The value {@link Operation#SET} writes, null for the other operations. */
     private final @Nullable ExpressionEvaluator value;
     private final DriverContext context;
+    private final TimeSeriesMetadataEncoding.Reader reader = new TimeSeriesMetadataEncoding.Reader();
 
     private TimeSeriesMetadataFunctionEvaluator(
         Operation operation,
@@ -70,6 +74,7 @@ public final class TimeSeriesMetadataFunctionEvaluator implements ExpressionEval
         this.labelContainer = labelContainer;
         this.keyword = keyword;
         this.names = names;
+        this.nameBytes = names.stream().map(BytesRef::new).toList();
         this.value = value;
         this.context = context;
     }
@@ -89,181 +94,262 @@ public final class TimeSeriesMetadataFunctionEvaluator implements ExpressionEval
     @Override
     public Block eval(Page page) {
         try (Block block = labelContainer.eval(page); Block values = value == null ? null : value.eval(page)) {
-            return eval(page.getPositionCount(), block, (BytesRefBlock) values);
+            BytesRefBlock written = (BytesRefBlock) values;
+            OrdinalBytesRefBlock ordinals = block instanceof BytesRefBlock containers ? containers.asOrdinals() : null;
+            if (ordinals != null
+                && ordinals.isDense()
+                && ordinals.mayHaveMultivaluedFields() == false
+                && (written == null || sameEverywhere(written))) {
+                Block result = operation == Operation.GET ? readDictionary(ordinals) : rewriteDictionary(ordinals, written);
+                if (result != null) {
+                    return result;
+                }
+            }
+            return evalRows(page.getPositionCount(), block, written);
         }
     }
 
-    private Block eval(int positions, Block block, @Nullable BytesRefBlock values) {
+    /** Whether every position writes the same value, so a rewrite only depends on the label container. */
+    private static boolean sameEverywhere(BytesRefBlock written) {
+        BytesRefVector vector = written.asVector();
+        return vector != null && vector.isConstant();
+    }
+
+    private Block evalRows(int positions, Block block, @Nullable BytesRefBlock values) {
         BytesRef scratch = new BytesRef();
-        try (
-            BytesRefBlock.Builder result = context.blockFactory().newBytesRefBlockBuilder(positions);
-            BreakingBytesRefBuilder buffer = new BreakingBytesRefBuilder(context.breaker(), "ts_metadata");
-            BreakingBytesRefBuilder canonical = keyword ? new BreakingBytesRefBuilder(context.breaker(), "ts_metadata_source") : null
-        ) {
+        try (BytesRefBlock.Builder result = context.blockFactory().newBytesRefBlockBuilder(positions); Buffers buffers = new Buffers()) {
             for (int p = 0; p < positions; p++) {
                 BytesRef encoded = null;
                 if (block.isNull(p) == false) {
                     if (block.getValueCount(p) != 1) {
                         throw new IllegalArgumentException("The label container must be single-valued");
                     }
-                    encoded = ((BytesRefBlock) block).getBytesRef(block.getFirstValueIndex(p), scratch);
-                    if (canonical != null) {
-                        encoded = TimeSeriesMetadataConverter.canonical(encoded, canonical);
-                    }
+                    encoded = buffers.container(((BytesRefBlock) block).getBytesRef(block.getFirstValueIndex(p), scratch));
                 }
-                try {
-                    switch (operation) {
-                        case GET -> read(encoded, names.getFirst(), result);
-                        case DROP -> result.appendBytesRef(copy(encoded, names, false, buffer));
-                        case KEEP -> result.appendBytesRef(copy(encoded, names, true, buffer));
-                        case SET -> result.appendBytesRef(set(encoded, names.getFirst(), written(values, p), buffer));
-                    }
-                } catch (IOException e) {
-                    throw new UncheckedIOException("Invalid label container", e);
+                if (operation == Operation.GET) {
+                    read(encoded, result);
+                } else {
+                    result.appendBytesRef(buffers.output(rewrite(encoded, written(values, p), buffers.rewritten)));
                 }
             }
             return result.build();
         }
     }
 
-    /** Appends the values of {@code name}, or null when the label is absent. */
-    private static void read(@Nullable BytesRef encoded, String name, BytesRefBlock.Builder result) throws IOException {
-        if (encoded != null) {
-            try (XContentParser parser = parser(encoded)) {
-                while (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
-                    boolean match = parser.currentName().equals(name);
-                    XContentParser.Token token = parser.nextToken();
-                    if (match == false) {
-                        parser.skipChildren();
-                    } else if (token == XContentParser.Token.START_ARRAY) {
-                        result.beginPositionEntry();
-                        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                            result.appendBytesRef(new BytesRef(parser.text()));
-                        }
-                        result.endPositionEntry();
-                        return;
-                    } else {
-                        result.appendBytesRef(new BytesRef(parser.text()));
-                        return;
+    /**
+     * The label read off each label set once, keeping the ordinals: null where an entry holds several values, which a dictionary
+     * of values cannot hold one per entry.
+     */
+    private @Nullable Block readDictionary(OrdinalBytesRefBlock ordinals) {
+        BytesRefVector dictionary = ordinals.getDictionaryVector();
+        IntBlock rows = ordinals.getOrdinalsBlock();
+        int[] read = new int[dictionary.getPositionCount()];
+        BytesRef scratch = new BytesRef();
+        BytesRefVector values;
+        try (
+            Buffers buffers = new Buffers();
+            BytesRefVector.Builder builder = context.blockFactory().newBytesRefVectorBuilder(dictionary.getPositionCount())
+        ) {
+            int next = 0;
+            for (int d = 0; d < read.length; d++) {
+                read[d] = -1;
+                if (find(buffers.container(dictionary.getBytesRef(d, scratch)), nameBytes.getFirst())) {
+                    if (reader.valueCount() > 1) {
+                        return null;
                     }
+                    builder.appendBytesRef(reader.values().getFirst());
+                    read[d] = next++;
                 }
             }
+            values = builder.build();
         }
-        result.appendNull();
+        IntBlock remapped = null;
+        try (IntBlock.Builder builder = context.blockFactory().newIntBlockBuilder(rows.getPositionCount())) {
+            for (int p = 0; p < rows.getPositionCount(); p++) {
+                int ordinal = rows.isNull(p) ? -1 : read[rows.getInt(rows.getFirstValueIndex(p))];
+                if (ordinal < 0) {
+                    builder.appendNull();
+                } else {
+                    builder.appendInt(ordinal);
+                }
+            }
+            remapped = builder.build();
+        } finally {
+            if (remapped == null) {
+                Releasables.closeExpectNoException(values);
+            }
+        }
+        return dictionaryEncoded(remapped, values);
     }
 
-    /** Copies the labels in {@code names} when {@code keep}, every other label otherwise, in their order. */
-    private static BytesRef copy(@Nullable BytesRef encoded, List<String> names, boolean keep, BreakingBytesRefBuilder buffer)
-        throws IOException {
-        buffer.clear();
-        try (XContentBuilder builder = jsonBuilder(buffer)) {
-            builder.startObject();
-            if (encoded != null) {
-                try (XContentParser parser = parser(encoded)) {
-                    while (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
-                        String label = parser.currentName();
-                        parser.nextToken();
-                        if (names.contains(label) == keep) {
-                            builder.field(label);
-                            builder.copyCurrentStructure(parser);
-                        } else {
-                            parser.skipChildren();
-                        }
+    /**
+     * Each label set rewritten once, keeping the ordinals. A missing label container is the empty one, so it rewrites to a value
+     * too: an extra entry the null rows point at.
+     */
+    private Block rewriteDictionary(OrdinalBytesRefBlock ordinals, @Nullable BytesRefBlock values) {
+        BytesRefVector dictionary = ordinals.getDictionaryVector();
+        IntBlock rows = ordinals.getOrdinalsBlock();
+        boolean nulls = rows.mayHaveNulls();
+        List<BytesRef> written = values == null ? List.of() : written(values, 0);
+        BytesRef scratch = new BytesRef();
+        BytesRefVector rewritten;
+        try (
+            Buffers buffers = new Buffers();
+            BytesRefVector.Builder builder = context.blockFactory()
+                .newBytesRefVectorBuilder(dictionary.getPositionCount() + (nulls ? 1 : 0))
+        ) {
+            for (int d = 0; d < dictionary.getPositionCount(); d++) {
+                BytesRef encoded = buffers.container(dictionary.getBytesRef(d, scratch));
+                builder.appendBytesRef(buffers.output(rewrite(encoded, written, buffers.rewritten)));
+            }
+            if (nulls) {
+                builder.appendBytesRef(buffers.output(rewrite(null, written, buffers.rewritten)));
+            }
+            rewritten = builder.build();
+        }
+        if (nulls == false) {
+            rows.incRef();
+            return dictionaryEncoded(rows, rewritten);
+        }
+        IntBlock remapped = null;
+        try (IntBlock.Builder builder = context.blockFactory().newIntBlockBuilder(rows.getPositionCount())) {
+            int empty = dictionary.getPositionCount();
+            for (int p = 0; p < rows.getPositionCount(); p++) {
+                builder.appendInt(rows.isNull(p) ? empty : rows.getInt(rows.getFirstValueIndex(p)));
+            }
+            remapped = builder.build();
+        } finally {
+            if (remapped == null) {
+                Releasables.closeExpectNoException(rewritten);
+            }
+        }
+        return dictionaryEncoded(remapped, rewritten);
+    }
+
+    /** The block of {@code ordinals} into {@code dictionary}, both released if it cannot be built. */
+    private static OrdinalBytesRefBlock dictionaryEncoded(IntBlock ordinals, BytesRefVector dictionary) {
+        OrdinalBytesRefBlock result = null;
+        try {
+            result = new OrdinalBytesRefBlock(ordinals, dictionary);
+            return result;
+        } finally {
+            if (result == null) {
+                Releasables.closeExpectNoException(ordinals, dictionary);
+            }
+        }
+    }
+
+    /** Appends the values of the label read, or null when it is absent. */
+    private void read(@Nullable BytesRef encoded, BytesRefBlock.Builder result) {
+        if (find(encoded, nameBytes.getFirst())) {
+            reader.appendValues(result);
+        } else {
+            result.appendNull();
+        }
+    }
+
+    /** Whether {@code encoded} holds {@code name}, the reader then on it. */
+    private boolean find(@Nullable BytesRef encoded, BytesRef name) {
+        if (encoded == null) {
+            return false;
+        }
+        reader.reset(encoded);
+        while (reader.next()) {
+            int order = reader.name().compareTo(name);
+            if (order == 0) {
+                return true;
+            }
+            if (order > 0) {
+                return false;
+            }
+        }
+        return false;
+    }
+
+    /** The rewrite of {@code encoded}, written to {@code out}; {@code written} only matters to {@link Operation#SET}. */
+    private BytesRef rewrite(@Nullable BytesRef encoded, List<BytesRef> written, BreakingBytesRefBuilder out) {
+        out.clear();
+        BytesRef set = operation == Operation.SET ? nameBytes.getFirst() : null;
+        boolean done = set == null || written.isEmpty();
+        if (encoded != null) {
+            reader.reset(encoded);
+            while (reader.next()) {
+                if (set != null) {
+                    int order = reader.name().compareTo(set);
+                    if (done == false && order >= 0) {
+                        TimeSeriesMetadataEncoding.writeLabel(out, set, written);
+                        done = true;
                     }
-                    end(parser);
+                    if (order != 0) {
+                        reader.copyLabel(out);
+                    }
+                } else if (nameBytes.contains(reader.name()) == (operation == Operation.KEEP)) {
+                    reader.copyLabel(out);
                 }
             }
-            builder.endObject();
         }
-        return buffer.bytesRefView();
+        if (done == false) {
+            TimeSeriesMetadataEncoding.writeLabel(out, set, written);
+        }
+        return out.bytesRefView();
     }
 
     /** The non-empty values at {@code position}: PromQL has no empty label, so an empty or missing value writes none. */
-    private static List<String> written(BytesRefBlock values, int position) {
-        if (values.isNull(position)) {
+    private static List<BytesRef> written(@Nullable BytesRefBlock values, int position) {
+        if (values == null || values.isNull(position)) {
             return List.of();
         }
-        BytesRef scratch = new BytesRef();
         int first = values.getFirstValueIndex(position);
-        var written = new ArrayList<String>(values.getValueCount(position));
+        var written = new ArrayList<BytesRef>(values.getValueCount(position));
         for (int i = first; i < first + values.getValueCount(position); i++) {
-            BytesRef value = values.getBytesRef(i, scratch);
+            BytesRef value = values.getBytesRef(i, new BytesRef());
             if (value.length > 0) {
-                written.add(value.utf8ToString());
+                written.add(value);
             }
         }
         return written;
     }
 
-    /** Copies every label but {@code name}, writing {@code values} as {@code name} at its sorted position; none removes it. */
-    private static BytesRef set(@Nullable BytesRef encoded, String name, List<String> values, BreakingBytesRefBuilder buffer)
-        throws IOException {
-        buffer.clear();
-        try (XContentBuilder builder = jsonBuilder(buffer)) {
-            builder.startObject();
-            boolean written = values.isEmpty();
-            if (encoded != null) {
-                try (XContentParser parser = parser(encoded)) {
-                    while (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
-                        String label = parser.currentName();
-                        parser.nextToken();
-                        if (written == false && label.compareTo(name) >= 0) {
-                            write(builder, name, values);
-                            written = true;
-                        }
-                        if (label.equals(name)) {
-                            parser.skipChildren();
-                        } else {
-                            builder.field(label);
-                            builder.copyCurrentStructure(parser);
-                        }
-                    }
-                    end(parser);
-                }
-            }
-            if (written == false) {
-                write(builder, name, values);
-            }
-            builder.endObject();
-        }
-        return buffer.bytesRefView();
-    }
-
-    /** One value is written as a string, several as an array, as {@link TimeSeriesMetadataConverter} does. */
-    private static void write(XContentBuilder builder, String name, List<String> values) throws IOException {
-        if (values.size() == 1) {
-            builder.field(name, values.getFirst());
-        } else {
-            builder.array(name, values.toArray(String[]::new));
-        }
-    }
-
-    private static void end(XContentParser parser) throws IOException {
-        if (parser.nextToken() != null) {
-            throw new IllegalArgumentException("Unexpected content after the label container");
-        }
-    }
-
-    /** Opens {@code encoded}, positioned on its object. */
-    private static XContentParser parser(BytesRef encoded) throws IOException {
-        XContentParser parser = JsonXContent.jsonXContent.createParser(
-            XContentParserConfiguration.EMPTY,
-            encoded.bytes,
-            encoded.offset,
-            encoded.length
-        );
-        if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
-            parser.close();
-            throw new IllegalArgumentException("The label container must be an object");
-        }
-        return parser;
-    }
-
     /**
-     * A JSON builder writing into breaker-accounted {@code buffer}; {@link TimeSeriesMetadataConverter} loads the canonical form
-     * with it.
+     * The working memory of one evaluation: the rewritten label container, and for a keyword {@code _timeseries} the label
+     * container read from it and the JSON object written back.
      */
-    static XContentBuilder jsonBuilder(BreakingBytesRefBuilder buffer) throws IOException {
+    private final class Buffers implements AutoCloseable {
+        private final BreakingBytesRefBuilder rewritten = new BreakingBytesRefBuilder(context.breaker(), "ts_metadata");
+        private final @Nullable BreakingBytesRefBuilder source = keyword
+            ? new BreakingBytesRefBuilder(context.breaker(), "ts_metadata_source")
+            : null;
+        private final @Nullable BreakingBytesRefBuilder json = keyword
+            ? new BreakingBytesRefBuilder(context.breaker(), "ts_metadata_json")
+            : null;
+
+        /** The label container {@code stored} holds: a keyword {@code _timeseries} reads into one. */
+        BytesRef container(BytesRef stored) {
+            return source == null ? stored : TimeSeriesMetadataEncoding.fromSource(stored, source);
+        }
+
+        /** The rewritten label container as the operation returns it: a keyword {@code _timeseries} as its JSON object. */
+        BytesRef output(BytesRef encoded) {
+            if (json == null) {
+                return encoded;
+            }
+            json.clear();
+            try (XContentBuilder builder = jsonBuilder(json)) {
+                TimeSeriesMetadataEncoding.toJson(encoded, builder);
+            } catch (IOException e) {
+                throw new UncheckedIOException("Invalid label container", e);
+            }
+            return json.bytesRefView();
+        }
+
+        @Override
+        public void close() {
+            Releasables.closeExpectNoException(rewritten, source, json);
+        }
+    }
+
+    /** A JSON builder writing into breaker-accounted {@code buffer}. */
+    private static XContentBuilder jsonBuilder(BreakingBytesRefBuilder buffer) throws IOException {
         return XContentFactory.jsonBuilder(new BytesRefBuilderOutputStream(buffer));
     }
 
@@ -293,7 +379,7 @@ public final class TimeSeriesMetadataFunctionEvaluator implements ExpressionEval
             bytes += value.baseRamBytesUsed();
         }
         for (String name : names) {
-            bytes += RamUsageEstimator.sizeOf(name);
+            bytes += 2 * RamUsageEstimator.sizeOf(name);
         }
         return bytes;
     }

@@ -8,32 +8,23 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.timeseries;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParseException;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels;
-
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.SortedMap;
-import java.util.TreeMap;
 
 /**
  * Loads {@code _timeseries} as a typed label container. The field loads as the JSON object of a series' dimensions, as it does
- * for a keyword column; this converts each value, as it is read, to the canonical form every label container function reads:
- * labels named as PromQL names them, sorted by name, each holding its non-empty values. Equal label sets get equal bytes, so
- * the label container can key joins and groups.
+ * for a keyword column; this converts it, as it is read, to the label container every label container function reads (see
+ * {@link TimeSeriesMetadataEncoding}), dictionary encoded: the block holds each distinct label set once and an ordinal per row.
+ * A series has a row per time bucket, so its label set converts, hashes and compares once rather than once per row.
  * <p>
  * TODO: an empty value is left out, so a series whose label is empty and one that lacks the label have the same label
  * container, and a time-series aggregate keyed by it merges their samples. Prometheus has no empty label, so data written by
@@ -51,19 +42,8 @@ public final class TimeSeriesMetadataConverter implements ValuesSourceReaderOper
         return new ValuesSourceReaderOperator.ConverterEvaluator() {
             @Override
             public Block convert(Block block) {
-                BytesRef value = new BytesRef();
-                try (
-                    BytesRefBlock source = (BytesRefBlock) block;
-                    BytesRefBlock.Builder result = context.blockFactory().newBytesRefBlockBuilder(source.getPositionCount())
-                ) {
-                    for (int p = 0; p < source.getPositionCount(); p++) {
-                        if (source.isNull(p)) {
-                            result.appendNull();
-                        } else {
-                            result.appendBytesRef(canonical(source.getBytesRef(source.getFirstValueIndex(p), value), scratch));
-                        }
-                    }
-                    return result.build();
+                try (block) {
+                    return TimeSeriesMetadataConverter.convert(context, (BytesRefBlock) block, scratch);
                 }
             }
 
@@ -79,93 +59,67 @@ public final class TimeSeriesMetadataConverter implements ValuesSourceReaderOper
         };
     }
 
-    /** The label container of the JSON object {@code source} of a series' dimensions, written to {@code scratch}. */
-    static BytesRef canonical(BytesRef source, BreakingBytesRefBuilder scratch) {
-        scratch.clear();
-        try (XContentBuilder builder = TimeSeriesMetadataFunctionEvaluator.jsonBuilder(scratch)) {
-            builder.startObject();
-            for (var label : readSource(source).entrySet()) {
-                List<String> values = label.getValue();
-                if (values.size() == 1) {
-                    builder.field(label.getKey(), values.getFirst());
-                } else {
-                    builder.field(label.getKey(), values);
-                }
-            }
-            builder.endObject();
-        } catch (IOException e) {
-            throw new UncheckedIOException("Invalid label container", e);
+    /** {@code source}, each value the JSON object of a series' dimensions, as dictionary encoded label containers. */
+    static OrdinalBytesRefBlock convert(DriverContext context, BytesRefBlock source, BreakingBytesRefBuilder scratch) {
+        OrdinalBytesRefBlock loaded = source.asOrdinals();
+        if (loaded != null) {
+            // Already dictionary encoded: each entry converts once and the ordinals stay.
+            IntBlock ordinals = loaded.getOrdinalsBlock();
+            ordinals.incRef();
+            return dictionaryEncoded(ordinals, convertEach(context.blockFactory(), loaded.getDictionaryVector(), scratch));
         }
-        return scratch.bytesRefView();
-    }
-
-    /**
-     * The canonical form: labels sorted by name, each holding its non-empty values in source order, one value written
-     * as a string and several as an array.
-     */
-    private static SortedMap<String, List<String>> readSource(BytesRef source) throws IOException {
+        BytesRef value = new BytesRef();
         try (
-            XContentParser parser = JsonXContent.jsonXContent.createParser(
-                XContentParserConfiguration.EMPTY,
-                source.bytes,
-                source.offset,
-                source.length
-            )
+            BytesRefHash distinct = new BytesRefHash(1, context.bigArrays());
+            IntBlock.Builder ordinals = context.blockFactory().newIntBlockBuilder(source.getPositionCount())
         ) {
-            if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
-                throw new XContentParseException(parser.getTokenLocation(), "time-series source must be an object");
-            }
-            var labels = new TreeMap<String, List<String>>();
-            readSourceObject(parser, "", labels);
-            if (parser.nextToken() != null) {
-                throw new XContentParseException(parser.getTokenLocation(), "unexpected content after time-series source");
-            }
-            return labels;
-        }
-    }
-
-    private static void readSourceObject(XContentParser parser, String prefix, Map<String, List<String>> labels) throws IOException {
-        for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
-            String field = prefix + parser.currentName();
-            token = parser.nextToken();
-            if (token == XContentParser.Token.START_OBJECT) {
-                readSourceObject(parser, field + ".", labels);
-                continue;
-            }
-            var values = new ArrayList<String>();
-            if (token == XContentParser.Token.START_ARRAY) {
-                while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                    readSourceValue(parser, token, field, values);
+            for (int p = 0; p < source.getPositionCount(); p++) {
+                if (source.isNull(p)) {
+                    ordinals.appendNull();
+                } else {
+                    long ordinal = distinct.add(source.getBytesRef(source.getFirstValueIndex(p), value));
+                    ordinals.appendInt((int) (ordinal < 0 ? -1 - ordinal : ordinal));
                 }
-            } else {
-                readSourceValue(parser, token, field, values);
             }
-            String label = PromqlLabels.labelName(field);
-            if (label.isEmpty()) {
-                throw new XContentParseException(parser.getTokenLocation(), "time-series label names must be non-empty");
+            BytesRefVector dictionary;
+            try (BytesRefVector.Builder converted = context.blockFactory().newBytesRefVectorBuilder((int) distinct.size())) {
+                for (long ordinal = 0; ordinal < distinct.size(); ordinal++) {
+                    converted.appendBytesRef(TimeSeriesMetadataEncoding.fromSource(distinct.get(ordinal, value), scratch));
+                }
+                dictionary = converted.build();
             }
-            if (labels.containsKey(label)) {
-                throw new XContentParseException(
-                    parser.getTokenLocation(),
-                    "multiple dimension fields resolve to time-series label [" + label + "]"
-                );
+            IntBlock built = null;
+            try {
+                built = ordinals.build();
+            } finally {
+                if (built == null) {
+                    Releasables.closeExpectNoException(dictionary);
+                }
             }
-            if (values.isEmpty() == false) {
-                labels.put(label, values);
-            }
+            return dictionaryEncoded(built, dictionary);
         }
     }
 
-    /** Scalars keep their source text; null and empty values are left out. */
-    private static void readSourceValue(XContentParser parser, XContentParser.Token token, String field, List<String> values)
-        throws IOException {
-        if (token.isValue()) {
-            String value = parser.text();
-            if (value.isEmpty() == false) {
-                values.add(value);
+    private static BytesRefVector convertEach(BlockFactory blockFactory, BytesRefVector sources, BreakingBytesRefBuilder scratch) {
+        BytesRef value = new BytesRef();
+        try (BytesRefVector.Builder converted = blockFactory.newBytesRefVectorBuilder(sources.getPositionCount())) {
+            for (int i = 0; i < sources.getPositionCount(); i++) {
+                converted.appendBytesRef(TimeSeriesMetadataEncoding.fromSource(sources.getBytesRef(i, value), scratch));
             }
-        } else if (token != XContentParser.Token.VALUE_NULL) {
-            throw new XContentParseException(parser.getTokenLocation(), "time-series dimension [" + field + "] must contain values");
+            return converted.build();
+        }
+    }
+
+    /** The block of {@code ordinals} into {@code dictionary}, both released if it cannot be built. */
+    private static OrdinalBytesRefBlock dictionaryEncoded(IntBlock ordinals, BytesRefVector dictionary) {
+        OrdinalBytesRefBlock result = null;
+        try {
+            result = new OrdinalBytesRefBlock(ordinals, dictionary);
+            return result;
+        } finally {
+            if (result == null) {
+                Releasables.closeExpectNoException(ordinals, dictionary);
+            }
         }
     }
 }

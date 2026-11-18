@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -79,14 +80,14 @@ public class TimeSeriesMetadataFilterTests extends AbstractScalarFunctionTestCas
         labels.forEach(label -> types.add(DataType.KEYWORD));
         return new TestCaseSupplier(name, types, () -> {
             List<TestCaseSupplier.TypedData> data = new ArrayList<>();
-            data.add(new TestCaseSupplier.TypedData(new BytesRef(labelContainer), type, "labelContainer"));
+            data.add(new TestCaseSupplier.TypedData(container(labelContainer, type), type, "labelContainer"));
             labels.forEach(label -> data.add(new TestCaseSupplier.TypedData(new BytesRef(label), DataType.KEYWORD, label).forceLiteral()));
             String evaluator = "TimeSeriesMetadataFunctionEvaluator[operation=KEEP"
                 + (type == DataType.KEYWORD ? ", keyword" : "")
                 + ", names="
                 + labels
                 + ", labelContainer=Attribute[channel=0]]";
-            return new TestCaseSupplier.TestCase(data, evaluator, type, equalTo(new BytesRef(expected)));
+            return new TestCaseSupplier.TestCase(data, evaluator, type, equalTo(container(expected, type)));
         });
     }
 
@@ -108,7 +109,17 @@ public class TimeSeriesMetadataFilterTests extends AbstractScalarFunctionTestCas
     /** A missing label container is the empty one, so keeping labels of it leaves it empty rather than null. */
     @Override
     protected Matcher<Object> allNullsMatcher() {
-        return equalTo(new BytesRef("{}"));
+        return emptyContainer();
+    }
+
+    /** {@code json} as a label container of {@code type}: a keyword {@code _timeseries} is the JSON object itself. */
+    static BytesRef container(String json, DataType type) {
+        return type == DataType.KEYWORD ? new BytesRef(json) : TimeSeriesMetadataEncoding.fromSource(new BytesRef(json));
+    }
+
+    /** The empty label container of either type. */
+    static Matcher<Object> emptyContainer() {
+        return anyOf(equalTo(new BytesRef("{}")), equalTo(TimeSeriesMetadataEncoding.EMPTY));
     }
 
     /** Label names must be non-empty constant strings, so the evaluator folds them once. */

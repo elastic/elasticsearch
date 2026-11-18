@@ -79,14 +79,14 @@ public class TimeSeriesMetadataFilterExcludeTests extends AbstractScalarFunction
         labels.forEach(label -> types.add(DataType.KEYWORD));
         return new TestCaseSupplier(name, types, () -> {
             List<TestCaseSupplier.TypedData> data = new ArrayList<>();
-            data.add(new TestCaseSupplier.TypedData(new BytesRef(labelContainer), type, "labelContainer"));
+            data.add(new TestCaseSupplier.TypedData(TimeSeriesMetadataFilterTests.container(labelContainer, type), type, "labelContainer"));
             labels.forEach(label -> data.add(new TestCaseSupplier.TypedData(new BytesRef(label), DataType.KEYWORD, label).forceLiteral()));
             String evaluator = "TimeSeriesMetadataFunctionEvaluator[operation=DROP"
                 + (type == DataType.KEYWORD ? ", keyword" : "")
                 + ", names="
                 + labels
                 + ", labelContainer=Attribute[channel=0]]";
-            return new TestCaseSupplier.TestCase(data, evaluator, type, equalTo(new BytesRef(expected)));
+            return new TestCaseSupplier.TestCase(data, evaluator, type, equalTo(TimeSeriesMetadataFilterTests.container(expected, type)));
         });
     }
 
@@ -98,7 +98,7 @@ public class TimeSeriesMetadataFilterExcludeTests extends AbstractScalarFunction
     /** A missing label container is the empty one, so removing labels from it leaves it empty rather than null. */
     @Override
     protected Matcher<Object> allNullsMatcher() {
-        return equalTo(new BytesRef("{}"));
+        return TimeSeriesMetadataFilterTests.emptyContainer();
     }
 
     /** Label names must be non-empty constant strings, so the evaluator folds them once. */

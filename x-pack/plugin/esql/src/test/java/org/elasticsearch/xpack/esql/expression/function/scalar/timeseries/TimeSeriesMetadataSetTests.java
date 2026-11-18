@@ -66,7 +66,7 @@ public class TimeSeriesMetadataSetTests extends AbstractScalarFunctionTestCase {
         );
         suppliers.add(new TestCaseSupplier("several values", List.of(type, DataType.KEYWORD, DataType.KEYWORD), () -> {
             List<TestCaseSupplier.TypedData> data = List.of(
-                new TestCaseSupplier.TypedData(new BytesRef(labels), type, "labelContainer"),
+                new TestCaseSupplier.TypedData(TimeSeriesMetadataFilterTests.container(labels, type), type, "labelContainer"),
                 new TestCaseSupplier.TypedData(new BytesRef("pod"), DataType.KEYWORD, "label").forceLiteral(),
                 new TestCaseSupplier.TypedData(List.of(new BytesRef("b"), new BytesRef(""), new BytesRef("c")), DataType.KEYWORD, "value")
             );
@@ -74,7 +74,7 @@ public class TimeSeriesMetadataSetTests extends AbstractScalarFunctionTestCase {
                 data,
                 evaluator(type, "pod"),
                 type,
-                equalTo(new BytesRef("{\"job\":\"api\",\"pod\":[\"b\",\"c\"]}"))
+                equalTo(TimeSeriesMetadataFilterTests.container("{\"job\":\"api\",\"pod\":[\"b\",\"c\"]}", type))
             );
         }));
         return suppliers;
@@ -91,11 +91,16 @@ public class TimeSeriesMetadataSetTests extends AbstractScalarFunctionTestCase {
     private static TestCaseSupplier set(String name, DataType type, String labelContainer, String label, String value, String expected) {
         return new TestCaseSupplier(name, List.of(type, DataType.KEYWORD, DataType.KEYWORD), () -> {
             List<TestCaseSupplier.TypedData> data = List.of(
-                new TestCaseSupplier.TypedData(new BytesRef(labelContainer), type, "labelContainer"),
+                new TestCaseSupplier.TypedData(TimeSeriesMetadataFilterTests.container(labelContainer, type), type, "labelContainer"),
                 new TestCaseSupplier.TypedData(new BytesRef(label), DataType.KEYWORD, "label").forceLiteral(),
                 new TestCaseSupplier.TypedData(new BytesRef(value), DataType.KEYWORD, "value")
             );
-            return new TestCaseSupplier.TestCase(data, evaluator(type, label), type, equalTo(new BytesRef(expected)));
+            return new TestCaseSupplier.TestCase(
+                data,
+                evaluator(type, label),
+                type,
+                equalTo(TimeSeriesMetadataFilterTests.container(expected, type))
+            );
         });
     }
 
@@ -107,7 +112,7 @@ public class TimeSeriesMetadataSetTests extends AbstractScalarFunctionTestCase {
     /** A missing label container is the empty one and a missing value removes the label: the result is the empty container. */
     @Override
     protected Matcher<Object> allNullsMatcher() {
-        return equalTo(new BytesRef("{}"));
+        return TimeSeriesMetadataFilterTests.emptyContainer();
     }
 
     /** The label must be a non-empty constant string, so the evaluator folds it once. */

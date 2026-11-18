@@ -115,6 +115,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohex;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeotile;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataEncoding;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -1419,15 +1420,9 @@ public final class EsqlTestUtils {
             }
             case FLATTENED -> FlattenedCases.RANDOM.get();
             case TSID_DATA_TYPE -> randomTsId().toBytesRef();
-            case TIME_SERIES_METADATA_DATA_TYPE -> {
-                try {
-                    yield BytesReference.bytes(
-                        JsonXContent.contentBuilder().startObject().field(randomAlphaOfLength(3), randomUnicodeOfLength(10)).endObject()
-                    ).toBytesRef();
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            }
+            case TIME_SERIES_METADATA_DATA_TYPE -> TimeSeriesMetadataEncoding.encode(
+                Map.of(randomAlphaOfLength(3), List.of(randomUnicodeOfLength(10)))
+            );
             case HISTOGRAM -> randomHistogram();
             case DENSE_VECTOR -> Arrays.asList(randomArray(10, 10, i -> new Float[10], ESTestCase::randomFloat));
             case EXPONENTIAL_HISTOGRAM -> EsqlTestUtils.randomExponentialHistogram();

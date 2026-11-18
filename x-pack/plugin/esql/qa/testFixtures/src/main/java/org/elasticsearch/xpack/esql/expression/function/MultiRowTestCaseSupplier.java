@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
@@ -25,16 +24,13 @@ import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.h3.H3;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.WriteableExponentialHistogram;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataEncoding;
 import org.elasticsearch.xpack.versionfield.Version;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
@@ -713,7 +709,7 @@ public final class MultiRowTestCaseSupplier {
     }
 
     /**
-     * Label containers: the canonical JSON of a label set, labels sorted by name.
+     * Label containers: the bytes of a label set, see {@link TimeSeriesMetadataEncoding}.
      */
     public static List<TypedDataSupplier> timeSeriesMetadataCases(int minRows, int maxRows) {
         List<TypedDataSupplier> cases = new ArrayList<>();
@@ -728,16 +724,11 @@ public final class MultiRowTestCaseSupplier {
     }
 
     private static BytesRef labels(int count) {
-        var labels = new TreeMap<String, String>();
+        var labels = new TreeMap<String, List<String>>();
         while (labels.size() < count) {
-            labels.put(ESTestCase.randomAlphaOfLengthBetween(1, 10), ESTestCase.randomRealisticUnicodeOfLengthBetween(1, 20));
+            labels.put(ESTestCase.randomAlphaOfLengthBetween(1, 10), List.of(ESTestCase.randomRealisticUnicodeOfLengthBetween(1, 20)));
         }
-        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
-            builder.map(labels);
-            return BytesReference.bytes(builder).toBytesRef();
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+        return TimeSeriesMetadataEncoding.encode(labels);
     }
 
     public static List<TypedDataSupplier> tsidCases(int minRows, int maxRows) {

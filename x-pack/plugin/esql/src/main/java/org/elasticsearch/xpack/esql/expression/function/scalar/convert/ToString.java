@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecyc
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataEncoding;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -116,8 +117,7 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
         Map.entry(HISTOGRAM, ToStringFromHistogramEvaluator.Factory::new),
         Map.entry(EXPONENTIAL_HISTOGRAM, ToStringFromExponentialHistogramEvaluator.Factory::new),
         Map.entry(TDIGEST, ToStringFromTDigestEvaluator.Factory::new),
-        // TODO(sidosera): Change this once we add binary format for TIME_SERIES_METADATA_DATA_TYPE
-        Map.entry(TIME_SERIES_METADATA_DATA_TYPE, (source, fieldEval) -> fieldEval),
+        Map.entry(TIME_SERIES_METADATA_DATA_TYPE, ToStringFromTimeSeriesMetadataEvaluator.Factory::new),
 
         // Evaluators dynamically created in #factories()
         Map.entry(DATETIME, (source, fieldEval) -> null),
@@ -287,6 +287,12 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
     @ConvertEvaluator(extraName = "FromVersion")
     static BytesRef fromVersion(BytesRef version) {
         return new BytesRef(versionToString(version));
+    }
+
+    /** A label container as the JSON object users see; it is held in its binary form, see {@link TimeSeriesMetadataEncoding}. */
+    @ConvertEvaluator(extraName = "FromTimeSeriesMetadata")
+    static BytesRef fromTimeSeriesMetadata(BytesRef labels) {
+        return TimeSeriesMetadataEncoding.toJson(labels);
     }
 
     @ConvertEvaluator(extraName = "FromUnsignedLong")

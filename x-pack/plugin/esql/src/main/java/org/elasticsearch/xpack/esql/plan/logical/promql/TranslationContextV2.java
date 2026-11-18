@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataEncoding;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataFilter;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataPath;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
@@ -107,7 +108,7 @@ public record TranslationContextV2(
 
     /** The labels of a vector without labels. */
     public static Expression emptyLabels(Source source) {
-        return new Literal(source, new BytesRef("{}"), DataType.TIME_SERIES_METADATA_DATA_TYPE);
+        return new Literal(source, BytesRef.deepCopyOf(TimeSeriesMetadataEncoding.EMPTY), DataType.TIME_SERIES_METADATA_DATA_TYPE);
     }
 
     public Configuration configuration() {

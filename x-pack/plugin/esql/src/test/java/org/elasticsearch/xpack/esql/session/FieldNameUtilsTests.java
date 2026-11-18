@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.NestedScopeField;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
@@ -86,6 +87,14 @@ public class FieldNameUtilsTests extends ESTestCase {
 
     public void testBasicEvalAndDrop() {
         assertFieldNames("from test | eval x = 1 | drop x", ALL_FIELDS);
+    }
+
+    /** A nested reduction asks for the fields it reads, their collection, and the nested-field marker. */
+    public void testNestedReductionAsksForItsFieldsAndTheirParents() {
+        assertFieldNames(
+            "from test | eval t = nested(sum(items.price)) | keep t",
+            Set.of("items.price", "items.price.*", "items", "items.*", "_index", NestedScopeField.REQUEST_MARKER)
+        );
     }
 
     public void testSimple1() {

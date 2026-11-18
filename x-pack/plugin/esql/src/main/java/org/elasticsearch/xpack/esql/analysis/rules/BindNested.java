@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -57,6 +58,14 @@ public final class BindNested extends Rule<LogicalPlan, LogicalPlan> {
 
     @Override
     public LogicalPlan apply(LogicalPlan plan) {
+        if (containsNested(plan)) {
+            plan.forEachExpressionDown(NamedExpression.class, expression -> {
+                if (expression.synthetic() == false
+                    && (expression.name().startsWith(NestedScopeField.PREFIX) || expression.name().equals(NestedScopeField.NAMESPACE))) {
+                    throw error(expression, "NESTED uses reserved internal schema names");
+                }
+            });
+        }
         return plan.transformUp(p -> {
             NestedStats nested = find(p);
             if (nested == null) {
@@ -71,6 +80,16 @@ public final class BindNested extends Rule<LogicalPlan, LogicalPlan> {
             LogicalPlan input = p.children().getFirst();
             return p.transformExpressionsOnlyUp(NestedStats.class, stats -> bind(stats, input));
         });
+    }
+
+    private static boolean containsNested(LogicalPlan plan) {
+        boolean[] found = { false };
+        plan.forEachDown(node -> {
+            if (find(node) != null) {
+                found[0] = true;
+            }
+        });
+        return found[0];
     }
 
     private static NestedStats find(LogicalPlan plan) {

@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSingleValueOrNull;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
+import org.elasticsearch.xpack.esql.plan.logical.DocPreserving;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -67,7 +68,7 @@ import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
  * flips a couple of hooks for {@code NOT IN}, and {@link MarkJoin} returns Eval-based plans that preserve every left row and produce a
  * boolean mark attribute with three-valued logic.
  */
-public abstract class AbstractSubqueryJoin extends Join implements SortPreserving, ExecutesOn.Coordinator {
+public abstract class AbstractSubqueryJoin extends Join implements SortPreserving, ExecutesOn.Coordinator, DocPreserving {
 
     protected AbstractSubqueryJoin(Source source, LogicalPlan left, LogicalPlan right, JoinConfig config) {
         super(source, left, right, config, false);
@@ -97,6 +98,15 @@ public abstract class AbstractSubqueryJoin extends Join implements SortPreservin
     @Override
     public List<NamedExpression> computeOutputExpressions(List<? extends NamedExpression> left, List<? extends NamedExpression> right) {
         return new ArrayList<>(left);
+    }
+
+    /**
+     * Rows come from the left side only; the deduplicated subquery on the right decides which left rows survive (SEMI / ANTI)
+     * or adds a mark column (MARK), so each output row still maps to one left document.
+     */
+    @Override
+    public LogicalPlan preservingInput() {
+        return left();
     }
 
     @Override

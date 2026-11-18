@@ -39,7 +39,12 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
 // TODO: carry an analyzer name here once the "analyzer" option is supported.
-public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPlan<Highlight>, PostAnalysisVerificationAware {
+public class Highlight extends UnaryPlan
+    implements
+        TelemetryAware,
+        GeneratingPlan<Highlight>,
+        PostAnalysisVerificationAware,
+        DocPreserving {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,

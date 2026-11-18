@@ -25,8 +25,10 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
@@ -36,6 +38,7 @@ import java.time.Instant;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -389,6 +392,24 @@ public class PromqlEsqlCommandTests extends AbstractPromqlPlanOptimizerTests {
         // start - (window + (-5m)) = start - 0 = start
         long lowerBoundMs = start.toEpochMilli() - window.toMillis() - signedOffset.toMillis();
         assertHasTimestampLowerBound(plan, lowerBoundMs, "window+offset");
+    }
+
+    /**
+     * {@code TS_COLLAPSE} folds the three steps into one row, so above it {@code v} holds three values while {@code one} holds one.
+     */
+    public void testStatsAfterTsCollapseKeepsAggregatesOverEqualValues() {
+        var plan = planPromql("""
+            PROMQL index=k8s step=10m start="2024-05-10T00:00:00.000Z" end="2024-05-10T00:20:00.000Z" v=(vector(1))
+            | TS_COLLAPSE
+            | EVAL one = 1.0
+            | STATS a = COUNT(v), b = COUNT(one)
+            """);
+
+        var limit = as(plan, Limit.class);
+        var aggregate = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(aggregate.aggregates()), contains("a", "b"));
+        var eval = as(aggregate.child(), Eval.class);
+        as(eval.child(), TimeSeriesCollapse.class);
     }
 
     /** Finds the duration of the materialized {@code @timestamp + offset} shift produced for an offset selector. */

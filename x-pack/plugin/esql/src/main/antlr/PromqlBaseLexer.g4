@@ -72,8 +72,8 @@ AT_END  : 'end' WS_CHAR* '(' WS_CHAR* ')';
 // brackets
 LCB: '{';
 RCB: '}';
-LSB: '[';
-RSB: ']';
+LSB: '[' { incPromqlBracketDepth(); };
+RSB: ']' { decPromqlBracketDepth(); };
 LP : '(';
 RP : ')';
 
@@ -120,10 +120,11 @@ TIME_VALUE
 
 // NB: the parser needs to validates this token based on context
 // (metric vs label vs..) as it can include non-supported characters.
-// A colon followed by a digit is a subquery step, as in [5m:1m], never the start of an identifier.
+// Like Prometheus, a colon starts an identifier only outside brackets, as in :9, while inside them it separates a
+// subquery range from its step, as in [5m:1m].
 IDENTIFIER
     : [a-z_][a-z0-9_:.]*
-    | ':' [a-z_:][a-z0-9_:.]*
+    | {isInPromqlBrackets() == false}? ':' [a-z0-9_:][a-z0-9_:.]*
     ;
 
 NAMED_OR_POSITIONAL_DOUBLE_PARAMS

@@ -42,6 +42,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsPattern;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramsAsConstant;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -787,6 +788,19 @@ public class PromqlParserTests extends ESTestCase {
     public void testSubqueryStepInSeconds() {
         Subquery subquery = parse("PROMQL index=test step=5m foo[5m:1.5]").promqlPlan().collect(Subquery.class).getFirst();
         assertThat(subquery.resolution().value(), equalTo(Duration.ofMillis(1500)));
+    }
+
+    /** Like Prometheus, a colon starts a metric name outside brackets, even before a digit, and separates a step inside them. */
+    public void testColonStartsMetricNameOutsideBrackets() {
+        PromqlParser parser = new PromqlParser();
+        for (String name : List.of(":9", ":1foo", ":9:a")) {
+            InstantSelector selector = as(parser.createStatement(name + "{job=\"api\"}"), InstantSelector.class);
+            assertThat(selector.labelMatchers().matchers().getFirst().getFirstValue(), equalTo(name));
+        }
+        LogicalPlan plan = parser.createStatement("max_over_time(:9[5m:1])[10m:2m]");
+        List<Object> steps = plan.collect(Subquery.class).stream().map(subquery -> subquery.resolution().value()).toList();
+        assertThat(steps, containsInAnyOrder(Duration.ofSeconds(1), Duration.ofMinutes(2)));
+        assertThat(plan.collect(InstantSelector.class).getFirst().series().sourceText(), equalTo(":9"));
     }
 
     /** Like Prometheus, a quoted string ends at its line, while a raw string may span lines. */

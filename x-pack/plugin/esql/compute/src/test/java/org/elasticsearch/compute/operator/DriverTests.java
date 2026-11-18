@@ -21,6 +21,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.compute.data.Block;
@@ -152,6 +153,72 @@ public class DriverTests extends ESTestCase {
         assertThat(driver.status().driverNanos(), greaterThan(0L));
         assertThat(charged.get(), equalTo(driver.status().driverNanos()));
         assertThat(driver.searchLoad().nanos(), equalTo(charged.get()));
+    }
+
+    /**
+     * An operator that removes an async action on the thread running the driver loop doesn't charge the loop's time, which the
+     * driver charges itself, so the pool task running the driver is charged no more than the time it ran.
+     */
+    public void testRemovingAnAsyncActionInTheLoopChargesItsTimeOnce() throws Exception {
+        EsThreadPoolExecutor pool = EsExecutors.newFixed(
+            "test",
+            1,
+            -1,
+            EsExecutors.daemonThreadFactory("test", "load"),
+            new ThreadContext(Settings.EMPTY),
+            EsExecutors.TaskTrackingConfig.builder().trackExecutionTime(0.3).attributeTaskLoad().build()
+        );
+        try {
+            DriverContext driverContext = driverContext();
+            Driver driver = new Driver(
+                "unset",
+                "test",
+                "test",
+                "test",
+                randomNonNegativeLong(),
+                System.nanoTime(),
+                driverContext,
+                () -> "unset",
+                new CannedSourceOperator(randomList(1, 5, DriverTests::randomPage).iterator()),
+                List.of(new AbstractPageMappingOperator() {
+                    @Override
+                    protected Page process(Page page) {
+                        spin(TimeUnit.MILLISECONDS.toNanos(5));
+                        driverContext.addAsyncAction();
+                        driverContext.removeAsyncAction();
+                        return page;
+                    }
+
+                    @Override
+                    public String toString() {
+                        return "async_action_operator";
+                    }
+                }),
+                new TestResultPageSinkOperator(Page::releaseBlocks),
+                TimeValue.timeValueHours(1),
+                () -> {}
+            );
+            driver.loadTarget((nanos, cpuNanos, finishNanos) -> {});
+            long startNanos = System.nanoTime();
+            PlainActionFuture<Long> elapsed = new PlainActionFuture<>();
+            pool.execute(ActionRunnable.supply(elapsed, () -> {
+                driver.run(TimeValue.timeValueHours(1), Integer.MAX_VALUE, System::nanoTime);
+                return System.nanoTime() - startNanos;
+            }));
+            long elapsedNanos = elapsed.get(10, TimeUnit.SECONDS);
+            assertThat(driver.status().status(), equalTo(DriverStatus.Status.DONE));
+            assertThat(driver.searchLoad().nanos(), greaterThan(0L));
+            assertThat(driver.searchLoad().nanos(), lessThanOrEqualTo(elapsedNanos));
+        } finally {
+            ThreadPool.terminate(pool, 10, TimeUnit.SECONDS);
+        }
+    }
+
+    private static void spin(long nanos) {
+        long start = System.nanoTime();
+        while (System.nanoTime() - start < nanos) {
+            Thread.onSpinWait();
+        }
     }
 
     /**

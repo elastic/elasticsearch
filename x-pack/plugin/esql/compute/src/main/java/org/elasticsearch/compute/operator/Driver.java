@@ -166,6 +166,9 @@ public class Driver implements Releasable, Describable {
      */
     private long finishNanos;
 
+    /** Set while a driver loop runs on this thread. */
+    private static final ThreadLocal<Boolean> LOOP_RUNNING = new ThreadLocal<>();
+
     /** Set with {@link #loadTarget(TaskLoadAttribution.Target)}, or {@code null}. */
     private TaskLoadAttribution.Target loadTarget;
     private final QueryLoad searchLoad = new QueryLoad();
@@ -251,7 +254,24 @@ public class Driver implements Releasable, Describable {
         if (loadTarget != null) {
             TaskLoadAttribution.attribute(loadTarget);
         }
-        return driverContext.meteredCpu(() -> runLoop(maxTime, maxIterations, currentTimeNanosSupplier));
+        return driverContext.meteredCpu(() -> {
+            Boolean outer = LOOP_RUNNING.get();
+            LOOP_RUNNING.set(Boolean.TRUE);
+            try {
+                return runLoop(maxTime, maxIterations, currentTimeNanosSupplier);
+            } finally {
+                if (outer == null) {
+                    LOOP_RUNNING.remove();
+                }
+            }
+        });
+    }
+
+    /**
+     * Whether a driver loop runs on this thread. The loop charges its own time at its status updates.
+     */
+    static boolean loopRunningOnThisThread() {
+        return LOOP_RUNNING.get() != null;
     }
 
     private SubscribableListener<Void> runLoop(TimeValue maxTime, int maxIterations, LongSupplier currentTimeNanosSupplier) {

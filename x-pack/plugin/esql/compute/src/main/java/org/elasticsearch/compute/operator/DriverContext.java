@@ -327,7 +327,13 @@ public class DriverContext {
         }
     }
 
+    /**
+     * Charges the load of the pool task running on this thread so far, unless a driver loop runs on it and charges it.
+     */
     private static void chargeLoadSoFar() {
+        if (Driver.loopRunningOnThisThread()) {
+            return;
+        }
         TaskLoadAttribution.Target target = TaskLoadAttribution.target();
         if (target != null) {
             TaskLoadAttribution.chargeSoFar(target, System.nanoTime());

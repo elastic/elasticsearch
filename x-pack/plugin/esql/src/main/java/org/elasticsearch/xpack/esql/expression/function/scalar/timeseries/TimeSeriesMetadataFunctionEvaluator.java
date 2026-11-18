@@ -33,10 +33,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Evaluates reads and rewrites of labels in a label container. Every operation streams over the bytes of a typed label container
- * (see {@link TimeSeriesMetadataEncoding}): a read stops at its label, and a rewrite copies the labels it keeps, writing a set label
- * at its position in name order. A keyword {@code _timeseries} is the JSON object of a series' dimensions as the source holds them,
- * so it is read into a label container first, and a rewrite of it is written back as the JSON object of the result.
+ * Evaluates reads and rewrites of labels in a label container. Every operation works on the bytes of a typed label container
+ * (see {@link TimeSeriesMetadataEncoding}): a read finds its label by a binary search, and a rewrite copies the labels it keeps as
+ * they are, writing a set label at its position in name order. A keyword {@code _timeseries} is the JSON object of a series'
+ * dimensions as the source holds them, so it is read into a label container first, and a rewrite of it is written back as the
+ * JSON object of the result.
  * <p>
  * A label container block is dictionary encoded, each distinct label set once and an ordinal per row, so an operation that only
  * depends on the label container runs once per label set and keeps the ordinals: a series has a row per time bucket.
@@ -56,6 +57,7 @@ public final class TimeSeriesMetadataFunctionEvaluator implements ExpressionEval
     /** Whether the label container is a keyword {@code _timeseries}, read into a typed label container first. */
     private final boolean keyword;
     private final List<String> names;
+    /** The names, sorted and unique: {@link Operation#KEEP} copies them in name order, {@link Operation#DROP} walks them along. */
     private final List<BytesRef> nameBytes;
     /** The value {@link Operation#SET} writes, null for the other operations. */
     private final @Nullable ExpressionEvaluator value;
@@ -74,7 +76,7 @@ public final class TimeSeriesMetadataFunctionEvaluator implements ExpressionEval
         this.labelContainer = labelContainer;
         this.keyword = keyword;
         this.names = names;
-        this.nameBytes = names.stream().map(BytesRef::new).toList();
+        this.nameBytes = names.stream().map(BytesRef::new).sorted().distinct().toList();
         this.value = value;
         this.context = context;
     }
@@ -96,10 +98,8 @@ public final class TimeSeriesMetadataFunctionEvaluator implements ExpressionEval
         try (Block block = labelContainer.eval(page); Block values = value == null ? null : value.eval(page)) {
             BytesRefBlock written = (BytesRefBlock) values;
             OrdinalBytesRefBlock ordinals = block instanceof BytesRefBlock containers ? containers.asOrdinals() : null;
-            if (ordinals != null
-                && ordinals.isDense()
-                && ordinals.mayHaveMultivaluedFields() == false
-                && (written == null || sameEverywhere(written))) {
+            // A label container block holds each label set of the page once, so any dictionary of one is worth rewriting.
+            if (ordinals != null && ordinals.mayHaveMultivaluedFields() == false && (written == null || sameEverywhere(written))) {
                 Block result = operation == Operation.GET ? readDictionary(ordinals) : rewriteDictionary(ordinals, written);
                 if (result != null) {
                     return result;
@@ -151,13 +151,16 @@ public final class TimeSeriesMetadataFunctionEvaluator implements ExpressionEval
             BytesRefVector.Builder builder = context.blockFactory().newBytesRefVectorBuilder(dictionary.getPositionCount())
         ) {
             int next = 0;
+            var value = new ArrayList<BytesRef>(1);
             for (int d = 0; d < read.length; d++) {
                 read[d] = -1;
-                if (find(buffers.container(dictionary.getBytesRef(d, scratch)), nameBytes.getFirst())) {
-                    if (reader.valueCount() > 1) {
+                int label = find(buffers.container(dictionary.getBytesRef(d, scratch)), nameBytes.getFirst());
+                if (label >= 0) {
+                    value.clear();
+                    if (reader.values(label, value).size() > 1) {
                         return null;
                     }
-                    builder.appendBytesRef(reader.values().getFirst());
+                    builder.appendBytesRef(value.getFirst());
                     read[d] = next++;
                 }
             }
@@ -241,57 +244,60 @@ public final class TimeSeriesMetadataFunctionEvaluator implements ExpressionEval
 
     /** Appends the values of the label read, or null when it is absent. */
     private void read(@Nullable BytesRef encoded, BytesRefBlock.Builder result) {
-        if (find(encoded, nameBytes.getFirst())) {
-            reader.appendValues(result);
+        int label = find(encoded, nameBytes.getFirst());
+        if (label >= 0) {
+            reader.appendValues(label, result);
         } else {
             result.appendNull();
         }
     }
 
-    /** Whether {@code encoded} holds {@code name}, the reader then on it. */
-    private boolean find(@Nullable BytesRef encoded, BytesRef name) {
-        if (encoded == null) {
-            return false;
-        }
-        reader.reset(encoded);
-        while (reader.next()) {
-            int order = reader.name().compareTo(name);
-            if (order == 0) {
-                return true;
-            }
-            if (order > 0) {
-                return false;
-            }
-        }
-        return false;
+    /** The position of {@code name} in {@code encoded}, the reader then on it, or a negative number when it is absent. */
+    private int find(@Nullable BytesRef encoded, BytesRef name) {
+        return encoded == null ? -1 : reader.reset(encoded).find(name);
     }
 
-    /** The rewrite of {@code encoded}, written to {@code out}; {@code written} only matters to {@link Operation#SET}. */
-    private BytesRef rewrite(@Nullable BytesRef encoded, List<BytesRef> written, BreakingBytesRefBuilder out) {
+    /** The rewrite of {@code encoded}, written by {@code out}; {@code written} only matters to {@link Operation#SET}. */
+    private BytesRef rewrite(@Nullable BytesRef encoded, List<BytesRef> written, TimeSeriesMetadataEncoding.Writer out) {
         out.clear();
-        BytesRef set = operation == Operation.SET ? nameBytes.getFirst() : null;
-        boolean done = set == null || written.isEmpty();
-        if (encoded != null) {
-            reader.reset(encoded);
-            while (reader.next()) {
-                if (set != null) {
-                    int order = reader.name().compareTo(set);
-                    if (done == false && order >= 0) {
-                        TimeSeriesMetadataEncoding.writeLabel(out, set, written);
-                        done = true;
-                    }
-                    if (order != 0) {
-                        reader.copyLabel(out);
-                    }
-                } else if (nameBytes.contains(reader.name()) == (operation == Operation.KEEP)) {
-                    reader.copyLabel(out);
+        reader.reset(encoded == null ? TimeSeriesMetadataEncoding.EMPTY : encoded);
+        switch (operation) {
+            case SET -> {
+                BytesRef set = nameBytes.getFirst();
+                int at = reader.find(set);
+                int insertion = at >= 0 ? at : -at - 1;
+                for (int i = 0; i < insertion; i++) {
+                    out.copy(reader, i);
+                }
+                out.label(set, written);
+                for (int i = at >= 0 ? at + 1 : insertion; i < reader.count(); i++) {
+                    out.copy(reader, i);
                 }
             }
+            case KEEP -> {
+                for (BytesRef kept : nameBytes) {
+                    int at = reader.find(kept);
+                    if (at >= 0) {
+                        out.copy(reader, at);
+                    }
+                }
+            }
+            case DROP -> {
+                BytesRef name = new BytesRef();
+                int dropped = 0;
+                for (int i = 0; i < reader.count(); i++) {
+                    reader.name(i, name);
+                    while (dropped < nameBytes.size() && nameBytes.get(dropped).compareTo(name) < 0) {
+                        dropped++;
+                    }
+                    if (dropped == nameBytes.size() || nameBytes.get(dropped).equals(name) == false) {
+                        out.copy(reader, i);
+                    }
+                }
+            }
+            case GET -> throw new IllegalStateException("a read does not rewrite");
         }
-        if (done == false) {
-            TimeSeriesMetadataEncoding.writeLabel(out, set, written);
-        }
-        return out.bytesRefView();
+        return out.build();
     }
 
     /** The non-empty values at {@code position}: PromQL has no empty label, so an empty or missing value writes none. */
@@ -315,20 +321,21 @@ public final class TimeSeriesMetadataFunctionEvaluator implements ExpressionEval
      * container read from it and the JSON object written back.
      */
     private final class Buffers implements AutoCloseable {
-        private final BreakingBytesRefBuilder rewritten;
-        private final @Nullable BreakingBytesRefBuilder source;
+        private final TimeSeriesMetadataEncoding.Writer rewritten;
+        @Nullable
+        private final TimeSeriesMetadataEncoding.Writer source;
         private final @Nullable BreakingBytesRefBuilder json;
 
         /** Each buffer reserves memory, so the ones made before a reservation fails are released. */
         Buffers() {
-            BreakingBytesRefBuilder rewritten = null;
-            BreakingBytesRefBuilder source = null;
+            TimeSeriesMetadataEncoding.Writer rewritten = null;
+            TimeSeriesMetadataEncoding.Writer source = null;
             BreakingBytesRefBuilder json = null;
             boolean made = false;
             try {
-                rewritten = new BreakingBytesRefBuilder(context.breaker(), "ts_metadata");
+                rewritten = new TimeSeriesMetadataEncoding.Writer(context.breaker());
                 if (keyword) {
-                    source = new BreakingBytesRefBuilder(context.breaker(), "ts_metadata_source");
+                    source = new TimeSeriesMetadataEncoding.Writer(context.breaker());
                     json = new BreakingBytesRefBuilder(context.breaker(), "ts_metadata_json");
                 }
                 made = true;

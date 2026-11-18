@@ -90,9 +90,10 @@ import org.elasticsearch.xpack.esql.expression.function.BlockLoaderWarnings;
 import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
-import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataConverter;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataBlockLoader;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec.Sort;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
@@ -333,6 +334,46 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         return attr instanceof FieldAttribute fa ? fa.fieldName().string() : attr.name();
     }
 
+    /**
+     * The typed label container of a series, loaded from the doc values of its dimensions but {@code excluded}, each under the label
+     * PromQL names it; an excluded name is a dimension's name or a name it is reached by, as the keyword {@code _timeseries} takes it.
+     */
+    private TimeSeriesMetadataBlockLoader timeSeriesMetadataLoader(
+        DefaultShardContext shardContext,
+        Set<String> excluded,
+        BlockLoaderWarnings warnings
+    ) {
+        MappingLookup lookup = shardContext.mappingLookup();
+        var skipped = new HashSet<String>();
+        for (String name : excluded) {
+            MappedFieldType field = lookup.getFieldType(name);
+            skipped.add(field != null ? field.name() : name);
+        }
+        var dimensions = new ArrayList<TimeSeriesMetadataBlockLoader.Dimension>();
+        for (var dimension : lookup.dimensionFieldMappers().values()) {
+            MappedFieldType field = dimension.fieldType();
+            if (skipped.contains(field.name())) {
+                continue;
+            }
+            BlockLoader loader = shardContext.blockLoader(
+                field.name(),
+                false,
+                MappedFieldType.FieldExtractPreference.NONE,
+                null,
+                warnings,
+                plannerSettings.blockLoaderSizeOrdinals(),
+                plannerSettings.blockLoaderSizeScript()
+            );
+            var values = switch (field.typeName()) {
+                case "ip" -> TimeSeriesMetadataBlockLoader.Values.IP;
+                case "unsigned_long" -> TimeSeriesMetadataBlockLoader.Values.UNSIGNED_LONG;
+                default -> TimeSeriesMetadataBlockLoader.Values.AS_LOADED;
+            };
+            dimensions.add(new TimeSeriesMetadataBlockLoader.Dimension(PromqlLabels.labelName(field.name()), loader, values));
+        }
+        return new TimeSeriesMetadataBlockLoader(dimensions);
+    }
+
     private ValuesSourceReaderOperator.LoaderAndConverter blockLoaderAndConverter(
         DriverContext driverContext,
         int shardId,
@@ -351,21 +392,13 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         BlockLoaderWarnings warnings = new BlockLoaderWarnings(driverContext, attr.source());
         String fieldName = getFieldName(attr);
         if (attr instanceof TimeSeriesMetadataAttribute timeSeriesMetadataAttribute) {
+            if (attr.dataType() == DataType.TIME_SERIES_METADATA_DATA_TYPE) {
+                return ValuesSourceReaderOperator.load(
+                    timeSeriesMetadataLoader(shardContext, timeSeriesMetadataAttribute.excludedFields(), warnings)
+                );
+            }
             functionConfig = new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, timeSeriesMetadataAttribute.excludedFields());
             fieldName = SourceFieldMapper.NAME;
-            if (attr.dataType() == DataType.TIME_SERIES_METADATA_DATA_TYPE) {
-                // The typed label container loads as the keyword JSON object of the dimensions, converted as it is read
-                BlockLoader blockLoader = shardContext.blockLoader(
-                    fieldName,
-                    false,
-                    fieldExtractPreference,
-                    functionConfig,
-                    warnings,
-                    plannerSettings.blockLoaderSizeOrdinals(),
-                    plannerSettings.blockLoaderSizeScript()
-                );
-                return ValuesSourceReaderOperator.loadAndConvert(blockLoader, TimeSeriesMetadataConverter.INSTANCE);
-            }
         } else if (attr instanceof TemporalityAttribute) {
             return resolveTemporalitySource(shardContext, warnings, fieldExtractPreference);
         } else if (attr instanceof FieldAttribute fieldAttr && fieldAttr.field() instanceof FunctionEsField functionEsField) {

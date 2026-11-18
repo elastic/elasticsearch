@@ -34,6 +34,37 @@ public class TimeSeriesMetadataEncodingTests extends ESTestCase {
         assertThat(TimeSeriesMetadataEncoding.encode(shuffled), equalTo(TimeSeriesMetadataEncoding.encode(labels)));
     }
 
+    /**
+     * A label is found by name among any number of labels, whatever width the table of where they start takes, and a name that is
+     * not there is not found.
+     */
+    public void testFindsALabelByName() {
+        // a few short labels take a table of one or two bytes per label, many long ones of two or four
+        for (int valueLength : List.of(1, 50, 1000)) {
+            Map<String, List<String>> labels = new TreeMap<>();
+            int count = valueLength == 1 ? between(1, 20) : between(70, 200);
+            for (int i = 0; i < count; i++) {
+                labels.put("l" + randomAlphaOfLengthBetween(1, 8), randomList(1, 3, () -> randomAlphaOfLength(valueLength)));
+            }
+            TimeSeriesMetadataEncoding.Reader reader = new TimeSeriesMetadataEncoding.Reader().reset(
+                TimeSeriesMetadataEncoding.encode(labels)
+            );
+            assertThat(reader.count(), equalTo(labels.size()));
+            int position = 0;
+            for (var label : labels.entrySet()) {
+                int found = reader.find(new BytesRef(label.getKey()));
+                assertThat(found, equalTo(position++));
+                assertThat(reader.name(found, new BytesRef()).utf8ToString(), equalTo(label.getKey()));
+                assertThat(
+                    reader.values(found, new ArrayList<>()).stream().map(BytesRef::utf8ToString).toList(),
+                    equalTo(label.getValue())
+                );
+            }
+            assertThat(reader.find(new BytesRef("a")), equalTo(-1));
+            assertThat(reader.find(new BytesRef("m")), equalTo(-labels.size() - 1));
+        }
+    }
+
     /** The values of a label keep their order: another order is another label set. */
     public void testValuesKeepTheirOrder() {
         assertThat(

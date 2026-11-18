@@ -1955,6 +1955,88 @@ public class RetryableStorageObjectTests extends ESTestCase {
     }
 
     /**
+     * {@code abortStream} during mid-read throttle backoff must wake the sleep without a cancel
+     * ThreadLocal. Production close aborts the ResumingInputStream from another thread; without
+     * polling {@code aborted}, this sleeps the full 30s hop. Exposes the leftover of abort-before-wait.
+     */
+    public void testMidReadResumeAbortsBackoffWhenStreamAborted() throws Exception {
+        RetryPolicy policy = new RetryPolicy(0, 0, 0, 10, 30_000, 30_000, RetryPolicy.NO_BUDGET, null);
+        byte[] payload = new byte[500];
+        MidReadFailingStorageObject delegate = new MidReadFailingStorageObject(
+            StoragePath.of("s3://bucket/key"),
+            payload,
+            0,
+            new ExternalUnavailableException(Condition.STORE_THROTTLED, StoragePath.NONE, "", "", true, 0L),
+            true
+        );
+        RetryableStorageObject obj = new RetryableStorageObject(delegate, policy);
+        InputStream in = obj.newStream(0, payload.length);
+        AtomicReference<Exception> error = new AtomicReference<>();
+        Thread reader = new Thread(() -> {
+            try {
+                in.readAllBytes();
+            } catch (Exception e) {
+                error.set(e);
+            }
+        }, "retryable-abort-during-backoff");
+        reader.start();
+        try {
+            assertBusy(() -> assertEquals(Thread.State.TIMED_WAITING, reader.getState()));
+            long startNanos = System.nanoTime();
+            obj.abortStream(in);
+            reader.join(TimeUnit.SECONDS.toMillis(5));
+            long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
+            assertFalse("abortStream must wake throttle backoff, not sleep the 30s hop", reader.isAlive());
+            assertThat(elapsedMs, lessThan(5_000L));
+            assertEquals("abort must not re-open the range", 1, delegate.openCount());
+            assertThat(error.get(), instanceOf(IOException.class));
+            assertThat(error.get().getMessage(), containsString("read aborted"));
+        } finally {
+            reader.interrupt();
+            reader.join(TimeUnit.SECONDS.toMillis(5));
+            in.close();
+        }
+    }
+
+    /**
+     * Resume re-open retries through {@code RetryPolicy.execute}, whose sleep also ignored {@code aborted}.
+     * First mid-read fault is non-throttle (zero delay); the resume GET throws a throttle so execute
+     * takes the 30s hop. {@code abortStream} must cut that sleep.
+     */
+    public void testResumeOpenExecuteBackoffAbortsWhenStreamAborted() throws Exception {
+        RetryPolicy policy = new RetryPolicy(3, 0, 0, 10, 30_000, 30_000, RetryPolicy.NO_BUDGET, null);
+        FailOpenOnResumeStorageObject delegate = new FailOpenOnResumeStorageObject(StoragePath.of("s3://bucket/key"));
+        RetryableStorageObject obj = new RetryableStorageObject(delegate, policy);
+        InputStream in = obj.newStream(0, 100);
+        AtomicReference<Exception> error = new AtomicReference<>();
+        Thread reader = new Thread(() -> {
+            try {
+                in.readAllBytes();
+            } catch (Exception e) {
+                error.set(e);
+            }
+        }, "retryable-abort-during-resume-open");
+        reader.start();
+        try {
+            assertTrue("resume GET must start", delegate.awaitResumeOpen(5, TimeUnit.SECONDS));
+            assertBusy(() -> assertEquals(Thread.State.TIMED_WAITING, reader.getState()));
+            long startNanos = System.nanoTime();
+            obj.abortStream(in);
+            reader.join(TimeUnit.SECONDS.toMillis(5));
+            long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
+            assertFalse("abortStream must wake execute backoff, not sleep the 30s hop", reader.isAlive());
+            assertThat(elapsedMs, lessThan(5_000L));
+            assertEquals("initial open plus one failed resume GET", 2, delegate.openCount());
+            assertThat(error.get(), instanceOf(IOException.class));
+            assertThat(error.get().getMessage(), containsString("read aborted"));
+        } finally {
+            reader.interrupt();
+            reader.join(TimeUnit.SECONDS.toMillis(5));
+            in.close();
+        }
+    }
+
+    /**
      * A stream that drops repeatedly but makes progress each time is <em>not</em> stuck: the budget resets
      * on every byte delivered, so it re-opens as many times as needed and completes byte-exact. This is the
      * realistic "flaky connection over a large object" case.
@@ -3456,6 +3538,72 @@ public class RetryableStorageObjectTests extends ESTestCase {
         @Override
         public StorageObjectMetrics metrics() {
             return new StorageObjectMetrics(opens, 0, 0, 0);
+        }
+    }
+
+    /**
+     * First open fails immediately with a non-throttle transient (resume delay 0). Each resume GET
+     * throws a throttle so {@code RetryPolicy.execute} sleeps the long hop.
+     */
+    private static final class FailOpenOnResumeStorageObject extends AbstractTestStorageObject {
+        private final StoragePath path;
+        private final CountDownLatch resumeOpen = new CountDownLatch(1);
+        private int opens;
+
+        FailOpenOnResumeStorageObject(StoragePath path) {
+            this.path = path;
+        }
+
+        int openCount() {
+            return opens;
+        }
+
+        boolean awaitResumeOpen(long timeout, TimeUnit unit) throws InterruptedException {
+            return resumeOpen.await(timeout, unit);
+        }
+
+        @Override
+        public InputStream newStream(long position, long length) throws IOException {
+            opens++;
+            if (opens == 1) {
+                return new FailingAfterNStream(
+                    new byte[100],
+                    0,
+                    new ExternalUnavailableException(Condition.STORE_UNAVAILABLE, StoragePath.NONE, "", "", false, 0L)
+                );
+            }
+            resumeOpen.countDown();
+            throw new ExternalUnavailableException(Condition.STORE_THROTTLED, StoragePath.NONE, "", "", true, 0L);
+        }
+
+        @Override
+        public InputStream newStream() throws IOException {
+            return newStream(0, 100);
+        }
+
+        @Override
+        public long length() {
+            return 100L;
+        }
+
+        @Override
+        public Instant lastModified() {
+            return null;
+        }
+
+        @Override
+        public boolean exists() {
+            return true;
+        }
+
+        @Override
+        public StoragePath path() {
+            return path;
+        }
+
+        @Override
+        public int readBytes(long position, ByteBuffer target) {
+            throw new UnsupportedOperationException();
         }
     }
 

@@ -44,7 +44,9 @@ import org.elasticsearch.xpack.esql.datasources.cache.StripeStatsHarvester;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.HeapEstimates;
@@ -612,6 +614,113 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             assertNull("abort during close must not be recorded as a failure", iter.tryAdvance());
         } finally {
             resume.countDown();
+            executor.shutdownNow();
+        }
+    }
+
+    /**
+     * Close while the segmentator is in {@code RetryableStorageObject} throttle backoff, not a raw
+     * {@code read()}. Abort-before-wait is not enough: {@code abortStream} must also cut the sleep or
+     * the closer still sits until the 30s hop (or the 60s poll). tryAdvance after close is not a failure.
+     */
+    public void testCloseAbortsRetryBackoffWithoutWaiting() throws Exception {
+        RetryPolicy policy = new RetryPolicy(0, 0, 0, 10, 30_000, 30_000, RetryPolicy.NO_BUDGET, null);
+        byte[] payload = "x\n".repeat(32).getBytes(StandardCharsets.UTF_8);
+        StorageObject inner = new AbstractTestStorageObject() {
+            @Override
+            public InputStream newStream() {
+                return newStream(0, payload.length);
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) {
+                // Always fail the first byte so resume parks in throttle backoff.
+                return new InputStream() {
+                    @Override
+                    public int read() throws IOException {
+                        throw new ExternalUnavailableException(Condition.STORE_THROTTLED, StoragePath.NONE, "", "", true, 0L);
+                    }
+
+                    @Override
+                    public int read(byte[] b, int off, int len) throws IOException {
+                        throw new ExternalUnavailableException(Condition.STORE_THROTTLED, StoragePath.NONE, "", "", true, 0L);
+                    }
+                };
+            }
+
+            @Override
+            public long length() {
+                return payload.length;
+            }
+
+            @Override
+            public Instant lastModified() {
+                return Instant.EPOCH;
+            }
+
+            @Override
+            public boolean exists() {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return StoragePath.of("mem://retry-backoff-close");
+            }
+        };
+        RetryableStorageObject obj = new RetryableStorageObject(inner, policy);
+        List<Thread> poolThreads = new CopyOnWriteArrayList<>();
+        ExecutorService executor = Executors.newFixedThreadPool(4, runnable -> {
+            Thread thread = new Thread(runnable, "sppc-retry-backoff");
+            poolThreads.add(thread);
+            return thread;
+        });
+        try {
+            InputStream stream = obj.newStream();
+            CloseableIterator<Page> iter = StreamingParallelParsingCoordinator.parallelRead(
+                new LineFormatReader(512),
+                stream,
+                obj,
+                List.of("line"),
+                50,
+                2,
+                executor,
+                ErrorPolicy.STRICT,
+                null,
+                0L,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                null,
+                -1L,
+                StripeColumnScope.PROJECTED,
+                StreamingParallelParsingCoordinator.WarningSinks.NONE
+            );
+            assertBusy(
+                () -> assertTrue(
+                    "segmentator must park in retry backoff",
+                    poolThreads.stream().anyMatch(t -> t.getState() == Thread.State.TIMED_WAITING)
+                )
+            );
+            CountDownLatch closed = new CountDownLatch(1);
+            AtomicReference<Exception> closeFailure = new AtomicReference<>();
+            Thread closer = new Thread(() -> {
+                try {
+                    iter.close();
+                } catch (Exception e) {
+                    closeFailure.set(e);
+                } finally {
+                    closed.countDown();
+                }
+            });
+            closer.start();
+            try {
+                assertTrue("close() must return promptly after aborting retry backoff", closed.await(5, TimeUnit.SECONDS));
+            } finally {
+                closer.join(TimeUnit.SECONDS.toMillis(5));
+            }
+            assertFalse("closer must exit after aborting retry backoff", closer.isAlive());
+            assertNull(closeFailure.get());
+            assertNull("abort during close must not be recorded as a failure", iter.tryAdvance());
+        } finally {
             executor.shutdownNow();
         }
     }

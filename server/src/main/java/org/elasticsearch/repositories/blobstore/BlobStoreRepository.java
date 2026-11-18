@@ -106,7 +106,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.plugins.internal.ShardGenerationListener;
+import org.elasticsearch.plugins.internal.ShardGenerationSizeListener;
 import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.IndexMetaDataGenerations;
@@ -207,7 +207,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private final ProjectId projectId;
     protected volatile RepositoryMetadata metadata;
 
-    private volatile ShardGenerationListener shardGenerationListener = ShardGenerationListener.NOOP;
+    private volatile ShardGenerationSizeListener shardGenerationSizeListener = ShardGenerationSizeListener.NOOP;
 
     protected final ThreadPool threadPool;
 
@@ -745,7 +745,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             INDEX_SHARD_SNAPSHOTS_FORMAT.write(clonedSnapshots, shardContainer, newGen.getGenerationUUID(), compress);
             if (shardGeneration != null) {
                 // only UUID generations; a null shardGeneration means the legacy numeric generation
-                notifyShardGenerationWritten(index, shardNum, newGen, clonedSnapshots);
+                reportShardGenerationSize(index, shardNum, newGen, clonedSnapshots);
             }
             return new ShardSnapshotResult(
                 newGen,
@@ -1516,7 +1516,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                     writtenGeneration.getGenerationUUID(),
                                     compress
                                 );
-                                notifyShardGenerationWritten(indexId, shardId, writtenGeneration, updatedSnapshots);
+                                reportShardGenerationSize(indexId, shardId, writtenGeneration, updatedSnapshots);
                             } else {
                                 writtenGeneration = new ShardGeneration(indexGeneration);
                                 writeShardIndexBlobAtomic(shardContainer, indexGeneration, updatedSnapshots, Collections.emptyMap());
@@ -3521,20 +3521,25 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     @Override
-    public void setShardGenerationListener(ShardGenerationListener listener) {
-        this.shardGenerationListener = listener;
+    public void setShardGenerationSizeListener(ShardGenerationSizeListener listener) {
+        this.shardGenerationSizeListener = listener;
     }
 
-    private void notifyShardGenerationWritten(
+    private void reportShardGenerationSize(
         IndexId indexId,
         int shardId,
         ShardGeneration generation,
         BlobStoreIndexShardSnapshots shardSnapshots
     ) {
+        final ShardGenerationSizeListener listener = shardGenerationSizeListener;
+        if (listener == ShardGenerationSizeListener.NOOP) {
+            return; // nothing is listening, so do not add up the sizes for nothing
+        }
         try {
-            shardGenerationListener.onShardGenerationWritten(getProjectRepo(), indexId, shardId, generation, shardSnapshots);
+            // Pass the number and not shardSnapshots, so that the listener cannot hold on to the history.
+            listener.onShardGenerationSize(getProjectRepo(), indexId, shardId, generation, shardSnapshots.retainedBlobBytes());
         } catch (Exception e) {
-            logger.warn(() -> format("[%s][%s][%s] shard generation listener failed", metadata.name(), indexId, shardId), e);
+            logger.warn(() -> format("[%s][%s][%s] shard generation size listener failed", metadata.name(), indexId, shardId), e);
         }
     }
 
@@ -3708,6 +3713,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         e
                     );
                 }
+                // Notify here and not from allFilesUploadedListener: that listener lives until every file of this shard is uploaded, so
+                // referencing updatedBlobStoreIndexShardSnapshots (the history of every retained snapshot of the shard) from it would keep
+                // that history reachable for the whole upload. All shards of a node run this step before any file is uploaded, so that
+                // would
+                // hold every shard's history in memory at once.
+                reportShardGenerationSize(context.indexId(), shardId.id(), indexGeneration, updatedBlobStoreIndexShardSnapshots);
                 afterWriteSnapBlob = () -> {};
             } else {
                 // When not using shard generations we can only write the index-${N} blob after all other work for this shard has
@@ -3797,9 +3808,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     throw new IndexShardSnapshotFailedException(shardId, "Failed to write commit point", e);
                 }
                 afterWriteSnapBlob.run();
-                if (writeShardGens) {
-                    notifyShardGenerationWritten(context.indexId(), shardId.id(), indexGeneration, updatedBlobStoreIndexShardSnapshots);
-                }
                 final ShardSnapshotResult shardSnapshotResult = new ShardSnapshotResult(
                     indexGeneration,
                     ByteSizeValue.ofBytes(blobStoreIndexShardSnapshot.totalSize()),

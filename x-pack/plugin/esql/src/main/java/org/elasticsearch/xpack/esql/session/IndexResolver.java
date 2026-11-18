@@ -1059,8 +1059,8 @@ public class IndexResolver {
                 typesToIndices.computeIfAbsent(type, _key -> new TreeSet<>()).add(ir.getIndexName());
             }
         }
-        if (firstUnsupported != null && typesToIndices.keySet().stream().allMatch(type -> type == OBJECT)) {
-            // No type that holds values, so no cast could use the field: keep it unsupported everywhere, sub-fields included.
+        if (firstUnsupported != null && typesToIndices.isEmpty()) {
+            // Every type is unsupported, so no cast could use the field: keep it unsupported everywhere, sub-fields included.
             return unsupported(name, firstUnsupported);
         }
         if (indexDedupCache != null) {

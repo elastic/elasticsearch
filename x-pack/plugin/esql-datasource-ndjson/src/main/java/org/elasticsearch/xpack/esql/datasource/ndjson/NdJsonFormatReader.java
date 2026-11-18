@@ -804,6 +804,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             context.statsStripeSize(),
             context.statsFileFinal(),
             context.statsColumnScope(),
+            context.statsStripeSink(),
             context.informationalWarningSink()
         );
     }
@@ -828,8 +829,8 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     }
 
     /**
-     * Resolved per-reader from {@link #SEGMENT_SIZE_SETTING} (node-level) or the {@code segment_size}
-     * key in the per-query {@code WITH {...}} config, defaulting to {@link #DEFAULT_SEGMENT_SIZE}, then trimmed by
+     * Resolved per-reader from {@link #SEGMENT_SIZE_SETTING} (node-level) or the per-dataset
+     * {@code segment_size} setting, defaulting to {@link #DEFAULT_SEGMENT_SIZE}, then trimmed by
      * {@link #effectiveSegmentSize(long)}.
      */
     @Override

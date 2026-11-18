@@ -16,6 +16,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
+import org.elasticsearch.xpack.esql.datasources.cache.StripeStatsStaging;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
@@ -854,6 +855,14 @@ public final class ParallelParsingCoordinator {
         /** How much per-stripe statistics each segment harvests (row count only / + projected / + all / nothing). */
         private final StripeColumnScope statsColumnScope;
         /**
+         * Where the segments of this read hand their pieces of a stripe, so a stripe several segments observed
+         * is staged once rather than once per segment. {@code null} when there is no sink to stage into or no
+         * stripe grid to address pieces on, and each segment then publishes its own pieces. Shared across
+         * segment worker threads.
+         */
+        @Nullable
+        private final StripeStatsStaging stripeStaging;
+        /**
          * Whether this storage object is the file's final split. Only then may the trailing segment mark its
          * last stripe file-final ({@code eof}); a mid-file macro-split's trailing segment ends at the range
          * boundary, and a later split supplies the terminal stripe — so it must never be marked file-final.
@@ -960,6 +969,7 @@ public final class ParallelParsingCoordinator {
             this.captureSink = captureSink;
             this.maxRecordBytes = maxRecordBytes;
             this.statsStripeSize = statsStripeSize;
+            this.stripeStaging = captureSink != null && statsStripeSize > 0 ? new StripeStatsStaging(captureSink) : null;
             this.statsColumnScope = statsColumnScope != null ? statsColumnScope : StripeColumnScope.PROJECTED;
             this.metrics = metrics == null ? ExternalSourceMetrics.NOOP : metrics;
             this.warningSink = warningSink;
@@ -1108,6 +1118,7 @@ public final class ParallelParsingCoordinator {
                 .maxRecordBytes(maxRecordBytes)
                 .stats(segmentFileOffset, statsStripeSize, statsFileFinal)
                 .statsColumnScope(statsColumnScope)
+                .statsStripeSink(stripeStaging)
                 .informationalWarningSink(warningSink)
                 .readCounters(formatCounters)
                 .build();
@@ -1352,6 +1363,14 @@ public final class ParallelParsingCoordinator {
                 Thread.currentThread().interrupt();
             }
             drainQueue();
+            // Stage whatever stripes this read left partly covered, for the coordinator's interval cover —
+            // the only place that can tell whether another read completes them. The wait above USUALLY means
+            // every segment has finished, but it can time out and leave one running, so a piece may arrive after
+            // this and never be staged. That costs coverage, not correctness, and only on a path that has
+            // already failed cleanCompletion and poisons the file anyway.
+            if (stripeStaging != null) {
+                stripeStaging.flush();
+            }
             // Coverage tiling at the reconciler establishes completeness for a clean scan; an early/error
             // close can leave a segment with a partial count under a full range, so discard the file's
             // contributions when the scan did not drain cleanly.

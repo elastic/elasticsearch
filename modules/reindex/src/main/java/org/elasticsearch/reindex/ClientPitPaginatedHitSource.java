@@ -168,8 +168,8 @@ public class ClientPitPaginatedHitSource extends PitPaginatedHitSource {
     }
 
     private static Response wrapSearchResponse(SearchResponse response, OptionalLong cachedTotal) {
-        List<PaginatedSearchFailure> failures = new ArrayList<>(response.shardFailuresList().size());
-        for (ShardSearchFailure failure : response.shardFailuresList()) {
+        List<PaginatedSearchFailure> failures = new ArrayList<>(response.getShardFailures().size());
+        for (ShardSearchFailure failure : response.getShardFailures()) {
             String nodeId = failure.shard() == null ? null : failure.shard().getNodeId();
             failures.add(new PaginatedSearchFailure(failure.getCause(), failure.index(), failure.shardId(), nodeId));
         }

@@ -111,7 +111,7 @@ $$$index-sort-expression$$$
 
     The `NULLS` default for `DESC` differs from `index.sort.missing`, which defaults to `_last` for either order. It matches what an ES|QL `SORT field DESC` asks for, so the index sort and the query agree. To keep documents without a value last, write `NULLS LAST`.
 
-    The expression is stored as written, and the index is sorted from it directly. The `index.sort.*` settings stay unset and report their own defaults, not the values from the expression. `index.sort` can't be combined with any of the `index.sort.*` settings.
+    The expression is stored as written, and the index is sorted from it directly. The `index.sort.*` settings stay unset and default to empty, not to the index mode defaults or the values from the expression. `index.sort` can't be combined with any of the `index.sort.*` settings.
 
 $$$index-sort-field$$$
 `index.sort.field`

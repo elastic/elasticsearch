@@ -44,6 +44,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.index.IndexSettingsTests.newIndexMeta;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -407,6 +408,15 @@ public class IndexSortSettingsTests extends ESTestCase {
         }
     }
 
+    public void testQuotedFieldNamedLikeFunctionCallIsNotDuplicate() {
+        List<IndexSortConfig.SortEntry> entries = IndexSortConfig.parseSortExpression("`MV_MAX(a)`, MV_MAX(a)");
+        assertEquals(2, entries.size());
+        assertEquals("MV_MAX(a)", entries.get(0).field());
+        assertEquals("a", entries.get(1).field());
+        assertEquals(MultiValueMode.MIN, entries.get(0).mode());
+        assertEquals(MultiValueMode.MAX, entries.get(1).mode());
+    }
+
     public void testInvalidSortExpressions() {
         assertInvalidSortExpression("  ", "must not be blank");
         assertInvalidSortExpression("field1,", "empty sort entry");
@@ -439,6 +449,10 @@ public class IndexSortSettingsTests extends ESTestCase {
         assertInvalidSortExpression("asc", "reserved word [asc]");
         assertInvalidSortExpression("true DESC", "reserved word [true]");
         assertInvalidSortExpression("MV_MAX(null)", "reserved word [null]");
+        assertInvalidSortExpression("foo.desc", "reserved word [desc]");
+        assertInvalidSortExpression("null.foo", "reserved word [null]");
+        assertInvalidSortExpression("where", "reserved word [where]");
+        assertInvalidSortExpression("a.nulls DESC", "reserved word [nulls]");
     }
 
     private static void assertInvalidSortExpression(String expression, String expectedMessage) {
@@ -451,6 +465,21 @@ public class IndexSortSettingsTests extends ESTestCase {
         Settings.Builder diff = Settings.builder();
         IndexSortConfig.INDEX_SORT_SETTING.diff(diff, Settings.EMPTY, Settings.EMPTY);
         assertThat(diff.build().isEmpty(), equalTo(true));
+    }
+
+    public void testSortExpressionClearsIndexModeSortDefaults() {
+        Settings logsdb = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), "logsdb")
+            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current())
+            .build();
+        // Control: without index.sort the logsdb defaults apply.
+        assertThat(IndexSortConfig.INDEX_SORT_FIELD_SETTING.get(logsdb), equalTo(List.of("@timestamp")));
+
+        Settings withExpression = Settings.builder().put(logsdb).put("index.sort", "field1 DESC").build();
+        assertThat(IndexSortConfig.INDEX_SORT_FIELD_SETTING.get(withExpression), empty());
+        assertThat(IndexSortConfig.INDEX_SORT_ORDER_SETTING.get(withExpression), empty());
+        assertThat(IndexSortConfig.INDEX_SORT_MODE_SETTING.get(withExpression), empty());
+        assertThat(IndexSortConfig.INDEX_SORT_MISSING_SETTING.get(withExpression), empty());
     }
 
     public void testInvalidIndexSort() {

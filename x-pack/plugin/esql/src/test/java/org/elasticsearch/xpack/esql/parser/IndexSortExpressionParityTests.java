@@ -44,6 +44,7 @@ public class IndexSortExpressionParityTests extends AbstractStatementParserTests
         "MV_MIN(a), MV_MAX(a) DESC",
         "mv_max( a.b )  desc nulls last, Mv_Min(`x y`)",
         "MV_MAX(a), a",
+        "`MV_MAX(a)`, MV_MAX(a)",
         "mv_max, `mv_min`"
     );
 
@@ -59,6 +60,10 @@ public class IndexSortExpressionParityTests extends AbstractStatementParserTests
         "null",
         "asc",
         "true DESC",
+        "foo.desc",
+        "null.foo",
+        "where",
+        "a.nulls DESC",
         "ABS(a)"
     );
 

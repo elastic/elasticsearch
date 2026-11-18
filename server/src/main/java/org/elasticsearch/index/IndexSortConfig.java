@@ -62,8 +62,8 @@ import java.util.regex.Pattern;
  * </ul>
  *
  * Alternatively the sort can be configured with the single `index.sort` expression setting, for example
- * `MV_MAX(@timestamp) DESC NULLS LAST, host.name`. It is stored as is and the four settings above keep their own
- * defaults. It can't be combined with them.
+ * `MV_MAX(@timestamp) DESC NULLS LAST, host.name`. It is stored as is, and the four settings above then default to
+ * empty rather than to the index mode defaults. It can't be combined with them.
  *
 **/
 public final class IndexSortConfig {
@@ -207,6 +207,11 @@ public final class IndexSortConfig {
                 return NO_SORT;
             }
 
+            // The index.sort expression replaces the index.sort.* settings, so they have no index mode defaults to report.
+            if (settings.get(INDEX_SORT_SETTING.getKey(), "").isEmpty() == false) {
+                return NO_SORT;
+            }
+
             // Can't use IndexSettings.MODE.get(settings) here because the validation logic for IndexSettings.MODE uses the default value
             // of index.sort.*, which causes infinite recursion (since we're already in the default value provider for those settings).
             // So we need to get the mode while bypassing the validation.
@@ -298,10 +303,8 @@ public final class IndexSortConfig {
     /**
      * One entry of an {@link #INDEX_SORT_SETTING} expression, with the order, multi-value mode and missing value already resolved
      * to their ES|QL defaults.
-     *
-     * @param key the canonical sort key, {@code field} or {@code MV_MIN(field)} or {@code MV_MAX(field)}, used to detect duplicates
      */
-    public record SortEntry(String key, String field, SortOrder order, MultiValueMode mode, String missing) {}
+    public record SortEntry(String field, SortOrder order, MultiValueMode mode, String missing) {}
 
     /**
      * Parses an {@link #INDEX_SORT_SETTING} expression into its sort entries.
@@ -321,7 +324,7 @@ public final class IndexSortConfig {
     private static final class SortExpressionParser {
         /** Each dot-separated part of an unquoted name follows the ES|QL UNQUOTED_IDENTIFIER rule, anything else needs backticks. */
         private static final Pattern UNQUOTED_PART = Pattern.compile("[a-z][a-z0-9_]*|[_@][a-z0-9_]+", Pattern.CASE_INSENSITIVE);
-        /** Keywords in ES|QL expressions, which ES|QL never reads as field names when unquoted. */
+        /** Keywords in ES|QL expressions, which ES|QL never reads as field names when unquoted, including as any part of a dotted name. */
         private static final Set<String> RESERVED_WORDS = Set.of(
             "and",
             "asc",
@@ -340,8 +343,22 @@ public final class IndexSortConfig {
             "or",
             "rlike",
             "true",
+            "where",
             "with"
         );
+
+        /**
+         * Identity of a sort entry, used to detect duplicates. Keeps the function and field separate so a quoted field that is
+         * literally named {@code MV_MAX(a)} is not confused with {@code MV_MAX} applied to field {@code a}.
+         *
+         * @param function the upper-cased multi-value function, or {@code null} when the field is sorted directly
+         */
+        private record SortKey(String function, String field) {
+            @Override
+            public String toString() {
+                return function == null ? field : function + "(" + field + ")";
+            }
+        }
 
         private final String expression;
         private int pos = 0;
@@ -352,7 +369,7 @@ public final class IndexSortConfig {
 
         List<SortEntry> parse() {
             List<SortEntry> entries = new ArrayList<>();
-            Set<String> seenKeys = new HashSet<>();
+            Set<SortKey> seenKeys = new HashSet<>();
             while (true) {
                 int entryStart = pos;
                 String mode = null;
@@ -382,7 +399,7 @@ public final class IndexSortConfig {
                         pos++;
                     }
                 }
-                String key = function == null ? field : function + "(" + field + ")";
+                SortKey key = new SortKey(function, field);
                 if (seenKeys.add(key) == false) {
                     throw error("contains sort key [" + key + "] more than once");
                 }
@@ -429,7 +446,7 @@ public final class IndexSortConfig {
                     // Like ES|QL, null sorts as larger than any value, so DESC puts nulls first.
                     nulls = order.equals("desc") ? "_first" : "_last";
                 }
-                entries.add(new SortEntry(key, field, parseOrderMode(order), parseMultiValueMode(mode), nulls));
+                entries.add(new SortEntry(field, parseOrderMode(order), parseMultiValueMode(mode), nulls));
 
                 if (atEnd()) {
                     return entries;
@@ -470,9 +487,9 @@ public final class IndexSortConfig {
                 if (UNQUOTED_PART.matcher(part).matches() == false) {
                     throw error("has invalid unquoted field name [" + name + "], use backticks to quote it");
                 }
-            }
-            if (RESERVED_WORDS.contains(name.toLowerCase(Locale.ROOT))) {
-                throw error("has reserved word [" + name + "] as a field name, use backticks to quote it");
+                if (RESERVED_WORDS.contains(part.toLowerCase(Locale.ROOT))) {
+                    throw error("has reserved word [" + part + "] in field name [" + name + "], use backticks to quote it");
+                }
             }
             return name;
         }

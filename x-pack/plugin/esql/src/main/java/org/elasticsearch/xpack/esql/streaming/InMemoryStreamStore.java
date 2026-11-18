@@ -11,10 +11,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -27,34 +24,26 @@ import java.util.concurrent.ConcurrentHashMap;
  * Stored pages are owned by the store and released on delete.
  * Pages returned from {@link #getPages} are shallow copies that the caller must close.
  * <p>
- * Offsets are row positions in the overall result. {@code expirationMillis} is an absolute epoch time.
+ * Offsets are row positions in the overall result.
  */
 public class InMemoryStreamStore implements StreamStorage {
 
     private final Map<String, Stream> streams = new ConcurrentHashMap<>();
 
     @Override
-    public void create(
-        String streamId,
-        TaskId taskId,
-        Map<String, String> headers,
-        List<ColumnInfo> columns,
-        long expirationMillis,
-        ActionListener<Void> listener
-    ) {
+    public void create(StreamMetadata metadata, ActionListener<Void> listener) {
         ActionListener.completeWith(listener, () -> {
-            var stream = new Stream(streamId, taskId, headers, columns, Instant.ofEpochMilli(expirationMillis));
-            if (streams.putIfAbsent(streamId, stream) != null) {
-                throw new IllegalStateException("stream [" + streamId + "] already exists");
+            if (streams.putIfAbsent(metadata.streamId(), new Stream(metadata)) != null) {
+                throw new IllegalStateException("stream [" + metadata.streamId() + "] already exists");
             }
             return null;
         });
     }
 
     @Override
-    public void extendTtl(String streamId, long expirationMillis, ActionListener<Void> listener) {
+    public void update(StreamMetadata metadata, ActionListener<Void> listener) {
         ActionListener.completeWith(listener, () -> {
-            get(streamId).extendTtl(Instant.ofEpochMilli(expirationMillis));
+            get(metadata.streamId()).update(metadata);
             return null;
         });
     }
@@ -69,22 +58,6 @@ public class InMemoryStreamStore implements StreamStorage {
                 page.releaseBlocks();
                 throw e;
             }
-            return null;
-        });
-    }
-
-    @Override
-    public void markComplete(String streamId, boolean isPartial, long totalRows, long totalPages, ActionListener<Void> listener) {
-        ActionListener.completeWith(listener, () -> {
-            get(streamId).markComplete(isPartial, totalRows, totalPages);
-            return null;
-        });
-    }
-
-    @Override
-    public void markFailed(String streamId, Exception exception, ActionListener<Void> listener) {
-        ActionListener.completeWith(listener, () -> {
-            get(streamId).markFailed(exception);
             return null;
         });
     }
@@ -142,36 +115,45 @@ public class InMemoryStreamStore implements StreamStorage {
      */
     private static class Stream {
         private final String streamId;
-        private final TaskId taskId;
-        private final Map<String, String> headers;
-        private final List<ColumnInfo> columns;
         private final List<Entry> pages = new ArrayList<>();
-        private Instant ttl;
-        private StreamMetadata.Status status = StreamMetadata.Status.RUNNING;
-        private boolean partial;
-        private Exception exception;
+        private StreamMetadata metadata;
         /** Rows appended so far. */
         private int rows;
         /** Set once the stream is deleted. A writer or reader that looked the stream up before the delete must not touch its pages. */
         private boolean closed;
 
-        Stream(String streamId, TaskId taskId, Map<String, String> headers, List<ColumnInfo> columns, Instant ttl) {
-            this.streamId = streamId;
-            this.taskId = taskId;
-            this.headers = headers;
-            this.columns = columns;
-            this.ttl = ttl;
+        Stream(StreamMetadata metadata) {
+            this.streamId = metadata.streamId();
+            this.metadata = metadata;
         }
 
-        synchronized void extendTtl(Instant ttl) {
+        synchronized void update(StreamMetadata updated) {
             ensureOpen();
-            this.ttl = ttl;
+            if (updated.status() == StreamMetadata.Status.COMPLETE) {
+                StreamMetadata.StreamCompletionInfo completion = updated.completionInfo();
+                if (completion.pages() != pages.size() || completion.rows() != rows) {
+                    throw new IllegalArgumentException(
+                        "stream ["
+                            + streamId
+                            + "] has ["
+                            + rows
+                            + "] rows in ["
+                            + pages.size()
+                            + "] pages, but completed with ["
+                            + completion.rows()
+                            + "] rows in ["
+                            + completion.pages()
+                            + "] pages"
+                    );
+                }
+            }
+            this.metadata = updated;
         }
 
         synchronized void append(long offset, Page page) {
             ensureOpen();
-            if (status != StreamMetadata.Status.RUNNING) {
-                throw new IllegalStateException("stream [" + streamId + "] is already " + status);
+            if (metadata.status() != StreamMetadata.Status.RUNNING) {
+                throw new IllegalStateException("stream [" + streamId + "] is already " + metadata.status());
             }
             // Pages must arrive in order, a gap or a repeat means a bug in the writer.
             if (offset != rows) {
@@ -184,49 +166,9 @@ public class InMemoryStreamStore implements StreamStorage {
             rows += entry.size();
         }
 
-        synchronized void markComplete(boolean isPartial, long totalRows, long totalPages) {
-            ensureOpen();
-            if (pages.size() != totalPages || rows != totalRows) {
-                throw new IllegalArgumentException(
-                    "stream ["
-                        + streamId
-                        + "] has ["
-                        + rows
-                        + "] rows in ["
-                        + pages.size()
-                        + "] pages, but completed with ["
-                        + totalRows
-                        + "] rows in ["
-                        + totalPages
-                        + "] pages"
-                );
-            }
-            this.partial = isPartial;
-            this.status = StreamMetadata.Status.COMPLETE;
-        }
-
-        synchronized void markFailed(Exception exception) {
-            ensureOpen();
-            this.status = StreamMetadata.Status.FAILED;
-            this.exception = exception;
-        }
-
         @Nullable
         synchronized StreamMetadata metadata() {
-            if (closed) {
-                return null;
-            }
-            // Completion info is only available once the stream is no longer running.
-            StreamMetadata.StreamCompletionInfo completionInfo = status == StreamMetadata.Status.RUNNING
-                ? null
-                : new StreamMetadata.StreamCompletionInfo(
-                    partial,
-                    0L,
-                    (long) pages.size(),
-                    (long) rows,
-                    exception != null ? StreamMetadata.StreamFailure.of(exception) : null
-                );
-            return new StreamMetadata(streamId, taskId, ttl, columns, headers, List.of(), status, completionInfo);
+            return closed ? null : metadata;
         }
 
         synchronized List<Page> getPages(long offset, long rows) {

@@ -58,10 +58,12 @@ public record StreamMetadata(
     }
 
     public StreamMetadata withExpiration(Instant newExpiration) {
+        assert status == Status.RUNNING;
         return new StreamMetadata(streamId, taskId, newExpiration, columns, headers, warnings, status, completionInfo);
     }
 
     public StreamMetadata complete(boolean partial, long tookMillis, long pages, long rows) {
+        assert status == Status.RUNNING;
         return new StreamMetadata(
             streamId,
             taskId,
@@ -75,6 +77,7 @@ public record StreamMetadata(
     }
 
     public StreamMetadata failed(boolean partial, long tookMillis, Exception exception) {
+        assert status == Status.RUNNING;
         return new StreamMetadata(
             streamId,
             taskId,

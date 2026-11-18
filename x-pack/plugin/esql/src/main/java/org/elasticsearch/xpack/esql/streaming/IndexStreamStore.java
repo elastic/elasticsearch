@@ -7,8 +7,15 @@
 
 package org.elasticsearch.xpack.esql.streaming;
 
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteRequest.OpType;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ToXContent;
@@ -26,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.core.ClientHelper.ESQL_ORIGIN;
 import static org.elasticsearch.xpack.esql.streaming.EsqlStreamResultsIndexDescriptor.INDEX;
 import static org.elasticsearch.xpack.esql.streaming.EsqlStreamResultsIndexDescriptor.PAGE_SEQ_FIELD;
 import static org.elasticsearch.xpack.esql.streaming.EsqlStreamResultsIndexDescriptor.STREAM_COLUMNS;
@@ -41,17 +49,63 @@ import static org.elasticsearch.xpack.esql.streaming.EsqlStreamResultsIndexDescr
 import static org.elasticsearch.xpack.esql.streaming.EsqlStreamResultsIndexDescriptor.STREAM_TOTAL_ROWS;
 import static org.elasticsearch.xpack.esql.streaming.EsqlStreamResultsIndexDescriptor.STREAM_WARNINGS;
 
-final class StreamMetadataDocument {
+public class IndexStreamStore implements StreamStorage {
 
     private static final int METADATA_PAGE_SEQ = 0;
 
-    private StreamMetadataDocument() {}
+    private final Client client;
 
-    static IndexRequest indexRequest(StreamMetadata metadata) throws IOException {
-        return new IndexRequest(INDEX).id(metadata.streamId()).routing(metadata.streamId()).source(toSource(metadata));
+    public IndexStreamStore(Client client) {
+        this.client = new OriginSettingClient(client, ESQL_ORIGIN);
     }
 
-    static XContentBuilder toSource(StreamMetadata metadata) throws IOException {
+    @Override
+    public void create(StreamMetadata metadata, ActionListener<Void> listener) {
+        ActionListener.run(listener, l -> client.index(indexRequest(metadata, OpType.CREATE), l.map(response -> null)));
+    }
+
+    @Override
+    public void update(StreamMetadata metadata, ActionListener<Void> listener) {
+        ActionListener.run(listener, l -> client.index(indexRequest(metadata, OpType.INDEX), l.map(response -> null)));
+    }
+
+    @Override
+    public void getMetadata(String streamId, ActionListener<StreamMetadata> listener) {
+        client.prepareGet(INDEX, streamId).setRouting(streamId).execute(ActionListener.wrap(response -> {
+            if (response.isExists() == false) {
+                listener.onResponse(null);
+                return;
+            }
+            ActionListener.completeWith(listener, () -> fromSource(response.getSourceAsMap()));
+        }, e -> {
+            if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
+                listener.onResponse(null);
+            } else {
+                listener.onFailure(e);
+            }
+        }));
+    }
+
+    @Override
+    public void appendPage(String streamId, long offset, Page page, ActionListener<Void> listener) {
+        // TODO
+    }
+
+    @Override
+    public void getPages(String streamId, long offset, long rows, ActionListener<List<Page>> listener) {
+        // TODO
+    }
+
+    @Override
+    public void delete(String streamId, ActionListener<Void> listener) {
+        // TODO
+    }
+
+    private static IndexRequest indexRequest(StreamMetadata metadata, OpType opType) throws IOException {
+        return new IndexRequest(INDEX).id(metadata.streamId()).routing(metadata.streamId()).opType(opType).source(toSource(metadata));
+    }
+
+    private static XContentBuilder toSource(StreamMetadata metadata) throws IOException {
         XContentBuilder columns = jsonBuilder().startArray();
         for (ColumnInfo column : metadata.columns()) {
             column.toXContent(columns, ToXContent.EMPTY_PARAMS);
@@ -83,7 +137,17 @@ final class StreamMetadataDocument {
         return source.endObject();
     }
 
-    static StreamMetadata fromSource(Map<String, Object> source) throws IOException {
+    private static String failureToJson(StreamMetadata.StreamFailure failure) throws IOException {
+        return Strings.toString(
+            jsonBuilder().startObject()
+                .field("type", failure.type())
+                .field("reason", failure.reason())
+                .field("status", failure.status().getStatus())
+                .endObject()
+        );
+    }
+
+    private static StreamMetadata fromSource(Map<String, Object> source) throws IOException {
         StreamMetadata.StreamCompletionInfo completion = null;
         if (source.containsKey(STREAM_PARTIAL)) {
             completion = new StreamMetadata.StreamCompletionInfo(
@@ -123,16 +187,6 @@ final class StreamMetadataDocument {
             warnings,
             StreamMetadata.Status.valueOf((String) source.get(STREAM_STATUS)),
             completion
-        );
-    }
-
-    private static String failureToJson(StreamMetadata.StreamFailure failure) throws IOException {
-        return Strings.toString(
-            jsonBuilder().startObject()
-                .field("type", failure.type())
-                .field("reason", failure.reason())
-                .field("status", failure.status().getStatus())
-                .endObject()
         );
     }
 

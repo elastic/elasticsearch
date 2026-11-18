@@ -431,6 +431,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                         executionInfo
                     )
                     : null;
+                // TODO stream store: mark as completed
                 publisher.completeWithFooter(
                     new PageStreamPublisher.StreamFooter(
                         200,
@@ -466,6 +467,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                     threadPool.getThreadContext()
                 );
                 if (streamStarted.get()) {
+                    // TODO stream store: persist as failed
                     publisher.failStream(ex, footer);
                 } else {
                     request.preHeaderFailureFooterConsumer().accept(footer);
@@ -500,6 +502,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
         boolean[] nullColumns,
         ZoneId zoneId
     ) {
+        // TODO stream store: create new
         request.resultStreamListener().onResponse(new EsqlStreamQueryAction.ResultStream(columns, publisher, nullColumns, zoneId));
         Exception startFailure = publisher.failure();
         if (startFailure != null) {

@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.datasources.DataSourceCounters;
 import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceUsageAccumulator;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
+import org.elasticsearch.xpack.esql.fetch.OpenFetchContexts;
 
 import java.io.IOException;
 import java.util.List;
@@ -36,8 +37,14 @@ public class TransportEsqlStatsAction extends TransportNodesAction<
     EsqlStatsResponse.NodeStatsResponse,
     Void> {
 
+    /**
+     * The fetch contexts open on the node, a live gauge like the admission ones, which {@code _xpack/usage} leaves out.
+     */
+    public static final String FETCH_PHASE_OPEN_CONTEXTS = "fetch_phase.open_contexts";
+
     // the plan executor holds the metrics
     private final PlanExecutor planExecutor;
+    private final OpenFetchContexts openFetchContexts;
 
     @Inject
     public TransportEsqlStatsAction(
@@ -45,7 +52,8 @@ public class TransportEsqlStatsAction extends TransportNodesAction<
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        PlanExecutor planExecutor
+        PlanExecutor planExecutor,
+        OpenFetchContexts openFetchContexts
     ) {
         super(
             EsqlStatsAction.NAME,
@@ -56,6 +64,7 @@ public class TransportEsqlStatsAction extends TransportNodesAction<
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.planExecutor = planExecutor;
+        this.openFetchContexts = openFetchContexts;
     }
 
     @Override
@@ -93,6 +102,9 @@ public class TransportEsqlStatsAction extends TransportNodesAction<
         }
         if (module != null) {
             module.populateAdmissionStats(counters);
+        }
+        if (EsqlFlags.FETCH_PHASE_FEATURE_FLAG.isEnabled()) {
+            counters.inc(FETCH_PHASE_OPEN_CONTEXTS, openFetchContexts.current());
         }
         statsResponse.setStats(counters);
         return statsResponse;

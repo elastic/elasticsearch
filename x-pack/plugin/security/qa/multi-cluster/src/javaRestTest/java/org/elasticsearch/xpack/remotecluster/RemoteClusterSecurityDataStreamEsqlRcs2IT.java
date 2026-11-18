@@ -22,6 +22,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityDataStreamEsqlRcs1IT.createDataStreamOnFulfillingCluster;
 import static org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityDataStreamEsqlRcs1IT.createUserAndRoleOnQueryCluster;
 import static org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityDataStreamEsqlRcs1IT.doTestDataStreamsWithFlsAndDls;
+import static org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityDataStreamEsqlRcs1IT.doTestTheFetchPhaseWithFlsAndDls;
 
 // TODO consolidate me with RemoteClusterSecurityDataStreamEsqlRcs1IT
 public class RemoteClusterSecurityDataStreamEsqlRcs2IT extends AbstractRemoteClusterSecurityTestCase {
@@ -105,6 +106,7 @@ public class RemoteClusterSecurityDataStreamEsqlRcs2IT extends AbstractRemoteClu
         setupAdditionalUsersAndRoles();
 
         doTestDataStreamsWithFlsAndDls();
+        doTestTheFetchPhaseWithFlsAndDls();
     }
 
     private void setupAdditionalUsersAndRoles() throws IOException {

@@ -1,0 +1,34 @@
+ProjectExec[[title{r}#0, author{r}#1, _score{r}#2]]
+\_TopNExec[[Order[_score{r}#2,DESC,FIRST]],10[INTEGER],null]
+  \_AggregateExec[[_id{r}#3, _index{r}#4],[SUM(_score{r}#5,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD],long_overflow_warn[KEYWORD]) AS _score#2, FIRST(author{r}#6,$$$FIRST$0{r$}#7,ISNOTNULL(author{r}#6),PT0S[TIME_DURATION]) AS author#1, FIRST(title{r}#8,$$$FIRST$0{r$}#7,ISNOTNULL(title{r}#8),PT0S[TIME_DURATION]) AS title#0],SINGLE,[_id{r}#3, _index{r}#4, $$_score$value{r}#9, $$_score$delta{r}#10, $$_score$seen{r}#11, $$author$observed{r}#12, $$author$values{r}#13, $$title$observed{r}#14, $$title$values{r}#15],null]
+    \_EvalExec[[null[NULL] AS $$$FIRST$0#7]]
+      \_FuseScoreEvalExec[_score{r}#5,_fork{r}#16,RrfConfig[rankConstant=60.0, weights={}]]
+        \_MergeExec[[author{r}#6, title{r}#8, _id{r}#3, _index{r}#4, _score{r}#5, _fork{r}#16],FORK]
+          |_ProjectExec[[author{f}#17, title{f}#18, _id{m}#19, _index{m}#20, _score{m}#21, _fork{r}#22]]
+          | \_EvalExec[[fork1[KEYWORD] AS _fork#22]]
+          |   \_TopNExec[[Order[_score{m}#21,DESC,FIRST]],50[INTEGER],null]
+          |     \_ExchangeExec[[author{f}#17, title{f}#18, _id{m}#19, _index{m}#20, _score{m}#21],false]
+          |       \_ProjectExec[[author{f}#17, title{f}#18, _id{m}#19, _index{m}#20, _score{m}#21]]
+          |         \_FieldExtractExec[[author{f}#17, title{f}#18, _id{m}#19, _index{m}#20]<[],[],[]>,_doc{f}#23]
+          |           \_EsQueryExec[books], indexMode[standard], [_doc{f}#23, _score{m}#21], limit[50], sort[[ScoreSort[direction=DESC]]] estimatedRowSize[2164] queryBuilderAndTags [[QueryBuilderAndTags[query={
+  "match" : {
+    "title" : {
+      "query" : "Tolkien",
+      "lenient" : true
+    }
+  }
+}, tags=[]]]]
+          \_ProjectExec[[author{f}#24, title{f}#25, _id{m}#19, _index{m}#20, _score{m}#21, _fork{r}#26]]
+            \_EvalExec[[fork2[KEYWORD] AS _fork#26]]
+              \_TopNExec[[Order[_score{m}#21,DESC,FIRST]],50[INTEGER],null]
+                \_ExchangeExec[[author{f}#24, title{f}#25, _id{m}#19, _index{m}#20, _score{m}#21],false]
+                  \_ProjectExec[[author{f}#24, title{f}#25, _id{m}#19, _index{m}#20, _score{m}#21]]
+                    \_FieldExtractExec[[author{f}#24, title{f}#25, _id{m}#19, _index{m}#20]<[],[],[]>,_doc{f}#27]
+                      \_EsQueryExec[books], indexMode[standard], [_doc{f}#27, _score{m}#21], limit[50], sort[[ScoreSort[direction=DESC]]] estimatedRowSize[2164] queryBuilderAndTags [[QueryBuilderAndTags[query={
+  "match" : {
+    "author" : {
+      "query" : "Tolkien",
+      "lenient" : true
+    }
+  }
+}, tags=[]]]]

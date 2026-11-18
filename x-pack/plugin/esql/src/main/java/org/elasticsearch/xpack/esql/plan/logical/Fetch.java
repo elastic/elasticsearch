@@ -17,14 +17,16 @@ import org.elasticsearch.xpack.esql.plan.physical.FetchExec;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
  * Loads the fetched columns of the rows that survived a {@code LIMIT} or {@code TopN} from the documents they came from,
  * instead of loading them on the data nodes for every row the cut later drops.
  * <p>
- * The child is the cut, narrowed to the {@code _doc} of each row and the columns that cross the exchange as values. The
- * output is the child's output followed by the fetched columns. The fetched columns keep the attribute ids the relation
+ * The child is the cut, narrowed to the {@code _doc} of each row and the columns that cross the exchange as values,
+ * sometimes under a filter that reads only those columns. The output is the child's output followed by the fetched
+ * columns. The fetched columns keep the attribute ids the relation
  * gave them, and the narrowing projection removed them below this node, so the plan above it doesn't change.
  * <p>
  * {@code PlanFetch} adds this node in the last batch of the logical optimizer, so no other logical rule meets it. The
@@ -35,15 +37,15 @@ public final class Fetch extends UnaryPlan implements ExecutesOn.Coordinator {
     private final Attribute doc;
     private final List<Attribute> fetchedAttributes;
     private final String indexPattern;
-    private final List<String> originalIndices;
+    private final Map<String, List<String>> originalIndices;
     private List<Attribute> lazyOutput;
 
     /**
      * @param doc               the {@code _doc} column of {@code child}
      * @param fetchedAttributes the columns the fetch appends to each row
      * @param indexPattern      the index pattern of the relation the documents come from
-     * @param originalIndices   the index expressions the user wrote for the local cluster, so a fetch is authorized like
-     *                          the query that selected the documents
+     * @param originalIndices   the index expressions the user wrote for each cluster the relation reads, by cluster alias,
+     *                          so a fetch is authorized like the query that selected the documents
      */
     public Fetch(
         Source source,
@@ -51,7 +53,7 @@ public final class Fetch extends UnaryPlan implements ExecutesOn.Coordinator {
         Attribute doc,
         List<Attribute> fetchedAttributes,
         String indexPattern,
-        List<String> originalIndices
+        Map<String, List<String>> originalIndices
     ) {
         super(source, child);
         this.doc = doc;
@@ -82,7 +84,7 @@ public final class Fetch extends UnaryPlan implements ExecutesOn.Coordinator {
         return indexPattern;
     }
 
-    public List<String> originalIndices() {
+    public Map<String, List<String>> originalIndices() {
         return originalIndices;
     }
 

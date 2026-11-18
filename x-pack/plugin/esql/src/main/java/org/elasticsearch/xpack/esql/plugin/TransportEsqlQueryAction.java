@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.stats.CCSUsage;
 import org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry;
+import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
@@ -82,6 +83,7 @@ import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
+import org.elasticsearch.xpack.esql.fetch.OpenFetchContexts;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
@@ -161,7 +163,9 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         CrossProjectModeDecider crossProjectModeDecider,
         QueryMetricsListener metricsCollector,
         FederationLicense federationLicense,
-        ExternalWorkerReadiness externalWorkerReadiness
+        ExternalWorkerReadiness externalWorkerReadiness,
+        OpenFetchContexts openFetchContexts,
+        SearchTransportService searchTransportService
     ) {
         // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
         super(EsqlQueryAction.NAME, transportService, actionFilters, EsqlQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
@@ -268,7 +272,10 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             operatorFactoryRegistry,
             dataSourceModule.formatReaderRegistry(),
             client,
-            externalWorkerReadiness
+            registry,
+            externalWorkerReadiness,
+            openFetchContexts,
+            searchTransportService
         );
 
         var queryLogger = new QueryLogger<>(

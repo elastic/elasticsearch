@@ -32,6 +32,7 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -309,6 +310,7 @@ public class FetchContextTrackerTests extends ESSingleNodeTestCase {
     private List<DocOrigin> keepEveryShard() throws IOException {
         NodeFetchContexts contexts = new NodeFetchContexts(
             searchService(),
+            new OpenFetchContexts(MeterRegistry.NOOP),
             null,
             TimeValue.timeValueMillis(searchService().getDefaultKeepAliveInMillis())
         );

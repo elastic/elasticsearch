@@ -1,5 +1,5 @@
 ProjectExec[[first_name{f}#0, job_positions{r}#1]]
-\_FetchExec[_doc{f}#2,[first_name{f}#0],employees,[],null]
+\_FetchExec[_doc{f}#2,[first_name{f}#0],employees,{},null]
   \_ProjectExec[[_doc{f}#2, hire_date{f}#3, job_positions{r}#1]]
     \_TopNExec[[Order[hire_date{f}#3,ASC,LAST]],10[INTEGER],null]
       \_ExchangeExec[[_doc{f}#2, hire_date{f}#3, job_positions{r}#1],false]

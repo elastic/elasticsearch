@@ -1,5 +1,5 @@
 Project[[full_name{r}#0, salary{f}#1]]
-\_Fetch[_doc{f}#2,[salary{f}#1],employees,[]]
+\_Fetch[_doc{f}#2,[salary{f}#1],employees,{}]
   \_Project[[_doc{f}#2, hire_date{f}#3, full_name{r}#0]]
     \_TopN[[Order[hire_date{f}#3,ASC,LAST]],10[INTEGER],false]
       \_Eval[[CONCAT(first_name{f}#4, [KEYWORD],last_name{f}#5) AS full_name#0]]

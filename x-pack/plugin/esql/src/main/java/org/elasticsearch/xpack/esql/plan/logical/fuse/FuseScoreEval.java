@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.First;
+import org.elasticsearch.xpack.esql.plan.logical.DocPreserving;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
@@ -42,12 +43,18 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.planner.PlannerUtils.hasLimitedInput;
 
+/**
+ * The scoring half of {@code FUSE}: it rewrites the score of every row from the scores of all the rows, and keeps the
+ * rows. It is {@link DocPreserving}: each output row is the input row of its document with another score. The rows of
+ * one document still meet only in the aggregation that follows it, which isn't.
+ */
 public class FuseScoreEval extends UnaryPlan
     implements
         LicenseAware,
         PostAnalysisVerificationAware,
         ExecutesOn.Coordinator,
-        PipelineBreaker {
+        PipelineBreaker,
+        DocPreserving {
     private final Attribute discriminatorAttr;
     private final Attribute scoreAttr;
     private final Fuse.FuseType fuseType;

@@ -21,11 +21,14 @@ import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerTests;
+import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.rules.ResolveHighlightIndexKey;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -33,6 +36,7 @@ import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.FirstDocId;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
@@ -44,14 +48,18 @@ import org.elasticsearch.xpack.esql.plan.logical.Fetch;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
+import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FetchExec;
+import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.HighlightExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
+import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
@@ -65,8 +73,11 @@ import org.elasticsearch.xpack.esql.plugin.ReductionPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.compute.operator.topn.TopNOperator.InputOrdering.SORTED;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -76,6 +87,7 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class PlanFetchTests extends ESTestCase {
@@ -186,6 +198,59 @@ public class PlanFetchTests extends ESTestCase {
         );
         FetchExec fetch = single(plan, FetchExec.class);
         assertThat(names(fetch.fetchedAttributes()), equalTo(List.of("first_name", "salary")));
+    }
+
+    /**
+     * A filter after the cut that reads only a column crossing the exchange drops rows before the fetch, so the fetch
+     * loads the other columns only for the rows that pass.
+     */
+    public void testAFilterOnAColumnThatCrossesTheExchangeRunsBeforeTheFetch() {
+        PhysicalPlan plan = plan(
+            "FROM employees | SORT hire_date | LIMIT 10 | WHERE hire_date > \"1990-01-01\" | KEEP first_name, hire_date"
+        );
+        FetchExec fetch = single(plan, FetchExec.class);
+        assertThat(names(fetch.fetchedAttributes()), equalTo(List.of("first_name")));
+        FilterExec filter = as(fetch.child(), FilterExec.class);
+        assertThat(referencedNames(filter), equalTo(Set.of("hire_date")));
+        assertThat(as(filter.child(), ProjectExec.class).child(), instanceOf(TopNExec.class));
+        assertThat(plan.collect(FilterExec.class), hasSize(1));
+    }
+
+    /** A filter on a fetched column needs the fetched values, so it runs after the fetch. */
+    public void testAFilterOnAFetchedColumnRunsAfterTheFetch() {
+        PhysicalPlan plan = plan("FROM employees | SORT hire_date | LIMIT 10 | WHERE salary > 1000 | KEEP first_name, salary");
+        FetchExec fetch = single(plan, FetchExec.class);
+        assertThat(narrowed(fetch).child(), instanceOf(TopNExec.class));
+        assertThat(single(plan, FilterExec.class).child(), sameInstance(fetch));
+    }
+
+    /**
+     * Each condition of a filter after the cut runs on its own side of the fetch: the one on the sort key before it, the
+     * one on a fetched column after it.
+     */
+    public void testAFilterSplitsItsConditionsAroundTheFetch() {
+        PhysicalPlan plan = plan(
+            "FROM employees | SORT hire_date | LIMIT 10 | WHERE hire_date > \"1990-01-01\" AND salary > 1000 | KEEP first_name, salary"
+        );
+        FetchExec fetch = single(plan, FetchExec.class);
+        FilterExec beforeTheFetch = as(fetch.child(), FilterExec.class);
+        assertThat(referencedNames(beforeTheFetch), equalTo(Set.of("hire_date")));
+        assertThat(as(beforeTheFetch.child(), ProjectExec.class).child(), instanceOf(TopNExec.class));
+        List<FilterExec> afterTheFetch = plan.collect(FilterExec.class).stream().filter(filter -> filter.child() == fetch).toList();
+        assertThat(afterTheFetch, hasSize(1));
+        assertThat(referencedNames(afterTheFetch.getFirst()), equalTo(Set.of("salary")));
+    }
+
+    /** A condition that reads a fetched column runs after the fetch, even when it also reads a column that crosses. */
+    public void testADisjunctionThatReadsAFetchedColumnRunsAfterTheFetch() {
+        PhysicalPlan plan = plan(
+            "FROM employees | SORT hire_date | LIMIT 10 | WHERE hire_date > \"1990-01-01\" OR salary > 1000 | KEEP first_name, salary"
+        );
+        FetchExec fetch = single(plan, FetchExec.class);
+        assertThat(narrowed(fetch).child(), instanceOf(TopNExec.class));
+        FilterExec filter = single(plan, FilterExec.class);
+        assertThat(filter.child(), sameInstance(fetch));
+        assertThat(referencedNames(filter), equalTo(Set.of("hire_date", "salary")));
     }
 
     /**
@@ -372,6 +437,207 @@ public class PlanFetchTests extends ESTestCase {
         assertThat(applyTo(fetched), sameInstance(fetched));
     }
 
+    /**
+     * Each branch sends the documents of its candidates with the columns its cut and {@code FUSE} read. {@code FUSE} keeps
+     * the {@code _doc} of each group, and the fetch loads the other columns for the rows of the cut after it.
+     */
+    public void testFuseFetchesTheColumnsOfTheWinners() {
+        PhysicalPlan plan = plan(
+            "FROM employees METADATA _id, _index, _score"
+                + " | FORK (WHERE salary > 1000 | SORT hire_date DESC | LIMIT 50) (WHERE languages > 2 | SORT hire_date DESC | LIMIT 50)"
+                + " | FUSE | SORT _score DESC | LIMIT 10 | KEEP first_name, emp_no, _score"
+        );
+        FetchExec fetch = single(plan, FetchExec.class);
+        assertThat(names(fetch.fetchedAttributes()), containsInAnyOrder("emp_no", "first_name"));
+        TopNExec cut = as(fetch.child(), TopNExec.class);
+        AggregateExec fuse = as(cut.child(), AggregateExec.class);
+        Alias firstDoc = as(fuse.aggregates().getLast(), Alias.class);
+        assertThat(firstDoc.child(), instanceOf(FirstDocId.class));
+        assertThat(fetch.doc().id(), equalTo(firstDoc.id()));
+        List<ExchangeExec> exchanges = plan.collect(ExchangeExec.class);
+        assertThat(exchanges, hasSize(2));
+        for (ExchangeExec exchange : exchanges) {
+            assertThat(names(exchange.output()), equalTo(List.of("_doc", "hire_date", "_id", "_index", "_score")));
+        }
+    }
+
+    /** {@code _version} is the same metadata in every branch, so {@code FUSE} lets the fetch load it for the winners. */
+    public void testFuseFetchesTheMetadataOfTheWinners() {
+        PhysicalPlan plan = plan(
+            "FROM employees METADATA _id, _index, _score, _version"
+                + " | FORK (WHERE salary > 1000 | SORT hire_date DESC | LIMIT 50) (WHERE languages > 2 | SORT hire_date DESC | LIMIT 50)"
+                + " | FUSE | SORT _score DESC | LIMIT 10 | KEEP _version, _score"
+        );
+        FetchExec fetch = single(plan, FetchExec.class);
+        assertThat(names(fetch.fetchedAttributes()), equalTo(List.of("_version")));
+        assertThat(fetch.fetchedAttributes().getFirst(), instanceOf(MetadataAttribute.class));
+        for (ExchangeExec exchange : plan.collect(ExchangeExec.class)) {
+            assertThat(names(exchange.output()), not(hasItem("_version")));
+        }
+    }
+
+    /**
+     * Without {@code FUSE}, the rows of every branch reach the cut as they are, and the fetch reads the {@code _doc} of the
+     * merge.
+     */
+    public void testForkFetchesTheColumnsOfTheCut() {
+        PhysicalPlan plan = plan(
+            "FROM employees"
+                + " | FORK (WHERE salary > 1000 | SORT hire_date DESC | LIMIT 50) (WHERE languages > 2 | SORT hire_date DESC | LIMIT 50)"
+                + " | SORT hire_date DESC | LIMIT 10 | KEEP first_name, emp_no, hire_date"
+        );
+        FetchExec fetch = single(plan, FetchExec.class);
+        assertThat(names(fetch.fetchedAttributes()), containsInAnyOrder("emp_no", "first_name"));
+        MergeExec merge = as(as(fetch.child(), TopNExec.class).child(), MergeExec.class);
+        assertThat(merge.output().getFirst(), equalTo(fetch.doc()));
+        for (PhysicalPlan branch : merge.children()) {
+            assertTrue(EsQueryExec.isDocAttribute(branch.output().getFirst()));
+            assertThat(names(branch.output()), not(hasItem("first_name")));
+        }
+    }
+
+    /** {@code _source} is the same metadata in every branch, so the fetch loads it for the rows of the cut. */
+    public void testForkFetchesTheSourceOfTheCut() {
+        PhysicalPlan plan = plan(
+            "FROM employees METADATA _source"
+                + " | FORK (WHERE salary > 1000 | SORT hire_date DESC | LIMIT 50) (WHERE languages > 2 | SORT hire_date DESC | LIMIT 50)"
+                + " | SORT hire_date DESC | LIMIT 10 | KEEP _source, hire_date"
+        );
+        FetchExec fetch = single(plan, FetchExec.class);
+        assertThat(names(fetch.fetchedAttributes()), equalTo(List.of("_source")));
+        assertThat(fetch.fetchedAttributes().getFirst(), instanceOf(MetadataAttribute.class));
+        for (ExchangeExec exchange : plan.collect(ExchangeExec.class)) {
+            assertThat(names(exchange.output()), not(hasItem("_source")));
+        }
+    }
+
+    /** The cut after the merge sorts on a column no branch cut reads, so every branch keeps sending it. */
+    public void testAColumnTheCutAfterTheForkReadsStaysEager() {
+        PhysicalPlan plan = plan(
+            "FROM employees"
+                + " | FORK (WHERE salary > 1000 | SORT hire_date DESC | LIMIT 50) (WHERE languages > 2 | SORT hire_date DESC | LIMIT 50)"
+                + " | SORT emp_no | LIMIT 10 | KEEP first_name, emp_no, hire_date"
+        );
+        FetchExec fetch = single(plan, FetchExec.class);
+        assertThat(names(fetch.fetchedAttributes()), equalTo(List.of("first_name")));
+        for (ExchangeExec exchange : plan.collect(ExchangeExec.class)) {
+            assertThat(names(exchange.output()), hasItem("emp_no"));
+        }
+    }
+
+    /** A column a branch reads after its own cut must be there as a value, so every branch keeps sending it. */
+    public void testAColumnABranchReadsAfterItsCutStaysEager() {
+        PhysicalPlan plan = plan(
+            "FROM employees"
+                + " | FORK (SORT hire_date DESC | LIMIT 50 | WHERE first_name != \"x\") (SORT hire_date DESC | LIMIT 50)"
+                + " | SORT hire_date DESC | LIMIT 10 | KEEP first_name, emp_no, hire_date"
+        );
+        FetchExec fetch = single(plan, FetchExec.class);
+        assertThat(names(fetch.fetchedAttributes()), equalTo(List.of("emp_no")));
+        for (ExchangeExec exchange : plan.collect(ExchangeExec.class)) {
+            assertThat(names(exchange.output()), hasItem("first_name"));
+        }
+    }
+
+    /** The cut sorts on the {@code FIRST} that {@code FUSE} keeps of a column, so every branch keeps sending it. */
+    public void testAColumnTheCutReadsAfterFuseStaysEager() {
+        PhysicalPlan plan = plan(
+            "FROM employees METADATA _id, _index, _score"
+                + " | FORK (WHERE salary > 1000 | SORT hire_date DESC | LIMIT 50) (WHERE languages > 2 | SORT hire_date DESC | LIMIT 50)"
+                + " | FUSE | SORT first_name, _score DESC | LIMIT 10 | KEEP first_name, emp_no, _score"
+        );
+        FetchExec fetch = single(plan, FetchExec.class);
+        assertThat(names(fetch.fetchedAttributes()), equalTo(List.of("emp_no")));
+        for (ExchangeExec exchange : plan.collect(ExchangeExec.class)) {
+            assertThat(names(exchange.output()), hasItem("first_name"));
+        }
+    }
+
+    /**
+     * {@code FUSE} by another key can put several documents in a group, so its {@code FIRST} of a column isn't the value of
+     * the document it would keep, and the plan stays eager.
+     */
+    public void testFuseByAnotherKeyKeepsThePlanEager() {
+        assertEager(
+            plan(
+                "FROM employees METADATA _id, _index, _score"
+                    + " | FORK (WHERE salary > 1000 | SORT hire_date DESC | LIMIT 50)"
+                    + " (WHERE languages > 2 | SORT hire_date DESC | LIMIT 50)"
+                    + " | FUSE KEY BY first_name | SORT _score DESC | LIMIT 10 | KEEP first_name, emp_no, _score"
+            )
+        );
+    }
+
+    /** A filter right after the cut on a column that crosses the exchanges drops rows before the fetch. */
+    public void testAFilterAfterTheCutOfAForkRunsBeforeTheFetch() {
+        PhysicalPlan plan = plan(
+            "FROM employees"
+                + " | FORK (WHERE salary > 1000 | SORT hire_date DESC | LIMIT 50) (WHERE languages > 2 | SORT hire_date DESC | LIMIT 50)"
+                + " | SORT hire_date DESC | LIMIT 10 | WHERE hire_date > \"1990-01-01\" | KEEP first_name, emp_no, hire_date"
+        );
+        FetchExec fetch = single(plan, FetchExec.class);
+        FilterExec filter = as(fetch.child(), FilterExec.class);
+        assertThat(referencedNames(filter), equalTo(Set.of("hire_date")));
+        assertThat(filter.child(), instanceOf(TopNExec.class));
+    }
+
+    /** An aggregation after the cut of a {@code FORK} runs over the fetched rows, a command of one input like any other. */
+    public void testAStatsAfterTheCutOfAForkReadsTheFetchedColumns() {
+        PhysicalPlan plan = plan(
+            "FROM employees"
+                + " | FORK (WHERE salary > 1000 | SORT hire_date DESC | LIMIT 50) (WHERE languages > 2 | SORT hire_date DESC | LIMIT 50)"
+                + " | SORT hire_date DESC | LIMIT 10 | STATS m = MAX(salary)"
+        );
+        FetchExec fetch = single(plan, FetchExec.class);
+        assertThat(names(fetch.fetchedAttributes()), equalTo(List.of("salary")));
+    }
+
+    /** Running the rule on the {@code FORK} it planned changes nothing: the fetch runs after the cut. */
+    public void testRunningTwiceOnAForkIsANoop() {
+        LogicalPlan fetched = logicalPlan(
+            "FROM employees METADATA _id, _index, _score"
+                + " | FORK (WHERE salary > 1000 | SORT hire_date DESC | LIMIT 50) (WHERE languages > 2 | SORT hire_date DESC | LIMIT 50)"
+                + " | FUSE | SORT _score DESC | LIMIT 10 | KEEP first_name, emp_no, _score",
+            ALWAYS
+        );
+        assertThat(fetched.collect(Fetch.class), hasSize(1));
+        assertThat(applyTo(fetched), sameInstance(fetched));
+    }
+
+    /** Every branch of a {@code FORK} reads the unmapped fields of one pattern, so the fetch loads them for the cut. */
+    public void testAForkFetchesTheUnmappedFieldsOfLoadAll() {
+        PhysicalPlan plan = plan(
+            employees(TransportVersion.current()).unmappedResolution(UnmappedResolution.LOAD_ALL),
+            "FROM employees"
+                + " | FORK (WHERE salary > 1000 | SORT hire_date DESC | LIMIT 50) (WHERE languages > 2 | SORT hire_date DESC | LIMIT 50)"
+                + " | SORT hire_date DESC | LIMIT 10 | KEEP first_name*, hire_date"
+        );
+        FetchExec fetch = single(plan, FetchExec.class);
+        assertThat(names(fetch.fetchedAttributes()), hasItem(UnmappedFieldsAttribute.ATTRIBUTE_NAME));
+        for (ExchangeExec exchange : plan.collect(ExchangeExec.class)) {
+            assertThat(names(exchange.output()), not(hasItem(UnmappedFieldsAttribute.ATTRIBUTE_NAME)));
+        }
+    }
+
+    /**
+     * A branch that drops some unmapped fields reads them with another pattern than the other branch, so one fetch can't
+     * load the column for the rows of both, and every branch keeps sending it.
+     */
+    public void testAForkWhoseBranchesReadOtherUnmappedFieldsKeepsThemEager() {
+        PhysicalPlan plan = plan(
+            employees(TransportVersion.current()).unmappedResolution(UnmappedResolution.LOAD_ALL),
+            "FROM employees"
+                + " | FORK (WHERE salary > 1000 | SORT hire_date DESC | LIMIT 50 | DROP does_not_exist*)"
+                + " (WHERE languages > 2 | SORT hire_date DESC | LIMIT 50)"
+                + " | SORT hire_date DESC | LIMIT 10 | KEEP first_name*, hire_date"
+        );
+        FetchExec fetch = single(plan, FetchExec.class);
+        assertThat(names(fetch.fetchedAttributes()), not(hasItem(UnmappedFieldsAttribute.ATTRIBUTE_NAME)));
+        for (ExchangeExec exchange : plan.collect(ExchangeExec.class)) {
+            assertThat(names(exchange.output()), hasItem(UnmappedFieldsAttribute.ATTRIBUTE_NAME));
+        }
+    }
+
     /** An aggregation before the cut builds each row from several documents, so no row has one {@code _doc}. */
     public void testAggregationBeforeTheCutKeepsThePlanEager() {
         assertEager(plan("FROM employees | STATS m = MAX(salary) BY hire_date | SORT m | LIMIT 10"));
@@ -408,6 +674,45 @@ public class PlanFetchTests extends ESTestCase {
     }
 
     /**
+     * A {@code LOOKUP JOIN} keeps the {@code _doc} of each left row. The columns of the lookup index and the key it looks up
+     * cross as values, the other columns of the left rows are fetched.
+     */
+    public void testALookupJoinBeforeTheCutFetchesTheColumnsOfTheLeftRows() {
+        PhysicalPlan plan = planWithLanguagesLookup(
+            "FROM employees | LOOKUP JOIN languages_lookup ON language_code | SORT hire_date | LIMIT 10"
+                + " | KEEP first_name, language_code, language_name"
+        );
+        FetchExec fetch = single(plan, FetchExec.class);
+        assertThat(names(fetch.fetchedAttributes()), equalTo(List.of("first_name")));
+        assertThat(
+            names(single(plan, ExchangeExec.class).output()),
+            containsInAnyOrder("_doc", "hire_date", "language_code", "language_name")
+        );
+    }
+
+    /** Only the relation the rows come from gets {@code _doc}. The lookup index of a join has no {@code _doc} to give. */
+    public void testTheLookupIndexOfAJoinGetsNoDoc() {
+        PhysicalPlan plan = planWithLanguagesLookup(
+            "FROM employees | LOOKUP JOIN languages_lookup ON language_code | SORT hire_date | LIMIT 10 | KEEP first_name, language_name"
+        );
+        FragmentExec fragment = single(plan, FragmentExec.class);
+        List<EsRelation> relations = fragment.fragment().collect(EsRelation.class);
+        assertThat(relations, hasSize(2));
+        for (EsRelation relation : relations) {
+            boolean carriesDoc = relation.output().stream().anyMatch(EsQueryExec::isDocAttribute);
+            assertThat(relation.indexPattern(), carriesDoc, equalTo(relation.indexMode() != IndexMode.LOOKUP));
+        }
+    }
+
+    /** A {@code LOOKUP JOIN} after the cut keeps the plan eager: the fetch would have to follow one of its inputs. */
+    public void testALookupJoinAfterTheCutKeepsThePlanEager() {
+        PhysicalPlan plan = planWithLanguagesLookup(
+            "FROM employees | LIMIT 10 | LOOKUP JOIN languages_lookup ON language_code | KEEP first_name, language_name"
+        );
+        assertEager(plan);
+    }
+
+    /**
      * A command before the cut runs on the data nodes. One that only runs on the coordinator splits the plan below the
      * cut, so the plan stays eager.
      */
@@ -415,7 +720,7 @@ public class PlanFetchTests extends ESTestCase {
         Attribute firstName = field("first_name", DataType.KEYWORD);
         Attribute lastName = field("last_name", DataType.KEYWORD);
         Attribute sort = field("sort", DataType.LONG);
-        EsRelation relation = relation(List.of(firstName, lastName, sort), Map.of("", List.of("idx")));
+        EsRelation relation = relation(List.of(firstName, lastName, sort), Map.of("", List.of("idx")), Map.of("", List.of("idx")));
         for (Enrich.Mode mode : Enrich.Mode.values()) {
             Enrich enrich = enrich(relation, mode, firstName);
             LogicalPlan plan = new Project(Source.EMPTY, topN(enrich, sort), List.of(lastName, enrich.output().getLast()));
@@ -433,7 +738,7 @@ public class PlanFetchTests extends ESTestCase {
         Attribute firstName = field("first_name", DataType.KEYWORD);
         Attribute lastName = field("last_name", DataType.KEYWORD);
         Attribute sort = field("sort", DataType.LONG);
-        EsRelation relation = relation(List.of(firstName, lastName, sort), Map.of("", List.of("idx")));
+        EsRelation relation = relation(List.of(firstName, lastName, sort), Map.of("", List.of("idx")), Map.of("", List.of("idx")));
         for (Enrich.Mode mode : Enrich.Mode.values()) {
             Enrich enrich = enrich(topN(relation, sort), mode, firstName);
             LogicalPlan plan = new Project(Source.EMPTY, enrich, List.of(lastName, enrich.output().getLast()));
@@ -469,22 +774,63 @@ public class PlanFetchTests extends ESTestCase {
     }
 
     /**
-     * A field that may be unmapped is read through a rule that runs on the data node and that the fetch side does not
-     * run, so it keeps crossing the exchange while the other columns are fetched.
+     * A field that may be unmapped is fetched like a mapped one. The loader of each shard reads it from the shard's
+     * mapping or from {@code _source}, as the data node would.
      */
-    public void testPotentiallyUnmappedFieldStaysEager() {
+    public void testAPotentiallyUnmappedFieldIsFetched() {
         Attribute unmapped = new FieldAttribute(Source.EMPTY, "unmapped_kw", new PotentiallyUnmappedKeywordEsField("unmapped_kw"));
         Attribute mapped = field("first_name", DataType.KEYWORD);
         LogicalPlan rewritten = applyTo(topNPlan(List.of(mapped, unmapped), Map.of("", List.of("idx"))));
         Fetch fetch = single(rewritten, Fetch.class);
-        assertThat(names(fetch.fetchedAttributes()), equalTo(List.of("first_name")));
-        assertThat(names(fetch.child().output()), equalTo(List.of("_doc", "unmapped_kw", "sort")));
+        assertThat(names(fetch.fetchedAttributes()), equalTo(List.of("first_name", "unmapped_kw")));
+        assertThat(names(fetch.child().output()), equalTo(List.of("_doc", "sort")));
     }
 
-    /** Rows from a remote cluster cannot be fetched yet, the plan stays eager. */
-    public void testRemoteClusterStaysEager() {
-        LogicalPlan plan = topNPlan(List.of(field("first_name", DataType.KEYWORD)), Map.of("remote", List.of("idx")));
-        assertThat(applyTo(plan), sameInstance(plan));
+    /** With {@code unmapped_fields="load"}, a field no index maps is fetched with the others. */
+    public void testAFieldNoIndexMapsIsFetched() {
+        PhysicalPlan plan = plan(
+            employees(TransportVersion.current()).unmappedResolution(UnmappedResolution.LOAD),
+            "FROM employees | SORT hire_date | LIMIT 10 | KEEP first_name, does_not_exist"
+        );
+        FetchExec fetch = single(plan, FetchExec.class);
+        assertThat(names(fetch.fetchedAttributes()), containsInAnyOrder("first_name", "does_not_exist"));
+        FieldAttribute unmapped = (FieldAttribute) fetch.fetchedAttributes()
+            .stream()
+            .filter(attribute -> attribute.name().equals("does_not_exist"))
+            .findFirst()
+            .orElseThrow();
+        assertThat(unmapped.field(), instanceOf(PotentiallyUnmappedKeywordEsField.class));
+        assertThat(names(narrowed(fetch).output()), equalTo(List.of("_doc", "hire_date")));
+    }
+
+    /** The unmapped fields of {@code unmapped_fields="load_all"} are one {@code _source} shaped column, fetched like {@code _source}. */
+    public void testTheUnmappedFieldsOfLoadAllAreFetched() {
+        PhysicalPlan plan = plan(
+            employees(TransportVersion.current()).unmappedResolution(UnmappedResolution.LOAD_ALL),
+            "FROM employees | SORT hire_date | LIMIT 10 | KEEP first_name*, hire_date"
+        );
+        FetchExec fetch = single(plan, FetchExec.class);
+        assertThat(names(fetch.fetchedAttributes()), containsInAnyOrder("first_name", UnmappedFieldsAttribute.ATTRIBUTE_NAME));
+        assertThat(names(narrowed(fetch).output()), equalTo(List.of("_doc", "hire_date")));
+    }
+
+    /**
+     * The data nodes of a remote cluster keep the readers of the rows they send, and the fetch reaches them with the index
+     * expressions the query wrote for their cluster.
+     */
+    public void testRemoteClusterIsFetched() {
+        Map<String, List<String>> indices = Map.of("", List.of("idx"), "remote", List.of("idx", "other*"));
+        LogicalPlan rewritten = applyTo(topNPlan(List.of(field("first_name", DataType.KEYWORD)), indices, indices));
+        Fetch fetch = single(rewritten, Fetch.class);
+        assertThat(names(fetch.fetchedAttributes()), equalTo(List.of("first_name")));
+        assertThat(fetch.originalIndices(), equalTo(indices));
+    }
+
+    /** A relation that only reads a remote cluster fetches from the data nodes of that cluster. */
+    public void testOnlyARemoteClusterIsFetched() {
+        Map<String, List<String>> indices = Map.of("remote", List.of("idx"));
+        Fetch fetch = single(applyTo(topNPlan(List.of(field("first_name", DataType.KEYWORD)), indices, indices)), Fetch.class);
+        assertThat(fetch.originalIndices(), equalTo(indices));
     }
 
     /** A local TopN only cuts the rows of one node, so it doesn't pick the global winners the fetch loads. */
@@ -508,7 +854,7 @@ public class PlanFetchTests extends ESTestCase {
                 "declined",
                 PlanFetch.class.getCanonicalName(),
                 Level.DEBUG,
-                "fetch phase not planned: the cut reads every column, or the others cannot be fetched"
+                "fetch phase not planned: [INELIGIBLE_NO_DEFERRABLE_FIELDS] the cut reads every column, or the others cannot be fetched"
             )
         );
     }
@@ -538,6 +884,17 @@ public class PlanFetchTests extends ESTestCase {
         return EsqlTestUtils.analyzer()
             .addIndex(EsIndexGenerator.esIndex("employees", mapping(), Map.of("employees", IndexMode.STANDARD)))
             .minimumTransportVersion(minimumVersion);
+    }
+
+    /** {@code employees} with a {@code language_code} to join on, and the {@code languages_lookup} index. */
+    private static PhysicalPlan planWithLanguagesLookup(String query) {
+        Map<String, EsField> mapping = new HashMap<>(mapping());
+        mapping.put("language_code", new EsField("language_code", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE));
+        TestAnalyzer employees = EsqlTestUtils.analyzer()
+            .addIndex(EsIndexGenerator.esIndex("employees", mapping, Map.of("employees", IndexMode.STANDARD)))
+            .addLanguagesLookup()
+            .minimumTransportVersion(TransportVersion.current());
+        return plan(employees, query);
     }
 
     /** {@code employees} with a known number of shards. The other analyzers report 0, an unknown count. */
@@ -629,6 +986,10 @@ public class PlanFetchTests extends ESTestCase {
         return attributes.stream().map(Attribute::name).toList();
     }
 
+    private static Set<String> referencedNames(FilterExec filter) {
+        return filter.condition().references().stream().map(Attribute::name).collect(Collectors.toSet());
+    }
+
     private static List<String> namesAndTypes(List<Attribute> attributes) {
         return attributes.stream().map(a -> a.name() + ":" + a.dataType()).toList();
     }
@@ -648,18 +1009,34 @@ public class PlanFetchTests extends ESTestCase {
      * relations the analyzer cannot produce in a unit test.
      */
     private static LogicalPlan topNPlan(List<Attribute> returned, Map<String, List<String>> concreteIndices) {
+        return topNPlan(returned, Map.of("", List.of("idx")), concreteIndices);
+    }
+
+    /**
+     * @param originalIndices the index expressions the query wrote for each cluster
+     * @param concreteIndices the indices they resolved to on each cluster
+     */
+    private static LogicalPlan topNPlan(
+        List<Attribute> returned,
+        Map<String, List<String>> originalIndices,
+        Map<String, List<String>> concreteIndices
+    ) {
         Attribute sort = field("sort", DataType.LONG);
         List<Attribute> relationOutput = new ArrayList<>(returned);
         relationOutput.add(sort);
-        return new Project(Source.EMPTY, topN(relation(relationOutput, concreteIndices), sort), returned);
+        return new Project(Source.EMPTY, topN(relation(relationOutput, originalIndices, concreteIndices), sort), returned);
     }
 
-    private static EsRelation relation(List<Attribute> output, Map<String, List<String>> concreteIndices) {
+    private static EsRelation relation(
+        List<Attribute> output,
+        Map<String, List<String>> originalIndices,
+        Map<String, List<String>> concreteIndices
+    ) {
         return new EsRelation(
             Source.EMPTY,
             "idx",
             IndexMode.STANDARD,
-            Map.of("", List.of("idx")),
+            originalIndices,
             concreteIndices,
             Map.of("idx", new IndexProperties(IndexMode.STANDARD, 0)),
             output

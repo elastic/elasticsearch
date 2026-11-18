@@ -25,6 +25,7 @@ import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -48,6 +49,7 @@ public class NodeFetchContextsTests extends ESSingleNodeTestCase {
     private static final int SHARDS = 3;
 
     private final List<SearchContext> querySearchContexts = new ArrayList<>();
+    private final OpenFetchContexts openContexts = new OpenFetchContexts(MeterRegistry.NOOP);
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -174,6 +176,26 @@ public class NodeFetchContextsTests extends ESSingleNodeTestCase {
     }
 
     /**
+     * The node counts the contexts a request opens until their readers close, whether the request frees them or the
+     * coordinator does.
+     */
+    public void testTheNodeCountsTheContextsUntilTheirReadersClose() throws Exception {
+        createIndexWithDocs();
+        NodeFetchContexts contexts = newNodeContexts(randomKeepAlive());
+        List<SearchContext> opened = openEveryShard(contexts);
+        assertThat(openContexts.current(), equalTo((long) SHARDS));
+        SearchContext contributing = randomFrom(opened);
+        contexts.originOf(contributing);
+
+        endRequest(contexts);
+        assertBusy(() -> assertThat("the request freed the others", openContexts.current(), equalTo(1L)));
+
+        freeAll(List.of(contributing.readerContext().id()));
+        assertBusy(() -> assertThat(openContexts.current(), equalTo(0L)));
+        assertAllFreed();
+    }
+
+    /**
      * A request whose rows never left the node keeps nothing.
      */
     public void testFreesEveryContextWhenNoRowLeftTheNode() throws Exception {
@@ -270,7 +292,7 @@ public class NodeFetchContextsTests extends ESSingleNodeTestCase {
     private static class LookupRequest extends AbstractTransportRequest {}
 
     private NodeFetchContexts newNodeContexts(TimeValue keepAlive) {
-        return new NodeFetchContexts(searchService(), null, keepAlive);
+        return new NodeFetchContexts(searchService(), openContexts, null, keepAlive);
     }
 
     private boolean isOpen(ShardSearchContextId id) {

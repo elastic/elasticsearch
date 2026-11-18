@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -17,6 +18,8 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -36,26 +39,47 @@ import java.util.Objects;
  * will poll pages from this sink. Internally, this compute will trigger sub-computes on data nodes via {@link DataNodeRequest}.
  */
 final class ClusterComputeRequest extends AbstractTransportRequest implements IndicesRequest.Replaceable {
+    /**
+     * A remote cluster keeps fetch contexts for the querying cluster. Its data nodes keep them with
+     * {@link DataNodeRequest#readerContextKeepAlive()}, which needs {@link DataNodeRequest#ESQL_FETCH_CONTEXTS} too.
+     */
+    static final TransportVersion ESQL_REMOTE_FETCH_CONTEXTS = TransportVersion.fromName("esql_fetch_phase_plan");
+
     private final String clusterAlias;
     private final String sessionId;
     private final Configuration configuration;
     private final RemoteClusterPlan plan;
+    /**
+     * Set when the documents of the rows leave the remote cluster for the fetch phase: the data nodes of the remote cluster
+     * keep the reader contexts of those rows for the querying cluster, which fetches from them.
+     */
+    @Nullable
+    private final TimeValue readerContextKeepAlive;
 
     private transient String[] indices;
 
     /**
      * A request to start a compute on a remote cluster.
      *
-     * @param clusterAlias  the cluster alias of this remote cluster
-     * @param sessionId     the sessionId in which the output pages will be placed in the exchange sink specified by this id
-     * @param configuration the configuration for this compute
-     * @param plan          the physical plan to be executed
+     * @param clusterAlias           the cluster alias of this remote cluster
+     * @param sessionId              the sessionId in which the output pages will be placed in the exchange sink specified by this id
+     * @param configuration          the configuration for this compute
+     * @param plan                   the physical plan to be executed
+     * @param readerContextKeepAlive the keep-alive of the fetch contexts the data nodes of the remote cluster keep open for
+     *                               the querying cluster, {@code null} when its documents never leave it
      */
-    ClusterComputeRequest(String clusterAlias, String sessionId, Configuration configuration, RemoteClusterPlan plan) {
+    ClusterComputeRequest(
+        String clusterAlias,
+        String sessionId,
+        Configuration configuration,
+        RemoteClusterPlan plan,
+        @Nullable TimeValue readerContextKeepAlive
+    ) {
         this.clusterAlias = clusterAlias;
         this.sessionId = sessionId;
         this.configuration = configuration;
         this.plan = plan;
+        this.readerContextKeepAlive = readerContextKeepAlive;
         this.indices = plan.originalIndices().indices();
     }
 
@@ -78,6 +102,7 @@ final class ClusterComputeRequest extends AbstractTransportRequest implements In
             )
         );
         this.plan = RemoteClusterPlan.from(new PlanStreamInput(in, in.namedWriteableRegistry(), configuration, idMapper));
+        this.readerContextKeepAlive = in.getTransportVersion().supports(ESQL_REMOTE_FETCH_CONTEXTS) ? in.readOptionalTimeValue() : null;
         this.indices = plan.originalIndices().indices();
     }
 
@@ -88,6 +113,12 @@ final class ClusterComputeRequest extends AbstractTransportRequest implements In
         out.writeString(sessionId);
         configuration.writeTo(out);
         plan.writeTo(new PlanStreamOutput(out, configuration));
+        if (out.getTransportVersion().supports(ESQL_REMOTE_FETCH_CONTEXTS)) {
+            out.writeOptionalTimeValue(readerContextKeepAlive);
+        } else if (readerContextKeepAlive != null) {
+            // the plan sends documents off the remote cluster, which only fetch contexts can serve
+            throw new IllegalStateException("can't ask a cluster on [" + out.getTransportVersion() + "] for fetch contexts");
+        }
     }
 
     @Override
@@ -136,6 +167,15 @@ final class ClusterComputeRequest extends AbstractTransportRequest implements In
         return plan;
     }
 
+    /**
+     * The keep-alive of the fetch contexts the data nodes of the remote cluster keep open for the querying cluster,
+     * {@code null} when its documents never leave it.
+     */
+    @Nullable
+    TimeValue readerContextKeepAlive() {
+        return readerContextKeepAlive;
+    }
+
     @Override
     public String getDescription() {
         return "plan=" + plan;
@@ -155,11 +195,12 @@ final class ClusterComputeRequest extends AbstractTransportRequest implements In
             && sessionId.equals(request.sessionId)
             && configuration.equals(request.configuration)
             && plan.equals(request.plan)
+            && Objects.equals(readerContextKeepAlive, request.readerContextKeepAlive)
             && getParentTask().equals(request.getParentTask());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(sessionId, configuration, plan);
+        return Objects.hash(sessionId, configuration, plan, readerContextKeepAlive);
     }
 }

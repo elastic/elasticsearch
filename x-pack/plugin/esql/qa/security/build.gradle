@@ -13,4 +13,6 @@ dependencies {
   javaRestTestImplementation project(xpackModule('esql:qa:server'))
 
   clusterPlugins project(xpackModule('esql-datasource-s3'))
+  // stalls the query phase of one index, so a test can change a role between the query phase and the fetch
+  clusterModules project(':test:external-modules:test-error-query')
 }

@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.fetch.FetchPhasePolicy.Outcome;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
@@ -390,6 +391,7 @@ public class PlanExecutor {
         String client
     ) {
         planTelemetryManager.publish(planTelemetry, true);
+        recordFetchPhase(executionInfo, true);
         boolean partial = result != null && result.inner().completionInfo().partial();
         recordExternalSourceQuery(
             dataSourceModule.externalSourceMetrics(),
@@ -414,6 +416,17 @@ public class PlanExecutor {
         listener.onResponse(result);
     }
 
+    /**
+     * Counts the query by what the planner did with the fetch phase, when the query used it or asked for it.
+     */
+    private void recordFetchPhase(EsqlExecutionInfo executionInfo, boolean success) {
+        Outcome outcome = executionInfo.fetchPhase().outcome();
+        if (outcome != null) {
+            metrics.incFetchPhase(outcome);
+            planTelemetryManager.publishFetchPhase(outcome, success);
+        }
+    }
+
     private void onQueryFailure(
         EsqlQueryRequest request,
         ResolvedSettings settings,
@@ -430,6 +443,7 @@ public class PlanExecutor {
         metrics.failed(caller.client());
         countFinishedQuery(finishCounted, caller, false);
         planTelemetryManager.publish(planTelemetry, false);
+        recordFetchPhase(executionInfo, false);
         recordExternalSourceQuery(
             dataSourceModule.externalSourceMetrics(),
             queryLabels(client, planTelemetry),
@@ -438,7 +452,14 @@ public class PlanExecutor {
             false,
             ex
         );
-        queryLog.onQueryFailure(request.queryDescription(), settings, request.viewSettings(), ex, System.nanoTime() - begin);
+        queryLog.onQueryFailure(
+            request.queryDescription(),
+            settings,
+            request.viewSettings(),
+            executionInfo.fetchPhase(),
+            ex,
+            System.nanoTime() - begin
+        );
         // Matched by condition, not class: a failure from a remote data node arrives as a wrapper that keeps only the condition.
         if (cacheService != null && ExternalException.isStaleCachedObject(ex)) {
             // The object was rewritten or deleted after the listing this query used was cached. Drop the entries this query

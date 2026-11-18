@@ -23,10 +23,15 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.fetch.FetchContextLease;
+import org.elasticsearch.xpack.esql.fetch.FetchFailures;
+import org.elasticsearch.xpack.esql.fetch.QueryFetchScope;
+import org.elasticsearch.xpack.esql.plan.physical.FetchExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.StreamingOutputExec;
+import org.elasticsearch.xpack.esql.planner.FetchOperatorProvider;
 import org.elasticsearch.xpack.esql.planner.SubPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.Result;
@@ -107,6 +112,16 @@ final class SubPlansExecutor {
 
     private final PlanTimeProfile rootPlanTimeProfile;
     private final ExecutionMerge rootExecution;
+    /**
+     * The reader contexts that the branches keep for a fetch after the root merge, in one execution, so the fetch frees
+     * the contexts no winner reads, whatever branch found them. {@code null} when nothing after the merge fetches.
+     */
+    @Nullable
+    private final FetchContextLease.Execution fetchContexts;
+    /**
+     * The shards whose fetch after the root merge failed, which the local cluster reports once the merge is done.
+     */
+    private final FetchFailures fetchFailures;
 
     /**
      * @param maxResultSize limit on the root's collected result pages, or {@code null} for no limit, see
@@ -141,12 +156,15 @@ final class SubPlansExecutor {
         this.executionPermits = new AtomicInteger(queryPragmas.branchParallelDegree());
         this.cancelOnFailure = new RunOnce(computeService.cancelQueryOnFailure(rootTask));
         this.rootPlanTimeProfile = planTimeProfile;
+        this.fetchContexts = fetchContextsOf(computeService, rootTask, rootPlan.plan());
+        this.fetchFailures = new FetchFailures(configuration.allowPartialResults(), execInfo::shouldSkipOnFailure);
         final BoundedPageCollector pageCollector = new BoundedPageCollector(maxResultSize);
         final List<Page> collectedPages = pageCollector.pages();
         final PageStreamPublisher streamPublisher = rootPlan.plan() instanceof StreamingOutputExec streaming
             ? streaming.pageStream()
             : null;
         final ActionListener<DriverCompletionInfo> outerListener = ActionListener.wrap(info -> {
+            reportFetchFailures();
             // For a plan with merge branches this must run only after the root merge has combined every branch's shard accounting, not at
             // the end of each branch (executePlan), which shares the same EsqlExecutionInfo, and would otherwise treat the first all-failed
             // leaf as "all query targets failed". Streaming roots never fill collectedPages; skip the check if rows already went out.
@@ -171,6 +189,35 @@ final class SubPlansExecutor {
 
     void executePlan() {
         executeNext();
+    }
+
+    /**
+     * One execution for the reader contexts of every branch when the root plan fetches after the merge.
+     */
+    @Nullable
+    private static FetchContextLease.Execution fetchContextsOf(ComputeService computeService, CancellableTask rootTask, PhysicalPlan root) {
+        if (root.anyMatch(FetchExec.class::isInstance) == false) {
+            return null;
+        }
+        return computeService.fetchPhaseServices().leases().leaseFor(rootTask).newExecution();
+    }
+
+    /**
+     * Moves the shards whose fetch after the merge failed to the failed shards of their cluster, like the query phase
+     * reports its own.
+     */
+    private void reportFetchFailures() {
+        ComputeService.applyRemoteFetchFailures(execInfo, fetchFailures);
+        if (execInfo.clusterInfo.containsKey(LOCAL_CLUSTER) == false) {
+            return;
+        }
+        execInfo.swapCluster(LOCAL_CLUSTER, (alias, cluster) -> {
+            var builder = new EsqlExecutionInfo.Cluster.Builder(cluster);
+            if (fetchFailures.applyTo(LOCAL_CLUSTER, builder, cluster)) {
+                ComputeService.applyClusterStatusAfterBranch(builder, cluster, true, true);
+            }
+            return builder.build();
+        });
     }
 
     /**
@@ -326,6 +373,22 @@ final class SubPlansExecutor {
                     listener.onResponse(DriverCompletionInfo.EMPTY);
                     return;
                 }
+                // the fetch after the root merge sends its requests as children of the task of the query, and counts their
+                // drivers as the merge's own
+                FetchOperatorProvider fetchOperators = parent == null && fetchContexts != null
+                    ? computeService.fetchPhaseServices()
+                        .operatorProvider(
+                            new QueryFetchScope(
+                                rootTask,
+                                childSessionId,
+                                configuration,
+                                computeListener::acquireCompute,
+                                fetchFailures,
+                                fetchContexts,
+                                execInfo.fetchPhase()
+                            )
+                        )
+                    : FetchOperatorProvider.UNSUPPORTED;
                 // runCompute doesn't throw
                 computeService.runCompute(
                     rootTask,
@@ -340,7 +403,10 @@ final class SubPlansExecutor {
                         foldContext,
                         exchange::exchangeSource,
                         parent == null ? null : () -> parent.exchange.exchangeSink(() -> {}),
-                        false
+                        false,
+                        null,
+                        null,
+                        fetchOperators
                     ),
                     plan,
                     computeService.plannerSettings().get(),
@@ -426,7 +492,8 @@ final class SubPlansExecutor {
                     configuration.profile() ? new PlanTimeProfile() : null,
                     warnIndexCoordinatorOnce,
                     SiblingPlacement.forMerge(mergeKind, siblingIndex, siblingCount),
-                    null
+                    null,
+                    fetchContexts
                 );
             } catch (Exception e) {
                 resultListener.onFailure(e);

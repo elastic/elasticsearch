@@ -1,0 +1,5 @@
+SET unmapped_fields="load_all";
+FROM employees
+| SORT hire_date
+| LIMIT 10
+| KEEP first_name*, hire_date

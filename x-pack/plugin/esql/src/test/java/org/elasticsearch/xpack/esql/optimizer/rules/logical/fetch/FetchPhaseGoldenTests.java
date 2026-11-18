@@ -10,9 +10,9 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical.fetch;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.optimizer.GoldenTestCase;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
@@ -46,6 +46,48 @@ public class FetchPhaseGoldenTests extends GoldenTestCase {
         Stage.NODE_REDUCE,
         Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION
     );
+
+    /**
+     * The golden tests can't run the node reduction of a plan with several exchanges, like the branches of a {@code FORK}.
+     */
+    private static final EnumSet<Stage> FORK_STAGES = EnumSet.of(
+        Stage.LOGICAL_OPTIMIZATION,
+        Stage.PHYSICAL_OPTIMIZATION,
+        Stage.LOCAL_PHYSICAL_OPTIMIZATION
+    );
+
+    /**
+     * A hybrid search: each branch sends its candidates as documents with the columns its cut and {@code FUSE} read,
+     * {@code FUSE} keeps the first document of each group, and the fetch loads the other columns of the ten winners.
+     */
+    public void testFuse() {
+        String query = """
+            FROM books METADATA _id, _index, _score
+            | FORK ( WHERE title:"Tolkien" | SORT _score DESC | LIMIT 50 )
+                   ( WHERE author:"Tolkien" | SORT _score DESC | LIMIT 50 )
+            | FUSE
+            | SORT _score DESC
+            | LIMIT 10
+            | KEEP title, author, _score
+            """;
+        withFetchPhase(query, EsqlTestUtils.TEST_SEARCH_STATS).stages(FORK_STAGES).run();
+        // older nodes sum the scores of FUSE another way
+        withoutFetchPhase(query, EsqlTestUtils.TEST_SEARCH_STATS).stages(FORK_STAGES).since(Sum.ESQL_SUM_LONG_OVERFLOW_FIX).run();
+    }
+
+    /** Without {@code FUSE}, the fetch reads the documents the merge takes from every branch. */
+    public void testFork() {
+        String query = """
+            FROM employees
+            | FORK ( WHERE salary > 50000 | SORT hire_date DESC | LIMIT 20 )
+                   ( WHERE languages > 2 | SORT hire_date DESC | LIMIT 20 )
+            | SORT hire_date DESC
+            | LIMIT 10
+            | KEEP first_name, last_name, hire_date, _fork
+            """;
+        withFetchPhase(query, EsqlTestUtils.TEST_SEARCH_STATS).stages(FORK_STAGES).run();
+        withoutFetchPhase(query, EsqlTestUtils.TEST_SEARCH_STATS).stages(FORK_STAGES).run();
+    }
 
     /** The sort key crosses the exchange, the kept columns are fetched for the ten winners, the filter field stays local. */
     public void testTopN() {
@@ -119,6 +161,40 @@ public class FetchPhaseGoldenTests extends GoldenTestCase {
             """, EsqlTestUtils.TEST_SEARCH_STATS);
     }
 
+    /** A {@code LOOKUP JOIN} on the data nodes keeps the {@code _doc} of its left rows, and its own columns cross as values. */
+    public void testLookupJoinBeforeTheCut() {
+        runBoth("""
+            FROM employees
+            | EVAL language_code = languages
+            | LOOKUP JOIN languages_lookup ON language_code
+            | SORT emp_no
+            | LIMIT 10
+            | KEEP first_name, language_name
+            """, EsqlTestUtils.TEST_SEARCH_STATS);
+    }
+
+    /** A field that may be unmapped is fetched, and each shard reads it from its mapping or from {@code _source}. */
+    public void testPotentiallyUnmappedField() {
+        runBoth("""
+            SET unmapped_fields="load";
+            FROM employees
+            | SORT hire_date
+            | LIMIT 10
+            | KEEP first_name, does_not_exist
+            """, EsqlTestUtils.TEST_SEARCH_STATS);
+    }
+
+    /** The unmapped fields of {@code load_all} are one {@code _source} shaped column, fetched for the ten winners only. */
+    public void testUnmappedFieldsOfLoadAll() {
+        runBoth("""
+            SET unmapped_fields="load_all";
+            FROM employees
+            | SORT hire_date
+            | LIMIT 10
+            | KEEP first_name*, hire_date
+            """, EsqlTestUtils.TEST_SEARCH_STATS);
+    }
+
     /** DISSECT before the cut reads its input on the data node, so the input crosses the exchange as a value too. */
     public void testDissectBeforeTheCut() {
         runBoth("""
@@ -139,6 +215,28 @@ public class FetchPhaseGoldenTests extends GoldenTestCase {
             | WHERE salary > 50000
             | EVAL monthly = salary / 12
             | KEEP first_name, monthly
+            """, EsqlTestUtils.TEST_SEARCH_STATS);
+    }
+
+    /** A WHERE after the cut on the sort key runs before the fetch, which then loads the winners that pass. */
+    public void testWhereOnTheSortKeyAfterTheCut() {
+        runBoth("""
+            FROM employees
+            | SORT hire_date
+            | LIMIT 10
+            | WHERE hire_date > "1986-01-01"
+            | KEEP first_name, last_name, hire_date
+            """, EsqlTestUtils.TEST_SEARCH_STATS);
+    }
+
+    /** A WHERE after the cut on the sort key and a fetched column splits: one condition before the fetch, one after. */
+    public void testWhereOnTheSortKeyAndAFetchedColumnAfterTheCut() {
+        runBoth("""
+            FROM employees
+            | SORT hire_date
+            | LIMIT 10
+            | WHERE hire_date > "1986-01-01" AND salary > 50000
+            | KEEP first_name, salary
             """, EsqlTestUtils.TEST_SEARCH_STATS);
     }
 
@@ -187,8 +285,8 @@ public class FetchPhaseGoldenTests extends GoldenTestCase {
         return builder(query).stages(STAGES)
             .searchStats(searchStats)
             .flags(EsqlFlags.withFetchPhase(FetchPhaseMode.ALWAYS))
-            // the plans send _doc across the exchange, which a node can read from this version on
-            .since(DocVector.ESQL_DOC_ORIGINS)
+            // the coordinator plans the fetch only once every node can run it
+            .since(FetchPhasePolicy.PLANNER_MINIMUM)
             .nestedPath("fetch");
     }
 

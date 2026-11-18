@@ -826,10 +826,10 @@ public class EsqlSession {
                     var logicalPlanPreOptimizer = new LogicalPlanPreOptimizer(
                         new LogicalPreOptimizerContext(foldContext, inferenceService, minimumVersion)
                     );
-                    var logicalPlanOptimizer = new LogicalPlanOptimizer(
-                        new LogicalOptimizerContext(finalConfiguration, foldContext, minimumVersion, flags)
-                    );
+                    var logicalOptimizerContext = new LogicalOptimizerContext(finalConfiguration, foldContext, minimumVersion, flags);
+                    var logicalPlanOptimizer = new LogicalPlanOptimizer(logicalOptimizerContext);
                     var physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration, minimumVersion));
+                    executionInfo.fetchPhase().plannedBy(logicalOptimizerContext.fetchPhaseOutcomes());
 
                     var columnMetadata = new Holder<Map<NameId, Map<String, Object>>>();
                     SubscribableListener.<LogicalPlan>newForked(l -> preOptimizedPlan(plan, logicalPlanPreOptimizer, planTimeProfile, l))

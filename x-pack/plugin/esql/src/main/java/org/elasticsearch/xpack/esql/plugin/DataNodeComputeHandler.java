@@ -182,6 +182,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         Set<String> concreteIndices,
         OriginalIndices originalIndices,
         ExchangeSourceHandler exchangeSource,
+        // Non-null when documents leave the data nodes: each data node keeps the fetch contexts of the rows that left it
+        @Nullable TimeValue readerContextKeepAlive,
         Runnable runOnTaskFailure,
         Consumer<DriverCompletionInfo> onFailureUsage,
         ActionListener<ComputeResponse> outListener
@@ -274,7 +276,10 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 // work as the final driver.
                                 queryPragmas.nodeLevelReduction() && sameNodeAsCoordinator == false,
                                 queryPragmas.nodeLevelReduction() && enableReduceNodeLateMaterialization,
-                                sameNodeAsCoordinator && queryPragmas.singleNodeOptimizations() && Strings.isEmpty(clusterAlias)
+                                sameNodeAsCoordinator && queryPragmas.singleNodeOptimizations() && Strings.isEmpty(clusterAlias),
+                                List.of(),
+                                0L,
+                                readerContextKeepAlive
                             );
                             ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
                             final var sinkPart = computeService.remoteSinkPart(computeService.queryId(parentTask), groupTask);
@@ -1749,7 +1754,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
 
     private NodeFetchContexts newFetchContexts(Task task, DataNodeRequest request) {
         TimeValue keepAlive = readerContextKeepAlive(request, clusterService.getClusterSettings());
-        return new NodeFetchContexts(searchService, task, keepAlive);
+        return new NodeFetchContexts(searchService, computeService.fetchPhaseServices().openContexts(), task, keepAlive);
     }
 
     /**

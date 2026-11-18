@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical.fetch;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -19,31 +20,34 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
+import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.fetch.FetchPhasePolicy.Outcome;
+import org.elasticsearch.xpack.esql.plan.logical.CarriesDocOnDataNodes;
 import org.elasticsearch.xpack.esql.plan.logical.DocPreserving;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Fetch;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
-import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags.FetchPhaseMode;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
-
-import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
-import static org.elasticsearch.transport.RemoteClusterAware.isRemoteIndexName;
+import java.util.Map;
+import java.util.TreeMap;
 
 /**
  * Plans the fetch phase for a {@code LIMIT} or {@code TopN} that the data nodes and the coordinator both apply.
@@ -78,34 +82,54 @@ import static org.elasticsearch.transport.RemoteClusterAware.isRemoteIndexName;
  * and {@code ts} across it. The data nodes plan their side as they plan any other. Node-level late materialization cuts
  * the rows of a node's shards once more, and loads the eager columns the cut doesn't read for the survivors only.
  * <p>
+ * A filter right after the cut runs before the fetch when its conditions read only columns that cross the exchange,
+ * like {@code WHERE ts > "2026-01-01"} right after the {@code LIMIT} above. The fetch then loads {@code a} and {@code b}
+ * only for the rows that pass, see {@link FilterAroundTheFetch}.
+ * <p>
  * {@link #demand} decides which columns cross the exchange as values. {@link #shape} lists the plans the rule accepts.
  * Both are about correctness only. {@link #paysOff} then decides whether an accepted plan is likely faster with the
  * fetch phase. Every other plan keeps loading its columns eagerly, unchanged, and the rule logs why at debug level.
  * <p>
- * {@link EsqlFlags#fetchPhaseMode()} turns the rule on. {@link FetchPhaseMode#ALWAYS} skips {@link #paysOff}. The rule
- * runs in the last batch of the logical optimizer, so no other logical rule needs to know {@link Fetch}.
+ * {@link FetchPhasePolicy} turns the rule on and picks its mode. {@link FetchPhaseMode#ALWAYS} skips {@link #paysOff}.
+ * The rule records each decision in {@link LogicalOptimizerContext#fetchPhaseOutcomes()}. It runs in the last batch of
+ * the logical optimizer, so no other logical rule needs to know {@link Fetch}.
  */
 public final class PlanFetch extends ParameterizedRule<LogicalPlan, LogicalPlan, LogicalOptimizerContext> {
     private static final Logger logger = LogManager.getLogger(PlanFetch.class);
 
     @Override
     public LogicalPlan apply(LogicalPlan plan, LogicalOptimizerContext context) {
-        FetchPhaseMode mode = context.flags().fetchPhaseMode();
-        if (mode == FetchPhaseMode.DISABLED) {
+        FetchPhaseOutcomes outcomes = context.fetchPhaseOutcomes();
+        FetchPhasePolicy policy = FetchPhasePolicy.from(context);
+        Outcome gate = policy.decide();
+        if (gate != Outcome.ENABLED) {
+            outcomes.record(gate, null);
             return plan;
         }
         Shape shape = shape(plan);
-        if (mode == FetchPhaseMode.AUTO && shape instanceof Candidate candidate) {
-            shape = paysOff(candidate);
+        if (policy.mode() == FetchPhaseMode.AUTO) {
+            Declined tooExpensive = switch (shape) {
+                case Candidate candidate -> paysOff(candidate.cut(), candidate.relation(), candidate.demand().deferred());
+                case ForkFetch.Candidate fork -> paysOff(fork.finalCut(), fork.relation(), fork.fetched());
+                case Declined declined -> null;
+            };
+            shape = tooExpensive == null ? shape : tooExpensive;
         }
         return switch (shape) {
-            case Declined declined -> declined(plan, declined.reason());
-            case Candidate candidate -> rewrite(plan, candidate);
+            case Declined declined -> declined(plan, declined, outcomes);
+            case Candidate candidate -> rewrite(plan, candidate, outcomes);
+            case ForkFetch.Candidate fork -> {
+                LogicalPlan rewritten = ForkFetch.rewrite(plan, fork);
+                outcomes.record(Outcome.APPLIED, null);
+                logger.debug("fetch phase planned through [FORK]: fetched {}", fork.fetched());
+                yield rewritten;
+            }
         };
     }
 
-    private static LogicalPlan declined(LogicalPlan plan, String reason) {
-        logger.debug("fetch phase not planned: {}", reason);
+    private static LogicalPlan declined(LogicalPlan plan, Declined declined, FetchPhaseOutcomes outcomes) {
+        outcomes.record(declined.outcome(), declined.reason());
+        logger.debug("fetch phase not planned: [{}] {}", declined.outcome(), declined.reason());
         return plan;
     }
 
@@ -117,16 +141,66 @@ public final class PlanFetch extends ParameterizedRule<LogicalPlan, LogicalPlan,
      */
     record Demand(List<Attribute> eager, List<Attribute> deferred) {}
 
-    private sealed interface Shape permits Declined, Candidate {}
+    sealed interface Shape permits Declined, Candidate, ForkFetch.Candidate {}
 
-    private record Declined(String reason) implements Shape {}
+    record Declined(Outcome outcome, String reason) implements Shape, ForkFetch.BranchShape {}
+
+    static Declined ineligible(String reason) {
+        return new Declined(Outcome.INELIGIBLE_SHAPE, reason);
+    }
 
     /**
      * A plan the rule can rewrite.
      *
-     * @param cut the cut the data nodes and the coordinator both apply
+     * @param cut                  the cut the data nodes and the coordinator both apply
+     * @param filterAroundTheFetch the filter right after the cut, when some of its conditions run before the fetch
      */
-    private record Candidate(UnaryPlan cut, EsRelation relation, Demand demand) implements Shape {}
+    private record Candidate(UnaryPlan cut, EsRelation relation, Demand demand, @Nullable FilterAroundTheFetch filterAroundTheFetch)
+        implements
+            Shape {}
+
+    /**
+     * A filter right after the cut, split around the fetch. The conditions that read only columns crossing the exchange
+     * run before the fetch, so it loads the deferred columns only for the rows that pass. The others read a fetched column
+     * and run after it. The optimizer pushes filters down as far as they go and combines the filters that follow each
+     * other, so the conditions that can move end up in that filter.
+     *
+     * @param conditionsBeforeTheFetch never empty
+     * @param conditionsAfterTheFetch  empty when every condition runs before the fetch
+     */
+    record FilterAroundTheFetch(Filter filter, List<Expression> conditionsBeforeTheFetch, List<Expression> conditionsAfterTheFetch) {
+        /**
+         * The split of {@code filter}, or {@code null} when every condition reads a fetched column, and the whole filter
+         * stays after the fetch.
+         *
+         * @param crossing the columns that cross the exchange as values
+         */
+        @Nullable
+        static FilterAroundTheFetch split(Filter filter, AttributeSet crossing) {
+            List<Expression> beforeTheFetch = new ArrayList<>();
+            List<Expression> afterTheFetch = new ArrayList<>();
+            for (Expression condition : Predicates.splitAnd(filter.condition())) {
+                (crossing.containsAll(condition.references()) ? beforeTheFetch : afterTheFetch).add(condition);
+            }
+            return beforeTheFetch.isEmpty() ? null : new FilterAroundTheFetch(filter, beforeTheFetch, afterTheFetch);
+        }
+
+        /** The rows the fetch reads: the rows of the cut, without the ones the conditions before the fetch drop. */
+        LogicalPlan beforeTheFetch(LogicalPlan rowsOfTheCut) {
+            if (conditionsAfterTheFetch.isEmpty()) {
+                return filter.replaceChild(rowsOfTheCut);
+            }
+            return new Filter(filter.source(), rowsOfTheCut, Predicates.combineAnd(conditionsBeforeTheFetch));
+        }
+
+        /** What takes the place of the filter in the plan: the fetch, and the conditions that read a fetched column. */
+        LogicalPlan afterTheFetch(Fetch fetch) {
+            if (conditionsAfterTheFetch.isEmpty()) {
+                return fetch;
+            }
+            return new Filter(filter.source(), fetch, Predicates.combineAnd(conditionsAfterTheFetch));
+        }
+    }
 
     /**
      * The plans the fetch phase supports. From the root down, the plan is one chain of commands over one relation:
@@ -134,30 +208,37 @@ public final class PlanFetch extends ParameterizedRule<LogicalPlan, LogicalPlan,
      *     <li>commands above the cut that can run on the coordinator, see {@link #isSupportedAfterCut},</li>
      *     <li>the cut, the {@code TopN} or {@code LIMIT} closest to the relation that isn't local,</li>
      *     <li>commands between the cut and the relation that keep the document of each row and run on the data nodes,
-     *     see {@link #isSupportedBeforeCut},</li>
-     *     <li>one {@code STANDARD} or {@code TIME_SERIES} relation, on the local cluster,</li>
+     *     see {@link #isSupportedBeforeCut}. The chain goes through a command of several inputs along the input whose
+     *     {@code _doc} it keeps, like the left side of a {@code LOOKUP JOIN}, see {@link CarriesDocOnDataNodes},</li>
+     *     <li>one {@code STANDARD} or {@code TIME_SERIES} relation,</li>
      *     <li>no column named {@code _doc}, the name of the document column the rule adds,</li>
      *     <li>at least one column the query only needs after the cut, and that can be fetched.</li>
      * </ol>
      * Nothing between the cut and the relation breaks the pipeline, so the mapper copies the cut to the data nodes and
      * puts the only exchange of the plan right below the coordinator's copy. A plan that already fetches is left as it
      * is. Any other plan keeps loading its columns eagerly, which is always correct.
+     * <p>
+     * The relation may read remote clusters. Their data nodes keep the readers of the rows they send for this coordinator
+     * too, and the fetch reaches them directly, with the index expressions the query wrote for their cluster.
      */
     private static Shape shape(LogicalPlan plan) {
-        List<UnaryPlan> chain = new ArrayList<>();
+        List<LogicalPlan> chain = new ArrayList<>();
         LogicalPlan leaf = plan;
-        while (leaf instanceof UnaryPlan unary) {
-            if (unary instanceof Fetch) {
-                return new Declined("the plan already fetches");
+        for (LogicalPlan docInput = docInput(leaf); docInput != null; docInput = docInput(leaf)) {
+            if (leaf instanceof Fetch) {
+                return ineligible("the plan already fetches");
             }
-            chain.add(unary);
-            leaf = unary.child();
+            chain.add(leaf);
+            leaf = docInput;
+        }
+        if (leaf instanceof Fork fork) {
+            return namesADocColumn(plan) ? ineligible("the query names a column [_doc]") : ForkFetch.shape(chain, fork);
         }
         if (leaf.children().isEmpty() == false) {
-            return new Declined("[" + leaf.nodeName() + "] combines several plans");
+            return ineligible("[" + leaf.nodeName() + "] combines several plans");
         }
         if (leaf instanceof EsRelation == false) {
-            return new Declined("[" + leaf.nodeName() + "] is not an index relation");
+            return ineligible("[" + leaf.nodeName() + "] is not an index relation");
         }
         EsRelation relation = (EsRelation) leaf;
 
@@ -166,34 +247,34 @@ public final class PlanFetch extends ParameterizedRule<LogicalPlan, LogicalPlan,
             cutIndex--;
         }
         if (cutIndex < 0) {
-            return new Declined("no [LIMIT] or [TopN] cuts the rows");
+            return ineligible("no [LIMIT] or [TopN] cuts the rows");
         }
-        for (UnaryPlan node : chain.subList(0, cutIndex)) {
+        for (LogicalPlan node : chain.subList(0, cutIndex)) {
             if (isSupportedAfterCut(node) == false) {
-                return new Declined("[" + node.nodeName() + "] runs after the cut");
+                return ineligible("[" + node.nodeName() + "] runs after the cut");
             }
         }
-        for (UnaryPlan node : chain.subList(cutIndex + 1, chain.size())) {
+        for (LogicalPlan node : chain.subList(cutIndex + 1, chain.size())) {
             if (isSupportedBeforeCut(node) == false) {
-                return new Declined("[" + node.nodeName() + "] runs before the cut");
+                return ineligible("[" + node.nodeName() + "] runs before the cut");
             }
         }
         if (relation.indexMode() != IndexMode.STANDARD && relation.indexMode() != IndexMode.TIME_SERIES) {
-            return new Declined("[" + relation.indexMode() + "] relation");
-        }
-        if (isLocal(relation) == false) {
-            return new Declined("the relation reads a remote cluster");
+            return ineligible("[" + relation.indexMode() + "] relation");
         }
         if (namesADocColumn(plan)) {
-            return new Declined("the query names a column [_doc]");
+            return ineligible("the query names a column [_doc]");
         }
 
-        UnaryPlan cut = chain.get(cutIndex);
+        UnaryPlan cut = (UnaryPlan) chain.get(cutIndex);
         Demand demand = demand(plan, cut, relation);
         if (demand.deferred().isEmpty()) {
-            return new Declined("the cut reads every column, or the others cannot be fetched");
+            return new Declined(Outcome.INELIGIBLE_NO_DEFERRABLE_FIELDS, "the cut reads every column, or the others cannot be fetched");
         }
-        return new Candidate(cut, relation, demand);
+        FilterAroundTheFetch filterAroundTheFetch = cutIndex > 0 && chain.get(cutIndex - 1) instanceof Filter filter
+            ? FilterAroundTheFetch.split(filter, AttributeSet.of(demand.eager()))
+            : null;
+        return new Candidate(cut, relation, demand, filterAroundTheFetch);
     }
 
     /**
@@ -210,19 +291,26 @@ public final class PlanFetch extends ParameterizedRule<LogicalPlan, LogicalPlan,
      *     <li>The fetch must defer {@code _source}. It is usually the largest column per row and the most expensive to
      *     load, stored or synthetic, so skipping it for the dropped rows is what pays for the round trip.</li>
      * </ul>
-     * Once the round trip is paid, the fetch defers every column {@link #demand} allows, not only {@code _source}.
+     * Once the round trip is paid, the fetch defers every column {@link #demand} allows, not only {@code _source}. A
+     * {@code FORK} takes the same decision for its final cut, the relation of its branches and the columns it fetches.
+     *
+     * @return why the fetch phase doesn't pay off, or {@code null} when it does
      */
-    private static Shape paysOff(Candidate candidate) {
-        if (candidate.cut() instanceof TopN == false) {
-            return new Declined("a [LIMIT] cut leaves too few dropped rows to pay for the fetch");
+    @Nullable
+    private static Declined paysOff(UnaryPlan cut, EsRelation relation, List<Attribute> deferred) {
+        if (cut instanceof TopN == false) {
+            return new Declined(Outcome.DECLINED_COST, "a [LIMIT] cut leaves too few dropped rows to pay for the fetch");
         }
-        if (hasOneShard(candidate.relation())) {
-            return new Declined("the relation has one shard, whose node loads the deferred columns of the winners only");
+        if (hasOneShard(relation)) {
+            return new Declined(
+                Outcome.DECLINED_COST,
+                "the relation has one shard, whose node loads the deferred columns of the winners only"
+            );
         }
-        if (candidate.demand().deferred().stream().noneMatch(attribute -> attribute.dataType() == DataType.SOURCE)) {
-            return new Declined("the fetch defers no [_source], so it saves too little to pay for its round trip");
+        if (deferred.stream().noneMatch(attribute -> attribute.dataType() == DataType.SOURCE)) {
+            return new Declined(Outcome.DECLINED_COST, "the fetch defers no [_source], so it saves too little to pay for its round trip");
         }
-        return candidate;
+        return null;
     }
 
     /** Whether the shards of the relation add up to one. An index that doesn't report its shards counts as 0, unknown. */
@@ -303,6 +391,13 @@ public final class PlanFetch extends ParameterizedRule<LogicalPlan, LogicalPlan,
                 collectValueReads(expression, loaded);
             }
         });
+        // a join looks up the values of its keys
+        beforeTheCut.forEachDown(Join.class, join -> {
+            loaded.addAll(join.leftReferences());
+            if (join.config().joinOnConditions() != null) {
+                collectValueReads(join.config().joinOnConditions(), loaded);
+            }
+        });
         return loaded.build();
     }
 
@@ -321,28 +416,36 @@ public final class PlanFetch extends ParameterizedRule<LogicalPlan, LogicalPlan,
     }
 
     /** A local {@code LIMIT} or {@code TopN} only cuts the rows of one node, so it doesn't pick the global winners. */
-    private static boolean isCut(LogicalPlan node) {
+    static boolean isCut(LogicalPlan node) {
         return (node instanceof TopN topN && topN.local() == false) || (node instanceof Limit limit && limit.local() == false);
     }
 
     /**
      * The fetch runs right above the cut, and every command after it runs on the coordinator over the rows the fetch
-     * completed, so any command can follow. A command that only runs on the data nodes can't follow a cut.
+     * completed, so any command of one input can follow. A command that only runs on the data nodes can't follow a cut.
+     * A command of several inputs after the cut keeps the plan eager, since the fetch would have to follow one of them.
      */
-    private static boolean isSupportedAfterCut(LogicalPlan command) {
-        return (command instanceof ExecutesOn executesOn && executesOn.executesOn() == ExecuteLocation.REMOTE) == false;
+    static boolean isSupportedAfterCut(LogicalPlan command) {
+        return command instanceof UnaryPlan
+            && (command instanceof ExecutesOn executesOn && executesOn.executesOn() == ExecuteLocation.REMOTE) == false;
     }
 
     /**
      * A command before the cut runs on the data nodes, where {@code _doc} names the document of each row. It must keep
      * that tie, see {@link DocPreserving}. {@code MV_EXPAND} repeats a row for each value, and every copy keeps the
-     * {@code _doc} of its document. The mapper must also send the command to the data nodes with the relation, see
-     * {@code Mapper#mapUnary}: not a command that only runs on the coordinator, and no pipeline breaker but the local
-     * cuts the optimizer copies there.
+     * {@code _doc} of its document. A command of several inputs keeps the {@code _doc} of one of them, see
+     * {@link CarriesDocOnDataNodes}. A {@code LOOKUP JOIN} repeats a left row for each match, and the columns it adds
+     * come from another index, so they keep crossing as values. The mapper must also send the command to the data nodes
+     * with the relation, see {@code Mapper#mapUnary}: not a command that only runs on the coordinator, and no pipeline
+     * breaker but the local cuts the optimizer copies there.
      */
-    private static boolean isSupportedBeforeCut(LogicalPlan command) {
+    static boolean isSupportedBeforeCut(LogicalPlan command) {
         if (command instanceof ExecutesOn executesOn && executesOn.executesOn() == ExecuteLocation.COORDINATOR) {
             return false;
+        }
+        if (command instanceof UnaryPlan == false) {
+            // the chain only goes through a command of several inputs that keeps the _doc of one of them
+            return command instanceof CarriesDocOnDataNodes;
         }
         if (command instanceof DocPreserving == false) {
             return false;
@@ -353,39 +456,53 @@ public final class PlanFetch extends ParameterizedRule<LogicalPlan, LogicalPlan,
     }
 
     /** The rule adds a column named {@code _doc}. A column of the query with the same name would clash with it. */
-    private static boolean namesADocColumn(LogicalPlan plan) {
+    static boolean namesADocColumn(LogicalPlan plan) {
         String docName = EsQueryExec.DOC_ID_FIELD.getName();
         return plan.anyMatch(node -> node.output().stream().anyMatch(attribute -> attribute.name().equals(docName)));
     }
 
-    private static boolean isLocal(EsRelation relation) {
-        if (relation.concreteIndices().isEmpty()) {
-            return Arrays.stream(relation.indexPattern().split(",")).map(String::trim).noneMatch(PlanFetch::isRemoteIndexExpression);
+    /**
+     * The input whose document each row of {@code command} keeps: the only input of a command of one input, the one
+     * {@link CarriesDocOnDataNodes#docInput} names for a command of several, or {@code null} when no input does.
+     */
+    @Nullable
+    static LogicalPlan docInput(LogicalPlan command) {
+        return switch (command) {
+            case UnaryPlan unary -> unary.child();
+            case CarriesDocOnDataNodes carrier -> carrier.docInput();
+            default -> null;
+        };
+    }
+
+    /**
+     * {@code plan} with {@code doc} from the relation up to {@code plan}, along the inputs {@link #docInput} names: the
+     * relation produces it, and every projection on the way keeps it. The other inputs, like the lookup index of a join,
+     * stay as they are.
+     */
+    static LogicalPlan carryDoc(LogicalPlan plan, Attribute doc) {
+        if (plan instanceof EsRelation relation) {
+            return relation.withAttributes(CollectionUtils.prependToCopy(doc, relation.output()));
         }
-        return relation.concreteIndices().size() == 1
-            && relation.concreteIndices().containsKey(LOCAL_CLUSTER_GROUP_KEY)
-            && relation.concreteIndices().get(LOCAL_CLUSTER_GROUP_KEY).isEmpty() == false;
-    }
-
-    private static boolean isRemoteIndexExpression(String indexExpression) {
-        return indexExpression.startsWith("-") ? isRemoteIndexName(indexExpression.substring(1)) : isRemoteIndexName(indexExpression);
-    }
-
-    private static LogicalPlan rewrite(LogicalPlan plan, Candidate candidate) {
-        // the data drivers produce _doc next to the eager columns, and every projection before the cut keeps it
-        Attribute doc = new FieldAttribute(Source.EMPTY, null, null, EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD);
-        UnaryPlan cut = candidate.cut();
-        LogicalPlan beforeTheCut = cut.child()
-            .transformUp(EsRelation.class, relation -> relation.withAttributes(CollectionUtils.prependToCopy(doc, relation.output())));
-        beforeTheCut = beforeTheCut.transformUp(Project.class, project -> {
+        LogicalPlan docInput = docInput(plan);
+        LogicalPlan carried = carryDoc(docInput, doc);
+        LogicalPlan rebuilt = plan.replaceChildren(plan.children().stream().map(child -> child == docInput ? carried : child).toList());
+        if (rebuilt instanceof Project project) {
             List<NamedExpression> projections = new ArrayList<>(project.projections().size() + 1);
             projections.add(doc);
             projections.addAll(project.projections());
             return project.withProjections(projections);
-        });
+        }
+        return rebuilt;
+    }
+
+    private static LogicalPlan rewrite(LogicalPlan plan, Candidate candidate, FetchPhaseOutcomes outcomes) {
+        // the data drivers produce _doc next to the eager columns, and every projection before the cut keeps it
+        Attribute doc = newDocAttribute();
+        UnaryPlan cut = candidate.cut();
+        LogicalPlan beforeTheCut = carryDoc(cut.child(), doc);
         if (beforeTheCut.outputSet().contains(doc) == false) {
             assert false : "a command before the cut drops [_doc]: " + beforeTheCut;
-            return declined(plan, "a command before the cut drops [_doc]");
+            return declined(plan, new Declined(Outcome.INCONSISTENT_PROJECTION, "a command before the cut drops [_doc]"), outcomes);
         }
 
         // nothing above the narrowed cut reads the deferred columns from it, so they don't cross the exchange
@@ -394,27 +511,68 @@ public final class PlanFetch extends ParameterizedRule<LogicalPlan, LogicalPlan,
             cut.replaceChild(beforeTheCut),
             CollectionUtils.prependToCopy(doc, candidate.demand().eager())
         );
-        Fetch fetch = new Fetch(
-            cut.source(),
+        LogicalPlan rewritten = fetchAfterTheCut(
+            plan,
+            cut,
             narrowed,
+            candidate.filterAroundTheFetch(),
             doc,
             candidate.demand().deferred(),
-            candidate.relation().indexPattern(),
-            localIndices(candidate.relation())
+            candidate.relation()
         );
-
-        // the query returns what it returned before, never _doc
-        LogicalPlan rewritten = plan.transformDown(LogicalPlan.class, node -> node == cut ? fetch : node);
-        if (sameIds(rewritten.output(), plan.output()) == false) {
-            rewritten = new Project(plan.source(), rewritten, plan.output());
-        }
+        outcomes.record(Outcome.APPLIED, null);
         logger.debug("fetch phase planned: eager {}, deferred {}", candidate.demand().eager(), candidate.demand().deferred());
         return rewritten;
     }
 
-    private static List<String> localIndices(EsRelation relation) {
-        List<String> local = relation.originalIndices().get(LOCAL_CLUSTER_GROUP_KEY);
-        return local == null ? List.of() : List.copyOf(local);
+    /** A {@code _doc} column of its own. */
+    static Attribute newDocAttribute() {
+        return new FieldAttribute(Source.EMPTY, null, null, EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD);
+    }
+
+    /**
+     * Puts the fetch of {@code fetched} above {@code rowsOfTheCut}, which takes the place of {@code originalCut} in
+     * {@code plan}. The conditions of {@code filter} that read no fetched column run between them.
+     *
+     * @param doc      the {@code _doc} column of the rows of the cut
+     * @param relation the relation the documents come from, which authorizes the fetch
+     */
+    static LogicalPlan fetchAfterTheCut(
+        LogicalPlan plan,
+        UnaryPlan originalCut,
+        LogicalPlan rowsOfTheCut,
+        @Nullable FilterAroundTheFetch filter,
+        Attribute doc,
+        List<Attribute> fetched,
+        EsRelation relation
+    ) {
+        Fetch fetch = new Fetch(
+            originalCut.source(),
+            filter == null ? rowsOfTheCut : filter.beforeTheFetch(rowsOfTheCut),
+            doc,
+            fetched,
+            relation.indexPattern(),
+            originalIndices(relation)
+        );
+        LogicalPlan replaced = filter == null ? originalCut : filter.filter();
+        LogicalPlan replacement = filter == null ? fetch : filter.afterTheFetch(fetch);
+
+        // the query returns what it returned before, never _doc
+        LogicalPlan rewritten = plan.transformDown(LogicalPlan.class, node -> node == replaced ? replacement : node);
+        if (sameIds(rewritten.output(), plan.output()) == false) {
+            rewritten = new Project(plan.source(), rewritten, plan.output());
+        }
+        return rewritten;
+    }
+
+    /**
+     * The index expressions the user wrote for each cluster the relation reads, which authorize the fetch requests to the
+     * nodes of that cluster.
+     */
+    static Map<String, List<String>> originalIndices(EsRelation relation) {
+        Map<String, List<String>> copy = new TreeMap<>();
+        relation.originalIndices().forEach((clusterAlias, expressions) -> copy.put(clusterAlias, List.copyOf(expressions)));
+        return Collections.unmodifiableMap(copy);
     }
 
     private static boolean sameIds(List<Attribute> left, List<Attribute> right) {

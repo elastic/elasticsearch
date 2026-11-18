@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.TimeValue;
 
 import java.util.List;
@@ -51,11 +52,34 @@ public class EsqlFlags {
     );
 
     /**
+     * Builds that carry the fetch phase. It is on in snapshot builds and off in release builds unless the
+     * {@code es.esql_fetch_phase_feature_flag_enabled} system property turns it on. It decides nothing else than
+     * whether {@link #ESQL_FETCH_PHASE} and the {@code fetch_phase} pragma can take effect.
+     */
+    public static final FeatureFlag FETCH_PHASE_FEATURE_FLAG = new FeatureFlag("esql_fetch_phase");
+
+    /**
+     * Lets the coordinator load the columns a query only needs after a {@code LIMIT} or {@code TopN} for the rows that
+     * survive it, instead of loading them on every data node for every candidate row, when that is likely faster. See
+     * {@link FetchPhaseMode#AUTO}. Read on the coordinator when it plans a query, the plan carries the decision to the
+     * data nodes. The {@code fetch_phase} pragma overrides it for one query.
+     */
+    public static final Setting<Boolean> ESQL_FETCH_PHASE = Setting.boolSetting(
+        "esql.query.fetch_phase.enabled",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
      * Whether the coordinator may plan the fetch phase: load the columns a query only needs after a {@code LIMIT} or
-     * {@code TopN} for the rows that survive it, instead of on every data node for every candidate row. Nothing can
-     * run such a plan yet, so only tests turn it on.
+     * {@code TopN} for the rows that survive it, instead of on every data node for every candidate row. The build and
+     * the cluster setting decide the mode of the cluster. The {@code fetch_phase} pragma of a query overrides it, except
+     * {@link #UNAVAILABLE}.
      */
     public enum FetchPhaseMode {
+        /** The build does not carry the fetch phase. Nothing turns it on, not even the {@code fetch_phase} pragma. */
+        UNAVAILABLE,
         /** Every plan loads its columns eagerly. */
         DISABLED,
         /** The fetch phase for the plans that can use it and are likely faster with it. */
@@ -171,7 +195,8 @@ public class EsqlFlags {
         ESQL_MAX_BRANCH_COUNT_PER_MERGE,
         ESQL_MAX_FILLNULL_FIELDS,
         ESQL_METRICS_INFO_MAX_TIME_RANGE,
-        ESQL_TIME_SERIES_REDUCE_PER_INDEX
+        ESQL_TIME_SERIES_REDUCE_PER_INDEX,
+        ESQL_FETCH_PHASE
     );
 
     /**
@@ -188,7 +213,7 @@ public class EsqlFlags {
         ESQL_MAX_COMMAND_COUNT.getDefault(Settings.EMPTY),
         ESQL_METRICS_INFO_MAX_TIME_RANGE.getDefault(Settings.EMPTY),
         ESQL_TIME_SERIES_REDUCE_PER_INDEX.getDefault(Settings.EMPTY),
-        FetchPhaseMode.DISABLED
+        fetchPhaseMode(FETCH_PHASE_FEATURE_FLAG.isEnabled(), ESQL_FETCH_PHASE.getDefault(Settings.EMPTY))
     );
 
     private final boolean stringLikeOnIndex;
@@ -339,7 +364,7 @@ public class EsqlFlags {
             maxCommandCount,
             metricsInfoMaxTimeRange,
             ESQL_TIME_SERIES_REDUCE_PER_INDEX.getDefault(Settings.EMPTY),
-            FetchPhaseMode.DISABLED
+            DEFAULTS.fetchPhaseMode
         );
     }
 
@@ -378,7 +403,7 @@ public class EsqlFlags {
             settings.get(ESQL_MAX_COMMAND_COUNT),
             settings.get(ESQL_METRICS_INFO_MAX_TIME_RANGE),
             settings.get(ESQL_TIME_SERIES_REDUCE_PER_INDEX),
-            FetchPhaseMode.DISABLED
+            fetchPhaseMode(FETCH_PHASE_FEATURE_FLAG.isEnabled(), settings.get(ESQL_FETCH_PHASE))
         );
     }
 
@@ -396,12 +421,13 @@ public class EsqlFlags {
             ESQL_MAX_COMMAND_COUNT.getDefault(Settings.EMPTY),
             ESQL_METRICS_INFO_MAX_TIME_RANGE.getDefault(Settings.EMPTY),
             enabled,
-            FetchPhaseMode.DISABLED
+            DEFAULTS.fetchPhaseMode
         );
     }
 
     /**
-     * Test helper that leaves the other flags at their defaults.
+     * Test helper that leaves the other flags at their defaults. It sets the mode whatever the feature flag of the test
+     * JVM says, so planner tests behave the same on release builds.
      */
     public static EsqlFlags withFetchPhase(FetchPhaseMode fetchPhaseMode) {
         return new EsqlFlags(
@@ -416,6 +442,17 @@ public class EsqlFlags {
             ESQL_TIME_SERIES_REDUCE_PER_INDEX.getDefault(Settings.EMPTY),
             fetchPhaseMode
         );
+    }
+
+    /**
+     * The only place the feature flag is read for planning. A build without the flag ignores the setting. The setting
+     * turns on {@link FetchPhaseMode#AUTO}: a cluster plans the fetch phase only where it is likely faster.
+     */
+    static FetchPhaseMode fetchPhaseMode(boolean featureFlagEnabled, boolean settingEnabled) {
+        if (featureFlagEnabled == false) {
+            return FetchPhaseMode.UNAVAILABLE;
+        }
+        return settingEnabled ? FetchPhaseMode.AUTO : FetchPhaseMode.DISABLED;
     }
 
     /**
@@ -460,7 +497,8 @@ public class EsqlFlags {
     }
 
     /**
-     * Whether the coordinator may plan the fetch phase. See {@link FetchPhaseMode}.
+     * Whether the coordinator may plan the fetch phase, as far as the build and the cluster setting are concerned. The
+     * {@code fetch_phase} pragma of a query can override it. See {@link FetchPhaseMode}.
      */
     public FetchPhaseMode fetchPhaseMode() {
         return fetchPhaseMode;

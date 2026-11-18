@@ -200,7 +200,8 @@ public class RemoteClusterSecurityEsqlExternalSourceIT extends AbstractRemoteClu
                 "querying-cluster",
                 "external-cluster-" + randomAlphaOfLength(8),
                 configuration,
-                new RemoteClusterPlan(plan, indices, new OriginalIndices(indices, IndicesOptions.strictExpandOpen()))
+                new RemoteClusterPlan(plan, indices, new OriginalIndices(indices, IndicesOptions.strictExpandOpen())),
+                null
             );
             ElasticsearchStatusException clusterRefusal = expectRefusal(
                 service,

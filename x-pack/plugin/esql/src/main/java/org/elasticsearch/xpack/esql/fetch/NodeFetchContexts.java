@@ -70,6 +70,7 @@ public final class NodeFetchContexts implements Releasable {
     }
 
     private final SearchService searchService;
+    private final OpenFetchContexts openContexts;
     /**
      * The creator of the contexts, logged when they open and close.
      */
@@ -86,15 +87,17 @@ public final class NodeFetchContexts implements Releasable {
     private boolean closed;
 
     /**
-     * @param keepAlive the keep-alive of each context the request keeps. A context never gets less than
-     *                  {@code search.default_keep_alive}, the keep-alive it opens with.
+     * @param openContexts counts the contexts the request opens until their readers close
+     * @param keepAlive    the keep-alive of each context the request keeps. A context never gets less than
+     *                     {@code search.default_keep_alive}, the keep-alive it opens with.
      */
-    public NodeFetchContexts(SearchService searchService, @Nullable Task task, TimeValue keepAlive) {
+    public NodeFetchContexts(SearchService searchService, OpenFetchContexts openContexts, @Nullable Task task, TimeValue keepAlive) {
         if (keepAlive.millis() <= 0) {
             // reader contexts keep their keep-alive in milliseconds
             throw new IllegalArgumentException("the keep-alive must be at least a millisecond but was [" + keepAlive + "]");
         }
         this.searchService = searchService;
+        this.openContexts = openContexts;
         this.task = task;
         this.keepAlive = keepAlive;
     }
@@ -111,6 +114,7 @@ public final class NodeFetchContexts implements Releasable {
         boolean success = false;
         try {
             readerContext = searchService.createOrGetReaderContext(shardRequest, task);
+            openContexts.opened(readerContext);
             querySearchContext = searchService.createSearchContext(readerContext, shardRequest, SearchService.NO_TIMEOUT, part);
             // the search context closes the part from here on
             part = null;

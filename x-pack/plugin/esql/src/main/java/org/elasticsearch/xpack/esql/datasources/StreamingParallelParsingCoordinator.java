@@ -1326,7 +1326,11 @@ public final class StreamingParallelParsingCoordinator {
                     // parser pool cannot stall the consumer on missing POISON.
                 }
             } catch (Exception e) {
-                recordFirstError(e);
+                // close() aborts the stream to unblock a parked read(); the resulting failure is
+                // teardown, not a query failure. LIMIT / cancellation already has its rows.
+                if (closed.get() == false) {
+                    recordFirstError(e);
+                }
             } finally {
                 // Parser tasks may sit behind a pinned pool thread and never run. Inline whatever is
                 // still queued so EOF (including non-strict truncation) does not depend on those tasks.
@@ -2467,7 +2471,9 @@ public final class StreamingParallelParsingCoordinator {
          * <p>
          * Phase 1: CAS {@code closed} to {@code true} (causes any in-flight parser task to bail on
          * its {@code firstError || closed} check and the segmentator to skip its next iteration), wake
-         * any segmentator parked on {@link #dispatchPermits}, and drain whatever is already queued.
+         * any segmentator parked on {@link #dispatchPermits}, abort the upstream stream so a
+         * segmentator blocked in {@code stream.read()} (slow S3, retry) can exit, and drain whatever
+         * is already queued.
          * <p>
          * Phase 2: poll {@link #tasksOutstanding} for up to {@link #CLOSE_TIMEOUT_SECONDS} so all
          * one-shot parser tasks (and the segmentator) have a chance to exit cleanly, then drain again
@@ -2477,8 +2483,10 @@ public final class StreamingParallelParsingCoordinator {
          * deadline we log a warning and run the second drain anyway, but parser tasks may still be
          * alive at return time. Any pages they publish after that — and any blocks those pages
          * reference — are leaked. We do not interrupt the parser executor: it is shared and an
-         * interrupt could disrupt unrelated tasks. The timeout is intentionally generous (60s) to make
-         * the leak window an exceptional condition; production workloads should not hit it.
+         * interrupt could disrupt unrelated tasks. Aborting the stream first makes the 60s wait apply
+         * to parser tasks that cannot be interrupted, not to a blocked upstream read. The timeout is
+         * intentionally generous to make the leak window an exceptional condition; production
+         * workloads should not hit it.
          */
         @Override
         public void close() throws IOException {
@@ -2497,6 +2505,12 @@ public final class StreamingParallelParsingCoordinator {
             // Wake the segmentator if parked on dispatchPermits.acquire(); after a successful acquire it
             // re-checks {@code closed} and exits {@link #dispatchChunk} without enqueueing.
             dispatchPermits.release();
+            // Abort before waiting. A segmentator blocked in stream.read() (slow S3, RetryableStorageObject
+            // retrying a GET) never observes {@code closed} until the read returns; waiting first held
+            // the closer for 60s and leaked pages published after the timeout. Skip-CAS-when-null lets a
+            // racing opener still close a stream it assigns after this read. Matches ParallelParsingCoordinator
+            // aborting leftover GETs before allDone.await.
+            closeStream();
             drainAllQueues();
             boolean neverStarted = admissionHandle.cancel();
             if (neverStarted) {

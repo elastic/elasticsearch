@@ -542,6 +542,81 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
+     * {@code close()} must abort the upstream stream before waiting for {@code tasksOutstanding}, so a
+     * segmentator parked in {@code stream.read()} unblocks instead of pinning the closer for 60s.
+     * An abort-induced {@link IOException} is teardown, not a query failure: {@code tryAdvance} after
+     * close must return null.
+     */
+    public void testCloseAbortsBlockedUpstreamReadWithoutWaiting() throws Exception {
+        CountDownLatch parked = new CountDownLatch(1);
+        CountDownLatch resume = new CountDownLatch(1);
+        AtomicInteger closeCalls = new AtomicInteger();
+        InputStream stream = new InputStream() {
+            @Override
+            public int read() {
+                throw new AssertionError("segmentator reads in bulk");
+            }
+
+            @Override
+            public int read(byte[] b, int off, int len) throws IOException {
+                parked.countDown();
+                try {
+                    if (resume.await(15, TimeUnit.SECONDS) == false) {
+                        throw new IOException("read was not unblocked by close");
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IOException("interrupted", e);
+                }
+                throw new IOException("aborted");
+            }
+
+            @Override
+            public void close() {
+                closeCalls.incrementAndGet();
+                resume.countDown();
+            }
+        };
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            CloseableIterator<Page> iter = StreamingParallelParsingCoordinator.parallelRead(
+                new LineFormatReader(512),
+                stream,
+                List.of("line"),
+                50,
+                2,
+                executor,
+                ErrorPolicy.STRICT
+            );
+            safeAwait(parked);
+            CountDownLatch closed = new CountDownLatch(1);
+            AtomicReference<Exception> closeFailure = new AtomicReference<>();
+            Thread closer = new Thread(() -> {
+                try {
+                    iter.close();
+                } catch (Exception e) {
+                    closeFailure.set(e);
+                } finally {
+                    closed.countDown();
+                }
+            });
+            closer.start();
+            try {
+                assertTrue("close() must return promptly after aborting the blocked read", closed.await(5, TimeUnit.SECONDS));
+            } finally {
+                closer.join(TimeUnit.SECONDS.toMillis(5));
+            }
+            assertFalse("closer must exit after aborting the stream", closer.isAlive());
+            assertNull(closeFailure.get());
+            assertThat(closeCalls.get(), Matchers.greaterThanOrEqualTo(1));
+            assertNull("abort during close must not be recorded as a failure", iter.tryAdvance());
+        } finally {
+            resume.countDown();
+            executor.shutdownNow();
+        }
+    }
+
+    /**
      * An endless record that parks once mid-grow. With a 512-byte chunk and 256-byte reads, the stream parks
      * before its fourth read, while the segmentator is growing past the first chunk. If
      * {@code recordEndsAtGrowBufferFill}, that read ends the first record with a newline.

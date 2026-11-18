@@ -832,6 +832,97 @@ public class CompositeAssemblyTests extends ESTestCase {
     }
 
     /**
+     * A defect this prototype found and did not cause, pinned so it is reproducible rather than remembered.
+     * The two statistics producers skip a repeated leaf only when the <em>top-level</em> field is the list:
+     * {@code isTopLevelListLeaf} reads {@code path[0]}, and the guard is
+     * {@code maxRepetitionLevel > 0 && isTopLevelListLeaf(...)}. A LIST nested under a STRUCT satisfies the
+     * first half and fails the second, and the MAP/VARIANT skip does not cover a LIST -- so its string leaf
+     * and its long leaf fold onto the group's one dotted name and meet in {@code compareStatExtremum}, whose
+     * own comment says only same-type extrema can reach it.
+     * <p>
+     * The switch is off here: this is production behaviour on a plain read, not something assembly provokes.
+     * Assertions are on under {@code -ea}, so the net fires as an {@code AssertionError}; without them the
+     * comparison silently returns {@code 0} and a last-writer-wins min/max stays in the split's statistics.
+     * <p>
+     * This asserts the defect, so <strong>fixing it must fail this test</strong>.
+     */
+    public void testStructNestedListFoldsHeterogeneousExtrema() throws IOException {
+        MessageType schema = MessageTypeParser.parseMessageType("""
+            message struct_nested_list {
+              required int64 id;
+              optional group outer {
+                optional group items (LIST) {
+                  repeated group list {
+                    optional group element {
+                      optional binary sku (STRING);
+                      optional int64 price;
+                    }
+                  }
+                }
+              }
+            }
+            """);
+        byte[] file = writeStructNestedListFile(schema);
+
+        // The switch is off: the plain production reader is what trips this.
+        AssertionError e = expectThrows(AssertionError.class, () -> newReader().metadata(createStorageObject(file)));
+        assertThat(e.getMessage(), containsString("heterogeneous stat extrema"));
+        assertThat(e.getMessage(), containsString("java.lang.String"));
+        assertThat(e.getMessage(), containsString("java.lang.Long"));
+
+        // A top-level list of the same element type is shielded, which is why the gap went unnoticed.
+        MessageType topLevel = MessageTypeParser.parseMessageType("""
+            message top_level_list {
+              required int64 id;
+              optional group items (LIST) {
+                repeated group list {
+                  optional group element {
+                    optional binary sku (STRING);
+                    optional int64 price;
+                  }
+                }
+              }
+            }
+            """);
+        SourceMetadata metadata = newReader().metadata(createStorageObject(writeTopLevelListFile(topLevel)));
+        assertNotNull("the same element type at top level resolves without tripping the net", metadata);
+    }
+
+    /** Four rows whose nested {@code outer.items} each carry one element with both leaves populated. */
+    private byte[] writeStructNestedListFile(MessageType schema) throws IOException {
+        return writeNestedRows(schema, true);
+    }
+
+    /** The same four rows with {@code items} at the top level rather than under a struct. */
+    private byte[] writeTopLevelListFile(MessageType schema) throws IOException {
+        return writeNestedRows(schema, false);
+    }
+
+    private byte[] writeNestedRows(MessageType schema, boolean underStruct) throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(createOutputFile(out))
+                .withType(schema)
+                .withConf(new PlainParquetConfiguration())
+                .withCodecFactory(new PlainCompressionCodecFactory())
+                .withCompressionCodec(codec)
+                .withWriterVersion(writerVersion)
+                .build()
+        ) {
+            for (int i = 0; i < 4; i++) {
+                Group row = factory.newGroup().append("id", (long) i);
+                Group listHolder = underStruct ? row.addGroup("outer") : row;
+                Group element = listHolder.addGroup("items").addGroup("list").addGroup("element");
+                element.append("sku", "sku-" + i);
+                element.append("price", (long) i);
+                writer.write(row);
+            }
+        }
+        return out.toByteArray();
+    }
+
+    /**
      * The decode sites that do not implement assembly must refuse a composite rather than read its first
      * leaf. The baseline iterator would otherwise emit every {@code sku} in the row as the value of
      * {@code items}: values that are in the file, under a column they do not belong to.

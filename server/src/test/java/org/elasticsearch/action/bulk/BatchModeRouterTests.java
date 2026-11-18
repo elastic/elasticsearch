@@ -280,18 +280,25 @@ public class BatchModeRouterTests extends ESTestCase {
     }
 
     /**
-     * A direct write to a backing index of a data stream is a legal bulk item. Its batch is keyed by the name of the
-     * backing index, the name the items target, and routes to that index like any other.
+     * A direct write to a backing index of a data stream is a legal bulk item when it is not append-only, as an
+     * {@code INDEX} with {@code if_seq_no} and {@code if_primary_term} is. Its batch is keyed by the name of the backing
+     * index, the name the items target, and routes to that index like any other.
      */
     public void testBatchKeyedByBackingIndexRoutesToIt() throws IOException {
         IndexMetadata backing = tsdbBackingIndex(1, 1, GEN_1_START, GEN_1_END);
         ProjectMetadata project = projectWithDataStream(backing);
         String backingName = backing.getIndex().getName();
+        IndexAbstraction backingAbstraction = project.getIndicesLookup().get(backingName);
         int numDocs = randomIntBetween(2, 10);
         EscfBatch batch = buildBatch(numDocs);
         BulkRequest bulkRequest = new BulkRequest();
         for (int row = 0; row < numDocs; row++) {
-            bulkRequest.add(tsdbRowRequest(backingName, batch, row, IN_GEN_1));
+            IndexRequest request = tsdbRowRequest(backingName, batch, row, IN_GEN_1).opType(DocWriteRequest.OpType.INDEX)
+                .setIfSeqNo(0)
+                .setIfPrimaryTerm(1);
+            // The bulk action itself must accept the request, which it does not for a create into a backing index.
+            TransportBulkAction.prohibitAppendWritesInBackingIndices(request, backingAbstraction, project::index, Settings.EMPTY);
+            bulkRequest.add(request);
         }
         bulkRequest.setPreBuiltBatches(Map.of(backingName, batch));
 

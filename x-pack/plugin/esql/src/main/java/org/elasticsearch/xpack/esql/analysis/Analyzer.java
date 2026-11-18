@@ -4518,6 +4518,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 List<FieldAttribute> generated = state.unionFieldAttributes.stream().map(attr -> (FieldAttribute) attr.inner()).toList();
                 // An expanded child is not a field of the relation: its conversion is part of the expansion that reads it.
                 plan = addGeneratedFieldsToNestedExpands(plan, generated, state);
+                if (state.convertedChildren.isEmpty() == false) {
+                    Set<NameId> convertedChildren = state.convertedChildren.keySet();
+                    plan = carryOverSyntheticAttributesThroughProjects(
+                        plan,
+                        attr -> convertedChildren.contains(attr.id()),
+                        context.unmappedResolution().loadsAllUnmappedFields()
+                    );
+                }
                 plan = addGeneratedFieldsToEsRelations(
                     plan,
                     generated.stream().filter(fa -> state.convertedChildren.containsKey(fa.id()) == false).toList(),
@@ -6672,6 +6680,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * overload that also gates synthetics against the enclosing {@link MergePlan} output.
      */
     private static LogicalPlan carryOverSyntheticAttributesThroughProjects(LogicalPlan plan, boolean preserveResolvingProject) {
+        return carryOverSyntheticAttributesThroughProjects(plan, Attribute::synthetic, preserveResolvingProject);
+    }
+
+    /**
+     * As {@link #carryOverSyntheticAttributesThroughProjects(LogicalPlan, boolean)}, but carrying over only the synthetic attributes
+     * that {@code carried} accepts.
+     */
+    private static LogicalPlan carryOverSyntheticAttributesThroughProjects(
+        LogicalPlan plan,
+        Predicate<Attribute> carried,
+        boolean preserveResolvingProject
+    ) {
         return plan.transformUp(Project.class, p -> {
             // Skip Projects whose projections are not yet resolved (e.g. an unexpanded KEEP wildcard sitting above a still-unresolved
             // union-typed field reference). Their output cannot be computed yet — calling p.output() would throw UnresolvedException.
@@ -6681,7 +6701,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             List<Attribute> syntheticAttributesToCarryOver = new ArrayList<>();
             for (Attribute attr : p.inputSet()) {
-                if (attr.synthetic() && p.outputSet().contains(attr) == false) {
+                if (attr.synthetic() && carried.test(attr) && p.outputSet().contains(attr) == false) {
                     syntheticAttributesToCarryOver.add(attr);
                 }
             }

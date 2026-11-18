@@ -19,12 +19,14 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.NestedScopeField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
@@ -46,6 +48,7 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -168,6 +171,59 @@ public class AnalyzerNestedExpandTests extends AnalyzerTestCase {
             names(expand(plan).expanded()).stream().filter(n -> n.contains("converted_to")).toList(),
             contains("$$items.v$converted_to$long", "$$items.v$converted_to$keyword")
         );
+    }
+
+    public void testCastAfterKeepIsCarriedThroughTheProjection() {
+        LogicalPlan plan = nestedAnalyzer().query(
+            "FROM ne_types | NESTED_EXPAND items | KEEP items.small, items.v | EVAL x = TO_LONG(items.v) | KEEP x"
+        );
+        assertThat(names(expand(plan).expanded()), hasItem("$$items.v$converted_to$long"));
+        assertConsistent(plan);
+    }
+
+    public void testSeveralCastsAfterKeepAreCarriedThroughEveryProjection() {
+        LogicalPlan plan = nestedAnalyzer().query(
+            "FROM ne_types | NESTED_EXPAND items | KEEP items.small, items.v | EVAL a = TO_LONG(items.v) | KEEP a, items.v "
+                + "| EVAL b = TO_STRING(items.v) | KEEP a, b"
+        );
+        assertThat(
+            names(expand(plan).expanded()).stream().filter(n -> n.contains("converted_to")).toList(),
+            contains("$$items.v$converted_to$long", "$$items.v$converted_to$keyword")
+        );
+        assertConsistent(plan);
+    }
+
+    public void testMatchOnExpandedChildIsRejected() {
+        nestedAnalyzer().error(
+            "FROM ne | NESTED_EXPAND items | WHERE MATCH(items.sku, \"a\") | KEEP id",
+            containsString("Full-text matching on expanded nested fields is not supported yet")
+        );
+    }
+
+    public void testMatchPhraseOnExpandedChildIsRejected() {
+        nestedAnalyzer().error(
+            "FROM ne | NESTED_EXPAND items | WHERE MATCH_PHRASE(items.sku, \"a\") | KEEP id",
+            containsString("Full-text matching on expanded nested fields is not supported yet")
+        );
+    }
+
+    public void testMatchOperatorOnExpandedChildIsRejected() {
+        nestedAnalyzer().error(
+            "FROM ne | NESTED_EXPAND items | WHERE items.sku : \"a\" | KEEP id",
+            containsString("Full-text matching on expanded nested fields is not supported yet")
+        );
+    }
+
+    public void testMatchOnRenamedExpandedChildIsRejected() {
+        nestedAnalyzer().error(
+            "FROM ne | NESTED_EXPAND items | RENAME items.sku AS s | WHERE MATCH(s, \"a\") | KEEP id",
+            containsString("Full-text matching on expanded nested fields is not supported yet")
+        );
+    }
+
+    public void testMatchOnParentFieldAroundExpansionIsAccepted() {
+        nestedAnalyzer().query("FROM ne | WHERE MATCH(id, \"1\") | NESTED_EXPAND items | KEEP id, items.sku");
+        nestedAnalyzer().query("FROM ne | NESTED_EXPAND items | WHERE MATCH(id, \"1\") | KEEP id, items.sku");
     }
 
     public void testWithoutNestedExpandChildrenAreUnknown() {
@@ -440,6 +496,12 @@ public class AnalyzerNestedExpandTests extends AnalyzerTestCase {
         List<Attribute> nullified = relations.getFirst().output().stream().filter(a -> a.name().equals("items.undeclared")).toList();
         assertThat(nullified, hasSize(1));
         assertThat(nullified.getFirst().dataType(), equalTo(DataType.NULL));
+    }
+
+    private static void assertConsistent(LogicalPlan plan) {
+        Failures failures = new Failures();
+        plan.forEachDown(node -> PlanConsistencyChecker.checkPlan(node, failures));
+        assertThat(failures.failures(), is(empty()));
     }
 
     private static NestedExpand expand(LogicalPlan plan) {

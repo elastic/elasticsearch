@@ -1003,3 +1003,302 @@ setup:
       esql.query:
         body:
           query: 'FROM ne_price_a, ne_price_b | NESTED_EXPAND items | WHERE items.price IS NOT NULL'
+
+---
+"Full-text matching on an expanded child is rejected while the parent's own fields still match":
+  - do:
+      indices.create:
+        index: ne_match
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              id:
+                type: keyword
+              title:
+                type: text
+              items:
+                type: nested
+                properties:
+                  note:
+                    type: text
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "ne_match", "_id": "a" } }
+          - { "id": "a", "title": "hello world", "items": [ { "note": "hello" }, { "note": "other" } ] }
+          - { "index": { "_index": "ne_match", "_id": "b" } }
+          - { "id": "b", "title": "bye", "items": [ { "note": "hello there" }, { "note": "nothing" } ] }
+  - do:
+      catch: '/Full-text matching on expanded nested fields is not supported yet/'
+      esql.query:
+        body:
+          query: 'FROM ne_match | NESTED_EXPAND items | WHERE MATCH(items.note, "hello") | KEEP id, items.note | SORT id, items.note | LIMIT 10'
+  - do:
+      catch: '/Full-text matching on expanded nested fields is not supported yet/'
+      esql.query:
+        body:
+          query: 'FROM ne_match | NESTED_EXPAND items | WHERE MATCH_PHRASE(items.note, "hello") | KEEP id, items.note | LIMIT 10'
+  - do:
+      catch: '/Full-text matching on expanded nested fields is not supported yet/'
+      esql.query:
+        body:
+          query: 'FROM ne_match | NESTED_EXPAND items | WHERE items.note : "hello" | KEEP id, items.note | LIMIT 10'
+  - do:
+      catch: '/Full-text matching on expanded nested fields is not supported yet/'
+      esql.query:
+        body:
+          query: 'FROM ne_match | NESTED_EXPAND items | RENAME items.note AS n | WHERE MATCH(n, "hello") | KEEP id, n | LIMIT 10'
+  - do:
+      esql.query:
+        body:
+          query: 'FROM ne_match | WHERE MATCH(title, "hello") | NESTED_EXPAND items | KEEP id, items.note | SORT items.note | LIMIT 10'
+  - length: { values: 2 }
+  - match: { values.0: ["a", "hello"] }
+  - match: { values.1: ["a", "other"] }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM ne_match | NESTED_EXPAND items | WHERE MATCH(title, "hello") | KEEP id, items.note | SORT items.note | LIMIT 10'
+  - length: { values: 2 }
+  - match: { values.0: ["a", "hello"] }
+  - match: { values.1: ["a", "other"] }
+
+---
+"A runtime child converts like an indexed one when another index maps the field with a different type":
+  - do:
+      indices.create:
+        index: ne_mix_runtime_long
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            runtime:
+              items.v:
+                type: long
+                script:
+                  source: "emit(doc['parent_value'].value)"
+            properties:
+              id:
+                type: keyword
+              parent_value:
+                type: long
+              items:
+                type: nested
+                properties:
+                  qty:
+                    type: long
+  - do:
+      indices.create:
+        index: ne_mix_keyword
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              id:
+                type: keyword
+              items:
+                type: nested
+                properties:
+                  v:
+                    type: keyword
+  - do:
+      indices.create:
+        index: ne_mix_runtime_keyword
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            runtime:
+              items.v:
+                type: keyword
+                script:
+                  source: "emit(doc['parent_text'].value)"
+            properties:
+              id:
+                type: keyword
+              parent_text:
+                type: keyword
+              items:
+                type: nested
+                properties:
+                  qty:
+                    type: long
+  - do:
+      indices.create:
+        index: ne_mix_long
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              id:
+                type: keyword
+              items:
+                type: nested
+                properties:
+                  v:
+                    type: long
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "ne_mix_runtime_long", "_id": "1" } }
+          - { "id": "rl", "parent_value": 7, "items": [ { "qty": 1 }, { "qty": 2 } ] }
+          - { "index": { "_index": "ne_mix_keyword", "_id": "1" } }
+          - { "id": "k", "items": [ { "v": "x" }, { "v": "y" } ] }
+          - { "index": { "_index": "ne_mix_runtime_keyword", "_id": "1" } }
+          - { "id": "rk", "parent_text": "5", "items": [ { "qty": 1 }, { "qty": 2 } ] }
+          - { "index": { "_index": "ne_mix_long", "_id": "1" } }
+          - { "id": "l", "items": [ { "v": 9 } ] }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM ne_mix_runtime_long, ne_mix_keyword | NESTED_EXPAND items | EVAL s = TO_STRING(items.v) | KEEP id, s | SORT id, s | LIMIT 10'
+  - length: { values: 4 }
+  - match: { values.0: ["k", "x"] }
+  - match: { values.1: ["k", "y"] }
+  - match: { values.2: ["rl", "7"] }
+  - match: { values.3: ["rl", "7"] }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM ne_mix_runtime_keyword, ne_mix_long | NESTED_EXPAND items | EVAL n = TO_LONG(items.v) | KEEP id, n | SORT id, n | LIMIT 10'
+  - length: { values: 3 }
+  - match: { values.0: ["l", 9] }
+  - match: { values.1: ["rk", 5] }
+  - match: { values.2: ["rk", 5] }
+
+---
+"A source-only runtime keyword under a nested name reads the parent's synthetic source like stored source":
+  - do:
+      indices.create:
+        index: ne_runtime_keyword_synthetic
+        body:
+          settings:
+            number_of_shards: 1
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            runtime:
+              items.calc:
+                type: keyword
+            properties:
+              items:
+                type: nested
+                dynamic: false
+                properties:
+                  qty:
+                    type: long
+  - do:
+      indices.create:
+        index: ne_runtime_keyword_stored
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            runtime:
+              items.calc:
+                type: keyword
+            properties:
+              items:
+                type: nested
+                dynamic: false
+                properties:
+                  qty:
+                    type: long
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "ne_runtime_keyword_synthetic", "_id": "a" } }
+          - { "items": [ { "qty": 1, "calc": "x" }, { "qty": 2, "calc": "y" } ] }
+          - { "index": { "_index": "ne_runtime_keyword_synthetic", "_id": "b" } }
+          - { "items": [ { "qty": 3, "calc": [ "p", "q" ] } ] }
+          - { "index": { "_index": "ne_runtime_keyword_stored", "_id": "a" } }
+          - { "items": [ { "qty": 1, "calc": "x" }, { "qty": 2, "calc": "y" } ] }
+          - { "index": { "_index": "ne_runtime_keyword_stored", "_id": "b" } }
+          - { "items": [ { "qty": 3, "calc": [ "p", "q" ] } ] }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM ne_runtime_keyword_stored | NESTED_EXPAND items | KEEP items.qty, items.calc | SORT items.qty | LIMIT 10'
+  - length: { values: 3 }
+  - match: { values.0: [1, ["x", "y"]] }
+  - match: { values.1: [2, ["x", "y"]] }
+  - match: { values.2: [3, ["p", "q"]] }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM ne_runtime_keyword_synthetic | NESTED_EXPAND items | KEEP items.qty, items.calc | SORT items.qty | LIMIT 10'
+  - length: { values: 3 }
+  - match: { values.0: [1, ["x", "y"]] }
+  - match: { values.1: [2, ["x", "y"]] }
+  - match: { values.2: [3, ["p", "q"]] }
+
+---
+"A cast of an expanded child after an earlier KEEP reads the converted column through the projection":
+  - do:
+      indices.create:
+        index: ne_keep_a
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              id:
+                type: keyword
+              items:
+                type: nested
+                properties:
+                  price:
+                    type: integer
+                  qty:
+                    type: long
+  - do:
+      indices.create:
+        index: ne_keep_b
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              id:
+                type: keyword
+              items:
+                type: nested
+                properties:
+                  price:
+                    type: keyword
+                  qty:
+                    type: long
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "ne_keep_a", "_id": "1" } }
+          - { "id": "a1", "items": [ { "price": 1, "qty": 1 }, { "price": 2, "qty": 2 } ] }
+          - { "index": { "_index": "ne_keep_b", "_id": "1" } }
+          - { "id": "b1", "items": [ { "price": "30", "qty": 3 } ] }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM ne_keep_a, ne_keep_b | NESTED_EXPAND items | KEEP id, items.price | EVAL p = TO_LONG(items.price) | KEEP id, p | SORT p | LIMIT 10'
+  - length: { values: 3 }
+  - match: { values.0: ["a1", 1] }
+  - match: { values.1: ["a1", 2] }
+  - match: { values.2: ["b1", 30] }
+  - do:
+      allowed_warnings_regex:
+        - "Line 1:\\d+: evaluation of \\[CHANGE_POINT items\\.qty ON items\\.qty\\] failed, treating result as null.*"
+        - "Line 1:\\d+: java\\.lang\\.IllegalArgumentException: not enough buckets to calculate change_point.*"
+      esql.query:
+        body:
+          query: 'FROM ne_keep_a, ne_keep_b | NESTED_EXPAND items | KEEP id, items.qty, items.price | CHANGE_POINT items.qty ON items.qty | EVAL p = TO_LONG(items.price) | KEEP id, p | SORT p | LIMIT 10'
+  - length: { values: 3 }
+  - match: { values.0: ["a1", 1] }
+  - match: { values.1: ["a1", 2] }
+  - match: { values.2: ["b1", 30] }

@@ -120,31 +120,29 @@ public final class NestedChildren implements Releasable {
                     settings.blockLoaderSizeScript()
                 );
                 BitSetProducer parents = shards.get(shard).parents();
-                if (context.fieldType(name) instanceof AbstractScriptFieldType && parents != null) {
-                    // This shard maps the name as a runtime field, which runs on the parent rather than on the child
-                    if (loader instanceof FallbackSyntheticSourceBlockLoader fallback) {
-                        // Its values are in the children's _ignored_source, not the parent's, so read them from the parent's _source
-                        loader = new NestedChildSourceBlockLoader(fallback, context.fieldType(name).name());
-                    }
-                    return ValuesSourceReaderOperator.load(new NestedParentBlockLoader(loader, parents, context::newSourceLoader));
-                }
                 if (loader instanceof FallbackSyntheticSourceBlockLoader fallback) {
-                    // The child's own _ignored_source misses the values the nested object or an object above it keeps whole.
-                    // The source holds them under the name of the field, not of an alias to it.
+                    // The child's own _ignored_source misses the values the nested object or an object above it keeps whole, and
+                    // those of a runtime field, so they are read from the _source. It holds them under the name of the field,
+                    // not of an alias to it.
                     loader = new NestedChildSourceBlockLoader(fallback, context.fieldType(name).name());
                 }
-                if (loader.rowStrideStoredFieldSpec().requiresSource() && context.storesFilteredSource()) {
-                    driverContext.addWarning(
-                        Strings.format(
-                            "Field [%s] cannot be retrieved from the filtered _source of index [%s]; returning null",
-                            name,
-                            context.executionContext().getFullyQualifiedIndex().getName()
-                        )
-                    );
-                    loader = ConstantNull.INSTANCE;
-                }
-                if (DataType.isString(type) == false && context.readsKey(name)) {
-                    return ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS;
+                if (context.fieldType(name) instanceof AbstractScriptFieldType && parents != null) {
+                    // This shard maps the name as a runtime field, which runs on the parent rather than on the child
+                    loader = new NestedParentBlockLoader(loader, parents, context::newSourceLoader);
+                } else {
+                    if (loader.rowStrideStoredFieldSpec().requiresSource() && context.storesFilteredSource()) {
+                        driverContext.addWarning(
+                            Strings.format(
+                                "Field [%s] cannot be retrieved from the filtered _source of index [%s]; returning null",
+                                name,
+                                context.executionContext().getFullyQualifiedIndex().getName()
+                            )
+                        );
+                        loader = ConstantNull.INSTANCE;
+                    }
+                    if (DataType.isString(type) == false && context.readsKey(name)) {
+                        return ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS;
+                    }
                 }
                 if (union != null) {
                     return context.convertedNestedChild(union, name, loader);

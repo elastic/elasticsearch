@@ -13,10 +13,9 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.entitlement.runtime.api.EntitlementDelegation;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
@@ -27,9 +26,12 @@ import java.util.stream.StreamSupport;
  * File resources watcher
  *
  * The file watcher checks directory and all its subdirectories for file changes and notifies its listeners accordingly
+ * <p>
+ * The file operations of a watcher use the entitlements of the class that created it, whichever thread runs the watcher.
  */
 public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
 
+    private final EntitlementDelegation delegation = EntitlementDelegation.asCreator();
     private FileObserver rootFileObserver;
     private final Path path;
     private final boolean checkFileContents;
@@ -121,22 +123,6 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
         void onFileDeleted() {}
     }
 
-    protected boolean fileExists(Path path) {
-        return Files.exists(path);
-    }
-
-    protected BasicFileAttributes readAttributes(Path path) throws IOException {
-        return Files.readAttributes(path, BasicFileAttributes.class);
-    }
-
-    protected InputStream newInputStream(Path path) throws IOException {
-        return Files.newInputStream(path);
-    }
-
-    protected DirectoryStream<Path> listFiles(Path path) throws IOException {
-        return Files.newDirectoryStream(path);
-    }
-
     private class FileObserver extends Observer {
         private long length;
         private long lastModified;
@@ -154,10 +140,10 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
             long prevLastModified = lastModified;
             byte[] prevDigest = digest;
 
-            exists = fileExists(path);
+            exists = delegation.call(() -> Files.exists(path));
             // TODO we might use the new NIO2 API to get real notification?
             if (exists) {
-                BasicFileAttributes attributes = readAttributes(path);
+                BasicFileAttributes attributes = delegation.call(() -> Files.readAttributes(path, BasicFileAttributes.class));
                 isDirectory = attributes.isDirectory();
                 if (isDirectory) {
                     length = 0;
@@ -225,7 +211,7 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
         }
 
         private byte[] calculateDigest() {
-            try (var in = newInputStream(path)) {
+            try (var in = delegation.call(() -> Files.newInputStream(path))) {
                 return MessageDigests.digest(in, MessageDigests.md5());
             } catch (IOException e) {
                 logger.warn(
@@ -238,9 +224,9 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
         }
 
         private void init(boolean initial) throws IOException {
-            exists = fileExists(path);
+            exists = delegation.call(() -> Files.exists(path));
             if (exists) {
-                BasicFileAttributes attributes = readAttributes(path);
+                BasicFileAttributes attributes = delegation.call(() -> Files.readAttributes(path, BasicFileAttributes.class));
                 isDirectory = attributes.isDirectory();
                 if (isDirectory) {
                     onDirectoryCreated(initial);
@@ -268,7 +254,7 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
         }
 
         private Path[] listFiles() throws IOException {
-            try (var dirs = FileWatcher.this.listFiles(path)) {
+            try (var dirs = delegation.call(() -> Files.newDirectoryStream(path))) {
                 return StreamSupport.stream(dirs.spliterator(), false).sorted().toArray(Path[]::new);
             }
         }

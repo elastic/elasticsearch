@@ -9,6 +9,7 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
+import org.elasticsearch.entitlement.runtime.delegation.DelegationPolicy;
 import org.elasticsearch.entitlement.runtime.policy.FileAccessTree.ExclusiveFileEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.FileAccessTree.ExclusivePath;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.Entitlement;
@@ -398,6 +399,46 @@ public class PolicyManager {
      */
     protected boolean isTrustedSystemClass(Class<?> requestingClass) {
         return SYSTEM_LAYER_MODULES.contains(requestingClass.getModule());
+    }
+
+    /**
+     * Whether {@code type} belongs to the entitlement library. In production the system layer already contains it; this
+     * matters where classes are not in modules, as in tests.
+     */
+    protected boolean isEntitlementClass(Class<?> type) {
+        return type.getModule() == PolicyManager.class.getModule();
+    }
+
+    /**
+     * Whether the entitlement checks made by the code of {@code type} may use the entitlements of another class, through
+     * {@link org.elasticsearch.entitlement.runtime.api.EntitlementDelegation}.
+     * Only classes in the server layer can delegate: the modules of the boot layer outside the trusted JDK modules
+     * (server, its libraries and their dependencies, and {@link MODULES_EXCLUDED_FROM_SYSTEM_MODULES}).
+     */
+    protected boolean canDelegate(Class<?> type) {
+        return SERVER_LAYER_MODULES.contains(type.getModule());
+    }
+
+    PolicyScope resolveScope(Class<?> type) {
+        return scopeResolver.apply(type);
+    }
+
+    /**
+     * @return the decisions of this policy manager that {@link org.elasticsearch.entitlement.runtime.api.EntitlementDelegation}
+     * needs, to install with {@link org.elasticsearch.entitlement.runtime.delegation.DelegationRuntime#install}
+     */
+    public final DelegationPolicy delegationPolicy() {
+        return new DelegationPolicy() {
+            @Override
+            public boolean canDelegate(Class<?> type) {
+                return PolicyManager.this.canDelegate(type);
+            }
+
+            @Override
+            public boolean isSkippedFrame(Class<?> type) {
+                return isTrustedSystemClass(type) || isEntitlementClass(type);
+            }
+        };
     }
 
     @Override

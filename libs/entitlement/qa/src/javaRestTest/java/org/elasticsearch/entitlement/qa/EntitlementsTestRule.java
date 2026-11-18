@@ -93,6 +93,8 @@ class EntitlementsTestRule implements TestRule {
             protected void before() throws Throwable {
                 Path testPath = testDir.getRoot().toPath();
                 Files.createDirectory(testPath.resolve("read_dir"));
+                Files.createDirectory(testPath.resolve("read_dir").resolve("watched_dir"));
+                Files.writeString(testPath.resolve("read_dir").resolve("watched_dir").resolve("watched_file"), "");
                 Files.createDirectory(testPath.resolve("read_write_dir"));
                 Files.writeString(testPath.resolve("read_file"), "");
                 Files.writeString(testPath.resolve("read_write_file"), "");

@@ -19,6 +19,7 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.config.MainInstrumentationProvider;
 import org.elasticsearch.entitlement.initialization.EntitlementInitialization;
+import org.elasticsearch.entitlement.runtime.delegation.DelegationRuntime;
 import org.elasticsearch.entitlement.runtime.policy.PathLookup;
 import org.elasticsearch.entitlement.runtime.policy.PathLookupImpl;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
@@ -110,6 +111,7 @@ public class EntitlementBootstrap {
             scopeResolver,
             pluginSourcePaths
         );
+        DelegationRuntime.install(policyManager.delegationPolicy());
         PolicyChecker policyChecker = createPolicyChecker(suppressFailureLogPackages, policyManager, pathLookup);
         InternalInstrumentationRegistry instrumentationRegistry = new InstrumentationRegistryImpl(policyChecker);
         EntitlementInitialization.initializeArgs = new EntitlementInitialization.InitializeArgs(

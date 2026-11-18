@@ -55,6 +55,7 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
     ) {}
 
     private static final Map<String, CheckAction> checkActions = collectTests(
+        DelegationActions.class,
         FileCheckActions.class,
         FileStoreActions.class,
         JvmActions.class,

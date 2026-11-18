@@ -23,7 +23,6 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.entitlement.runtime.policy.PolicyManagerTests.NO_ENTITLEMENTS_MODULE;
-import static org.elasticsearch.entitlement.runtime.policy.PolicyManagerTests.TEST_PATH_LOOKUP;
 import static org.elasticsearch.entitlement.runtime.policy.PolicyManagerTests.createEmptyTestServerPolicy;
 import static org.elasticsearch.entitlement.runtime.policy.PolicyManagerTests.makeClassInItsOwnModule;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ;
@@ -122,8 +121,15 @@ public class PolicyCheckerImplTests extends ESTestCase {
     }
 
     private static PolicyCheckerImpl checker(Module entitlementsModule) {
-        // TODO: TEST_PATH_LOOKUP is always null at this point!
-        return checker(entitlementsModule, null, TEST_PATH_LOOKUP);
+        var policyManager = new PolicyManager(
+            createEmptyTestServerPolicy(),
+            Map.of(),
+            Map.of(),
+            c -> PolicyManager.PolicyScope.server(PolicyManager.ALL_UNNAMED),
+            name -> List.of(),
+            EmptyPathLookup.INSTANCE
+        );
+        return checker(entitlementsModule, policyManager, EmptyPathLookup.INSTANCE);
     }
 
     private static PolicyCheckerImpl checker(Module entitlementsModule, PolicyManager policyManager, PathLookup testPathLookup) {

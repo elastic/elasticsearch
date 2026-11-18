@@ -622,6 +622,40 @@ setup:
   - match: { columns.1.type: "integer" }
 
 ---
+"cast of a field that is only a union across subquery branches nulls the branch that can't convert":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [subquery_in_from_command, lenient_impossible_casts]
+      reason: "Lenient casts of fields that are a union across subquery branches"
+  - do:
+      warnings:
+        - "[f] of type [long] cannot be converted to [IP] and will be null."
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM (FROM lenient_long), (FROM lenient_ip) | EVAL x = f::ip | KEEP id, x | SORT id'
+  - length: { values: 2 }
+  - match: { columns.1.type: "ip" }
+  - match: { values.0: [4, null] }
+  - match: { values.1: [8, "10.0.0.8"] }
+  - do:
+      warnings:
+        - "[f] of type [long] cannot be converted to [IP] and will be null."
+        - "[f] of type [boolean] cannot be converted to [IP] and will be null."
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM (FROM lenient_long), (FROM lenient_bool) | EVAL x = f::ip | KEEP id, x | SORT id'
+  - length: { values: 2 }
+  - match: { values.0: [4, null] }
+  - match: { values.1: [5, null] }
+
+---
 "impossible cast after STATS returns null":
   - requires:
       capabilities:

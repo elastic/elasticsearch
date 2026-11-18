@@ -5560,11 +5560,17 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (e instanceof ConvertFunction convert && e instanceof FoldablesConvertFunction == false) {
                     String inputType = impossibleInputType(convert);
                     if (inputType != null) {
+                        Expression input = convert.field();
                         context.deferredHeaderWarnings()
                             .add(
                                 Strings.format(
                                     "[%s] of type [%s] cannot be converted to [%s] and will be null.",
-                                    convert.field().sourceText(),
+                                    // A cast pushed into a subquery branch has the source of the branch, not of the field.
+                                    switch (input) {
+                                        case FieldAttribute field -> field.fieldName().string();
+                                        case Attribute attribute -> attribute.name();
+                                        default -> input.sourceText();
+                                    },
                                     inputType,
                                     e.dataType().nameUpper()
                                 )

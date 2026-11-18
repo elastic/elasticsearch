@@ -76,6 +76,12 @@ public abstract class BaseRestHandler implements RestHandler {
     private static final Set<String> ALWAYS_SUPPORTED = Set.of("format", "filter_path", "pretty", "human");
 
     /**
+     * The value to return from {@link #supportedQueryParameters()} for handlers that accept no query parameters. Callers assert that the
+     * same instance is returned on every call, so handlers share this constant.
+     */
+    protected static final Set<String> EMPTY_PARAMS = Set.of();
+
+    /**
      * The parameters every handler accepts, in addition to the set it declares. Handling a request and the capabilities check both use this
      * set, so they cannot disagree about which parameters are accepted.
      */
@@ -162,18 +168,32 @@ public abstract class BaseRestHandler implements RestHandler {
         }
     }
 
-    private boolean assertConsumesSupportedParams(@Nullable Set<String> supported, RestRequest request) {
+    /**
+     * Assertion-only method used to assert that all supported parameters have been consumed.
+     * <p>
+     * Override if a handler has specific parameter consumption behaviour that needs to be accounted for.
+     */
+    protected boolean assertConsumesSupportedParams(@Nullable Set<String> supported, RestRequest request) {
         if (supported != null) {
-            final var supportedAndCommon = new TreeSet<>(supported);
+            Set<String> supportedAndCommon = new TreeSet<>(supported);
             supportedAndCommon.add("error_trace");
             supportedAndCommon.addAll(ALWAYS_SUPPORTED);
             supportedAndCommon.removeAll(RestRequest.INTERNAL_MARKER_REQUEST_PARAMETERS);
-            final var consumed = new TreeSet<>(request.consumedParams());
+            Set<String> consumed = new TreeSet<>(request.consumedParams());
             consumed.removeAll(RestRequest.INTERNAL_MARKER_REQUEST_PARAMETERS);
             // Response parameters are implicitly consumed since they are made available to response renderings.
             consumed.addAll(responseParams(request.getRestApiVersion()));
-            assert supportedAndCommon.equals(consumed)
-                : getName() + ": consumed params " + consumed + " while supporting " + supportedAndCommon;
+
+            Set<String> consumedNotSupported = new TreeSet<>(consumed);
+            consumedNotSupported.removeAll(supportedAndCommon);
+            assert consumedNotSupported.isEmpty() : "Consumed params not marked as supported: " + consumedNotSupported;
+
+            Set<String> supportedNotConsumed = new TreeSet<>(supportedAndCommon);
+            supportedNotConsumed.removeAll(consumed);
+            // it's ok for error_trace to be unconsumed, as that is consumed by the rest controller directly,
+            // so direct handler tests won't read it
+            supportedNotConsumed.remove(RestController.ERROR_TRACE_PARAM);
+            assert supportedNotConsumed.isEmpty() : "Supported params not consumed: " + supportedNotConsumed;
         }
         return true;
     }

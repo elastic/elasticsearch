@@ -10,12 +10,14 @@ package org.elasticsearch.compute.operator;
 import org.apache.logging.log4j.Level;
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -50,6 +52,7 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
@@ -69,10 +72,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 
+import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
@@ -1274,6 +1279,394 @@ public class DriverTests extends ESTestCase {
         @Override
         public void close() {
 
+        }
+    }
+
+    /**
+     * A driver that fails publishes what its operators did, so the caller can account for the work of a query that failed.
+     * The failed driver is finished: its profile has a valid duration.
+     */
+    public void testFailedDriverPublishesOperatorUsage() {
+        DriverContext driverContext = driverContext();
+        long bytesRead = randomLongBetween(1, 1_000_000);
+        Driver driver = TestDriverFactory.create(
+            driverContext,
+            new UsageSourceOperator(driverContext, new UsageStatus(bytesRead, 11, 7), false),
+            List.of(failingOperator(new IllegalStateException("boom"))),
+            new TestResultPageSinkOperator(page -> fail("sink should not receive output"))
+        );
+        ThreadPool threadPool = threadPool();
+        try {
+            PlainActionFuture<Void> future = new PlainActionFuture<>();
+            Driver.start(threadPool.getThreadContext(), threadPool.executor("esql"), driver, between(1, 1000), future);
+            IllegalStateException failure = expectThrows(IllegalStateException.class, () -> future.actionGet(30, TimeUnit.SECONDS));
+            assertThat(failure.getMessage(), equalTo("boom"));
+            assertFinishedWithUsage(driver, bytesRead, 11, 7);
+            assertThat(driver.profile().tookNanos(), both(greaterThanOrEqualTo(0L)).and(lessThan(TimeUnit.MINUTES.toNanos(1))));
+        } finally {
+            driver.close();
+            terminate(threadPool);
+        }
+    }
+
+    /**
+     * A source whose final status is only known once its asynchronous actions are done, like an external source whose producer
+     * threads are still running when the driver fails: the driver waits for them and reads its status again after them.
+     */
+    public void testFailedDriverWaitsForAsyncActionsAndRereadsStatus() {
+        DriverContext driverContext = driverContext();
+        driverContext.addAsyncAction();
+        UsageSourceOperator source = new UsageSourceOperator(driverContext, new UsageStatus(1, 1, 1), true);
+        Driver driver = TestDriverFactory.create(
+            driverContext,
+            source,
+            List.of(failingOperator(new IllegalStateException("boom"))),
+            new TestResultPageSinkOperator(page -> fail("sink should not receive output"))
+        );
+        ThreadPool threadPool = threadPool();
+        try {
+            PlainActionFuture<Void> future = new PlainActionFuture<>();
+            Driver.start(threadPool.getThreadContext(), threadPool.executor("esql"), driver, between(1, 1000), future);
+            assertBusy(() -> assertTrue(source.closed));
+            // The producer is still running: the failure is not reported and the driver is not finished.
+            assertFalse(future.isDone());
+            assertThat(driver.status().status(), not(equalTo(DriverStatus.Status.DONE)));
+
+            source.producerDone = true;
+            driverContext.removeAsyncAction();
+            expectThrows(IllegalStateException.class, () -> future.actionGet(30, TimeUnit.SECONDS));
+            // Only the read after the asynchronous actions sees the work the producer did in the meantime.
+            assertFinishedWithUsage(driver, 1_000, 1, 1);
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        } finally {
+            driver.close();
+            terminate(threadPool);
+        }
+    }
+
+    /** An operator whose close() fails must not be counted twice: the failing driver closes it again and records it then. */
+    public void testOperatorFailingToCloseIsCountedOnce() {
+        DriverContext driverContext = driverContext();
+        AtomicInteger closeCalls = new AtomicInteger();
+        UsageSourceOperator source = new UsageSourceOperator(driverContext, new UsageStatus(40, 4, 2), false) {
+            @Override
+            public void close() {
+                super.close();
+                if (closeCalls.getAndIncrement() == 0) {
+                    throw new IllegalStateException("close failed");
+                }
+            }
+        };
+        List<Page> outPages = new ArrayList<>();
+        Driver driver = TestDriverFactory.create(driverContext, source, List.of(), new TestResultPageSinkOperator(outPages::add));
+        ThreadPool threadPool = threadPool();
+        try {
+            PlainActionFuture<Void> future = new PlainActionFuture<>();
+            Driver.start(threadPool.getThreadContext(), threadPool.executor("esql"), driver, between(1, 1000), future);
+            IllegalStateException failure = expectThrows(IllegalStateException.class, () -> future.actionGet(30, TimeUnit.SECONDS));
+            assertThat(failure.getMessage(), equalTo("close failed"));
+            assertThat(closeCalls.get(), equalTo(2));
+            // The source and the sink, once each.
+            assertThat(driver.status().completedOperators().size(), equalTo(2));
+            assertFinishedWithUsage(driver, 40, 4, 2);
+        } finally {
+            outPages.forEach(Page::releaseBlocks);
+            driver.close();
+            terminate(threadPool);
+        }
+    }
+
+    /** A driver whose blocked future fails ends while asleep: the sleep must be closed, not reported as still going. */
+    public void testDriverFailingWhileBlockedClosesItsSleep() {
+        DriverContext driverContext = driverContext();
+        SubscribableListener<Void> blocked = new SubscribableListener<>();
+        UsageSourceOperator source = new UsageSourceOperator(driverContext, new UsageStatus(3, 0, 0), false) {
+            @Override
+            public Page getOutput() {
+                return null;
+            }
+
+            @Override
+            public boolean isFinished() {
+                return false;
+            }
+
+            @Override
+            public IsBlockedResult isBlocked() {
+                return new IsBlockedResult(blocked, "test blocked");
+            }
+        };
+        Driver driver = TestDriverFactory.create(
+            driverContext,
+            source,
+            List.of(),
+            new TestResultPageSinkOperator(page -> fail("sink should not receive output"))
+        );
+        ThreadPool threadPool = threadPool();
+        try {
+            PlainActionFuture<Void> future = new PlainActionFuture<>();
+            Driver.start(threadPool.getThreadContext(), threadPool.executor("esql"), driver, between(1, 1000), future);
+            assertBusy(() -> assertThat(driver.status().status(), equalTo(DriverStatus.Status.ASYNC)));
+            blocked.onFailure(new IllegalStateException("blocked failed"));
+            IllegalStateException failure = expectThrows(IllegalStateException.class, () -> future.actionGet(30, TimeUnit.SECONDS));
+            assertThat(failure.getMessage(), equalTo("blocked failed"));
+            assertFinishedWithUsage(driver, 3, 0, 0);
+            DriverSleeps.Sleep sleep = driver.status().sleeps().last().get(0);
+            assertThat(sleep.reason(), equalTo("test blocked"));
+            assertFalse(sleep.isStillSleeping());
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        } finally {
+            driver.close();
+            terminate(threadPool);
+        }
+    }
+
+    /** Closing a driver that never ran only releases its operators: it does not read their status, as a failing driver does. */
+    public void testClosingDriverThatNeverRanDoesNotReadOperatorStatus() {
+        DriverContext driverContext = driverContext();
+        AtomicInteger statusReads = new AtomicInteger();
+        UsageSourceOperator source = new UsageSourceOperator(driverContext, new UsageStatus(7, 1, 1), false) {
+            @Override
+            public Status status() {
+                statusReads.incrementAndGet();
+                return super.status();
+            }
+        };
+        Driver driver = TestDriverFactory.create(
+            driverContext,
+            source,
+            List.of(),
+            new TestResultPageSinkOperator(page -> fail("sink should not receive output"))
+        );
+        int readsBeforeClose = statusReads.get();
+        driver.close();
+        assertTrue(source.closed);
+        assertThat(statusReads.get(), equalTo(readsBeforeClose));
+        assertThat(driver.status().status(), equalTo(DriverStatus.Status.QUEUED));
+    }
+
+    /** A driver aborted before it ever ran is finished too, with the status of the operators it closed. */
+    public void testAbortedDriverPublishesFinalStatus() {
+        DriverContext driverContext = driverContext();
+        Driver driver = TestDriverFactory.create(
+            driverContext,
+            new UsageSourceOperator(driverContext, new UsageStatus(0, 0, 0), false),
+            List.of(),
+            new TestResultPageSinkOperator(page -> fail("sink should not receive output"))
+        );
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
+        driver.abort(new IllegalStateException("aborted"), future);
+        expectThrows(IllegalStateException.class, () -> future.actionGet(30, TimeUnit.SECONDS));
+        assertFinishedWithUsage(driver, 0, 0, 0);
+    }
+
+    /**
+     * Once a driver has failed its operators can be in a state where they cannot report a status. Reading it while draining must
+     * not hide the failure nor leave the operator open.
+     */
+    public void testFailedDriverToleratesOperatorWithBrokenStatus() {
+        DriverContext driverContext = driverContext();
+        AtomicBoolean failed = new AtomicBoolean();
+        UsageSourceOperator brokenStatus = new UsageSourceOperator(driverContext, new UsageStatus(5, 0, 0), false) {
+            @Override
+            public Status status() {
+                if (failed.get()) {
+                    throw new IllegalArgumentException("no status for you");
+                }
+                return super.status();
+            }
+        };
+        Operator failing = new AbstractPageMappingOperator() {
+            @Override
+            protected Page process(Page page) {
+                failed.set(true);
+                throw new IllegalStateException("boom");
+            }
+
+            @Override
+            public String toString() {
+                return "failing_operator";
+            }
+        };
+        Driver driver = TestDriverFactory.create(
+            driverContext,
+            brokenStatus,
+            List.of(failing),
+            new TestResultPageSinkOperator(page -> fail("sink should not receive output"))
+        );
+        ThreadPool threadPool = threadPool();
+        try {
+            PlainActionFuture<Void> future = new PlainActionFuture<>();
+            Driver.start(threadPool.getThreadContext(), threadPool.executor("esql"), driver, between(1, 1000), future);
+            IllegalStateException failure = expectThrows(IllegalStateException.class, () -> future.actionGet(30, TimeUnit.SECONDS));
+            assertThat(failure.getMessage(), equalTo("boom"));
+            assertTrue(brokenStatus.closed);
+            // The source, the failing operator and the sink are all recorded, the first one without a status.
+            assertFinishedWithUsage(driver, 0, 0, 0);
+            assertThat(driver.status().completedOperators().size(), equalTo(3));
+            assertNull(driver.status().completedOperators().get(0).status());
+        } finally {
+            driver.close();
+            terminate(threadPool);
+        }
+    }
+
+    /** Refreshing the status of a closed operator after the failure must not leave the driver unfinished. */
+    public void testFailedDriverKeepsStatusWhenRereadFails() {
+        DriverContext driverContext = driverContext();
+        UsageSourceOperator source = new UsageSourceOperator(driverContext, new UsageStatus(9, 2, 3), true) {
+            @Override
+            public Status status() {
+                if (closed) {
+                    throw new IllegalArgumentException("no status after close");
+                }
+                return super.status();
+            }
+        };
+        Driver driver = TestDriverFactory.create(
+            driverContext,
+            source,
+            List.of(failingOperator(new IllegalStateException("boom"))),
+            new TestResultPageSinkOperator(page -> fail("sink should not receive output"))
+        );
+        ThreadPool threadPool = threadPool();
+        try {
+            PlainActionFuture<Void> future = new PlainActionFuture<>();
+            Driver.start(threadPool.getThreadContext(), threadPool.executor("esql"), driver, between(1, 1000), future);
+            expectThrows(IllegalStateException.class, () -> future.actionGet(30, TimeUnit.SECONDS));
+            assertFinishedWithUsage(driver, 9, 2, 3);
+        } finally {
+            driver.close();
+            terminate(threadPool);
+        }
+    }
+
+    /** The usage of a failed driver adds up with the one of a driver that succeeded, as it does for the drivers of one query. */
+    public void testFailedAndSuccessfulDriversAddUp() {
+        DriverContext failingContext = driverContext();
+        DriverContext healthyContext = driverContext();
+        Driver failing = TestDriverFactory.create(
+            failingContext,
+            new UsageSourceOperator(failingContext, new UsageStatus(100, 10, 5), false),
+            List.of(failingOperator(new IllegalStateException("boom"))),
+            new TestResultPageSinkOperator(page -> fail("sink should not receive output"))
+        );
+        List<Page> healthyOutput = new ArrayList<>();
+        Driver healthy = TestDriverFactory.create(
+            healthyContext,
+            new UsageSourceOperator(healthyContext, new UsageStatus(1_000, 20, 7), false),
+            List.of(),
+            new TestResultPageSinkOperator(healthyOutput::add)
+        );
+        ThreadPool threadPool = threadPool();
+        try {
+            PlainActionFuture<Void> failingFuture = new PlainActionFuture<>();
+            PlainActionFuture<Void> healthyFuture = new PlainActionFuture<>();
+            Driver.start(threadPool.getThreadContext(), threadPool.executor("esql"), failing, between(1, 1000), failingFuture);
+            Driver.start(threadPool.getThreadContext(), threadPool.executor("esql"), healthy, between(1, 1000), healthyFuture);
+            expectThrows(IllegalStateException.class, () -> failingFuture.actionGet(30, TimeUnit.SECONDS));
+            healthyFuture.actionGet(30, TimeUnit.SECONDS);
+            DriverCompletionInfo info = DriverCompletionInfo.excludingProfiles(List.of(failing, healthy), 0, false);
+            assertThat(info.bytesRead(), equalTo(1_100L));
+            assertThat(info.readNanos(), equalTo(30L));
+            assertThat(info.readCpuNanos(), equalTo(12L));
+        } finally {
+            healthyOutput.forEach(Page::releaseBlocks);
+            failing.close();
+            healthy.close();
+            terminate(threadPool);
+        }
+    }
+
+    private static void assertFinishedWithUsage(Driver driver, long bytesRead, long readNanos, long readCpuNanos) {
+        assertThat(driver.status().status(), equalTo(DriverStatus.Status.DONE));
+        DriverCompletionInfo info = DriverCompletionInfo.excludingProfiles(List.of(driver), 0, false);
+        assertThat(info.bytesRead(), equalTo(bytesRead));
+        assertThat(info.readNanos(), equalTo(readNanos));
+        assertThat(info.readCpuNanos(), equalTo(readCpuNanos));
+    }
+
+    private static Operator failingOperator(RuntimeException failure) {
+        return new AbstractPageMappingOperator() {
+            @Override
+            protected Page process(Page page) {
+                throw failure;
+            }
+
+            @Override
+            public String toString() {
+                return "failing_operator";
+            }
+        };
+    }
+
+    /** What an external source operator reports: bytes read and the time spent reading. */
+    private record UsageStatus(long bytesRead, long readNanos, long readCpuNanos) implements Operator.Status {
+        @Override
+        public String getWriteableName() {
+            return "usage_status";
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.current();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) {
+            throw new UnsupportedOperationException("not serialized in this test");
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder.startObject().field("bytes_read", bytesRead).endObject();
+        }
+    }
+
+    /**
+     * A source that emits two pages and reports a {@link UsageStatus}. With {@code producerFinishesAfterClose} it models an operator
+     * with off-driver producer threads: it reports the given status until the test sets {@link #producerDone}, and 1000 bytes
+     * afterwards, and it asks the driver to read its status again after the asynchronous actions.
+     */
+    private static class UsageSourceOperator extends CannedSourceOperator {
+        private final UsageStatus status;
+        private final boolean producerFinishesAfterClose;
+        volatile boolean closed;
+        volatile boolean producerDone;
+
+        UsageSourceOperator(DriverContext driverContext, UsageStatus status, boolean producerFinishesAfterClose) {
+            // Two pages, so the source is still active, not finished and closed early, when a later operator fails.
+            super(
+                List.of(
+                    new Page(driverContext.blockFactory().newConstantIntBlockWith(1, 1)),
+                    new Page(driverContext.blockFactory().newConstantIntBlockWith(2, 1))
+                ).iterator()
+            );
+            this.status = status;
+            this.producerFinishesAfterClose = producerFinishesAfterClose;
+        }
+
+        @Override
+        public Status status() {
+            return producerFinishesAfterClose && producerDone ? new UsageStatus(1_000, status.readNanos(), status.readCpuNanos()) : status;
+        }
+
+        @Override
+        public boolean finalStatusAfterAsyncActions() {
+            return producerFinishesAfterClose;
+        }
+
+        @Override
+        public void close() {
+            closed = true;
+            super.close();
+        }
+
+        @Override
+        public String toString() {
+            return "usage_source";
         }
     }
 

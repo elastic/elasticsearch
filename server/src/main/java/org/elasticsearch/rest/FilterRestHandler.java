@@ -55,22 +55,22 @@ public abstract class FilterRestHandler implements RestHandler {
     }
 
     @Override
-    public Set<String> supportedQueryParameters() {
-        return delegate.supportedQueryParameters();
-    }
-
-    @Override
     public Set<String> allSupportedParameters() {
         return delegate.allSupportedParameters();
     }
 
     @Override
-    public Set<String> supportedCapabilities() {
-        return delegate.supportedCapabilities();
+    public Set<String> supportedQueryParameters() {
+        return delegate.supportedQueryParameters();
     }
 
     @Override
     public boolean supportsQueryParameters(Set<String> parameters) {
         return delegate.supportsQueryParameters(parameters);
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return delegate.supportedCapabilities();
     }
 }

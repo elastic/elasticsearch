@@ -52,6 +52,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LimitedBreaker;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -2101,6 +2103,16 @@ public class ParquetFormatReaderTests extends ESTestCase {
         );
         derived.discoverSplitRanges(file);
         assertSame("derived copy must hit the root's parsed-footer cache", rootSeeded, derived.parsedFooterForTests(key));
+
+        BlockFactory otherFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
+        ParquetFormatReader perRead = root.withBlockFactory(otherFactory);
+        assertSame(
+            "withBlockFactory copy must share the root's footer byte cache",
+            root.footerByteCacheForTests(),
+            perRead.footerByteCacheForTests()
+        );
+        perRead.discoverSplitRanges(file);
+        assertSame("withBlockFactory copy must hit the root's parsed-footer cache", rootSeeded, perRead.parsedFooterForTests(key));
     }
 
     /** {@link ParquetFormatReader#cachedSplitRanges} is a hash-get after a parse, never a GET. */
@@ -3162,6 +3174,56 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
         // After close everything allocated during open is released and the breaker returns to its initial level.
         assertEquals("count-only path must release all allocations on close", beforeRead, trackingBreaker.getUsed());
+    }
+
+    /**
+     * A node-singleton reader stays on its construction factory. {@code withBlockFactory} copies
+     * decode onto a per-read factory and keeps the footer caches. The node breaker is one byte, so
+     * any page that still hit it would trip; success plus live usage on the per-read breaker, with
+     * the footer cache still the node instance, is the proof.
+     */
+    public void testWithBlockFactoryChargesThePerReadBreakerNotTheFooterCache() throws Exception {
+        LimitedBreaker nodeBreaker = new LimitedBreaker("node", ByteSizeValue.ofBytes(1));
+        CircuitBreaker[] readBreaker = new CircuitBreaker[1];
+        BlockFactory nodeFactory = new BlockFactory(nodeBreaker, BigArrays.NON_RECYCLING_INSTANCE);
+        BlockFactory readFactory = trackingBlockFactory(readBreaker);
+        ParquetFormatReader nodeReader = new ParquetFormatReader(nodeFactory);
+        assertSame("same factory is a no-op so the node singleton is unchanged", nodeReader, nodeReader.withBlockFactory(nodeFactory));
+        ParquetFormatReader perRead = nodeReader.withBlockFactory(readFactory);
+        assertNotSame("a distinct factory must copy, not mutate the node singleton", nodeReader, perRead);
+        assertSame("footer byte cache stays the node instance", nodeReader.footerBytes(), perRead.footerBytes());
+        assertSame("I/O watermark stays the node instance", nodeReader.ioWatermark(), perRead.ioWatermark());
+        assertSame("heap buffer pool stays the node instance", nodeReader.heapBufferPool(), perRead.heapBufferPool());
+
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("name")
+            .named("test_schema");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group group = factory.newGroup();
+            group.add("id", 1L);
+            group.add("name", "Alice");
+            return List.of(group);
+        });
+        try (CloseableIterator<Page> iterator = perRead.read(createStorageObject(parquetData), List.of("id", "name"), 8)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertThat("per-read page allocations must hit the bound factory", readBreaker[0].getUsed(), greaterThan(0L));
+            assertEquals("the node singleton must not see those allocations", 0L, nodeBreaker.getUsed());
+            page.releaseBlocks();
+        }
+        assertEquals(0L, readBreaker[0].getUsed());
+        assertEquals(0L, nodeBreaker.getUsed());
+    }
+
+    private static BlockFactory trackingBlockFactory(CircuitBreaker[] outBreaker) {
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(64)).withCircuitBreaking();
+        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        outBreaker[0] = breaker;
+        return BlockFactory.builder(bigArrays).breaker(breaker).build();
     }
 
     public void testCircuitBreaker() throws IOException {
@@ -11838,6 +11900,8 @@ public class ParquetFormatReaderTests extends ESTestCase {
         assertSame(pool, reader.withPushedFilter(FilterCompat.NOOP).heapBufferPool());
         assertSame(pool, ((ParquetFormatReader) reader.withDeclaredDateFormats(Map.of("ts", "epoch_second"))).heapBufferPool());
         assertSame(pool, ((ParquetFormatReader) reader.withDeclaredTypeColumns(Set.of("x"))).heapBufferPool());
+        BlockFactory otherFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
+        assertSame(pool, reader.withBlockFactory(otherFactory).heapBufferPool());
         PoolingHeapByteBufferAllocator other = new PoolingHeapByteBufferAllocator(1024);
         assertSame(other, reader.withHeapBufferPool(other).heapBufferPool());
         assertSame("withHeapBufferPool must not mutate the original reader", pool, reader.heapBufferPool());

@@ -11,21 +11,29 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
+import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.DocPreserving;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 /**
  * Replace nested expressions over aggregates with synthetic eval post the aggregation
@@ -64,13 +72,21 @@ public class ReplaceAggregateAggExpressionWithEval extends OptimizerRules.Optimi
         Map<GroupingFunction.NonEvaluatableGroupingFunction, Attribute> nonEvalGroupingAttributes = new HashMap<>(
             aggregate.groupings().size()
         );
-        aggregate.forEachExpressionUp(Alias.class, a -> {
+        Consumer<Alias> collectAlias = a -> {
             if (a.child() instanceof GroupingFunction.NonEvaluatableGroupingFunction groupingFunction) {
                 nonEvalGroupingAttributes.put(groupingFunction, a.toAttribute());
             } else {
                 aliasesBuilder.put(a.toAttribute(), a.child());
             }
+        };
+        AttributeSet childAttributes = aggregate.child().outputSet();
+        aggregate.forEachExpression(Alias.class, a -> {
+            // An output alias that reuses an input attribute's id says nothing about the input values the aggregate functions read.
+            if (childAttributes.contains(a.toAttribute()) == false) {
+                collectAlias.accept(a);
+            }
         });
+        collectAliases(aggregate.child(), collectAlias);
         var aliases = aliasesBuilder.build();
 
         // break down each aggregate into AggregateFunction and/or grouping key
@@ -169,6 +185,60 @@ public class ReplaceAggregateAggExpressionWithEval extends OptimizerRules.Optimi
         }
 
         return plan;
+    }
+
+    /**
+     * Collects the aliases that hold on every row reaching the aggregate being optimized, the only ones safe for comparing its
+     * aggregate functions. The walk only follows {@link DocPreserving} plans that keep their input's values and the left-hand side
+     * of joins; any other plan stops it, which at worst computes a duplicate aggregate function twice. A {@link Row} ends the walk
+     * with its own fields, which hold on its only row.
+     */
+    private static void collectAliases(LogicalPlan plan, Consumer<Alias> consumer) {
+        if (plan instanceof Row row) {
+            row.fields().forEach(consumer);
+            return;
+        }
+        LogicalPlan input = passThroughInput(plan);
+        if (input != null) {
+            plan.forEachExpression(Alias.class, consumer);
+            collectAliases(input, consumer);
+        }
+    }
+
+    /**
+     * Returns the input whose rows pass through {@code plan} with the same values, or {@code null} if there is none. A join keeps
+     * the values of its left-hand side even when it is not {@link DocPreserving}, such as {@code LOOKUP JOIN}: it may duplicate or
+     * drop left rows, but does not change their values. Its right-hand side never qualifies, since it is null-filled on unmatched
+     * rows or, for {@code INLINE STATS}, computed per group, and neither does the left-hand side of a {@code RIGHT} or {@code FULL}
+     * join. Neither does the input of a plan that writes new values under one of its input's attributes, see
+     * {@link #writesUnderInputAttribute}.
+     */
+    private static LogicalPlan passThroughInput(LogicalPlan plan) {
+        if (plan instanceof Join join) {
+            JoinType type = join.config().type();
+            return JoinTypes.RIGHT.equals(type) || JoinTypes.FULL.equals(type) ? null : join.left();
+        }
+        if (plan instanceof DocPreserving docPreserving) {
+            LogicalPlan input = docPreserving.preservingInput();
+            return writesUnderInputAttribute(plan, input) ? null : input;
+        }
+        return null;
+    }
+
+    /**
+     * Whether {@code plan} gives one of its input's attribute ids a new value: as a generated attribute, such as {@code RERANK}
+     * scoring into an existing {@code _score}, or as an alias, such as the projection that renames the score of a pushed-down
+     * {@code RERANK} back to {@code _score}. Aliases collected at or below such a plan may then mean something else above it.
+     */
+    private static boolean writesUnderInputAttribute(LogicalPlan plan, LogicalPlan input) {
+        AttributeSet inputAttributes = input.outputSet();
+        if (plan instanceof GeneratingPlan<?> generatingPlan
+            && generatingPlan.generatedAttributes().stream().anyMatch(inputAttributes::contains)) {
+            return true;
+        }
+        return plan.expressions()
+            .stream()
+            .anyMatch(e -> e.anyMatch(x -> x instanceof Alias alias && inputAttributes.contains(alias.toAttribute())));
     }
 
     private static AggregateFunction getCannonical(AggregateFunction af, AttributeMap<Expression> aliases) {

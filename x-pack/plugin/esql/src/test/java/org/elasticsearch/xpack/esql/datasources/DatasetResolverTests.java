@@ -178,6 +178,37 @@ public class DatasetResolverTests extends ESTestCase {
         // no warning: ESTestCase fails the test on a warning it was not told to expect
     }
 
+    /** A dataset closed on its own is as unreadable as one of a closed data source, so the view warning leaves it out as well. */
+    public void testStoppedViewWildcardDoesNotWarnAboutAClosedDataset() {
+        AtomicInteger localCalls = new AtomicInteger();
+        DatasetResolver resolver = resolver(crossProjectEnabled(false), localCalls);
+
+        LinkedHashMap<String, LogicalPlan> branches = new LinkedHashMap<>();
+        branches.put("main", relationOf("other"));
+        branches.put("logs_view", relationOf("log*"));
+        BranchPlan plan = new BranchPlan(Source.EMPTY, branches, Map.of("logs_view", BranchIdentity.view("logs_view")), List.of());
+
+        DataSource parent = new DataSource("s3_parent", "test", null, Map.<String, DataSourceSetting>of());
+        Dataset closed = new Dataset(
+            DATASET_NAME,
+            new DataSourceReference("s3_parent"),
+            "s3://logs/*.parquet",
+            null,
+            Map.of(),
+            null,
+            false
+        );
+        ProjectMetadata project = ProjectMetadata.builder(ProjectId.DEFAULT)
+            .putCustom(DataSourceMetadata.TYPE, new DataSourceMetadata(Map.of("s3_parent", parent)))
+            .datasets(Map.of(DATASET_NAME, closed))
+            .build();
+
+        IndexViewOrigins origins = new IndexViewOrigins(Map.of("log*", Set.of(List.of("logs_view"))));
+        replaceDatasets(resolver, plan, project, true, origins);
+        assertEquals("the lookup still runs: the closed state is applied to its answer", 1, localCalls.get());
+        // no warning: ESTestCase fails the test on a warning it was not told to expect
+    }
+
     /** Normal resolution evaluates date math before expanding wildcards, so the lookup does too. */
     public void testDateMathWildcardInViewBranchIsLookedUp() {
         AtomicInteger localCalls = new AtomicInteger();

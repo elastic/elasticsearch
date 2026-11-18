@@ -27,7 +27,9 @@ import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
+import org.elasticsearch.xpack.esql.datasources.dataset.CloseDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.DeleteDatasetAction;
+import org.elasticsearch.xpack.esql.datasources.dataset.OpenDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.CloseDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.DataSourceService;
@@ -599,6 +601,60 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
                 OpenDataSourceAction.INSTANCE,
                 new OpenDataSourceAction.Request(TIMEOUT, TIMEOUT, new String[] { "ds_closed" })
             )
+        );
+    }
+
+    /**
+     * The same as for a closed data source, for a dataset closed on its own: the data source stays open, only the dataset is
+     * refused, and the refusal is still counted under {@code closed}.
+     */
+    public void testQueryRefusedForAClosedDatasetIsCountedAsClosed() throws Exception {
+        Path dir = createTempDir();
+        Files.writeString(dir.resolve("e.csv"), "emp_no:integer\n1\n");
+        assertAcked(
+            client().execute(
+                PutDataSourceAction.INSTANCE,
+                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "ds_closed", "test", null, new HashMap<>())
+            )
+        );
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "emp_closed",
+                    "ds_closed",
+                    dir.resolve("e.csv").toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "csv"))
+                )
+            )
+        );
+        assertAcked(
+            client().execute(CloseDatasetAction.INSTANCE, new CloseDatasetAction.Request(TIMEOUT, TIMEOUT, new String[] { "emp_closed" }))
+        );
+        int closed = DataSourceUsageAccumulator.ERROR_TYPE_NAMES.indexOf("closed");
+        long closedBefore = clusterTotal(a -> a.queryFailures(closed));
+        resetAllMeters();
+
+        Exception e = expectThrows(Exception.class, () -> {
+            try (var ignored = run(syncEsqlQueryRequest("FROM emp_closed | LIMIT 1"), TIMEOUT)) {
+                // the dataset is refused before anything is read
+            }
+        });
+        collectAllMeters();
+
+        assertThat(e.getMessage(), containsString("dataset [emp_closed] is closed"));
+        List<Measurement> failed = counters(ExternalSourceMetrics.QUERIES_TOTAL).stream()
+            .filter(m -> ExternalSourceMetrics.OUTCOME_FAILURE.equals(m.attributes().get(ExternalSourceMetrics.OUTCOME_ATTRIBUTE)))
+            .toList();
+        assertThat(failed, hasSize(1));
+        assertThat(failed.get(0).attributes().get(ExternalSourceMetrics.ERROR_TYPE_ATTRIBUTE), equalTo("closed"));
+        assertThat(clusterTotal(a -> a.queryFailures(closed)) - closedBefore, equalTo(1L));
+
+        assertAcked(
+            client().execute(OpenDatasetAction.INSTANCE, new OpenDatasetAction.Request(TIMEOUT, TIMEOUT, new String[] { "emp_closed" }))
         );
     }
 

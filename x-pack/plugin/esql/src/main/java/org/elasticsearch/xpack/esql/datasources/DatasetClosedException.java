@@ -13,10 +13,11 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.esql.VerificationException;
 
 /**
- * A query named a dataset that an admin closed, or whose data source an admin closed. It is a client error (400). A closed index fails a query
- * through a cluster block (403); a dataset has no block, so this is an error of its own. It is a type of its own so failure
- * telemetry can file it apart from a user's query mistakes and from {@code other}, and the message names the dataset only:
- * reading a dataset needs {@code read} on the dataset, so the caller may not be allowed to learn the name of its data source.
+ * A query named a dataset that an admin closed, or whose data source an admin closed. It is a client error (400). A closed
+ * index fails a query through a cluster block (403); a dataset has no block, so this is an error of its own. It is a type of
+ * its own so failure telemetry can file it apart from a user's query mistakes and from {@code other}, and the message names
+ * the dataset only: reading a dataset needs {@code read} on the dataset, so the caller may not be allowed to learn the name
+ * of its data source.
  * <p>
  * The same refusal is raised by a data node that starts its part of a query after the close ({@link #refusedByDataNode}). It
  * cannot be this class: it must stay an {@link ElasticsearchStatusException} with status 400, which the data node handler

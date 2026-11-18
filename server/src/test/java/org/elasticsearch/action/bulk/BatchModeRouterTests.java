@@ -431,6 +431,28 @@ public class BatchModeRouterTests extends ESTestCase {
         assertFalse(bulkRequest.hasPreBuiltBatches());
     }
 
+    /**
+     * An item with a row of a batch that was not supplied could take the place of a legitimate item in the timestamp
+     * step, when the row numbers are the same, so it is rejected when the router set is created.
+     */
+    public void testItemWithRowOfBatchNotSuppliedIsRejected() throws IOException {
+        EscfBatch supplied = buildBatch(2);
+        EscfBatch notSupplied = buildBatch(2);
+        try {
+            BulkRequest bulkRequest = new BulkRequest();
+            bulkRequest.add(rowRequest("myindex", supplied, 1));
+            bulkRequest.add(rowRequest("myindex", notSupplied, 1));
+            bulkRequest.setPreBuiltBatches(Map.of("myindex", supplied));
+
+            var e = expectThrows(IllegalArgumentException.class, () -> BatchRouterSet.create(bulkRequest, true, recycler));
+            assertThat(e.getMessage(), containsString("holds a row of a batch that was not supplied for the bulk"));
+            assertFalse(bulkRequest.hasPreBuiltBatches());
+        } finally {
+            // The set never owned this batch, so it is not released with the others.
+            notSupplied.close();
+        }
+    }
+
     /** Rows of different batches overlap, and must not be taken for the same row. */
     public void testItemsOnTheSameRowOfDifferentBatchesAreAccepted() throws IOException {
         EscfBatch batchA = buildBatch(2);

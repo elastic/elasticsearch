@@ -81,14 +81,16 @@ public class ColumnarPrefetchTests extends ESTestCase {
                 randomFrom(256, 512, 1024)
             ),
             false,
-            true
+            true,
+            false
         );
         Codec codec = ColumnarTestUtils.columnarCodec(
             new ColumNARDocValuesFormat(
                 (fieldName, type) -> NumericPipeline::defaultPipeline,
                 field -> ColumnarFieldType.STRING,
                 ColumNARDocValuesFormat.DEFAULT_BLOCK_SIZE,
-                (fieldName, type) -> options
+                (fieldName, type) -> options,
+                FormatVersion.CURRENT
             )
         );
         boolean multiValued = randomBoolean();

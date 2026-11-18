@@ -59,6 +59,10 @@ public class LocalMapper {
     private LocalMapper() {}
 
     public PhysicalPlan map(LogicalPlan p) {
+        return MapperUtils.stampOrigin(mapUnstamped(p), p);
+    }
+
+    private PhysicalPlan mapUnstamped(LogicalPlan p) {
 
         if (p instanceof LeafPlan leaf) {
             return mapLeaf(leaf);
@@ -197,7 +201,7 @@ public class LocalMapper {
             }
             // we want to do local physical planning on the lookup node eventually for the right side of the lookup join
             // so here we will wrap the logical plan with a FragmentExec and keep it as is
-            FragmentExec fragmentExec = new FragmentExec(binary.right());
+            FragmentExec fragmentExec = MapperUtils.stampOrigin(new FragmentExec(binary.right()), binary.right());
             return new LookupJoinExec(
                 join.source(),
                 left,

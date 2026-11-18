@@ -32,14 +32,17 @@ public class SingletonOrdinalsBuilder implements BlockLoader.SingletonOrdinalsBu
     private int minOrd = Integer.MAX_VALUE;
     private int maxOrd = Integer.MIN_VALUE;
     private final int[] ords;
+    private int[] pooledOrds;
+    private final int expectedCount;
     private int count;
     private final boolean isDense;
 
     public SingletonOrdinalsBuilder(BlockFactory blockFactory, SortedDocValues docValues, int count, boolean isDense) {
         this.blockFactory = blockFactory;
         this.docValues = docValues;
-        blockFactory.adjustBreaker(ordsSize(count));
-        this.ords = new int[count];
+        this.expectedCount = count;
+        this.ords = blockFactory.acquireInts(count);
+        this.pooledOrds = ords;
         this.isDense = isDense;
     }
 
@@ -91,8 +94,8 @@ public class SingletonOrdinalsBuilder implements BlockLoader.SingletonOrdinalsBu
             return null;
         }
         if (isDense == false) {
-            for (int ord : ords) {
-                if (ord == -1) {
+            for (int i = 0; i < expectedCount; i++) {
+                if (ords[i] == -1) {
                     return null;
                 }
             }
@@ -108,7 +111,7 @@ public class SingletonOrdinalsBuilder implements BlockLoader.SingletonOrdinalsBu
         boolean success = false;
         try {
             bytes = blockFactory.newConstantBytesRefVector(v, 1);
-            ordinals = blockFactory.newConstantIntVector(0, ords.length);
+            ordinals = blockFactory.newConstantIntVector(0, expectedCount);
             // Ideally, we would return a ConstantBytesRefVector, but we return an ordinal constant block instead
             // to ensure ordinal optimizations are applied when constant optimization is not available.
             final var result = new OrdinalBytesRefBlock(ordinals.asBlock(), bytes);
@@ -123,20 +126,19 @@ public class SingletonOrdinalsBuilder implements BlockLoader.SingletonOrdinalsBu
 
     BytesRefBlock buildOrdinal() {
         int valueCount = maxOrd - minOrd + 1;
-        long breakerSize = ordsSize(valueCount);
-        blockFactory.adjustBreaker(breakerSize);
         BytesRefVector bytesVector = null;
         IntBlock ordinalBlock = null;
+        int[] newOrds = blockFactory.acquireInts(valueCount);
         try {
-            int[] newOrds = new int[valueCount];
-            Arrays.fill(newOrds, -1);
+            Arrays.fill(newOrds, 0, valueCount, -1);
             // Re-mapping ordinals to be more space-efficient:
             if (isDense) {
-                for (int ord : ords) {
-                    newOrds[ord - minOrd] = 0;
+                for (int i = 0; i < expectedCount; i++) {
+                    newOrds[ords[i] - minOrd] = 0;
                 }
             } else {
-                for (int ord : ords) {
+                for (int i = 0; i < expectedCount; i++) {
+                    int ord = ords[i];
                     if (ord != -1) {
                         newOrds[ord - minOrd] = 0;
                     }
@@ -148,16 +150,16 @@ public class SingletonOrdinalsBuilder implements BlockLoader.SingletonOrdinalsBu
                 BytesRef firstTerm = minOrd != Integer.MAX_VALUE ? docValues.lookupOrd(minOrd) : null;
                 int estimatedSize;
                 if (firstTerm != null) {
-                    estimatedSize = Math.min(valueCount, ords.length) * firstTerm.length;
+                    estimatedSize = Math.min(valueCount, expectedCount) * firstTerm.length;
                 } else {
-                    estimatedSize = Math.min(valueCount, ords.length);
+                    estimatedSize = Math.min(valueCount, expectedCount);
                 }
                 try (BytesRefVector.Builder bytesBuilder = blockFactory.newBytesRefVectorBuilder(estimatedSize)) {
                     if (firstTerm != null) {
                         newOrds[0] = ++nextOrd;
                         bytesBuilder.appendBytesRef(firstTerm);
                     }
-                    for (int i = firstTerm != null ? 1 : 0; i < newOrds.length; i++) {
+                    for (int i = firstTerm != null ? 1 : 0; i < valueCount; i++) {
                         if (newOrds[i] != -1) {
                             newOrds[i] = ++nextOrd;
                             bytesBuilder.appendBytesRef(docValues.lookupOrd(i + minOrd));
@@ -170,13 +172,17 @@ public class SingletonOrdinalsBuilder implements BlockLoader.SingletonOrdinalsBu
             }
             if (isDense) {
                 // Reusing ords array and overwrite all slots with re-mapped ordinals
-                for (int i = 0; i < ords.length; i++) {
+                for (int i = 0; i < expectedCount; i++) {
                     ords[i] = newOrds[ords[i] - minOrd];
                 }
-                ordinalBlock = blockFactory.newIntArrayVector(ords, ords.length).asBlock();
+                IntVector ordinalVector = blockFactory.newIntArrayVector(ords, expectedCount, (long) ords.length * Integer.BYTES);
+                pooledOrds = null;
+                ordinalVector.enablePooling();
+                ordinalBlock = ordinalVector.asBlock();
             } else {
-                try (IntBlock.Builder ordinalsBuilder = blockFactory.newIntBlockBuilder(ords.length)) {
-                    for (int ord : ords) {
+                try (IntBlock.Builder ordinalsBuilder = blockFactory.newIntBlockBuilder(expectedCount, true)) {
+                    for (int i = 0; i < expectedCount; i++) {
+                        int ord = ords[i];
                         if (ord == -1) {
                             ordinalsBuilder.appendNull();
                         } else {
@@ -191,21 +197,21 @@ public class SingletonOrdinalsBuilder implements BlockLoader.SingletonOrdinalsBu
             ordinalBlock = null;
             return result;
         } finally {
-            Releasables.close(() -> blockFactory.adjustBreaker(-breakerSize), ordinalBlock, bytesVector);
+            Releasables.close(() -> blockFactory.recycleInts(newOrds), ordinalBlock, bytesVector);
         }
     }
 
     BytesRefBlock buildRegularBlock() {
         try {
-            long breakerSize = ordsSize(ords.length);
+            long breakerSize = RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) expectedCount * Integer.BYTES;
             // Increment breaker for sorted ords.
             blockFactory.adjustBreaker(breakerSize);
             try {
-                int[] sortedOrds = ords.clone();
+                int[] sortedOrds = Arrays.copyOf(ords, expectedCount);
                 int uniqueCount = compactToUnique(sortedOrds);
 
                 try (BreakingBytesRefBuilder copies = new BreakingBytesRefBuilder(blockFactory.breaker(), "ords")) {
-                    long offsetsAndLength = RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (uniqueCount + 1) * Integer.BYTES;
+                    long offsetsAndLength = RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (uniqueCount + 1L) * Integer.BYTES;
                     blockFactory.adjustBreaker(offsetsAndLength);
                     breakerSize += offsetsAndLength;
                     int[] offsets = new int[uniqueCount + 1];
@@ -222,8 +228,8 @@ public class SingletonOrdinalsBuilder implements BlockLoader.SingletonOrdinalsBu
                      */
                     BytesRef scratch = new BytesRef();
                     scratch.bytes = copies.bytes();
-                    try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(ords.length)) {
-                        for (int i = 0; i < ords.length; i++) {
+                    try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(expectedCount)) {
+                        for (int i = 0; i < expectedCount; i++) {
                             if (ords[i] == -1) {
                                 builder.appendNull();
                                 continue;
@@ -252,14 +258,14 @@ public class SingletonOrdinalsBuilder implements BlockLoader.SingletonOrdinalsBu
          * values in the ordinals are.
          */
         long overhead = shouldBuildOrdinalsBlock() ? 5 : 20;
-        return ords.length * overhead;
+        return expectedCount * overhead;
     }
 
     @Override
     public BytesRefBlock build() {
-        if (count != ords.length) {
-            assert false : "expected " + ords.length + " values but got " + count;
-            throw new IllegalStateException("expected " + ords.length + " values but got " + count);
+        if (count != expectedCount) {
+            assert false : "expected " + expectedCount + " values but got " + count;
+            throw new IllegalStateException("expected " + expectedCount + " values but got " + count);
         }
         var constantBlock = tryBuildConstantBlock();
         if (constantBlock != null) {
@@ -271,7 +277,7 @@ public class SingletonOrdinalsBuilder implements BlockLoader.SingletonOrdinalsBu
     boolean shouldBuildOrdinalsBlock() {
         if (minOrd <= maxOrd) {
             int numOrds = maxOrd - minOrd + 1;
-            return OrdinalBytesRefBlock.isDense(ords.length, numOrds);
+            return OrdinalBytesRefBlock.isDense(expectedCount, numOrds);
         } else {
             return false;
         }
@@ -279,7 +285,10 @@ public class SingletonOrdinalsBuilder implements BlockLoader.SingletonOrdinalsBu
 
     @Override
     public void close() {
-        blockFactory.adjustBreaker(-ordsSize(ords.length));
+        if (pooledOrds != null) {
+            blockFactory.recycleInts(pooledOrds);
+            pooledOrds = null;
+        }
     }
 
     @Override
@@ -290,10 +299,6 @@ public class SingletonOrdinalsBuilder implements BlockLoader.SingletonOrdinalsBu
     @Override
     public Block.Builder mvOrdering(Block.MvOrdering mvOrdering) {
         throw new UnsupportedOperationException();
-    }
-
-    private static long ordsSize(int ordsCount) {
-        return RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + ordsCount * Integer.BYTES;
     }
 
     static int compactToUnique(int[] sortedOrds) {

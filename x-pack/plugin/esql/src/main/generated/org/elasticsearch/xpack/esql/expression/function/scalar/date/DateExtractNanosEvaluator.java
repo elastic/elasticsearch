@@ -76,7 +76,7 @@ public final class DateExtractNanosEvaluator implements ExpressionEvaluator {
   }
 
   public LongBlock eval(int positionCount, LongBlock valueBlock, BytesRefBlock chronoFieldBlock) {
-    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount, true)) {
       BytesRef chronoFieldScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         if (valueBlock.isNull(p)) {
@@ -118,7 +118,7 @@ public final class DateExtractNanosEvaluator implements ExpressionEvaluator {
 
   public LongBlock eval(int positionCount, LongVector valueVector,
       BytesRefVector chronoFieldVector) {
-    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount, true)) {
       BytesRef chronoFieldScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         long value = valueVector.getLong(p);

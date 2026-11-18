@@ -101,7 +101,6 @@ public class ParquetTestingIT extends ESRestTestCase {
      *   <li>Geospatial types ({@code geospatial/*.parquet})</li>
      *   <li>Non-parquet files ({@code bloom_filter.bin}, {@code bloom_filter.xxhash.bin})</li>
      *   <li>{@code large_string_map.brotli.parquet} -- 2GB+, too large for CI</li>
-     *   <li>Non-standard compression ({@code hadoop_lz4_compressed*.parquet}, {@code non_hadoop_lz4_compressed.parquet})</li>
      *   <li>Intentionally corrupt CRC ({@code datapage_v1-corrupt-checksum.parquet},
      *       {@code rle-dict-uncompressed-corrupt-checksum.parquet})</li>
      *   <li>Malformed dictionary ({@code nation.dict-malformed.parquet})</li>
@@ -144,6 +143,8 @@ public class ParquetTestingIT extends ESRestTestCase {
         "data/fixed_length_decimal_legacy.parquet",
         "data/float16_nonzeros_and_nans.parquet",
         "data/float16_zeros_and_nans.parquet",
+        "data/hadoop_lz4_compressed.parquet",
+        "data/hadoop_lz4_compressed_larger.parquet",
         "data/int32_decimal.parquet",
         "data/int32_with_null_pages.parquet",
         "data/int64_decimal.parquet",
@@ -151,6 +152,7 @@ public class ParquetTestingIT extends ESRestTestCase {
         "data/lz4_raw_compressed.parquet",
         "data/lz4_raw_compressed_larger.parquet",
         "data/nan_in_stats.parquet",
+        "data/non_hadoop_lz4_compressed.parquet",
         "data/page_v2_empty_compressed.parquet",
         "data/plain-dict-uncompressed-checksum.parquet",
         "data/rle-dict-snappy-checksum.parquet",

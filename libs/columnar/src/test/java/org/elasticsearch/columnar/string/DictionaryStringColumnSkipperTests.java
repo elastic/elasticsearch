@@ -11,11 +11,6 @@ package org.elasticsearch.columnar.string;
 
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.TwoPhaseIterator;
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FilterDirectory;
-import org.apache.lucene.store.FilterIndexInput;
-import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.StringHelper;
@@ -30,7 +25,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.NavigableSet;
 import java.util.TreeSet;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -264,7 +258,7 @@ public class DictionaryStringColumnSkipperTests extends ColumnarStringTestCase {
         CheckedFunction<StringColumnReader, DocIdSetIterator, IOException> query,
         Predicate<BytesRef> matching
     ) throws IOException {
-        final AtomicLong seeks = new AtomicLong();
+        final Counter seeks = new Counter();
         final long[] decoded = new long[1];
         withColumnAndSkipIndex(docSlots, options(), directory -> new SeekCountingDirectory(directory, seeks), (metadata, reader, skip) -> {
             final long before = seeks.get();
@@ -274,47 +268,6 @@ public class DictionaryStringColumnSkipperTests extends ColumnarStringTestCase {
             decoded[0] = seeks.get() - before;
         });
         return decoded[0];
-    }
-
-    // NOTE: reading a block of ordinals is one seek on the data file, so the seeks a range makes are the blocks it decodes.
-    private static final class SeekCountingDirectory extends FilterDirectory {
-        private final AtomicLong seeks;
-
-        SeekCountingDirectory(Directory in, AtomicLong seeks) {
-            super(in);
-            this.seeks = seeks;
-        }
-
-        @Override
-        public IndexInput openInput(String name, IOContext context) throws IOException {
-            final IndexInput input = super.openInput(name, context);
-            return name.endsWith(".cnd") ? new SeekCountingInput(input, seeks) : input;
-        }
-    }
-
-    private static final class SeekCountingInput extends FilterIndexInput {
-        private final AtomicLong seeks;
-
-        SeekCountingInput(IndexInput in, AtomicLong seeks) {
-            super(in.toString(), in);
-            this.seeks = seeks;
-        }
-
-        @Override
-        public void seek(long pos) throws IOException {
-            seeks.incrementAndGet();
-            super.seek(pos);
-        }
-
-        @Override
-        public IndexInput clone() {
-            return new SeekCountingInput(in.clone(), seeks);
-        }
-
-        @Override
-        public IndexInput slice(String sliceDescription, long offset, long length) throws IOException {
-            return new SeekCountingInput(in.slice(sliceDescription, offset, length), seeks);
-        }
     }
 
     private static NumericColumnMetadata.Skipper skipperOf(StringColumnMetadata metadata) {

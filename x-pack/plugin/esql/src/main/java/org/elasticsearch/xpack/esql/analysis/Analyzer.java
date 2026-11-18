@@ -90,6 +90,7 @@ import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.datasources.ExternalMetadataColumns;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSpec;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.eql.EqlPageConverter;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
@@ -377,6 +378,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // translate metric aggregates early before they are converted to nested expressions
                 new TranslateTimeSeriesAggregate(),
                 new ApplyWindowFilter(),
+                // Must run after TranslateTimeSeriesAggregate, which can give a union's branches a new column (_timeseries).
+                new AddLateUnionAllColumns(),
                 // Must run before ResolveHighlightIndexKey, which reads the mappings it sets.
                 new ResolveHighlightFieldMappings(),
                 // Must run before UnionTypesCleanup, which drops the synthetic key from the output.
@@ -701,7 +704,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * Answers {@code _class} and {@code _name} for every view and subquery branch of a {@code FROM}, freezing them into
      * literal {@link Eval}s. It runs before {@link ViewCompactionPostIndexResolution}, while the branch wrappers are
      * still exactly as the parser and {@code ViewResolver} left them, so the answers never depend on what compaction
-     * later lifts, merges, or unwraps ({@link UnwrapNamedSubqueries} strips the view wrappers right after).
+     * later lifts, merges, or unwraps ({@link UnwrapNamedSubqueries} strips the view and LET wrappers right after).
      */
     private static class ResolveSubqueryRelationColumns extends ParameterizedAnalyzerRule<UnresolvedMetadata, AnalyzerContext> {
 
@@ -749,7 +752,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             for (Map.Entry<String, LogicalPlan> entry : vua.namedSubqueries().entrySet()) {
                 LogicalPlan branch = entry.getValue();
                 LogicalPlan answered = switch (branch) {
-                    case NamedSubquery view -> withRelationColumns(view, relationColumns, src, RelationClass.VIEW, view.name());
+                    case NamedSubquery named -> withRelationColumns(named, relationColumns, src, named.relationClass(), named.name());
                     case Subquery subquery -> withRelationColumns(subquery, relationColumns, src, RelationClass.SUBQUERY, null);
                     default -> {
                         BranchIdentity identity = vua.branchIdentity(entry.getKey());
@@ -767,7 +770,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         /** Answers a lone (non-union) {@code FROM} target. A lone subquery's wrapper is consumed here, not left for compaction. */
         private static LogicalPlan answerLone(LogicalPlan child, List<NamedExpression> relationColumns, Source src) {
             return switch (child) {
-                case NamedSubquery view -> withRelationColumns(view, relationColumns, src, RelationClass.VIEW, view.name());
+                case NamedSubquery named -> withRelationColumns(named, relationColumns, src, named.relationClass(), named.name());
                 case Subquery subquery -> withRelationColumns(subquery.child(), relationColumns, src, RelationClass.SUBQUERY, null);
                 case LogicalPlan relation -> relation;
             };
@@ -904,8 +907,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return plan;
             }
 
-            // Get pre-resolved source (metadata + file set) from context
-            var resolvedSource = context.externalSourceResolution().resolvedSource(tablePath);
+            // Rebuilt through ExternalSourceSpec.of, the same factory EsqlSession collected the specs with, so the
+            // session and the analyzer cannot derive a key differently for one relation.
+            var resolvedSource = context.externalSourceResolution().resolvedSource(ExternalSourceSpec.of(plan));
             if (resolvedSource == null) {
                 // Still unresolved - return as-is to keep the error message
                 return plan;

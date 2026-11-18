@@ -15,6 +15,8 @@ import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.telemetry.metric.MetricAttributes;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceTelemetryVocabulary.Type;
+import org.elasticsearch.xpack.esql.telemetry.QueryCallerClassifier;
+import org.elasticsearch.xpack.esql.telemetry.QueryMetric;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -224,7 +226,7 @@ public final class ExternalSourceMetrics {
 
     /**
      * Client dimension on the query instruments, a closed low-cardinality set derived from the
-     * {@code X-elastic-product-origin} request header (see {@link #clientFromOrigin(String)}). The raw header value is
+     * {@code X-elastic-product-origin} request header (see {@link #client(QueryMetric)}). The raw header value is
      * never a label: an unbounded origin string would explode the series count.
      */
     public static final String CLIENT_ATTRIBUTE = "es_datasource_client";
@@ -273,6 +275,15 @@ public final class ExternalSourceMetrics {
      * billing signal; exact alignment may drift as the billing formula evolves.
      */
     public static final String QUERY_CPU_TOTAL = "es.esql.datasources.query.cpu.total";
+
+    /**
+     * CPU consumed by external-source queries that failed or were cancelled, broken down by
+     * {@link #CPU_COMPONENT_ATTRIBUTE} and by {@link #OUTCOME_ATTRIBUTE} ({@code failure} or {@code cancelled}). Unit:
+     * nanoseconds. These queries are not billed, so their CPU is not part of {@link #QUERY_CPU_TOTAL}, which keeps matching the
+     * billed signal; it is a metric of its own so that what they cost can be told from it. It holds what is known to have been
+     * done before the query ended, which can be less than what was done.
+     */
+    public static final String QUERY_UNSUCCESSFUL_CPU_TOTAL = "es.esql.datasources.query.cpu.unsuccessful.total";
 
     /**
      * No-op holder backed by {@link MeterRegistry#NOOP}, used where no node registry is available
@@ -331,6 +342,30 @@ public final class ExternalSourceMetrics {
         Map.of(CPU_COMPONENT_ATTRIBUTE, CPU_COMPONENT_SPLIT_DISCOVERY)
     );
 
+    /**
+     * Pre-built, immutable {@link #OUTCOME_ATTRIBUTE} and {@link #CPU_COMPONENT_ATTRIBUTE} attribute maps of
+     * {@link #QUERY_UNSUCCESSFUL_CPU_TOTAL}, by outcome and then by component.
+     */
+    private static final Map<String, Map<String, Map<String, Object>>> UNSUCCESSFUL_CPU_ATTRIBUTES = Map.of(
+        OUTCOME_FAILURE,
+        unsuccessfulCpuAttributes(OUTCOME_FAILURE),
+        OUTCOME_CANCELLED,
+        unsuccessfulCpuAttributes(OUTCOME_CANCELLED)
+    );
+
+    private static Map<String, Map<String, Object>> unsuccessfulCpuAttributes(String outcome) {
+        Map<String, Map<String, Object>> byComponent = new HashMap<>();
+        for (String component : List.of(
+            CPU_COMPONENT_EXECUTION,
+            CPU_COMPONENT_READ,
+            CPU_COMPONENT_PLANNING,
+            CPU_COMPONENT_SPLIT_DISCOVERY
+        )) {
+            byComponent.put(component, Map.of(OUTCOME_ATTRIBUTE, outcome, CPU_COMPONENT_ATTRIBUTE, component));
+        }
+        return Map.copyOf(byComponent);
+    }
+
     private final LongCounter requestsTotal;
     private final LongHistogram requestDuration;
     private final LongCounter bytesReadTotal;
@@ -357,6 +392,7 @@ public final class ExternalSourceMetrics {
     private final LongCounter breakerTrippedTotal;
     private final LongCounter configChangesTotal;
     private final LongCounter queryCpuTotal;
+    private final LongCounter queryUnsuccessfulCpuTotal;
 
     public ExternalSourceMetrics(MeterRegistry meterRegistry) {
         this(meterRegistry, null);
@@ -499,6 +535,15 @@ public final class ExternalSourceMetrics {
             QUERY_CPU_TOTAL,
             "CPU consumed by successful ES|QL queries that scanned an external data source, "
                 + "broken down by component (execution, read, planning, split_discovery).",
+            "ns"
+        );
+        this.queryUnsuccessfulCpuTotal = meterRegistry.registerLongCounter(
+            QUERY_UNSUCCESSFUL_CPU_TOTAL,
+            "CPU consumed by ES|QL queries that scanned an external data source and then failed or were cancelled, "
+                + "broken down by outcome (failure, cancelled) and component (execution, read, planning, split_discovery). "
+                + "Not billed, and not part of "
+                + QUERY_CPU_TOTAL
+                + ".",
             "ns"
         );
     }
@@ -647,7 +692,7 @@ public final class ExternalSourceMetrics {
      * The {@code labels} are the query's client, storage type and format. The client is clamped to {@link #CLIENT_NAMES}, so
      * an unknown value is published as {@link #CLIENT_OTHER}. The storage type and format are published on
      * {@link #QUERIES_BY_SOURCE_TOTAL} and {@link #QUERY_BY_SOURCE_DURATION} only, and are omitted when null. Use
-     * {@link #clientFromOrigin(String)} to derive the client from a request.
+     * {@link #client(QueryMetric)} to derive the client from the caller {@link QueryCallerClassifier} finds.
      */
     public void recordQuery(
         QueryLabels labels,
@@ -882,17 +927,40 @@ public final class ExternalSourceMetrics {
      * Best-effort (self-guarded).
      */
     public void recordQueryCpu(long execution, long read, long planning, long splitDiscovery) {
+        recordQueryCpu(OUTCOME_SUCCESS, execution, read, planning, splitDiscovery);
+    }
+
+    /**
+     * Records the CPU consumed by one external-source query that ended with {@code outcome}, broken down by component. The
+     * CPU of a query that succeeded goes to {@link #QUERY_CPU_TOTAL}, which is what is billed; the CPU of one that failed or was
+     * cancelled goes to {@link #QUERY_UNSUCCESSFUL_CPU_TOTAL}, which is not, so the first keeps matching the billing signal.
+     * Otherwise as {@link #recordQueryCpu(long, long, long, long)}.
+     *
+     * @param outcome one of {@link #OUTCOME_SUCCESS}, {@link #OUTCOME_FAILURE} and {@link #OUTCOME_CANCELLED}
+     */
+    public void recordQueryCpu(String outcome, long execution, long read, long planning, long splitDiscovery) {
         try {
             long e = Math.max(0L, execution);
             long r = Math.max(0L, read);
             long p = Math.max(0L, planning);
             long sd = Math.max(0L, splitDiscovery);
-            if (e > 0) queryCpuTotal.incrementBy(e, CPU_COMPONENT_ATTRIBUTES.get(CPU_COMPONENT_EXECUTION));
-            if (r > 0) queryCpuTotal.incrementBy(r, CPU_COMPONENT_ATTRIBUTES.get(CPU_COMPONENT_READ));
-            if (p > 0) queryCpuTotal.incrementBy(p, CPU_COMPONENT_ATTRIBUTES.get(CPU_COMPONENT_PLANNING));
-            if (sd > 0) queryCpuTotal.incrementBy(sd, CPU_COMPONENT_ATTRIBUTES.get(CPU_COMPONENT_SPLIT_DISCOVERY));
+            if (OUTCOME_SUCCESS.equals(outcome)) {
+                if (e > 0) queryCpuTotal.incrementBy(e, CPU_COMPONENT_ATTRIBUTES.get(CPU_COMPONENT_EXECUTION));
+                if (r > 0) queryCpuTotal.incrementBy(r, CPU_COMPONENT_ATTRIBUTES.get(CPU_COMPONENT_READ));
+                if (p > 0) queryCpuTotal.incrementBy(p, CPU_COMPONENT_ATTRIBUTES.get(CPU_COMPONENT_PLANNING));
+                if (sd > 0) queryCpuTotal.incrementBy(sd, CPU_COMPONENT_ATTRIBUTES.get(CPU_COMPONENT_SPLIT_DISCOVERY));
+            } else {
+                Map<String, Map<String, Object>> attributes = UNSUCCESSFUL_CPU_ATTRIBUTES.get(outcome);
+                if (attributes == null) {
+                    throw new IllegalArgumentException("not an outcome of a query that did not succeed [" + outcome + "]");
+                }
+                if (e > 0) queryUnsuccessfulCpuTotal.incrementBy(e, attributes.get(CPU_COMPONENT_EXECUTION));
+                if (r > 0) queryUnsuccessfulCpuTotal.incrementBy(r, attributes.get(CPU_COMPONENT_READ));
+                if (p > 0) queryUnsuccessfulCpuTotal.incrementBy(p, attributes.get(CPU_COMPONENT_PLANNING));
+                if (sd > 0) queryUnsuccessfulCpuTotal.incrementBy(sd, attributes.get(CPU_COMPONENT_SPLIT_DISCOVERY));
+            }
             if (usageAccumulator != null) {
-                usageAccumulator.recordQueryCpu(e, r, p, sd);
+                usageAccumulator.recordQueryCpu(DataSourceUsageAccumulator.outcomeIndex(outcome), e, r, p, sd);
             }
         } catch (Exception ex) {
             logger.trace("telemetry: recordQueryCpu failed", ex);
@@ -1026,18 +1094,17 @@ public final class ExternalSourceMetrics {
     }
 
     /**
-     * Folds the value of the {@code X-elastic-product-origin} request header into the closed {@link #CLIENT_NAMES} set:
-     * absent or blank is {@link #CLIENT_NONE}; {@code kibana} and any {@code kibana-*} origin (compared
-     * case-insensitively, e.g. a Kibana feature that sets its own suffix) is {@link #CLIENT_KIBANA}; and any other value is
-     * {@link #CLIENT_OTHER}. The header value itself is never returned.
+     * The {@link #CLIENT_NAMES} label of a general ES|QL query client, as {@link QueryCallerClassifier} derives it from the
+     * {@code X-elastic-product-origin} header. These counters keep the coarser split: Kibana is {@link #CLIENT_KIBANA}, every other
+     * origin, including the other known Elastic products, is {@link #CLIENT_OTHER}, and a request without the header is
+     * {@link #CLIENT_NONE}.
      */
-    public static String clientFromOrigin(@Nullable String origin) {
-        if (origin == null || origin.isBlank()) {
-            return CLIENT_NONE;
-        }
-        String normalized = origin.strip().toLowerCase(Locale.ROOT);
-        boolean kibana = normalized.equals(CLIENT_KIBANA) || normalized.startsWith(CLIENT_KIBANA + "-");
-        return kibana ? CLIENT_KIBANA : CLIENT_OTHER;
+    public static String client(QueryMetric client) {
+        return switch (client) {
+            case KIBANA -> CLIENT_KIBANA;
+            case FLEET, LOGSTASH, OBSERVABILITY, CONNECTORS, ELASTIC_SYNTHETICS, OTHER -> CLIENT_OTHER;
+            case REST -> CLIENT_NONE;
+        };
     }
 
     /**

@@ -41,6 +41,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.CheckedConsumer;
@@ -529,19 +530,34 @@ public final class ShardFollowTasksExecutor extends PersistentTasksExecutor<Shar
                     }
                 });
 
-                return threadPool.scheduleWithFixedDelay(() -> {
-                    logger.trace(
-                        "{} background renewing retention lease [{}] while following",
-                        params.getFollowShardId(),
-                        retentionLeaseId
-                    );
-                    CcrRetentionLeases.asyncRenewRetentionLease(
-                        params.getLeaderShardId(),
-                        retentionLeaseId,
-                        followerGlobalCheckpoint.getAsLong() + 1,
-                        remoteClient(params),
-                        listener
-                    );
+                return threadPool.scheduleWithFixedDelay(new AbstractRunnable() {
+                    @Override
+                    protected void doRun() {
+                        logger.trace(
+                            "{} background renewing retention lease [{}] while following",
+                            params.getFollowShardId(),
+                            retentionLeaseId
+                        );
+                        CcrRetentionLeases.asyncRenewRetentionLease(
+                            params.getLeaderShardId(),
+                            retentionLeaseId,
+                            followerGlobalCheckpoint.getAsLong() + 1,
+                            remoteClient(params),
+                            listener
+                        );
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // the scheduler reschedules the task
+                        logRetentionLeaseFailure(retentionLeaseId, e);
+                    }
+
+                    @Override
+                    public boolean isForceExecution() {
+                        // if the ccr pool rejects this the scheduler won't reschedule
+                        return true;
+                    }
                 }, retentionLeaseRenewInterval, ccrExecutor);
             }
 

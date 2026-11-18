@@ -4,7 +4,9 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  *
- * Forked from RE2/J 1.8, see package-info.java.
+ * NOTE: forked from RE2/J 1.8, see package-info.java, and changed to extend
+ * IllegalArgumentException, and to drop a javadoc tag that HTML5 lacks. The change is
+ * marked ES:.
  *
  * Copyright (c) 2020 The Go Authors. All rights reserved.
  *

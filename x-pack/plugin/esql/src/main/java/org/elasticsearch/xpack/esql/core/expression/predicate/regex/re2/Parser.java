@@ -4,7 +4,11 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  *
- * Forked from RE2/J 1.8, see package-info.java.
+ * NOTE: forked from RE2/J 1.8, see package-info.java, and changed to parse as Go 1.26
+ * regexp/syntax does: Unicode classes from the JDK through Unicode.table, repeatIsValid
+ * from Go, a repeated literal open brace, group names used twice, a named group that needs
+ * a name, Go's errors for an unexpected close paren and a trailing backslash, and no escape
+ * of a non-ASCII character. The changes are marked ES:.
  *
  * Copyright (c) 2020 The Go Authors. All rights reserved.
  *

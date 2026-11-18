@@ -25,7 +25,7 @@ public interface CapturingExternalSourceStatus {
 
     /**
      * Per-file capture surface. Keyed by file path; the value is the list of flat
-     * {@code _stats.*} contributions from each iterator that touched the file — one per chunk for
+     * {@code _stats.*} contributions from each iterator that touched the file — one per stripe for
      * parallel parsing, one per split for macro-splits, one for whole-file reads.
      * <p>
      * {@link DriverCompletionInfo}'s factories collect these from every completed operator and

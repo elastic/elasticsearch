@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 166198
+summary: Wrap DF executors when a load exists
+type: enhancement

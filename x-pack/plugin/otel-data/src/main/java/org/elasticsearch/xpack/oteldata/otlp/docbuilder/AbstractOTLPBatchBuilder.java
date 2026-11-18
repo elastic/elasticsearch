@@ -16,6 +16,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfColumnBuilder;
 import org.elasticsearch.escf.EscfColumnData;
+import org.elasticsearch.sourcebatch.SourceBatchEncodeHelper;
 import org.elasticsearch.sourcebatch.SourceSchema;
 import org.elasticsearch.xcontent.XContentString;
 
@@ -87,6 +88,11 @@ public abstract class AbstractOTLPBatchBuilder implements Releasable {
     /** Registers (or reuses) the leaf field {@code name} under {@code parentIdx} and returns its column index. */
     protected final int leafField(String name, int parentIdx) {
         return schema.appendLeaf(name, parentIdx);
+    }
+
+    /** Returns the sub-schema of {@code name} under {@code parentIdx}, see {@link SourceSchema#getSubSchema}. */
+    protected final <T> T getSubSchema(int parentIdx, String name, SourceSchema.SubSchemaFactory<T> factory) {
+        return schema.getSubSchema(parentIdx, name, factory);
     }
 
     /**
@@ -178,6 +184,30 @@ public abstract class AbstractOTLPBatchBuilder implements Releasable {
     }
 
     /**
+     * Writes a packed inline array at {@code colIdx}, as produced by
+     * {@link SourceBatchEncodeHelper#packAccumulatedElements}. An array whose elements share one fixed kind is
+     * decoded into a columnar child; anything heterogeneous or nested stays inline on a union column.
+     */
+    public final void arrayField(int colIdx, SourceBatchEncodeHelper.PackedArray array) {
+        // Packed rather than streamed through EscfColumnBuilder#beginArray/appendX/endArray: the streaming API
+        // cannot append a boolean or a null element, and OTLP arrays can contain both.
+        // TODO: we should probably extend COlumnBuilder.beginArray() / endArray() to properly work with bools and nulls
+        catchUp(colIdx, docCount).addArray(array.arrayType(), array.packed());
+    }
+
+    /**
+     * Opens an array value at {@code colIdx} and returns the column builder to stream its elements into via
+     * {@link EscfColumnBuilder#appendLong} or {@link EscfColumnBuilder#appendDouble}. Arrays of different columns
+     * may be open at the same time, but each must be closed with {@link EscfColumnBuilder#endArray} before the
+     * column is written again or the batch is built.
+     */
+    public final EscfColumnBuilder beginArray(int colIdx) {
+        EscfColumnBuilder builder = catchUp(colIdx, docCount);
+        builder.beginArray(docCount);
+        return builder;
+    }
+
+    /**
      * Returns {@code true} if {@code colIdx} has already been written as a leaf in the current (uncommitted) row.
      * Callers writing fields whose name comes from the payload (e.g. attribute keys) use this to skip
      * duplicates, which a column can't represent.
@@ -196,6 +226,7 @@ public abstract class AbstractOTLPBatchBuilder implements Releasable {
             builders.add(new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.SPLIT, recycler));
         }
         EscfColumnBuilder builder = builders.get(colIdx);
+        assert builder.isArrayOpen() == false : "array of [" + schema.getFullPath(colIdx) + "] is still open";
         int gap = targetRow - builder.nextAppendRow();
         if (gap < 0) {
             throw new IllegalArgumentException("Duplicate field [" + schema.getFullPath(colIdx) + "]");

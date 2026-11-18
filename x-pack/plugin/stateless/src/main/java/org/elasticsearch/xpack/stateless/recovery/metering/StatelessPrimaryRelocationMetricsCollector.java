@@ -11,10 +11,13 @@ import org.elasticsearch.telemetry.metric.DoubleHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.xpack.stateless.recovery.RelocationSourceMetrics;
 
+import java.util.Map;
+
 /// Collects timing histograms for the primary shard relocation protocol in stateless deployments.
 ///
 /// Tracks the duration of each phase on both the relocation source (initial flush, permit acquisition,
-/// second flush, handoff) and the relocation target (pre-recovery, indexing shard state read, engine open).
+/// second flush, handoff) and the relocation target (pre-recovery, indexing shard state read, engine open),
+/// as well as how long the source waited for the target's prewarm response.
 /// Registered only on index nodes; search nodes do not participate in primary relocation.
 public class StatelessPrimaryRelocationMetricsCollector {
 
@@ -33,6 +36,31 @@ public class StatelessPrimaryRelocationMetricsCollector {
         "es.recovery.shard.primary.relocation.target.read_indexing_shard_state.time";
     public static final String RELOCATION_TARGET_OPEN_ENGINE_TIME_METRIC_IN_SECONDS =
         "es.recovery.shard.primary.relocation.target.open_engine.time";
+    public static final String RELOCATION_SOURCE_PREWARM_WAIT_TIME_METRIC_IN_SECONDS =
+        "es.recovery.shard.primary.relocation.source.prewarm_wait.time";
+    public static final String PREWARM_WAIT_OUTCOME_ATTRIBUTE_KEY = "es_prewarm_wait_outcome";
+
+    /** captures the outcome of the target's prewarm response */
+    public enum PrewarmWaitOutcome {
+        /** target replied successfully before the timeout */
+        COMPLETED("completed"),
+        /** the timeout expired on the source before the target replied */
+        TIMED_OUT("timed_out"),
+        /** the target replied with a failure */
+        FAILED("failed"),
+        /** no prewarm was sent to the target */
+        NOT_SENT("not_sent");
+
+        private final String attributeValue;
+
+        PrewarmWaitOutcome(String attributeValue) {
+            this.attributeValue = attributeValue;
+        }
+
+        public String attributeValue() {
+            return attributeValue;
+        }
+    }
 
     public static final StatelessPrimaryRelocationMetricsCollector NOOP = new StatelessPrimaryRelocationMetricsCollector(
         MeterRegistry.NOOP
@@ -46,6 +74,7 @@ public class StatelessPrimaryRelocationMetricsCollector {
     private final DoubleHistogram relocationTargetPreRecoveryDurationMetric;
     private final DoubleHistogram relocationTargetReadIndexingShardStateDurationMetric;
     private final DoubleHistogram relocationTargetOpenEngineDurationMetric;
+    private final DoubleHistogram relocationPrewarmWaitDurationMetric;
 
     public StatelessPrimaryRelocationMetricsCollector(MeterRegistry meterRegistry) {
         relocationInitialFlushDurationMetric = meterRegistry.registerDoubleHistogram(
@@ -89,6 +118,11 @@ public class StatelessPrimaryRelocationMetricsCollector {
             "Time spent opening the engine (and activating with primary context) during primary relocation handoff on the target",
             "seconds"
         );
+        relocationPrewarmWaitDurationMetric = meterRegistry.registerDoubleHistogram(
+            RELOCATION_SOURCE_PREWARM_WAIT_TIME_METRIC_IN_SECONDS,
+            "Time spent waiting for the target's response, broken down by [" + PREWARM_WAIT_OUTCOME_ATTRIBUTE_KEY + "]",
+            "seconds"
+        );
     }
 
     public void recordRelocationSourceMetrics(RelocationSourceMetrics metrics) {
@@ -109,5 +143,12 @@ public class StatelessPrimaryRelocationMetricsCollector {
 
     public void recordRelocationTargetOpenEngineDuration(long durationInMillis) {
         relocationTargetOpenEngineDurationMetric.record(durationInMillis / 1000.0);
+    }
+
+    public void recordRelocationSourcePrewarmWait(long durationInMillis, PrewarmWaitOutcome outcome) {
+        relocationPrewarmWaitDurationMetric.record(
+            durationInMillis / 1000.0,
+            Map.of(PREWARM_WAIT_OUTCOME_ATTRIBUTE_KEY, outcome.attributeValue())
+        );
     }
 }

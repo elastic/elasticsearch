@@ -18,6 +18,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -31,6 +32,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -40,6 +42,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
@@ -66,6 +69,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.Executor;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collector;
@@ -131,9 +138,12 @@ public class NativePrivilegeStore {
         clusterService.getClusterSettings().addSettingsUpdateConsumer(ALLOW_EXPENSIVE_QUERIES, this::setAllowExpensiveQueries);
         final TimeValue ttl = CACHE_TTL_SETTING.get(settings);
         if (ttl.getNanos() > 0) {
+            final ThreadPool threadPool = client.threadPool();
             descriptorsAndApplicationNamesCache = new DescriptorsAndApplicationNamesCache(
                 ttl,
-                CACHE_MAX_APPLICATIONS_SETTING.get(settings)
+                CACHE_MAX_APPLICATIONS_SETTING.get(settings),
+                threadPool.generic(),
+                threadPool.getThreadContext()
             );
             cacheInvalidatorRegistry.registerCacheInvalidator("application_privileges", descriptorsAndApplicationNamesCache);
         } else {
@@ -165,40 +175,18 @@ public class NativePrivilegeStore {
             ? Set.of("*")
             : Set.copyOf(applications);
 
-        // Always fetch for the concrete application names even when the passed-in application names has no wildcard.
-        // This serves as a negative lookup, i.e. when a passed-in non-wildcard application does not exist.
-        Set<String> concreteApplicationNames = descriptorsAndApplicationNamesCache == null
-            ? null
-            : descriptorsAndApplicationNamesCache.getConcreteApplicationNames(applicationNamesCacheKey);
-
-        if (concreteApplicationNames != null && concreteApplicationNames.isEmpty()) {
-            logger.debug(
-                "returning empty application privileges for [{}] as application names result in empty list",
-                applicationNamesCacheKey
-            );
-            listener.onResponse(Collections.emptySet());
+        final ActionListener<Collection<ApplicationPrivilegeDescriptor>> filteringListener = listener.map(
+            descriptors -> filterDescriptorsForPrivilegeNames(descriptors, names)
+        );
+        if (descriptorsAndApplicationNamesCache == null) {
+            innerGetPrivileges(applicationNamesCacheKey, waitForAvailableSecurityIndex, filteringListener);
         } else {
-            final Set<ApplicationPrivilegeDescriptor> cachedDescriptors = cachedDescriptorsForApplicationNames(
-                concreteApplicationNames != null ? concreteApplicationNames : applicationNamesCacheKey
+            descriptorsAndApplicationNamesCache.get(
+                applicationNamesCacheKey,
+                waitForAvailableSecurityIndex,
+                loadListener -> innerGetPrivileges(applicationNamesCacheKey, waitForAvailableSecurityIndex, loadListener),
+                filteringListener
             );
-            if (cachedDescriptors != null) {
-                logger.debug("All application privileges for [{}] found in cache", applicationNamesCacheKey);
-                listener.onResponse(filterDescriptorsForPrivilegeNames(cachedDescriptors, names));
-            } else {
-                // Always fetch all privileges of an application for caching purpose
-                logger.debug("Fetching application privilege documents for: {}", applicationNamesCacheKey);
-                final long invalidationCount = descriptorsAndApplicationNamesCache == null
-                    ? -1
-                    : descriptorsAndApplicationNamesCache.getInvalidationCount();
-                innerGetPrivileges(applicationNamesCacheKey, waitForAvailableSecurityIndex, ActionListener.wrap(fetchedDescriptors -> {
-                    final Map<String, Set<ApplicationPrivilegeDescriptor>> mapOfFetchedDescriptors = fetchedDescriptors.stream()
-                        .collect(Collectors.groupingBy(ApplicationPrivilegeDescriptor::getApplication, Collectors.toUnmodifiableSet()));
-                    if (invalidationCount != -1) {
-                        cacheFetchedDescriptors(applicationNamesCacheKey, mapOfFetchedDescriptors, invalidationCount);
-                    }
-                    listener.onResponse(filterDescriptorsForPrivilegeNames(fetchedDescriptors, names));
-                }, listener::onFailure));
-            }
         }
     }
 
@@ -349,35 +337,6 @@ public class NativePrivilegeStore {
     }
 
     /**
-     * Try resolve all privileges for given application names from the cache.
-     * It returns non-null result only when privileges of ALL applications are
-     * found in the cache, i.e. it returns null if any of application name is
-     * NOT found in the cache. Since the cached is keyed by concrete application
-     * name, this means any wildcard will result in null.
-     */
-    private Set<ApplicationPrivilegeDescriptor> cachedDescriptorsForApplicationNames(Set<String> applicationNames) {
-        if (descriptorsAndApplicationNamesCache == null) {
-            return null;
-        }
-        final Set<ApplicationPrivilegeDescriptor> cachedDescriptors = new HashSet<>();
-        for (String applicationName : applicationNames) {
-            if (applicationName.endsWith("*")) {
-                return null;
-            } else {
-                final Set<ApplicationPrivilegeDescriptor> descriptors = descriptorsAndApplicationNamesCache.getApplicationDescriptors(
-                    applicationName
-                );
-                if (descriptors == null) {
-                    return null;
-                } else {
-                    cachedDescriptors.addAll(descriptors);
-                }
-            }
-        }
-        return Collections.unmodifiableSet(cachedDescriptors);
-    }
-
-    /**
      * Filter to get all privilege descriptors that have any of the given privilege names.
      */
     private static Collection<ApplicationPrivilegeDescriptor> filterDescriptorsForPrivilegeNames(
@@ -389,15 +348,6 @@ public class NativePrivilegeStore {
             return descriptors;
         }
         return descriptors.stream().filter(d -> privilegeNames.contains(d.getName())).collect(Collectors.toUnmodifiableSet());
-    }
-
-    // protected for tests
-    protected void cacheFetchedDescriptors(
-        Set<String> applicationNamesCacheKey,
-        Map<String, Set<ApplicationPrivilegeDescriptor>> mapOfFetchedDescriptors,
-        long invalidationCount
-    ) {
-        descriptorsAndApplicationNamesCache.putIfNoInvalidationSince(applicationNamesCacheKey, mapOfFetchedDescriptors, invalidationCount);
     }
 
     public void putPrivileges(
@@ -576,12 +526,26 @@ public class NativePrivilegeStore {
         return descriptorsAndApplicationNamesCache.getInvalidationCount();
     }
 
+    @FixForMultiProject(description = "Cache keys and in-flight loads should be scoped by project")
     static final class DescriptorsAndApplicationNamesCache implements CacheInvalidatorRegistry.CacheInvalidator {
         private final Cache<String, Set<ApplicationPrivilegeDescriptor>> descriptorsCache;
         private final Cache<Set<String>, Set<String>> applicationNamesCache;
         private final LockingAtomicCounter lockingAtomicCounter;
+        /**
+         * Loads currently in flight. Concurrent cache misses for the same key join the existing load rather than each running a full
+         * .security search, which would otherwise be repeated for every caller after a cache clear.
+         */
+        private final ConcurrentMap<InFlightKey, SubscribableListener<Collection<ApplicationPrivilegeDescriptor>>> inFlightLoads =
+            new ConcurrentHashMap<>();
+        /**
+         * A shared load runs without the caller's security context or response headers. Each subscriber is completed on this executor
+         * under its own captured context, so that one caller's security context never leaks into another's and a burst of callers does
+         * not run all of its continuations serially on the one thread that delivered the response.
+         */
+        private final Executor completionExecutor;
+        private final ThreadContext threadContext;
 
-        DescriptorsAndApplicationNamesCache(TimeValue ttl, int cacheSize) {
+        DescriptorsAndApplicationNamesCache(TimeValue ttl, int cacheSize, Executor completionExecutor, ThreadContext threadContext) {
             this.descriptorsCache = CacheBuilder.<String, Set<ApplicationPrivilegeDescriptor>>builder()
                 .setMaximumWeight(cacheSize)
                 .weigher((k, v) -> v.size())
@@ -593,21 +557,108 @@ public class NativePrivilegeStore {
                 .setExpireAfterWrite(ttl)
                 .build();
             this.lockingAtomicCounter = new LockingAtomicCounter();
+            this.completionExecutor = completionExecutor;
+            this.threadContext = threadContext;
         }
 
-        public Set<ApplicationPrivilegeDescriptor> getApplicationDescriptors(String applicationName) {
-            return descriptorsCache.get(applicationName);
+        /**
+         * Returns all privileges of the given application names, from the cache when it can answer for all of them and otherwise by
+         * running {@code loader}, which must fetch all privileges of those applications. The loaded result is cached unless an
+         * invalidation happened while it was loading.
+         * <p>
+         * Concurrent misses for the same key share one load. The key includes the invalidation count, so a caller that arrives after
+         * an invalidation never joins a load that started before it.
+         * <p>
+         * A cache hit completes {@code listener} inline; otherwise every subscriber, the caller that starts the load included, is
+         * completed on the completion executor under its own thread context (see {@link #completionExecutor}).
+         */
+        void get(
+            Set<String> applicationNames,
+            boolean waitForAvailableSecurityIndex,
+            Consumer<ActionListener<Collection<ApplicationPrivilegeDescriptor>>> loader,
+            ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener
+        ) {
+            if (completeFromCache(applicationNames, listener)) {
+                return;
+            }
+
+            final long invalidationCount = getInvalidationCount();
+            final InFlightKey key = new InFlightKey(applicationNames, waitForAvailableSecurityIndex, invalidationCount);
+            final SubscribableListener<Collection<ApplicationPrivilegeDescriptor>> newLoad = new SubscribableListener<>();
+            final SubscribableListener<Collection<ApplicationPrivilegeDescriptor>> load = inFlightLoads.computeIfAbsent(key, k -> newLoad);
+            load.addListener(listener, completionExecutor, threadContext);
+            if (load != newLoad) {
+                return;
+            }
+
+            // Remove the in-flight entry and complete the load in an empty context, so subscribers cannot inherit response headers
+            // from the completing thread.
+            final ActionListener<Collection<ApplicationPrivilegeDescriptor>> completionListener = new ContextPreservingActionListener<>(
+                threadContext::newEmptyContext,
+                ActionListener.runBefore(load, () -> inFlightLoads.remove(key, load))
+            );
+            // The load is shared, so run it detached from the caller that starts it. A stash, unlike an empty context, keeps the
+            // project id, which the loader needs to resolve the project's security index.
+            try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+                // Catch exceptions from both the cache recheck and the loader so the shared load always completes and is removed.
+                ActionListener.run(completionListener, l -> {
+                    // Another load may have cached its result and removed its in-flight entry between the cache read above and the
+                    // computeIfAbsent. Recheck now that this load is registered, so that callers that joined it are answered too.
+                    if (completeFromCache(applicationNames, l)) {
+                        return;
+                    }
+
+                    logger.debug("Fetching application privilege documents for: {}", applicationNames);
+                    loader.accept(l.map(fetchedDescriptors -> {
+                        // Cache before completion removes the in-flight entry and notifies subscribers.
+                        putIfNoInvalidationSince(applicationNames, fetchedDescriptors, invalidationCount);
+                        return fetchedDescriptors;
+                    }));
+                });
+            }
         }
 
-        public Set<String> getConcreteApplicationNames(Set<String> applicationNames) {
-            return applicationNamesCache.get(applicationNames);
+        /**
+         * Completes {@code listener} with all privileges of the given application names if the cache can answer for all of them, and
+         * returns whether it did. Returns {@code false}, leaving the listener untouched, if a load is needed. Wildcard names are never
+         * answered from here, because the cache does not know what they expand to.
+         */
+        private boolean completeFromCache(
+            Set<String> applicationNames,
+            ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener
+        ) {
+            // The application names cache also serves as a negative lookup: a non-wildcard name that does not exist maps to nothing
+            final Set<String> concreteApplicationNames = applicationNamesCache.get(applicationNames);
+            if (concreteApplicationNames != null && concreteApplicationNames.isEmpty()) {
+                logger.debug("returning empty application privileges for [{}] as application names result in empty list", applicationNames);
+                listener.onResponse(Set.of());
+                return true;
+            }
+            final Set<ApplicationPrivilegeDescriptor> cachedDescriptors = new HashSet<>();
+            for (String applicationName : concreteApplicationNames != null ? concreteApplicationNames : applicationNames) {
+                if (applicationName.endsWith("*")) {
+                    return false;
+                }
+                final Set<ApplicationPrivilegeDescriptor> descriptors = descriptorsCache.get(applicationName);
+                if (descriptors == null) {
+                    return false;
+                }
+                cachedDescriptors.addAll(descriptors);
+            }
+            logger.debug("All application privileges for [{}] found in cache", applicationNames);
+            listener.onResponse(Collections.unmodifiableSet(cachedDescriptors));
+            return true;
         }
 
-        public void putIfNoInvalidationSince(
+        private record InFlightKey(Set<String> applicationNames, boolean waitForAvailableSecurityIndex, long invalidationCount) {}
+
+        private void putIfNoInvalidationSince(
             Set<String> applicationNamesCacheKey,
-            Map<String, Set<ApplicationPrivilegeDescriptor>> mapOfFetchedDescriptors,
+            Collection<ApplicationPrivilegeDescriptor> fetchedDescriptors,
             long invalidationCount
         ) {
+            final Map<String, Set<ApplicationPrivilegeDescriptor>> mapOfFetchedDescriptors = fetchedDescriptors.stream()
+                .collect(Collectors.groupingBy(ApplicationPrivilegeDescriptor::getApplication, Collectors.toUnmodifiableSet()));
             lockingAtomicCounter.compareAndRun(invalidationCount, () -> {
                 final Set<String> fetchedApplicationNames = Collections.unmodifiableSet(mapOfFetchedDescriptors.keySet());
                 // Do not cache the names if expansion has no effect

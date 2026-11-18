@@ -218,7 +218,7 @@ class ConcurrencyLimiter implements AdmissionGate {
 
         ExternalUnavailableException toUnavailable() {
             ExternalUnavailableException ex = new ExternalUnavailableException(
-                Condition.STORE_UNAVAILABLE,
+                Condition.LOCAL_CAPACITY,
                 StoragePath.NONE,
                 "",
                 "",

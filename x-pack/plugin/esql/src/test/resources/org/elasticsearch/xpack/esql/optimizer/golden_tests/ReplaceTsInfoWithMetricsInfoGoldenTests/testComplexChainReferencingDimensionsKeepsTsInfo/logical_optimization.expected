@@ -1,0 +1,5 @@
+Limit[1000[INTEGER],false,false]
+\_Aggregate[[metric_name{r}#0],[VALUES(dimension_fields{r}#1,true[BOOLEAN],PT0S[TIME_DURATION]) AS dims#2, MAX(dimensions{r}#3,true[BOOLEAN],PT0S[TIME_DURATION]) AS series#4, metric_name{r}#0 AS name#5]]
+  \_Filter[STARTSWITH(metric_name{r}#0,network.[KEYWORD]) AND metric_type{r}#6 == counter[KEYWORD]]
+    \_TsInfo[null]
+      \_EsRelation[k8s][@timestamp{f}#7, client.ip{f}#8, cluster{f}#9, event{f}#10, event_city{f}#11, event_city_boundary{f}#12, event_location{f}#13, event_log{f}#14, event_shape{f}#15, events_received{f}#16, network.bytes_in{f}#17, network.cost{f}#18, network.eth0.currently_connected_clients{f}#19, network.eth0.firmware_version{f}#20, network.eth0.last_up{f}#21, network.eth0.rx{f}#22, network.eth0.tx{f}#23, network.eth0.up{f}#24, network.total_bytes_in{f}#25, network.total_bytes_out{f}#26, network.total_cost{f}#27, pod{f}#28, region{f}#29, _doc{m}#30]

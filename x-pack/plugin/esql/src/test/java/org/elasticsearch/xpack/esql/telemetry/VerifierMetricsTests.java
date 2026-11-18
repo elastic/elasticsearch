@@ -295,7 +295,7 @@ public class VerifierMetricsTests extends ESTestCase {
                       , (from employees | stats min = min(salary) by languages)
             | where min > 0 and max < 100000
             """);
-        assertMetrics(c, Map.of(EVAL, 1L, STATS, 1L, WHERE, 1L, FROM, 1L, SUBQUERY, 1L), Map.of("max", 1L, "min", 1L));
+        assertMetrics(c, Map.of(STATS, 1L, WHERE, 1L, FROM, 1L, SUBQUERY, 1L), Map.of("max", 1L, "min", 1L));
     }
 
     public void testPromql() {
@@ -410,6 +410,12 @@ public class VerifierMetricsTests extends ESTestCase {
                 | inline stats count(*) where emp_no NOT IN (from employees | SORT emp_no | LIMIT 3 | KEEP emp_no)
             """);
         assertMetrics(c, Map.of(INLINE_STATS, 1L, FROM, 1L, IN_SUBQUERY, 1L, SORT, 1L, LIMIT, 1L, KEEP, 1L), Map.of("count", 1L));
+    }
+
+    public void testInto() {
+        assumeTrue("INTO is only enabled in snapshot builds", EsqlCapabilities.Cap.INTO_COMMAND.isEnabled());
+        Counters c = esql("ROW a = 1 | INTO dst");
+        assertMetrics(c, Map.of(FeatureMetric.INTO, 1L, ROW, 1L));
     }
 
     public void testLet() {

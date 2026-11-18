@@ -175,7 +175,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         builder.field(TIMED_OUT.getPreferredName(), isTimeout);
         if (CollectionUtils.isEmpty(shardFailures) == false) {
             builder.startArray(SHARD_FAILURES.getPreferredName());
-            for (ShardOperationFailedException shardFailure : ExceptionsHelper.groupBy(shardFailures)) {
+            for (ShardOperationFailedException shardFailure : ExceptionsHelper.groupBy(Arrays.asList(shardFailures))) {
                 shardFailure.toXContent(builder, params);
             }
             builder.endArray();

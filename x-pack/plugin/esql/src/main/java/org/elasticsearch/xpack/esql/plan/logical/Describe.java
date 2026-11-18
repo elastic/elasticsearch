@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * {@code DESCRIBE} returns one row per column of its input: what the column is, where it comes from,
@@ -53,9 +54,7 @@ public class Describe extends UnaryPlan implements TelemetryAware {
         new Column("origin", DataType.KEYWORD),
         new Column("metric_type", DataType.KEYWORD),
         new Column("unit", DataType.KEYWORD),
-        new Column("description", DataType.KEYWORD),
-        new Column("searchable", DataType.BOOLEAN),
-        new Column("aggregatable", DataType.BOOLEAN)
+        new Column("description", DataType.KEYWORD)
     );
 
     private record Column(String name, DataType type) {}
@@ -101,8 +100,16 @@ public class Describe extends UnaryPlan implements TelemetryAware {
      *
      * @param semantics      the semantics of the mapped fields the child's columns read, keyed by attribute id
      * @param datasetColumns the dataset columns the child's columns read, keyed by attribute id
+     * @param units          the unit of every column whose unit is known, or every unit when its sources disagree,
+     *                       keyed by attribute id
+     * @param timeColumns    the ids of the columns that hold time but read no mapped field
      */
-    public LocalRelation describe(Map<NameId, FieldSemantics> semantics, Map<NameId, Attribute> datasetColumns) {
+    public LocalRelation describe(
+        Map<NameId, FieldSemantics> semantics,
+        Map<NameId, Attribute> datasetColumns,
+        Map<NameId, List<String>> units,
+        Set<NameId> timeColumns
+    ) {
         List<Attribute> columns = child().output().stream().filter(a -> a.synthetic() == false).toList();
         ElementType[] elementTypes = new ElementType[COLUMNS.size()];
         Block.Builder[] builders = new Block.Builder[COLUMNS.size()];
@@ -114,7 +121,7 @@ public class Describe extends UnaryPlan implements TelemetryAware {
             for (Attribute column : columns) {
                 FieldSemantics field = semantics.get(column.id());
                 Attribute datasetColumn = datasetColumns.get(column.id());
-                FieldSemantics.Role role = field != null ? field.role() : isMetadata(column) ? FieldSemantics.Role.METADATA : null;
+                FieldSemantics.Role role = role(column, field, timeColumns);
                 String metricType = field == null ? null : field.metricType();
                 Object[] row = new Object[] {
                     column.name(),
@@ -123,13 +130,10 @@ public class Describe extends UnaryPlan implements TelemetryAware {
                     field != null ? field.field() : datasetColumn != null ? datasetColumn.name() : null,
                     origin(column, field, datasetColumn),
                     metricType,
-                    field == null ? null : field.unit(),
-                    field == null ? null : field.description(),
-                    field == null ? null : field.searchable(),
-                    field == null ? null : field.aggregatable() };
+                    units.get(column.id()),
+                    field == null || field.descriptions().isEmpty() ? null : List.copyOf(field.descriptions()) };
                 for (int i = 0; i < row.length; i++) {
-                    Object value = row[i] instanceof String s ? new BytesRef(s) : row[i];
-                    BlockUtils.appendValue(builders[i], value, elementTypes[i]);
+                    append(builders[i], row[i], elementTypes[i]);
                 }
             }
             Block[] blocks = new Block[builders.length];
@@ -142,6 +146,27 @@ public class Describe extends UnaryPlan implements TelemetryAware {
         }
     }
 
+    /**
+     * Appends a value, or a list of values as one multi-valued position.
+     */
+    private static void append(Block.Builder builder, @Nullable Object value, ElementType type) {
+        if (value instanceof List<?> values && values.size() > 1) {
+            builder.beginPositionEntry();
+            for (Object v : values) {
+                BlockUtils.appendValue(builder, toBytesRef(v), type);
+            }
+            builder.endPositionEntry();
+        } else if (value instanceof List<?> values) {
+            BlockUtils.appendValue(builder, values.isEmpty() ? null : toBytesRef(values.get(0)), type);
+        } else {
+            BlockUtils.appendValue(builder, toBytesRef(value), type);
+        }
+    }
+
+    private static Object toBytesRef(@Nullable Object value) {
+        return value instanceof String s ? new BytesRef(s) : value;
+    }
+
     private static String origin(Attribute column, @Nullable FieldSemantics field, @Nullable Attribute datasetColumn) {
         if (isMetadata(column)) {
             return "metadata";
@@ -152,10 +177,28 @@ public class Describe extends UnaryPlan implements TelemetryAware {
         if (column instanceof FieldAttribute) {
             return field == null ? "unmapped" : "mapped";
         }
+        // A column of a merge of branches is not the field itself, but keeps its name unless it was renamed.
         if (datasetColumn != null) {
-            return datasetColumn.id().equals(column.id()) ? "dataset" : "renamed";
+            return datasetColumn.name().equals(column.name()) ? "dataset" : "renamed";
         }
-        return field == null ? "computed" : "renamed";
+        if (field == null) {
+            return "computed";
+        }
+        return field.field().equals(column.name()) ? "mapped" : "renamed";
+    }
+
+    @Nullable
+    private static FieldSemantics.Role role(Attribute column, @Nullable FieldSemantics field, Set<NameId> timeColumns) {
+        if (field != null) {
+            return field.role();
+        }
+        if (isMetadata(column)) {
+            return FieldSemantics.Role.METADATA;
+        }
+        if (timeColumns.contains(column.id())) {
+            return FieldSemantics.Role.TIME;
+        }
+        return null;
     }
 
     private static boolean isMetadata(Attribute column) {

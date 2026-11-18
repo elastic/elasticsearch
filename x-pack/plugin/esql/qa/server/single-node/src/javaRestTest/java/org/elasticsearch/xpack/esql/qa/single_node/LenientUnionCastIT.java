@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.qa.single_node;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.elasticsearch.client.Request;
@@ -40,7 +42,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThan;
 
 /**
- * Every {@code union_*} catalog index paired with every other, cast to every conversion target.
+ * Every {@code union_*} catalog index paired with every other, cast to each conversion target.
  * A cast returns a value or null, even when nothing can convert, so no pair may fail.
  * Paired with an object, the field has a single type, as an object index doesn't map it.
  */
@@ -53,25 +55,49 @@ public class LenientUnionCastIT extends ESRestTestCase {
         .setWarningsHandler(WarningsHandler.PERMISSIVE)
         .build();
 
+    /** The indices are the same for every cast target, so they're loaded once and kept. */
+    private static boolean indicesLoaded;
+
+    private final CastTarget target;
+
+    public LenientUnionCastIT(@Name("target") CastTarget target) {
+        this.target = target;
+    }
+
+    /** One test per cast target, so a failure names its target and the pairs run in bounded chunks. */
+    @ParametersFactory(argumentFormatting = "%1$s")
+    public static List<Object[]> parameters() {
+        return castTargets().stream().map(target -> new Object[] { target }).toList();
+    }
+
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
     }
 
-    private record CastTarget(String function, String resultType) {}
+    @Override
+    protected boolean preserveIndicesUponCompletion() {
+        return true;
+    }
 
-    public void testEveryTypePairAgainstEveryCastTarget() throws IOException {
+    record CastTarget(String function, String resultType) {
+        @Override
+        public String toString() {
+            return function;
+        }
+    }
+
+    public void testEveryTypePair() throws IOException {
         List<String> indices = unionIndices();
         assertThat(indices.size(), greaterThan(1));
-        CsvTestsDataLoader.loadDatasetsIntoEs(client(), indices);
-        List<CastTarget> targets = castTargets();
-        assertThat(targets.size(), greaterThan(1));
+        if (indicesLoaded == false) {
+            CsvTestsDataLoader.loadDatasetsIntoEs(client(), indices);
+            indicesLoaded = true;
+        }
         List<String> failures = new ArrayList<>();
         for (int i = 0; i < indices.size(); i++) {
             for (int j = i + 1; j < indices.size(); j++) {
-                for (CastTarget target : targets) {
-                    checkPair(indices.get(i), indices.get(j), target, failures);
-                }
+                checkPair(indices.get(i), indices.get(j), target, failures);
             }
         }
         assertThat(failures, empty());

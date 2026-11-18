@@ -111,7 +111,7 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         PARTIAL_AGG };
 
     private final JoinConfig config;
-    private List<Attribute> lazyOutput;
+    private volatile List<Attribute> lazyOutput;
     // Where this join executes — relevant only on the coordinating node, thus transient.
     private final transient ExecuteLocation mode;
 

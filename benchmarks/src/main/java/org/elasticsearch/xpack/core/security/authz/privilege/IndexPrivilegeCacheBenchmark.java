@@ -48,16 +48,17 @@ import java.util.stream.Collectors;
  * Inputs are generated deterministically, in sorted collections, so every fork resolves the same keys in the same order. Named keys
  * take two to five names from the sorted privilege names, either consecutive or seven apart, from each of thirty starting names.
  * Each invocation resolves all keys so that every iteration includes complete passes, with time and allocation reported per lookup.
- * The privilege cache limit is relative to the working set's measured
- * weight, so this measures the cost of repeated misses rather than establishing whether the default heap percentage is sufficient.
+ * The {@code lookup} parameter selects whether every lookup hits or misses the cache. With {@code hit} the cache holds the whole working
+ * set. With {@code miss} it holds only the largest entry, so a pass over distinct keys never finds one. This measures the cost of a hit
+ * and of a miss. It does not establish whether the default heap percentage is sufficient.
  * Each thread cycles through a disjoint portion of the working set. Setup checks result names, memory bounds, and
  * the expected hit/miss behavior before any timing; iteration diagnostics are collected outside the measured operation.
  * Setup also reports how many automaton bytes the cached privileges share with objects retained outside the cache, namely the
  * built-in privileges and the pattern cache. Entry weights still include those bytes, so the retained heap is lower than the weight.
  */
 // Prepended because the Gradle run task passes its own -jvmArgsAppend, which replaces any jvmArgsAppend declared here.
-@Fork(value = 5, jvmArgsPrepend = { "-Xms512m", "-Xmx512m" })
-@Warmup(iterations = 5, time = 2)
+@Fork(value = 3, jvmArgsPrepend = { "-Xms512m", "-Xmx512m" })
+@Warmup(iterations = 3, time = 2)
 @Measurement(iterations = 5, time = 2)
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.MICROSECONDS)
@@ -75,8 +76,8 @@ public class IndexPrivilegeCacheBenchmark {
     @Param({ "named", "raw_actions_cached_patterns", "raw_actions_uncached_patterns" })
     public String workload;
 
-    @Param({ "100", "25" })
-    public int capacityPercent;
+    @Param({ "hit", "miss" })
+    public String lookup;
 
     private List<Set<String>> keys;
     private Cache<Set<String>, IndexPrivilege.CachedPrivileges> cache;
@@ -84,7 +85,7 @@ public class IndexPrivilegeCacheBenchmark {
     private Cache.Stats iterationStart;
 
     /**
-     * Measures the entire working set, then verifies that the selected capacity produces the intended cache behavior.
+     * Measures the entire working set, sizes the cache for the {@code lookup} parameter, then verifies that lookups behave as it says.
      */
     @Setup(Level.Trial)
     public void setup() {
@@ -111,10 +112,12 @@ public class IndexPrivilegeCacheBenchmark {
             largestEntryWeight = Math.max(largestEntryWeight, cached.weight());
         }
         final long sharedAutomatonWeight = sharedAutomatonWeight(fullCache);
-        maximumWeight = workingSetWeight * capacityPercent / 100;
-        if (maximumWeight < largestEntryWeight) {
-            throw new IllegalStateException("each individual entry must fit in the cache");
-        }
+        maximumWeight = switch (lookup) {
+            case "hit" -> workingSetWeight;
+            // The smallest cache that can still store every key.
+            case "miss" -> largestEntryWeight;
+            default -> throw new IllegalArgumentException("unknown lookup [" + lookup + "]");
+        };
         IndexPrivilege.updateConfiguration(
             Settings.builder().put(IndexPrivilege.CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(maximumWeight)).build()
         );
@@ -129,11 +132,11 @@ public class IndexPrivilegeCacheBenchmark {
             }
         }
         final Cache.Stats stats = cache.stats();
-        if (capacityPercent == 100 && (stats.getHits() != KEY_COUNT || stats.getEvictions() != 0)) {
-            throw new IllegalStateException("fitting cache must serve the second pass entirely from cache");
+        if (lookup.equals("hit") && (stats.getHits() != KEY_COUNT || stats.getEvictions() != 0)) {
+            throw new IllegalStateException("the second pass must be served entirely from the cache");
         }
-        if (capacityPercent == 25 && (stats.getMisses() != 2L * KEY_COUNT || stats.getEvictions() == 0)) {
-            throw new IllegalStateException("undersized cache must thrash during sequential passes");
+        if (lookup.equals("miss") && (stats.getHits() != 0 || stats.getEvictions() == 0)) {
+            throw new IllegalStateException("no lookup of either pass may be served from the cache");
         }
         System.out.printf(
             Locale.ROOT,

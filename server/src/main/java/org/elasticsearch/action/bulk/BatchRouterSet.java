@@ -200,8 +200,9 @@ final class BatchRouterSet implements Releasable {
     /**
      * Records one item for routing, with the router that holds the batch of the item's index abstraction.
      *
-     * @throws IllegalArgumentException if no batch was supplied for the item's index abstraction, or if another batch
-     *                                  of the bulk also writes to the concrete index the item is routed to
+     * @throws IllegalArgumentException if no batch was supplied for the item's index abstraction, if the row of the
+     *                                  item is in another batch than that one, or if another batch of the bulk also
+     *                                  writes to the concrete index the item is routed to
      */
     void route(
         BulkItemRequest bulkItem,
@@ -219,6 +220,15 @@ final class BatchRouterSet implements Releasable {
                     + request.index()
                     + "] carries a source-row reference but no pre-built batch was supplied under that name;"
                     + " batches must be keyed by the name set on the requests whose rows they hold"
+            );
+        }
+        if (xContent == false && ((IndexRequest) request).indexSource().sourceBatch() != router.source()) {
+            throw new IllegalArgumentException(
+                "item targeting index ["
+                    + request.index()
+                    + "] holds a row of a batch other than the pre-built batch supplied for ["
+                    + router.key
+                    + "]; the rows of an item must be in the batch registered under the name the item targets"
             );
         }
         if (routerByIndex != null) {

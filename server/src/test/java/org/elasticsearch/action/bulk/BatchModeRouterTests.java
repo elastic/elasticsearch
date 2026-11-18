@@ -327,6 +327,25 @@ public class BatchModeRouterTests extends ESTestCase {
         }
     }
 
+    /** An item whose row is in the batch of another index would be indexed with the wrong document, so it is rejected. */
+    public void testItemWithRowOfAnotherBatchIsRejected() throws IOException {
+        EscfBatch batchA = buildBatch(1);
+        EscfBatch batchB = buildBatch(1);
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(rowRequest("index-a", batchA, 0));
+        bulkRequest.add(rowRequest("index-a", batchB, 0)); // names index-a, but its row is in the batch of index-b
+        bulkRequest.setPreBuiltBatches(Map.of("index-a", batchA, "index-b", batchB));
+        ProjectMetadata project = project(plainMetadata("index-a", 1), plainMetadata("index-b", 1));
+
+        BatchRouterSet router = BatchRouterSet.create(bulkRequest, true, recycler);
+        try {
+            var e = expectThrows(IllegalArgumentException.class, () -> routeAll(router, bulkRequest, project));
+            assertThat(e.getMessage(), containsString("holds a row of a batch other than the pre-built batch supplied for [index-a]"));
+        } finally {
+            router.close();
+        }
+    }
+
     public void testCreateReturnsNullWhenNoBatches() {
         assertThat(BatchRouterSet.create(new BulkRequest(), true, recycler), nullValue());
     }

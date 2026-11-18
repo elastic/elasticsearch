@@ -137,8 +137,11 @@ public final class SourceBatchEncodeHelper {
     }
 
     /**
-     * Serializes an object. Returns {@code null} when {@code rejectOversizedNumbers} is true and a big integer or big decimal
-     * appears anywhere in the object, including inside a nested object or array. Otherwise those tokens are stored as strings.
+     * Serializes an object. With {@code rejectOversizedNumbers}, returns {@code null} only when the parser reports
+     * {@link XContentParser.NumberType#BIG_INTEGER} or {@link XContentParser.NumberType#BIG_DECIMAL}, including inside a
+     * nested object or array. A high-precision JSON decimal the parser reports as {@code DOUBLE} is still rounded into
+     * a double, so this flag does not prevent that loss. When the flag is false, big integers and big decimals are stored
+     * as strings.
      */
     @Nullable
     public static byte[] serializeKeyValue(XContentParser parser, boolean rejectOversizedNumbers) throws IOException {

@@ -78,4 +78,43 @@ public class TranslateTimeSeriesWithoutTests extends AbstractLogicalPlanOptimize
         EsRelation loweredRelation = as(lowered.child(), EsRelation.class);
         assertThat(loweredRelation.output(), hasItem(loweredGrouping));
     }
+
+    /** A typed WITHOUT lowers to the {@code _timeseries} attribute that loads as the typed label container. */
+    public void testTypedWithoutLowersToTheTypedAttribute() {
+        FieldAttribute cluster = new FieldAttribute(
+            Source.EMPTY,
+            null,
+            null,
+            "cluster",
+            new EsField("cluster", DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.DIMENSION)
+        );
+        EsRelation relation = EsqlTestUtils.relation(IndexMode.TIME_SERIES).withAttributes(List.of(cluster));
+        var fn = new TimeSeriesWithout(
+            Source.EMPTY,
+            new ArrayList<>(List.<Expression>of(cluster)),
+            DataType.TIME_SERIES_METADATA_DATA_TYPE
+        );
+        var container = new Alias(Source.EMPTY, MetadataAttribute.TIMESERIES, fn);
+        TimeSeriesAggregate aggregate = new TimeSeriesAggregate(
+            Source.EMPTY,
+            relation,
+            List.of(container),
+            List.of(container.toAttribute()),
+            null,
+            null,
+            TimeSeriesAggregate.Origin.PROMQL_COMMAND,
+            false
+        );
+
+        TimeSeriesAggregate lowered = as(
+            new TranslateTimeSeriesWithout().apply(aggregate, metricsAnalyzer().buildContext()),
+            TimeSeriesAggregate.class
+        );
+
+        var view = as(lowered.groupings().getFirst(), TimeSeriesMetadataAttribute.class);
+        assertThat(view.id(), equalTo(container.id()));
+        assertThat(view.dataType(), equalTo(DataType.TIME_SERIES_METADATA_DATA_TYPE));
+        assertThat(view.excludedFields(), equalTo(Set.of("cluster")));
+        assertThat(as(lowered.child(), EsRelation.class).output(), hasItem(view));
+    }
 }

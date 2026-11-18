@@ -82,6 +82,12 @@ public final class QueryPragmas implements Writeable {
 
     public static final Setting<Boolean> SINGLE_NODE_OPTIMIZATIONS = Setting.boolSetting("single_node_optimizations", true);
 
+    /**
+     * Whether PromQL translates with {@code TranslatePromqlToEsqlPlanV2}, over one label container rather than over label
+     * columns. A testing lever while the PromQL nodes move to V2 one by one: a node that has not moved yet fails the translation.
+     */
+    public static final Setting<Boolean> ENABLE_PROMQL_TRANSLATION_V2 = Setting.boolSetting("enable_promql_translation_v2", false);
+
     public static final Setting<ByteSizeValue> FOLD_LIMIT = Setting.memorySizeSetting("fold_limit", "5%");
 
     public static final Setting<MappedFieldType.FieldExtractPreference> FIELD_EXTRACT_PREFERENCE = Setting.enumSetting(
@@ -292,7 +298,8 @@ public final class QueryPragmas implements Writeable {
         PlannerSettings.AGG_PARTITIONING_COUNT_THRESHOLD,
         SINGLE_NODE_OPTIMIZATIONS,
         TIME_SERIES_SINGLE_PASS,
-        TIME_SERIES_REDUCE_PER_INDEX
+        TIME_SERIES_REDUCE_PER_INDEX,
+        ENABLE_PROMQL_TRANSLATION_V2
     ).map(Setting::getKey).toList();
 
     private final Settings settings;
@@ -415,6 +422,13 @@ public final class QueryPragmas implements Writeable {
      */
     public boolean singleNodeOptimizations() {
         return SINGLE_NODE_OPTIMIZATIONS.get(settings);
+    }
+
+    /**
+     * Whether PromQL translates with V2, see {@link #ENABLE_PROMQL_TRANSLATION_V2}
+     */
+    public boolean enablePromqlTranslationV2() {
+        return ENABLE_PROMQL_TRANSLATION_V2.get(settings);
     }
 
     /**

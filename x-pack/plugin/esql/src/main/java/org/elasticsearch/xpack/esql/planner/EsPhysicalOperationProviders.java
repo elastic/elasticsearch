@@ -90,6 +90,7 @@ import org.elasticsearch.xpack.esql.expression.function.BlockLoaderWarnings;
 import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataConverter;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -352,6 +353,19 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         if (attr instanceof TimeSeriesMetadataAttribute timeSeriesMetadataAttribute) {
             functionConfig = new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, timeSeriesMetadataAttribute.excludedFields());
             fieldName = SourceFieldMapper.NAME;
+            if (attr.dataType() == DataType.TIME_SERIES_METADATA_DATA_TYPE) {
+                // The typed label container loads as the keyword JSON object of the dimensions, converted as it is read
+                BlockLoader blockLoader = shardContext.blockLoader(
+                    fieldName,
+                    false,
+                    fieldExtractPreference,
+                    functionConfig,
+                    warnings,
+                    plannerSettings.blockLoaderSizeOrdinals(),
+                    plannerSettings.blockLoaderSizeScript()
+                );
+                return ValuesSourceReaderOperator.loadAndConvert(blockLoader, TimeSeriesMetadataConverter.INSTANCE);
+            }
         } else if (attr instanceof TemporalityAttribute) {
             return resolveTemporalitySource(shardContext, warnings, fieldExtractPreference);
         } else if (attr instanceof FieldAttribute fieldAttr && fieldAttr.field() instanceof FunctionEsField functionEsField) {

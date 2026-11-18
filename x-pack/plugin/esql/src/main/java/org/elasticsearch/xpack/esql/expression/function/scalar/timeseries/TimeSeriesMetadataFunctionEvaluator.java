@@ -25,23 +25,19 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper.ToEvaluator;
-import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels;
 
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.SortedMap;
-import java.util.TreeMap;
 
 /**
- * Evaluates reads and rewrites of labels in a label container. A typed label container is the canonical JSON object - labels
- * sorted by name - so every operation streams over it: a read stops at its label, and a rewrite copies the labels it keeps in
- * their order, writing a set label at its sorted position, which keeps the result canonical. A keyword {@code _timeseries} is
- * the JSON object of a series' dimensions as the source holds them, so it is first read into the canonical form
- * (see {@link #canonical}); a rewrite of it is canonical too. Label names are folded once.
+ * Evaluates reads and rewrites of labels in a label container. A typed label container is the canonical JSON object
+ * {@link TimeSeriesMetadataConverter} loads - labels sorted by name - so every operation streams over it: a read stops at its
+ * label, and a rewrite copies the labels it keeps in their order, writing a set label at its sorted position, which keeps the
+ * result canonical. A keyword {@code _timeseries} is the JSON object of a series' dimensions as the source holds them, so it is
+ * first read into that canonical form; a rewrite of it is canonical too. Label names are folded once.
  */
 public final class TimeSeriesMetadataFunctionEvaluator implements ExpressionEvaluator {
     enum Operation {
@@ -112,7 +108,7 @@ public final class TimeSeriesMetadataFunctionEvaluator implements ExpressionEval
                     }
                     encoded = ((BytesRefBlock) block).getBytesRef(block.getFirstValueIndex(p), scratch);
                     if (canonical != null) {
-                        encoded = canonical(encoded, canonical);
+                        encoded = TimeSeriesMetadataConverter.canonical(encoded, canonical);
                     }
                 }
                 try {
@@ -233,7 +229,7 @@ public final class TimeSeriesMetadataFunctionEvaluator implements ExpressionEval
         return buffer.bytesRefView();
     }
 
-    /** One value is written as a string, several as an array, as {@code TimeSeriesMetadataConverter} does. */
+    /** One value is written as a string, several as an array, as {@link TimeSeriesMetadataConverter} does. */
     private static void write(XContentBuilder builder, String name, List<String> values) throws IOException {
         if (values.size() == 1) {
             builder.field(name, values.getFirst());
@@ -264,80 +260,7 @@ public final class TimeSeriesMetadataFunctionEvaluator implements ExpressionEval
     }
 
     /**
-     * The label container of the JSON object {@code source} of a series' dimensions, written to {@code scratch}: labels named as
-     * PromQL names them, sorted by name, each holding its non-empty values in source order, one value written as a string and
-     * several as an array. Equal label sets get equal bytes, so the result can key joins and groups.
-     * <p>
-     * TODO: an empty value is left out, so a series whose label is empty and one that lacks the label have the same label
-     * container. Prometheus has no empty label, so data written by it never holds such a pair.
-     */
-    static BytesRef canonical(BytesRef source, BreakingBytesRefBuilder scratch) {
-        scratch.clear();
-        try (XContentBuilder builder = jsonBuilder(scratch)) {
-            builder.startObject();
-            for (var label : readSource(source).entrySet()) {
-                write(builder, label.getKey(), label.getValue());
-            }
-            builder.endObject();
-        } catch (IOException e) {
-            throw new UncheckedIOException("Invalid label container", e);
-        }
-        return scratch.bytesRefView();
-    }
-
-    private static SortedMap<String, List<String>> readSource(BytesRef source) throws IOException {
-        try (XContentParser parser = parser(source)) {
-            var labels = new TreeMap<String, List<String>>();
-            readSourceObject(parser, "", labels);
-            end(parser);
-            return labels;
-        }
-    }
-
-    private static void readSourceObject(XContentParser parser, String prefix, Map<String, List<String>> labels) throws IOException {
-        for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
-            String field = prefix + parser.currentName();
-            token = parser.nextToken();
-            if (token == XContentParser.Token.START_OBJECT) {
-                readSourceObject(parser, field + ".", labels);
-                continue;
-            }
-            var values = new ArrayList<String>();
-            if (token == XContentParser.Token.START_ARRAY) {
-                while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                    readSourceValue(parser, token, field, values);
-                }
-            } else {
-                readSourceValue(parser, token, field, values);
-            }
-            String label = PromqlLabels.labelName(field);
-            if (label.isEmpty()) {
-                throw new IllegalArgumentException("time-series label names must be non-empty");
-            }
-            if (labels.containsKey(label)) {
-                throw new IllegalArgumentException("multiple dimension fields resolve to time-series label [" + label + "]");
-            }
-            if (values.isEmpty() == false) {
-                labels.put(label, values);
-            }
-        }
-    }
-
-    /** Scalars keep their source text; null and empty values are left out. */
-    private static void readSourceValue(XContentParser parser, XContentParser.Token token, String field, List<String> values)
-        throws IOException {
-        if (token.isValue()) {
-            String value = parser.text();
-            if (value.isEmpty() == false) {
-                values.add(value);
-            }
-        } else if (token != XContentParser.Token.VALUE_NULL) {
-            throw new IllegalArgumentException("time-series dimension [" + field + "] must contain values");
-        }
-    }
-
-    /**
-     * A JSON builder writing into breaker-accounted {@code buffer}; {@code TimeSeriesMetadataConverter} loads the canonical form
+     * A JSON builder writing into breaker-accounted {@code buffer}; {@link TimeSeriesMetadataConverter} loads the canonical form
      * with it.
      */
     static XContentBuilder jsonBuilder(BreakingBytesRefBuilder buffer) throws IOException {

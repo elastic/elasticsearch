@@ -218,7 +218,8 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
                 dim.name(),
                 new FunctionEsField(
                     new EsField(SourceFieldMapper.NAME, DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.DIMENSION),
-                    DataType.KEYWORD,
+                    // the keyword JSON object of the dimensions, or the typed label container converted from it as it loads
+                    dim.dataType(),
                     new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, withoutFields)
                 ),
                 dim.nullable(),

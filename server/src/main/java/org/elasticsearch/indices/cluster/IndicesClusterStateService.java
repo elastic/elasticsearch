@@ -535,6 +535,14 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         ClusterState state
     ) {
         assert Thread.holdsLock(this);
+        // Normally master only moves an allocation to STARTED after we send shardStarted for that exact
+        // allocation id, which we never do while this ticket is held. But a shardStarted send can outlive
+        // the attempt that issued it: ShardStateAction retries it across a master failover, and if
+        // cluster.no_master_block: all wipes this node's local shards and pendingAllocationStates in the
+        // meantime, a fresh ticket for a new attempt on the same allocation id can already be held by the
+        // time that stale, retried shardStarted lands on the new master and marks it STARTED. So
+        // currentRouting not initializing here isn't actually impossible, just stale.
+        // The shard will be failed later on by IndexShard.updateShardState.
         if (currentRouting == null
             || currentRouting.allocationId().getId().equals(key.allocationId()) == false
             || currentRouting.initializing() == false) {

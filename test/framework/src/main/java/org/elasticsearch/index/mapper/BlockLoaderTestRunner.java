@@ -247,7 +247,7 @@ public class BlockLoaderTestRunner {
 
             final Random rg = random();
             final RandomIndexWriter iw;
-            if (params.indexMode() == IndexMode.TIME_SERIES) {
+            if (mapperService.getIndexSettings().useTimeSeriesSyntheticId()) {
                 iw = new RandomIndexWriter(rg, directory, indexWriterConfigForTimeSeries(rg));
             } else {
                 iw = new RandomIndexWriter(rg, directory);
@@ -259,7 +259,7 @@ public class BlockLoaderTestRunner {
              * Add three documents with doc id 0, 1, 2. The real document is 1.
              * The other two are empty documents.
              */
-            if (params.indexMode() == IndexMode.TIME_SERIES) {
+            if (mapperService.getIndexSettings().useTimeSeriesSyntheticId()) {
                 // The index is sorted by _tsid asc, @timestamp desc, so the empty docs get the same
                 // dimension and a later/earlier timestamp than the real doc: after sorting the
                 // real doc is still doc id 1.

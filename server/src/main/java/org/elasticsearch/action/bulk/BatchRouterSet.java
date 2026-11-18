@@ -256,7 +256,7 @@ final class BatchRouterSet implements Releasable {
             );
         }
         if (routersByIndex != null) {
-            BatchModeRouter owner = routersByIndex.putIfAbsent(concreteIndex, router);
+            BatchModeRouter owner = routersByIndex.get(concreteIndex);
             if (owner != null && owner != router) {
                 throw new IllegalArgumentException(
                     "item targeting index ["
@@ -270,6 +270,10 @@ final class BatchRouterSet implements Releasable {
             }
         }
         router.route(bulkItem, request, concreteIndex, routing, project, requestsByShard);
+        if (routersByIndex != null) {
+            // Only once the router has accepted the item: one it rejects does not write to the index.
+            routersByIndex.putIfAbsent(concreteIndex, router);
+        }
     }
 
     /** Completes routing for every router and populates {@code requestsByShard}. Must be called once per bulk. */

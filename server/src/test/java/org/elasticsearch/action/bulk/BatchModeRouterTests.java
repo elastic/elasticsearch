@@ -305,6 +305,53 @@ public class BatchModeRouterTests extends ESTestCase {
         router.close();
     }
 
+    /**
+     * An item that its router rejects does not write to the index, so it must not stop a later item of another batch
+     * from writing to it.
+     */
+    public void testRejectedItemDoesNotClaimItsIndex() throws IOException {
+        IndexMetadata index = IndexMetadata.builder(plainMetadata("myindex", 1))
+            .putAlias(AliasMetadata.builder("myalias").writeIndex(true))
+            .build();
+        ProjectMetadata project = project(index);
+        EscfBatch aliasBatch = buildBatch(1);
+        EscfBatch indexBatch = buildBatch(1);
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.setPreBuiltBatches(Map.of("myalias", aliasBatch, "myindex", indexBatch));
+        BatchRouterSet router = BatchRouterSet.create(bulkRequest, true, recycler);
+        try {
+            // The row of the alias item is not in its batch, so its router rejects it.
+            IndexRequest outOfRange = rowRequest("myalias", aliasBatch, 5);
+            IndexAbstraction aliasAbstraction = project.getIndicesLookup().get("myalias");
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> router.route(
+                    new BulkItemRequest(0, outOfRange),
+                    outOfRange,
+                    aliasAbstraction,
+                    index.getIndex(),
+                    IndexRouting.fromIndexMetadata(index),
+                    project,
+                    new HashMap<>()
+                )
+            );
+
+            // Nothing was routed to the index through the alias, so an item of the other batch can write to it.
+            IndexRequest valid = rowRequest("myindex", indexBatch, 0);
+            router.route(
+                new BulkItemRequest(1, valid),
+                valid,
+                project.getIndicesLookup().get("myindex"),
+                index.getIndex(),
+                IndexRouting.fromIndexMetadata(index),
+                project,
+                new HashMap<>()
+            );
+        } finally {
+            router.close();
+        }
+    }
+
     /** An alias and the index it points to write to the same index, so a bulk cannot carry a batch for each. */
     public void testBatchesForAliasAndItsWriteIndexAreRejected() throws IOException {
         IndexMetadata index = IndexMetadata.builder(plainMetadata("myindex", 1))

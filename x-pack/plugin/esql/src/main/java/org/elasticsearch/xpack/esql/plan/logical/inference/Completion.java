@@ -43,7 +43,7 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
     );
     private final Expression prompt;
     private final Attribute targetField;
-    private List<Attribute> lazyOutput;
+    private volatile List<Attribute> lazyOutput;
 
     public Completion(Source source, LogicalPlan child, Expression inferenceId, Expression prompt, Attribute targetField) {
         super(source, child, inferenceId);

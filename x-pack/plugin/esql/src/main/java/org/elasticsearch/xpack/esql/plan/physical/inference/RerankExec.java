@@ -38,7 +38,7 @@ public class RerankExec extends InferenceExec {
     private final Expression queryText;
     private final List<Alias> rerankFields;
     private final Attribute scoreAttribute;
-    private List<Attribute> lazyOutput;
+    private volatile List<Attribute> lazyOutput;
 
     public RerankExec(
         Source source,

@@ -167,9 +167,15 @@ public final class Case extends EsqlScalarFunction {
 
     @Override
     public DataType dataType() {
-        if (dataType == null) {
-            resolveType();
-        }
+        DataType cached = dataType;
+        return cached != null ? cached : resolveDataType();
+    }
+
+    /**
+     * {@link #resolveType} assigns {@link #dataType}. Reading it after this thread assigned it can't see {@code null}.
+     */
+    private DataType resolveDataType() {
+        resolveType();
         return dataType;
     }
 
@@ -183,6 +189,8 @@ public final class Case extends EsqlScalarFunction {
             return new TypeResolution(format(null, "expected at least two arguments in [{}] but got {}", sourceText(), children().size()));
         }
 
+        // Compute in a local and publish only the final type: this field is shared by every thread that holds the plan.
+        DataType type = null;
         for (int c = 0; c < conditions.size(); c++) {
             Condition condition = conditions.get(c);
 
@@ -192,30 +200,44 @@ public final class Case extends EsqlScalarFunction {
                 TypeResolutions.ParamOrdinal.fromIndex(c * 2)
             );
             if (resolution.unresolved()) {
+                dataType = type;
                 return resolution;
             }
 
-            resolution = resolveValueType(condition.value, c * 2 + 1);
+            resolution = resolveValueType(condition.value, c * 2 + 1, type);
+            type = valueType(condition.value, type);
             if (resolution.unresolved()) {
+                dataType = type;
                 return resolution;
             }
         }
 
-        return resolveValueType(elseValue, conditions.size() * 2);
+        TypeResolution resolution = resolveValueType(elseValue, conditions.size() * 2, type);
+        dataType = valueType(elseValue, type);
+        return resolution;
     }
 
-    private TypeResolution resolveValueType(Expression value, int position) {
-        if (dataType == null || dataType == NULL) {
-            dataType = value.dataType().noText();
+    /**
+     * Checks {@code value} against {@code current}, the type of the values before it.
+     */
+    private TypeResolution resolveValueType(Expression value, int position, DataType current) {
+        if (current == null || current == NULL) {
             return TypeResolution.TYPE_RESOLVED;
         }
         return TypeResolutions.isType(
             value,
-            t -> t.noText() == dataType,
+            t -> t.noText() == current,
             sourceText(),
             TypeResolutions.ParamOrdinal.fromIndex(position),
-            dataType.typeName()
+            current.typeName()
         );
+    }
+
+    /**
+     * The type of the values up to and including {@code value}, given {@code current}, the type of the values before it.
+     */
+    private static DataType valueType(Expression value, DataType current) {
+        return current == null || current == NULL ? value.dataType().noText() : current;
     }
 
     @Override

@@ -60,6 +60,9 @@ dependencies {
   testImplementation project(xpackModule('esql:compute:test'))
   testImplementation('net.nextencia:rrdiagram:0.9.4')
   testImplementation('org.webjars.npm:fontsource__roboto-mono:4.5.7')
+  // PlanFieldSafePublicationTests reads the bytecode of plan classes to check how they assign lazily computed fields.
+  testImplementation 'org.ow2.asm:asm:9.11.1'
+  testImplementation 'org.ow2.asm:asm-tree:9.11.1'
 
   internalClusterTestImplementation project(":modules:mapper-extras")
 }

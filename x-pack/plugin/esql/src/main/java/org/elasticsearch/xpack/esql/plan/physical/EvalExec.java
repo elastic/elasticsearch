@@ -33,7 +33,7 @@ public class EvalExec extends UnaryExec implements EstimatesRowSize {
 
     private final List<Alias> fields;
 
-    private List<Attribute> lazyOutput;
+    private volatile List<Attribute> lazyOutput;
 
     public EvalExec(Source source, PhysicalPlan child, List<Alias> fields) {
         super(source, child);

@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
+import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.action.RestActions;
@@ -41,6 +42,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
@@ -107,6 +109,19 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     private volatile boolean isPartial; // Does this request have partial results?
     private transient volatile boolean isStopped; // Have we received stop command?
     /**
+     * Set once coordinator compute has started ({@code ComputeService.runCompute}). STOP that arrives
+     * earlier may still skip dispatch; STOP after this bit is set must cut live work rather than
+     * replace a later {@code execute()} (INLINE STATS, subplans) with an empty result.
+     */
+    private transient volatile boolean computeStarted;
+    /**
+     * Sticky "a stop hook cut live work" bit. {@link #addStopHook} can fire a hook immediately when
+     * {@link #isStopped} is already true; that call consumes the hook's one-shot transition, so a
+     * later {@link #runStopHooks()} would otherwise see only {@code false} and leave {@code is_partial}
+     * unset on a coordinator-only plan.
+     */
+    private transient volatile boolean stopCutLiveWork;
+    /**
      * Hooks that {@code TransportEsqlAsyncStopAction} fires to interrupt query execution for plans that have no
      * exchange-sink path back to the coordinator. Each hook should return {@code true} only when it actually
      * cut a live unit of work (e.g. transitioned a {@link org.elasticsearch.compute.operator.Driver} from
@@ -132,6 +147,9 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
      * metering independently of the scan counters, so an external-source query that ends up scanning nothing is still metered.
      */
     private transient volatile boolean externalSource;
+    // What the computes that failed did: a failure carries no DriverCompletionInfo, unlike a compute that succeeds. Created when
+    // the first one is added, which is never for most queries.
+    private final transient AtomicReference<DriverCompletionInfo.AtomicAccumulator> failedWork = new AtomicReference<>();
 
     private final EsqlQueryProfile queryProfile;
 
@@ -258,6 +276,38 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     /** @return whether the analyzed plan contained an external relation, whether or not anything was scanned */
     public boolean externalSource() {
         return externalSource;
+    }
+
+    /**
+     * Adds what a compute that failed did before it failed. A failure carries no {@link DriverCompletionInfo}, so this is where the
+     * work of a query that failed or was cancelled is kept, to be reported with it. Each compute that fails adds its own work
+     * once. Only the counters are kept. Not serialized.
+     */
+    public void addFailedWork(DriverCompletionInfo work) {
+        DriverCompletionInfo counters = new DriverCompletionInfo(
+            work.documentsFound(),
+            work.valuesLoaded(),
+            work.rowsEmitted(),
+            work.bytesRead(),
+            work.readNanos(),
+            work.readCpuNanos(),
+            work.cpuNanos(),
+            work.driverNanos(),
+            List.of(),
+            List.of(),
+            Map.of(),
+            false,
+            false,
+            Set.of()
+        );
+        failedWork.updateAndGet(accumulator -> accumulator == null ? new DriverCompletionInfo.AtomicAccumulator() : accumulator)
+            .accumulate(counters);
+    }
+
+    /** @return the work added by {@link #addFailedWork}, which is nothing for a query that did not fail */
+    public DriverCompletionInfo failedWork() {
+        DriverCompletionInfo.AtomicAccumulator accumulator = failedWork.get();
+        return accumulator == null ? DriverCompletionInfo.EMPTY : accumulator.finish();
     }
 
     /** @return the reservation installed for this query, or {@code null} when planning has nothing to charge */
@@ -448,12 +498,35 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     }
 
     /**
+     * Records that coordinator compute has started for this query. Sticky; later STOP must cut
+     * live work instead of skipping a subsequent {@code execute()} with an empty result.
+     */
+    public void markComputeStarted() {
+        computeStarted = true;
+    }
+
+    public boolean hasComputeStarted() {
+        return computeStarted;
+    }
+
+    /**
      * Registers a hook that {@link #runStopHooks()} fires when the user requests async STOP for this query.
      * The hook should return {@code true} only on the transition from running to finishing — see
      * {@link #stopHooks} for the rationale.
+     * <p>
+     * If {@link #markAsStopped()} has already run, the hook is invoked immediately. STOP is a one-shot
+     * broadcast of the hooks registered at that moment; a driver that starts afterwards would otherwise
+     * never learn the query was stopped. A {@code true} from that immediate call is sticky on
+     * {@link #runStopHooks()} so STOP still observes the cut if it races after this registration.
      */
     public void addStopHook(BooleanSupplier hook) {
         stopHooks.add(hook);
+        if (isStopped && hook.getAsBoolean()) {
+            stopCutLiveWork = true;
+            // STOP may already have sampled {@link #runStopHooks()}; is_partial is sticky so the
+            // cut is still visible on the response.
+            markPartial();
+        }
     }
 
     /**
@@ -482,11 +555,16 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
      * loudly.
      */
     public boolean runStopHooks() {
-        boolean anyCut = false;
+        boolean anyCut = stopCutLiveWork;
         for (BooleanSupplier hook : stopHooks) {
             anyCut |= hook.getAsBoolean();
         }
-        return anyCut;
+        if (anyCut) {
+            stopCutLiveWork = true;
+        }
+        // Re-read after the loop: a concurrent {@link #addStopHook} can consume a one-shot
+        // transition and set the sticky bit after the snapshot above.
+        return anyCut || stopCutLiveWork;
     }
 
     public void clusterInfoInitializing(boolean clusterInfoInitializing) {

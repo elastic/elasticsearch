@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.analytics.boxplot;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,7 +31,9 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValue implements Boxplot {
+public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValue implements Boxplot, Accountable {
+
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(InternalBoxplot.class);
 
     private static final TransportVersion QUERYDSL_BOXPLOT_EXPONENTIAL_HISTOGRAM_SUPPORT = TransportVersion.fromName(
         "query_dsl_boxplot_exponential_histogram_support"
@@ -220,6 +224,15 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
             state = HistogramUnionState.readAsPureTDigest(HistogramUnionState.NOOP_BREAKER, in);
         }
         state.compress();
+    }
+
+    /**
+     * The heap of the digest, whose arrays are sized by the compression and not by the values added. See
+     * {@link org.elasticsearch.search.aggregations.InternalAggregations#estimateHeapBytes()}.
+     */
+    @Override
+    public long ramBytesUsed() {
+        return SHALLOW_SIZE + state.ramBytesUsed();
     }
 
     @Override

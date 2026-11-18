@@ -11,6 +11,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -44,11 +45,11 @@ public final class ToLongFromBooleanEvaluator extends AbstractConvertFunction.Ab
     if (vector.isConstant()) {
       return driverContext.blockFactory().newConstantLongBlockWith(evalValue(vector, 0), positionCount);
     }
-    try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+    try (LongVector.FixedBuilder builder = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount, true)) {
       for (int p = 0; p < positionCount; p++) {
-        builder.appendLong(evalValue(vector, p));
+        builder.appendLong(p, evalValue(vector, p));
       }
-      return builder.build();
+      return builder.build().asBlock();
     }
   }
 
@@ -61,7 +62,7 @@ public final class ToLongFromBooleanEvaluator extends AbstractConvertFunction.Ab
   public Block evalBlock(Block b) {
     BooleanBlock block = (BooleanBlock) b;
     int positionCount = block.getPositionCount();
-    try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+    try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(positionCount, true)) {
       for (int p = 0; p < positionCount; p++) {
         int valueCount = block.getValueCount(p);
         int start = block.getFirstValueIndex(p);

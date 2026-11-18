@@ -29,3 +29,44 @@
   - do:
       indices.delete:
         index: my_mixed_index
+
+---
+"Unbounded total_shards_per_node is rejected until all nodes are upgraded":
+  - requires:
+      test_runner_features: [ node_selector ]
+      reason: "The request must go to an upgraded node, because older nodes reject -1 when they parse the policy"
+  - skip:
+      cluster_features: [ "ilm.searchable_snapshot.unbounded_total_shards_per_node" ]
+      all_nodes: true
+      reason: "The guard only applies while some nodes do not support an unbounded total_shards_per_node"
+
+  - do:
+      catch: bad_request
+      node_selector:
+        attribute:
+          upgraded: "true"
+      ilm.put_lifecycle:
+        policy: "mixed_unbounded_total_shards_policy"
+        body: |
+          {
+            "policy": {
+              "phases": {
+                "cold": {
+                  "min_age": "1d",
+                  "actions": {
+                    "searchable_snapshot": {
+                      "snapshot_repository": "foo",
+                      "total_shards_per_node": -1
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - match: { error.type: illegal_argument_exception }
+  - match: { error.reason: '/not\s+supported\s+until\s+all\s+nodes\s+in\s+the\s+cluster\s+are\s+upgraded/' }
+
+  - do:
+      catch: missing
+      ilm.get_lifecycle:
+        policy: "mixed_unbounded_total_shards_policy"

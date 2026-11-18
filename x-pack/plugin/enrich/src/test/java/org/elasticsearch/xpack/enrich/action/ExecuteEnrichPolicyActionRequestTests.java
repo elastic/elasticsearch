@@ -19,7 +19,16 @@ public class ExecuteEnrichPolicyActionRequestTests extends AbstractWireSerializi
 
     @Override
     protected ExecuteEnrichPolicyAction.Request mutateInstance(ExecuteEnrichPolicyAction.Request instance) {
-        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+        String name = instance.getName();
+        boolean waitForCompletion = instance.isWaitForCompletion();
+
+        switch (between(0, 1)) {
+            case 0 -> name = randomValueOtherThan(name, () -> randomAlphaOfLength(3));
+            case 1 -> waitForCompletion = waitForCompletion == false;
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+
+        return new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, name).setWaitForCompletion(waitForCompletion);
     }
 
     @Override

@@ -297,7 +297,7 @@ public class NodeFetchContextsTests extends ESSingleNodeTestCase {
             null,
             SplitShardCountSummary.IRRELEVANT
         );
-        SearchContext searchContext = contexts.open(shardRequest);
+        SearchContext searchContext = contexts.open(shardRequest, null);
         querySearchContexts.add(searchContext);
         return searchContext;
     }

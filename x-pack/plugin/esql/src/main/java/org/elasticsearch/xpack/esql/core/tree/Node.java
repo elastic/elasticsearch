@@ -51,7 +51,9 @@ import static java.util.Collections.emptyList;
  *     in the field. Two threads may both compute the value; that's fine as long as they compute the same one.</li>
  *     <li>If the value is immutable through {@code final} fields (an enum, a record, a boxed primitive, a {@code String},
  *     an {@link org.elasticsearch.xpack.esql.core.expression.AttributeSet}, another node, ...), the field can be plain,
- *     but read it only once per method, into a local, like {@link String#hashCode()} does:
+ *     but read it only once per method, into a local, like {@link String#hashCode()} does. A record only counts if
+ *     everything it holds is fully built before the record is created: its {@code final} fields don't make a list that is
+ *     filled in afterwards safe.
  *     <pre>{@code
  *     AttributeSet outputSet = lazyOutputSet;
  *     if (outputSet == null) {
@@ -76,6 +78,10 @@ import static java.util.Collections.emptyList;
  * except to return it. Passing it doesn't make a node thread-safe; it can't see, for example:
  * <ul>
  *     <li>a value that is filled in through a local variable or a helper method after it was assigned to the field;</li>
+ *     <li>what a record holds: it is treated as safe, but it's only safe if its components are complete when it is created;</li>
+ *     <li>reads that happen more than once at runtime but only once in the code: a single read inside a loop, or a field
+ *     read once by each of two methods where a caller uses both. It counts reads in the bytecode of each method, so read
+ *     the field into a local before the loop, and have the caller pass the value on instead of reading it again;</li>
  *     <li>objects a node holds that are neither nodes nor {@code EsField}s, or static state;</li>
  *     <li>mutation of an object reachable from a node (the last rule).</li>
  * </ul>

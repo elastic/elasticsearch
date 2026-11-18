@@ -573,6 +573,9 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
         assertThat(pressure.bytesBeforeReservation.get(1), equalTo(0L));
         assertThat(keptCharge.get(), greaterThan(0L));
         assertThat(harness.chargedBytes(), equalTo(0L));
+        // The script drops the hit when it copies the source. Page cleanup walks that same hit and must leave it alone.
+        assertThat(skipped.releases.get(), equalTo(1));
+        assertThat(kept.releases.get(), equalTo(1));
     }
 
     public void testSearchRejectionReleasesTheReservationWhenRetriesAreExhausted() {
@@ -668,42 +671,60 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
     }
 
     /**
-     * max_docs turns one fetched page into two bulks. The charge, and the hit the first bulk did not take, stay until the
-     * second bulk has finished and the page has nothing left.
+     * A fetched page that is larger than the docs still allowed is sent as more than one bulk. The charge, and every hit
+     * the first bulk did not take, stay until the last of those bulks has finished and the page has nothing left.
      */
     public void testMaxDocsHoldsThePageChargeUntilTheLastSubBulkFinishes() {
-        UpdateByQueryRequest request = updateRequest(2);
-        request.setMaxDocs(2);
+        int maxDocs = between(1, 3);
+        int pageSize = maxDocs + between(1, 3);
+        UpdateByQueryRequest request = updateRequest(pageSize);
+        request.setMaxDocs(maxDocs);
         Harness harness = new Harness(pressure(Settings.EMPTY), request, NoopCircuitBreaker.INSTANCE, null);
-        CountingHit first = harness.hit(bytes(between(64, 256)));
-        CountingHit second = harness.hit(bytes(between(64, 256)));
+        List<CountingHit> hits = new ArrayList<>();
+        for (int i = 0; i < pageSize; i++) {
+            hits.add(harness.hit(bytes(between(64, 256))));
+        }
         AtomicLong charged = new AtomicLong();
         harness.client.handler = (bulk, listener) -> {
             harness.client.bulks.add(bulk);
+            long contextBytes = harness.queue.getThreadPool().getThreadContext().estimatedRequestContextBytes();
             if (harness.client.bulks.size() == 1) {
-                assertThat(bulk.numberOfActions(), equalTo(1));
+                assertThat(bulk.numberOfActions(), equalTo(maxDocs));
+                assertTrue(bulk.indexingPressureAccounted());
                 charged.set(harness.chargedBytes());
-                assertThat(charged.get(), greaterThan(0L));
-                assertThat(second.releases.get(), equalTo(0));
+                assertThat(charged.get(), equalTo(bulk.ramBytesUsed() + contextBytes));
+                for (int i = maxDocs; i < hits.size(); i++) {
+                    assertThat(hits.get(i).releases.get(), equalTo(0));
+                }
                 listener.onResponse(harness.success(bulk));
-                assertThat(harness.chargedBytes(), equalTo(charged.get()));
-                assertThat(second.releases.get(), equalTo(0));
             } else {
-                assertThat(bulk.numberOfActions(), equalTo(1));
-                assertThat(harness.chargedBytes(), equalTo(charged.get()));
-                assertThat(second.releases.get(), equalTo(0));
+                // The first bulk's cleanup has run. Hits it left on the page are still held, and so is the one charge.
+                assertThat(bulk.numberOfActions(), equalTo(pageSize - maxDocs));
+                assertTrue(bulk.indexingPressureAccounted());
+                assertThat(harness.chargedBytes(), greaterThan(0L));
+                assertThat(harness.chargedBytes(), equalTo(bulk.ramBytesUsed() + contextBytes));
+                for (int i = maxDocs; i < hits.size(); i++) {
+                    assertThat(hits.get(i).releases.get(), equalTo(0));
+                }
                 listener.onResponse(harness.success(bulk));
             }
         };
-        harness.onDone = harness::finishWithEmptyPage;
+        // The scroll stays open so the worker can build the rest of this page.
+        harness.action.setScroll("more");
+        harness.onDone = () -> {
+            harness.action.setScroll(null);
+            harness.finishWithEmptyPage();
+        };
         harness.start();
-        harness.feed(List.of(first, second));
+        harness.feed(new ArrayList<Hit>(hits));
 
         assertThat(harness.client.bulks.size(), equalTo(2));
-        assertThat(harness.listener.actionGet(TimeValue.ZERO).getUpdated(), equalTo(2L));
+        BulkByPaginatedSearchResponse response = harness.listener.actionGet(TimeValue.ZERO);
+        assertThat(response.getUpdated(), equalTo((long) pageSize));
         assertThat(harness.chargedBytes(), equalTo(0L));
-        assertThat(first.releases.get(), equalTo(1));
-        assertThat(second.releases.get(), equalTo(1));
+        for (CountingHit hit : hits) {
+            assertThat(hit.releases.get(), equalTo(1));
+        }
     }
 
     /**

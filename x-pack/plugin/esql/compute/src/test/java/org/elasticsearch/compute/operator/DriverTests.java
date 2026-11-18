@@ -796,7 +796,7 @@ public class DriverTests extends ESTestCase {
             final var sourceOperator = new CannedSourceOperator(inPages.iterator());
             final int maxAllowedRows = between(1, 100);
             final AtomicInteger processedRows = new AtomicInteger(0);
-            var sinkHandler = new ExchangeSinkHandler(driverContext.blockFactory(), positions, System::currentTimeMillis);
+            var sinkHandler = new ExchangeSinkHandler(positions, System::currentTimeMillis);
             var sinkOperator = new ExchangeSinkOperator(sinkHandler.createExchangeSink(() -> {}));
             final var delayOperator = new EvalOperator(driverContext, new ExpressionEvaluator() {
                 @Override
@@ -972,7 +972,7 @@ public class DriverTests extends ESTestCase {
         ThreadPool threadPool = threadPool();
         try {
             var sourceHandler = new ExchangeSourceHandler(between(1, 5), threadPool.executor("esql"));
-            var sinkHandler = new ExchangeSinkHandler(driverContext.blockFactory(), between(1, 5), System::currentTimeMillis);
+            var sinkHandler = new ExchangeSinkHandler(between(1, 5), System::currentTimeMillis);
             var sourceOperator = new ExchangeSourceOperator(sourceHandler.createExchangeSource());
             var sinkOperator = new ExchangeSinkOperator(sinkHandler.createExchangeSink(() -> {}));
             Driver driver = TestDriverFactory.create(driverContext, sourceOperator, List.of(), sinkOperator);

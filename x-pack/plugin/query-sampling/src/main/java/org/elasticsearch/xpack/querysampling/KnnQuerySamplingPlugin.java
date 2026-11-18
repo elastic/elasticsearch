@@ -55,7 +55,8 @@ public class KnnQuerySamplingPlugin extends Plugin {
         return QuerySamplingSettings.getSettings();
     }
 
-    // one thread suffices; a burst beyond the queue is dropped rather than slowing searches
+    // one thread suffices; a burst beyond the queue is dropped rather than slowing searches. The tasks are tracked, so that the node
+    // stats show how long the pipeline takes for a capture, which costs two clock reads of this thread, not of the search
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
         return List.of(
@@ -65,7 +66,7 @@ public class KnnQuerySamplingPlugin extends Plugin {
                 1,
                 QUEUE_SIZE,
                 "xpack.query_sampling.thread_pool",
-                EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
+                EsExecutors.TaskTrackingConfig.DEFAULT
             )
         );
     }

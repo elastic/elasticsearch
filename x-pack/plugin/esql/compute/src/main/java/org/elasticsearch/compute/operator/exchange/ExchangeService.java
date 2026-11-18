@@ -16,7 +16,6 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -349,8 +348,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
                 @Override
                 public void onResponse(ExchangeResponse response) {
                     // The serialized page is charged to its query until it is written, so a page waiting for a slow reader is charged.
-                    CircuitBreaker breaker = Objects.requireNonNullElse(response.pageBreaker(), blockFactory.breaker());
-                    new ChannelActionListener<ExchangeResponse>(channel, breaker).onResponse(response);
+                    new ChannelActionListener<ExchangeResponse>(channel, response.pageBreaker()).onResponse(response);
                 }
 
                 @Override
@@ -447,20 +445,21 @@ public final class ExchangeService extends AbstractLifecycleComponent {
     }
 
     /**
+     * Like {@link #newRemoteSink(Task, String, TransportService, Transport.Connection, BlockFactory)}, but reads and charges the
+     * pages through the block factory of this service.
+     */
+    RemoteSink newRemoteSink(Task parentTask, String exchangeId, TransportService transportService, Transport.Connection conn) {
+        return newRemoteSink(parentTask, exchangeId, transportService, conn, blockFactory);
+    }
+
+    /**
      * Creates a new {@link RemoteSink} that fetches pages from an exchange sink located on the remote node.
      *
      * @param parentTask       the parent task that initialized the ESQL request
      * @param exchangeId       the exchange ID
      * @param transportService the transport service
      * @param conn             the connection to the remote node where the remote exchange sink is located
-     */
-    public RemoteSink newRemoteSink(Task parentTask, String exchangeId, TransportService transportService, Transport.Connection conn) {
-        return newRemoteSink(parentTask, exchangeId, transportService, conn, blockFactory);
-    }
-
-    /**
-     * Like {@link #newRemoteSink(Task, String, TransportService, Transport.Connection)}, but reads and charges the pages through
-     * {@code blockFactory}.
+     * @param blockFactory     reads and charges the pages
      */
     public RemoteSink newRemoteSink(
         Task parentTask,

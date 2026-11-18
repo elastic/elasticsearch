@@ -68,15 +68,13 @@ public final class ExchangeResponse extends TransportResponse implements Releasa
     }
 
     /**
-     * The breaker of the page's blocks, or {@code null} if it has none or they are charged to no breaker.
+     * The breaker of the page's blocks, or a no-op breaker if there is no page.
      */
-    @Nullable
     CircuitBreaker pageBreaker() {
         if (page == null || page.getBlockCount() == 0) {
-            return null;
+            return NoopCircuitBreaker.INSTANCE;
         }
-        CircuitBreaker breaker = page.getBlock(0).blockFactory().breaker();
-        return breaker.getClass() == NoopCircuitBreaker.class ? null : breaker;
+        return page.getBlock(0).blockFactory().breaker();
     }
 
     /**

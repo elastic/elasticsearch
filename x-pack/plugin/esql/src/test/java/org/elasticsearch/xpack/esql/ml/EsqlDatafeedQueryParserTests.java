@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.ml;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -32,6 +33,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.inference.InferenceService;
+import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.parser.EsqlConfig;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
@@ -76,6 +79,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class EsqlDatafeedQueryParserTests extends ESTestCase {
 
@@ -98,6 +103,7 @@ public class EsqlDatafeedQueryParserTests extends ESTestCase {
         Set<Setting<?>> registered = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         registered.addAll(EsqlFlags.ALL_ESQL_FLAGS_SETTINGS);
         registered.addAll(QuerySettings.clusterSettings());
+        registered.addAll(InferenceSettings.getSettings());
         registered.add(ViewService.MAX_VIEWS_COUNT_SETTING);
         registered.add(ViewService.MAX_VIEW_LENGTH_SETTING);
         return ClusterServiceUtils.createClusterService(
@@ -108,8 +114,16 @@ public class EsqlDatafeedQueryParserTests extends ESTestCase {
         );
     }
 
+    private Client client() {
+        Client client = mock(Client.class);
+        when(client.threadPool()).thenReturn(threadPool);
+        return client;
+    }
+
     private EsqlDatafeedQueryParser parserFor(ClusterService clusterService) {
         EsqlParser esqlParser = new EsqlParser(new EsqlConfig(new EsqlFunctionRegistry()));
+        // One instance for all parses, as in the plugin: it follows cluster settings updates through its own consumer.
+        InferenceService inferenceService = new InferenceService(client(), clusterService);
         return new EsqlDatafeedQueryParser(
             () -> new EsqlDatafeedQueryParser.Services(
                 esqlParser,
@@ -117,6 +131,7 @@ public class EsqlDatafeedQueryParserTests extends ESTestCase {
                 DefaultProjectResolver.INSTANCE,
                 new ViewService(clusterService, esqlParser, (statement, viewName, listener) -> listener.onResponse(null)),
                 new CrossProjectModeDecider(clusterService.getSettings()),
+                inferenceService,
                 new XPackLicenseState(System::currentTimeMillis)
             )
         );
@@ -419,8 +434,10 @@ public class EsqlDatafeedQueryParserTests extends ESTestCase {
     public void testDynamicInferenceSettingShouldOverrideNodeSetting() {
         String completion = "FROM t | COMPLETION prompt_field WITH { \"inference_id\" : \"id\" }";
         try (ClusterService disabled = clusterService(Settings.builder().put("esql.command.completion.enabled", false).build())) {
+            // One parser across the settings update, as on a running node.
+            EsqlDatafeedQueryParser parser = parserFor(disabled);
             // The command is disabled, so ES|QL itself refuses it before datafeeds classify it.
-            ParsingException disabledError = expectThrows(ParsingException.class, () -> parserFor(disabled).parse(completion));
+            ParsingException disabledError = expectThrows(ParsingException.class, () -> parser.parse(completion));
             assertThat(disabledError.getMessage(), not(containsString("ES|QL datafeeds")));
             ClusterServiceUtils.setState(
                 disabled,
@@ -432,7 +449,7 @@ public class EsqlDatafeedQueryParserTests extends ESTestCase {
                     .build()
             );
             // The dynamic setting enables it, so the parse gets as far as the datafeed's own rejection.
-            ParsingException enabledError = expectThrows(ParsingException.class, () -> parserFor(disabled).parse(completion));
+            ParsingException enabledError = expectThrows(ParsingException.class, () -> parser.parse(completion));
             assertThat(enabledError.getMessage(), containsString("[COMPLETION] is not supported in ES|QL datafeeds"));
         }
     }
@@ -441,6 +458,15 @@ public class EsqlDatafeedQueryParserTests extends ESTestCase {
         ParsedEsqlQuery query = parse("TS metrics | STATS max(cpu) BY TBUCKET(1 hour)");
         assertThat(query.isAggregating(), is(true));
         assertThat(query.indexPatterns(), contains("metrics"));
+    }
+
+    public void testOutputRowCountOfTimeSeriesQueryWithoutStatsShouldBeRejected() {
+        ParsedEsqlQuery raw = parse("TS metrics | WHERE cpu > 0 | KEEP @timestamp, cpu");
+        IllegalStateException e = expectThrows(IllegalStateException.class, raw::outputRowCountQuery);
+        assertThat(e.getMessage(), containsString("TS query without STATS"));
+        // Counting after the query's own STATS is valid, and so is counting a FROM query that has none.
+        parse("TS metrics | STATS max(cpu) BY TBUCKET(1 hour)").outputRowCountQuery();
+        parse("FROM metrics | WHERE cpu > 0").outputRowCountQuery();
     }
 
     public void testRowSourceShouldNotReadIndices() {

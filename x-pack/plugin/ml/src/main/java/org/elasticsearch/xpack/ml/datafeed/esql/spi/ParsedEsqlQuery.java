@@ -52,7 +52,11 @@ public interface ParsedEsqlQuery {
     /** The query sorted ascending on {@code timeField}, then capped to {@code rowLimit} when present. */
     EsqlQueryWithParams orderedByTimeQuery(String timeField, OptionalLong rowLimit);
 
-    /** One row with {@link #OUTPUT_ROWS_COLUMN}: the number of rows the whole query returns. */
+    /**
+     * One row with {@link #OUTPUT_ROWS_COLUMN}: the number of rows the whole query returns.
+     *
+     * @throws IllegalStateException for a {@code TS} query without {@code STATS}, which cannot be counted; check {@link #isAggregating}
+     */
     EsqlQueryWithParams outputRowCountQuery();
 
     /** One row with the {@code *_COLUMN} constants above for {@code sourceTimeField}, over the source command only. Needs an index. */

@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
@@ -24,7 +23,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.MultiColumnInSubquery;
-import org.elasticsearch.xpack.esql.inference.InferenceSettings;
+import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
@@ -118,6 +117,7 @@ public class EsqlDatafeedQueryParser implements EsqlQueryParser {
         ProjectResolver projectResolver,
         ViewService viewService,
         CrossProjectModeDecider crossProjectModeDecider,
+        InferenceService inferenceService,
         XPackLicenseState licenseState
     ) {}
 
@@ -224,14 +224,13 @@ public class EsqlDatafeedQueryParser implements EsqlQueryParser {
         Services services = this.services.get();
         ClusterService clusterService = services.clusterService();
         ClusterState clusterState = clusterService.state();
-        // Dynamic cluster settings override node configuration, as they do for queries ES|QL runs.
-        Settings effectiveSettings = Settings.builder().put(clusterService.getSettings()).put(clusterState.metadata().settings()).build();
         SettingsValidationContext validation = SettingsValidationContext.from(services.crossProjectModeDecider());
         EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest(query);
         EsqlStatement statement = request.parse(
             services.parser(),
             validation,
-            new InferenceSettings(effectiveSettings),
+            // The instance queries use, kept current by its settings-update consumer.
+            services.inferenceService().inferenceSettings(),
             new EsqlFlags(clusterService.getClusterSettings())
         );
         ResolvedSettings settings = EsqlSession.resolveSettings(clusterService, request, statement, validation, services.licenseState());
@@ -415,6 +414,10 @@ public class EsqlDatafeedQueryParser implements EsqlQueryParser {
 
         @Override
         public EsqlQueryWithParams outputRowCountQuery() {
+            if (timeSeriesSource && isAggregating == false) {
+                // TS rejects COUNT(*) as its first aggregation, so the generated query could not run.
+                throw new IllegalStateException("cannot count the output rows of a TS query without STATS");
+            }
             return withPipeline("STATS " + OUTPUT_ROWS_COLUMN + " = COUNT(*)", List.of());
         }
 

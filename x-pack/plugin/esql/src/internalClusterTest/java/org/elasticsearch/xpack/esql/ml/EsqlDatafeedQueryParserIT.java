@@ -33,6 +33,7 @@ import java.util.OptionalLong;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Checks on a real cluster that the bucket span ES|QL reports in {@code column_metadata} reaches the datafeed through
@@ -169,6 +170,9 @@ public class EsqlDatafeedQueryParserIT extends AbstractEsqlIntegTestCase {
     /** An accepted query and the column that holds its time. */
     private record Accepted(String query, String timeColumn) {}
 
+    /** What the source holds: the range and the number of documents the summary query must report. */
+    private record SourceContent(Instant earliest, Instant latest, long totalHits) {}
+
     public void testAllGeneratedQueriesShouldRunForAcceptedQueries() {
         indexLogs();
         String bucket = "STATS c = COUNT(*) BY b = BUCKET(@timestamp, 1 hour)";
@@ -182,60 +186,82 @@ public class EsqlDatafeedQueryParserIT extends AbstractEsqlIntegTestCase {
             new Accepted("FROM logs | " + bucket + " | LIMIT 5", "b"),
             new Accepted("FROM logs | WHERE v > 0 | EVAL w = v + 1 | KEEP @timestamp, w | SORT w", "@timestamp")
         );
+        SourceContent logs = new SourceContent(Instant.parse("2025-01-01T10:30:00.000Z"), Instant.parse("2025-01-01T12:30:00.000Z"), 3L);
         for (Accepted a : accepted) {
-            ParsedEsqlQuery parsed = parser().parse(a.query());
-            String context = a.query();
-
-            try (EsqlQueryResponse response = run(parsed.limitZeroQuery())) {
-                assertThat(context, getValuesList(response).size(), equalTo(0));
-                assertThat(context, response.columns().isEmpty(), equalTo(false));
-            }
-
-            int rows;
-            try (EsqlQueryResponse response = run(syncEsqlQueryRequest(a.query()))) {
-                rows = getValuesList(response).size();
-            }
-            try (EsqlQueryResponse response = run(parsed.outputRowCountQuery())) {
-                assertThat(context, getValuesList(response).getFirst().getFirst(), equalTo((long) rows));
-            }
-
-            try (EsqlQueryResponse response = run(parsed.orderedByTimeQuery(a.timeColumn(), OptionalLong.empty()))) {
-                List<List<Object>> values = getValuesList(response);
-                assertThat(context, values.size(), equalTo(rows));
-                int time = columnIndex(response, a.timeColumn());
-                List<String> times = values.stream().map(row -> String.valueOf(row.get(time))).toList();
-                assertThat(context, times, equalTo(times.stream().sorted().toList()));
-            }
-            try (EsqlQueryResponse response = run(parsed.orderedByTimeQuery(a.timeColumn(), OptionalLong.of(1)))) {
-                assertThat(context, getValuesList(response).size(), equalTo(1));
-            }
-
-            try (EsqlQueryResponse response = run(parsed.sourceRangeSummaryQuery("@timestamp"))) {
-                List<Object> row = getValuesList(response).getFirst();
-                assertThat(
-                    context,
-                    instant(row.get(columnIndex(response, ParsedEsqlQuery.EARLIEST_TIME_COLUMN))),
-                    equalTo(Instant.parse("2025-01-01T10:30:00.000Z"))
-                );
-                assertThat(
-                    context,
-                    instant(row.get(columnIndex(response, ParsedEsqlQuery.LATEST_TIME_COLUMN))),
-                    equalTo(Instant.parse("2025-01-01T12:30:00.000Z"))
-                );
-                assertThat(context, row.get(columnIndex(response, ParsedEsqlQuery.TOTAL_HITS_COLUMN)), equalTo(3L));
-            }
-
-            try (EsqlQueryResponse response = run(parsed.sourceTimeFieldProbeQuery("@timestamp"))) {
-                assertThat(context, getValuesList(response).size(), equalTo(0));
-            }
-            expectThrows(Exception.class, () -> run(parsed.sourceTimeFieldProbeQuery("missing_field")).close());
+            assertGeneratedQueriesRun(a, logs);
         }
     }
 
-    private void createTimeSeriesIndex() {
+    public void testAllGeneratedQueriesShouldRunForAcceptedTimeSeriesQueries() {
+        createTimeSeriesIndex();
+        List<Accepted> accepted = List.of(
+            new Accepted("TS metrics-tsdb | STATS m = MAX(cpu) BY b = TBUCKET(1 hour)", "b"),
+            new Accepted("TS metrics-tsdb | STATS m = MAX(cpu) BY b = TBUCKET(1 minute) | LIMIT 5", "b"),
+            new Accepted("TS metrics-tsdb | WHERE cpu > 0 | STATS m = MAX(cpu) BY b = TBUCKET(1 minute) | SORT b", "b")
+        );
+        SourceContent metrics = new SourceContent(Instant.parse("2025-01-01T10:30:00.000Z"), Instant.parse("2025-01-01T10:32:00.000Z"), 3L);
+        for (Accepted a : accepted) {
+            assertGeneratedQueriesRun(a, metrics);
+        }
+    }
+
+    public void testEmptyTimeSeriesSourceShouldReportZeroHits() {
+        // SUM over no series is null, which is why the summary query coalesces it to 0.
+        createEmptyTimeSeriesIndex("metrics-empty");
+        ParsedEsqlQuery parsed = parser().parse("TS metrics-empty | STATS m = MAX(cpu) BY b = TBUCKET(1 hour)");
+        try (EsqlQueryResponse response = run(parsed.sourceRangeSummaryQuery("@timestamp"))) {
+            List<Object> row = getValuesList(response).getFirst();
+            assertThat(row.get(columnIndex(response, ParsedEsqlQuery.TOTAL_HITS_COLUMN)), equalTo(0L));
+            assertThat(row.get(columnIndex(response, ParsedEsqlQuery.EARLIEST_TIME_COLUMN)), nullValue());
+            assertThat(row.get(columnIndex(response, ParsedEsqlQuery.LATEST_TIME_COLUMN)), nullValue());
+        }
+    }
+
+    private void assertGeneratedQueriesRun(Accepted a, SourceContent source) {
+        ParsedEsqlQuery parsed = parser().parse(a.query());
+        String context = a.query();
+
+        try (EsqlQueryResponse response = run(parsed.limitZeroQuery())) {
+            assertThat(context, getValuesList(response).size(), equalTo(0));
+            assertThat(context, response.columns().isEmpty(), equalTo(false));
+        }
+
+        int rows;
+        try (EsqlQueryResponse response = run(syncEsqlQueryRequest(a.query()))) {
+            rows = getValuesList(response).size();
+        }
+        try (EsqlQueryResponse response = run(parsed.outputRowCountQuery())) {
+            assertThat(context, getValuesList(response).getFirst().getFirst(), equalTo((long) rows));
+        }
+
+        try (EsqlQueryResponse response = run(parsed.orderedByTimeQuery(a.timeColumn(), OptionalLong.empty()))) {
+            List<List<Object>> values = getValuesList(response);
+            assertThat(context, values.size(), equalTo(rows));
+            int time = columnIndex(response, a.timeColumn());
+            List<String> times = values.stream().map(row -> String.valueOf(row.get(time))).toList();
+            assertThat(context, times, equalTo(times.stream().sorted().toList()));
+        }
+        try (EsqlQueryResponse response = run(parsed.orderedByTimeQuery(a.timeColumn(), OptionalLong.of(1)))) {
+            assertThat(context, getValuesList(response).size(), equalTo(1));
+        }
+
+        try (EsqlQueryResponse response = run(parsed.sourceRangeSummaryQuery("@timestamp"))) {
+            List<Object> row = getValuesList(response).getFirst();
+            assertThat(context, instant(row.get(columnIndex(response, ParsedEsqlQuery.EARLIEST_TIME_COLUMN))), equalTo(source.earliest()));
+            assertThat(context, instant(row.get(columnIndex(response, ParsedEsqlQuery.LATEST_TIME_COLUMN))), equalTo(source.latest()));
+            assertThat(context, row.get(columnIndex(response, ParsedEsqlQuery.TOTAL_HITS_COLUMN)), equalTo(source.totalHits()));
+        }
+
+        try (EsqlQueryResponse response = run(parsed.sourceTimeFieldProbeQuery("@timestamp"))) {
+            assertThat(context, getValuesList(response).size(), equalTo(0));
+        }
+        expectThrows(Exception.class, () -> run(parsed.sourceTimeFieldProbeQuery("missing_field")).close());
+    }
+
+    private void createEmptyTimeSeriesIndex(String name) {
         client().admin()
             .indices()
-            .prepareCreate("metrics-tsdb")
+            .prepareCreate(name)
             .setSettings(
                 Settings.builder()
                     .put("index.mode", "time_series")
@@ -245,6 +271,10 @@ public class EsqlDatafeedQueryParserIT extends AbstractEsqlIntegTestCase {
             )
             .setMapping("@timestamp", "type=date", "host", "type=keyword,time_series_dimension=true", "cpu", "type=double")
             .get();
+    }
+
+    private void createTimeSeriesIndex() {
+        createEmptyTimeSeriesIndex("metrics-tsdb");
         for (int minute : new int[] { 30, 31, 32 }) {
             client().prepareIndex("metrics-tsdb")
                 .setSource("@timestamp", "2025-01-01T10:" + minute + ":00Z", "host", "a", "cpu", 1.0)

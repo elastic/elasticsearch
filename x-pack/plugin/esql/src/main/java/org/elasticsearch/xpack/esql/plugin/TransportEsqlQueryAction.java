@@ -155,6 +155,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         ActionLoggingFieldsProvider fieldProvider,
         ActivityLogWriterProvider logWriterProvider,
         CrossProjectModeDecider crossProjectModeDecider,
+        InferenceService inferenceService,
         QueryMetricsListener metricsCollector,
         FederationLicense federationLicense,
         ExternalWorkerReadiness externalWorkerReadiness
@@ -233,7 +234,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             projectResolver,
             indexNameExpressionResolver,
             usageService,
-            new InferenceService(client, clusterService),
+            inferenceService,
             userAgentParserRegistry,
             ipLocationService,
             blockFactoryProvider,

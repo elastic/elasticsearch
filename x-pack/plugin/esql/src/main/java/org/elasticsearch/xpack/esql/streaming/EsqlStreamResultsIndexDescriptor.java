@@ -37,7 +37,7 @@ public final class EsqlStreamResultsIndexDescriptor {
     /**
      * The index is only registered, and results only stored, when this is enabled.
      */
-    public static final FeatureFlag FEATURE_FLAG = new FeatureFlag("esql_stream_stored_results");
+    public static final FeatureFlag FEATURE_FLAG = new FeatureFlag("esql_stream_results_stored");
 
     public static final String INDEX = ".esql-stream-results";
 

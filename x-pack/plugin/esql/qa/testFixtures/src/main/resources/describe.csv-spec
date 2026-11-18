@@ -78,6 +78,7 @@ bonus        | integer      | null          | computed       | null
 
 describeAfterStats
 required_capability: describe_command
+required_capability: describe_time_columns
 skip_flattened_rewrite: describe_sees_rewritten_field_as_computed
 
 TS k8s
@@ -90,8 +91,57 @@ TS k8s
 name:keyword | type:keyword | origin:keyword | role:keyword | metric_type:keyword
 rate         | double       | computed       | null         | null
 cluster      | keyword      | mapped         | dimension    | null
-bucket       | date         | computed       | null         | null
+bucket       | date         | computed       | time         | null
 kib_rate     | double       | computed       | null         | null
+;
+
+describeTimeBuckets
+required_capability: describe_command
+required_capability: describe_time_columns
+
+FROM k8s
+| EVAL day = DATE_TRUNC(1 day, @timestamp)
+| STATS c = COUNT(*) BY b = BUCKET(@timestamp, 1 hour), day
+| RENAME b AS hour
+| DESCRIBE
+| KEEP name, type, origin, role
+;
+
+name:keyword | type:keyword | origin:keyword | role:keyword
+c            | long         | computed       | null
+hour         | date         | computed       | time
+day          | date         | computed       | time
+;
+
+describeBucketsOfOtherDates
+required_capability: describe_command
+required_capability: describe_time_columns
+
+FROM employees
+| STATS c = COUNT(*) BY y = BUCKET(hire_date, 1 year)
+| DESCRIBE
+| KEEP name, origin, role
+;
+
+name:keyword | origin:keyword | role:keyword
+c            | computed       | null
+y            | computed       | null
+;
+
+describeTimeThroughFork
+required_capability: describe_command
+required_capability: describe_time_columns
+required_capability: fork_v9
+
+FROM k8s
+| FORK (EVAL t = @timestamp) (EVAL t = DATE_TRUNC(1 day, @timestamp))
+| KEEP t
+| DESCRIBE
+| KEEP name, origin, role
+;
+
+name:keyword | origin:keyword | role:keyword
+t            | computed       | time
 ;
 
 describeRolesAfterStats

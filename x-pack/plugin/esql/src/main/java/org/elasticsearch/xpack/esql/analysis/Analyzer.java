@@ -463,10 +463,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<IndexResolution> resolutions = new ArrayList<>(context.indexResolution().values());
             resolutions.addAll(context.lookupResolution().values());
             Map<NameId, FieldSemantics> semantics = ColumnSemantics.collect(describe.child(), resolutions);
+            Map<NameId, Attribute> datasetColumns = ColumnSemantics.datasetColumns(describe.child());
             return describe.describe(
                 semantics,
-                ColumnSemantics.datasetColumns(describe.child()),
-                ColumnUnits.collect(describe.child(), semantics)
+                datasetColumns,
+                ColumnUnits.collect(describe.child(), semantics),
+                ColumnSemantics.timeColumns(describe.child(), semantics, datasetColumns)
             );
         }
 

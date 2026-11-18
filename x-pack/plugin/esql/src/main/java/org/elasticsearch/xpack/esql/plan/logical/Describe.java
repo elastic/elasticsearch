@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * {@code DESCRIBE} returns one row per column of its input: what the column is, where it comes from,
@@ -101,11 +102,13 @@ public class Describe extends UnaryPlan implements TelemetryAware {
      * @param datasetColumns the dataset columns the child's columns read, keyed by attribute id
      * @param units          the unit of every column whose unit is known, or every unit when its sources disagree,
      *                       keyed by attribute id
+     * @param timeColumns    the ids of the columns that hold time but read no mapped field
      */
     public LocalRelation describe(
         Map<NameId, FieldSemantics> semantics,
         Map<NameId, Attribute> datasetColumns,
-        Map<NameId, List<String>> units
+        Map<NameId, List<String>> units,
+        Set<NameId> timeColumns
     ) {
         List<Attribute> columns = child().output().stream().filter(a -> a.synthetic() == false).toList();
         ElementType[] elementTypes = new ElementType[COLUMNS.size()];
@@ -118,7 +121,10 @@ public class Describe extends UnaryPlan implements TelemetryAware {
             for (Attribute column : columns) {
                 FieldSemantics field = semantics.get(column.id());
                 Attribute datasetColumn = datasetColumns.get(column.id());
-                FieldSemantics.Role role = field != null ? field.role() : isMetadata(column) ? FieldSemantics.Role.METADATA : null;
+                FieldSemantics.Role role = field != null ? field.role()
+                    : isMetadata(column) ? FieldSemantics.Role.METADATA
+                    : timeColumns.contains(column.id()) ? FieldSemantics.Role.TIME
+                    : null;
                 String metricType = field == null ? null : field.metricType();
                 Object[] row = new Object[] {
                     column.name(),

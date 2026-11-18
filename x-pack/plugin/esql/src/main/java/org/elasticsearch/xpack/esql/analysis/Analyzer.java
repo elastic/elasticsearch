@@ -487,15 +487,19 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         for (Map.Entry<ViewBoundaryEntry, List<AnalyzerContext.ViewBoundary>> e : boundariesByEntry.entrySet()) {
             List<String> fields = List.copyOf(e.getKey().fields());
             List<AnalyzerContext.ViewBoundary> views = e.getValue();
+            // A nested view prints two names, so one that no longer fits can be followed by one that still does.
             int remainingViewNames = viewNameBudget - (e.getKey().settingView() == null ? 0 : 1);
-            if (fieldBudget == 0 || viewNamesPrinted(views.getFirst()) > remainingViewNames) {
+            List<AnalyzerContext.ViewBoundary> listedViews = new ArrayList<>(views.size());
+            for (AnalyzerContext.ViewBoundary view : views) {
+                if (viewNamesPrinted(view) <= remainingViewNames) {
+                    listedViews.add(view);
+                    remainingViewNames -= viewNamesPrinted(view);
+                }
+            }
+            if (fieldBudget == 0 || listedViews.isEmpty()) {
                 unlistedFields.addAll(fields);
                 unlistedViews += views.size();
                 continue;
-            }
-            int viewsListed = 0;
-            while (viewsListed < views.size() && viewNamesPrinted(views.get(viewsListed)) <= remainingViewNames) {
-                remainingViewNames -= viewNamesPrinted(views.get(viewsListed++));
             }
             viewNameBudget = remainingViewNames;
             int fieldsListed = Math.min(fields.size(), fieldBudget);
@@ -508,10 +512,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             list.append(views.size() == 1 ? " in view " : " in views ");
             appendBoundedList(
                 list,
-                views,
-                viewsListed,
+                listedViews,
+                listedViews.size(),
                 view -> "[" + view.viewName() + "]" + (view.enclosingView() == null ? "" : " nested in view [" + view.enclosingView() + "]")
             );
+            if (views.size() > listedViews.size()) {
+                list.append(" and [").append(views.size() - listedViews.size()).append("] more");
+            }
             if (e.getKey().settingView() != null) {
                 list.append(" (SET by view [").append(e.getKey().settingView()).append("])");
             }

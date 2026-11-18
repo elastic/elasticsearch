@@ -2248,6 +2248,32 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
                     + "and [1] more field in [1] more view"
             )
         );
+
+        // A nested view that no longer fits is skipped, and a later view of the same entry that still fits is named.
+        addNullFills(fills, viewBoundary("w"), "a");
+        assertThat(
+            Analyzer.viewBoundaryNullFillWarning(fills),
+            equalTo(
+                VIEW_BOUNDARY_PLURAL_ADVICE
+                    + "[a] in views [v0] nested in view [e0], [v1] nested in view [e1], [w] and [1] more; "
+                    + "and [2] more fields in [2] more views"
+            )
+        );
+
+        // The name of the view that SET the mode uses up the budget once it is printed: it and x leave room for three more views.
+        fills.clear();
+        addNullFills(fills, new AnalyzerContext.ViewBoundary("outer", "x", null), "a");
+        for (int i = 1; i <= 4; i++) {
+            addNullFills(fills, viewBoundary("y" + i), "f" + i);
+        }
+        assertThat(
+            Analyzer.viewBoundaryNullFillWarning(fills),
+            equalTo(
+                VIEW_BOUNDARY_PLURAL_ADVICE
+                    + "[a] in view [x] (SET by view [outer]); [f1] in view [y1]; [f2] in view [y2]; [f3] in view [y3]; "
+                    + "and [1] more field in [1] more view"
+            )
+        );
     }
 
     /**

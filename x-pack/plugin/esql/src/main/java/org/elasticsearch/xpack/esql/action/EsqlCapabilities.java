@@ -1877,6 +1877,15 @@ public class EsqlCapabilities {
         USAGE_CONTAINS_DATASOURCES_QUERY_CPU,
 
         /**
+         * Does the usage information for ESQL contain per-component CPU counters for external-source queries that failed
+         * or were cancelled ({@code datasources.queries.cpu_nanos.by_outcome.failure.*} and
+         * {@code datasources.queries.cpu_nanos.by_outcome.cancelled.*}, each with {@code .execution}, {@code .read},
+         * {@code .planning}, {@code .split_discovery} and {@code .total})? They are not part of
+         * {@code datasources.queries.cpu_nanos.*}, which is the CPU of the queries that succeeded.
+         */
+        USAGE_CONTAINS_DATASOURCES_QUERY_CPU_BY_OUTCOME,
+
+        /**
          * Support loading of ip fields if they are not indexed.
          */
         LOADING_NON_INDEXED_IP_FIELDS,
@@ -4572,13 +4581,12 @@ public class EsqlCapabilities {
         EXTERNAL_PARQUET_LIKE_MISSING_COLUMN_REJECTS_ROWS,
 
         /**
-         * Streaming execution on {@code POST /_query}: the {@code streaming} URL parameter is
-         * accepted, and with {@code format=ndjson} the response streams a columns line, one line
-         * per row and a last line (with {@code complete} and {@code next_offset}) as NDJSON as rows
-         * are produced.
-         * Snapshot-only while the streaming protocol is still changing.
+         * Streaming execution on {@code POST /_query?streaming=true&format=ndjson}. That API was removed and
+         * {@code POST /_query} now rejects the {@code streaming} parameter, so this capability is disabled and no
+         * node advertises it. Streaming is served by {@code POST /_query/stream}, advertised by {@link #STREAMING_V2}.
+         * Kept only because capabilities are append-only.
          */
-        STREAMING(Build.current().isSnapshot()),
+        STREAMING(false),
 
         /**
          * The external-dataset warning and error texts were rewritten; csv-spec tests that assert them require this so an
@@ -4622,6 +4630,12 @@ public class EsqlCapabilities {
          * in the main query as a relation or as an {@code IN} operand.
          */
         NAMED_SUBQUERY_LET(Build.current().isSnapshot()),
+
+        /**
+         * {@code METADATA _class, _name} on a {@code LET} binding referenced in {@code FROM} answers {@code subquery} and the
+         * binding name, instead of {@code null} for both.
+         */
+        NAMED_SUBQUERY_LET_METADATA_CLASS_AND_NAME(Build.current().isSnapshot()),
 
         /**
          * {@code DESCRIBE} returns one row per input column with its role, origin, metric type, unit and a usage hint,
@@ -4892,6 +4906,13 @@ public class EsqlCapabilities {
         COLUMN_METADATA_MERGED_BRANCHES(Build.current().isSnapshot()),
 
         /**
+         * {@code DESCRIBE} and {@code column_metadata} report every unit and description of a column whose indices or merged
+         * branches disagree on them as a multi-value, and merge the field semantics of branches that read the same field as
+         * they merge indices.
+         */
+        COLUMN_METADATA_LISTED_UNITS(Build.current().isSnapshot()),
+
+        /**
          * Fixes a bug in the planner where {@code TS} queries failed with an {@link IllegalStateException} when an aggregation
          * with a filter combined several aggregate functions, such as {@code max(...) - min(...) WHERE ...}.
          */
@@ -4911,6 +4932,13 @@ public class EsqlCapabilities {
         TS_FORK_BEFORE_STATS_NOT_SUPPORTED,
 
         /**
+         * Fixes a bug in the planner where aggregations over columns produced by earlier {@code STATS}, {@code INLINE STATS},
+         * {@code TS_COLLAPSE} or {@code RERANK}, such as {@code MIN(a), MIN(b)} with {@code a} and {@code b} both computed as
+         * {@code COUNT(*)} over different rows, were deduplicated and returned the value of one aggregation for both.
+         */
+        FIX_DEDUPLICATE_AGGS_OVER_AGGREGATE_OUTPUTS,
+
+        /**
          * The {@code INTO} command, which writes a query's rows into an index and returns a summary row of total and created counts.
          */
         INTO_COMMAND(Build.current().isSnapshot()),
@@ -4927,6 +4955,14 @@ public class EsqlCapabilities {
          * Snapshot-only until the command is advertised.
          */
         NESTED_EXPAND(Build.current().isSnapshot()),
+
+        /**
+         * Streaming execution on {@code POST /_query/stream}: the response streams a columns line, one line
+         * per row and a last line (with {@code complete} and {@code next_offset}) as NDJSON as rows are produced.
+         * Replaces {@link #STREAMING}: streaming no longer runs on {@code POST /_query}.
+         * Snapshot-only while the streaming protocol is still changing.
+         */
+        STREAMING_V2(Build.current().isSnapshot()),
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

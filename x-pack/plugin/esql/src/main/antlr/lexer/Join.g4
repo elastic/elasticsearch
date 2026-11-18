@@ -10,16 +10,20 @@ lexer grammar Join;
 // JOIN-related commands
 //
 JOIN_LOOKUP : 'lookup'        -> pushMode(JOIN_MODE);
-DEV_JOIN_FULL :   {this.isDevVersion()}? 'full'          -> pushMode(JOIN_MODE);
-DEV_JOIN_LEFT :   {this.isDevVersion()}? 'left'          -> pushMode(JOIN_MODE);
-DEV_JOIN_RIGHT :  {this.isDevVersion()}? 'right'         -> pushMode(JOIN_MODE);
+DEV_JOIN_FULL :   'full' {this.isDevVersion()}?          -> pushMode(JOIN_MODE);
+DEV_JOIN_LEFT :   'left' {this.isDevVersion()}?          -> pushMode(JOIN_MODE);
+DEV_JOIN_INNER :  'inner' {this.isDevVersion()}?         -> pushMode(JOIN_MODE);
+DEV_JOIN_RIGHT :  'right' {this.isDevVersion()}?         -> pushMode(JOIN_MODE);
 
 mode JOIN_MODE;
 JOIN_PIPE : PIPE -> type(PIPE), popMode;
 JOIN : 'join';
+DEV_JOIN_OUTER : 'outer' {this.isDevVersion()}?;
 JOIN_AS : AS -> type(AS);
 JOIN_ON : ON -> type(ON), popMode, pushMode(EXPRESSION_MODE);
 USING : 'USING' -> popMode, pushMode(EXPRESSION_MODE);
+
+JOIN_LP : LP -> type(LP), pushMode(DEFAULT_MODE);
 
 JOIN_UNQUOTED_SOURCE: UNQUOTED_SOURCE -> type(UNQUOTED_SOURCE);
 JOIN_QUOTED_SOURCE : QUOTED_STRING -> type(QUOTED_STRING);

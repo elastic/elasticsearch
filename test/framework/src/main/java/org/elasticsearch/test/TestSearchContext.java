@@ -72,6 +72,7 @@ public class TestSearchContext extends SearchContext {
     Float minScore;
     CancellableTask task;
     SortAndFormats sort;
+    CollapseContext collapse;
     boolean trackScores = false;
     int trackTotalHitsUpTo = SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO;
     QueryPhaseRankShardContext queryPhaseRankShardContext;
@@ -334,9 +335,14 @@ public class TestSearchContext extends SearchContext {
         return searchAfter;
     }
 
+    public SearchContext collapse(CollapseContext collapse) {
+        this.collapse = collapse;
+        return this;
+    }
+
     @Override
     public CollapseContext collapse() {
-        return null;
+        return collapse;
     }
 
     @Override

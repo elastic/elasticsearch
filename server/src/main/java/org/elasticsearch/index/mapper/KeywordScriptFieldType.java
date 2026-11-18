@@ -280,12 +280,19 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
     @Override
     public Query wildcardQuery(String value, RewriteMethod method, boolean caseInsensitive, SearchExecutionContext context) {
         applyScriptContext(context);
-        return new StringScriptFieldWildcardQuery(script, leafFactory(context), name(), value, caseInsensitive);
+        return new StringScriptFieldWildcardQuery(
+            script,
+            leafFactory(context),
+            name(),
+            value,
+            caseInsensitive,
+            context.getCircuitBreaker()
+        );
     }
 
     @Override
     public Query normalizedWildcardQuery(String value, RewriteMethod method, SearchExecutionContext context) {
         applyScriptContext(context);
-        return new StringScriptFieldWildcardQuery(script, leafFactory(context), name(), value, false);
+        return new StringScriptFieldWildcardQuery(script, leafFactory(context), name(), value, false, context.getCircuitBreaker());
     }
 }

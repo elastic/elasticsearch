@@ -35,6 +35,47 @@ if [[ -f build/task-status.json ]]; then
   cd "$WORKSPACE"
 fi
 
+if [[ "${JACOCO_REPORTING_ENABLED:-}" == "true" ]]; then
+  # Turn each JaCoCo XML report ({project}/build/reports/jacoco/{task}/{name}.xml) into a single
+  # self-contained HTML page, upload that one file, and link it from a single annotation.
+  # JaCoCo's own HTML report for :server is ~15k files, and uploading them one artifact at a time
+  # took ~20 minutes per job. Failures here must never fail the job.
+  jacoco_annotation=""
+  if ! command -v node > /dev/null; then
+    echo "Skipping JaCoCo report upload: node is not on PATH"
+  else
+    while IFS= read -r report_xml; do
+      report_xml="${report_xml#./}"
+      report_dir="${report_xml%/*}"
+      # {project}/build/reports/jacoco/{task} -> "{project} ({task})"
+      project_path="${report_dir%/build/reports/jacoco/*}"
+      report_task="${report_dir#*/build/reports/jacoco/}"
+      # find's -path wildcards also match "/", so skip XML files nested deeper than {task}/
+      [[ "$report_task" == */* ]] && continue
+      report_html="${report_dir}/coverage.html"
+      report_title="${BUILDKITE_LABEL:-} / ${project_path} (${report_task})"
+
+      src_args=()
+      if [[ -d "${project_path}/src/main/java" ]]; then
+        src_args=(--src "${project_path}/src/main/java")
+      fi
+
+      if node .buildkite/scripts/jacoco/single-page-report.ts --xml "$report_xml" --out "$report_html" --title "$report_title" ${src_args[@]+"${src_args[@]}"} \
+        && buildkite-agent artifact upload "$report_html"; then
+        artifact_id="$(buildkite-agent artifact search "$report_html" --step "${BUILDKITE_JOB_ID:-}" --format '%i' || true)"
+        if [[ -n "$artifact_id" ]]; then
+          artifact_url="https://buildkite.com/organizations/${BUILDKITE_ORGANIZATION_SLUG}/pipelines/${BUILDKITE_PIPELINE_SLUG}/builds/${BUILDKITE_BUILD_NUMBER}/jobs/${BUILDKITE_JOB_ID}/artifacts/${artifact_id}"
+          jacoco_annotation+="<div>:coverage: <a href=\"${artifact_url}\"><code>${report_title}</code></a></div>"
+        fi
+      fi
+    done < <(find . -maxdepth 10 \( -name .git -o -name node_modules \) -prune -o -path '*/build/reports/jacoco/*/*.xml' -type f -print 2>/dev/null)
+  fi
+
+  if [[ -n "$jacoco_annotation" ]]; then
+    printf '%s' "$jacoco_annotation" | buildkite-agent annotate --context "jacoco-reports" --append --style "info" || true
+  fi
+fi
+
 # Propagate GCP preemption exit code when Gradle ran with a daemon (always the case in
 # Gradle 9, even with --no-daemon). When preempted, the Gradle build writes the desired
 # exit code (default 47) to a well-known file so retry rules (exit_status: 47) fire

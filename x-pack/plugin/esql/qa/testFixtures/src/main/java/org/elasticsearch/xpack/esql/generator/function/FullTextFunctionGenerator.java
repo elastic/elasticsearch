@@ -17,13 +17,18 @@ import org.elasticsearch.xpack.esql.generator.command.pipe.LimitGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.MvExpandGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.StatsGenerator;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
+import static org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator.needsQuoting;
+import static org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator.quote;
 import static org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator.randomName;
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.isUnmappedFieldsEnabled;
 import static org.elasticsearch.xpack.esql.generator.command.source.FromGenerator.isFromSource;
@@ -78,10 +83,22 @@ public final class FullTextFunctionGenerator {
     }
 
     /**
+     * True when MATCH / MATCH_PHRASE / {@code :} may target schema columns (mapped or runtime).
+     * Requires a FROM source that did not set {@code unmapped_fields="nullify"}.
+     * Unlike {@link #indexFieldColumns}, this stays true when every mapped column has been dropped.
+     */
+    public static boolean isMatchOnColumnsAllowed(List<CommandGenerator.CommandDescription> previousCommands) {
+        if (previousCommands == null || previousCommands.isEmpty()) {
+            return false;
+        }
+        return isFromSource(previousCommands.get(0)) && isUnmappedFieldsEnabled(previousCommands) == false;
+    }
+
+    /**
      * Returns the subset of columns that are index-mapped (originate from the actual index mapping).
-     * Full-text functions (match, match_phrase, {@code :} operator) require these fields.
-     * Returns {@code null} when the information is unavailable (e.g. non-FROM source), or when
-     * {@code SET unmapped_fields="nullify"} makes even columns of a FROM source resolve as non-index-mapped.
+     * Returns {@code null} when the information is unavailable (e.g. non-FROM source), when
+     * {@code SET unmapped_fields="nullify"} makes even columns of a FROM source resolve as non-index-mapped,
+     * or when no index-mapped column remains.
      */
     public static List<Column> indexFieldColumns(List<Column> columns, List<CommandGenerator.CommandDescription> previousCommands) {
         if (previousCommands == null || previousCommands.isEmpty()) {
@@ -107,7 +124,30 @@ public final class FullTextFunctionGenerator {
         "unsigned_long",
         "version"
     );
-    private static final Set<String> MATCH_PHRASE_FIELD_TYPES = Set.of("keyword", "text");
+    /** Types a non-index-mapped (runtime) full-text search can run on. Also the field types MATCH_PHRASE accepts. */
+    private static final Set<String> RUNTIME_FULL_TEXT_TYPES = Set.of("keyword", "text");
+    private static final Set<String> MATCH_PHRASE_FIELD_TYPES = RUNTIME_FULL_TEXT_TYPES;
+
+    /**
+     * MATCH and {@code :} may target an index-mapped field of a supported type, or a runtime keyword/text column.
+     */
+    public static boolean isMatchColumn(Column column) {
+        return MATCH_FIELD_TYPES.contains(column.type()) && (column.indexMapped() || RUNTIME_FULL_TEXT_TYPES.contains(column.type()));
+    }
+
+    /**
+     * MATCH_PHRASE may target any keyword or text column, mapped or runtime.
+     */
+    public static boolean isMatchPhraseColumn(Column column) {
+        return MATCH_PHRASE_FIELD_TYPES.contains(column.type());
+    }
+
+    /**
+     * Analyzer-style options are legal on Lucene-mapped fields and on runtime TEXT, not on runtime keyword.
+     */
+    public static boolean optionsAllowed(Column column) {
+        return column.indexMapped() || "text".equals(column.type());
+    }
 
     private static final String[] SAMPLE_QUERY_WORDS = {
         "test",
@@ -176,32 +216,50 @@ public final class FullTextFunctionGenerator {
     /**
      * Generates a {@code match(field, "query")} expression, or its operator variant {@code field : "query"}.
      * {@code MatchOperator} extends {@code Match} — they share all constraints.
-     * The operator form does not support options.
+     * The operator form does not support options. Function-form options are emitted only when
+     * {@link #optionsAllowed(Column)} is true.
      */
     public static String matchFunction(List<Column> columns) {
-        String field = randomName(columns, MATCH_FIELD_TYPES);
-        if (field == null) {
+        Column column = randomColumn(columns, FullTextFunctionGenerator::isMatchColumn);
+        if (column == null) {
             return null;
         }
+        String field = quotedName(column);
         String query = randomQueryWord();
         if (randomBoolean()) {
             return field + " : \"" + query + "\"";
         }
-        return "match(" + field + ", \"" + query + "\"" + maybeOptions(MATCH_OPTIONS) + ")";
+        String options = optionsAllowed(column) ? maybeOptions(MATCH_OPTIONS) : "";
+        return "match(" + field + ", \"" + query + "\"" + options + ")";
     }
 
     /**
      * Generates a {@code match_phrase(field, "query")} expression.
-     * field accepts: keyword, text only.
-     * query must be a string literal.
+     * Field accepts keyword or text, mapped or runtime.
+     * Query must be a string literal. Options are emitted only when {@link #optionsAllowed(Column)} is true.
      */
     public static String matchPhraseFunction(List<Column> columns) {
-        String field = randomName(columns, MATCH_PHRASE_FIELD_TYPES);
-        if (field == null) {
+        Column column = randomColumn(columns, FullTextFunctionGenerator::isMatchPhraseColumn);
+        if (column == null) {
             return null;
         }
+        String field = quotedName(column);
         String phrase = randomQueryWord() + " " + randomQueryWord();
-        return "match_phrase(" + field + ", \"" + phrase + "\"" + maybeOptions(MATCH_PHRASE_OPTIONS) + ")";
+        String options = optionsAllowed(column) ? maybeOptions(MATCH_PHRASE_OPTIONS) : "";
+        return "match_phrase(" + field + ", \"" + phrase + "\"" + options + ")";
+    }
+
+    private static Column randomColumn(List<Column> columns, Predicate<Column> eligible) {
+        List<Column> candidates = columns.stream().filter(eligible).toList();
+        if (candidates.isEmpty()) {
+            return null;
+        }
+        return randomFrom(candidates);
+    }
+
+    private static String quotedName(Column column) {
+        String name = column.name();
+        return needsQuoting(name) ? quote(name) : name;
     }
 
     /**
@@ -244,9 +302,10 @@ public final class FullTextFunctionGenerator {
      * <ul>
      *   <li><b>Placement</b>: full-text functions are forbidden after LIMIT/STATS;
      *       QSTR and KQL additionally require all preceding commands to be FROM/WHERE/SORT.</li>
-     *   <li><b>Field origin</b>: match and match_phrase.
-     *       require fields from the actual index mapping (FieldAttribute), not columns
-     *       created by EVAL, GROK, DISSECT, etc.</li>
+     *   <li><b>Field origin</b>: MATCH / MATCH_PHRASE / {@code :} may target index-mapped fields of the
+     *       allowed types, or runtime keyword/text expressions. Options are emitted only when the chosen
+     *       column is index-mapped or TEXT. {@code SET unmapped_fields="nullify"} still skips column-based
+     *       match generation.</li>
      * </ul>
      * Returns {@code null} when no valid function can be generated.
      */
@@ -255,27 +314,21 @@ public final class FullTextFunctionGenerator {
             return null;
         }
 
-        boolean qstrKqlAllowed = isQstrKqlAllowed(previousCommands);
-
-        List<Column> indexColumns = indexFieldColumns(columns, previousCommands);
-        boolean fieldBasedAllowed = indexColumns != null && indexColumns.isEmpty() == false;
-
-        if (fieldBasedAllowed && qstrKqlAllowed) {
-            return switch (randomIntBetween(0, 3)) {
-                case 0 -> matchFunction(indexColumns);
-                case 1 -> matchPhraseFunction(indexColumns);
-                case 2 -> qstrFunction(columns);
-                default -> kqlFunction(columns);
-            };
-        } else if (fieldBasedAllowed) {
-            return switch (randomIntBetween(0, 1)) {
-                case 0 -> matchFunction(indexColumns);
-                default -> matchPhraseFunction(indexColumns);
-            };
-        } else if (qstrKqlAllowed) {
-            return randomBoolean() ? qstrFunction(columns) : kqlFunction(columns);
-        } else {
-            return null;
+        // Only offer a form when it can actually produce a value: a match/match_phrase arm that found no eligible
+        // column would return null and drop the whole WHERE, even when qstr/kql could have generated a valid clause.
+        List<Supplier<String>> forms = new ArrayList<>();
+        if (isMatchOnColumnsAllowed(previousCommands)) {
+            if (columns.stream().anyMatch(FullTextFunctionGenerator::isMatchColumn)) {
+                forms.add(() -> matchFunction(columns));
+            }
+            if (columns.stream().anyMatch(FullTextFunctionGenerator::isMatchPhraseColumn)) {
+                forms.add(() -> matchPhraseFunction(columns));
+            }
         }
+        if (isQstrKqlAllowed(previousCommands)) {
+            forms.add(() -> qstrFunction(columns));
+            forms.add(() -> kqlFunction(columns));
+        }
+        return forms.isEmpty() ? null : randomFrom(forms).get();
     }
 }

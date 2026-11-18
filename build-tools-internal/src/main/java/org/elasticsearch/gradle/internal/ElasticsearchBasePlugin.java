@@ -11,9 +11,11 @@ package org.elasticsearch.gradle.internal;
 
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.info.BuildParameterExtension;
-import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+
+import static org.elasticsearch.gradle.internal.util.ParamsUtils.applyGlobalBuildInfoIfRoot;
+import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams;
 
 /**
  * Base plugin applied to every Elasticsearch subproject. Replaces the former
@@ -27,19 +29,19 @@ public class ElasticsearchBasePlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        // Ensure the root project has GlobalBuildInfoPlugin applied (idempotent).
-        project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
+        applyGlobalBuildInfoIfRoot(project);
 
         // Standard subproject metadata.
         project.setDescription("Elasticsearch subproject " + project.getPath());
         project.setGroup("org.elasticsearch");
         project.setVersion(VersionProperties.getElasticsearch());
 
-        // Resolve the BuildParameterExtension from the root project and register it
+        // Resolve the BuildParameterExtension from the shared build service and register it
         // as a typed extension on this project. This avoids the deprecated implicit
         // project-hierarchy property lookup that would otherwise occur when build
-        // scripts access `buildParams` directly.
-        BuildParameterExtension buildParams = project.getRootProject().getExtensions().getByType(BuildParameterExtension.class);
+        // scripts access `buildParams` directly, and avoids reading the root project's
+        // extensions, which is not allowed with isolated projects.
+        BuildParameterExtension buildParams = loadBuildParams(project).get();
         if (project.getExtensions().findByType(BuildParameterExtension.class) == null) {
             project.getExtensions().add(BuildParameterExtension.class, BuildParameterExtension.EXTENSION_NAME, buildParams);
         }

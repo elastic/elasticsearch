@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.inference.services.llama.request.completion;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.test.ESTestCase;
@@ -88,7 +88,7 @@ public class LlamaChatCompletionRequestEntityTests extends ESTestCase {
         var messageList = new ArrayList<Message>();
         messageList.add(message);
 
-        var unifiedRequest = UnifiedCompletionRequest.of(messageList);
+        var unifiedRequest = UnifiedCompletionRequestBody.of(messageList);
         var unifiedChatInput = new UnifiedChatInput(unifiedRequest, isStreaming);
 
         var entity = new LlamaChatCompletionRequestEntity(unifiedChatInput, modelId);

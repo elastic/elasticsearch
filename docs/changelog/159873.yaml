@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 159873
+summary: Suppress format-key errors on bad-scheme resource
+type: bug

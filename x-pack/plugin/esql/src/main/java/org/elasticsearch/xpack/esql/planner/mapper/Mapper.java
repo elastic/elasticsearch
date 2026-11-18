@@ -20,23 +20,29 @@ import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TemporaryNameGenerator;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
+import org.elasticsearch.xpack.esql.plan.logical.Into;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
+import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
 import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
-import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
@@ -45,6 +51,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
+import org.elasticsearch.xpack.esql.plan.physical.IntoExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitByExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
@@ -92,29 +99,28 @@ public class Mapper {
     }
 
     public PhysicalPlan map(Versioned<LogicalPlan> versionedPlan) {
+        NestedExpand.rejectUntilSupported(versionedPlan.inner());
         // We ignore the version for now, but it's fine to use later for plans that work
         // differently from some version and up.
         return mapInner(versionedPlan.inner());
     }
 
     private PhysicalPlan mapInner(LogicalPlan p) {
+        PhysicalPlan mapped;
         if (p instanceof LeafPlan leaf) {
-            return mapLeaf(leaf);
+            mapped = mapLeaf(leaf);
+        } else if (p instanceof UnaryPlan unary) {
+            mapped = mapUnary(unary);
+        } else if (p instanceof BinaryPlan binary) {
+            mapped = mapBinary(binary);
+        } else if (p instanceof MergePlan merge) {
+            mapped = mapMergePlan(merge);
+        } else {
+            mapped = MapperUtils.unsupported(p);
         }
-
-        if (p instanceof UnaryPlan unary) {
-            return mapUnary(unary);
-        }
-
-        if (p instanceof BinaryPlan binary) {
-            return mapBinary(binary);
-        }
-
-        if (p instanceof MergePlan merge) {
-            return mapMergePlan(merge);
-        }
-
-        return MapperUtils.unsupported(p);
+        // Nodes built in this class (FragmentExec, LimitExec, joins, MergeExec) have no origin yet.
+        // MapperUtils translations stamp themselves; stampOrigin leaves those alone.
+        return MapperUtils.stampOrigin(mapped, p);
     }
 
     private PhysicalPlan mapLeaf(LeafPlan leaf) {
@@ -151,6 +157,10 @@ public class Mapper {
         //
         if (unary instanceof Aggregate aggregate) {
             List<Attribute> intermediate = MapperUtils.intermediateAttributes(aggregate);
+
+            if (aggregate instanceof TimeSeriesAggregate timeSeries && timeSeries.singlePass() && mappedChild instanceof FragmentExec) {
+                return new FragmentExec(timeSeries);
+            }
 
             // create both sides of the aggregate (for parallelism purposes), if no fragment is present
             // TODO: might be easier long term to end up with just one node and split if necessary instead of doing that always at this
@@ -222,7 +232,15 @@ public class Mapper {
         // TsInfo: same two-phase pattern as MetricsInfo but per time-series granularity.
         if (unary instanceof TsInfo tsInfo) {
             mappedChild = addExchangeForFragment(tsInfo, mappedChild);
-            return new TsInfoExec(tsInfo.source(), mappedChild, tsInfo.output(), tsInfo.output(), TsInfoExec.Mode.FINAL);
+            return new TsInfoExec(tsInfo.source(), mappedChild, tsInfo.output(), tsInfo.output(), TsInfoExec.Mode.FINAL, tsInfo.limit());
+        }
+
+        // Into: two-phase WRITE (data nodes or coordinator) then MERGE_STATS (coordinator).
+        if (unary instanceof Into into) {
+            PhysicalPlan write = mappedChild instanceof FragmentExec
+                ? addExchangeForFragment(into, mappedChild)
+                : MapperUtils.mapIntoWrite(into, mappedChild);
+            return new IntoExec(into.source(), write, into.destination(), List.of(), into.output(), IntoExec.Mode.MERGE_STATS);
         }
 
         //
@@ -232,30 +250,30 @@ public class Mapper {
     }
 
     private PhysicalPlan mapBinary(BinaryPlan bp) {
-        if (bp instanceof InnerJoin innerJoin) {
+        if (bp instanceof HashJoin hashJoin) {
             PhysicalPlan left = mapInner(bp.left());
             PhysicalPlan right = mapInner(bp.right());
             if (right instanceof LocalSourceExec localData) {
-                var marker = newJoinMarker(innerJoin.source());
-                List<Attribute> addedFields = new ArrayList<>(innerJoin.addedFields());
+                var marker = newJoinMarker(hashJoin.source());
+                List<Attribute> addedFields = new ArrayList<>(hashJoin.addedFields());
                 addedFields.add(marker);
                 PhysicalPlan join = new HashJoinExec(
-                    innerJoin.source(),
+                    hashJoin.source(),
                     left,
                     localData,
-                    innerJoin.leftFields(),
-                    innerJoin.rightFields(),
+                    hashJoin.leftFields(),
+                    hashJoin.rightFields(),
                     addedFields
                 );
-                // inner join := left join where marker != null
-                join = new FilterExec(innerJoin.source(), join, new IsNotNull(innerJoin.source(), marker));
-                if (innerJoin.unique()) {
-                    // Guard: unique=true requires every build row to be matched at most once. The marker
-                    // is unique per build row, so a distinct-by on it alone detects duplicates independent
-                    // of the join key types and count.
-                    join = new DistinctByExec(innerJoin.source(), join, marker, true);
+                // `INNER` tells operator to filter out non-matched outputs
+                if (hashJoin.config().type() == JoinTypes.INNER) {
+                    join = new FilterExec(hashJoin.source(), join, new IsNotNull(hashJoin.source(), marker));
                 }
-                return new ProjectExec(innerJoin.source(), join, innerJoin.output());
+                if (hashJoin.unique()) {
+                    // `UNIQUE` tells operator to throw on duplicate matches
+                    join = new DistinctByExec(hashJoin.source(), join, marker, true);
+                }
+                return new ProjectExec(hashJoin.source(), join, hashJoin.output());
             }
             return MapperUtils.unsupported(bp);
         }
@@ -332,16 +350,38 @@ public class Mapper {
         // ComputeService.executePlan has trouble with executing plan without coordinator plan, adding exchange solves the issue
         int childSize = merge.children().size();
 
+        // BranchPlan carries metadata about which branches are view subplans vs bare index relations. View-branch
+        // fragments must not receive the raw Lucene esFilter (integrateEsFilterIntoFragment skips them); we mark
+        // them here so the distinction survives into the physical plan.
+        boolean isBranchPlan = merge instanceof BranchPlan;
+
         List<PhysicalPlan> newChildren = new ArrayList<>(childSize);
+        List<LogicalPlan> logicalChildren = merge.children();
+        BranchPlan vua = isBranchPlan ? (BranchPlan) merge : null;
+        // Use a positional list of keys so we can look up isViewBranch per child index.
+        List<String> viewKeys = isBranchPlan ? vua.namedSubqueries().keySet().stream().toList() : null;
+
         for (int i = 0; i < childSize; i++) {
-            PhysicalPlan child = mapInner(merge.children().get(i));
+            PhysicalPlan child = mapInner(logicalChildren.get(i));
+            if (isBranchPlan && vua.isViewBranch(viewKeys.get(i))) {
+                // Actual view branch: mark every FragmentExec in the subtree so integrateEsFilterIntoFragment skips them.
+                // Bare-index branches (key "main") and literal-subquery branches ("unnamed_view_<hash>") are excluded.
+                child = child.transformDown(FragmentExec.class, FragmentExec::asFromViewBranch);
+            }
             if (child instanceof FragmentExec) {
                 child = new ExchangeExec(child.source(), child);
             }
             newChildren.add(child);
         }
 
-        return new MergeExec(merge.source(), newChildren, merge.output());
+        // BranchPlan extends UnionAll, so it maps as UNION. A new MergePlan sibling fails here
+        // instead of inheriting UNION placement.
+        MergeExec.Kind kind = switch (merge) {
+            case Fork ignored -> MergeExec.Kind.FORK;
+            case UnionAll ignored -> MergeExec.Kind.UNION;
+            default -> throw new IllegalStateException("unexpected MergePlan subclass: " + merge.getClass().getName());
+        };
+        return new MergeExec(merge.source(), newChildren, merge.output(), kind);
     }
 
     /**

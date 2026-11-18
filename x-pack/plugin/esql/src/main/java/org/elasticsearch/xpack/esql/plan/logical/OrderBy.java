@@ -35,7 +35,8 @@ public class OrderBy extends UnaryPlan
         PostOptimizationPlanVerificationAware,
         TelemetryAware,
         SortAgnostic,
-        PipelineBreaker {
+        PipelineBreaker,
+        DocPreserving {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "OrderBy", OrderBy::new);
 
     private final List<Order> order;
@@ -150,6 +151,20 @@ public class OrderBy extends UnaryPlan
                                 UNBOUNDED_SORT_NOT_SUPPORTED_FOR_COMMAND_MESSAGE,
                                 "MV_EXPAND",
                                 mvExpand.sourceText(),
+                                orderBy.sourceText()
+                            )
+                        )
+                    );
+            } else if (p instanceof NestedExpand nestedExpand) {
+                nestedExpand.child()
+                    .forEachUp(
+                        OrderBy.class,
+                        orderBy -> failures.add(
+                            fail(
+                                nestedExpand,
+                                UNBOUNDED_SORT_NOT_SUPPORTED_FOR_COMMAND_MESSAGE,
+                                "NESTED_EXPAND",
+                                nestedExpand.sourceText(),
                                 orderBy.sourceText()
                             )
                         )

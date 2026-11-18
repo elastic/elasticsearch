@@ -14,6 +14,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.engine.InternalEngine;
@@ -203,7 +204,17 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
                     .source(new BytesArray("{\"payload\":\"" + randomAlphaOfLengthBetween(1, 100) + "\"}"), XContentType.JSON)
             );
         }
-        return IndexOperationBatch.initFromBulk(items, 0, docCount, null, Engine.Operation.Origin.PRIMARY, 1L, 0L);
+        return IndexOperationBatch.initFromBulk(
+            items,
+            0,
+            docCount,
+            null,
+            IndexMode.STANDARD,
+            Engine.Operation.Origin.PRIMARY,
+            1L,
+            0L,
+            null
+        );
     }
 
     public void testShardAdditionAndRemoval() throws IOException {
@@ -434,7 +445,7 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
         shard.markAsRecovering("store");
 
         assertEquals(1, imc.availableShards().size());
-        assertTrue(recoverFromStore(shard));
+        recoverFromStore(shard);
         assertThat("we should have flushed in IMC at least once", flushes.get(), greaterThanOrEqualTo(1));
         closeShards(shard);
     }

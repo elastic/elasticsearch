@@ -1,0 +1,3 @@
+FROM sample_data, (FROM nanos_view, (FROM mixed_view))
+| FORK (WHERE true) (WHERE true)
+| KEEP @timestamp

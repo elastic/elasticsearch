@@ -76,6 +76,13 @@ public class RestGetServiceAccountActionTests extends RestActionTestCase {
         );
     }
 
+    public void testProfileUidsAreAskedForOnlyWithTheParameter() {
+        assertFalse(dispatch("/_security/service/ns/svc", null).withProfileUid());
+        assertFalse(dispatchWithParams("/_security/service/ns/svc", Map.of("with_profile_uid", "false")).withProfileUid());
+        assertTrue(dispatchWithParams("/_security/service/ns/svc", Map.of("with_profile_uid", "true")).withProfileUid());
+        assertTrue(dispatchWithParams("/_security/service", Map.of("type", "user_managed", "with_profile_uid", "true")).withProfileUid());
+    }
+
     public void testEmptyTypeIsLeftForTheRequestToReject() {
         final GetServiceAccountRequest request = dispatch("/_security/service", "");
         assertThat(request.getType(), empty());
@@ -94,11 +101,15 @@ public class RestGetServiceAccountActionTests extends RestActionTestCase {
     }
 
     private GetServiceAccountRequest dispatch(String path, String type) {
+        return dispatchWithParams(path, type == null ? Map.of() : Map.of("type", type));
+    }
+
+    private GetServiceAccountRequest dispatchWithParams(String path, Map<String, String> params) {
         requestHolder.set(null);
         final FakeRestRequest.Builder builder = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withMethod(RestRequest.Method.GET)
             .withPath(path);
-        if (type != null) {
-            builder.withParams(Map.of("type", type));
+        if (params.isEmpty() == false) {
+            builder.withParams(params);
         }
         dispatchRequest(builder.build());
         final GetServiceAccountRequest request = requestHolder.get();

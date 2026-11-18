@@ -76,6 +76,11 @@ The `ignore_malformed` setting value can be updated on existing fields using the
 ::::
 
 
+::::{note}
+{applies_to}`stack: preview 9.6` {applies_to}`serverless: preview` In [columnar index modes](/reference/elasticsearch/columnar/index.md), malformed values are stored in the field's hidden `<field>._on_failure` column rather than a separate `._ignore_malformed` column, so they share one sidecar column with [`doc_values` constraint violations](/reference/elasticsearch/mapping-reference/doc-values.md#doc-values-on-failure-ignore). This applies regardless of the field's `on_failure` setting. The field name is still recorded in [`_ignored`](/reference/elasticsearch/mapping-reference/mapping-ignored-field.md). Columnar indices created before 9.6 keep reading and writing their existing `._ignore_malformed` column after upgrade.
+::::
+
+
 ## Index-level default [ignore-malformed-setting]
 
 The `index.mapping.ignore_malformed` setting can be set on the index level to ignore malformed content globally across all allowed mapping types. Mapping types that don’t support the setting will ignore it if set on the index level.

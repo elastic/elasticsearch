@@ -33,6 +33,7 @@ import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.swisshash.BytesRefSwissHash;
 import org.elasticsearch.swisshash.LongSwissHash;
 
 import java.util.ArrayList;
@@ -479,6 +480,9 @@ public class BlockHashTests extends BlockHashTestCase {
     }
 
     public void testBasicOrdinals() {
+        // 8 positions and a 4-entry dictionary: not dense (needs >= 10 positions), so BytesRefBlockHash
+        // hashes values in encounter order rather than dictionary order.
+        assertFalse(OrdinalBytesRefBlock.isDense(8, 4));
         try (
             IntVector.Builder ords = blockFactory.newIntVectorFixedBuilder(8);
             BytesRefVector.Builder bytes = blockFactory.newBytesRefVectorBuilder(8)
@@ -506,11 +510,229 @@ public class BlockHashTests extends BlockHashTestCase {
                 } else {
                     assertThat(ordsAndKeys.description(), startsWith("BytesRefBlockHash{channel=0, entries=4, size="));
                     assertThat(ordsAndKeys.description(), endsWith("b, seenNull=false}"));
-                    assertOrds(ordsAndKeys.ords(), 2, 1, 4, 2, 4, 1, 3, 4);
+                    assertOrds(ordsAndKeys.ords(), 1, 2, 3, 1, 3, 2, 4, 3);
+                    assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(1, 5)));
+                    assertKeys(ordsAndKeys.keys(), "item-2", "item-1", "item-4", "item-3");
+                }
+            }, new OrdinalBytesRefVector(ords.build(), bytes.build()).asBlock());
+        }
+    }
+
+    /**
+     * A dense ordinal vector still hashes the dictionary once, in dictionary order, even when the
+     * first row-seen value is not the first dictionary entry. Every dictionary entry is referenced,
+     * as in a dictionary built for the page.
+     */
+    public void testDenseOrdinalsHashDictionary() {
+        assertTrue(OrdinalBytesRefBlock.isDense(10, 4));
+        try (
+            IntVector.Builder ords = blockFactory.newIntVectorFixedBuilder(10);
+            BytesRefVector.Builder bytes = blockFactory.newBytesRefVectorBuilder(4)
+        ) {
+            // First-seen order is item-2, item-1, item-4, item-3 — not dictionary order.
+            ords.appendInt(1);
+            ords.appendInt(0);
+            ords.appendInt(3);
+            ords.appendInt(1);
+            ords.appendInt(3);
+            ords.appendInt(0);
+            ords.appendInt(2);
+            ords.appendInt(3);
+            ords.appendInt(0);
+            ords.appendInt(1);
+            bytes.appendBytesRef(new BytesRef("item-1"));
+            bytes.appendBytesRef(new BytesRef("item-2"));
+            bytes.appendBytesRef(new BytesRef("item-3"));
+            bytes.appendBytesRef(new BytesRef("item-4"));
+
+            hash(ordsAndKeys -> {
+                if (forcePackedHash) {
+                    assertThat(ordsAndKeys.description(), startsWith("PackedValuesBlockHash{groups=[0:BYTES_REF], entries=4, size="));
+                    assertThat(ordsAndKeys.description(), endsWith("b}"));
+                    assertOrds(ordsAndKeys.ords(), 0, 1, 2, 0, 2, 1, 3, 2, 1, 0);
+                    assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(0, 4)));
+                    assertKeys(ordsAndKeys.keys(), "item-2", "item-1", "item-4", "item-3");
+                } else {
+                    assertThat(ordsAndKeys.description(), startsWith("BytesRefBlockHash{channel=0, entries=4, size="));
+                    assertThat(ordsAndKeys.description(), endsWith("b, seenNull=false}"));
+                    assertOrds(ordsAndKeys.ords(), 2, 1, 4, 2, 4, 1, 3, 4, 1, 2);
                     assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(1, 5)));
                     assertKeys(ordsAndKeys.keys(), "item-1", "item-2", "item-3", "item-4");
                 }
             }, new OrdinalBytesRefVector(ords.build(), bytes.build()).asBlock());
+        }
+    }
+
+    /**
+     * A dense ordinal vector whose dictionary has entries no position references, as after a slice
+     * or with a dictionary shared across pages. Those entries must not become groups. The referenced
+     * entries are still hashed once, in dictionary order rather than first-seen order.
+     */
+    public void testDenseOrdinalsSkipUnreferencedDictionaryEntries() {
+        assertTrue(OrdinalBytesRefBlock.isDense(10, 4));
+        try (
+            IntVector.Builder ords = blockFactory.newIntVectorFixedBuilder(10);
+            BytesRefVector.Builder bytes = blockFactory.newBytesRefVectorBuilder(4)
+        ) {
+            // Dictionary order is ghost, a, b, unused. First-seen order is b, a.
+            for (int i = 0; i < 5; i++) {
+                ords.appendInt(2);
+                ords.appendInt(1);
+            }
+            bytes.appendBytesRef(new BytesRef("ghost"));
+            bytes.appendBytesRef(new BytesRef("a"));
+            bytes.appendBytesRef(new BytesRef("b"));
+            bytes.appendBytesRef(new BytesRef("unused"));
+
+            hash(ordsAndKeys -> {
+                if (forcePackedHash) {
+                    assertThat(ordsAndKeys.description(), startsWith("PackedValuesBlockHash{groups=[0:BYTES_REF], entries=2, size="));
+                    assertThat(ordsAndKeys.description(), endsWith("b}"));
+                    assertOrds(ordsAndKeys.ords(), 0, 1, 0, 1, 0, 1, 0, 1, 0, 1);
+                    assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(0, 2)));
+                    assertKeys(ordsAndKeys.keys(), "b", "a");
+                } else {
+                    assertThat(ordsAndKeys.description(), startsWith("BytesRefBlockHash{channel=0, entries=2, size="));
+                    assertThat(ordsAndKeys.description(), endsWith("b, seenNull=false}"));
+                    assertOrds(ordsAndKeys.ords(), 2, 1, 2, 1, 2, 1, 2, 1, 2, 1);
+                    assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(1, 3)));
+                    assertKeys(ordsAndKeys.keys(), "a", "b");
+                }
+            }, new OrdinalBytesRefVector(ords.build(), bytes.build()).asBlock());
+        }
+    }
+
+    /**
+     * A page whose dictionary is the whole row group (far larger than the page) must not insert
+     * dictionary entries the page never references.
+     */
+    public void testSparseOrdinalsDoNotHashUnreferencedDictionaryEntries() {
+        int positions = 10;
+        int dictionarySize = 20;
+        assertFalse(OrdinalBytesRefBlock.isDense(positions, dictionarySize));
+        try (
+            IntVector.Builder ords = blockFactory.newIntVectorFixedBuilder(positions);
+            BytesRefVector.Builder bytes = blockFactory.newBytesRefVectorBuilder(dictionarySize)
+        ) {
+            // Referenced ordinals, first-seen order d5, d1, d8. The other 17 entries are unused.
+            int[] used = { 5, 1, 5, 8, 1, 5, 8, 1, 5, 8 };
+            for (int ord : used) {
+                ords.appendInt(ord);
+            }
+            for (int i = 0; i < dictionarySize; i++) {
+                bytes.appendBytesRef(new BytesRef("d" + i));
+            }
+
+            hash(ordsAndKeys -> {
+                if (forcePackedHash) {
+                    assertThat(ordsAndKeys.description(), startsWith("PackedValuesBlockHash{groups=[0:BYTES_REF], entries=3, size="));
+                    assertThat(ordsAndKeys.description(), endsWith("b}"));
+                    assertOrds(ordsAndKeys.ords(), 0, 1, 0, 2, 1, 0, 2, 1, 0, 2);
+                    assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(0, 3)));
+                } else {
+                    assertThat(ordsAndKeys.description(), startsWith("BytesRefBlockHash{channel=0, entries=3, size="));
+                    assertThat(ordsAndKeys.description(), endsWith("b, seenNull=false}"));
+                    assertOrds(ordsAndKeys.ords(), 1, 2, 1, 3, 2, 1, 3, 2, 1, 3);
+                    assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(1, 4)));
+                }
+                assertKeys(ordsAndKeys.keys(), "d5", "d1", "d8");
+            }, new OrdinalBytesRefVector(ords.build(), bytes.build()).asBlock());
+        }
+    }
+
+    /**
+     * A nullable page is an {@link OrdinalBytesRefBlock}, not a vector. When the row-group dictionary
+     * is larger than the page, only values the page actually contains become groups.
+     */
+    public void testSparseOrdinalBlockWithNullDoesNotHashUnreferencedDictionaryEntries() {
+        // Dictionary is ghost, b, a, then three more unused entries. First-seen order is a, b.
+        // 10 non-null values: isDense fails on the ratio, not on the >= 10 minimum.
+        try (
+            IntBlock.Builder ords = blockFactory.newIntBlockBuilder(11);
+            BytesRefVector.Builder bytes = blockFactory.newBytesRefVectorBuilder(6)
+        ) {
+            ords.appendInt(2);
+            ords.appendInt(1);
+            ords.appendInt(2);
+            ords.appendInt(1);
+            ords.appendInt(2);
+            ords.appendInt(1);
+            ords.appendInt(2);
+            ords.appendInt(1);
+            ords.appendInt(2);
+            ords.appendInt(1);
+            ords.appendNull();
+            bytes.appendBytesRef(new BytesRef("ghost"));
+            bytes.appendBytesRef(new BytesRef("b"));
+            bytes.appendBytesRef(new BytesRef("a"));
+            bytes.appendBytesRef(new BytesRef("unused-1"));
+            bytes.appendBytesRef(new BytesRef("unused-2"));
+            bytes.appendBytesRef(new BytesRef("unused-3"));
+            OrdinalBytesRefBlock block = new OrdinalBytesRefBlock(ords.build(), bytes.build());
+            assertNull(block.asVector());
+            assertFalse(block.isDense());
+
+            hash(ordsAndKeys -> {
+                if (forcePackedHash) {
+                    assertThat(ordsAndKeys.description(), startsWith("PackedValuesBlockHash{groups=[0:BYTES_REF], entries=3, size="));
+                    assertThat(ordsAndKeys.description(), endsWith("b}"));
+                    assertOrds(ordsAndKeys.ords(), 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 2);
+                    assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(0, 3)));
+                    assertKeys(ordsAndKeys.keys(), "a", "b", null);
+                } else {
+                    assertThat(ordsAndKeys.description(), startsWith("BytesRefBlockHash{channel=0, entries=2, size="));
+                    assertThat(ordsAndKeys.description(), endsWith("b, seenNull=true}"));
+                    assertOrds(ordsAndKeys.ords(), 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 0);
+                    assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(0, 3)));
+                    assertKeys(ordsAndKeys.keys(), null, "a", "b");
+                }
+            }, block);
+        }
+    }
+
+    /**
+     * A dense nullable ordinal block hashes each referenced dictionary entry once, in dictionary
+     * order rather than first-seen order. An entry no row references must not become a group.
+     */
+    public void testDenseOrdinalBlockSkipsUnreferencedDictionaryEntries() {
+        // Dictionary order is ghost, a, b. First-seen order is b, a. One null keeps this a block.
+        try (
+            IntBlock.Builder ords = blockFactory.newIntBlockBuilder(11);
+            BytesRefVector.Builder bytes = blockFactory.newBytesRefVectorBuilder(3)
+        ) {
+            ords.appendInt(2);
+            ords.appendInt(1);
+            ords.appendInt(2);
+            ords.appendInt(1);
+            ords.appendInt(2);
+            ords.appendInt(1);
+            ords.appendInt(2);
+            ords.appendInt(1);
+            ords.appendInt(2);
+            ords.appendInt(1);
+            ords.appendNull();
+            bytes.appendBytesRef(new BytesRef("ghost"));
+            bytes.appendBytesRef(new BytesRef("a"));
+            bytes.appendBytesRef(new BytesRef("b"));
+            OrdinalBytesRefBlock block = new OrdinalBytesRefBlock(ords.build(), bytes.build());
+            assertNull(block.asVector());
+            assertTrue(block.isDense());
+
+            hash(ordsAndKeys -> {
+                if (forcePackedHash) {
+                    assertThat(ordsAndKeys.description(), startsWith("PackedValuesBlockHash{groups=[0:BYTES_REF], entries=3, size="));
+                    assertThat(ordsAndKeys.description(), endsWith("b}"));
+                    assertOrds(ordsAndKeys.ords(), 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 2);
+                    assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(0, 3)));
+                    assertKeys(ordsAndKeys.keys(), "b", "a", null);
+                } else {
+                    assertThat(ordsAndKeys.description(), startsWith("BytesRefBlockHash{channel=0, entries=2, size="));
+                    assertThat(ordsAndKeys.description(), endsWith("b, seenNull=true}"));
+                    assertOrds(ordsAndKeys.ords(), 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 0);
+                    assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(0, 3)));
+                    assertKeys(ordsAndKeys.keys(), null, "a", "b");
+                }
+            }, block);
         }
     }
 
@@ -571,6 +793,9 @@ public class BlockHashTests extends BlockHashTestCase {
             bytes.appendBytesRef(new BytesRef("foo"));
             bytes.appendBytesRef(new BytesRef("bar"));
             bytes.appendBytesRef(new BytesRef("bort"));
+            OrdinalBytesRefBlock block = new OrdinalBytesRefBlock(ords.build(), bytes.build());
+            // Dense, so the multivalued positions go through the dictionary rather than per-value hashing.
+            assertTrue(block.isDense());
 
             hash(ordsAndKeys -> {
                 if (forcePackedHash) {
@@ -601,7 +826,134 @@ public class BlockHashTests extends BlockHashTestCase {
                     assertKeys(ordsAndKeys.keys(), null, "foo", "bar", "bort");
                 }
                 assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(0, 4)));
-            }, new OrdinalBytesRefBlock(ords.build(), bytes.build()));
+            }, block);
+        }
+    }
+
+    /**
+     * A dense multivalued ordinal block whose dictionary has an entry no position references. The
+     * entry must not become a group, and an entry referenced only as a later value of a multivalued
+     * position ("c") must still get its own group rather than being filed under null.
+     */
+    public void testDenseMultiValuedOrdinalsSkipUnreferencedDictionaryEntries() {
+        try (
+            IntBlock.Builder ords = blockFactory.newIntBlockBuilder(8);
+            BytesRefVector.Builder bytes = blockFactory.newBytesRefVectorBuilder(4)
+        ) {
+            ords.appendInt(1);
+            ords.beginPositionEntry();
+            ords.appendInt(1);
+            ords.appendInt(3);
+            ords.endPositionEntry();
+            ords.beginPositionEntry();
+            ords.appendInt(2);
+            ords.appendInt(3);
+            ords.endPositionEntry();
+            ords.appendInt(2);
+            ords.appendNull();
+            ords.beginPositionEntry();
+            ords.appendInt(1);
+            ords.appendInt(2);
+            ords.appendInt(2);
+            ords.endPositionEntry();
+            ords.appendInt(1);
+            ords.appendInt(2);
+
+            bytes.appendBytesRef(new BytesRef("ghost"));
+            bytes.appendBytesRef(new BytesRef("a"));
+            bytes.appendBytesRef(new BytesRef("b"));
+            bytes.appendBytesRef(new BytesRef("c"));
+            OrdinalBytesRefBlock block = new OrdinalBytesRefBlock(ords.build(), bytes.build());
+            assertTrue(block.isDense());
+
+            hash(ordsAndKeys -> {
+                if (forcePackedHash) {
+                    assertThat(ordsAndKeys.description(), startsWith("PackedValuesBlockHash{groups=[0:BYTES_REF], entries=4, size="));
+                    assertThat(ordsAndKeys.description(), endsWith("b}"));
+                    assertOrds(
+                        ordsAndKeys.ords(),
+                        new int[] { 0 },
+                        new int[] { 0, 1 },
+                        new int[] { 2, 1 },
+                        new int[] { 2 },
+                        new int[] { 3 },
+                        new int[] { 0, 2 },
+                        new int[] { 0 },
+                        new int[] { 2 }
+                    );
+                    assertKeys(ordsAndKeys.keys(), "a", "c", "b", null);
+                } else {
+                    assertThat(ordsAndKeys.description(), startsWith("BytesRefBlockHash{channel=0, entries=3, size="));
+                    assertThat(ordsAndKeys.description(), endsWith("b, seenNull=true}"));
+                    assertOrds(
+                        ordsAndKeys.ords(),
+                        new int[] { 1 },
+                        new int[] { 1, 3 },
+                        new int[] { 2, 3 },
+                        new int[] { 2 },
+                        new int[] { 0 },
+                        new int[] { 1, 2 },
+                        new int[] { 1 },
+                        new int[] { 2 }
+                    );
+                    assertKeys(ordsAndKeys.keys(), null, "a", "b", "c");
+                }
+                assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(0, 4)));
+            }, block);
+        }
+    }
+
+    /**
+     * Dense ordinal pages added to a hash that an earlier page already filled past the prefetch
+     * threshold, so hashing a fully referenced dictionary takes the batched prefetch path while a
+     * partly referenced one is hashed entry by entry. Both must resolve to the groups the first page
+     * created and must not add a group for the unreferenced entry.
+     */
+    public void testDenseOrdinalsOnPrefetchingHash() {
+        assumeFalse("the packed hash has no ordinals path", forcePackedHash);
+        BytesRefSwissHash.PREFETCH_THRESHOLD = between(1, 1024);
+        int distinct = between(2_000, 8_000); // exceeds the small-core capacity so a big core (and the prefetch path) forms
+        int dictionarySize = between(3, 200);
+        try (BlockHash hash = new BytesRefBlockHash(0, blockFactory)) {
+            try (BytesRefVector.Builder values = blockFactory.newBytesRefVectorBuilder(distinct)) {
+                for (int i = 0; i < distinct; i++) {
+                    values.appendBytesRef(new BytesRef("v" + i));
+                }
+                try (BytesRefBlock block = values.build().asBlock()) {
+                    // value i is first seen at position i, so it resolves to group i + 1
+                    hash(false, hash, ordsAndKeys -> {}, block);
+                }
+            }
+            for (boolean allReferenced : new boolean[] { true, false }) {
+                // Dictionary entry d holds the value of group d + 1. When not all are referenced, entry 0 is left out.
+                int firstReferenced = allReferenced ? 0 : 1;
+                int referencedCount = dictionarySize - firstReferenced;
+                int positions = Math.max(10, 2 * dictionarySize) + between(0, 100);
+                try (
+                    IntVector.Builder ords = blockFactory.newIntVectorFixedBuilder(positions);
+                    BytesRefVector.Builder bytes = blockFactory.newBytesRefVectorBuilder(dictionarySize)
+                ) {
+                    for (int p = 0; p < positions; p++) {
+                        ords.appendInt(firstReferenced + p % referencedCount);
+                    }
+                    for (int d = 0; d < dictionarySize; d++) {
+                        bytes.appendBytesRef(new BytesRef("v" + d));
+                    }
+                    OrdinalBytesRefVector vector = new OrdinalBytesRefVector(ords.build(), bytes.build());
+                    try (BytesRefBlock block = vector.asBlock()) {
+                        assertTrue(vector.isDense());
+                        hash(false, hash, ordsAndKeys -> {
+                            IntBlock groupIds = ordsAndKeys.ords();
+                            for (int p = 0; p < positions; p++) {
+                                assertThat(groupIds.getInt(p), equalTo(firstReferenced + p % referencedCount + 1));
+                            }
+                        }, block);
+                    }
+                }
+                try (IntVector nonEmpty = hash.nonEmpty()) {
+                    assertThat(nonEmpty.getPositionCount(), equalTo(distinct));
+                }
+            }
         }
     }
 
@@ -1093,10 +1445,9 @@ public class BlockHashTests extends BlockHashTestCase {
                     startsWith(
                         forcePackedHash
                             ? "PackedValuesBlockHash{groups=[0:LONG, 1:BYTES_REF], entries=4, size="
-                            : "Adaptive{BytesRefLongBlockHash{keys=[BytesRefKey[channel=1], LongKey[channel=0]], entries=4, size="
+                            : "LongBytesRefBlockHash{keys=[LongKey[channel=0], BytesRefKey[channel=1]], entries=4, size="
                     )
                 );
-                assertThat(ordsAndKeys.description(), endsWith(forcePackedHash ? "b}" : "b}}"));
                 assertOrds(ordsAndKeys.ords(), 0, 1, 0, 2, 3, 2);
                 assertKeys(ordsAndKeys.keys(), expectedKeys);
                 assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(0, 4)));
@@ -1123,10 +1474,9 @@ public class BlockHashTests extends BlockHashTestCase {
                     startsWith(
                         forcePackedHash
                             ? "PackedValuesBlockHash{groups=[0:LONG, 1:BYTES_REF], entries=5, size="
-                            : "Adaptive{PackedValuesBlockHash{groups=[0:LONG, 1:BYTES_REF], entries=5, size="
+                            : "LongBytesRefBlockHash{keys=[LongKey[channel=0], BytesRefKey[channel=1]], entries=5, size="
                     )
                 );
-                assertThat(ordsAndKeys.description(), endsWith(forcePackedHash ? "b}" : "b}}"));
                 assertOrds(ordsAndKeys.ords(), 0, 1, 2, 3, 4);
                 assertKeys(
                     ordsAndKeys.keys(),
@@ -1198,10 +1548,9 @@ public class BlockHashTests extends BlockHashTestCase {
                     startsWith(
                         forcePackedHash
                             ? "PackedValuesBlockHash{groups=[0:LONG, 1:BYTES_REF], entries=10, size="
-                            : "Adaptive{PackedValuesBlockHash{groups=[0:LONG, 1:BYTES_REF], entries=10, size="
+                            : "LongBytesRefBlockHash{keys=[LongKey[channel=0], BytesRefKey[channel=1]], entries=10, size="
                     )
                 );
-                assertThat(ordsAndKeys.description(), endsWith(forcePackedHash ? "b}" : "b}}"));
                 assertOrds(
                     ordsAndKeys.ords(),
                     new int[] { 0, 1, 2, 3 },
@@ -1254,7 +1603,9 @@ public class BlockHashTests extends BlockHashTestCase {
                     startsWith(
                         forcePackedHash
                             ? "PackedValuesBlockHash{groups=[0:LONG, 1:BYTES_REF], entries=" + expectedEntries[0] + ", size="
-                            : "Adaptive{PackedValuesBlockHash{groups=[0:LONG, 1:BYTES_REF], entries=" + expectedEntries[0] + ", size="
+                            : "LongBytesRefBlockHash{keys=[LongKey[channel=0], BytesRefKey[channel=1]], entries="
+                                + expectedEntries[0]
+                                + ", size="
                     )
                 );
                 assertOrds(ordsAndKeys.ords(), IntStream.range(start, expectedEntries[0]).toArray());
@@ -1269,308 +1620,6 @@ public class BlockHashTests extends BlockHashTestCase {
 
             assertThat("misconfigured test", expectedEntries[0], greaterThan(0));
         }
-    }
-
-    /**
-     * Drive the {@link LongBytesRefAdaptiveBlockHash} through a vector page first, then a block page
-     * with both nulls and multivalues, then another vector page that re-uses an old key. Verifies that:
-     * <ul>
-     *   <li>group ids assigned on the vector page survive the migration to {@link PackedValuesBlockHash};</li>
-     *   <li>null/MV groups are correctly enumerated post-migration (the broken behavior {@code #99434}
-     *       guarded against was dropping null-keyed rows and never forming {@code (null, x)}/{@code (x, null)} groups);</li>
-     *   <li>a re-occurrence of an old key on a later page maps to the same group id as before.</li>
-     * </ul>
-     */
-    public void testLongBytesRefHashMidStreamMigrationToPacked() {
-        if (forcePackedHash) {
-            // Nothing to migrate: both inputs go to PackedValuesBlockHash from the start.
-            // The general null/MV correctness for that path is exercised by the other tests above.
-            return;
-        }
-        // Page 1: pure vectors. The adaptive hash uses its dict-aware fast path. Two groups: (1L,"a"), (2L,"b").
-        try (
-            LongBlock.Builder b1a = blockFactory.newLongBlockBuilder(2);
-            BytesRefBlock.Builder b2a = blockFactory.newBytesRefBlockBuilder(2)
-        ) {
-            append(b1a, b2a, new long[] { 1 }, new String[] { "a" });
-            append(b1a, b2a, new long[] { 2 }, new String[] { "b" });
-            // Page 2: a null key + an MV key. Forces migration to PackedValuesBlockHash.
-            // null group: (null, "z"); MV: (1L,"a"), (1L,"b"), (3L,"a"), (3L,"b") — the last two are new.
-            try (
-                LongBlock.Builder b1b = blockFactory.newLongBlockBuilder(2);
-                BytesRefBlock.Builder b2b = blockFactory.newBytesRefBlockBuilder(2)
-            ) {
-                append(b1b, b2b, null, new String[] { "z" });
-                append(b1b, b2b, new long[] { 1, 3 }, new String[] { "a", "b" });
-                // Page 3: vector again, re-uses the old (1L,"a") key (must keep its old ord).
-                try (
-                    LongBlock.Builder b1c = blockFactory.newLongBlockBuilder(1);
-                    BytesRefBlock.Builder b2c = blockFactory.newBytesRefBlockBuilder(1)
-                ) {
-                    append(b1c, b2c, new long[] { 1 }, new String[] { "a" });
-
-                    Block[] page1 = Block.Builder.buildAll(b1a, b2a);
-                    Block[] page2 = Block.Builder.buildAll(b1b, b2b);
-                    Block[] page3 = Block.Builder.buildAll(b1c, b2c);
-                    try (
-                        BlockHash hash = BlockHash.build(
-                            List.of(new BlockHash.GroupSpec(0, ElementType.LONG), new BlockHash.GroupSpec(1, ElementType.BYTES_REF)),
-                            blockFactory,
-                            16 * 1024,
-                            true
-                        )
-                    ) {
-                        // Page 1: vector path; expect ords (0, 1).
-                        List<Integer> ords1 = collectOrds(hash, page1);
-                        assertThat(ords1, equalTo(List.of(0, 1)));
-                        assertThat(hash.toString(), startsWith("Adaptive{BytesRefLongBlockHash{"));
-
-                        // Page 2: triggers migration. Existing groups (1L,"a")=0, (2L,"b")=1 stay put.
-                        // New groups: 2 = (null,"z"); 3 = (1L,"b") (cross), 4 = (3L,"a"), 5 = (3L,"b").
-                        // (1L,"a"=0) is reused for the (1L,"a") corner of the cross product.
-                        // For position 1, the (1L,"a"),(1L,"b"),(3L,"a"),(3L,"b") combos may emit in
-                        // PackedValues iteration order (long-outer, bytes-inner), so we just collect the set.
-                        List<List<Integer>> ords2 = collectOrdsByPosition(hash, page2);
-                        assertThat(hash.toString(), startsWith("Adaptive{PackedValuesBlockHash{"));
-                        // Position 0: (null, "z") -> a single ord (the null group). Distinct from prior groups.
-                        assertThat("position 0 single value", ords2.get(0).size(), equalTo(1));
-                        int nullGroupOrd = ords2.get(0).get(0);
-                        assertThat(nullGroupOrd, greaterThan(1));
-                        // Position 1: (1,a),(1,b),(3,a),(3,b) -> 4 groups; (1L,"a") must be 0 (preserved).
-                        assertThat(ords2.get(1).size(), equalTo(4));
-                        assertThat("(1L, a) keeps its ord", ords2.get(1).contains(0), equalTo(true));
-
-                        // Page 3: re-add (1L, "a") and verify the same ord as page 1.
-                        List<Integer> ords3 = collectOrds(hash, page3);
-                        assertThat(ords3, equalTo(List.of(0)));
-
-                        // Final group set: (1,a)=0, (2,b)=1, plus the four added on page 2 -> 6 total.
-                        assertThat(hash.numKeys(), equalTo(6));
-                        try (IntVector nonEmpty = hash.nonEmpty()) {
-                            assertThat(nonEmpty.getPositionCount(), equalTo(6));
-                            Block[] keys = hash.getKeys(nonEmpty);
-                            try {
-                                LongBlock kLong = (LongBlock) keys[0];
-                                BytesRefBlock kBytes = (BytesRefBlock) keys[1];
-                                BytesRef scratch = new BytesRef();
-                                Set<List<Object>> got = new HashSet<>();
-                                for (int p = 0; p < 6; p++) {
-                                    Object lv = kLong.isNull(p) ? null : kLong.getLong(p);
-                                    Object bv = kBytes.isNull(p) ? null : kBytes.getBytesRef(p, scratch).utf8ToString();
-                                    got.add(List.of(lv == null ? "_NULL_" : lv, bv == null ? "_NULL_" : bv));
-                                }
-                                assertThat(
-                                    got,
-                                    equalTo(
-                                        Set.of(
-                                            List.of(1L, "a"),
-                                            List.of(2L, "b"),
-                                            List.of("_NULL_", "z"),
-                                            List.of(1L, "b"),
-                                            List.of(3L, "a"),
-                                            List.of(3L, "b")
-                                        )
-                                    )
-                                );
-                            } finally {
-                                Releasables.closeExpectNoException(keys);
-                            }
-                        }
-                    } finally {
-                        Releasables.closeExpectNoException(Releasables.wrap(page1), Releasables.wrap(page2), Releasables.wrap(page3));
-                    }
-                }
-            }
-        }
-    }
-
-    /**
-     * Mirror of {@link #testLongBytesRefHashMidStreamMigrationToPacked} for the swapped key order
-     * {@code (BYTES_REF, LONG)}. Specifically exercises the hand-written
-     * {@code reverseOutput == true} branch in
-     * {@link LongBytesRefAdaptiveBlockHash.BytesRefLongVectorOnlyBlockHash#migrateToPackedHash()}:
-     * if the byte-layout swap were wrong, migrated keys would collide with each other or with
-     * pre-migration keys, breaking the ord-stability invariant asserted below.
-     */
-    public void testBytesRefLongHashMidStreamMigrationToPacked() {
-        if (forcePackedHash) {
-            return;
-        }
-        try (
-            LongBlock.Builder b1a = blockFactory.newLongBlockBuilder(2);
-            BytesRefBlock.Builder b2a = blockFactory.newBytesRefBlockBuilder(2)
-        ) {
-            append(b1a, b2a, new long[] { 1 }, new String[] { "a" });
-            append(b1a, b2a, new long[] { 2 }, new String[] { "b" });
-            try (
-                LongBlock.Builder b1b = blockFactory.newLongBlockBuilder(2);
-                BytesRefBlock.Builder b2b = blockFactory.newBytesRefBlockBuilder(2)
-            ) {
-                append(b1b, b2b, null, new String[] { "z" });
-                append(b1b, b2b, new long[] { 1, 3 }, new String[] { "a", "b" });
-                try (
-                    LongBlock.Builder b1c = blockFactory.newLongBlockBuilder(1);
-                    BytesRefBlock.Builder b2c = blockFactory.newBytesRefBlockBuilder(1)
-                ) {
-                    append(b1c, b2c, new long[] { 1 }, new String[] { "a" });
-
-                    Block[] longsPage1 = Block.Builder.buildAll(b1a, b2a);
-                    Block[] longsPage2 = Block.Builder.buildAll(b1b, b2b);
-                    Block[] longsPage3 = Block.Builder.buildAll(b1c, b2c);
-                    // Reverse shape: bytes are channel 0, longs are channel 1. Page columns are [bytes, long].
-                    Block[] page1 = new Block[] { longsPage1[1], longsPage1[0] };
-                    Block[] page2 = new Block[] { longsPage2[1], longsPage2[0] };
-                    Block[] page3 = new Block[] { longsPage3[1], longsPage3[0] };
-                    try (
-                        BlockHash hash = BlockHash.build(
-                            List.of(new BlockHash.GroupSpec(0, ElementType.BYTES_REF), new BlockHash.GroupSpec(1, ElementType.LONG)),
-                            blockFactory,
-                            16 * 1024,
-                            true
-                        )
-                    ) {
-                        List<Integer> ords1 = collectOrds(hash, page1);
-                        assertThat(ords1, equalTo(List.of(0, 1)));
-                        assertThat(hash.toString(), startsWith("Adaptive{BytesRefLongBlockHash{"));
-
-                        List<List<Integer>> ords2 = collectOrdsByPosition(hash, page2);
-                        assertThat(hash.toString(), startsWith("Adaptive{PackedValuesBlockHash{"));
-                        assertThat("position 0 single value", ords2.get(0).size(), equalTo(1));
-                        int nullGroupOrd = ords2.get(0).get(0);
-                        assertThat(nullGroupOrd, greaterThan(1));
-                        assertThat(ords2.get(1).size(), equalTo(4));
-                        assertThat("(a, 1L) keeps its ord", ords2.get(1).contains(0), equalTo(true));
-
-                        List<Integer> ords3 = collectOrds(hash, page3);
-                        assertThat(ords3, equalTo(List.of(0)));
-
-                        assertThat(hash.numKeys(), equalTo(6));
-                        try (IntVector nonEmpty = hash.nonEmpty()) {
-                            assertThat(nonEmpty.getPositionCount(), equalTo(6));
-                            Block[] keys = hash.getKeys(nonEmpty);
-                            try {
-                                BytesRefBlock kBytes = (BytesRefBlock) keys[0];
-                                LongBlock kLong = (LongBlock) keys[1];
-                                BytesRef scratch = new BytesRef();
-                                Set<List<Object>> got = new HashSet<>();
-                                for (int p = 0; p < 6; p++) {
-                                    Object bv = kBytes.isNull(p) ? null : kBytes.getBytesRef(p, scratch).utf8ToString();
-                                    Object lv = kLong.isNull(p) ? null : kLong.getLong(p);
-                                    got.add(List.of(bv == null ? "_NULL_" : bv, lv == null ? "_NULL_" : lv));
-                                }
-                                assertThat(
-                                    got,
-                                    equalTo(
-                                        Set.of(
-                                            List.of("a", 1L),
-                                            List.of("b", 2L),
-                                            List.of("z", "_NULL_"),
-                                            List.of("b", 1L),
-                                            List.of("a", 3L),
-                                            List.of("b", 3L)
-                                        )
-                                    )
-                                );
-                            } finally {
-                                Releasables.closeExpectNoException(keys);
-                            }
-                        }
-                    } finally {
-                        Releasables.closeExpectNoException(
-                            Releasables.wrap(longsPage1),
-                            Releasables.wrap(longsPage2),
-                            Releasables.wrap(longsPage3)
-                        );
-                    }
-                }
-            }
-        }
-    }
-
-    /**
-     * Collects all group ids emitted by {@link BlockHash#add} into a single flat list, in the order
-     * the hash emitted them. Used by {@link #testLongBytesRefHashMidStreamMigrationToPacked}.
-     */
-    private List<Integer> collectOrds(BlockHash hash, Block[] page) {
-        List<Integer> out = new ArrayList<>();
-        hash.add(new Page(page), new GroupingAggregatorFunction.AddInput() {
-            @Override
-            public void add(int positionOffset, IntVector groupIds) {
-                for (int i = 0; i < groupIds.getPositionCount(); i++) {
-                    out.add(groupIds.getInt(i));
-                }
-            }
-
-            @Override
-            public void add(int positionOffset, IntArrayBlock groupIds) {
-                addBlock(groupIds);
-            }
-
-            @Override
-            public void add(int positionOffset, IntBigArrayBlock groupIds) {
-                addBlock(groupIds);
-            }
-
-            private void addBlock(IntBlock groupIds) {
-                for (int p = 0; p < groupIds.getPositionCount(); p++) {
-                    int start = groupIds.getFirstValueIndex(p);
-                    int end = start + groupIds.getValueCount(p);
-                    for (int i = start; i < end; i++) {
-                        out.add(groupIds.getInt(i));
-                    }
-                }
-            }
-
-            @Override
-            public void close() {}
-        });
-        return out;
-    }
-
-    /**
-     * Like {@link #collectOrds} but groups the emitted ords by input position. Multivalued positions
-     * yield a list of size > 1; null positions yield an empty list.
-     */
-    private List<List<Integer>> collectOrdsByPosition(BlockHash hash, Block[] page) {
-        List<List<Integer>> out = new ArrayList<>();
-        hash.add(new Page(page), new GroupingAggregatorFunction.AddInput() {
-            @Override
-            public void add(int positionOffset, IntVector groupIds) {
-                for (int i = 0; i < groupIds.getPositionCount(); i++) {
-                    out.add(List.of(groupIds.getInt(i)));
-                }
-            }
-
-            @Override
-            public void add(int positionOffset, IntArrayBlock groupIds) {
-                addBlock(groupIds);
-            }
-
-            @Override
-            public void add(int positionOffset, IntBigArrayBlock groupIds) {
-                addBlock(groupIds);
-            }
-
-            private void addBlock(IntBlock groupIds) {
-                for (int p = 0; p < groupIds.getPositionCount(); p++) {
-                    if (groupIds.isNull(p)) {
-                        out.add(List.of());
-                        continue;
-                    }
-                    int start = groupIds.getFirstValueIndex(p);
-                    int end = start + groupIds.getValueCount(p);
-                    List<Integer> at = new ArrayList<>(end - start);
-                    for (int i = start; i < end; i++) {
-                        at.add(groupIds.getInt(i));
-                    }
-                    out.add(at);
-                }
-            }
-
-            @Override
-            public void close() {}
-        });
-        return out;
     }
 
     public void testLongNull() {
@@ -2210,6 +2259,51 @@ public class BlockHashTests extends BlockHashTestCase {
         }
     }
 
+    /**
+     * Regression for #164417: emitted full-dictionary keys must not share the hash's mutable
+     * {@code BytesRefArray}, since clearing the hash after a regular partial flush truncates it
+     * before downstream operators have necessarily consumed those keys.
+     */
+    public void testTimeSeriesBlockHashKeysSurviveHashClear() {
+        BytesRef tsidA = new BytesRef("id-a");
+        BytesRef tsidB = new BytesRef("id-b");
+        TimeSeriesBlockHash hash = new TimeSeriesBlockHash(0, 1, false, false, blockFactory);
+        Block[] keys = null;
+        try {
+            addSingleTsidRow(hash, tsidA, 1L);
+            addSingleTsidRow(hash, tsidB, 2L);
+            addSingleTsidRow(hash, tsidA, 3L);
+            try (IntVector selected = blockFactory.newIntRangeVector(0, 3)) {
+                keys = hash.getKeys(selected);
+            }
+            BytesRefBlock tsids = (BytesRefBlock) keys[0];
+            BytesRef scratch = new BytesRef();
+            assertThat(tsids.getBytesRef(0, scratch), equalTo(tsidA));
+            assertThat(tsids.getBytesRef(1, scratch), equalTo(tsidB));
+            assertThat(tsids.getBytesRef(2, scratch), equalTo(tsidA));
+
+            hash.clear();
+
+            assertThat(tsids.getBytesRef(0, scratch), equalTo(tsidA));
+            assertThat(tsids.getBytesRef(1, scratch), equalTo(tsidB));
+            assertThat(tsids.getBytesRef(2, scratch), equalTo(tsidA));
+
+            BytesRef tsidC = new BytesRef("id-c");
+            addSingleTsidRow(hash, tsidC, 4L);
+            try (IntVector selected = blockFactory.newIntRangeVector(0, 1)) {
+                Block[] nextKeys = hash.getKeys(selected);
+                try {
+                    assertThat(((BytesRefBlock) nextKeys[0]).getBytesRef(0, scratch), equalTo(tsidC));
+                } finally {
+                    Releasables.close(nextKeys);
+                }
+            }
+        } finally {
+            Releasables.close(hash);
+            Releasables.close(keys);
+        }
+    }
+
     private void addSingleTsidRow(TimeSeriesBlockHash hash, BytesRef tsid, long timestamp) {
         try (
             BytesRefVector.Builder tsidBuilder = blockFactory.newBytesRefVectorBuilder(1);
@@ -2256,9 +2350,7 @@ public class BlockHashTests extends BlockHashTestCase {
                 }
                 called[0] = true;
                 callback.accept(ordsAndKeys);
-                if (hash instanceof LongLongBlockHash == false
-                    && hash instanceof BytesRefLongBlockHash == false
-                    && hash instanceof BytesRef3BlockHash == false) {
+                if (hash instanceof LongLongBlockHash == false && hash instanceof BytesRef3BlockHash == false) {
                     try (ReleasableIterator<IntBlock> lookup = hash.lookup(new Page(values), ByteSizeValue.ofKb(between(1, 100)))) {
                         assertThat(lookup.hasNext(), equalTo(true));
                         try (IntBlock ords = lookup.next()) {
@@ -2289,77 +2381,5 @@ public class BlockHashTests extends BlockHashTestCase {
         return forcePackedHash
             ? new PackedValuesBlockHash(specs, blockFactory, emitBatchSize)
             : BlockHash.build(specs, blockFactory, emitBatchSize, true);
-    }
-
-    public void testConstant() {
-        try (
-            var hash = new BytesRefLongBlockHash(blockFactory, 0, 1, false, randomIntBetween(1, 1000));
-            var bytesHash = new BytesRefBlockHash(0, blockFactory)
-        ) {
-            int iters = between(1, 20);
-            for (int i = 0; i < iters; i++) {
-                final BytesRefBlock bytes;
-                final LongBlock longs;
-                final boolean constantInput = randomBoolean();
-                final int positions = randomIntBetween(1, 100);
-                if (constantInput) {
-                    bytes = blockFactory.newConstantBytesRefBlockWith(new BytesRef(randomAlphaOfLength(10)), positions);
-                    if (randomBoolean()) {
-                        try (IntVector hashIds = bytesHash.add(bytes.asVector())) {
-                            assertTrue(hashIds.isConstant());
-                        }
-                    }
-                    if (randomBoolean()) {
-                        longs = blockFactory.newConstantLongBlockWith(randomNonNegativeLong(), positions);
-                    } else {
-                        long value = randomNonNegativeLong();
-                        try (var builder = blockFactory.newLongVectorFixedBuilder(positions)) {
-                            for (int p = 0; p < positions; p++) {
-                                builder.appendLong(value);
-                            }
-                            longs = builder.build().asBlock();
-                        }
-                    }
-                } else {
-                    try (var builder = blockFactory.newBytesRefBlockBuilder(positions)) {
-                        for (int p = 0; p < positions; p++) {
-                            builder.appendBytesRef(new BytesRef(randomAlphaOfLength(10)));
-                        }
-                        bytes = builder.build();
-                    }
-                    try (var builder = blockFactory.newLongVectorFixedBuilder(positions)) {
-                        for (int p = 0; p < positions; p++) {
-                            builder.appendLong(randomNonNegativeLong());
-                        }
-                        longs = builder.build().asBlock();
-                    }
-                }
-                try (Page page = new Page(bytes, longs)) {
-                    hash.add(page, new GroupingAggregatorFunction.AddInput() {
-                        @Override
-                        public void add(int positionOffset, IntArrayBlock groupIds) {
-                            fail("should not call IntArrayBlock");
-                        }
-
-                        @Override
-                        public void add(int positionOffset, IntBigArrayBlock groupIds) {
-                            fail("should not call IntBigArrayBlock");
-                        }
-
-                        @Override
-                        public void add(int positionOffset, IntVector groupIds) {
-                            if (constantInput) {
-                                assertTrue(groupIds.isConstant());
-                            }
-                        }
-
-                        @Override
-                        public void close() {
-
-                        }
-                    });
-                }
-            }
-        }
     }
 }

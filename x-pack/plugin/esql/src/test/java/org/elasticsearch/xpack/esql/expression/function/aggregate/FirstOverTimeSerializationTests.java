@@ -21,7 +21,7 @@ public class FirstOverTimeSerializationTests extends AbstractExpressionSerializa
         Expression filter = randomChild();
         Expression window = randomChild();
         Expression timestamp = randomChild();
-        return new FirstOverTime(source, field, filter, window, timestamp);
+        return new FirstOverTime(source, field, timestamp, filter, window);
     }
 
     @Override
@@ -37,6 +37,6 @@ public class FirstOverTimeSerializationTests extends AbstractExpressionSerializa
             case 2 -> window = randomValueOtherThan(window, AbstractExpressionSerializationTests::randomChild);
             case 3 -> timestamp = randomValueOtherThan(timestamp, AbstractExpressionSerializationTests::randomChild);
         }
-        return new FirstOverTime(source, field, filter, window, timestamp);
+        return new FirstOverTime(source, field, timestamp, filter, window);
     }
 }

@@ -113,6 +113,30 @@ public enum StringData {
     },
 
     /**
+     * A small repeated head over a tail distinct to the index, at a share just under the coverage bar. The
+     * head is all an input summary can record, since the tail outgrows it, so the summed counts fall short
+     * of the bar while the mass they lost is credited in full and the bound clears it. A merge cannot settle
+     * this either way from the summaries, so it writes the column plain against them.
+     */
+    UNDECIDED_HEAD {
+        @Override
+        BytesRef[] generate(int count, Random random) {
+            return headOverDistinctTail(45, count, random);
+        }
+    },
+
+    /**
+     * The same shape with the head above the bar, which the summed counts settle on their own. It is the
+     * control for {@link #UNDECIDED_HEAD}: same vocabulary and same bytes, settled by the counts alone.
+     */
+    SETTLED_HEAD {
+        @Override
+        BytesRef[] generate(int count, Random random) {
+            return headOverDistinctTail(55, count, random);
+        }
+    },
+
+    /**
      * Textbench {@code ServiceName} on an index sorted by it: a handful of values, in runs. Clustering this
      * strong is the case a per-page dictionary exploits best.
      */
@@ -147,11 +171,33 @@ public enum StringData {
     },
 
     /**
+     * The values of {@link #CLUSTERED_SERVICE} as the primary sort of the index: a handful of values in term
+     * order, each in one run of about an eighth of the column. A run is longer than a chunk, so a term or a
+     * prefix matches whole chunks between the chunk it starts in and the chunk it ends in.
+     */
+    SORTED_SERVICE {
+        @Override
+        boolean ordered() {
+            return true;
+        }
+
+        @Override
+        BytesRef[] generate(int count, Random random) {
+            return CLUSTERED_SERVICE.generate(count, random);
+        }
+    },
+
+    /**
      * A host name on an index sorted by it: thousands of values, each in one run, in term order. This is
      * the shape a primary sort produces, and the one where a filter can find its documents by bisection
      * rather than by comparing every value.
      */
     SORTED_HOSTNAME {
+        @Override
+        boolean ordered() {
+            return true;
+        }
+
         @Override
         BytesRef[] generate(int count, Random random) {
             final String[] vocabulary = new String[5_000];
@@ -169,12 +215,39 @@ public enum StringData {
     },
 
     /**
+     * A host name on an index sorted by it, descending: the values of {@link #SORTED_HOSTNAME} in reverse term
+     * order. Each host holds a long run, so a chunk is often wholly inside a range.
+     */
+    DESCENDING_HOSTNAME {
+        @Override
+        boolean ordered() {
+            return true;
+        }
+
+        @Override
+        BytesRef[] generate(int count, Random random) {
+            final BytesRef[] values = SORTED_HOSTNAME.generate(count, random);
+            for (int i = 0, j = count - 1; i < j; i++, j--) {
+                final BytesRef swap = values[i];
+                values[i] = values[j];
+                values[j] = swap;
+            }
+            return values;
+        }
+    },
+
+    /**
      * A pod name on an index sorted by it: the same large vocabulary as {@link #POD_NAME}, in term order,
      * each name in one run. A vocabulary this large is beyond what a bounded dictionary can hold, so the
      * column stays plain — but the values arrive in runs, which is the shape both the compressor and the
      * bisection over a sorted column exploit best.
      */
     SORTED_POD_NAME {
+        @Override
+        boolean ordered() {
+            return true;
+        }
+
         @Override
         BytesRef[] generate(int count, Random random) {
             final String[] vocabulary = new String[50_000];
@@ -185,6 +258,28 @@ public enum StringData {
             final BytesRef[] values = new BytesRef[count];
             for (int i = 0; i < count; i++) {
                 values[i] = bytes(vocabulary[Math.min((int) ((long) i * vocabulary.length / count), vocabulary.length - 1)]);
+            }
+            return values;
+        }
+    },
+
+    /**
+     * A pod name on an index sorted by it, descending: the values of {@link #SORTED_POD_NAME} in reverse term
+     * order. A descending column is not bisected, so a plain skip index is the only thing that narrows a search.
+     */
+    DESCENDING_POD_NAME {
+        @Override
+        boolean ordered() {
+            return true;
+        }
+
+        @Override
+        BytesRef[] generate(int count, Random random) {
+            final BytesRef[] values = SORTED_POD_NAME.generate(count, random);
+            for (int i = 0, j = count - 1; i < j; i++, j--) {
+                final BytesRef swap = values[i];
+                values[i] = values[j];
+                values[j] = swap;
             }
             return values;
         }
@@ -221,6 +316,28 @@ public enum StringData {
         }
     },
 
+    /**
+     * An opaque session identifier, with as many distinct values as a segment holds documents. A term is
+     * held about once per segment and about once per segment in every other segment too, which is the band
+     * where a segment's summary records nothing and the merged column holds the term often enough to name
+     * it. Its bytes do not compress, so escaping one costs its full length once per occurrence.
+     */
+    SESSION_ID {
+        @Override
+        BytesRef[] generate(int count, Random random) {
+            final String[] vocabulary = new String[100_000];
+            final char[] alphabet = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ".toCharArray();
+            final char[] chars = new char[32];
+            for (int i = 0; i < vocabulary.length; i++) {
+                for (int c = 0; c < chars.length; c++) {
+                    chars[c] = alphabet[random.nextInt(alphabet.length)];
+                }
+                vocabulary[i] = new String(chars);
+            }
+            return skewed(vocabulary, count, random, 0.0);
+        }
+    },
+
     /** A trace id: entirely distinct, and long enough that the values dominate the column. */
     TRACE_ID {
         @Override
@@ -234,9 +351,51 @@ public enum StringData {
             }
             return values;
         }
+    },
+
+    /**
+     * The same vocabulary and value multiset as {@link #CLUSTERED_POD_NAME}, with document order
+     * permuted uniformly at random. Cardinality, value length, and vocabulary size are identical to
+     * {@code CLUSTERED_POD_NAME}; the only difference is that no value clusters near similar values in
+     * document order. Comparing the two isolates the contribution of doc-order clustering from the
+     * contribution of cardinality and value length, which no existing pair of shapes does.
+     */
+    SHUFFLED_POD_NAME {
+        @Override
+        BytesRef[] generate(int count, Random random) {
+            final BytesRef[] clustered = CLUSTERED_POD_NAME.generate(count, random);
+            // Fisher-Yates shuffle: each position i swaps with a uniformly chosen position in [i, count).
+            for (int i = count - 1; i > 0; i--) {
+                final int j = random.nextInt(i + 1);
+                final BytesRef tmp = clustered[i];
+                clustered[i] = clustered[j];
+                clustered[j] = tmp;
+            }
+            return clustered;
+        }
     };
 
     abstract BytesRef[] generate(int count, Random random);
+
+    /** Whether the values are in term order, ascending or descending, which is what a plain skip index needs to be written. */
+    boolean ordered() {
+        return false;
+    }
+
+    /** {@code headPercent} of the values drawn from sixteen repeated paths, the rest distinct to the index. */
+    private static BytesRef[] headOverDistinctTail(int headPercent, int count, Random random) {
+        final BytesRef[] head = new BytesRef[16];
+        for (int i = 0; i < head.length; i++) {
+            head[i] = bytes("/api/v2/checkout/session/" + Integer.toString(i, 36));
+        }
+        final BytesRef[] values = new BytesRef[count];
+        for (int i = 0; i < count; i++) {
+            values[i] = random.nextInt(100) < headPercent
+                ? head[random.nextInt(head.length)]
+                : bytes("/api/v2/checkout/session/" + Integer.toString(i, 36) + "-" + Integer.toString(i * 31 + 7, 36));
+        }
+        return values;
+    }
 
     /** Draws from {@code vocabulary} with a Zipf-like skew; {@code exponent} 0 draws uniformly. */
     private static BytesRef[] skewed(String[] vocabulary, int count, Random random, double exponent) {

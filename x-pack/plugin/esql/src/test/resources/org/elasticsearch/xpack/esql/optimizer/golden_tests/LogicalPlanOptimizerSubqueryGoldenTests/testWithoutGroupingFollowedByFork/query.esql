@@ -1,0 +1,4 @@
+TS k8s
+| STATS avg_cost = AVG(network.cost) BY WITHOUT(pod, region)
+| FORK (WHERE avg_cost > 6) (WHERE avg_cost <= 6)
+| KEEP avg_cost, _timeseries, _fork

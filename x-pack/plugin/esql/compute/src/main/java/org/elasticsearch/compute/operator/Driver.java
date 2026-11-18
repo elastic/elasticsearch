@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.TaskLoadAttribution;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.data.Page;
@@ -31,6 +32,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
+import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -85,6 +87,12 @@ public class Driver implements Releasable, Describable {
     private final Supplier<String> description;
     protected List<Operator> activeOperators;
     private final List<OperatorStatus> statusOfCompletedOperators = new ArrayList<>();
+    /**
+     * Operators that asked to be resnapshotted after {@code waitForAsyncActions}. Index is into
+     * {@link #statusOfCompletedOperators}. Mutated only when the driver loop is dead: once the driver is finished, or
+     * when it fails or is aborted and drains its operators.
+     */
+    private final List<PendingFinalStatus> pendingFinalStatus = new ArrayList<>();
     private final Releasable releasable;
     private final long statusNanos;
 
@@ -112,11 +120,55 @@ public class Driver implements Releasable, Describable {
     private final AtomicReference<DriverStatus> status;
 
     /**
+     * Plan-node ids for operators created from a physical plan. Identity map, touched on the driver thread.
+     * Empty when the driver was not built from a plan (tests, enrich lookup).
+     */
+    private Map<Operator, String> planNodeIds = Map.of();
+
+    /**
+     * Associates operators with the physical plan node that created them.
+     * The map must use identity equality. Operators missing from the map omit {@code plan_node_id}.
+     */
+    public void setPlanNodeIds(Map<Operator, String> planNodeIds) {
+        this.planNodeIds = planNodeIds == null ? Map.of() : planNodeIds;
+    }
+
+    /**
+     * Exchange names of the exchange sink and source operators. Same shape and rules as {@link #planNodeIds}.
+     */
+    private Map<Operator, String> exchangeIds = Map.of();
+
+    /**
+     * Associates the exchange sink and source operators with the exchange they are one side of.
+     * The map must use identity equality. Operators missing from the map omit {@code exchange_id}.
+     */
+    public void setExchangeIds(Map<Operator, String> exchangeIds) {
+        this.exchangeIds = exchangeIds == null ? Map.of() : exchangeIds;
+    }
+
+    private OperatorStatus operatorStatus(Operator op) {
+        return new OperatorStatus(op.toString(), op.status(), planNodeIds.get(op), exchangeIds.get(op));
+    }
+
+    /** Gives {@code promoted} the label {@code original} has in {@code labels}, if any, so its status still reports it. */
+    private static void carryLabel(Map<Operator, String> labels, Operator original, Operator promoted) {
+        String label = labels.get(original);
+        if (label != null) {
+            labels.put(promoted, label);
+        }
+    }
+
+    /**
      * The time this driver finished. Only set once the driver is finished, defaults to 0
      * which is *possibly* a valid value, so always use the driver status to check
      * if the driver is actually finished.
      */
     private long finishNanos;
+
+    /** Set with {@link #loadTarget(TaskLoadAttribution.Target)}, or {@code null}. */
+    private TaskLoadAttribution.Target loadTarget;
+    /** The time since the last status update already reported by a source operator when it closed. */
+    private long reportedByClosedSource;
 
     /**
      * Creates a new driver with a chain of operators.
@@ -163,8 +215,10 @@ public class Driver implements Releasable, Describable {
                 shortDescription,
                 clusterName,
                 nodeName,
+                "",
                 startTime,
                 System.currentTimeMillis(),
+                0,
                 0,
                 0,
                 DriverStatus.Status.QUEUED,
@@ -183,8 +237,24 @@ public class Driver implements Releasable, Describable {
      * Runs computations on the chain of operators for a given maximum amount of time or iterations.
      * Returns a blocked future when the chain of operators is blocked, allowing the caller
      * thread to do other work instead of blocking or busy-spinning on the blocked operator.
+     * The thread CPU time it uses is measured by {@link DriverContext#meteredCpu}, so it is counted once even when
+     * this runs inside an operator's measurement of this driver. That happens once the driver was cancelled or finished
+     * early: the scheduler then runs it directly on the thread that completes the listener it is blocked on, such as a
+     * worker's.
+     * CPU and driver time are published at status updates. If an iteration throws, including cancellation, the driver
+     * still publishes a final status, with the status of its operators, once it has drained them. That status includes the
+     * CPU time of the failed iteration, which is committed when its measurement closes, but not the CPU time of draining
+     * and closing the operators afterwards, nor the driver time since the last status update.
      */
     SubscribableListener<Void> run(TimeValue maxTime, int maxIterations, LongSupplier currentTimeNanosSupplier) {
+        // the driver charges its own time, and its pool the rest of the task to the load target
+        if (loadTarget != null) {
+            TaskLoadAttribution.attribute(loadTarget);
+        }
+        return driverContext.meteredCpu(() -> runLoop(maxTime, maxIterations, currentTimeNanosSupplier));
+    }
+
+    private SubscribableListener<Void> runLoop(TimeValue maxTime, int maxIterations, LongSupplier currentTimeNanosSupplier) {
         long maxTimeNanos = maxTime.nanos();
         // Start time, used to stop the calculations after maxTime has passed.
         long startTime = currentTimeNanosSupplier.getAsLong();
@@ -243,13 +313,25 @@ public class Driver implements Releasable, Describable {
             }
             if (isFinished()) {
                 finishNanos = now;
-                updateStatus(
-                    finishNanos - lastStatusUpdateTime,
-                    iterationsSinceLastStatusUpdate,
-                    DriverStatus.Status.DONE,
-                    "driver done",
-                    now
-                );
+                if (pendingFinalStatus.isEmpty()) {
+                    updateStatus(
+                        finishNanos - lastStatusUpdateTime,
+                        iterationsSinceLastStatusUpdate,
+                        DriverStatus.Status.DONE,
+                        "driver done",
+                        now
+                    );
+                } else {
+                    // Delay DONE until waitForAsyncActions so a later resnapshot of kept operators
+                    // is the status the profile sees. Final-loop CPU and driver wall time are recorded here.
+                    updateStatus(
+                        finishNanos - lastStatusUpdateTime,
+                        iterationsSinceLastStatusUpdate,
+                        DriverStatus.Status.RUNNING,
+                        "driver finishing",
+                        now
+                    );
+                }
                 driverContext.finish();
                 Releasables.close(releasable, driverContext.getSnapshot());
                 return Operator.NOT_BLOCKED.listener();
@@ -303,7 +385,13 @@ public class Driver implements Releasable, Describable {
         completionListener.addListener(listener);
         if (started.compareAndSet(false, true)) {
             drainAndCloseOperators(reason);
-            completionListener.onFailure(reason);
+            try {
+                // Unlike the failure of a running driver, abort does not wait for asynchronous actions: operators with
+                // off-driver work are read again now, not after it.
+                publishFinalStatus();
+            } finally {
+                completionListener.onFailure(reason);
+            }
         } else {
             cancel(reason.getMessage());
         }
@@ -331,7 +419,8 @@ public class Driver implements Releasable, Describable {
                 assert nextOp.isFinished() == false
                     || nextOp instanceof ExchangeSinkOperator
                     || nextOp instanceof LimitOperator
-                    || nextOp instanceof PageToBatchPageOperator : "next operator should not be finished yet: " + nextOp;
+                    || nextOp instanceof PageToBatchPageOperator
+                    || nextOp instanceof StreamingPageOperator : "next operator should not be finished yet: " + nextOp;
                 Page page = op.getOutput();
                 if (page == null) {
                     // No result, just move to the next iteration
@@ -350,6 +439,8 @@ public class Driver implements Releasable, Describable {
                     movedPage = true;
                     Operator promoted = nextOp.tryPromote(driverContext);
                     if (promoted != nextOp) {
+                        carryLabel(planNodeIds, nextOp, promoted);
+                        carryLabel(exchangeIds, nextOp, promoted);
                         activeOperators.set(iterator.nextIndex(), promoted);
                     }
                 }
@@ -404,13 +495,25 @@ public class Driver implements Releasable, Describable {
                 Iterator<Operator> finishedOperators = this.activeOperators.subList(0, index + 1).iterator();
                 while (finishedOperators.hasNext()) {
                     Operator op = finishedOperators.next();
-                    statusOfCompletedOperators.add(new OperatorStatus(op.toString(), op.status()));
+                    int statusIndex = statusOfCompletedOperators.size();
+                    statusOfCompletedOperators.add(operatorStatus(op));
                     if (op instanceof SourceOperator sourceOperator) {
                         long now = currentTimeNanosSupplier.getAsLong();
                         // report one last time before closing
-                        sourceOperator.reportSearchLoad(now - lastStatusUpdate, now);
+                        if (sourceOperator.reportSearchLoad(now - lastStatusUpdate - reportedByClosedSource, now)) {
+                            reportedByClosedSource = now - lastStatusUpdate;
+                        }
                     }
-                    op.close();
+                    try {
+                        op.close();
+                    } catch (RuntimeException e) {
+                        // The operator stays active, so the failure's drain closes it again and records its status then.
+                        statusOfCompletedOperators.remove(statusIndex);
+                        throw e;
+                    }
+                    if (op.finalStatusAfterAsyncActions()) {
+                        pendingFinalStatus.add(new PendingFinalStatus(statusIndex, op));
+                    }
                     finishedOperators.remove();
                 }
 
@@ -441,9 +544,20 @@ public class Driver implements Releasable, Describable {
         }
     }
 
+    // TODO: Remove this
     public static void start(
         ThreadContext threadContext,
         Executor executor,
+        Driver driver,
+        int maxIterations,
+        ActionListener<Void> listener
+    ) {
+        start(threadContext, new ComputeExecutor(executor, threadContext), driver, maxIterations, listener);
+    }
+
+    public static void start(
+        ThreadContext threadContext,
+        DriverExecutor executor,
         Driver driver,
         int maxIterations,
         ActionListener<Void> listener
@@ -460,7 +574,8 @@ public class Driver implements Releasable, Describable {
                 executor,
                 driver,
                 driver.completionListener,
-                currentTimeNanosSupplier
+                currentTimeNanosSupplier,
+                false
             );
         }
     }
@@ -482,6 +597,8 @@ public class Driver implements Releasable, Describable {
         if (driver.activeOperators.isEmpty() == false) {
             if (driver.activeOperators.getLast() instanceof ExchangeSinkOperator sinkOperator) {
                 sinkOperator.addCompletionListener(ActionListener.running(driver::finishEarly));
+            } else if (driver.activeOperators.getLast() instanceof StreamingPageOperator streamingOperator) {
+                streamingOperator.addCompletionListener(ActionListener.running(driver::finishEarly));
             }
         }
     }
@@ -518,7 +635,13 @@ public class Driver implements Releasable, Describable {
         Iterator<Operator> itr = activeOperators.iterator();
         while (itr.hasNext()) {
             try {
-                Releasables.closeWhileHandlingException(itr.next());
+                Operator op = itr.next();
+                if (e != null) {
+                    // The driver failed or was aborted: keep what the operator did, as the early-finish path does but
+                    // tolerating a failing status, so the failed driver still reports its usage. A plain close() does not.
+                    recordStatusBeforeClose(op);
+                }
+                Releasables.closeWhileHandlingException(op);
             } catch (Exception x) {
                 if (e != null) {
                     e.addSuppressed(x);
@@ -530,14 +653,35 @@ public class Driver implements Releasable, Describable {
         Releasables.closeWhileHandlingException(releasable, driverContext.getSnapshot());
     }
 
+    /**
+     * Adds the status of an operator that is about to be closed without having finished, because the driver failed or was
+     * cancelled. This must never throw: the operator still has to be closed and the failure that is being handled must not
+     * be hidden, so an operator whose status cannot be read is recorded without one.
+     */
+    private void recordStatusBeforeClose(Operator op) {
+        int statusIndex = statusOfCompletedOperators.size();
+        try {
+            statusOfCompletedOperators.add(new OperatorStatus(op.toString(), op.status()));
+            if (op.finalStatusAfterAsyncActions()) {
+                pendingFinalStatus.add(new PendingFinalStatus(statusIndex, op));
+            }
+        } catch (Exception statusFailure) {
+            LOGGER.debug("failed to read the status of an operator that is being closed [{}]", shortDescription, statusFailure);
+            if (statusOfCompletedOperators.size() == statusIndex) {
+                statusOfCompletedOperators.add(new OperatorStatus(op.getClass().getSimpleName(), null));
+            }
+        }
+    }
+
     private static void schedule(
         TimeValue maxTime,
         int maxIterations,
         ThreadContext threadContext,
-        Executor executor,
+        DriverExecutor executor,
         Driver driver,
         ActionListener<Void> listener,
-        LongSupplier currentTimeNanosSupplier
+        LongSupplier currentTimeNanosSupplier,
+        boolean resumed
     ) {
         AbstractRunnable task = new AbstractRunnable() {
             @Override
@@ -548,10 +692,19 @@ public class Driver implements Releasable, Describable {
                     return;
                 }
                 if (fut.isDone()) {
-                    schedule(maxTime, maxIterations, threadContext, executor, driver, listener, currentTimeNanosSupplier);
+                    schedule(maxTime, maxIterations, threadContext, executor, driver, listener, currentTimeNanosSupplier, false);
                 } else {
                     ActionListener<Void> readyListener = ActionListener.wrap(
-                        ignored -> schedule(maxTime, maxIterations, threadContext, executor, driver, listener, currentTimeNanosSupplier),
+                        ignored -> schedule(
+                            maxTime,
+                            maxIterations,
+                            threadContext,
+                            executor,
+                            driver,
+                            listener,
+                            currentTimeNanosSupplier,
+                            true
+                        ),
                         this::onFailure
                     );
                     fut.addListener(ContextPreservingActionListener.wrapPreservingContext(readyListener, threadContext));
@@ -562,15 +715,30 @@ public class Driver implements Releasable, Describable {
             @Override
             public void onFailure(Exception e) {
                 driver.drainAndCloseOperators(e);
-                onComplete(ActionListener.running(() -> listener.onFailure(e)));
+                driver.driverContext.waitForAsyncActions(
+                    ContextPreservingActionListener.wrapPreservingContext(ActionListener.running(() -> {
+                        try {
+                            // A failed driver is finished too: publish what it did so the caller can account for it.
+                            driver.finishNanos = System.nanoTime();
+                            driver.publishFinalStatus();
+                        } finally {
+                            listener.onFailure(e);
+                        }
+                    }), threadContext)
+                );
             }
 
             void onComplete(ActionListener<Void> listener) {
-                driver.driverContext.waitForAsyncActions(ContextPreservingActionListener.wrapPreservingContext(listener, threadContext));
+                driver.driverContext.waitForAsyncActions(
+                    ContextPreservingActionListener.wrapPreservingContext(ActionListener.wrap(ignored -> {
+                        driver.publishFinalStatus();
+                        listener.onResponse(null);
+                    }, listener::onFailure), threadContext)
+                );
             }
         };
         task = (AbstractRunnable) threadContext.preserveContext(task); // Preserve warnings and such
-        driver.scheduler.scheduleOrRunTask(executor, task);
+        driver.scheduler.scheduleOrRunTask(executor, task, resumed);
     }
 
     private static IsBlockedResult oneOf(List<IsBlockedResult> results) {
@@ -632,27 +800,72 @@ public class Driver implements Releasable, Describable {
             status.lastUpdated(),
             finishNanos - startNanos,
             status.cpuNanos(),
+            status.driverNanos(),
             status.iterations(),
             status.completedOperators(),
             status.sleeps()
         );
     }
 
-    private void reportSearchLoad(long extraCpuNanos, long now) {
-        activeOperators.stream()
+    /**
+     * Charges the time of this driver that its source operator does not attribute to shards, and the rest of the pool tasks it
+     * runs in, to {@code loadTarget}. Must be set before the driver starts.
+     */
+    public void loadTarget(TaskLoadAttribution.Target loadTarget) {
+        assert started.get() == false : "driver already started";
+        this.loadTarget = loadTarget;
+    }
+
+    private void reportSearchLoad(long extraDriverNanos, long now) {
+        if (extraDriverNanos <= 0) {
+            return;
+        }
+        boolean attributed = activeOperators.stream()
             .filter(o -> o instanceof SourceOperator)
             .map(o -> (SourceOperator) o)
             .findFirst()
-            .ifPresent(sourceOperator -> sourceOperator.reportSearchLoad(extraCpuNanos, now));
+            .map(sourceOperator -> sourceOperator.reportSearchLoad(extraDriverNanos, now))
+            .orElse(false);
+        if (attributed == false && loadTarget != null) {
+            TaskLoadAttribution.charge(loadTarget, extraDriverNanos, now);
+        }
     }
 
     /**
-     * Update the status.
-     * @param extraCpuNanos how many cpu nanoseconds to add to the previous status
+     * Replaces kept operator statuses after async close and publishes {@code DONE}. Always publishes, even when the
+     * driver loop already published {@code DONE}, because the rest of that loop and operators on other threads add CPU
+     * time after its last status update.
+     * May run on a producer thread; the driver loop is already dead.
+     */
+    private void publishFinalStatus() {
+        for (PendingFinalStatus pending : pendingFinalStatus) {
+            Operator op = pending.operator;
+            try {
+                statusOfCompletedOperators.set(pending.index, operatorStatus(op));
+            } catch (Exception statusFailure) {
+                // Keep the status taken before the close: failing to refresh it must not leave the driver unfinished.
+                LOGGER.debug("failed to re-read the status of a closed operator [{}]", shortDescription, statusFailure);
+            }
+        }
+        pendingFinalStatus.clear();
+        updateStatus(0, 0, DriverStatus.Status.DONE, "driver done", System.nanoTime());
+    }
+
+    private record PendingFinalStatus(int index, Operator operator) {}
+
+    /**
+     * Update the status. The CPU time is the driver context's {@link DriverContext#cpuNanos() total}, after adding
+     * what the calling thread's open measurement of this driver has used so far.
+     * @param extraDriverNanos how many nanoseconds the driver held a thread since the previous status
      * @param extraIterations how many iterations to add to the previous status
      * @param status the status of the overall driver request
      */
-    private void updateStatus(long extraCpuNanos, int extraIterations, DriverStatus.Status status, String reason, long nowNanos) {
+    private void updateStatus(long extraDriverNanos, int extraIterations, DriverStatus.Status status, String reason, long nowNanos) {
+        // Search load stays on the time the driver held a thread, it's an autoscaling signal rather than billing.
+        reportSearchLoad(extraDriverNanos - reportedByClosedSource, nowNanos);
+        reportedByClosedSource = 0;
+        driverContext.cpuTracker().checkpoint();
+        long cpuNanos = driverContext.cpuNanos();
         this.status.getAndUpdate(prev -> {
             long now = System.currentTimeMillis();
             DriverSleeps sleeps = prev.sleeps();
@@ -661,6 +874,12 @@ public class Driver implements Releasable, Describable {
             // Sorry for the complexity here. If anyone has a nice way to refactor this, be my guest.
             switch (status) {
                 case ASYNC, WAITING -> sleeps = sleeps.sleep(reason, now);
+                case DONE -> {
+                    // A driver whose blocked future failed ends while asleep: close the sleep, as running again would.
+                    switch (prev.status()) {
+                        case ASYNC, WAITING -> sleeps = sleeps.wake(now);
+                    }
+                }
                 case RUNNING -> {
                     switch (prev.status()) {
                         case ASYNC, WAITING -> sleeps = sleeps.wake(now);
@@ -679,20 +898,20 @@ public class Driver implements Releasable, Describable {
                     }
                 }
             }
-            reportSearchLoad(extraCpuNanos, nowNanos);
-
             return new DriverStatus(
                 sessionId,
                 shortDescription,
                 prev.clusterName(),
                 prev.nodeName(),
+                status == DriverStatus.Status.RUNNING ? Thread.currentThread().getName() : prev.threadName(),
                 startTime,
                 now,
-                prev.cpuNanos() + extraCpuNanos,
+                cpuNanos,
+                prev.driverNanos() + extraDriverNanos,
                 prev.iterations() + extraIterations,
                 status,
                 List.copyOf(statusOfCompletedOperators),
-                activeOperators.stream().map(op -> new OperatorStatus(op.toString(), op.status())).toList(),
+                activeOperators.stream().map(this::operatorStatus).toList(),
                 sleeps
             );
         });

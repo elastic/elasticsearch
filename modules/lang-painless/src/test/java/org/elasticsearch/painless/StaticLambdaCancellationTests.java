@@ -21,11 +21,12 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Tests that static lambdas in cancellation-aware script contexts honour task
- * cancellation.  The compiler injects a synthetic {@code #scriptThis} capture
- * carrying the script receiver so that loops inside static lambdas share the
- * script's persistent {@code $cancelPoll} counter and can fetch the cancel
- * {@code Runnable} via {@code _getCancellationCheck()}.
+ * Tests that typed lambdas in cancellation-aware script contexts honour task
+ * cancellation.  In such a context the compiler makes every lambda an instance
+ * method capturing the script, so loops inside lambdas share the script's
+ * persistent {@code $cancelPoll} counter and can fetch the cancel
+ * {@code Runnable} via {@code _getCancellationCheck()}. The class name predates
+ * that: these lambdas were static once, and are not any more.
  */
 public class StaticLambdaCancellationTests extends ScriptTestCase {
 
@@ -49,7 +50,7 @@ public class StaticLambdaCancellationTests extends ScriptTestCase {
     }
 
     /**
-     * Verifies that the cancel runnable is invoked when a loop runs inside a typed static lambda.
+     * Verifies that the cancel runnable is invoked when a loop runs inside a typed lambda.
      * Uses {@code removeIf(Predicate)} so the block-body lambda can return a value (satisfying
      * Painless's "all paths escape" requirement) while still running a long inner loop.
      */
@@ -72,7 +73,7 @@ public class StaticLambdaCancellationTests extends ScriptTestCase {
     }
 
     /**
-     * Verifies that a static lambda with a loop runs to completion when no cancellation
+     * Verifies that a typed lambda with a loop runs to completion when no cancellation
      * runnable is set (null).  The null guard in the injected code must not throw.
      */
     public void testStaticLambdaLoopNoCancelRunnable() {
@@ -84,8 +85,8 @@ public class StaticLambdaCancellationTests extends ScriptTestCase {
     }
 
     /**
-     * Verifies that a static lambda capturing an outer variable (in addition to the synthetic
-     * cancel capture) works correctly — the captured user variable remains accessible.
+     * Verifies that a typed lambda capturing an outer variable (besides the script it captures)
+     * works correctly — the captured user variable remains accessible.
      */
     public void testStaticLambdaWithUserCaptureAndLoop() {
         ScriptedMetricAggContexts.InitScript script = compileInit(
@@ -106,7 +107,7 @@ public class StaticLambdaCancellationTests extends ScriptTestCase {
     }
 
     /**
-     * Verifies that static lambdas with no inner loops complete without interference
+     * Verifies that typed lambdas with no inner loops complete without interference
      * from the injected cancel machinery.
      */
     public void testStaticLambdaNoLoopNotAffected() {
@@ -153,7 +154,7 @@ public class StaticLambdaCancellationTests extends ScriptTestCase {
     }
 
     /**
-     * A static lambda's loop must keep the legacy max-loop-counter as a fallback when no cancellation
+     * A typed lambda's loop must keep the legacy max-loop-counter as a fallback when no cancellation
      * runnable is bound — otherwise its loop would have no bound at all. With no runnable set, a loop
      * exceeding the counter (default 1,000,000) must trip the legacy guard rather than run unbounded.
      */

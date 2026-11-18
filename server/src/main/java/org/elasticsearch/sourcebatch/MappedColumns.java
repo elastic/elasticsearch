@@ -27,6 +27,7 @@ import org.elasticsearch.escf.LuceneLongColumn;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.escf.EscfColumn.windowValidity;
 
@@ -114,7 +115,16 @@ public final class MappedColumns {
      * not be written to Lucene — to keep all column cursors correctly positioned.
      */
     public RowCursor rowCursor() {
-        return new RowCursor(columns);
+        return rowCursor(column -> true);
+    }
+
+    /**
+     * Like {@link #rowCursor()}, but the cursor only reads the columns accepted by {@code include}, and so the fields it assembles for
+     * a document leave out those of the other columns. Use it when only some fields are needed, as skipping a column also skips
+     * building its fields.
+     */
+    public RowCursor rowCursor(Predicate<? super LuceneColumn> include) {
+        return new RowCursor(columns.stream().filter(include).toList());
     }
 
     /**

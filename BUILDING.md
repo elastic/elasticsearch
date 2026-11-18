@@ -79,7 +79,6 @@ When creating a new subproject, choose the appropriate Elasticsearch plugin base
 | Java REST tests | `elasticsearch.internal-java-rest-test` | modules/plugins needing Java test flexibility |
 | Cluster integration tests | `elasticsearch.internal-cluster-test` | Projects testing cluster behavior |
 | BWC/upgrade tests | `elasticsearch.bwc-test` or `elasticsearch.fwc-test` | `qa/rolling-upgrade`, `qa/full-cluster-restart` |
-| Standalone QA project | `elasticsearch.standalone-rest-test` | `qa/*` subprojects |
 
 ## Build guidelines
 
@@ -387,14 +386,15 @@ Backward-compatibility (BWC) tests verify that the current build can communicate
 By default the BWC version is built from source: Gradle clones the target branch, checks out its tip, and runs a nested `./gradlew` invocation to compile and assemble the distribution artifacts.
 This source build is correct but slow, and every parallel BWC test job repeats it independently.
 
-### DRA fast path
+### Pre-built snapshot fast path
 
-Instead of cloning the BWC branch and compiling it from source, Gradle can download pre-built artifacts directly from the [DRA](https://github.com/elastic/apm-pipeline-library/blob/main/vars/README.md#publishToBuildkiteDRA) (Distribution Release Artifacts) snapshot server at `artifacts-snapshot.elastic.co`.
+Instead of cloning the BWC branch and compiling it from source, Gradle can download pre-built snapshot artifacts directly.
+Distribution archives come from the DRA (Distribution Release Artifacts) snapshot server at `artifacts-snapshot.elastic.co`, while plain Maven jars come from `snapshots.elastic.co/maven`.
 Gradle downloads archives through an Ivy repository and unpacks them with the existing `SymbolicLinkPreservingUntarTransform` / `UnzipTransform` — no custom HTTP or extraction code.
 
 The fast path covers:
 - **Distribution archives** (Linux/Darwin/Windows tar.gz, zip, deb, rpm) — downloaded from the DRA `/downloads/elasticsearch/` path.
-- **JDBC jar** (`x-pack-sql-jdbc`) and **stable API jars** (`elasticsearch-logging`, `elasticsearch-plugin-api`, `elasticsearch-plugin-analysis-api`) — downloaded from the DRA `/maven/` tree using their Maven group-path layout.
+- **JDBC jar** (`x-pack-sql-jdbc`) and **stable API jars** (`elasticsearch-logging`, `elasticsearch-plugin-api`, `elasticsearch-plugin-analysis-api`) — downloaded from `snapshots.elastic.co/maven` using standard Maven coordinates.
 
 #### BWC mode (`-Dtests.bwc.mode`)
 
@@ -403,10 +403,10 @@ The `tests.bwc.mode` system property selects how BWC artifacts are resolved:
 | Value | Behaviour |
 |---|---|
 | `gradle` *(default)* | Always build from source via a nested Gradle invocation. No network activity. |
-| `auto` | Fetch the latest DRA snapshot and compare its commit hash against the local remote-tracking ref. Use DRA if they match, otherwise fall back to a source build silently. |
-| `dra` | Always download from the latest DRA snapshot without checking the commit hash. If DRA is unreachable or returns no build for the branch, log a warning and fall back to a source build. |
+| `auto` | Fetch the latest pre-built snapshot metadata and compare its commit hash against the local remote-tracking ref. Use pre-built snapshot artifacts if they match, otherwise fall back to a source build silently. |
+| `prebuilt` | Always download the latest pre-built snapshot artifacts without checking the commit hash. If the snapshot endpoints are unreachable or return no build for the branch, log a warning and fall back to a source build. |
 
-When `tests.bwc.mode=gradle` (the default), `DraSnapshotBuildIdValueSource` returns an empty string immediately with no network activity, keeping local development builds unaffected.
+When `tests.bwc.mode=gradle` (the default), `DraSnapshotBuildIdValueSource` returns an empty string immediately with no network activity, keeping local development builds unaffected. The legacy value `dra` is still accepted as an alias for `prebuilt`.
 
 ### Testing locally
 
@@ -442,7 +442,7 @@ When the DRA snapshot matches the branch tip the git tasks are skipped and `buil
 Skipping task ':distribution:bwc:minor3:createClone' as task onlyIf 'DRA snapshot not available' is false.
 ```
 
-#### 4 — Verify whether a DRA snapshot is currently available for a version
+#### 4 — Verify whether pre-built snapshot artifacts are currently available for a version
 
 ```bash
 # 1. Get the latest DRA build ID for the branch
@@ -459,21 +459,21 @@ echo "DRA commit:   $DRA_COMMIT"
 LOCAL_COMMIT=$(git rev-parse elastic/9.4)
 echo "Local ref:    $LOCAL_COMMIT"
 
-[ "$DRA_COMMIT" = "$LOCAL_COMMIT" ] && echo "Match — DRA path will be used" || echo "No match — local build will be used"
+[ "$DRA_COMMIT" = "$LOCAL_COMMIT" ] && echo "Match — pre-built snapshot path will be used" || echo "No match — local build will be used"
 ```
 
-#### 5 — Run a real DRA-backed BWC build end-to-end
+#### 5 — Run a real pre-built-snapshot-backed BWC build end-to-end
 
-With `auto` (once the hashes match) or `dra` (always download latest):
+With `auto` (once the hashes match) or `prebuilt` (always download latest):
 
 ```bash
 # Build just the distribution artifact (much faster than a full source build)
 ./gradlew :distribution:bwc:minor3:buildBwcLinuxTar -Dtests.bwc.mode=auto
 
-# Always use the latest DRA snapshot regardless of commit hash
-./gradlew :distribution:bwc:minor3:buildBwcLinuxTar -Dtests.bwc.mode=dra
+# Always use the latest pre-built snapshot artifacts regardless of commit hash
+./gradlew :distribution:bwc:minor3:buildBwcLinuxTar -Dtests.bwc.mode=prebuilt
 
-# Build the JDBC or stable API jars from DRA
+# Build the JDBC or stable API jars from pre-built snapshots
 ./gradlew :distribution:bwc:minor3:buildBwcJdbc -Dtests.bwc.mode=auto
 ./gradlew :distribution:bwc:minor3:buildBwcLogging -Dtests.bwc.mode=auto
 
@@ -490,18 +490,18 @@ This is particularly useful when the DRA latest has moved on to a newer commit b
 ```bash
 # Use the short hash from a specific DRA build (e.g. 9.4.2-1a738181)
 ./gradlew :distribution:bwc:minor1:buildBwcLinuxTar \
-  -Dtests.bwc.mode=dra \
+  -Dtests.bwc.mode=prebuilt \
   -Dtests.bwc.dra.hash.9.4=1a738181
 ```
 
 The value must be the abbreviated commit hash as it appears in the DRA build ID (the part after the last `-`).
 
-### How CI uses the DRA fast path
+### How CI uses the pre-built snapshot fast path
 
 On Buildkite, BWC snapshot jobs pass `-Dtests.bwc.mode=auto`.
 `DraSnapshotBuildIdValueSource` is evaluated once per BWC version at Gradle configuration time.
 If the DRA snapshot commit matches the remote-tracking ref, the entire git clone / compile / nested Gradle invocation is replaced by an Ivy download + artifact transform, cutting typical BWC snapshot job time significantly.
-Periodic BWC tests use `bwc.checkout.align=true` (time-based commit alignment) and therefore almost always build from source — the DRA path is primarily a speedup for PR-level BWC snapshot tests.
+Periodic BWC tests use `bwc.checkout.align=true` (time-based commit alignment) and therefore almost always build from source — the pre-built snapshot path is primarily a speedup for PR-level BWC snapshot tests.
 
 ## FAQ
 

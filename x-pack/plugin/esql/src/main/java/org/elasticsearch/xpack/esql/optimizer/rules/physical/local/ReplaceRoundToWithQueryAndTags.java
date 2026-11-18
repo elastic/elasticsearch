@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
-import org.elasticsearch.compute.lucene.query.DataPartitioning;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.FuzzyQueryBuilder;
@@ -28,6 +27,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.querydsl.query.NotQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.Queries;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundTo;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
@@ -368,8 +369,7 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
                 return null;
             }
             // prefer partitioning by tsid prefixes
-            var partitioning = ctx.configuration().pragmas().dataPartitioning(ctx.plannerSettings().defaultDataPartitioning());
-            if (partitioning != DataPartitioning.SHARD && ctx.searchStats().canPartitionByTsidPrefix()) {
+            if (ctx.searchStats().canPartitionByTsidPrefix()) {
                 return null;
             }
         }
@@ -405,15 +405,17 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
         newAttributes.add(tagField);
 
         // create a new EsQueryExec with newAttributes/output and queryBuilderAndTags
-        EsQueryExec queryExecWithTags = new EsQueryExec(
-            queryExec.source(),
-            queryExec.indexPattern(),
-            queryExec.indexMode(),
-            newAttributes,
-            queryExec.limit(),
-            queryExec.sorts(),
-            queryExec.estimatedRowSize(),
-            queryBuilderAndTags
+        EsQueryExec queryExecWithTags = queryExec.passIdentityTo(
+            new EsQueryExec(
+                queryExec.source(),
+                queryExec.indexPattern(),
+                queryExec.indexMode(),
+                newAttributes,
+                queryExec.limit(),
+                queryExec.sorts(),
+                queryExec.estimatedRowSize(),
+                queryBuilderAndTags
+            )
         );
 
         // Replace RoundTo with new tag field in EvalExec
@@ -446,14 +448,24 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
         List<EsQueryExec.QueryBuilderAndTags> queries = new ArrayList<>(count);
 
         Object tag = points.get(0);
-        if (points.size() == 1) { // if there is only one rounding point, just tag the main query
-            EsQueryExec.QueryBuilderAndTags queryBuilderAndTags = tagOnlyBucket(queryExec, tag);
-            queries.add(queryBuilderAndTags);
+        Source source = roundTo.source();
+        // A multivalued field has no bucket: ROUND_TO is null for it, with a warning. The range queries never match it, but the
+        // queries that only check that the field exists, or that it does not, must tell it apart from a single value.
+        boolean singleValued = field instanceof FieldAttribute fa && ctx.searchStats().isSingleValue(fa.fieldName());
+        Queries.Clause clause = queryExec.hasScoring() ? Queries.Clause.MUST : Queries.Clause.FILTER;
+        if (points.size() == 1) {
+            // A single rounding point covers every document that has a value: the rounding points are
+            // derived from the min/max of the existing values, so all of them round down to this point.
+            // Documents without a value must still produce null, so the point tags only the documents
+            // where the field exists, and the null bucket is added just like in the multi-point branch.
+            // Tagging the main query directly would stamp the rounding point onto documents whose field
+            // is null, turning e.g. top(date_trunc(1 month, @timestamp), ...) of an all-null group into
+            // the bucket value.
+            queries.add(existsBucket(source, field, tag, singleValued, queryExec, pushdownPredicates, clause));
+            queries.add(nullBucket(source, field, singleValued, queryExec, pushdownPredicates, clause));
         } else {
-            Source source = roundTo.source();
             Object lower = null;
             Object upper = null;
-            Queries.Clause clause = queryExec.hasScoring() ? Queries.Clause.MUST : Queries.Clause.FILTER;
             ZoneId zoneId = QuerySettings.TIME_ZONE.get(ctx.configuration().resolvedSettings());
             for (int i = 1; i < count; i++) {
                 upper = points.get(i);
@@ -465,7 +477,7 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
             // build the last/gte bucket
             queries.add(rangeBucket(source, field, dataType, lower, null, lower, zoneId, queryExec, pushdownPredicates, clause));
             // build null bucket
-            queries.add(nullBucket(source, field, queryExec, pushdownPredicates, clause));
+            queries.add(nullBucket(source, field, singleValued, queryExec, pushdownPredicates, clause));
         }
         return queries;
     }
@@ -512,21 +524,48 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
         }
     }
 
-    private static EsQueryExec.QueryBuilderAndTags tagOnlyBucket(EsQueryExec queryExec, Object tag) {
-        return new EsQueryExec.QueryBuilderAndTags(queryExec.query(), List.of(tag));
-    }
-
-    private static EsQueryExec.QueryBuilderAndTags nullBucket(
+    /**
+     * The bucket for the documents that have a single value for the rounded field. Used when there is a
+     * single rounding point, where no range filter is needed: every existing value rounds to it.
+     */
+    private static EsQueryExec.QueryBuilderAndTags existsBucket(
         Source source,
         Expression field,
+        Object tag,
+        boolean singleValued,
         EsQueryExec queryExec,
         LucenePushdownPredicates pushdownPredicates,
         Queries.Clause clause
     ) {
-        IsNull isNull = new IsNull(source, field);
+        Query exists = TRANSLATOR_HANDLER.asQuery(pushdownPredicates, new IsNotNull(source, field));
+        if (singleValued == false) {
+            exists = new SingleValueQuery(exists, ((FieldAttribute) field).fieldName().string(), false);
+        }
+        return buildCombinedQueryAndTags(queryExec, exists, clause, List.of(tag));
+    }
+
+    /**
+     * The bucket for the documents that have no bucket: the ones without a value for the rounded field and,
+     * unless the field is known to be single valued, the ones with many values.
+     */
+    private static EsQueryExec.QueryBuilderAndTags nullBucket(
+        Source source,
+        Expression field,
+        boolean singleValued,
+        EsQueryExec queryExec,
+        LucenePushdownPredicates pushdownPredicates,
+        Queries.Clause clause
+    ) {
+        Query isNull;
+        if (singleValued) {
+            isNull = TRANSLATOR_HANDLER.asQuery(pushdownPredicates, new IsNull(source, field));
+        } else {
+            Query exists = TRANSLATOR_HANDLER.asQuery(pushdownPredicates, new IsNotNull(source, field));
+            isNull = new NotQuery(source, new SingleValueQuery(exists, ((FieldAttribute) field).fieldName().string(), false));
+        }
         List<Object> nullTags = new ArrayList<>(1);
         nullTags.add(null);
-        return buildCombinedQueryAndTags(queryExec, pushdownPredicates, isNull, clause, nullTags);
+        return buildCombinedQueryAndTags(queryExec, isNull, clause, nullTags);
     }
 
     private static EsQueryExec.QueryBuilderAndTags rangeBucket(
@@ -542,17 +581,15 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
         Queries.Clause clause
     ) {
         Expression range = createRangeExpression(source, field, dataType, lower, upper, zoneId);
-        return buildCombinedQueryAndTags(queryExec, pushdownPredicates, range, clause, List.of(tag));
+        return buildCombinedQueryAndTags(queryExec, TRANSLATOR_HANDLER.asQuery(pushdownPredicates, range), clause, List.of(tag));
     }
 
     private static EsQueryExec.QueryBuilderAndTags buildCombinedQueryAndTags(
         EsQueryExec queryExec,
-        LucenePushdownPredicates pushdownPredicates,
-        Expression expression,
+        Query queryDSL,
         Queries.Clause clause,
         List<Object> tags
     ) {
-        Query queryDSL = TRANSLATOR_HANDLER.asQuery(pushdownPredicates, expression);
         QueryBuilder mainQuery = queryExec.query();
         QueryBuilder newQuery = queryDSL.toQueryBuilder();
         QueryBuilder combinedQuery = Queries.combine(clause, mainQuery != null ? List.of(mainQuery, newQuery) : List.of(newQuery));

@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.logging.Logger;
 
@@ -43,7 +44,7 @@ class DLMFrozenTransitionService extends AbstractDLMPeriodicMasterOnlyService {
 
     private static final Logger logger = getLogger(DLMFrozenTransitionService.class);
 
-    private final BiFunction<String, ProjectId, DLMFrozenTransitionRunnable> transitionRunnableFactory;
+    private final BiFunction<Index, ProjectId, DLMFrozenTransitionRunnable> transitionRunnableFactory;
     private final DLMFrozenTransitionExecutor transitionExecutor;
     private final DLMFrozenTransitionSettings transitionSettings;
 
@@ -66,7 +67,7 @@ class DLMFrozenTransitionService extends AbstractDLMPeriodicMasterOnlyService {
     // visible for testing
     DLMFrozenTransitionService(
         ClusterService clusterService,
-        BiFunction<String, ProjectId, DLMFrozenTransitionRunnable> transitionRunnableFactory,
+        BiFunction<Index, ProjectId, DLMFrozenTransitionRunnable> transitionRunnableFactory,
         DLMFrozenTransitionExecutor transitionExecutor,
         DLMFrozenTransitionSettings transitionSettings
     ) {
@@ -75,7 +76,7 @@ class DLMFrozenTransitionService extends AbstractDLMPeriodicMasterOnlyService {
 
     private DLMFrozenTransitionService(
         ClusterService clusterService,
-        BiFunction<String, ProjectId, DLMFrozenTransitionRunnable> transitionRunnableFactory,
+        BiFunction<Index, ProjectId, DLMFrozenTransitionRunnable> transitionRunnableFactory,
         long initialDelayMillis,
         DLMFrozenTransitionExecutor transitionExecutor,
         DLMFrozenTransitionSettings transitionSettings
@@ -143,7 +144,8 @@ class DLMFrozenTransitionService extends AbstractDLMPeriodicMasterOnlyService {
                     );
                     continue;
                 }
-                String indexName = indexMetadata.getIndex().getName();
+                Index index = indexMetadata.getIndex();
+                String indexName = index.getName();
                 logger.debug("Frozen index to process detected: {}", indexName);
                 if (transitionExecutor.transitionSubmitted(projectMetadata.id(), indexName)) {
                     logger.debug("Transition already running for index [{}], skipping", indexName);
@@ -153,7 +155,7 @@ class DLMFrozenTransitionService extends AbstractDLMPeriodicMasterOnlyService {
                     return;
                 }
                 try {
-                    transitionExecutor.submit(transitionRunnableFactory.apply(indexName, projectMetadata.id()));
+                    transitionExecutor.submit(transitionRunnableFactory.apply(index, projectMetadata.id()));
                 } catch (RejectedExecutionException e) {
                     logger.debug(
                         () -> LoggerMessageFormat.format(

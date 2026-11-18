@@ -434,7 +434,7 @@ class S3BlobContainer extends AbstractBlobContainer {
             }
             succeeded = true;
         } catch (SdkException e) {
-            throw new IOException("Unable to upload object [" + blobName + "] using concurrent multipart upload", e);
+            throw new IOException("Unable to upload object [" + blobName + "] using multipart upload", e);
         } finally {
             if (succeeded == false) {
                 abortMultiPartUploadOnFailure(purpose, uploadId, absoluteBlobKey);
@@ -510,7 +510,7 @@ class S3BlobContainer extends AbstractBlobContainer {
         final AtomicLong deletedBytes = new AtomicLong();
         try (var clientReference = blobStore.clientReference()) {
             ListObjectsV2Response prevListing = null;
-            while (true) {
+            while (prevListing == null || prevListing.isTruncated()) {
                 final var listObjectsRequestBuilder = ListObjectsV2Request.builder().bucket(blobStore.bucket()).prefix(keyPath);
                 S3BlobStore.configureRequestForMetrics(listObjectsRequestBuilder, blobStore, Operation.LIST_OBJECTS, purpose);
                 if (prevListing != null) {
@@ -523,13 +523,8 @@ class S3BlobContainer extends AbstractBlobContainer {
                     deletedBytes.addAndGet(s3Object.size());
                     return s3Object.key();
                 });
-                if (listObjectsResponse.isTruncated()) {
-                    blobStore.deleteBlobs(purpose, blobNameIterator);
-                    prevListing = listObjectsResponse;
-                } else {
-                    blobStore.deleteBlobs(purpose, Iterators.concat(blobNameIterator, Iterators.single(keyPath)));
-                    break;
-                }
+                blobStore.deleteBlobs(purpose, blobNameIterator);
+                prevListing = listObjectsResponse;
             }
         } catch (final SdkException e) {
             throw new IOException("Exception when deleting blob container [" + keyPath + "]", e);
@@ -791,7 +786,9 @@ class S3BlobContainer extends AbstractBlobContainer {
             if (e instanceof SdkServiceException sse && sse.statusCode() == RestStatus.NOT_FOUND.getStatus()) {
                 throw new NoSuchFileException(blobName, null, e.getMessage());
             }
-            throw new IOException("Unable to upload or copy object [" + blobName + "] using multipart upload", e);
+            assert operation == Operation.COPY_MULTIPART_OBJECT || operation == Operation.PUT_MULTIPART_OBJECT;
+            final String action = operation == Operation.COPY_MULTIPART_OBJECT ? "copy" : "upload";
+            throw new IOException("Unable to " + action + " object [" + blobName + "] using multipart upload", e);
         } finally {
             abortMultiPartUploadOnFailure(purpose, uploadId, blobName);
         }

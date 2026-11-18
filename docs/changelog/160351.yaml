@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 160351
+summary: Infer `similarity_function` for KNN on a runtime expression from the embedding source
+type: enhancement

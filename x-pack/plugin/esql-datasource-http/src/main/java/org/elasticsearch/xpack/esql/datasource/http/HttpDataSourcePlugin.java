@@ -83,6 +83,14 @@ public class HttpDataSourcePlugin extends Plugin implements DataSourcePlugin {
     }
 
     @Override
+    public Map<String, String> testConnectionSchemes() {
+        if (localEnabled() == false) {
+            return Map.of();
+        }
+        return Map.of("local", "file");
+    }
+
+    @Override
     public Map<String, StorageProviderFactory> storageProviders(Settings settings, ExecutorService executor) {
         if (httpEnabled() == false && localEnabled() == false) {
             return Map.of();

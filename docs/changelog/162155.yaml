@@ -1,0 +1,5 @@
+area: ES|QL
+type: bug
+issues: []
+pr: 162155
+summary: "Fix small Parquet files being re-read from storage on every ES|QL query once their cached bytes expire"

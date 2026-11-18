@@ -23,7 +23,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
-import org.elasticsearch.telemetry.metric.LongWithAttributes;
+import org.elasticsearch.telemetry.metric.LongAsyncMeasurement;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry.ExtractorType
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
@@ -184,69 +183,54 @@ public final class MlConfigMetrics extends AbstractLifecycleComponent implements
                 "es.ml.datafeeds.cps.internal_credentials.current",
                 "Count of datafeed configs with a persisted cloud_internal_credential envelope.",
                 "datafeeds",
-                () -> new LongWithAttributes(cpsCounts.internalCredentialCount(), isMasterMap)
+                measurement -> measurement.record(cpsCounts.internalCredentialCount(), isMasterMap)
             )
         );
         metrics.add(
-            meterRegistry.registerLongsAsyncGauge(
+            meterRegistry.registerLongAsyncGauge(
                 "es.ml.datafeeds.cps.auth_type.current",
                 "Count of datafeed configs by CPS authentication type.",
                 "datafeeds",
-                this::observeAuthTypeCounts
+                this::recordAuthTypeCounts
             )
         );
         metrics.add(
-            meterRegistry.registerLongsAsyncGauge(
+            meterRegistry.registerLongAsyncGauge(
                 "es.ml.datafeeds.cps.project_routing.current",
                 "Count of datafeed configs by project_routing bucket.",
                 "datafeeds",
-                this::observeProjectRoutingCounts
+                this::recordProjectRoutingCounts
             )
         );
         metrics.add(
-            meterRegistry.registerLongsAsyncGauge(
+            meterRegistry.registerLongAsyncGauge(
                 "es.ml.datafeeds.extractor_type.current",
                 "Count of datafeed configs by extractor type (scroll, aggregation, composite).",
                 "datafeeds",
-                this::observeExtractorTypeCounts
+                this::recordExtractorTypeCounts
             )
         );
     }
 
-    private Collection<LongWithAttributes> observeExtractorTypeCounts() {
-        List<LongWithAttributes> observations = new ArrayList<>(ExtractorType.values().length);
+    private void recordExtractorTypeCounts(LongAsyncMeasurement measurement) {
         for (ExtractorType extractorType : ExtractorType.values()) {
-            observations.add(
-                new LongWithAttributes(
-                    extractorTypeCounts.getOrDefault(extractorType, 0L),
-                    attributesWith("es_extractor_type", extractorType.attributeValue())
-                )
+            measurement.record(
+                extractorTypeCounts.getOrDefault(extractorType, 0L),
+                attributesWith("es_extractor_type", extractorType.attributeValue())
             );
         }
-        return observations;
     }
 
-    private Collection<LongWithAttributes> observeAuthTypeCounts() {
-        List<LongWithAttributes> observations = new ArrayList<>(AuthType.values().length);
+    private void recordAuthTypeCounts(LongAsyncMeasurement measurement) {
         for (AuthType authType : AuthType.values()) {
-            observations.add(
-                new LongWithAttributes(cpsCounts.countForAuthType(authType), attributesWith("es_auth_type", authType.attributeValue()))
-            );
+            measurement.record(cpsCounts.countForAuthType(authType), attributesWith("es_auth_type", authType.attributeValue()));
         }
-        return observations;
     }
 
-    private Collection<LongWithAttributes> observeProjectRoutingCounts() {
-        List<LongWithAttributes> observations = new ArrayList<>(ProjectRoutingBucket.values().length);
+    private void recordProjectRoutingCounts(LongAsyncMeasurement measurement) {
         for (ProjectRoutingBucket bucket : ProjectRoutingBucket.values()) {
-            observations.add(
-                new LongWithAttributes(
-                    cpsCounts.countForRoutingBucket(bucket),
-                    attributesWith("es_routing_bucket", bucket.attributeValue())
-                )
-            );
+            measurement.record(cpsCounts.countForRoutingBucket(bucket), attributesWith("es_routing_bucket", bucket.attributeValue()));
         }
-        return observations;
     }
 
     private Map<String, Object> attributesWith(String key, String value) {

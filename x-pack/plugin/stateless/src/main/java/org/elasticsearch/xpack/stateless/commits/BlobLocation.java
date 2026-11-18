@@ -44,10 +44,7 @@ public record BlobLocation(BlobFile blobFile, long offset, long fileLength) impl
     // private access only for deserialization
     private BlobLocation(long primaryTerm, String blobName, long offset, long fileLength) {
         this(
-            new BlobFile(
-                blobName,
-                new PrimaryTermAndGeneration(primaryTerm, StatelessCompoundCommit.parseGenerationFromBlobName(blobName))
-            ),
+            new BlobFile(blobName, new PrimaryTermAndGeneration(primaryTerm, BatchedCompoundCommit.parseGenerationFromBlobName(blobName))),
             offset,
             fileLength
         );

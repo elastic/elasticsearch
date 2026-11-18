@@ -1,0 +1,3 @@
+FROM colors,
+     (FROM colors
+      | WHERE id IN (FROM colors METADATA _score | WHERE knn(rgb_vector, "007800") | KEEP id))

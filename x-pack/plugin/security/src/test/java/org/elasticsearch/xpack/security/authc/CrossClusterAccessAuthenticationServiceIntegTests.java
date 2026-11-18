@@ -58,6 +58,7 @@ import static org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders.C
 import static org.elasticsearch.xpack.security.transport.X509CertificateSignature.CROSS_CLUSTER_ACCESS_SIGNATURE_HEADER_KEY;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -160,6 +161,33 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
             authenticateAndAssertExpectedErrorMessage(
                 service,
                 msg -> assertThat(msg, equalTo("Provided signature does not contain any certificates"))
+            );
+        }
+    }
+
+    /** Verifies the real authentication pipeline rejects an unknown API key before decoding untrusted subject info. */
+    public void testUnknownApiKeyRejectedBeforeSubjectInfoDecode() throws IOException {
+        // Create the security index so authentication performs a real lookup for the unknown key.
+        getEncodedCrossClusterAccessApiKey();
+        final String nodeName = internalCluster().getRandomNodeName();
+        final ThreadContext threadContext = internalCluster().getInstance(SecurityContext.class, nodeName).getThreadContext();
+        final CrossClusterAccessAuthenticationService service = getCrossClusterAccessAuthenticationService(nodeName);
+        final String unknownApiKeyId = UUIDs.base64UUID();
+        final String encodedApiKey = Base64.getEncoder()
+            .encodeToString((unknownApiKeyId + ":" + UUIDs.randomBase64UUIDSecureString()).getBytes(StandardCharsets.UTF_8));
+
+        try (var ignored = threadContext.stashContext()) {
+            threadContext.putHeader(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY, ApiKeyService.withApiKeyPrefix(encodedApiKey));
+            // Invalid base64 would fail immediately if the subject info were decoded before authentication.
+            threadContext.putHeader(CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY, "%%%%");
+            final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
+            // Invoke the service directly so transport-level header authentication cannot mask a regression here.
+            service.authenticate(ClusterStateAction.NAME, new SearchRequest(), future);
+
+            final ElasticsearchSecurityException failure = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
+            assertThat(
+                failure.getMetadata("es.additional_unsuccessful_credentials"),
+                hasItem("API key: unable to find apikey with id " + unknownApiKeyId)
             );
         }
     }
@@ -337,7 +365,7 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
             map.put(
                 "Authorization",
                 randomFrom(
-                    CrossClusterAccessHeadersTests.randomEncodedApiKeyHeader(),
+                    CrossClusterAccessRequestHeadersTests.randomEncodedApiKeyHeader(),
                     UsernamePasswordToken.basicAuthHeaderValue(
                         SecuritySettingsSource.TEST_USER_NAME,
                         new SecureString(SecuritySettingsSource.TEST_USER_NAME.toCharArray())
@@ -374,7 +402,7 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
             new AuthenticationContextSerializer().writeToContext(AuthenticationTestHelper.builder().build(), threadContext);
         }
         if (randomBoolean()) {
-            threadContext.putHeader("Authorization", CrossClusterAccessHeadersTests.randomEncodedApiKeyHeader());
+            threadContext.putHeader("Authorization", CrossClusterAccessRequestHeadersTests.randomEncodedApiKeyHeader());
         }
     }
 

@@ -159,14 +159,14 @@ public class Pipeline {
         IngestPipelineFieldAccessPattern accessPattern = fieldAccessPatternRaw == null
             ? IngestPipelineFieldAccessPattern.CLASSIC
             : IngestPipelineFieldAccessPattern.getAccessPattern(fieldAccessPatternRaw);
-        List<Map<String, Object>> processorConfigs = ConfigurationUtils.readList(null, null, config, PROCESSORS_KEY);
+        List<?> processorConfigs = ConfigurationUtils.readList(null, null, config, PROCESSORS_KEY);
         List<Processor> processors = ConfigurationUtils.readProcessorConfigs(
             processorConfigs,
             scriptService,
             processorFactories,
             projectId
         );
-        List<Map<String, Object>> onFailureProcessorConfigs = ConfigurationUtils.readOptionalList(null, null, config, ON_FAILURE_KEY);
+        List<?> onFailureProcessorConfigs = ConfigurationUtils.readOptionalList(null, null, config, ON_FAILURE_KEY);
         List<Processor> onFailureProcessors = ConfigurationUtils.readProcessorConfigs(
             onFailureProcessorConfigs,
             scriptService,

@@ -1,0 +1,2 @@
+SET unmapped_fields="LOAD_ALL"; FROM (FROM partial_mapping_sample_data), (FROM no_mapping_sample_data | KEEP unmapped_message)
+| KEEP unmapped_message

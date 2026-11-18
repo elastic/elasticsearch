@@ -14,11 +14,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.telemetry.metric.LongAsyncGauge;
-import org.elasticsearch.telemetry.metric.LongWithAttributes;
+import org.elasticsearch.telemetry.metric.LongAsyncMeasurement;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
-
-import java.util.Collection;
-import java.util.List;
 
 /**
  * Master-gated APM gauges for the configuration inventory. The supplier returns an empty
@@ -39,37 +36,39 @@ public final class DataSourceInventoryMetrics {
     public DataSourceInventoryMetrics(MeterRegistry meterRegistry, ClusterService clusterService, DataSourceInventoryCounters inventory) {
         this.clusterService = clusterService;
         this.inventory = inventory;
-        this.datasourcesGauge = meterRegistry.registerLongsAsyncGauge(
+        this.datasourcesGauge = meterRegistry.registerLongAsyncGauge(
             DATASOURCES_CURRENT,
             "Currently registered ES|QL data sources, dimensioned by type and auth",
             "unit",
-            this::datasourceObservations
+            this::recordDatasourceObservations
         );
-        this.datasetsGauge = meterRegistry.registerLongsAsyncGauge(
+        this.datasetsGauge = meterRegistry.registerLongAsyncGauge(
             DATASETS_CURRENT,
             "Currently registered ES|QL datasets, dimensioned by type, format, schema, partitioning, compression",
             "unit",
-            this::datasetObservations
+            this::recordDatasetObservations
         );
     }
 
-    private Collection<LongWithAttributes> datasourceObservations() {
+    private void recordDatasourceObservations(LongAsyncMeasurement measurement) {
         try {
             ProjectMetadata project = projectIfMaster();
-            return project == null ? List.of() : inventory.datasourceObservations(project);
+            if (project != null) {
+                inventory.recordDatasourceObservations(project, measurement);
+            }
         } catch (Exception e) {
             logger.trace("telemetry: datasource inventory gauge failed", e);
-            return List.of();
         }
     }
 
-    private Collection<LongWithAttributes> datasetObservations() {
+    private void recordDatasetObservations(LongAsyncMeasurement measurement) {
         try {
             ProjectMetadata project = projectIfMaster();
-            return project == null ? List.of() : inventory.datasetObservations(project);
+            if (project != null) {
+                inventory.recordDatasetObservations(project, measurement);
+            }
         } catch (Exception e) {
             logger.trace("telemetry: dataset inventory gauge failed", e);
-            return List.of();
         }
     }
 

@@ -14,11 +14,14 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IntsRef;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.BytesRefRecycler;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentString;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -221,6 +224,108 @@ public class EscfColumnTransformsTests extends ESTestCase {
         }
     }
 
+    public void testBackfillUtf8Before_beforeDocZeroNoElementsToReplay() throws IOException {
+        // beforeDoc=0, elementsOfBeforeDoc=0: nothing to copy, nothing to replay.
+        try (EscfBatch batch = encode("{\"f\":\"alpha\"}")) {
+            EscfColumn source = columnByPath(batch, "f");
+            EscfColumnBuilder dest = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE);
+            EscfColumnTransforms.backfillUtf8Before(dest, source, 0, 0);
+            EscfColumn result = EscfColumn.from(dest.finish(1));
+            assertTuples(EscfColumnTransforms.utf8Cursor(result, randomBoolean()));
+        }
+    }
+
+    public void testBackfillUtf8Before_replaysFirstElementOfBeforeDocWhenBeforeDocIsZero() throws IOException {
+        // Regression: beforeDoc=0 means the for-loop-style exit consumed the first element without
+        // writing it, then the inner loop advanced again and picked up the second element instead.
+        try (EscfBatch batch = encode("{\"f\":[\"alpha\",\"beta\"]}")) {
+            EscfColumn source = columnByPath(batch, "f");
+            EscfColumnBuilder dest = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE);
+            EscfColumnTransforms.backfillUtf8Before(dest, source, 0, 1);
+            EscfColumn result = EscfColumn.from(dest.finish(1));
+            assertTuples(EscfColumnTransforms.utf8Cursor(result, randomBoolean()), tuple(0, "alpha"));
+        }
+    }
+
+    public void testBackfillUtf8Before_replaysMultipleElementsOfBeforeDoc() throws IOException {
+        try (EscfBatch batch = encode("{\"f\":[\"alpha\",\"beta\",\"gamma\"]}")) {
+            EscfColumn source = columnByPath(batch, "f");
+            EscfColumnBuilder dest = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE);
+            EscfColumnTransforms.backfillUtf8Before(dest, source, 0, 2);
+            EscfColumn result = EscfColumn.from(dest.finish(1));
+            assertTuples(EscfColumnTransforms.utf8Cursor(result, randomBoolean()), tuple(0, "alpha"), tuple(0, "beta"));
+        }
+    }
+
+    public void testBackfillUtf8Before_copiesDocsBeforeAndReplaysElementsOfBeforeDoc() throws IOException {
+        // Two docs: doc 0 = "x", doc 1 = ["alpha", "beta"]. Copy doc 0, replay first element of doc 1.
+        try (EscfBatch batch = encode("{\"f\":\"x\"}", "{\"f\":[\"alpha\",\"beta\"]}")) {
+            EscfColumn source = columnByPath(batch, "f");
+            EscfColumnBuilder dest = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE);
+            EscfColumnTransforms.backfillUtf8Before(dest, source, 1, 1);
+            EscfColumn result = EscfColumn.from(dest.finish(2));
+            assertTuples(EscfColumnTransforms.utf8Cursor(result, randomBoolean()), tuple(0, "x"), tuple(1, "alpha"));
+        }
+    }
+
+    public void testDoubleColumn_keepsLexicalForm() throws IOException {
+        try (EscfBatch batch = encode("{\"f\":-1.90}", "{\"f\":3.14}", "{\"f\":1e3}", "{\"f\":123.41999816894531}")) {
+            EscfColumn col = columnByPath(batch, "f");
+            assertEquals("a stored spelling does not change the column kind", EscfColumnKind.DOUBLE, col.kind());
+            assertTuples(
+                EscfColumnTransforms.utf8Cursor(col, randomBoolean()),
+                tuple(0, "-1.90"),
+                tuple(1, "3.14"),
+                tuple(2, "1e3"),
+                tuple(3, "123.41999816894531")
+            );
+        }
+    }
+
+    public void testSpellingsAreNotKeptOutsideDenseDoubleColumns() throws IOException {
+        // a columnar array: a DOUBLE child without a sidecar
+        try (EscfBatch batch = encode("{\"f\":[12.40,1.90]}", "{\"f\":[2.5]}")) {
+            EscfColumn col = columnByPath(batch, "f");
+            assertEquals(EscfColumnKind.ARRAY, col.kind());
+            assertTuples(EscfColumnTransforms.utf8Cursor(col, randomBoolean()), tuple(0, "12.4"), tuple(0, "1.9"), tuple(1, "2.5"));
+        }
+        // a dense column promoted to a union loses its sidecar
+        try (EscfBatch batch = encode("{\"f\":-1.90}", "{\"f\":null}")) {
+            EscfColumn col = columnByPath(batch, "f");
+            assertEquals(EscfColumnKind.UNION, col.kind());
+            assertTuples(EscfColumnTransforms.utf8Cursor(col, randomBoolean()), tuple(0, "-1.9"), nullTuple(1));
+        }
+        // a column that is a union from its first row never records a spelling
+        try (EscfBatch batch = encode("{\"f\":null}", "{\"f\":-1.90}")) {
+            EscfColumn col = columnByPath(batch, "f");
+            assertEquals(EscfColumnKind.UNION, col.kind());
+            assertTuples(EscfColumnTransforms.utf8Cursor(col, randomBoolean()), nullTuple(0), tuple(1, "-1.9"));
+        }
+    }
+
+    public void testFloat32Tokens_keepTheirSpelling() throws IOException {
+        // SMILE and CBOR carry true float32 tokens, spelled with Float.toString by the parser while the value widens to
+        // a double: 1.1f is kept as "1.1" and 123.42f as "123.42". CBOR also pins the order the encoder reads a token
+        // in, text before value: Jackson's CBOR parser prints the widened double once the double was requested.
+        for (XContentType type : new XContentType[] { XContentType.SMILE, XContentType.CBOR }) {
+            try (
+                XContentBuilder doc0 = binary(type, b -> b.field("f", 1.1f));
+                XContentBuilder doc1 = binary(type, b -> b.field("f", 123.42f))
+            ) {
+                Recycler<BytesRef> recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
+                try (EscfEncoder encoder = new EscfEncoder(recycler)) {
+                    encoder.addDocument(BytesReference.bytes(doc0), type, 0);
+                    encoder.addDocument(BytesReference.bytes(doc1), type, 0);
+                    try (EscfBatch batch = encoder.buildPartition(0)) {
+                        EscfColumn col = columnByPath(batch, "f");
+                        assertEquals(type.toString(), EscfColumnKind.DOUBLE, col.kind());
+                        assertTuples(EscfColumnTransforms.utf8Cursor(col, randomBoolean()), tuple(0, "1.1"), tuple(1, "123.42"));
+                    }
+                }
+            }
+        }
+    }
+
     public void testBinaryColumn_throws() {
         int[] offs = { 0, 2 };
         EscfColumnData data = EscfColumnData.ofVarWidth(EscfColumnKind.BINARY, 1, null, offs, new BytesArray(new byte[] { 1, 2 }));
@@ -271,6 +376,14 @@ public class EscfColumnTransformsTests extends ESTestCase {
                 assertEquals("tuple[" + i + "].value", new BytesRef(expectedValue), actual.get(i)[1]);
             }
         }
+    }
+
+    private static XContentBuilder binary(XContentType type, CheckedConsumer<XContentBuilder, IOException> fields) throws IOException {
+        XContentBuilder builder = XContentBuilder.builder(type.xContent());
+        builder.startObject();
+        fields.accept(builder);
+        builder.endObject();
+        return builder;
     }
 
     private static EscfBatch encode(String... jsonDocs) throws IOException {

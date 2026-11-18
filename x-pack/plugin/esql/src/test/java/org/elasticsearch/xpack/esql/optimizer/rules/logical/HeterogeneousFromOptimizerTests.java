@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSpec;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.expression.Order;
@@ -59,11 +60,9 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizerTests.relation;
@@ -80,6 +79,10 @@ import static org.hamcrest.Matchers.not;
  * (rather than the subquery-shape where children are {@code Project > Eval? > Subquery}).
  */
 public class HeterogeneousFromOptimizerTests extends AbstractLogicalPlanOptimizerTests {
+
+    public HeterogeneousFromOptimizerTests(VersionMode versionMode) {
+        super(versionMode);
+    }
 
     /**
      * {@link PushDownFilterAndLimitIntoUnionAll} must push a filter predicate into both branches
@@ -115,7 +118,7 @@ public class HeterogeneousFromOptimizerTests extends AbstractLogicalPlanOptimize
         GreaterThan condition = new GreaterThan(EMPTY, unionEmpNo, new Literal(EMPTY, 1, INTEGER), null);
         Filter filter = new Filter(EMPTY, unionAll, condition);
 
-        LogicalPlan result = new PushDownFilterAndLimitIntoUnionAll().apply(filter, unboundLogicalOptimizerContext());
+        LogicalPlan result = new PushDownFilterAndLimitIntoUnionAll().apply(filter, logicalOptimizerCtx);
 
         UnionAll resultUnionAll = as(result, UnionAll.class);
         assertThat(resultUnionAll.children(), hasSize(2));
@@ -143,7 +146,7 @@ public class HeterogeneousFromOptimizerTests extends AbstractLogicalPlanOptimize
         UnionAll unionAll = new UnionAll(EMPTY, List.of(esRelation, extRelation), List.of(unionEmpNo));
         Limit limit = new Limit(EMPTY, new Literal(EMPTY, 10, INTEGER), unionAll);
 
-        LogicalPlan result = new PushDownAndCombineLimits().apply(limit, unboundLogicalOptimizerContext());
+        LogicalPlan result = new PushDownAndCombineLimits().apply(limit, logicalOptimizerCtx);
 
         // Limit must remain on top — it must not be pushed into each branch
         Limit resultLimit = as(result, Limit.class);
@@ -234,7 +237,7 @@ public class HeterogeneousFromOptimizerTests extends AbstractLogicalPlanOptimize
         OrderBy orderBy = new OrderBy(EMPTY, unionAll, List.of(order));
         Limit limit = new Limit(EMPTY, new Literal(EMPTY, 10, INTEGER), orderBy);
 
-        LogicalPlan result = new PushDownLimitAndOrderByIntoMergePlan().apply(limit, unboundLogicalOptimizerContext());
+        LogicalPlan result = new PushDownLimitAndOrderByIntoMergePlan().apply(limit, logicalOptimizerCtx);
 
         // Outer structure: Limit → OrderBy → UnionAll remains intact
         Limit resultLimit = as(result, Limit.class);
@@ -1029,7 +1032,7 @@ public class HeterogeneousFromOptimizerTests extends AbstractLogicalPlanOptimize
         UnionAll unionAll = new UnionAll(EMPTY, List.of(esRelation, extRelation), List.of(unionEmpNo, unionSalary));
 
         GreaterThan salaryFilter = new GreaterThan(EMPTY, unionSalary, new Literal(EMPTY, 0, INTEGER), null);
-        CountDistinct cdFiltered = new CountDistinct(EMPTY, unionEmpNo, null).withFilter(salaryFilter);
+        AggregateFunction cdFiltered = new CountDistinct(EMPTY, unionEmpNo, null).withFilter(salaryFilter);
         Alias cdAlias = new Alias(EMPTY, "d", cdFiltered);
         Aggregate aggregate = new Aggregate(EMPTY, unionAll, List.of(), List.of(cdAlias));
 
@@ -1121,7 +1124,7 @@ public class HeterogeneousFromOptimizerTests extends AbstractLogicalPlanOptimize
         UnionAll unionAll = new UnionAll(EMPTY, List.of(esRelation, extRelation), List.of(unionSalary));
 
         GreaterThan salaryFilter = new GreaterThan(EMPTY, unionSalary, new Literal(EMPTY, 0, INTEGER), null);
-        Sum sumFiltered = new Sum(EMPTY, unionSalary).withFilter(salaryFilter);
+        AggregateFunction sumFiltered = new Sum(EMPTY, unionSalary).withFilter(salaryFilter);
         Alias sumAlias = new Alias(EMPTY, "s", sumFiltered);
         Aggregate aggregate = new Aggregate(EMPTY, unionAll, List.of(), List.of(sumAlias));
 
@@ -1374,7 +1377,9 @@ public class HeterogeneousFromOptimizerTests extends AbstractLogicalPlanOptimize
             Map.of()
         );
         var analyzed = analyzer().addIndex(employeesIndex)
-            .externalSourceResolution(new ExternalSourceResolution(Map.of(EXT_EMPS_RESOURCE, extEmpsSource)))
+            .externalSourceResolution(
+                new ExternalSourceResolution(Map.of(new ExternalSourceSpec(EXT_EMPS_RESOURCE, Map.of()), extEmpsSource))
+            )
             .buildAnalyzer()
             .analyze(rewritten);
         return optimize(analyzed);

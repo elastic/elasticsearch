@@ -38,7 +38,6 @@ import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.CompactMultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -53,6 +52,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
@@ -65,6 +65,7 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.ParameterizedQuery;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
+import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
@@ -77,6 +78,7 @@ import org.elasticsearch.xpack.esql.score.ExpressionScoreMapper;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -89,6 +91,8 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator.forPostOptimizationValidation;
 import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator.forPreOptimizationValidation;
@@ -227,6 +231,13 @@ public abstract class FullTextFunction extends Function
     }
 
     /**
+     * Whether this function can search an expression at all, as opposed to {@link #isRuntimeSearch()}, which says
+     * whether the call in hand does. A function that cannot has no alternative to offer when it is rejected for
+     * needing the index, so error messages naming that restriction only qualify it for functions that can.
+     */
+    public abstract boolean supportsRuntimeSearch();
+
+    /**
      * Checks full text query functions for invalid usage.
      *
      * @param plan root plan to check
@@ -338,7 +349,8 @@ public abstract class FullTextFunction extends Function
                     && (lp instanceof LimitBy == false)
                     && (lp instanceof TopNBy == false)
                     && (lp instanceof Dedup == false)
-                    && (lp instanceof Highlight == false),
+                    && (lp instanceof Highlight == false)
+                    && (lp instanceof TopN == false),
                 m -> "[" + m.functionName() + "] " + m.functionType(),
                 failures
             );
@@ -388,12 +400,19 @@ public abstract class FullTextFunction extends Function
         java.util.function.Function<E, String> typeErrorMsgProvider,
         Failures failures
     ) {
+        Set<String> inheritedSourceTexts = new HashSet<>();
+        plan.forEachDown(UnionAll.class, unionAll -> inheritedSourceTexts.add(unionAll.sourceText()));
+        // A filter pushed into a UnionAll branch is checked independently after optimization, when its ancestor
+        // UnionAll is no longer visible from this subtree. Such a filter inherits the UnionAll branch source.
+        inheritedSourceTexts.add(plan.sourceText());
         condition.forEachDown(typeToken, exp -> {
+            // A runtime search is evaluated row by row over the values already in the page (see RuntimeSearch) instead
+            // of querying a Lucene index, so it doesn't need a shard context or push-down to a data node.
+            if (exp instanceof FullTextFunction ftf && ftf.isRuntimeSearch()) {
+                return;
+            }
             plan.forEachDown(LogicalPlan.class, lp -> {
-                // `checkCommandsBeforeExpression` should be completely skipped for search functions that do not operate on index fields,
-                // but for now all checks apply, except for MV_EXPAND which can be used before a runtime search function
-                if ((lp instanceof MvExpand && exp instanceof FullTextFunction ftf && ftf.isRuntimeSearch()) == false
-                    && commandCheck.test(lp) == false) {
+                if (commandCheck.test(lp) == false) {
                     if (lp instanceof ExternalRelation externalRelation) {
                         // Federated sources are never Lucene-backed, so functions gated to Lucene-only relations (e.g. KQL/QSTR)
                         // fail here regardless of position. Name the actual limitation instead of the generic positional
@@ -411,14 +430,25 @@ public abstract class FullTextFunction extends Function
                     }
                     String sourceText = lp.sourceText();
                     String errorMessage;
-                    if (lp instanceof UnionAll) {
+                    if (lp instanceof TopN) {
+                        // TopN is the optimized SORT + LIMIT. Its source is the SORT command, so the first
+                        // token would be "SORT", which is misleading: SORT alone is allowed before full-text.
+                        errorMessage = "SORT and LIMIT";
+                    } else if (inheritedSourceTexts.contains(sourceText)) {
+                        // UnionAll and analyzer-generated nodes around it can inherit the complete multi-source FROM clause. Report that
+                        // clause instead of its misleading first token.
                         errorMessage = sourceText.length() > Node.TO_STRING_MAX_WIDTH
                             ? sourceText.substring(0, Node.TO_STRING_MAX_WIDTH) + "..."
                             : sourceText;
                     } else {
                         errorMessage = sourceText.split(" ")[0].toUpperCase(Locale.ROOT);
                     }
-                    failures.add(fail(plan, "{} cannot be used after {}", typeErrorMsgProvider.apply(exp), errorMessage));
+                    // Name the reason for functions that could have searched an expression instead, since for them the
+                    // restriction is not about the command at all. For the rest there is no alternative to point at.
+                    String qualifier = exp instanceof FullTextFunction ftf && ftf.supportsRuntimeSearch()
+                        ? " when it targets an indexed field"
+                        : "";
+                    failures.add(fail(plan, "{} cannot be used after {}{}", typeErrorMsgProvider.apply(exp), errorMessage, qualifier));
                 }
             });
         });
@@ -494,7 +524,7 @@ public abstract class FullTextFunction extends Function
             if (function.isRuntimeSearch()) {
                 return;
             }
-
+            // TODO: Can be removed. QSTR and KQL are the only functions with no runtime support, but they do not reach this method.
             plan.forEachExpression(function.getClass(), m -> {
                 if (function.children().contains(field) && hasSubqueryInChildrenPlans(plan) == false) {
                     String fieldName = field.sourceText().isEmpty() && field instanceof Attribute attr ? attr.name() : field.sourceText();
@@ -521,9 +551,16 @@ public abstract class FullTextFunction extends Function
                 // When LogicalVerifier checks the plan, LookupJoin becomes Join.
                 return;
             }
+            // Full-text functions inside a HIGHLIGHT query expression are used to define highlighting
+            // terms, not as Lucene filter predicates, so the LOOKUP JOIN restriction does not apply here.
+            if (plan instanceof Highlight) {
+                return;
+            }
+            // Fields from the right-hand side of a LOOKUP JOIN are not in the main index. A Lucene query on them
+            // runs against the main index shards and silently matches nothing.
             // Traverse the plan to find the EsRelation outputting the field
             plan.forEachDown(p -> {
-                if (p instanceof EsRelation esRelation && esRelation.indexMode() != IndexMode.STANDARD) {
+                if (p instanceof EsRelation esRelation && esRelation.indexMode() == IndexMode.LOOKUP) {
                     // Check if this EsRelation supplies the field
                     if (esRelation.outputSet().contains(fieldAttribute)) {
                         failures.add(
@@ -564,6 +601,11 @@ public abstract class FullTextFunction extends Function
         Holder<Attribute> current = new Holder<>((Attribute) fieldExpression);
         Holder<FieldAttribute> resolved = new Holder<>();
         plan.forEachDownMayReturnEarly((p, breakEarly) -> {
+            // FILLNULL keeps the id of a column it fills until the optimizer expands it, but the column is no longer the field below.
+            if (p instanceof FillNull fillNull && fillNull.fills(current.get())) {
+                breakEarly.set(true);
+                return;
+            }
             if (p instanceof Project project) {
                 for (NamedExpression ne : project.projections()) {
                     if (ne instanceof Alias alias && alias.toAttribute().id().equals(current.get().id())) {
@@ -650,8 +692,8 @@ public abstract class FullTextFunction extends Function
             return builder;
         }
         // Coordinator-side query-builder rewrite is skipped for runtime search (see requiresQueryBuilderRewrite).
-        // ReplacePotentiallyUnmappedFieldWithMappedField can later make the field pushable on a data node without
-        // attaching a rewritten QueryBuilder to the expression, so build it here when needed.
+        // A data node can find the field pushable once its shards resolve it, without a rewritten QueryBuilder attached to the
+        // expression, so build it here when needed.
         assert isRuntimeSearch() == false : "runtime search must not use LuceneQueryEvaluator";
         return asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER).toQueryBuilder();
     }
@@ -666,6 +708,14 @@ public abstract class FullTextFunction extends Function
         // Runtime search is evaluated per row rather than through a Lucene query, and does not contribute to the
         // score (yet).
         return isRuntimeSearch() == false;
+    }
+
+    /**
+     * Whether {@code expression} holds a search that adds to {@code _score}. A filter adds its searches' scores after
+     * it has filtered, so a predicate on {@code _score} has to run after that to see them.
+     */
+    public static boolean containsScoringSearch(Expression expression) {
+        return expression.anyMatch(e -> e instanceof FullTextFunction ftf && ftf.contributesToScore());
     }
 
     private IndexedByShardId<ShardConfig> toShardConfigs(IndexedByShardId<? extends EsPhysicalOperationProviders.ShardContext> contexts) {
@@ -696,15 +746,36 @@ public abstract class FullTextFunction extends Function
 
         FieldAttribute fieldAttribute = (FieldAttribute) fieldExpression;
 
-        // we do an explicit to_text conversion and not all underlying fields already have the TEXT type
-        // which means we cannot effectively push down a single lexical match query to the shards
-        if (field.dataType() == TEXT
-            && fieldAttribute.field() instanceof CompactMultiTypeEsField compactMultiTypeEsField
-            && compactMultiTypeEsField.getTypeToConversionExpressions().keySet().stream().anyMatch(dataType -> dataType != TEXT)) {
+        if (isUnsafeAnalysisConversion(field.dataType(), fieldAttribute)) {
             return null;
         }
 
         return fieldAttribute;
+    }
+
+    /**
+     * Whether wrapping {@code fieldAttribute} in a conversion to {@code targetType} (TEXT via {@code TO_TEXT},
+     * KEYWORD via {@code TO_STRING}, or DENSE_VECTOR via {@code TO_DENSE_VECTOR}) changes its matching semantics from what a Lucene
+     * pushdown on the raw field would do. Only TEXT, KEYWORD and DENSE_VECTOR targets can differ this way
+     * (analyzed vs. exact matching for TEXT/KEYWORD, DENSE_VECTOR supports very different kinds of operations), so any other
+     * target is treated as safe without further checks. For these targets, safe (a no-op) only when the
+     * field is already {@code targetType} everywhere it's mapped; unsafe for an ordinary field of a different type,
+     * or a union-typed field whose per-branch conversions aren't uniformly a {@code targetType} - covering both
+     * {@link UnionTypeEsField} representations (the modern {@code CompactMultiTypeEsField} and the legacy
+     * {@code MultiTypeEsField}, the  latter still produced by cross-cluster searches against a remote cluster whose
+     * minimum transport version predates {@code compact_multi_type_es_field}).
+     */
+    private static boolean isUnsafeAnalysisConversion(DataType targetType, FieldAttribute fieldAttribute) {
+        if (targetType != TEXT && targetType != KEYWORD && targetType != DENSE_VECTOR) {
+            return false;
+        }
+        if (fieldAttribute.dataType() != targetType) {
+            return true;
+        }
+        return fieldAttribute.field() instanceof UnionTypeEsField unionTypeEsField
+            && unionTypeEsField.getConversionExpressions()
+                .stream()
+                .anyMatch(e -> e instanceof AbstractConvertFunction convertFunction && convertFunction.field().dataType() != targetType);
     }
 
     @Override
@@ -725,8 +796,11 @@ public abstract class FullTextFunction extends Function
                 checkFullTextFunctionsInFilter(f, failures, true);
                 // After optimization, if a coordinator-executed join still sits anywhere beneath this filter
                 // (not just as a direct child), the push-down optimizer could not move the filter to the data
-                // nodes. Full-text functions require a Lucene shard context that the coordinator does not have.
-                if (f.anyMatch(p -> p instanceof Join join && join.executesOn() == ExecutesOn.ExecuteLocation.COORDINATOR)) {
+                // nodes. An index-backed search requires a Lucene shard context that the coordinator does not have;
+                // a runtime search scans the values already in the page, so it runs there just as well. This check
+                // sees the final answer from isRuntimeSearch(), running after push-down has settled it.
+                if (isRuntimeSearch() == false
+                    && f.anyMatch(p -> p instanceof Join join && join.executesOn() == ExecutesOn.ExecuteLocation.COORDINATOR)) {
                     failures.add(
                         fail(
                             this,

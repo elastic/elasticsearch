@@ -4,7 +4,11 @@ mapped_pages:
 navigation_title: Time series
 applies_to:
   stack: all
-  serverless: all
+  serverless:
+    elasticsearch: all
+    observability: all
+    security: all
+    vectordb: unavailable
 ---
 
 # Time series index settings [tsds-index-settings]
@@ -16,27 +20,27 @@ Backing indices in a [time series data stream (TSDS)](docs-content://manage-data
 
 $$$index-mode$$$
 
-`index.mode` {applies_to}`serverless: all`
+`index.mode`
 :   (Static, string) Mode for the index. Valid values are [`time_series`](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md#time-series-mode) and `null` (no mode). Defaults to `null`.
 
 $$$index-time-series-start-time$$$
 
-`index.time_series.start_time` {applies_to}`serverless: all`
+`index.time_series.start_time`
 :   (Static, string) Earliest `@timestamp` value (inclusive) accepted by the index. Only indices with an `index.mode` of [`time_series`](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md#time-series-mode) support this setting. For more information, refer to [Time-bound indices](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md#time-bound-indices).
 
 $$$index-time-series-end-time$$$
 
-`index.time_series.end_time` {applies_to}`serverless: all`
+`index.time_series.end_time`
 :   (Dynamic, string) Latest `@timestamp` value (exclusive) accepted by the index. Only indices with an `index.mode` of `time_series` support this setting. For more information, refer to [Time-bound indices](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md#time-bound-indices).
 
 $$$index-time-series-temporality-field$$$
 
-`index.time_series.temporality_field` {applies_to}`stack: ga 9.5` {applies_to}`serverless: all`
+`index.time_series.temporality_field` {applies_to}`stack: ga 9.5`
 :   (Static, string) Defines the name of the field used to store metric temporality per document. Only indices with an `index.mode` of `time_series` support this setting. The field must be mapped as `keyword` and must have `time_series_dimension` set to `true`. Based on the value of this field in each document, PromQL or ES|QL `TS` queries interpret metric values differently: `delta` causes metrics to be interpreted with delta temporality semantics, and `cumulative` with cumulative temporality semantics. Any other value, including `null`, causes metrics to be interpreted with the default temporality for their metric type: cumulative for `counter`s and delta for `histogram`s.
 
 $$$index-look-ahead-time$$$
 
-`index.look_ahead_time` {applies_to}`serverless: all`
+`index.look_ahead_time`
 :   (Static, [time units](/reference/elasticsearch/rest-apis/api-conventions.md#time-units)) Interval used to calculate the `index.time_series.end_time` for a TSDS’s write index. Defaults to `30m` (30 minutes). Accepts `1m` (one minute) to `2h` (two hours). Only indices with an `index.mode` of `time_series` support this setting. For more information, refer to [Look-ahead time](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md#tsds-look-ahead-time). Additionally this setting can not be less than `time_series.poll_interval` cluster setting.
 
 ::::{note}
@@ -46,10 +50,10 @@ Increasing the `look_ahead_time` will also increase the amount of time {{ilm-cap
 
 $$$index-look-back-time$$$
 
-`index.look_back_time` {applies_to}`serverless: all`
+`index.look_back_time`
 :   (Static, [time units](/reference/elasticsearch/rest-apis/api-conventions.md#time-units)) Interval used to calculate the `index.time_series.start_time` for a TSDS’s first backing index when a tsdb data stream is created. Defaults to `2h` (2 hours). Accepts `1m` (one minute) to `7d` (seven days). Only indices with an `index.mode` of `time_series` support this setting. For more information, refer to [Look-back time](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md#tsds-look-back-time).
 
-$$$index-routing-path$$$ `index.routing_path` {applies_to}`serverless: all`
+$$$index-routing-path$$$ `index.routing_path`
 :   (Static, string or array of strings) Time series dimension fields used to route documents in a TSDS to index shards.
 Supports wildcards (`*`).
 Only indices with an `index.mode` of `time_series` support this setting.
@@ -67,7 +71,7 @@ For more information, refer to [Dimension-based routing](docs-content://manage-d
 
 $$$index-dimensions-tsid-strategy-enabled$$$
 
-`index.dimensions_tsid_strategy_enabled` {applies_to}`stack: ga 9.2` {applies_to}`serverless: all`
+`index.dimensions_tsid_strategy_enabled` {applies_to}`stack: ga 9.2`
 :   (Static, boolean) Controls if the `_tsid` can be created using the `index.dimensions` index setting.
 This is an internal setting that will be automatically populated and updated for eligible time series data streams and is not user-configurable.
 This strategy offers an improved ingestion performance that avoids processing dimensions multiple times for the purposes of shard routing and creating the `_tsid`.

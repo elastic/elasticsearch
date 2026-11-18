@@ -242,7 +242,7 @@ public class CategorizerStats implements ToXContentObject, Writeable {
     }
 
     public long getFailedCategoryCount() {
-        return deadCategoryCount;
+        return failedCategoryCount;
     }
 
     public CategorizationStatus getCategorizationStatus() {

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.lucene.queries;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.core.Nullable;
@@ -24,7 +25,6 @@ import java.util.Objects;
  * This implementation is slow, because it potentially scans binary doc values for each document.
  */
 public final class ScanningBinaryDocValuesRegexpQuery extends AbstractBinaryDocValuesAutomatonQuery {
-
     private final String pattern;
     private final int syntaxFlags;
     private final int matchFlags;
@@ -98,5 +98,10 @@ public final class ScanningBinaryDocValuesRegexpQuery extends AbstractBinaryDocV
     @Override
     public int hashCode() {
         return Objects.hash(classHash(), fieldName, pattern, syntaxFlags, matchFlags, maxDeterminizedStates, binaryFormat);
+    }
+
+    @Override
+    protected long ownMemoryUsage() {
+        return RamUsageEstimator.sizeOf(pattern);
     }
 }

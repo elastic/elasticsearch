@@ -115,11 +115,8 @@ public class InsertPartialWindowAggregates extends PhysicalOptimizerRules.Optimi
             newAggs,
             newAggregate.groupings()
         );
-        ExchangeExec newExchange = new ExchangeExec(
-            exchange.source(),
-            intermediateAttributes,
-            exchange.inBetweenAggs(),
-            fragment.withFragment(newAggregate)
+        ExchangeExec newExchange = exchange.passIdentityTo(
+            new ExchangeExec(exchange.source(), intermediateAttributes, exchange.inBetweenAggs(), fragment.withFragment(newAggregate))
         );
         return new TimeSeriesAggregateExec(
             aggExec.source(),
@@ -187,7 +184,7 @@ public class InsertPartialWindowAggregates extends PhysicalOptimizerRules.Optimi
     ) {
         if (candidate.getClass() != af.getClass()
             || candidate.hasWindow()
-            || candidate.field().equals(af.field()) == false
+            || candidate.fields().equals(af.fields()) == false
             || candidate.parameters().equals(af.parameters()) == false) {
             return false;
         }

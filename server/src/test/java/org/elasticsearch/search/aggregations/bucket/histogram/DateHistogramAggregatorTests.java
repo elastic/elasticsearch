@@ -1083,7 +1083,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                 }
                 assertThat(agg, matcher);
                 agg.preCollection();
-                context.searcher().search(context.query(), agg.asCollector());
+                context.searcher().search(context.query(), singleThreadedCollectorManager(agg.asCollector()));
                 InternalDateHistogram result = (InternalDateHistogram) agg.buildTopLevel();
                 result = (InternalDateHistogram) InternalAggregationTestCase.reduce(
                     List.of(result),

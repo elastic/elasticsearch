@@ -32,6 +32,12 @@ public enum GenerativeFeature {
     UNMAPPED_FIELDS_LOAD,
 
     /**
+     * Always prepend {@code SET unmapped_fields="load_all"}, loading every source field absent from the index mapping as its own
+     * {@code keyword} column without requiring each to be referenced. Snapshot-only; the generator falls back to a plain FROM otherwise.
+     */
+    UNMAPPED_FIELDS_LOAD_ALL,
+
+    /**
      * Start generated pipelines from time-series source commands.
      */
     METRICS,

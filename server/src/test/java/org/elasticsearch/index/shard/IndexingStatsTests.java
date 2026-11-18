@@ -26,6 +26,7 @@ public class IndexingStatsTests extends ESTestCase {
             3,
             4,
             5,
+            0,
             6,
             7,
             8,
@@ -49,6 +50,7 @@ public class IndexingStatsTests extends ESTestCase {
             3,
             4,
             5,
+            0,
             6,
             7,
             8,
@@ -67,6 +69,7 @@ public class IndexingStatsTests extends ESTestCase {
             3,
             4,
             5,
+            0,
             6,
             7,
             8,
@@ -84,8 +87,8 @@ public class IndexingStatsTests extends ESTestCase {
     }
 
     public void testStatsAdd_throttled() {
-        IndexingStats.Stats statsFalse = new IndexingStats.Stats(1, 2, 3, 4, 5, 6, 7, 8, 9, false, 10, 11, 11, 12, 0.1357, 0.2468);
-        IndexingStats.Stats statsTrue = new IndexingStats.Stats(1, 2, 3, 4, 5, 6, 7, 8, 9, true, 10, 11, 11, 12, 0.1357, 0.2468);
+        IndexingStats.Stats statsFalse = new IndexingStats.Stats(1, 2, 3, 4, 5, 0, 6, 7, 8, 9, false, 10, 11, 11, 12, 0.1357, 0.2468);
+        IndexingStats.Stats statsTrue = new IndexingStats.Stats(1, 2, 3, 4, 5, 0, 6, 7, 8, 9, true, 10, 11, 11, 12, 0.1357, 0.2468);
         assertThat(sumOfStats(statsFalse, statsFalse).isThrottled(), is(false));
         assertThat(sumOfStats(statsFalse, statsTrue).isThrottled(), is(true));
         assertThat(sumOfStats(statsTrue, statsFalse).isThrottled(), is(true));
@@ -99,6 +102,7 @@ public class IndexingStatsTests extends ESTestCase {
             3,
             4,
             5,
+            0,
             6,
             7,
             8,
@@ -117,6 +121,7 @@ public class IndexingStatsTests extends ESTestCase {
             3,
             4,
             5,
+            0,
             6,
             7,
             8,

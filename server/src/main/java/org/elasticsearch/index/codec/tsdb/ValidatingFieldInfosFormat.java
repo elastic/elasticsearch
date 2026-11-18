@@ -50,12 +50,6 @@ public final class ValidatingFieldInfosFormat extends FieldInfosFormat {
         this.requireSyntheticIdOnWrite = requireSyntheticIdOnWrite;
     }
 
-    /** Whether {@code fieldInfos} says the segment has a synthetic id, which is what makes the rest of the check apply. */
-    private static boolean hasSyntheticId(FieldInfos fieldInfos) {
-        var idFieldInfo = fieldInfos.fieldInfo(SYNTHETIC_ID);
-        return idFieldInfo != null && SyntheticIdField.hasSyntheticIdAttributes(idFieldInfo.attributes());
-    }
-
     private void ensureSyntheticIdFields(FieldInfos fieldInfos) {
         List<String> missingFields = null;
         for (String fieldName : REQUIRED_FIELDS) {
@@ -121,7 +115,7 @@ public final class ValidatingFieldInfosFormat extends FieldInfosFormat {
     @Override
     public FieldInfos read(Directory directory, SegmentInfo segmentInfo, String segmentSuffix, IOContext iocontext) throws IOException {
         final var fieldInfos = delegate.read(directory, segmentInfo, segmentSuffix, iocontext);
-        if (hasSyntheticId(fieldInfos)) {
+        if (SyntheticIdField.hasSyntheticId(fieldInfos)) {
             ensureSyntheticIdFields(fieldInfos);
         }
         return fieldInfos;

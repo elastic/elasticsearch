@@ -144,7 +144,7 @@ public class GoogleAiStudioService extends SenderService<GoogleAiStudioModel> {
         if (model instanceof GoogleAiStudioEmbeddingsModel embeddingsModel) {
             var serviceSettings = embeddingsModel.getServiceSettings();
             var similarityFromModel = serviceSettings.similarity();
-            var similarityToUse = similarityFromModel == null ? SimilarityMeasure.DOT_PRODUCT : similarityFromModel;
+            var similarityToUse = SimilarityMeasure.similarityOrDefault(similarityFromModel);
 
             var updatedServiceSettings = new GoogleAiStudioEmbeddingsServiceSettings(
                 serviceSettings.modelId(),
@@ -251,6 +251,7 @@ public class GoogleAiStudioService extends SenderService<GoogleAiStudioModel> {
         List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
             inputs,
             EMBEDDING_MAX_BATCH_SIZE,
+            getRegexReadLimitFactor(),
             googleAiStudioModel.getConfigurations().getChunkingSettings()
         ).batchRequestsWithListeners(listener);
 

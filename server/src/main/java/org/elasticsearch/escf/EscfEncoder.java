@@ -27,18 +27,26 @@ import org.elasticsearch.sourcebatch.SourceBatchEncodeHelper;
 import org.elasticsearch.sourcebatch.SourceBatchEncoder;
 import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.transport.BytesRefRecycler;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentString;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.support.MapXContentParser;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Encodes XContentType documents into {@link EscfBatch}es (Elasticsearch Column Format), accumulating one
  * column per leaf field. Numbers upcast aggressively (JSON int/long → {@code long}, float/double →
- * {@code double}); a type conflict or an explicit null promotes the column to
+ * {@code double});
+ * A floating-point value whose spelling is not the canonical {@code Double.toString}
+ * rendering keeps that spelling next to the double, so string consumers such as {@code keyword}
+ * sub-fields index what the client wrote.
+ * A type conflict or an explicit null promotes the column to
  * {@link EscfColumnKind#UNION}. Fixed primitive arrays are stored in a columnar list layout;
  * other arrays (heterogeneous, nested, object-bearing) are stored inline on a union column.
  *
@@ -101,11 +109,11 @@ public final class EscfEncoder implements SourceBatchEncoder {
     }
 
     /**
-     * Whether the simdjson ESCF encode path may be used at all: the native library is loaded, the
-     * vector API is available, and {@link #SIMDJSON_ESCF_FEATURE_FLAG} is enabled.
+     * Whether the simdjson ESCF encode path may be used at all: {@link #SIMDJSON_ESCF_FEATURE_FLAG} is
+     * enabled, the native library is loaded, and the vector API is available.
      */
-    static boolean isSimdEnabled() {
-        return SimdJsonSupport.isSupported() && SIMDJSON_ESCF_FEATURE_FLAG.isEnabled();
+    public static boolean isSimdEnabled() {
+        return SIMDJSON_ESCF_FEATURE_FLAG.isEnabled() && SimdJsonSupport.isSupported();
     }
 
     public void parseToScratch(BytesReference source, XContentType xContentType) throws IOException {
@@ -122,6 +130,39 @@ public final class EscfEncoder implements SourceBatchEncoder {
             if (xContentType == XContentType.JSON) {
                 parser.allowDuplicateKeys(true);
             }
+            parser.nextToken(); // START_OBJECT
+            flattenObject(row, parser, parser.nextToken(), sink);
+            XContentParser.Token trailing = parser.nextToken();
+            if (trailing != null) {
+                throw new IllegalArgumentException("Malformed content, found extra data after parsing: " + trailing);
+            }
+        }
+        row.finishRow();
+    }
+
+    public void parseToScratch(Map<String, Object> source) throws IOException {
+        parseToScratch(source, LeafSink.NO_OP);
+    }
+
+    /**
+     * Parses a pre-decoded map document into the encoder's scratch buffers. The SIMD path is not
+     * applicable here; the map is walked directly via {@link MapXContentParser}.
+     *
+     * <p>Because map keys are inherently unique, duplicate-key handling is not needed and
+     * {@link MapXContentParser#allowDuplicateKeys} is not called. In raw-text mode, numeric and
+     * boolean leaf bytes are the Java {@link Object#toString()} representation of the value rather
+     * than the original source bytes.
+     */
+    public void parseToScratch(Map<String, Object> source, LeafSink sink) throws IOException {
+        EscfRowBuffer row = backend.beginRow();
+        try (
+            XContentParser parser = new MapXContentParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.IGNORE_DEPRECATIONS,
+                source,
+                XContentType.JSON
+            )
+        ) {
             parser.nextToken(); // START_OBJECT
             flattenObject(row, parser, parser.nextToken(), sink);
         }
@@ -298,10 +339,11 @@ public final class EscfEncoder implements SourceBatchEncoder {
                             }
                         }
                         case FLOAT, DOUBLE -> {
+                            String text = parser.text();
                             double val = parser.doubleValue();
                             float fval = (float) val;
                             byte type = ((double) fval == val) ? SourceValueType.FLOAT : SourceValueType.DOUBLE;
-                            int colIdx = row.doubleField(fieldName, val);
+                            int colIdx = row.doubleField(fieldName, val, SourceBatchEncodeHelper.lexicalForm(text, val));
                             if (rawTextMode) {
                                 sink.onTextPrimitive(colIdx, backend.columnPath(colIdx), type, parser.optimizedText().bytes());
                             } else if (firePathSink) {

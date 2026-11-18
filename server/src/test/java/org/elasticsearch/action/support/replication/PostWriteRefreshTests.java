@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -149,7 +150,7 @@ public class PostWriteRefreshTests extends IndexShardTestCase {
                 RecoverySource.EmptyStoreRecoverySource.INSTANCE,
                 new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""),
                 ShardRouting.Role.INDEX_ONLY,
-                ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
+                RecoveryPriority.UNASSIGNED_NEW_PRIMARY
             );
             when(primary.routingEntry()).thenReturn(routing);
             when(primary.getReplicationGroup()).thenReturn(replicationGroup).thenReturn(realReplicationGroup);
@@ -160,7 +161,7 @@ public class PostWriteRefreshTests extends IndexShardTestCase {
                 RecoverySource.PeerRecoverySource.INSTANCE,
                 new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "message"),
                 ShardRouting.Role.SEARCH_ONLY,
-                ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
+                RecoveryPriority.UNASSIGNED_EXPECTED
             );
             when(routingTable.unpromotableShards()).thenReturn(List.of(shardRouting));
             when(routingTable.shardId()).thenReturn(shardId);
@@ -235,7 +236,7 @@ public class PostWriteRefreshTests extends IndexShardTestCase {
                 RecoverySource.PeerRecoverySource.INSTANCE,
                 new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "message"),
                 ShardRouting.Role.SEARCH_ONLY,
-                ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
+                RecoveryPriority.UNASSIGNED_EXPECTED
             );
             // Randomly test scenarios with and without unpromotables
             if (randomBoolean()) {

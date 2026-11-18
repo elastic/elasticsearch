@@ -19,7 +19,6 @@ import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -29,11 +28,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class VectordbColumnarIndexModeTests extends ESTestCase {
-
-    @Before
-    public void assumeFeatureFlagEnabled() {
-        assumeTrue("vectordb_columnar index mode requires snapshot build", IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled());
-    }
 
     public void testFromString() {
         assertThat(IndexMode.fromString("vectordb_columnar"), equalTo(IndexMode.VECTORDB_COLUMNAR));

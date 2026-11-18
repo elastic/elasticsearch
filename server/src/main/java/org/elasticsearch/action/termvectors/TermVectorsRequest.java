@@ -57,7 +57,7 @@ public final class TermVectorsRequest extends SingleShardRequest<TermVectorsRequ
     private static final ParseField INDEX = new ParseField("_index");
     private static final ParseField ID = new ParseField("_id");
     private static final ParseField ROUTING = new ParseField("routing");
-    private static final ParseField SLICE = new ParseField(SliceIndexing.PARAM_NAME);
+    private static final ParseField SLICE = new ParseField(SliceIndexing.FIELD_NAME);
     private static final ParseField VERSION = new ParseField("version");
     private static final ParseField VERSION_TYPE = new ParseField("version_type");
     private static final ParseField FIELDS = new ParseField("fields");
@@ -611,15 +611,15 @@ public final class TermVectorsRequest extends SingleShardRequest<TermVectorsRequ
                     termVectorsRequest.doc(jsonBuilder().copyCurrentStructure(parser));
                 } else if (ROUTING.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (termVectorsRequest.routingFromSlice) {
-                        throw new IllegalArgumentException("[routing] is not allowed together with [" + SliceIndexing.PARAM_NAME + "]");
+                        throw new IllegalArgumentException("[routing] is not allowed together with [" + SliceIndexing.FIELD_NAME + "]");
                     }
                     termVectorsRequest.routing = parser.text();
                 } else if (SLICE.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
-                        throw new ElasticsearchParseException("request does not support [" + SliceIndexing.PARAM_NAME + "]");
+                        throw new ElasticsearchParseException("request does not support [" + SliceIndexing.FIELD_NAME + "]");
                     }
                     if (termVectorsRequest.routingFromSlice == false && termVectorsRequest.routing != null) {
-                        throw new IllegalArgumentException("[routing] is not allowed together with [" + SliceIndexing.PARAM_NAME + "]");
+                        throw new IllegalArgumentException("[routing] is not allowed together with [" + SliceIndexing.FIELD_NAME + "]");
                     }
                     final String slice = parser.text();
                     SliceIndexing.validateUserSliceValue(slice);

@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 157937
+pr: 159335
+summary: Skip vanished dirs in fingerprint census
+type: bug

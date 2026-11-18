@@ -10,10 +10,13 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.MockIndicesRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.nio.charset.StandardCharsets;
@@ -28,9 +31,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
 
-/**
- * Unit tests for the audit utils class
- */
 public class AuditUtilTests extends ESTestCase {
 
     public void testRestRequestContentExceedsLimitThrows() {
@@ -64,6 +64,22 @@ public class AuditUtilTests extends ESTestCase {
         assertEquals(json, AuditUtil.restRequestContent(request, 0, null));
     }
 
+    public void testRestRequestContentSmileLimitEnforcedDuringRendering() throws Exception {
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(
+            new BytesArray(buildSmileBytes(50, "longfieldname_", "longvalue_")),
+            XContentType.SMILE
+        ).build();
+
+        ElasticsearchStatusException ex = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> AuditUtil.restRequestContent(request, 10, "xpack.security.audit.logfile.events.max_request_body_size")
+        );
+        assertThat(ex.status(), is(RestStatus.REQUEST_ENTITY_TOO_LARGE));
+
+        String json = AuditUtil.restRequestContent(request, 0, null);
+        assertTrue(json.contains("longfieldname_0"));
+    }
+
     public void testRestRequestContentNullXContentType() {
         // Protobuf handlers set XContentType to null; restRequestContent must return a placeholder, not throw.
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray(new byte[] { 0x0A, 0x02 }), null)
@@ -79,6 +95,27 @@ public class AuditUtilTests extends ESTestCase {
             XContentType.YAML
         ).build();
         assertThat(AuditUtil.restRequestContent(request, 0, null), containsString("Invalid Format"));
+    }
+
+    public void testRestRequestContentInvalidBodyTruncatedInsideUtf8Character() {
+        // The cap slices the raw bytes; a slice ending mid-character must not fail to decode.
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(
+            new BytesArray("key: [\uD83D\uDE00".getBytes(StandardCharsets.UTF_8)),
+            XContentType.YAML
+        ).build();
+        String rendered = AuditUtil.restRequestContent(request, 7, "setting.key");
+        assertThat(rendered, containsString("Invalid Format: key: ["));
+    }
+
+    private static byte[] buildSmileBytes(int fields, String keyPrefix, String valuePrefix) throws Exception {
+        try (XContentBuilder smileBuilder = XContentFactory.smileBuilder()) {
+            smileBuilder.startObject();
+            for (int i = 0; i < fields; i++) {
+                smileBuilder.field(keyPrefix + i, valuePrefix + i);
+            }
+            smileBuilder.endObject();
+            return BytesReference.toBytes(BytesReference.bytes(smileBuilder));
+        }
     }
 
     public void testHasProtobufContent() {

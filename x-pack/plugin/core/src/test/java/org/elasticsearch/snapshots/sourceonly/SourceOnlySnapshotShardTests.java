@@ -515,9 +515,9 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         );
         restoredShard.markAsRecovering("test from snap");
         runAsSnapshot(shard.getThreadPool(), () -> {
-            final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+            final PlainActionFuture<Void> future = new PlainActionFuture<>();
             restoredShard.restoreFromRepository(repository, future);
-            assertTrue(future.actionGet());
+            future.actionGet(); // Fail test on throw
         });
         assertEquals(restoredShard.recoveryState().getStage(), RecoveryState.Stage.DONE);
         assertEquals(restoredShard.recoveryState().getTranslog().recoveredOperations(), 0);
@@ -532,7 +532,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         SeqNoStats seqNoStats = restoredShard.seqNoStats();
         assertEquals(seqNoStats.getMaxSeqNo(), seqNoStats.getLocalCheckpoint());
         final IndexShard targetShard;
-        try (Engine.Searcher searcher = restoredShard.acquireSearcher("test")) {
+        try (Engine.Searcher searcher = restoredShard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             assertEquals(searcher.getIndexReader().maxDoc(), seqNoStats.getLocalCheckpoint());
             TopDocs search = searcher.search(Queries.ALL_DOCS_INSTANCE, Integer.MAX_VALUE);
             assertEquals(searcher.getIndexReader().numDocs(), search.totalHits.value());

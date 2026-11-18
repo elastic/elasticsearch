@@ -30,4 +30,8 @@ public class BengaliNormalizationFilterFactory extends AbstractTokenFilterFactor
         return new BengaliNormalizationFilter(tokenStream);
     }
 
+    @Override
+    public Object sharingKey() {
+        return getClass();
+    }
 }

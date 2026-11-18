@@ -206,7 +206,7 @@ public class BlockHashRandomizedTests extends ComputeTestCase {
                         int effectiveEmitBatchSize = emitBatchSize;
                         if (blockHash instanceof LongIntBlockHash adaptive) {
                             effectiveEmitBatchSize = adaptive.effectiveEmitBatchSize();
-                        } else if (blockHash instanceof LongBytesRefAdaptiveBlockHash adaptive) {
+                        } else if (blockHash instanceof LongBytesRefBlockHash adaptive) {
                             effectiveEmitBatchSize = adaptive.effectiveEmitBatchSize();
                         }
                         assertThat(
@@ -234,7 +234,6 @@ public class BlockHashRandomizedTests extends ComputeTestCase {
             }
 
             if (blockHash instanceof LongLongBlockHash == false
-                && blockHash instanceof BytesRefLongBlockHash == false
                 && blockHash instanceof BytesRef2BlockHash == false
                 && blockHash instanceof BytesRef3BlockHash == false) {
                 assertLookup(blockFactory, expectedOrds, types, blockHash, oracle);
@@ -510,6 +509,11 @@ public class BlockHashRandomizedTests extends ComputeTestCase {
                     if (valueCount != 1 || dupCount != 0) {
                         ordinals.endPositionEntry();
                     }
+                }
+                // A dictionary can be shared with other pages, so it may hold entries this block never references.
+                // They are longer than the real keys, so they can only show up in the hash if it wrongly adds them.
+                for (int unused = between(0, 3); unused > 0; unused--) {
+                    bytes.appendBytesRef(new BytesRef(randomAlphaOfLength(6)));
                 }
                 return new RandomBlock(values, new OrdinalBytesRefBlock(ordinals.build(), bytes.build()), valueMaxByteSize);
             }

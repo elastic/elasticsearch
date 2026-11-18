@@ -12,11 +12,11 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
-import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -50,7 +50,7 @@ public class Lucene90CompoundEntriesReader {
 
     private static Map<String, FileEntry> readMapping(DataInput entriesStream) throws IOException {
         final int numEntries = entriesStream.readVInt();
-        var mapping = CollectionUtil.<String, FileEntry>newHashMap(numEntries);
+        Map<String, FileEntry> mapping = HashMap.newHashMap(numEntries);
         for (int i = 0; i < numEntries; i++) {
             final String id = entriesStream.readString();
             final FileEntry fileEntry = new FileEntry(entriesStream.readLong(), entriesStream.readLong());

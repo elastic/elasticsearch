@@ -93,11 +93,12 @@ public class RankEvalResponseTests extends ESTestCase {
         new SearchPhaseExecutionException(
             "search",
             "all shards failed",
-            new ShardSearchFailure[] {
+            List.of(
                 new ShardSearchFailure(
                     new ParsingException(1, 2, "foobar", null),
                     new SearchShardTarget("node_1", new ShardId("foo", "_na_", 1), null)
-                ) }
+                )
+            )
         ),
         new ElasticsearchException(
             "Parsing failed",
@@ -110,6 +111,9 @@ public class RankEvalResponseTests extends ESTestCase {
         for (int i = 0; i < numberOfRequests; i++) {
             String id = randomAlphaOfLengthBetween(3, 10);
             EvalQueryQuality evalQuality = new EvalQueryQuality(id, randomDoubleBetween(0.0, 1.0, true));
+            if (randomBoolean()) {
+                evalQuality.setTook(randomNonNegativeLong());
+            }
             int numberOfDocs = randomIntBetween(0, 5);
             List<RatedSearchHit> ratedHits = new ArrayList<>(numberOfDocs);
             for (int d = 0; d < numberOfDocs; d++) {
@@ -200,6 +204,7 @@ public class RankEvalResponseTests extends ESTestCase {
 
     public void testToXContent() throws IOException {
         EvalQueryQuality coffeeQueryQuality = new EvalQueryQuality("coffee_query", 0.1);
+        coffeeQueryQuality.setTook(42);
         coffeeQueryQuality.addHitsAndRatings(Arrays.asList(searchHit("index", 123, 5), searchHit("index", 456, null)));
         RankEvalResponse response = new RankEvalResponse(
             0.123,
@@ -215,6 +220,7 @@ public class RankEvalResponseTests extends ESTestCase {
                   "details": {
                     "coffee_query": {
                       "metric_score": 0.1,
+                      "took": 42,
                       "unrated_docs": [ { "_index": "index", "_id": "456" } ],
                       "hits": [
                         {

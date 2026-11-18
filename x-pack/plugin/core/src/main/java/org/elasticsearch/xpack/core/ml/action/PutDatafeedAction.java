@@ -39,7 +39,13 @@ public class PutDatafeedAction extends ActionType<PutDatafeedAction.Response> {
 
         public static Request parseRequest(String datafeedId, IndicesOptions indicesOptions, XContentParser parser) {
             DatafeedConfig.Builder datafeed = DatafeedConfig.STRICT_PARSER.apply(parser, null);
-            if (datafeed.getIndicesOptions() == null) {
+            // RestPutDatafeedAction always passes a non-null default IndicesOptions derived from the request params. Apply it only
+            // when the body did not set indices_options (first condition) and the datafeed is a DSL datafeed (second condition).
+            // ES|QL datafeeds must not carry IndicesOptions: DatafeedConfig.Builder.build() rejects any non-null value together
+            // with esql_query, so applying the REST default would fail every ES|QL PUT. An explicit indices_options on an ES|QL
+            // datafeed is kept here and rejected by build(). A DSL builder still left without IndicesOptions gets
+            // the STRICT_EXPAND_OPEN_HIDDEN_FORBID_CLOSED default in build(), but never for esql_query configs.
+            if (datafeed.getIndicesOptions() == null && datafeed.getEsqlQuery() == null) {
                 datafeed.setIndicesOptions(indicesOptions);
             }
             datafeed.setId(datafeedId);

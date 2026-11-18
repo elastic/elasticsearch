@@ -16,12 +16,14 @@ import org.elasticsearch.script.field.vectors.ByteRankVectorsDocValuesField;
 import org.elasticsearch.script.field.vectors.FloatRankVectorsDocValuesField;
 import org.elasticsearch.script.field.vectors.RankVectorsDocValuesField;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.rank.vectors.mapper.RankVectorsFieldMapper;
 import org.elasticsearch.xpack.rank.vectors.mapper.RankVectorsScriptDocValuesTests;
 import org.elasticsearch.xpack.rank.vectors.script.RankVectorsScoreScriptUtils.MaxSimDotProduct;
 import org.elasticsearch.xpack.rank.vectors.script.RankVectorsScoreScriptUtils.MaxSimInvHamming;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HexFormat;
 import java.util.List;
 
@@ -416,6 +418,81 @@ public class RankVectorsScoreScriptUtilsTests extends ESTestCase {
             e.getMessage(),
             containsString("element_type [byte] vectors only support integers between [-128, 127] but found [200.0] at dim [1]")
         );
+    }
+
+    public void testTooManyQueryVectorsAreRejected() throws IOException {
+        String fieldName = "vector";
+        int dims = 8;
+        int tooMany = RankVectorsFieldMapper.MAX_VECTORS + 1;
+        String expectedMessage = "The query vector contains ["
+            + tooMany
+            + "] vectors, which exceeds the maximum of ["
+            + RankVectorsFieldMapper.MAX_VECTORS
+            + "].";
+
+        float[][] floatDocVector = new float[][] { { 1, 127, -128, 5, -10, 1, 2, 3 } };
+        float[][] magnitudes = new float[][] { { (float) Math.sqrt(VectorUtil.dotProduct(floatDocVector[0], floatDocVector[0])) } };
+        List<List<Number>> floatQuery = Collections.nCopies(tooMany, Arrays.asList(0.5f, 1.5f, -1.0f, 2.0f, 0.0f, 1.0f, -2.0f, 3.0f));
+        List<List<Number>> byteQuery = Collections.nCopies(
+            tooMany,
+            Arrays.asList((byte) 1, (byte) 2, (byte) 3, (byte) 4, (byte) 5, (byte) 6, (byte) 7, (byte) 8)
+        );
+
+        RankVectorsDocValuesField floatField = new FloatRankVectorsDocValuesField(
+            RankVectorsScriptDocValuesTests.wrap(new float[][][] { floatDocVector }, ElementType.FLOAT),
+            RankVectorsScriptDocValuesTests.wrap(magnitudes),
+            "test",
+            ElementType.FLOAT,
+            dims
+        );
+        floatField.setNextDocId(0);
+        ScoreScript floatScript = mock(ScoreScript.class);
+        when(floatScript.field(fieldName)).thenAnswer(mock -> floatField);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new MaxSimDotProduct(floatScript, floatQuery, fieldName)
+        );
+        assertEquals(expectedMessage, e.getMessage());
+
+        RankVectorsDocValuesField byteField = new ByteRankVectorsDocValuesField(
+            RankVectorsScriptDocValuesTests.wrap(new float[][][] { floatDocVector }, ElementType.BYTE),
+            RankVectorsScriptDocValuesTests.wrap(magnitudes),
+            "test",
+            ElementType.BYTE,
+            dims
+        );
+        byteField.setNextDocId(0);
+        ScoreScript byteScript = mock(ScoreScript.class);
+        when(byteScript.field(fieldName)).thenAnswer(mock -> byteField);
+        e = expectThrows(IllegalArgumentException.class, () -> new MaxSimDotProduct(byteScript, byteQuery, fieldName));
+        assertEquals(expectedMessage, e.getMessage());
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new MaxSimDotProduct(
+                byteScript,
+                Collections.nCopies(tooMany, HexFormat.of().formatHex(new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 })),
+                fieldName
+            )
+        );
+        assertEquals(expectedMessage, e.getMessage());
+
+        RankVectorsDocValuesField bitField = new BitRankVectorsDocValuesField(
+            RankVectorsScriptDocValuesTests.wrap(new float[][][] { new float[][] { { 124 } } }, ElementType.BIT),
+            RankVectorsScriptDocValuesTests.wrap(new float[][] { { 5 } }),
+            "test",
+            ElementType.BIT,
+            dims
+        );
+        bitField.setNextDocId(0);
+        ScoreScript bitScript = mock(ScoreScript.class);
+        when(bitScript.field(fieldName)).thenAnswer(mock -> bitField);
+        e = expectThrows(IllegalArgumentException.class, () -> new MaxSimDotProduct(bitScript, byteQuery, fieldName));
+        assertEquals(expectedMessage, e.getMessage());
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new MaxSimDotProduct(bitScript, Collections.nCopies(tooMany, HexFormat.of().formatHex(new byte[] { 124 })), fieldName)
+        );
+        assertEquals(expectedMessage, e.getMessage());
     }
 
 }

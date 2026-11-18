@@ -23,6 +23,12 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Legacy knn query rewrite interceptor for semantic_text fields.
+ * <p>
+ * Knn filters are built in the chunks nested scope, so filters on nested fields only work on data nodes that evaluate each knn
+ * filter at the level of the fields it reads (see <a href="https://github.com/elastic/elasticsearch/issues/162043">#162043</a>).
+ */
 @Deprecated
 public class LegacySemanticKnnVectorQueryRewriteInterceptor extends LegacySemanticQueryRewriteInterceptor {
 

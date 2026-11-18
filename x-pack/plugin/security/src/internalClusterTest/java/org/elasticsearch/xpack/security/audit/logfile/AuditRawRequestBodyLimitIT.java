@@ -79,7 +79,7 @@ public class AuditRawRequestBodyLimitIT extends SecurityIntegTestCase {
 
         final ResponseException ex = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), is(413));
-        assertThat(ex.getMessage(), containsString("audit body size limit"));
+        assertThat(ex.getMessage(), containsString("audit size limit"));
         assertThat(ex.getMessage(), containsString(LoggingAuditTrail.MAX_REQUEST_BODY_SIZE.getKey()));
     }
 

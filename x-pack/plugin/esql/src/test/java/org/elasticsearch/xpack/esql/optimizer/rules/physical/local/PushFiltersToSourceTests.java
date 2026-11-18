@@ -10,17 +10,23 @@ package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasources.CoalescedSplit;
 import org.elasticsearch.xpack.esql.datasources.DeclaredReadSpec;
-import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
+import org.elasticsearch.xpack.esql.datasources.ExternalSchema;
+import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
+import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -29,8 +35,12 @@ import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrate
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.optimizer.ExternalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
@@ -44,21 +54,36 @@ import java.util.Set;
 import static org.hamcrest.Matchers.instanceOf;
 
 /**
- * Verifies that {@link PushFiltersToSource#resolveFormatName} delegates to
- * {@link FormatNameResolver#resolve}. Comprehensive resolution tests live in
+ * Filter pushdown onto an {@link ExternalSourceExec} keys the reader on {@code sourceType}, not a last-dot
+ * of {@code sourcePath()}. Comprehensive format-name resolution tests live in
  * {@link org.elasticsearch.xpack.esql.datasources.FormatNameResolverTests}.
  */
 public class PushFiltersToSourceTests extends ESTestCase {
 
-    public void testResolveFormatNameDelegatesToFormatNameResolver() {
-        assertEquals(
-            FormatNameResolver.resolve(Map.of("reader", "java"), "file.parquet"),
-            PushFiltersToSource.resolveFormatName(Map.of("reader", "java"), "file.parquet")
-        );
+    /**
+     * A compressed CSV path last-dots to {@code gz}. The plan's {@code sourceType} is still {@code csv}, so
+     * pushdown must look up the csv reader — the same origin as {@code InsertExternalFieldExtraction}.
+     */
+    public void testPushesCompressedCsvUsingSourceTypeNotPathSuffix() {
+        FilterExec filterExec = filterOverExternalSource("file:///hits.csv.gz", "csv", "null_field", Set.of());
+
+        PhysicalPlan result = applyRule(filterExec, registry(true));
+
+        assertThat(result, instanceOf(ExternalSourceExec.class));
+        assertNotNull(((ExternalSourceExec) result).pushedFilter());
     }
 
-    public void testResolveFormatNameFromExtension() {
-        assertEquals("orc", PushFiltersToSource.resolveFormatName(null, "s3://bucket/data/file.orc"));
+    /**
+     * {@code sourceType=parquet} still pushes when the path uses the {@code .parq} alias. The rule keys
+     * the reader on {@code sourceType}, not a last-dot of {@code sourcePath()}.
+     */
+    public void testPushesParquetSourceTypeForParqAliasPaths() {
+        for (String path : List.of("file:///data/*.parq", "file:///data/file.parq")) {
+            FilterExec filterExec = filterOverExternalSource(path, "parquet", "null_field", Set.of());
+            PhysicalPlan result = applyRule(filterExec, registry(true));
+            assertThat(path, result, instanceOf(ExternalSourceExec.class));
+            assertNotNull(path, ((ExternalSourceExec) result).pushedFilter());
+        }
     }
 
     // -- referencesAnyColumn: partition/data conjunct split --
@@ -92,6 +117,235 @@ public class PushFiltersToSourceTests extends ESTestCase {
     public void testReferencesAnyColumnReturnsFalseForLiteralWithNoReferences() {
         Expression lit = new Literal(SRC, 3, DataType.INTEGER);
         assertFalse(PushFiltersToSource.referencesAnyColumn(lit, Set.of("lang")));
+    }
+
+    // -- reconciliation-cast columns: a conjunct over a column some file stores at another type is pushed AND kept --
+
+    /**
+     * {@code union_by_name} widened {@code c} to keyword because one file stores it as a string and another as int64.
+     * The cast to keyword runs above the reader, so on the int64 file the reader's LIKE evaluator sees a long block
+     * and answers "no constraint". The stub pushdown says YES for everything (it would drop the FilterExec); the rule
+     * must still keep the conjunct in a FilterExec so the cast page is re-checked, while pushing it for the files
+     * that store the column as a string.
+     */
+    public void testKeepsLikeOnReconciliationWidenedColumnInFilterExec() {
+        FieldAttribute c = fieldAttr("c", DataType.KEYWORD);
+        Expression like = likeOn(c, "1*");
+        FilterExec filterExec = new FilterExec(
+            SRC,
+            parquetSourceWithSplits(List.of(c), splitReading("n.parquet", c.name(), DataType.LONG)),
+            like
+        );
+
+        PhysicalPlan result = applyRule(filterExec, registry(true));
+
+        assertThat(result, instanceOf(FilterExec.class));
+        FilterExec kept = (FilterExec) result;
+        assertEquals(like, kept.condition());
+        assertThat(kept.child(), instanceOf(ExternalSourceExec.class));
+        ExternalSourceExec pushed = (ExternalSourceExec) kept.child();
+        assertNotNull("the conjunct is still pushed for the files that store the column as a string", pushed.pushedFilter());
+        assertEquals(List.of(like), pushed.pushedExpressions());
+    }
+
+    /** Every file stores {@code c} at the query's type: the YES conjunct drops the FilterExec, as before. */
+    public void testDropsFilterExecForLikeOnUnwidenedColumn() {
+        FieldAttribute c = fieldAttr("c", DataType.KEYWORD);
+        Expression like = likeOn(c, "1*");
+        FilterExec filterExec = new FilterExec(
+            SRC,
+            parquetSourceWithSplits(List.of(c), splitReading("s.parquet", c.name(), DataType.KEYWORD)),
+            like
+        );
+
+        PhysicalPlan result = applyRule(filterExec, registry(true));
+
+        assertThat(result, instanceOf(ExternalSourceExec.class));
+        assertNotNull(((ExternalSourceExec) result).pushedFilter());
+    }
+
+    /**
+     * Only the conjunct over the widened column is held back; a sibling conjunct over a column every file stores at
+     * the query's type is pushed without a re-check.
+     */
+    public void testHoldsBackOnlyConjunctsOverWidenedColumns() {
+        FieldAttribute c = fieldAttr("c", DataType.KEYWORD);
+        FieldAttribute name = fieldAttr("name", DataType.KEYWORD);
+        Expression likeC = likeOn(c, "1*");
+        Expression likeName = likeOn(name, "row_*");
+        ExternalSourceExec source = parquetSourceWithSplits(
+            List.of(c, name),
+            FileSplit.withReadSchema(
+                "parquet",
+                StoragePath.of("file:///data/n.parquet"),
+                0,
+                1,
+                "parquet",
+                Map.of(),
+                Map.of(),
+                null,
+                List.of(fieldAttr(c.name(), DataType.LONG), fieldAttr(name.name(), DataType.KEYWORD))
+            )
+        );
+        FilterExec filterExec = new FilterExec(SRC, source, new And(SRC, likeC, likeName));
+
+        PhysicalPlan result = applyRule(filterExec, registry(true));
+
+        assertThat(result, instanceOf(FilterExec.class));
+        assertEquals(likeC, ((FilterExec) result).condition());
+        ExternalSourceExec pushed = (ExternalSourceExec) ((FilterExec) result).child();
+        assertEquals("both conjuncts are still pushed", Set.of(likeC, likeName), Set.copyOf(pushed.pushedExpressions()));
+    }
+
+    /**
+     * The coordinator's zero-split multi-file read keeps no {@code FileSplit}s on the exec but still casts above the
+     * reader, from the per-file {@code schemaMap}; the hold-back must be decided from that map then.
+     */
+    public void testKeepsLikeOnWidenedColumnFromSchemaMapWhenNoSplits() {
+        FieldAttribute c = fieldAttr("c", DataType.KEYWORD);
+        Expression like = likeOn(c, "1*");
+        ExternalSourceExec source = parquetSourceWithSplits(List.of(c)).withSchemaMap(
+            Map.of(
+                StoragePath.of("file:///data/s.parquet"),
+                new SchemaReconciliation.FileSchemaInfo(new ExternalSchema(List.of(fieldAttr(c.name(), DataType.KEYWORD))), null, null),
+                StoragePath.of("file:///data/n.parquet"),
+                new SchemaReconciliation.FileSchemaInfo(new ExternalSchema(List.of(fieldAttr(c.name(), DataType.LONG))), null, null)
+            )
+        );
+        FilterExec filterExec = new FilterExec(SRC, source, like);
+
+        PhysicalPlan result = applyRule(filterExec, registry(true));
+
+        assertThat(result, instanceOf(FilterExec.class));
+        assertEquals(like, ((FilterExec) result).condition());
+    }
+
+    /** A file that lacks the column altogether null-fills it rather than casting it: nothing to re-check. */
+    public void testDoesNotHoldBackLikeOnColumnAbsentFromAFile() {
+        FieldAttribute c = fieldAttr("c", DataType.KEYWORD);
+        FieldAttribute name = fieldAttr("name", DataType.KEYWORD);
+        ExternalSourceExec source = parquetSourceWithSplits(
+            List.of(c, name),
+            splitReading("s.parquet", c.name(), DataType.KEYWORD),
+            splitReading("no_c.parquet", name.name(), DataType.KEYWORD)
+        );
+        FilterExec filterExec = new FilterExec(SRC, source, likeOn(c, "1*"));
+
+        PhysicalPlan result = applyRule(filterExec, registry(true));
+
+        assertThat(result, instanceOf(ExternalSourceExec.class));
+    }
+
+    /**
+     * Past {@code SplitCoalescer}'s threshold the node receives {@code CoalescedSplit}s; the widened file's read schema
+     * must be found through the wrapper, or a large dataset would silently lose the re-check.
+     */
+    public void testKeepsLikeOnWidenedColumnInsideCoalescedSplit() {
+        FieldAttribute c = fieldAttr("c", DataType.KEYWORD);
+        Expression like = likeOn(c, "1*");
+        ExternalSplit coalesced = new CoalescedSplit(
+            "parquet",
+            List.of(splitReading("s.parquet", c.name(), DataType.KEYWORD), splitReading("n.parquet", c.name(), DataType.LONG))
+        );
+        FilterExec filterExec = new FilterExec(SRC, parquetSourceWithSplits(List.of(c), coalesced), like);
+
+        PhysicalPlan result = applyRule(filterExec, registry(true));
+
+        assertThat(result, instanceOf(FilterExec.class));
+        assertEquals(like, ((FilterExec) result).condition());
+    }
+
+    /**
+     * Only some splits carry a read schema: the unstamped file's types are unknown on this node, so it might store
+     * {@code c} at another type and the conjunct must be re-checked, even though every stamped file matches the query.
+     */
+    public void testKeepsLikeWhenSomeSplitLacksReadSchema() {
+        FieldAttribute c = fieldAttr("c", DataType.KEYWORD);
+        Expression like = likeOn(c, "1*");
+        ExternalSourceExec source = parquetSourceWithSplits(
+            List.of(c),
+            splitReading("s.parquet", c.name(), DataType.KEYWORD),
+            unstampedSplit("unknown.parquet")
+        );
+        FilterExec filterExec = new FilterExec(SRC, source, like);
+
+        PhysicalPlan result = applyRule(filterExec, registry(true));
+
+        assertThat(result, instanceOf(FilterExec.class));
+        FilterExec kept = (FilterExec) result;
+        assertEquals(like, kept.condition());
+        assertEquals(List.of(like), ((ExternalSourceExec) kept.child()).pushedExpressions());
+    }
+
+    /**
+     * No split carries a read schema (an older coordinator) and the data node's {@code schemaMap} is empty: nothing is
+     * known to be cast, so the YES conjunct drops the FilterExec, as before.
+     */
+    public void testDropsFilterExecWhenNoSplitCarriesReadSchema() {
+        FieldAttribute c = fieldAttr("c", DataType.KEYWORD);
+        ExternalSourceExec source = parquetSourceWithSplits(List.of(c), unstampedSplit("a.parquet"), unstampedSplit("b.parquet"));
+        FilterExec filterExec = new FilterExec(SRC, source, likeOn(c, "1*"));
+
+        PhysicalPlan result = applyRule(filterExec, registry(true));
+
+        assertThat(result, instanceOf(ExternalSourceExec.class));
+        assertNotNull(((ExternalSourceExec) result).pushedFilter());
+    }
+
+    /** The widened file's read schema must be found through nested {@code CoalescedSplit}s too. */
+    public void testKeepsLikeOnWidenedColumnInsideNestedCoalescedSplit() {
+        FieldAttribute c = fieldAttr("c", DataType.KEYWORD);
+        Expression like = likeOn(c, "1*");
+        ExternalSplit nested = new CoalescedSplit(
+            "parquet",
+            List.of(
+                splitReading("s.parquet", c.name(), DataType.KEYWORD),
+                new CoalescedSplit("parquet", List.of(splitReading("n.parquet", c.name(), DataType.LONG)))
+            )
+        );
+        FilterExec filterExec = new FilterExec(SRC, parquetSourceWithSplits(List.of(c), nested), like);
+
+        PhysicalPlan result = applyRule(filterExec, registry(true));
+
+        assertThat(result, instanceOf(FilterExec.class));
+        assertEquals(like, ((FilterExec) result).condition());
+    }
+
+    private static Expression likeOn(FieldAttribute field, String pattern) {
+        return new WildcardLike(SRC, field, new WildcardPattern(pattern), false);
+    }
+
+    /** A whole-file split whose coordinator-inferred read schema has the single column {@code column} at {@code type}. */
+    private static FileSplit splitReading(String fileName, String column, DataType type) {
+        return FileSplit.withReadSchema(
+            "parquet",
+            StoragePath.of("file:///data/" + fileName),
+            0,
+            1,
+            "parquet",
+            Map.of(),
+            Map.of(),
+            null,
+            List.of(fieldAttr(column, type))
+        );
+    }
+
+    /** A whole-file split stamped with no read schema, as an older coordinator (or a file with no schema entry) sends. */
+    private static FileSplit unstampedSplit(String fileName) {
+        return new FileSplit("parquet", StoragePath.of("file:///data/" + fileName), 0, 1, "parquet", Map.of(), Map.of());
+    }
+
+    private static ExternalSourceExec parquetSourceWithSplits(List<Attribute> output, ExternalSplit... splits) {
+        return new ExternalSourceExec(
+            SRC,
+            "file:///data/*.parquet",
+            "parquet",
+            output,
+            Map.of(ErrorPolicy.CONFIG_ERROR_MODE, "null_field"),
+            Map.of(),
+            /* pushedFilter = */ null,
+            /* estimatedRowSize = */ null
+        ).withDeclaredReadSpec(DeclaredReadSpec.of(Map.of(), Map.of(), Set.of())).withSplits(List.of(splits));
     }
 
     // -- skip_row row-drop guard: readers that cannot drop rows once filtered must not receive the filter --
@@ -133,6 +387,37 @@ public class PushFiltersToSourceTests extends ESTestCase {
         assertNotNull(((ExternalSourceExec) result).pushedFilter());
     }
 
+    /**
+     * Invert emits {@code ts >= start AND ts < next} as two comparisons, not a {@code Range} node.
+     * Pushdown must accept that DATETIME pair through FilterExec → ExternalSourceExec.
+     */
+    public void testPushesDatetimeHalfOpenInequalityPair() {
+        FieldAttribute ts = datetimeField("ts");
+        long start = java.time.Instant.parse("1986-01-01T00:00:00Z").toEpochMilli();
+        long next = java.time.Instant.parse("1987-01-01T00:00:00Z").toEpochMilli();
+        Expression range = new And(
+            SRC,
+            new GreaterThanOrEqual(SRC, ts, new Literal(SRC, start, DataType.DATETIME), null),
+            new LessThan(SRC, ts, new Literal(SRC, next, DataType.DATETIME), null)
+        );
+        ExternalSourceExec source = new ExternalSourceExec(
+            SRC,
+            "file:///test.parquet",
+            "parquet",
+            List.of(ts),
+            Map.of(ErrorPolicy.CONFIG_ERROR_MODE, "null_field"),
+            Map.of(),
+            null,
+            null
+        ).withDeclaredReadSpec(DeclaredReadSpec.of(Map.of(), Map.of(), Set.of()));
+        FilterExec filterExec = new FilterExec(SRC, source, range);
+
+        PhysicalPlan result = applyRule(filterExec, registry(true));
+
+        assertThat(result, instanceOf(ExternalSourceExec.class));
+        assertNotNull(((ExternalSourceExec) result).pushedFilter());
+    }
+
     /** No declared column types means nothing can fail to coerce, so no row is ever dropped: pushdown stays on
      *  even for a reader that cannot drop rows, and skip_row costs nothing. */
     public void testPushesUnderSkipRowWithoutDeclaredTypeColumns() {
@@ -157,7 +442,15 @@ public class PushFiltersToSourceTests extends ESTestCase {
     private static final Source SRC = Source.EMPTY;
 
     private static FieldAttribute fieldAttr(String name) {
-        return new FieldAttribute(SRC, name, new EsField(name, DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE));
+        return fieldAttr(name, DataType.INTEGER);
+    }
+
+    private static FieldAttribute datetimeField(String name) {
+        return fieldAttr(name, DataType.DATETIME);
+    }
+
+    private static FieldAttribute fieldAttr(String name, DataType type) {
+        return new FieldAttribute(SRC, name, new EsField(name, type, Map.of(), false, EsField.TimeSeriesFieldType.NONE));
     }
 
     private static Literal intLiteral(int value) {
@@ -165,17 +458,26 @@ public class PushFiltersToSourceTests extends ESTestCase {
     }
 
     private static FilterExec filterOverExternalSource(String errorMode, Set<String> declaredTypeColumns) {
+        return filterOverExternalSource("file:///test.parquet", "parquet", errorMode, declaredTypeColumns);
+    }
+
+    private static FilterExec filterOverExternalSource(
+        String sourcePath,
+        String sourceType,
+        String errorMode,
+        Set<String> declaredTypeColumns
+    ) {
         FieldAttribute salary = fieldAttr("salary");
         ExternalSourceExec source = new ExternalSourceExec(
             SRC,
-            "file:///test.parquet",
-            "parquet",
+            sourcePath,
+            sourceType,
             List.of(salary),
             Map.of(ErrorPolicy.CONFIG_ERROR_MODE, errorMode),
             Map.of(),
             /* pushedFilter = */ null,
             /* estimatedRowSize = */ null
-        ).withDeclaredReadSpec(DeclaredReadSpec.of(Map.of(), null, Map.of(), declaredTypeColumns));
+        ).withDeclaredReadSpec(DeclaredReadSpec.of(Map.of(), Map.of(), declaredTypeColumns));
         return new FilterExec(SRC, source, new Equals(SRC, salary, intLiteral(100)));
     }
 
@@ -193,8 +495,10 @@ public class PushFiltersToSourceTests extends ESTestCase {
 
     private static FormatReaderRegistry registry(boolean dropsRowsUnderPushedFilter) {
         FormatReaderRegistry registry = new FormatReaderRegistry(null);
-        FormatReader reader = dropsRowsUnderPushedFilter ? new DroppingStubReader() : new StubReader();
-        registry.registerLazy("parquet", (settings, blockFactory) -> reader, null, null);
+        FormatReader parquet = dropsRowsUnderPushedFilter ? new DroppingStubReader() : new StubReader();
+        registry.registerLazy("parquet", (settings, blockFactory) -> parquet, null, null);
+        // csv is registered so a compressed csv sourceType still finds a pushdown-capable reader.
+        registry.registerLazy("csv", (settings, blockFactory) -> new DroppingStubReader(), null, null);
         return registry;
     }
 

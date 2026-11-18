@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 161645
+summary: Allow unprotected keystore in FIPS 140 mode
+type: enhancement

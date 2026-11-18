@@ -101,7 +101,7 @@ public class IngestAsyncProcessorIT extends ESSingleNodeTestCase {
                 @Override
                 public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
                     threadPool.generic().execute(() -> {
-                        String id = (String) ingestDocument.getSourceAndMetadata().get("_id");
+                        String id = ingestDocument.getMetadata().getId();
                         if (id.equals(String.valueOf(ERROR))) {
                             // lucky number seven always fails
                             handler.accept(ingestDocument, new RuntimeException("lucky number seven"));
@@ -132,7 +132,7 @@ public class IngestAsyncProcessorIT extends ESSingleNodeTestCase {
             }, "test", (processorFactories, tag, description, config, projectId) -> new AbstractProcessor(tag, description) {
                 @Override
                 public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
-                    String id = (String) ingestDocument.getSourceAndMetadata().get("_id");
+                    String id = ingestDocument.getMetadata().getId();
                     if (id.equals(String.valueOf(DROPPED))) {
                         // lucky number three is always dropped
                         return null;

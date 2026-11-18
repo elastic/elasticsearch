@@ -15,7 +15,8 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 
 /**
- * Stores values that violated {@code doc_values.on_failure=ignore} (currently {@code multi_value=false}) so indexing continues.
+ * Stores values that violated {@code doc_values.on_failure=ignore} (multi-value violations, and in strict-columnar index modes also
+ * values that failed to parse with {@code ignore_malformed=true}) so indexing continues.
  * Each field gets its own sidecar column ({@link #ON_FAILURE_FIELD_NAME_SUFFIX}), read back by
  * {@link CompositeSyntheticFieldLoader#onFailureValuesLayer}; invisible to block loaders, ESQL, and aggregations.
  */

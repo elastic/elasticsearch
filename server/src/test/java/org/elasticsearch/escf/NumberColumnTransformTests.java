@@ -834,7 +834,10 @@ public class NumberColumnTransformTests extends ESTestCase {
         assertEquals(30L, vals[2]);
     }
 
-    /** Empty strings with coerce=true use the mapper null_value when one is configured. */
+    /**
+     * Empty strings with coerce=true use the mapper null_value when one is configured, whether or not the caller
+     * records an offsets sidecar: the null value is an ordinary output value, so there is no dropped slot to reject.
+     */
     public void testStringToLong_emptyString_coerceTrue_usesNullValue() {
         EscfColumnData src = stringColumnData("10", "", "30");
         EscfColumnData out = NumberColumnTransform.toSortableLongColumn(
@@ -842,12 +845,36 @@ public class NumberColumnTransformTests extends ESTestCase {
             NumberType.LONG,
             true,
             BytesRefRecycler.NON_RECYCLING_INSTANCE,
-            99L
+            99L,
+            randomBoolean()
         );
         long[] vals = readValues(out, 3);
         assertEquals(10L, vals[0]);
         assertEquals(99L, vals[1]);
         assertEquals(30L, vals[2]);
+    }
+
+    /**
+     * A scalar empty string with coerce=true and no null_value becomes absent even when the caller records an offsets sidecar: it is a
+     * bare null, for which the row path records no offsets slot. An empty array element still throws; see
+     * {@link #testStringArray_emptyString_rejectDroppedValues_throws}.
+     */
+    public void testStringToLongEmptyStringWithOffsetsBecomesAbsent() {
+        long first = randomLongBetween(Long.MIN_VALUE + 1, Long.MAX_VALUE);
+        long last = randomLongBetween(Long.MIN_VALUE + 1, Long.MAX_VALUE);
+        EscfColumnData src = stringColumnData(Long.toString(first), "", Long.toString(last));
+        EscfColumnData out = NumberColumnTransform.toSortableLongColumn(
+            EscfColumn.from(src),
+            NumberType.LONG,
+            true,
+            BytesRefRecycler.NON_RECYCLING_INSTANCE,
+            null,
+            true
+        );
+        long[] vals = readValues(out, 3);
+        assertEquals(first, vals[0]);
+        assertEquals(Long.MIN_VALUE, vals[1]);
+        assertEquals(last, vals[2]);
     }
 
     public void testStringToLong_emptyString_coerceFalse_throws() {
@@ -1074,7 +1101,10 @@ public class NumberColumnTransformTests extends ESTestCase {
         assertArrayEquals(new long[] { 4L }, vals[2]);
     }
 
-    /** ARRAY-of-STRING: empty elements use null_value when configured. */
+    /**
+     * ARRAY-of-STRING: empty elements use null_value when configured, whether or not the caller records an offsets
+     * sidecar, since each empty element still produces an output value.
+     */
     public void testStringArray_emptyString_coerceTrue_usesNullValue() {
         EscfColumnData src = stringArrayColumnData(new String[] { "1", "", "3" }, new String[] { "" });
         EscfColumnData out = NumberColumnTransform.toSortableLongColumn(
@@ -1082,11 +1112,29 @@ public class NumberColumnTransformTests extends ESTestCase {
             NumberType.LONG,
             true,
             BytesRefRecycler.NON_RECYCLING_INSTANCE,
-            99L
+            99L,
+            randomBoolean()
         );
         long[][] vals = readArrayValues(out, 2);
         assertArrayEquals(new long[] { 1L, 99L, 3L }, vals[0]);
         assertArrayEquals(new long[] { 99L }, vals[1]);
+    }
+
+    /** ARRAY-of-STRING: an empty element with no null_value throws when the caller records an offsets sidecar. */
+    public void testStringArray_emptyString_rejectDroppedValues_throws() {
+        EscfColumnData src = stringArrayColumnData(new String[] { "1", "2" }, new String[] { "", "3" });
+        UnsupportedOperationException ex = expectThrows(
+            UnsupportedOperationException.class,
+            () -> NumberColumnTransform.toSortableLongColumn(
+                EscfColumn.from(src),
+                NumberType.LONG,
+                true,
+                BytesRefRecycler.NON_RECYCLING_INSTANCE,
+                null,
+                true
+            )
+        );
+        assertTrue("expected offsets message but got: " + ex.getMessage(), ex.getMessage().contains("records a null offsets slot"));
     }
 
     /** ARRAY-of-STRING: BigDecimal elements truncate per element when coerce=true. */

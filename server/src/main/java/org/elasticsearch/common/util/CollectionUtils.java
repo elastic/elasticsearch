@@ -11,14 +11,23 @@ package org.elasticsearch.common.util;
 
 import org.elasticsearch.common.Strings;
 
+import java.lang.reflect.Array;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.nio.file.Path;
+import java.time.ZonedDateTime;
 import java.util.AbstractList;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
@@ -172,6 +181,149 @@ public class CollectionUtils {
             }
             throw new IllegalArgumentException(sb.toString());
         }
+    }
+
+    /**
+     * Options that control the behavior of {@link #deepCopy(Object)}.
+     */
+    public enum DeepCopyOption {
+        /**
+         * Wrap copied {@link Map}, {@link List}, and {@link Set} instances in their
+         * {@link Collections#unmodifiableMap unmodifiable} counterparts.
+         * <p>
+         * Array types ({@code byte[]}, {@code double[]}, {@code double[][]}) are always copied as mutable
+         * arrays — there is no unmodifiable wrapper for them. This means a structure copied with
+         * {@code UNMODIFIABLE} may still contain mutable leaf arrays. Callers that hand out the result
+         * (e.g. from a cache) must perform a fresh deep copy on each access to prevent those arrays
+         * from being mutated across callers.
+         */
+        UNMODIFIABLE(1),
+        /**
+         * Use insertion-order-preserving collections ({@link LinkedHashMap}, {@link java.util.LinkedHashSet}) when
+         * copying {@link Map} and {@link Set} instances.
+         */
+        ORDERED(2),
+        /**
+         * Soften the response to unrecognized value types. By default, {@link #deepCopy} throws
+         * {@link IllegalArgumentException} when it encounters a type it does not know how to copy.
+         * With {@code LAX}, an unrecognized type instead triggers a development-time assertion
+         * (fired as {@link AssertionError} in tests, which run with {@code -ea}) and the value is
+         * passed through by reference at runtime. Use this when the caller is on a user-facing data
+         * path and an unexpected type should not blow up the request.
+         */
+        LAX(4);
+
+        private final int mask;
+
+        DeepCopyOption(int mask) {
+            this.mask = mask;
+        }
+    }
+
+    /**
+     * Returns a deep copy of {@code value}.
+     * <p>
+     * Handles {@link Map}, {@link List}, {@link Set}, and arrays of any supported type
+     * (recursively). Immutable scalar types ({@link String}, {@link Boolean}, {@link Integer},
+     * {@link Long}, {@link Double}, {@link Float}, {@link Byte}, {@link Short}, {@link Character},
+     * {@link BigInteger}, {@link BigDecimal}, {@link ZonedDateTime}) are returned as-is.
+     * {@link Date} is handled via {@link Date#clone()}.
+     * <p>
+     * For any other type, throws {@link IllegalArgumentException} by default. Pass
+     * {@link DeepCopyOption#LAX} to instead assert at development time and pass the value
+     * through by reference at runtime, which avoids breaking callers on user-facing data
+     * paths when an unexpected type sneaks in.
+     */
+    public static <T> T deepCopy(T value) {
+        return deepCopyInternal(value, 0);
+    }
+
+    /** @see #deepCopy(Object) */
+    public static <T> T deepCopy(T value, DeepCopyOption a) {
+        return deepCopyInternal(value, a.mask);
+    }
+
+    /** @see #deepCopy(Object) */
+    public static <T> T deepCopy(T value, DeepCopyOption a, DeepCopyOption b) {
+        return deepCopyInternal(value, a.mask | b.mask);
+    }
+
+    /** @see #deepCopy(Object) */
+    public static <T> T deepCopy(T value, DeepCopyOption a, DeepCopyOption b, DeepCopyOption c) {
+        return deepCopyInternal(value, a.mask | b.mask | c.mask);
+    }
+
+    // note: in the future, four option or varargs methods can be added -- with only three possible options at present
+    // it's simple enough to just iterate them. :shrug:
+
+    @SuppressWarnings({ "unchecked", "SuspiciousSystemArraycopy" })
+    private static <T> T deepCopyInternal(T value, int options) {
+        final boolean unmodifiable = (options & DeepCopyOption.UNMODIFIABLE.mask) != 0;
+        final boolean ordered = (options & DeepCopyOption.ORDERED.mask) != 0;
+        final boolean lax = (options & DeepCopyOption.LAX.mask) != 0;
+        if (value == null
+            || value instanceof String
+            || value instanceof Boolean
+            || value instanceof Integer
+            || value instanceof Long
+            || value instanceof Double) {
+            // hot path: the most common leaf value types in documents are immutable and need no copy
+            return value;
+        } else if (value instanceof Map<?, ?> mapValue) {
+            Map<Object, Object> copy = ordered ? LinkedHashMap.newLinkedHashMap(mapValue.size()) : HashMap.newHashMap(mapValue.size());
+            for (Map.Entry<?, ?> entry : mapValue.entrySet()) {
+                copy.put(deepCopyInternal(entry.getKey(), options), deepCopyInternal(entry.getValue(), options));
+            }
+            return (T) (unmodifiable ? Collections.unmodifiableMap(copy) : copy);
+        } else if (value instanceof List<?> listValue) {
+            List<Object> copy = new ArrayList<>(listValue.size());
+            for (Object item : listValue) {
+                copy.add(deepCopyInternal(item, options));
+            }
+            return (T) (unmodifiable ? Collections.unmodifiableList(copy) : copy);
+        } else if (value instanceof Set<?> setValue) {
+            Set<Object> copy = ordered ? LinkedHashSet.newLinkedHashSet(setValue.size()) : HashSet.newHashSet(setValue.size());
+            for (Object item : setValue) {
+                copy.add(deepCopyInternal(item, options));
+            }
+            return (T) (unmodifiable ? Collections.unmodifiableSet(copy) : copy);
+        } else if (value.getClass().isArray()) {
+            Class<?> componentType = value.getClass().getComponentType();
+            int length = Array.getLength(value);
+            Object copy = Array.newInstance(componentType, length);
+            if (componentType.isPrimitive()) {
+                // primitives are immutable, so we can just blast through them
+                System.arraycopy(value, 0, copy, 0, length);
+            } else {
+                // non-primitives have to go through a recursive call
+                Object[] source = (Object[]) value;
+                Object[] target = (Object[]) copy;
+                for (int i = 0; i < length; i++) {
+                    target[i] = deepCopyInternal(source[i], options);
+                }
+            }
+            return (T) copy;
+        } else if (value instanceof Float
+            || value instanceof Byte
+            || value instanceof Short
+            || value instanceof Character
+            || value instanceof BigInteger
+            || value instanceof BigDecimal
+            || value instanceof ZonedDateTime) {
+                // n.b. java.util.concurrent.atomic types (AtomicInteger etc.), and some other Number subclasses are mutable,
+                // so we enumerate the immutable Number subclasses explicitly rather than using instanceof Number
+                return value;
+            } else if (value instanceof Date date) {
+                return (T) date.clone();
+            } else if (lax) {
+                // If this list of expected value types ends up not being exhaustive, we want to know
+                // at development time, but it is better to pass the value through at runtime rather
+                // than blow up on users.
+                assert false : "unexpected value type [" + value.getClass() + "]";
+                return value;
+            } else {
+                throw new IllegalArgumentException("unexpected value type [" + value.getClass() + "]");
+            }
     }
 
     private static class RotatedList<T> extends AbstractList<T> implements RandomAccess {

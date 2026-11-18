@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineBatch;
 import org.elasticsearch.index.mapper.ShardBatchMapper;
@@ -24,6 +25,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.sourcebatch.SourceBatch;
 
 import java.io.IOException;
@@ -38,28 +40,35 @@ public final class ShardBatchIndexer {
     private static final Logger logger = LogManager.getLogger(ShardBatchIndexer.class);
 
     // Maximum number of operations to parse and index in a single pass to bound memory usage.
-    static final int BATCH_CHUNK_SIZE = 5000;
+    public static final int BATCH_CHUNK_SIZE = 5000;
 
     private final BatchIndexingEnabled batchIndexingEnabled;
     private final Recycler<BytesRef> recycler;
+    private final DocumentParsingProvider documentParsingProvider;
 
-    ShardBatchIndexer(BatchIndexingEnabled batchIndexingEnabled, Recycler<BytesRef> recycler) {
+    ShardBatchIndexer(
+        BatchIndexingEnabled batchIndexingEnabled,
+        Recycler<BytesRef> recycler,
+        DocumentParsingProvider documentParsingProvider
+    ) {
         this.batchIndexingEnabled = batchIndexingEnabled;
         this.recycler = recycler;
+        this.documentParsingProvider = documentParsingProvider;
     }
 
     public static boolean isBatchIndexingSupported(BatchIndexingEnabled batchIndexingEnabled, ClusterService clusterService) {
         return batchIndexingEnabled.isEnabled()
-            && clusterService.state().getMinTransportVersion().supports(BulkShardRequest.BULK_SHARD_BATCH);
+            && clusterService.state().getMinTransportVersion().supports(BulkShardRequest.BULK_SHARD_ESCF_BATCH);
     }
 
     /**
      * Checks whether the batch indexing path can be used for this request.
      * Returns true if batch indexing is enabled, a source batch is present, synthetic source is active,
-     * and all operations are index/create (no deletes, no updates).
+     * the shard's index opted in via {@code index.batch_indexing}, and all operations are index/create
+     * (no deletes, no updates).
      */
-    public boolean canUseBatchIndexing(BulkShardRequest request) {
-        if (batchIndexingEnabled.isEnabled() == false) {
+    public boolean canUseBatchIndexing(BulkShardRequest request, IndexSettings indexSettings) {
+        if (batchIndexingEnabled.isEnabled() == false || indexSettings.isBatchIndexingEnabled() == false) {
             return false;
         }
         if (request.getBulkShardBatch() == null) {
@@ -109,7 +118,7 @@ public final class ShardBatchIndexer {
         // batch-indexing support matrix this returns null, and we fall back to the sequential
         // path (same contract as a later parseMappings returning null).
         final ShardBatchMapper.BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(
-            batch.schema(),
+            batch,
             primary.mapperService().mappingLookup(),
             primary.indexSettings()
         );
@@ -128,7 +137,8 @@ public final class ShardBatchIndexer {
                     chunkEnd,
                     resolution,
                     Engine.Operation.Origin.PRIMARY,
-                    recycler
+                    recycler,
+                    documentParsingProvider
                 )
             ) {
                 if (engineBatch == null) {
@@ -144,7 +154,22 @@ public final class ShardBatchIndexer {
                     context.markBatchOperationAsExecuted(result);
                     context.markAsCompleted(context.getExecutionResult());
                 }
+                final Engine.IndexResult last = results.getLast();
+                if (last.isBatchAborted()) {
+                    failRemainingItems(primary, context, last.getFailure());
+                    return;
+                }
             }
+        }
+    }
+
+    /** Fails every item the context has not executed yet with {@code failure}, without attempting it. */
+    private static void failRemainingItems(IndexShard primary, BulkPrimaryExecutionContext context, Exception failure) {
+        while (context.hasMoreOperationsToExecute()) {
+            final DocWriteRequest<?> current = context.getCurrent();
+            context.setRequestToExecute(current);
+            context.markBatchOperationAsExecuted(Engine.IndexResult.batchAborted(failure, primary.getOperationPrimaryTerm(), current.id()));
+            context.markAsCompleted(context.getExecutionResult());
         }
     }
 
@@ -156,7 +181,7 @@ public final class ShardBatchIndexer {
      */
     ReplicaBatchResult performBatchIndexOnReplica(BulkItemRequest[] items, SourceBatch batch, IndexShard replica) throws Exception {
         final ShardBatchMapper.BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(
-            batch.schema(),
+            batch,
             replica.mapperService().mappingLookup(),
             replica.indexSettings()
         );
@@ -198,7 +223,9 @@ public final class ShardBatchIndexer {
                         validEnd,
                         resolution,
                         Engine.Operation.Origin.REPLICA,
-                        recycler
+                        recycler,
+                        // mirrors the NOOP decorator of the sequential replica path
+                        DocumentParsingProvider.EMPTY_INSTANCE
                     )
                 ) {
                     if (engineBatch == null) {

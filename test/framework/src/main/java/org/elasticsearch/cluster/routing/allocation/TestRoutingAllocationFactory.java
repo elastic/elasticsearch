@@ -41,6 +41,7 @@ public class TestRoutingAllocationFactory {
         private SnapshotShardSizeInfo shardSizeInfo = SnapshotShardSizeInfo.EMPTY;
         private long currentNanoTime = System.nanoTime();
         private RoutingChangesObserver shardChangesObserver = RoutingChangesObserver.NOOP;
+        private boolean preserveDecisionLabels = true;
 
         private Builder(ClusterState clusterState) {
             this.clusterState = clusterState;
@@ -76,6 +77,11 @@ public class TestRoutingAllocationFactory {
             return this;
         }
 
+        public Builder preserveDecisionLabels(boolean preserveDecisionLabels) {
+            this.preserveDecisionLabels = preserveDecisionLabels;
+            return this;
+        }
+
         public Builder shardChangesObserver(RoutingChangesObserver shardChangesObserver) {
             this.shardChangesObserver = shardChangesObserver;
             return this;
@@ -93,7 +99,14 @@ public class TestRoutingAllocationFactory {
          */
         public RoutingAllocation immutable() {
             assert routingNodes == null : "Attempted to specify RoutingNodes for an immutable RoutingAllocation";
-            return new ImmutableRoutingAllocation(allocationDeciders, clusterState, clusterInfo, shardSizeInfo, currentNanoTime);
+            return new ImmutableRoutingAllocation(
+                allocationDeciders,
+                clusterState,
+                clusterInfo,
+                shardSizeInfo,
+                currentNanoTime,
+                preserveDecisionLabels
+            );
         }
 
         /**
@@ -108,7 +121,8 @@ public class TestRoutingAllocationFactory {
                 shardSizeInfo,
                 currentNanoTime,
                 false,
-                shardChangesObserver
+                shardChangesObserver,
+                preserveDecisionLabels
             );
         }
     }

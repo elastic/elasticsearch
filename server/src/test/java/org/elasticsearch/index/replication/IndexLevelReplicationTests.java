@@ -21,6 +21,7 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.iterable.Iterables;
@@ -305,7 +306,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             shards.index(indexRequest);
             shards.refresh("test");
             for (IndexShard shard : shards) {
-                try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
+                try (Engine.Searcher searcher = shard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
                     TopDocs search = searcher.search(new TermQuery(new Term("f", "2")), 10);
                     assertEquals("shard " + shard.routingEntry() + " misses new version", 1, search.totalHits.value());
                 }

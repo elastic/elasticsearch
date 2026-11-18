@@ -9,7 +9,9 @@
 
 package org.elasticsearch.search.rescore;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.search.profile.rescore.RescoreProfiler;
 
 import java.util.Collections;
 import java.util.List;
@@ -25,6 +27,8 @@ public class RescoreContext {
     private final Rescorer rescorer;
     private Set<Integer> rescoredDocs; // doc Ids for which rescoring was applied
     private Runnable isCancelled;
+    private String name;
+    private RescoreProfiler profiler;
 
     /**
      * Build the context.
@@ -33,6 +37,40 @@ public class RescoreContext {
     public RescoreContext(int windowSize, Rescorer rescorer) {
         this.windowSize = windowSize;
         this.rescorer = rescorer;
+    }
+
+    /**
+     * The name of the rescorer this context was built for, for example {@code query}. Used to label the rescorer in search profile
+     * results. Falls back to the simple class name of the rescorer if the context was not built through
+     * {@link RescorerBuilder#buildContext}.
+     */
+    public String name() {
+        return name != null ? name : rescorer.getClass().getSimpleName();
+    }
+
+    void setName(String name) {
+        this.name = name;
+    }
+
+    /**
+     * Describes what this rescorer runs, to tell rescorers apart in search profile results. Rescorers should override this with
+     * something more specific, like the query or model they run.
+     */
+    public String profileDescription() {
+        return "rescore top documents";
+    }
+
+    /**
+     * The profiler of this rescorer, which rescorers can use to report details of their own execution. It is {@code null} unless the
+     * search request is profiled and the rescorer is running.
+     */
+    @Nullable
+    public RescoreProfiler profiler() {
+        return profiler;
+    }
+
+    void setProfiler(@Nullable RescoreProfiler profiler) {
+        this.profiler = profiler;
     }
 
     public void setCancellationChecker(Runnable isCancelled) {

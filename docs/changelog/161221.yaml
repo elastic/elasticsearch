@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 159692
+pr: 161221
+summary: Charge highlight and explain memory to the request breaker
+type: enhancement

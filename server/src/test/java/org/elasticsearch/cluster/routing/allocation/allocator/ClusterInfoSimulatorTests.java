@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -751,7 +752,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             RecoverySource.EmptyStoreRecoverySource.INSTANCE,
             new UnassignedInfo(REINITIALIZED, "simulation"),
             ShardRouting.Role.DEFAULT,
-            ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED
+            RecoveryPriority.UNASSIGNED_UNEXPECTED
         ).initialize(randomIdentifier(), null, randomLongBetween(100, 999)).moveToStarted(randomLongBetween(100, 999));
 
         // New shard without relocation
@@ -841,7 +842,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
                 0L,
                 "relocating shard in test",
                 allocation.changes(),
-                ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+                RecoveryPriority.RELOCATION_CAN_REMAIN_NO
             );
         // The target copy is still initializing, so the shard still contributes on the source.
         assertThat(simulator.getClusterInfo().getNodeHeapMetrics().get(nodeA).nodeHeapEstimates().hostedShardsHeapUsage(), equalTo(140L));
@@ -862,7 +863,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
                 0L,
                 "relocating shard in test",
                 allocation.changes(),
-                ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+                RecoveryPriority.RELOCATION_CAN_REMAIN_NO
             );
         allocation.routingNodes().startShard(secondRelocation.v2(), allocation.changes(), 0L);
         // Both shards are on B, so index heap is counted once there and the max postings is 25 again.
@@ -1020,7 +1021,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
                 0L,
                 "relocating shard in test",
                 allocation.changes(),
-                ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+                RecoveryPriority.RELOCATION_CAN_REMAIN_NO
             );
         allocation.routingNodes().startShard(relocation.v2(), allocation.changes(), 0L);
 

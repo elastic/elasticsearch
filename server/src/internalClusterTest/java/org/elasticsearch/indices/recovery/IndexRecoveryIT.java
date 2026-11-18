@@ -58,6 +58,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.PeerRecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
@@ -199,7 +200,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         boolean primary,
         String sourceNode,
         String targetNode,
-        ShardRouting.RecoveryPriority recoveryPriority
+        RecoveryPriority recoveryPriority
     ) {
         assertThat(state.getShardId().getId(), equalTo(shardId));
         assertThat(state.getRecoverySource(), equalTo(recoverySource));
@@ -227,7 +228,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         Stage stage,
         String sourceNode,
         String targetNode,
-        ShardRouting.RecoveryPriority recoveryPriority
+        RecoveryPriority recoveryPriority
     ) {
         assertRecoveryStateWithoutStage(state, shardId, type, primary, sourceNode, targetNode, recoveryPriority);
         assertThat(state.getStage(), equalTo(stage));
@@ -240,7 +241,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         boolean primary,
         String sourceNode,
         String targetNode,
-        ShardRouting.RecoveryPriority recoveryPriority
+        RecoveryPriority recoveryPriority
     ) {
         assertRecoveryStateWithoutStage(state, shardId, type, primary, sourceNode, targetNode, recoveryPriority);
         assertThat(state.getStage(), not(equalTo(Stage.DONE)));
@@ -381,7 +382,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             Stage.DONE,
             null,
             node,
-            ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED
+            RecoveryPriority.UNASSIGNED_UNEXPECTED
         );
 
         validateIndexRecoveryState(recoveryState.getIndex());
@@ -458,8 +459,8 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             null,
             nodeA,
             closedIndex
-                ? ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED // when closed, the primary gets recovered as empty with this priority
-                : ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY // this was the original creation of the primary
+                ? RecoveryPriority.UNASSIGNED_EXPECTED // when closed, the primary gets recovered as empty with this priority
+                : RecoveryPriority.UNASSIGNED_NEW_PRIMARY // this was the original creation of the primary
         );
         validateIndexRecoveryState(nodeARecoveryState.getIndex());
 
@@ -473,7 +474,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             Stage.DONE,
             nodeA,
             nodeB,
-            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED // this was the replica
+            RecoveryPriority.UNASSIGNED_EXPECTED // this was the replica
         );
         validateIndexRecoveryState(nodeBRecoveryState.getIndex());
 
@@ -563,7 +564,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                     false,
                     nodeA,
                     nodeC,
-                    ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED
+                    RecoveryPriority.UNASSIGNED_UNEXPECTED
                 );
                 validateIndexRecoveryState(nodeCRecoveryStates.getFirst().getIndex());
 
@@ -627,7 +628,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             Stage.DONE,
             null,
             nodeA,
-            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY // this was the primary of the original newly-created index
+            RecoveryPriority.UNASSIGNED_NEW_PRIMARY // this was the primary of the original newly-created index
         );
         validateIndexRecoveryState(nodeARecoveryStates.getFirst().getIndex());
 
@@ -638,7 +639,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             true,
             nodeA,
             nodeB,
-            ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO // this is the expected priority for a MoveAllocationCommand
+            RecoveryPriority.RELOCATION_CAN_REMAIN_NO // this is the expected priority for a MoveAllocationCommand
         );
         validateIndexRecoveryState(nodeBRecoveryStates.getFirst().getIndex());
 
@@ -676,7 +677,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             Stage.DONE,
             nodeA,
             nodeB,
-            ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+            RecoveryPriority.RELOCATION_CAN_REMAIN_NO
         );
         validateIndexRecoveryState(recoveryStates.getFirst().getIndex());
         awaitRecoveryCountStats(Map.of(nodeA, RecoveryStats::noCurrentRecoveries, nodeB, RecoveryStats::noCurrentRecoveries));
@@ -715,7 +716,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             Stage.DONE,
             nodeB,
             nodeA,
-            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED // this was the replica that got added
+            RecoveryPriority.UNASSIGNED_EXPECTED // this was the replica that got added
         );
         validateIndexRecoveryState(nodeARecoveryStates.getFirst().getIndex());
 
@@ -727,7 +728,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             Stage.DONE,
             nodeA,
             nodeB,
-            ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+            RecoveryPriority.RELOCATION_CAN_REMAIN_NO
         );
         validateIndexRecoveryState(nodeBRecoveryStates.getFirst().getIndex());
 
@@ -739,7 +740,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             false,
             nodeB,
             nodeC,
-            ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+            RecoveryPriority.RELOCATION_CAN_REMAIN_NO
         );
         validateIndexRecoveryState(nodeCRecoveryStates.getFirst().getIndex());
 
@@ -765,7 +766,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                 Stage.DONE,
                 nodeA,
                 nodeB,
-                ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+                RecoveryPriority.RELOCATION_CAN_REMAIN_NO
             );
             validateIndexRecoveryState(nodeBRecoveryStates.getFirst().getIndex());
 
@@ -776,7 +777,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                 false,
                 nodeB,
                 nodeC,
-                ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+                RecoveryPriority.RELOCATION_CAN_REMAIN_NO
             );
             validateIndexRecoveryState(nodeCRecoveryStates.getFirst().getIndex());
         }
@@ -802,7 +803,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             Stage.DONE,
             nodeA,
             nodeB,
-            ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+            RecoveryPriority.RELOCATION_CAN_REMAIN_NO
         );
         validateIndexRecoveryState(nodeBRecoveryStates.getFirst().getIndex());
 
@@ -815,7 +816,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             Stage.DONE,
             nodeB,
             nodeC,
-            ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+            RecoveryPriority.RELOCATION_CAN_REMAIN_NO
         );
         validateIndexRecoveryState(nodeCRecoveryStates.getFirst().getIndex());
     }
@@ -1001,16 +1002,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                     IndexVersion.current(),
                     repositoryData.resolveIndexId(INDEX_NAME)
                 );
-                assertRecoveryState(
-                    recoveryState,
-                    0,
-                    recoverySource,
-                    true,
-                    Stage.DONE,
-                    null,
-                    nodeA,
-                    ShardRouting.RecoveryPriority.UNASSIGNED_RESTORING
-                );
+                assertRecoveryState(recoveryState, 0, recoverySource, true, Stage.DONE, null, nodeA, RecoveryPriority.UNASSIGNED_RESTORING);
                 validateIndexRecoveryState(recoveryState.getIndex());
             }
         }
@@ -1062,16 +1054,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                     IndexVersion.current(),
                     repositoryData.resolveIndexId(originalIndex)
                 );
-                assertRecoveryState(
-                    recoveryState,
-                    0,
-                    recoverySource,
-                    true,
-                    Stage.DONE,
-                    null,
-                    nodeA,
-                    ShardRouting.RecoveryPriority.UNASSIGNED_RESTORING
-                );
+                assertRecoveryState(recoveryState, 0, recoverySource, true, Stage.DONE, null, nodeA, RecoveryPriority.UNASSIGNED_RESTORING);
                 validateIndexRecoveryState(recoveryState.getIndex());
             }
         }

@@ -23,15 +23,19 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
+import org.elasticsearch.xpack.esql.plan.PlanJsonLog;
 import org.elasticsearch.xpack.esql.plan.QuerySetting;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
+import org.elasticsearch.xpack.esql.plan.logical.Into;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
 
 import java.util.BitSet;
 import java.util.EmptyStackException;
+import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -45,9 +49,6 @@ import static org.elasticsearch.xpack.esql.parser.ParserUtils.source;
 
 public class EsqlParser {
 
-    /** Maximum number of commands in a statement when the caller does not provide one. */
-    public static final int DEFAULT_MAX_COMMAND_COUNT = QueryPragmas.MAX_COMMAND_COUNT.getDefault(Settings.EMPTY);
-
     private static final Logger log = LogManager.getLogger(EsqlParser.class);
 
     /**
@@ -58,6 +59,27 @@ public class EsqlParser {
      * that the world just isn't that big.
      */
     public static final int MAX_LENGTH = 1_000_000;
+
+    /**
+     * Maximum number of binary operators between two consecutive separators of an ESQL query. A comma separates at any nesting
+     * level, a pipe or the semicolon that ends a {@code SET} or {@code LET} statement only outside parentheses, so a nested pipe,
+     * e.g. in a subquery, cannot be used to reset the count of the enclosing expression. A flat chain such as {@code 0+0+0+...} or
+     * a balanced tree such as {@code ((a+a)+(a+a))+...} stays under the parenthesis depth limit but makes ANTLR allocate a very
+     * large parse tree, so such queries are rejected from the token stream before parsing starts. The check is syntax-blind: unary
+     * {@code +}/{@code -} are conservatively counted too, and so is the {@code *} in {@code COUNT(*)}. Commas separate independent
+     * expressions (fields of an {@code EVAL}, arguments of a function), so wide but shallow queries such as an {@code EVAL} with
+     * thousands of fields are not affected.
+     */
+    public static final int MAX_BINARY_OPERATORS = 1000;
+
+    /**
+     * Maximum number of left parentheses, which are the function calls, subqueries and parenthesized expressions, of one top level item
+     * of an ESQL query. Unlike the binary operators, they are not reset inside parentheses, only by a comma, a pipe or a statement
+     * semicolon outside of any parentheses, e.g. between the fields of an {@code EVAL}. A balanced tree of nested function calls such as
+     * {@code max(max(0,0),max(0,0))} contains no binary operators, so the {@link #MAX_BINARY_OPERATORS} limit does not see it, but its
+     * prediction cost in ANTLR grows with the number of the nested calls, and a few thousand characters can take gigabytes of heap.
+     */
+    public static final int MAX_LEFT_PARENTHESES = 500;
 
     private static void replaceSymbolWithLiteral(Map<String, String> symbolReplacements, String[] literalNames, String[] symbolicNames) {
         for (int i = 0, replacements = symbolReplacements.size(); i < symbolicNames.length && replacements > 0; i++) {
@@ -124,7 +146,8 @@ public class EsqlParser {
             params,
             inferenceSettings,
             null,
-            DEFAULT_MAX_COMMAND_COUNT,
+            QueryPragmas.EMPTY,
+            EsqlFlags.DEFAULTS,
             EsqlBaseParser::singleStatement,
             AstBuilder::plan
         );
@@ -137,7 +160,7 @@ public class EsqlParser {
 
     // testing utility
     public EsqlStatement unvalidatedStatement(String query, QueryParams params) {
-        return createStatement(query, params, new InferenceSettings(Settings.EMPTY), null, DEFAULT_MAX_COMMAND_COUNT);
+        return createStatement(query, params, new InferenceSettings(Settings.EMPTY), null, QueryPragmas.EMPTY, EsqlFlags.DEFAULTS);
     }
 
     // testing utility
@@ -153,19 +176,27 @@ public class EsqlParser {
      * performing any necessary validation before using them.
      */
     public EsqlStatement parse(String query, QueryParams params, InferenceSettings inferenceSettings) {
-        return parse(query, params, inferenceSettings, DEFAULT_MAX_COMMAND_COUNT);
+        return parse(query, params, inferenceSettings, QueryPragmas.EMPTY, EsqlFlags.DEFAULTS);
     }
 
     /**
-     * Like {@link #parse(String, QueryParams, InferenceSettings)}, but with the maximum number of commands the statement may have,
-     * counting the main query and all its subqueries together.
+     * Like {@link #parse(String, QueryParams, InferenceSettings)}, with the pragmas of the query and the cluster flags, which supply
+     * the limits the statement is checked against while it is built: the commands it may have, counting the main query and all its
+     * subqueries together, and the leaf branches it may have, checked at every FORK.
      */
-    public EsqlStatement parse(String query, QueryParams params, InferenceSettings inferenceSettings, int maxCommandCount) {
-        var parsed = createStatement(query, params, inferenceSettings, null, maxCommandCount);
+    public EsqlStatement parse(
+        String query,
+        QueryParams params,
+        InferenceSettings inferenceSettings,
+        QueryPragmas pragmas,
+        EsqlFlags flags
+    ) {
+        var parsed = createStatement(query, params, inferenceSettings, null, pragmas, flags);
         if (log.isDebugEnabled()) {
             log.debug("Parsed logical plan:\n{}", parsed.plan());
             log.debug("Parsed settings:\n[{}]", parsed.settings().stream().map(QuerySetting::toString).collect(joining("; ")));
         }
+        PlanJsonLog.debug(PlanJsonLog.Stage.PARSED, parsed.plan());
         return parsed;
     }
 
@@ -183,13 +214,18 @@ public class EsqlParser {
         QueryParams params,
         InferenceSettings inferenceSettings,
         String viewName,
-        int maxCommandCount
+        QueryPragmas pragmas,
+        EsqlFlags flags
     ) {
-        var parsed = createStatement(query, params, inferenceSettings, viewName, maxCommandCount);
+        var parsed = createStatement(query, params, inferenceSettings, viewName, pragmas, flags);
         if (log.isDebugEnabled()) {
             log.debug("Parsed view '{}' logical plan:\n{}", viewName, parsed.plan());
             log.debug("Parsed settings:\n[{}]", parsed.settings().stream().map(QuerySetting::toString).collect(joining("; ")));
         }
+        if (parsed.plan() instanceof Into into) {
+            throw new ParsingException(into.source(), "INTO is not allowed in a view definition");
+        }
+        PlanJsonLog.debug(PlanJsonLog.Stage.PARSED, viewName, parsed.plan());
         ViewQuerySettings.validate(parsed.settings(), parsed);
         return parsed;
     }
@@ -199,12 +235,13 @@ public class EsqlParser {
         QueryParams params,
         InferenceSettings inferenceSettings,
         String viewName,
-        int maxCommandCount
+        QueryPragmas pragmas,
+        EsqlFlags flags
     ) {
         if (log.isDebugEnabled()) {
             log.debug("Parsing as statement: {}", query);
         }
-        return invokeParser(query, params, inferenceSettings, viewName, maxCommandCount, EsqlBaseParser::statements, AstBuilder::statement);
+        return invokeParser(query, params, inferenceSettings, viewName, pragmas, flags, EsqlBaseParser::statements, AstBuilder::statement);
     }
 
     private record ParserPipeline(CommonTokenStream tokenStream, EsqlBaseParser parser) {}
@@ -231,7 +268,8 @@ public class EsqlParser {
         QueryParams params,
         InferenceSettings inferenceSettings,
         String viewName,
-        int maxCommandCount,
+        QueryPragmas pragmas,
+        EsqlFlags flags,
         Function<EsqlBaseParser, ParserRuleContext> parseFunction,
         BiFunction<AstBuilder, ParserRuleContext, T> result
     ) {
@@ -241,32 +279,21 @@ public class EsqlParser {
         try {
             ParserPipeline pipeline = createParserPipeline(query, params);
 
-            // Pre-scan the token stream for expression depth BEFORE invoking ANTLR's
+            // Pre-scan the token stream for expression depth and complexity BEFORE invoking ANTLR's
             // recursive-descent parser.
+            boolean lexed;
             try {
                 pipeline.tokenStream().fill();
-                int depth = 0;
-                int prefixChain = 0;
-                for (Token token : pipeline.tokenStream().getTokens()) {
-                    switch (token.getType()) {
-                        case EsqlBaseLexer.LP -> depth++;
-                        case EsqlBaseLexer.RP -> depth--;
-                        case EsqlBaseLexer.NOT, EsqlBaseLexer.MINUS, EsqlBaseLexer.PLUS -> prefixChain++;
-                        default -> prefixChain = 0;
-                    }
-                    if (depth + prefixChain > ExpressionBuilder.MAX_EXPRESSION_DEPTH) {
-                        throw new ParsingException(
-                            "ES|QL statement exceeded the maximum expression depth allowed ({})",
-                            ExpressionBuilder.MAX_EXPRESSION_DEPTH
-                        );
-                    }
-                }
+                lexed = true;
             } catch (ParsingException pe) {
-                if (pe.getMessage() != null && pe.getMessage().contains("exceeded the maximum expression depth")) {
-                    throw pe;
-                }
+                lexed = false;
+            }
+            // If the lexer failed, the buffer still holds the tokens before the invalid character. Those are the only tokens the
+            // parser can work on before reporting the error, so they must respect the limits too.
+            checkTokenLimits(pipeline.tokenStream().getTokens());
+            if (lexed == false) {
                 // Lexer error during fill() — rebuild the entire pipeline from scratch so the
-                // parser runs lazily and reports the same error as without this depth check.
+                // parser runs lazily and reports the same error as without this pre-scan.
                 pipeline = createParserPipeline(query, params);
             }
 
@@ -277,7 +304,7 @@ public class EsqlParser {
             }
 
             return result.apply(
-                new AstBuilder(new ExpressionBuilder.ParsingContext(params, inferenceSettings, viewName, maxCommandCount)),
+                new AstBuilder(new ExpressionBuilder.ParsingContext(params, inferenceSettings, viewName, pragmas, flags)),
                 tree
             );
         } catch (StackOverflowError e) { // TODO: unsafe - replace with manual depth tracking
@@ -286,6 +313,61 @@ public class EsqlParser {
         } catch (EmptyStackException ese) {
             throw new ParsingException("Invalid query [{}]", query);
         }
+    }
+
+    private static void checkTokenLimits(List<Token> tokens) {
+        int depth = 0;
+        int prefixChain = 0;
+        int binaryOperators = 0;
+        int leftParentheses = 0;
+        for (Token token : tokens) {
+            int type = token.getType();
+            switch (type) {
+                case EsqlBaseLexer.LP -> {
+                    depth++;
+                    leftParentheses++;
+                }
+                case EsqlBaseLexer.RP -> depth--;
+                case EsqlBaseLexer.NOT, EsqlBaseLexer.MINUS, EsqlBaseLexer.PLUS -> prefixChain++;
+                default -> prefixChain = 0;
+            }
+            if (depth + prefixChain > ExpressionBuilder.MAX_EXPRESSION_DEPTH) {
+                throw new ParsingException(
+                    "ES|QL statement exceeded the maximum expression depth allowed ({})",
+                    ExpressionBuilder.MAX_EXPRESSION_DEPTH
+                );
+            }
+            // depth can be negative for an invalid query with an unmatched right parenthesis, which is reported by the parser
+            boolean topLevelSeparator = depth <= 0
+                && (type == EsqlBaseLexer.COMMA || type == EsqlBaseLexer.PIPE || type == EsqlBaseLexer.SEMICOLON);
+            if (type == EsqlBaseLexer.COMMA || topLevelSeparator) {
+                binaryOperators = 0;
+            }
+            if (topLevelSeparator) {
+                leftParentheses = 0;
+            }
+            if (isBinaryOperator(type) && ++binaryOperators > MAX_BINARY_OPERATORS) {
+                throw new ParsingException(
+                    "ES|QL statement exceeded the maximum number of binary operators allowed between commas or pipes ({})",
+                    MAX_BINARY_OPERATORS
+                );
+            }
+            if (leftParentheses > MAX_LEFT_PARENTHESES) {
+                throw new ParsingException(
+                    "ES|QL statement exceeded the maximum number of left parentheses allowed in an expression ({})",
+                    MAX_LEFT_PARENTHESES
+                );
+            }
+        }
+    }
+
+    private static boolean isBinaryOperator(int tokenType) {
+        return switch (tokenType) {
+            case EsqlBaseLexer.PLUS, EsqlBaseLexer.MINUS, EsqlBaseLexer.ASTERISK, EsqlBaseLexer.SLASH, EsqlBaseLexer.PERCENT,
+                EsqlBaseLexer.EQ, EsqlBaseLexer.CIEQ, EsqlBaseLexer.NEQ, EsqlBaseLexer.LT, EsqlBaseLexer.LTE, EsqlBaseLexer.GT,
+                EsqlBaseLexer.GTE, EsqlBaseLexer.AND, EsqlBaseLexer.OR, EsqlBaseLexer.CAST_OP -> true;
+            default -> false;
+        };
     }
 
     private class PostProcessor extends EsqlBaseParserBaseListener {

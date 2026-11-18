@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 140669
+pr: 164787
+summary: Adaptively size exponential histograms during merging based on input size
+type: enhancement

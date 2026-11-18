@@ -15,8 +15,10 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.lang.reflect.Array;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
@@ -30,6 +32,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.function.ToLongBiFunction;
 
 /**
@@ -340,6 +343,38 @@ public class Cache<K, V> {
             }
         }
 
+        /**
+         * remove every entry from the segment whose key matches the predicate
+         *
+         * @param predicate the predicate that keys of entries to remove must match
+         * @return the futures of the removed entries
+         */
+        List<CompletableFuture<Entry<K, V>>> removeIf(Predicate<K> predicate) {
+            writeLock.lock();
+            try {
+                if (map == null) {
+                    return List.of();
+                }
+                // evaluate the predicate before mutating the map so that a throwing predicate leaves the segment unchanged
+                List<K> matchingKeys = new ArrayList<>();
+                for (K key : map.keySet()) {
+                    if (predicate.test(key)) {
+                        matchingKeys.add(key);
+                    }
+                }
+                List<CompletableFuture<Entry<K, V>>> removed = new ArrayList<>(matchingKeys.size());
+                for (K key : matchingKeys) {
+                    removed.add(map.remove(key));
+                }
+                if (map.isEmpty()) {
+                    map = null;
+                }
+                return removed;
+            } finally {
+                writeLock.unlock();
+            }
+        }
+
     }
 
     /**
@@ -612,6 +647,27 @@ public class Cache<K, V> {
     public void invalidate(K key, V value) {
         CacheSegment segment = getCacheSegment(key);
         segment.remove(key, value, true);
+    }
+
+    /**
+     * Invalidate every entry whose key matches the specified predicate. A removal notification will be issued for invalidated
+     * entries with {@link org.elasticsearch.common.cache.RemovalNotification.RemovalReason} INVALIDATED.
+     * <p>
+     * Prefer this to removing entries through {@link #keys()}: that iterator walks the LRU list, which concurrent reads reorder,
+     * so it can skip entries. This method instead visits each segment under its write lock, so every entry that is in the cache
+     * for the whole call is tested. The predicate runs while a segment lock is held, so it must be cheap and must not access
+     * this cache. Like {@link #invalidate(Object)}, this waits for in-flight loads of matching keys to complete.
+     *
+     * @param predicate the predicate that keys of entries to invalidate must match
+     */
+    public void removeIf(Predicate<K> predicate) {
+        Objects.requireNonNull(predicate);
+        for (CacheSegment segment : segments) {
+            for (CompletableFuture<Entry<K, V>> future : segment.removeIf(predicate)) {
+                evictions.increment();
+                notifyWithInvalidated(future);
+            }
+        }
     }
 
     /**

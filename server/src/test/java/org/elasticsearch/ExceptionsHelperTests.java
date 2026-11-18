@@ -16,6 +16,8 @@ import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryShardException;
@@ -36,6 +38,7 @@ import static org.elasticsearch.ExceptionsHelper.maybeError;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.nullValue;
+import static org.hamcrest.Matchers.hasSize;
 
 public class ExceptionsHelperTests extends ESTestCase {
 
@@ -93,8 +96,34 @@ public class ExceptionsHelperTests extends ESTestCase {
         assertThat(ExceptionsHelper.status(new EsRejectedExecutionException("rejected")), equalTo(RestStatus.TOO_MANY_REQUESTS));
     }
 
+    public void testStatusOfCircuitBreakingExceptionWrappedByParser() {
+        // Object parsers wrap a trip once per level of nesting, and it must still be a 429, while other causes stay a 400.
+        CircuitBreakingException tripped = new CircuitBreakingException("tripped", CircuitBreaker.Durability.TRANSIENT);
+        XContentParseException wrapped = new XContentParseException(null, "failed to parse field [inner]", tripped);
+        assertThat(ExceptionsHelper.status(wrapped), equalTo(RestStatus.TOO_MANY_REQUESTS));
+        assertThat(
+            ExceptionsHelper.status(new XContentParseException(null, "failed to parse field [outer]", wrapped)),
+            equalTo(RestStatus.TOO_MANY_REQUESTS)
+        );
+        assertThat(
+            ExceptionsHelper.status(new XContentParseException(null, "illegal", new IllegalArgumentException("illegal"))),
+            equalTo(RestStatus.BAD_REQUEST)
+        );
+        // Query parsers such as ids wrap it again, and geo parsers wrap it in an ElasticsearchParseException.
+        assertThat(ExceptionsHelper.status(new ParsingException(null, "[ids] failed", wrapped)), equalTo(RestStatus.TOO_MANY_REQUESTS));
+        assertThat(
+            ExceptionsHelper.status(new ElasticsearchParseException("error parsing geopoint", wrapped)),
+            equalTo(RestStatus.TOO_MANY_REQUESTS)
+        );
+        assertThat(
+            ExceptionsHelper.status(new ParsingException(null, "illegal", new IllegalArgumentException("illegal"))),
+            equalTo(RestStatus.BAD_REQUEST)
+        );
+        assertThat(ExceptionsHelper.status(new ParsingException(null, "illegal")), equalTo(RestStatus.BAD_REQUEST));
+    }
+
     public void testGroupBy() {
-        ShardOperationFailedException[] failures = new ShardOperationFailedException[] {
+        List<ShardOperationFailedException> failures = List.of(
             createShardFailureParsingException("error", "node0", "index", 0, null),
             createShardFailureParsingException("error", "node1", "index", 1, null),
             createShardFailureParsingException("error", "node2", "index2", 2, null),
@@ -104,10 +133,11 @@ public class ExceptionsHelperTests extends ESTestCase {
             createShardFailureParsingException("error", "node0", "index", 0, "cluster2"),
             createShardFailureParsingException("error", "node1", "index", 1, "cluster2"),
             createShardFailureParsingException("error", "node2", "index", 2, "cluster2"),
-            createShardFailureParsingException("another error", "node2", "index", 2, "cluster2") };
+            createShardFailureParsingException("another error", "node2", "index", 2, "cluster2")
+        );
 
-        ShardOperationFailedException[] groupBy = ExceptionsHelper.groupBy(failures);
-        assertThat(groupBy.length, equalTo(5));
+        List<ShardOperationFailedException> groupBy = ExceptionsHelper.groupBy(failures);
+        assertThat(groupBy, hasSize(5));
         String[] expectedIndices = new String[] { "index", "index2", "cluster1:index", "cluster2:index", "cluster2:index" };
         String[] expectedErrors = new String[] { "error", "error", "error", "error", "another error" };
         int i = 0;
@@ -134,7 +164,7 @@ public class ExceptionsHelperTests extends ESTestCase {
     }
 
     public void testGroupByNullTarget() {
-        ShardOperationFailedException[] failures = new ShardOperationFailedException[] {
+        List<ShardOperationFailedException> failures = List.of(
             createShardFailureQueryShardException("error", "index", null),
             createShardFailureQueryShardException("error", "index", null),
             createShardFailureQueryShardException("error", "index", null),
@@ -144,10 +174,11 @@ public class ExceptionsHelperTests extends ESTestCase {
             createShardFailureQueryShardException("error", "index", "cluster2"),
             createShardFailureQueryShardException("error", "index", "cluster2"),
             createShardFailureQueryShardException("error", "index2", null),
-            createShardFailureQueryShardException("another error", "index2", null), };
+            createShardFailureQueryShardException("another error", "index2", null)
+        );
 
-        ShardOperationFailedException[] groupBy = ExceptionsHelper.groupBy(failures);
-        assertThat(groupBy.length, equalTo(5));
+        List<ShardOperationFailedException> groupBy = ExceptionsHelper.groupBy(failures);
+        assertThat(groupBy, hasSize(5));
         String[] expectedIndices = new String[] { "index", "cluster1:index", "cluster2:index", "index2", "index2" };
         String[] expectedErrors = new String[] { "error", "error", "error", "error", "another error" };
         int i = 0;
@@ -167,12 +198,13 @@ public class ExceptionsHelperTests extends ESTestCase {
     }
 
     public void testGroupByNullIndex() {
-        ShardOperationFailedException[] failures = new ShardOperationFailedException[] {
+        List<ShardOperationFailedException> failures = List.of(
             new ShardSearchFailure(new IllegalArgumentException("error")),
-            new ShardSearchFailure(new ParsingException(0, 0, "error", null)), };
+            new ShardSearchFailure(new ParsingException(0, 0, "error", null))
+        );
 
-        ShardOperationFailedException[] groupBy = ExceptionsHelper.groupBy(failures);
-        assertThat(groupBy.length, equalTo(2));
+        List<ShardOperationFailedException> groupBy = ExceptionsHelper.groupBy(failures);
+        assertThat(groupBy, hasSize(2));
     }
 
     public void testUnwrapCorruption() {

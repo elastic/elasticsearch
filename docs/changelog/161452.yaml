@@ -1,5 +1,0 @@
-area: Transform
-issues: []
-pr: 161452
-summary: Retry on `MasterNotDiscoveredException`
-type: bug

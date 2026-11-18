@@ -726,7 +726,7 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
         assertTrue(isFailureReported(shardRouting));
     }
 
-    public void testUpdateRetryContextClearsWhenNotInitializing() {
+    public void testStaleShardStartedWhileWaitingForRetryEvictsTicketAndFailShard() {
         ShardRouting shardRouting = applyInitializingPrimary();
         handleRecoveryFailureWithRetry(shardRouting);
         assertTrue(isAwaitingRecoveryRetry(shardRouting));
@@ -742,6 +742,23 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
         // Master thinks this allocation is active but we have no shard for it (it was removed by the
         // earlier recovery failure) -- createIndicesAndUpdateShards reports it as failed separately.
         assertTrue(isFailureReported(shardRouting));
+    }
+
+    public void testStaleShardStartedWhileRecoveryInFlightEvictsTicket() {
+        ShardRouting shardRouting = applyInitializingPrimary();
+        currentInFlight(shardRouting); // sanity: ticket is live before the state transition below
+
+        // See description about why this make sense to test in ICSS.evictIfAttemptStale
+        ShardRouting started = TestShardRouting.shardRoutingBuilder(
+            shardRouting.shardId(),
+            shardRouting.currentNodeId(),
+            true,
+            ShardRoutingState.STARTED
+        ).withAllocationId(shardRouting.allocationId()).build();
+        applyState(stateWithShardRouting(started));
+
+        assertFalse(isInFlight(shardRouting));
+        assertNull(indicesClusterStateService.pendingAllocationStates.get(allocationKey(shardRouting)));
     }
 
     public void testRetryContextClearedWhenCreateFails() {

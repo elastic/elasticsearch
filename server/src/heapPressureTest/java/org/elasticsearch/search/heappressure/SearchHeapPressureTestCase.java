@@ -76,6 +76,18 @@ public abstract class SearchHeapPressureTestCase extends HeapPressureTestCase {
     }
 
     /**
+     * Like {@link #heapConstrainedNode(String)}, with a request breaker limit of {@code requestLimit} instead of its default share of the
+     * heap. {@code VALIDATE_OOM} still turns the breakers off.
+     */
+    protected static LocalClusterSpecBuilder<ElasticsearchCluster> heapConstrainedNode(String heapSize, String requestLimit) {
+        return heapConstrainedNode(heapSize).setting("indices.breaker.request.limit", requestLimit).apply(c -> {
+            if (VALIDATE_OOM) {
+                c.setting("indices.breaker.request.limit", "-1");
+            }
+        });
+    }
+
+    /**
      * Fixtures are expensive to index, so the first case indexes them ({@link #indexDocuments} skips an existing index) and the rest
      * reuse them. No other class sees them, since each class has its own cluster.
      */

@@ -1158,6 +1158,58 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertEquals("draining to exhaustion then closing must leave the breaker at zero", 0L, breaker[0].getUsed());
     }
 
+    /**
+     * A node-singleton reader stays on its construction factory. {@code withBlockFactory} copies
+     * configuration onto a per-read factory. The node breaker is one byte, so any sample or page
+     * that still hit it would trip; success plus live usage on the per-read breaker is the proof.
+     */
+    public void testWithBlockFactoryChargesThePerReadBreakerNotTheNodeFactory() throws IOException {
+        LimitedBreaker nodeBreaker = new LimitedBreaker("node", ByteSizeValue.ofBytes(1));
+        CircuitBreaker[] readBreaker = new CircuitBreaker[1];
+        BlockFactory nodeFactory = new BlockFactory(nodeBreaker, BigArrays.NON_RECYCLING_INSTANCE);
+        BlockFactory readFactory = trackingBlockFactory(readBreaker);
+        CsvFormatReader nodeReader = new CsvFormatReader(nodeFactory);
+        assertSame("same factory is a no-op so the node singleton is unchanged", nodeReader, nodeReader.withBlockFactory(nodeFactory));
+        CsvFormatReader perRead = nodeReader.withBlockFactory(readFactory);
+        assertNotSame("a distinct factory must copy, not mutate the node singleton", nodeReader, perRead);
+
+        String csv = "id,name\n1,Alice\n2,Bob\n";
+        try (CloseableIterator<Page> iterator = perRead.read(createStorageObject(csv), List.of("id", "name"), 8)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertThat("per-read page allocations must hit the bound factory", readBreaker[0].getUsed(), Matchers.greaterThan(0L));
+            assertEquals("the node singleton must not see those allocations", 0L, nodeBreaker.getUsed());
+            page.releaseBlocks();
+        }
+        assertEquals(0L, readBreaker[0].getUsed());
+        assertEquals(0L, nodeBreaker.getUsed());
+    }
+
+    /**
+     * {@code withBlockFactory} (every split after the per-query factory) and {@code withReadConfig}
+     * (every file) copy the reader with the same {@code WITH} options. Rebuilding {@code CsvMapper}
+     * there is wasted work; the copy must keep the receiver's mapper.
+     */
+    public void testWithBlockFactoryReusesSharedCsvMapper() {
+        BlockFactory other = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
+        CsvFormatReader nodeReader = new CsvFormatReader(blockFactory);
+        CsvFormatReader perRead = nodeReader.withBlockFactory(other);
+        assertNotSame("a distinct factory must copy, not mutate the node singleton", nodeReader, perRead);
+        assertSame(
+            "withBlockFactory must reuse sharedCsvMapper; options are unchanged",
+            nodeReader.sharedCsvMapper(),
+            perRead.sharedCsvMapper()
+        );
+
+        CsvFormatReader perFile = nodeReader.withReadConfig("0123456789abcdef0123456789abcdef");
+        assertNotSame(nodeReader, perFile);
+        assertSame(
+            "withReadConfig must reuse sharedCsvMapper; options are unchanged",
+            nodeReader.sharedCsvMapper(),
+            perFile.sharedCsvMapper()
+        );
+    }
+
     public void testReadWithBatching() throws IOException {
         StringBuilder csv = new StringBuilder("id:long,value:integer\n");
         for (int i = 1; i <= 25; i++) {
@@ -9206,6 +9258,31 @@ public class CsvFormatReaderTests extends ESTestCase {
                 () -> readRowCount(reader, createStorageObject(RAGGED_MV_CSV), idTagsScore(), List.of("id", "tags"))
             );
             assertThat("directBlock=" + directBlock, e.getMessage(), containsString("the header has [3]"));
+            drainWarnings();
+        }
+    }
+
+    /**
+     * The width exit builds its excerpt through rowExcerptIfRead(), which returns null outside fail_fast, and
+     * ErrorExcerpts.summarize renders null as "null". The sibling above asserts only the width text, so it would
+     * pass on a message that had lost the record; this pins the record itself on the one mode that prints it.
+     */
+    public void testDeclaredBindingRowWidthFailFastQuotesTheRecord() throws Exception {
+        String csv = "id:integer,tags:keyword,score:integer\n1,alpha,10,SURPLUS\n";
+        Map<String, Object> config = Map.of("header_row", true, "multi_value_syntax", "NONE", "error_mode", "fail_fast");
+        for (boolean directBlock : List.of(false, true)) {
+            CsvFormatReader reader = declaredReader(true, directBlock, config);
+            Exception e = expectThrows(
+                Exception.class,
+                () -> readRowCount(reader, createStorageObject(csv), idTagsScore(), List.of("id", "tags"))
+            );
+            assertThat("directBlock=" + directBlock, e.getMessage(), containsString("[4] columns, the header has [3]"));
+            assertThat("directBlock=" + directBlock, e.getMessage(), containsString("row: "));
+            assertThat(
+                "directBlock=" + directBlock + " must quote the record: " + e.getMessage(),
+                e.getMessage(),
+                containsString(directBlock ? "1,alpha,10,SURPLUS" : "col0=[1]")
+            );
             drainWarnings();
         }
     }

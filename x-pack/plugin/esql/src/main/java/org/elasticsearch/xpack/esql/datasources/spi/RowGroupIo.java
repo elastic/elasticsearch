@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.tasks.TaskId;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
@@ -35,6 +38,8 @@ public final class RowGroupIo {
     private volatile boolean pinned;
     private volatile long startSeq;
     private volatile RowGroupScheduler scheduler;
+    @Nullable
+    private volatile TaskId queryId;
 
     /** Remaining GETs: not yet issued plus currently in flight. */
     public int outstanding() {
@@ -134,6 +139,19 @@ public final class RowGroupIo {
 
     public RowGroupScheduler scheduler() {
         return scheduler;
+    }
+
+    /** Coordinator task stamped at budget bind, or {@code null} when the query did not supply one. */
+    @Nullable
+    public TaskId queryId() {
+        return queryId;
+    }
+
+    /** First-wins. Later stamps, including a second {@code bind}, leave the original id. */
+    public void setQueryId(TaskId queryId) {
+        if (this.queryId == null) {
+            this.queryId = queryId;
+        }
     }
 
     /**

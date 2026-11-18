@@ -18,7 +18,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.logsdb.LogsDBLocalStateXPackPlugin;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
@@ -48,7 +47,7 @@ public class PatternTextColumnarCodecTests extends ESSingleNodeTestCase {
         prepareIndex(INDEX).setSource("@timestamp", "2024-01-01T00:00:00Z", "msg", "Error 123 at line 456").get();
 
         final BroadcastResponse refresh = indicesAdmin().prepareRefresh(INDEX).get();
-        assertEquals("mode=" + mode + " " + Arrays.toString(refresh.getShardFailures()), 0, refresh.getFailedShards());
+        assertEquals("mode=" + mode + " " + refresh.getShardFailures(), 0, refresh.getFailedShards());
         assertHitCount(client().prepareSearch(INDEX).setQuery(QueryBuilders.matchQuery("msg", "Error")), 1);
     }
 }

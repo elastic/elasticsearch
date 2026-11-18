@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.MockBytesRefRecycler;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
@@ -26,10 +27,13 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.io.StreamCorruptedException;
 import java.util.ArrayList;
 
 import static org.elasticsearch.common.bytes.ReleasableBytesReferenceStreamInputTests.wrapAsReleasable;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.instanceOf;
@@ -399,6 +403,114 @@ public class InboundDecoderTests extends ESTestCase {
                 expected.getMessage()
             );
         }
+    }
+
+    public void testOversizedHeaderWaitsForLeadingCredentialsToBeAuthorized() throws IOException {
+        final String credentials = "ApiKey " + randomAlphaOfLength(40);
+        threadContext.putHeader(ThreadContext.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER, credentials);
+        threadContext.putHeader("_large", randomAlphaOfLength(4096));
+        try (RecyclerBytesStreamOutput os = new RecyclerBytesStreamOutput(recycler)) {
+            final BytesReference bytes = serializeRequest(os);
+            final int totalHeaderSize = TcpHeader.HEADER_SIZE + bytes.getInt(TcpHeader.VARIABLE_HEADER_SIZE_POSITION);
+            try (InboundDecoder decoder = oversizedHeaderDecoder(ByteSizeValue.ofKb(1), ByteSizeValue.ofKb(8))) {
+                final ArrayList<Object> fragments = new ArrayList<>();
+                try (ReleasableBytesReference releasable = wrapAsReleasable(bytes)) {
+                    assertEquals(0, decoder.decode(releasable, fragments::add));
+                    assertThat(fragments, contains(new InboundDecoder.OversizedHeaderCredentials(credentials)));
+
+                    fragments.clear();
+                    assertEquals(0, decoder.decode(releasable, fragments::add));
+                    assertThat(fragments, empty());
+
+                    decoder.authorizeOversizedHeader();
+                    assertEquals(totalHeaderSize, decoder.decode(releasable, fragments::add));
+                    final Header header = (Header) fragments.get(0);
+                    assertEquals(credentials, header.getRequestHeaders().get(ThreadContext.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER));
+                    assertEquals("test-request", header.getActionName());
+                }
+            }
+        }
+    }
+
+    public void testOversizedHeaderCredentialsCanArriveInPieces() throws IOException {
+        final String credentials = "ApiKey " + randomAlphaOfLength(40);
+        threadContext.putHeader(ThreadContext.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER, credentials);
+        threadContext.putHeader("_large", randomAlphaOfLength(4096));
+        try (RecyclerBytesStreamOutput os = new RecyclerBytesStreamOutput(recycler)) {
+            final BytesReference bytes = serializeRequest(os);
+            try (InboundDecoder decoder = oversizedHeaderDecoder(ByteSizeValue.ofKb(1), ByteSizeValue.ofKb(8))) {
+                final ArrayList<Object> fragments = new ArrayList<>();
+                final int partialCredentials = TcpHeader.HEADER_SIZE + randomIntBetween(1, credentials.length());
+                try (ReleasableBytesReference releasable = wrapAsReleasable(bytes.slice(0, partialCredentials))) {
+                    assertEquals(0, decoder.decode(releasable, fragments::add));
+                    assertThat(fragments, empty());
+                }
+                try (ReleasableBytesReference releasable = wrapAsReleasable(bytes.slice(0, 512))) {
+                    assertEquals(0, decoder.decode(releasable, fragments::add));
+                    assertThat(fragments, contains(new InboundDecoder.OversizedHeaderCredentials(credentials)));
+                }
+            }
+        }
+    }
+
+    public void testOversizedHeaderWithoutLeadingCredentialsIsRejected() throws IOException {
+        threadContext.putHeader("_large", randomAlphaOfLength(4096));
+        try (RecyclerBytesStreamOutput os = new RecyclerBytesStreamOutput(recycler)) {
+            final BytesReference bytes = serializeRequest(os);
+            try (
+                InboundDecoder decoder = oversizedHeaderDecoder(ByteSizeValue.ofKb(1), ByteSizeValue.ofKb(8));
+                ReleasableBytesReference releasable = wrapAsReleasable(bytes)
+            ) {
+                final StreamCorruptedException e = expectThrows(
+                    StreamCorruptedException.class,
+                    () -> decoder.decode(releasable, fragment -> fail("unexpected fragment " + fragment))
+                );
+                assertThat(e.getMessage(), containsString("exceeds limit of [1kb]"));
+            }
+        }
+    }
+
+    public void testHeaderAboveAuthorizedLimitIsRejected() throws IOException {
+        threadContext.putHeader(ThreadContext.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER, "ApiKey " + randomAlphaOfLength(40));
+        threadContext.putHeader("_large", randomAlphaOfLength(4096));
+        try (RecyclerBytesStreamOutput os = new RecyclerBytesStreamOutput(recycler)) {
+            final BytesReference bytes = serializeRequest(os);
+            try (
+                InboundDecoder decoder = oversizedHeaderDecoder(ByteSizeValue.ofKb(1), ByteSizeValue.ofKb(2));
+                ReleasableBytesReference releasable = wrapAsReleasable(bytes)
+            ) {
+                final StreamCorruptedException e = expectThrows(
+                    StreamCorruptedException.class,
+                    () -> decoder.decode(releasable, fragment -> fail("unexpected fragment " + fragment))
+                );
+                assertThat(e.getMessage(), containsString("exceeds limit of [2kb]"));
+            }
+        }
+    }
+
+    private InboundDecoder oversizedHeaderDecoder(ByteSizeValue maxHeaderSize, ByteSizeValue maxAuthorizedHeaderSize) {
+        return new InboundDecoder(
+            recycler,
+            maxHeaderSize,
+            maxAuthorizedHeaderSize,
+            ThreadContext.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER,
+            ChannelType.SERVER
+        );
+    }
+
+    private BytesReference serializeRequest(RecyclerBytesStreamOutput os) throws IOException {
+        return OutboundHandler.serialize(
+            OutboundHandler.MessageDirection.REQUEST,
+            "test-request",
+            randomNonNegativeLong(),
+            false,
+            TransportVersion.current(),
+            null,
+            new TestRequest(randomAlphaOfLength(100)),
+            threadContext,
+            os,
+            recycler
+        );
     }
 
     public void testCheckHandshakeCompatibility() {

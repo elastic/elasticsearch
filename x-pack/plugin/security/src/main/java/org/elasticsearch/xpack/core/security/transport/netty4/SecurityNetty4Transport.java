@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.SslProfile;
 import org.elasticsearch.xpack.security.authc.RemoteClusterAuthenticationService;
 
+import java.io.StreamCorruptedException;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.util.Collections;
@@ -164,10 +165,17 @@ public class SecurityNetty4Transport extends Netty4Transport {
         if (false == isRemoteClusterServerChannel) {
             return super.getInboundPipeline(channel, false);
         } else {
+            final InboundDecoder decoder = new InboundDecoder(
+                recycler,
+                RemoteClusterPortSettings.MAX_REQUEST_HEADER_SIZE.get(settings),
+                RemoteClusterPortSettings.MAX_AUTHENTICATED_REQUEST_HEADER_SIZE.get(settings),
+                ThreadContext.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER,
+                SERVER
+            );
             return new InboundPipeline(
                 getStatsTracker(),
                 threadPool.relativeTimeInMillisSupplier(),
-                new InboundDecoder(recycler, RemoteClusterPortSettings.MAX_REQUEST_HEADER_SIZE.get(settings), SERVER),
+                decoder,
                 new InboundAggregator(
                     getInflightBreaker(),
                     getRequestHandlers()::getHandler,
@@ -207,6 +215,39 @@ public class SecurityNetty4Transport extends Netty4Transport {
                     }
                     // go on with the message parts
                     super.headerReceived(header);
+                }
+
+                @Override
+                protected void oversizedHeaderCredentialsReceived(String credentials) {
+                    // only the credentials have been buffered beyond the fixed header; read nothing more until they authenticate
+                    channel.config().setAutoRead(false);
+                    try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().newStoredContext()) {
+                        remoteClusterAuthenticationService.authenticateHeaders(
+                            Map.of(ThreadContext.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER, credentials),
+                            ActionListener.wrap(aVoid -> channel.eventLoop().execute(() -> {
+                                logger.debug("Transport CCS credentials authenticated for oversized header on channel [{}]", channel);
+                                decoder.authorizeOversizedHeader();
+                                channel.config().setAutoRead(true);
+                                try {
+                                    resumeDecoding();
+                                } catch (Exception e) {
+                                    channel.pipeline().fireExceptionCaught(e);
+                                }
+                            }), e -> {
+                                logger.debug(
+                                    "Transport CCS credentials authentication FAIL for oversized header with [{}], closing channel [{}]",
+                                    e.getMessage(),
+                                    channel
+                                );
+                                final StreamCorruptedException rejection = new StreamCorruptedException(
+                                    "header exceeds limit of ["
+                                        + RemoteClusterPortSettings.MAX_REQUEST_HEADER_SIZE.get(settings)
+                                        + "] and its cross cluster credentials failed to authenticate"
+                                );
+                                channel.eventLoop().execute(() -> channel.pipeline().fireExceptionCaught(rejection));
+                            })
+                        );
+                    }
                 }
             };
         }

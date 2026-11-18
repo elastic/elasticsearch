@@ -32,15 +32,15 @@ import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PageConsumer;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.ingest.IngestService;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -69,24 +69,17 @@ public final class IntoPageWriter implements PageConsumer {
         private final String destination;
         private final List<String> columns;
         private final List<DataType> types;
-        private final BatchForm batchForm;
         private final AtomicLong total = new AtomicLong();
         private final AtomicLong created = new AtomicLong();
         private final AtomicReference<Exception> failure = new AtomicReference<>();
 
-        public enum BatchForm {
-            PREBUILT,
-            INLINE
-        }
-
-        public static Factory createFactory(Client client, String destination, List<Attribute> output, BatchForm batchForm) {
+        public static Factory createFactory(Client client, String destination, List<Attribute> output) {
             return new Factory(
                 client,
                 client.threadPool().getThreadContext().newRestorableContext(false),
                 destination,
                 Expressions.names(output),
-                output.stream().map(Attribute::dataType).toList(),
-                batchForm
+                output.stream().map(Attribute::dataType).toList()
             );
         }
 
@@ -95,15 +88,13 @@ public final class IntoPageWriter implements PageConsumer {
             Supplier<ThreadContext.StoredContext> caller,
             String destination,
             List<String> columns,
-            List<DataType> types,
-            BatchForm batchForm
+            List<DataType> types
         ) {
             this.client = client;
             this.caller = caller;
             this.destination = destination;
             this.columns = columns;
             this.types = types;
-            this.batchForm = batchForm;
         }
 
         @Override
@@ -122,6 +113,28 @@ public final class IntoPageWriter implements PageConsumer {
         }
 
         /**
+         * Fails the query when {@code target} cannot be written as a pre-built ESCF batch.
+         * Checked once on the coordinator.
+         */
+        public static void requireBatchDestination(boolean batchIndexingSupported, ProjectMetadata project, String target) {
+            if (batchIndexingSupported == false) {
+                throw rejection(Strings.format("INTO [{}] requires batch indexing", target));
+            }
+            IndexRequest probe = new IndexRequest(target);
+            IngestService.setPipelineOnRequest(probe, IngestService.resolvePipelines(probe, probe, project, System.currentTimeMillis()));
+            if (IngestService.hasPipeline(probe)) {
+                throw rejection(Strings.format("INTO [{}] does not support ingest pipelines", target));
+            }
+            if (routesFromSource(project, target)) {
+                throw rejection(Strings.format("INTO [{}] does not support indices that route from _source", target));
+            }
+        }
+
+        private static ElasticsearchStatusException rejection(String message) {
+            return new ElasticsearchStatusException(message, RestStatus.BAD_REQUEST);
+        }
+
+        /**
          * Returns {@code true} when the pre-built ESCF batch path may be used for the given target:
          * the destination has no ingest pipeline and does not route by extracting fields from {@code _source}.
          */
@@ -135,7 +148,7 @@ public final class IntoPageWriter implements PageConsumer {
             IndexAbstraction abstraction = project.getIndicesLookup().get(target);
             if (abstraction == null) {
                 // Any matching template can create the index with source routing. Applying the template
-                // is what resolves that routing, so a match takes the inline path.
+                // is what resolves that routing, so a match is rejected.
                 return MetadataIndexTemplateService.findV2Template(project, target, false) != null
                     || MetadataIndexTemplateService.findV1Templates(project, target, Boolean.FALSE).isEmpty() == false;
             }
@@ -177,46 +190,19 @@ public final class IntoPageWriter implements PageConsumer {
     private ReservedBulk bulkFor(Page page) {
         BulkRequest bulk = new BulkRequest();
         PageToEscfBatch.ConvertResult result = PageToEscfBatch.convert(page, sink.columns, sink.types, recycler, breaker);
-        boolean[] fallback = result.jsonFallbackRows();
-        boolean inlineSources = sink.batchForm == Factory.BatchForm.INLINE || fallback != null;
         bulk.setPreBuiltBatches(Map.of(sink.destination, result.batch()));
         long reserved = result.charged();
         try {
             for (int row = 0; row < result.batch().docCount(); row++) {
                 IndexRequest request = new IndexRequest(sink.destination).opType(DocWriteRequest.OpType.CREATE);
-                if (fallback != null && fallback[row]) {
-                    request.source(PageToEscfBatch.jsonRow(sink.columns, sink.types, page, row), XContentType.JSON);
-                } else {
-                    request.indexSource().setSourceRow(result.batch(), row, XContentType.JSON);
-                    if (inlineSources) {
-                        inline(request);
-                    }
-                }
-                if (inlineSources) {
-                    long rowBytes = request.indexSource().byteLength();
-                    breaker.addEstimateBytesAndMaybeBreak(rowBytes, BREAKER_LABEL);
-                    reserved += rowBytes;
-                }
+                request.indexSource().setSourceRow(result.batch(), row, XContentType.JSON);
                 bulk.add(request);
-            }
-            if (inlineSources) {
-                bulk.releasePreBuiltBatches();
-                release(result.charged());
-                reserved -= result.charged();
             }
             return new ReservedBulk(bulk, reserved);
         } catch (Exception e) {
             release(reserved);
             bulk.releasePreBuiltBatches();
             throw e;
-        }
-    }
-
-    private static void inline(IndexRequest request) {
-        try {
-            request.indexSource().ensureInlineSource();
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
         }
     }
 

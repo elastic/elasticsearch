@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -54,9 +53,8 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -74,8 +72,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.esql.into.IntoPageWriter.Factory.BatchForm.INLINE;
-import static org.elasticsearch.xpack.esql.into.IntoPageWriter.Factory.BatchForm.PREBUILT;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -83,7 +79,6 @@ import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -108,7 +103,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
         client = new CapturingClient(threadPool);
         blockFactory = blockFactory();
         driverContext = new DriverContext(mockBigArrays(), blockFactory, null);
-        sink = IntoPageWriter.Factory.createFactory(client, DESTINATION, COLUMNS, randomBoolean() ? PREBUILT : INLINE);
+        sink = IntoPageWriter.Factory.createFactory(client, DESTINATION, COLUMNS);
         writer = sink.create(driverContext);
     }
 
@@ -208,7 +203,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
     }
 
     public void testEscfBatchProperties() throws IOException {
-        IntoPageWriter.Factory escfSink = IntoPageWriter.Factory.createFactory(client, DESTINATION, COLUMNS, PREBUILT);
+        IntoPageWriter.Factory escfSink = IntoPageWriter.Factory.createFactory(client, DESTINATION, COLUMNS);
         IntoPageWriter escfWriter = escfSink.create(new DriverContext(mockBigArrays(), blockFactory, null));
         try (
             BytesRefBlock.Builder host = blockFactory.newBytesRefBlockBuilder(2);
@@ -238,7 +233,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
     public void testEscfBatchBytesIncludeRecyclerOverhead() {
         BlockFactory limited = blockFactory();
         DriverContext escfContext = new DriverContext(mockBigArrays(), limited, null);
-        IntoPageWriter.Factory escfSink = IntoPageWriter.Factory.createFactory(client, DESTINATION, COLUMNS, PREBUILT);
+        IntoPageWriter.Factory escfSink = IntoPageWriter.Factory.createFactory(client, DESTINATION, COLUMNS);
         IntoPageWriter escfWriter = escfSink.create(escfContext);
         escfWriter.consume(page("h1"));
         long charged = escfContext.breaker().getUsed();
@@ -254,7 +249,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
         // which also needs pageSize. The catch must release the first column's bytes.
         long pageSize = driverContext.bigArrays().bytesRefRecycler().pageSize();
         BlockFactory limited = blockFactory(ByteSizeValue.ofBytes(pageSize + 100));
-        IntoPageWriter.Factory escfSink = IntoPageWriter.Factory.createFactory(client, DESTINATION, COLUMNS, PREBUILT);
+        IntoPageWriter.Factory escfSink = IntoPageWriter.Factory.createFactory(client, DESTINATION, COLUMNS);
         IntoPageWriter escfWriter = escfSink.create(new DriverContext(mockBigArrays(), limited, null));
         expectThrows(CircuitBreakingException.class, () -> escfWriter.consume(page("h1")));
         assertThat(limited.breaker().getUsed(), equalTo(0L));
@@ -377,8 +372,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
 
     public void testAllFalseBooleanPageReservesBreakerBytes() {
         Attribute column = new ReferenceAttribute(Source.EMPTY, "b", DataType.BOOLEAN);
-        IntoPageWriter booleans = IntoPageWriter.Factory.createFactory(client, DESTINATION, List.of(column), PREBUILT)
-            .create(driverContext);
+        IntoPageWriter booleans = IntoPageWriter.Factory.createFactory(client, DESTINATION, List.of(column)).create(driverContext);
         try (BooleanBlock.Builder values = blockFactory.newBooleanBlockBuilder(2)) {
             values.appendBoolean(false);
             values.appendBoolean(false);
@@ -387,63 +381,45 @@ public class IntoPageWriterTests extends ComputeTestCase {
         assertThat(driverContext.breaker().getUsed(), greaterThanOrEqualTo((long) driverContext.bigArrays().bytesRefRecycler().pageSize()));
     }
 
-    public void testScalarUnsignedLongAboveLongMaxIsNotPreBuilt() throws IOException {
+    public void testUnsignedLongAboveLongMaxIsRejected() {
         BigInteger big = BigInteger.TWO.pow(63).add(BigInteger.ONE);
         Attribute column = new ReferenceAttribute(Source.EMPTY, "n", DataType.UNSIGNED_LONG);
-        IntoPageWriter exactWriter = IntoPageWriter.Factory.createFactory(client, DESTINATION, List.of(column), PREBUILT)
-            .create(driverContext);
-        try (LongBlock.Builder values = blockFactory.newLongBlockBuilder(1)) {
-            values.appendLong(NumericUtils.asLongUnsigned(big));
-            exactWriter.consume(new Page(values.build()));
-        }
-        BulkRequest bulk = client.bulks.getFirst();
-        assertThat(bulk.hasPreBuiltBatches(), equalTo(false));
-        String json = ((IndexRequest) bulk.requests().getFirst()).indexSource().bytes().utf8ToString();
-        try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, new BytesArray(json))) {
-            assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
-            assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
-            assertThat(parser.nextToken(), equalTo(XContentParser.Token.VALUE_NUMBER));
-            assertThat(parser.numberValue(), equalTo(big));
-        }
+        IntoPageWriter exactWriter = IntoPageWriter.Factory.createFactory(client, DESTINATION, List.of(column)).create(driverContext);
+        EsqlIllegalArgumentException e = expectThrows(EsqlIllegalArgumentException.class, () -> {
+            try (LongBlock.Builder values = blockFactory.newLongBlockBuilder(1)) {
+                values.appendLong(NumericUtils.asLongUnsigned(big));
+                exactWriter.consume(new Page(values.build()));
+            }
+        });
+        assertThat(e.getMessage(), containsString("unsigned_long"));
     }
 
-    public void testInexactUnsignedLongArrayIsExactJson() throws IOException {
+    public void testUnsignedLongArrayAboveLongMaxIsRejected() {
         BigInteger big = BigInteger.TWO.pow(63).add(BigInteger.ONE);
         Attribute column = new ReferenceAttribute(Source.EMPTY, "n", DataType.UNSIGNED_LONG);
-        IntoPageWriter exactWriter = IntoPageWriter.Factory.createFactory(client, DESTINATION, List.of(column), PREBUILT)
-            .create(driverContext);
-        try (LongBlock.Builder values = blockFactory.newLongBlockBuilder(1)) {
-            values.beginPositionEntry()
-                .appendLong(NumericUtils.asLongUnsigned(big))
-                .appendLong(NumericUtils.asLongUnsigned(BigInteger.valueOf(7)))
-                .endPositionEntry();
-            exactWriter.consume(new Page(values.build()));
-        }
-        BulkRequest bulk = client.bulks.getFirst();
-        assertThat(bulk.hasPreBuiltBatches(), equalTo(false));
-        String json = ((IndexRequest) bulk.requests().getFirst()).indexSource().bytes().utf8ToString();
-        assertThat(json, not(containsString("\"" + big + "\"")));
-        assertThat(json, containsString(big.toString()));
+        IntoPageWriter exactWriter = IntoPageWriter.Factory.createFactory(client, DESTINATION, List.of(column)).create(driverContext);
+        EsqlIllegalArgumentException e = expectThrows(EsqlIllegalArgumentException.class, () -> {
+            try (LongBlock.Builder values = blockFactory.newLongBlockBuilder(1)) {
+                values.beginPositionEntry()
+                    .appendLong(NumericUtils.asLongUnsigned(big))
+                    .appendLong(NumericUtils.asLongUnsigned(BigInteger.valueOf(7)))
+                    .endPositionEntry();
+                exactWriter.consume(new Page(values.build()));
+            }
+        });
+        assertThat(e.getMessage(), containsString("unsigned_long"));
     }
 
-    public void testInlineConversionTripsOnTheColumnBuffer() {
-        BigArrays bigArrays = mockBigArrays();
-        long pageSize = bigArrays.bytesRefRecycler().pageSize();
-        BlockFactory limited = blockFactory(ByteSizeValue.ofBytes(pageSize - 1));
-        IntoPageWriter inlineWriter = IntoPageWriter.Factory.createFactory(client, DESTINATION, COLUMNS, INLINE)
-            .create(new DriverContext(bigArrays, limited, null));
-        expectThrows(CircuitBreakingException.class, () -> inlineWriter.consume(page("h1")));
-        assertThat(limited.breaker().getUsed(), equalTo(0L));
-        assertThat(client.bulks, empty());
-    }
-
-    public void testInlineSourceBytesMatchTheCharge() {
-        IntoPageWriter inlineWriter = IntoPageWriter.Factory.createFactory(client, DESTINATION, COLUMNS, INLINE).create(driverContext);
-        inlineWriter.consume(page("h1", "h2"));
-        long sourceBytes = client.bulks.getFirst().requests().stream().mapToLong(r -> ((IndexRequest) r).indexSource().byteLength()).sum();
-        assertThat(driverContext.breaker().getUsed(), equalTo(sourceBytes));
-        client.answer(Outcome.CREATED, Outcome.CREATED);
-        assertThat(driverContext.breaker().getUsed(), equalTo(0L));
+    public void testPipelineDestinationIsRejected() {
+        IndexMetadata index = IndexMetadata.builder("dest")
+            .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "my-pipeline"))
+            .build();
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).put(index, true).build();
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> IntoPageWriter.Factory.requireBatchDestination(true, project, "dest")
+        );
+        assertThat(e.getMessage(), containsString("ingest pipelines"));
     }
 
     public void testConcreteIndexWithoutRoutingPathIsEligible() {

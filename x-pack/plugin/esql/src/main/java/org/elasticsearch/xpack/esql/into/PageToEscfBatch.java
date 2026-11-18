@@ -11,7 +11,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.util.ByteUtils;
@@ -34,11 +33,8 @@ import org.elasticsearch.escf.EscfColumnKind;
 import org.elasticsearch.sourcebatch.SourceBatchEncodeHelper;
 import org.elasticsearch.sourcebatch.SourceSchema;
 import org.elasticsearch.sourcebatch.SourceValueType;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.XContentString;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.action.ResponseValueUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -46,7 +42,6 @@ import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
@@ -63,7 +58,7 @@ final class PageToEscfBatch {
 
     private PageToEscfBatch() { /* static class */ }
 
-    record ConvertResult(EscfBatch batch, long charged, @Nullable boolean[] jsonFallbackRows) {}
+    record ConvertResult(EscfBatch batch, long charged) {}
 
     /**
      * Converts the page. When {@code breaker} is non-null, buffer growth is charged to it as each
@@ -80,13 +75,12 @@ final class PageToEscfBatch {
         SourceSchema schema = new SourceSchema();
         List<EscfColumnData> columns = new ArrayList<>(columnNames.size());
         Charge charge = new Charge(breaker);
-        JsonFallbackRows fallback = new JsonFallbackRows();
         try {
             for (int c = 0; c < columnNames.size(); c++) {
                 Block block = page.getBlock(c);
                 if (block.areAllValuesNull() == false) {
                     schema.appendLeaf(columnNames.get(c), 0);
-                    columns.add(column(block, columnTypes.get(c), recycler, charge, fallback));
+                    columns.add(column(block, columnTypes.get(c), recycler, charge));
                 }
             }
         } catch (Exception e) {
@@ -96,57 +90,11 @@ final class PageToEscfBatch {
         }
         return new ConvertResult(
             EscfBatch.of(schema, page.getPositionCount(), columns.toArray(EscfColumnData[]::new), Releasables.wrap(columns)),
-            charge.charged,
-            fallback.rows
+            charge.charged
         );
     }
 
-    /** JSON for one row that ESCF cannot store exactly. Values come from {@link ResponseValueUtils}. */
-    static BytesReference jsonRow(List<String> names, List<DataType> types, Page page, int row) {
-        final XContentBuilder builder;
-        try {
-            builder = XContentFactory.jsonBuilder();
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-        try {
-            builder.startObject();
-            BytesRef scratch = new BytesRef();
-            for (int c = 0; c < names.size(); c++) {
-                Block block = page.getBlock(c);
-                if (block.areAllValuesNull() || block.isNull(row)) {
-                    continue;
-                }
-                builder.field(names.get(c));
-                int count = block.getValueCount(row);
-                boolean isArray = count > 1;
-                if (isArray) {
-                    builder.startArray();
-                }
-                int start = block.getFirstValueIndex(row);
-                ResponseValueUtils.BlockValueExtractor extractor = ResponseValueUtils.valueExtractorFor(types.get(c), ZoneOffset.UTC);
-                for (int i = 0; i < count; i++) {
-                    builder.value(extractor.extract(block, start + i, scratch));
-                }
-                if (isArray) {
-                    builder.endArray();
-                }
-            }
-            builder.endObject();
-            return BytesReference.bytes(builder);
-        } catch (IOException e) {
-            builder.close();
-            throw new UncheckedIOException(e);
-        }
-    }
-
-    private static EscfColumnData column(
-        Block block,
-        DataType type,
-        Recycler<BytesRef> recycler,
-        Charge charge,
-        JsonFallbackRows fallback
-    ) {
+    private static EscfColumnData column(Block block, DataType type, Recycler<BytesRef> recycler, Charge charge) {
         return switch (type) {
             case LONG, COUNTER_LONG -> fixed64Column(EscfColumnKind.LONG, block, ((LongBlock) block)::getLong, recycler, charge);
             case INTEGER, COUNTER_INTEGER -> {
@@ -169,7 +117,7 @@ final class PageToEscfBatch {
                 );
             }
             case BOOLEAN -> boolColumn((BooleanBlock) block, recycler, charge);
-            case UNSIGNED_LONG -> unsignedLongColumn((LongBlock) block, recycler, charge, fallback);
+            case UNSIGNED_LONG -> unsignedLongColumn((LongBlock) block, recycler, charge);
             case KEYWORD, TEXT, FLATTENED -> {
                 BytesRefBlock bref = (BytesRefBlock) block;
                 BytesRef scratch = new BytesRef();
@@ -181,7 +129,7 @@ final class PageToEscfBatch {
                 BytesRef scratch = new BytesRef();
                 yield stringColumn(block, i -> new BytesRef(extractor.extract(block, i, scratch).toString()), recycler, charge);
             }
-            case SOURCE -> sourceColumn((BytesRefBlock) block, recycler, charge, fallback);
+            case SOURCE -> sourceColumn((BytesRefBlock) block, recycler, charge);
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }
@@ -440,12 +388,7 @@ final class PageToEscfBatch {
 
     // A value that fits in a signed long stays a long. A larger one is a double whose lexical form is the
     // exact decimal, so JSON emits a number token rather than a string. Rows in one block may mix the two.
-    private static EscfColumnData unsignedLongColumn(
-        LongBlock block,
-        Recycler<BytesRef> recycler,
-        Charge charge,
-        JsonFallbackRows fallback
-    ) {
+    private static EscfColumnData unsignedLongColumn(LongBlock block, Recycler<BytesRef> recycler, Charge charge) {
         try (EscfColumnBuilder builder = new EscfColumnBuilder(CollisionPolicy.SPLIT, recycler)) {
             long seen = 0;
             int docCount = block.getPositionCount();
@@ -456,25 +399,13 @@ final class PageToEscfBatch {
                     int first = block.getFirstValueIndex(p);
                     int count = block.getValueCount(p);
                     if (count == 1) {
-                        long encoded = block.getLong(first);
-                        if (encoded >= 0) {
-                            fallback.mark(docCount, p);
-                        }
-                        writeUnsignedLong(builder, encoded);
+                        writeUnsignedLong(builder, block.getLong(first));
                     } else {
-                        boolean aboveLongMax = false;
                         builder.beginArray(builder.nextAppendRow());
                         for (int i = first; i < first + count; i++) {
-                            long encoded = block.getLong(i);
-                            if (encoded >= 0) {
-                                aboveLongMax = true;
-                            }
-                            writeUnsignedLongArray(builder, encoded);
+                            writeUnsignedLongArray(builder, block.getLong(i));
                         }
                         builder.endArray();
-                        if (aboveLongMax) {
-                            fallback.mark(docCount, p);
-                        }
                     }
                 }
                 seen = charge.grow(builder, seen);
@@ -484,23 +415,20 @@ final class PageToEscfBatch {
     }
 
     private static void writeUnsignedLong(EscfColumnBuilder builder, long encoded) {
-        if (encoded < 0) {
-            builder.addLong(NumericUtils.unsignedLongAsLongExact(encoded));
-        } else {
-            var big = NumericUtils.unsignedLongAsBigInteger(encoded);
-            builder.addDouble(big.doubleValue(), new XContentString.UTF8Bytes(big.toString().getBytes(StandardCharsets.UTF_8)));
+        if (encoded >= 0) {
+            throw new EsqlIllegalArgumentException("INTO cannot write unsigned_long values above Long.MAX_VALUE");
         }
+        builder.addLong(NumericUtils.unsignedLongAsLongExact(encoded));
     }
 
     private static void writeUnsignedLongArray(EscfColumnBuilder builder, long encoded) {
-        if (encoded < 0) {
-            builder.appendLong(NumericUtils.unsignedLongAsLongExact(encoded));
-        } else {
-            builder.appendDouble(NumericUtils.unsignedLongAsBigInteger(encoded).doubleValue());
+        if (encoded >= 0) {
+            throw new EsqlIllegalArgumentException("INTO cannot write unsigned_long values above Long.MAX_VALUE");
         }
+        builder.appendLong(NumericUtils.unsignedLongAsLongExact(encoded));
     }
 
-    private static EscfColumnData sourceColumn(BytesRefBlock block, Recycler<BytesRef> recycler, Charge charge, JsonFallbackRows fallback) {
+    private static EscfColumnData sourceColumn(BytesRefBlock block, Recycler<BytesRef> recycler, Charge charge) {
         try (EscfColumnBuilder builder = new EscfColumnBuilder(CollisionPolicy.SPLIT, recycler)) {
             builder.hintUnion();
             long seen = 0;
@@ -515,40 +443,33 @@ final class PageToEscfBatch {
                     if (count == 1) {
                         byte[] packed = keyValue(block.getBytesRef(first, scratch));
                         if (packed == null) {
-                            fallback.mark(docCount, p);
-                            builder.addAbsent();
-                        } else {
-                            builder.addKeyValue(packed);
+                            throw new EsqlIllegalArgumentException(
+                                "INTO cannot write a SOURCE value that contains a big integer or big decimal"
+                            );
                         }
+                        builder.addKeyValue(packed);
                     } else {
                         byte[][] objects = new byte[count][];
-                        boolean rawJson = false;
+                        int bytes = 0;
                         for (int i = 0; i < count; i++) {
                             objects[i] = keyValue(block.getBytesRef(first + i, scratch));
                             if (objects[i] == null) {
-                                rawJson = true;
-                                break;
+                                throw new EsqlIllegalArgumentException(
+                                    "INTO cannot write a SOURCE value that contains a big integer or big decimal"
+                                );
                             }
+                            bytes += 1 + Integer.BYTES + objects[i].length;
                         }
-                        if (rawJson) {
-                            fallback.mark(docCount, p);
-                            builder.addAbsent();
-                        } else {
-                            int bytes = 0;
-                            for (int i = 0; i < count; i++) {
-                                bytes += 1 + Integer.BYTES + objects[i].length;
-                            }
-                            byte[] packed = new byte[bytes];
-                            int pos = 0;
-                            for (byte[] object : objects) {
-                                packed[pos++] = SourceValueType.KEY_VALUE;
-                                ByteUtils.writeIntLE(object.length, packed, pos);
-                                pos += Integer.BYTES;
-                                System.arraycopy(object, 0, packed, pos, object.length);
-                                pos += object.length;
-                            }
-                            builder.addRawUnionRow(SourceValueType.UNION_ARRAY, new BytesRef(packed));
+                        byte[] packed = new byte[bytes];
+                        int pos = 0;
+                        for (byte[] object : objects) {
+                            packed[pos++] = SourceValueType.KEY_VALUE;
+                            ByteUtils.writeIntLE(object.length, packed, pos);
+                            pos += Integer.BYTES;
+                            System.arraycopy(object, 0, packed, pos, object.length);
+                            pos += object.length;
                         }
+                        builder.addRawUnionRow(SourceValueType.UNION_ARRAY, new BytesRef(packed));
                     }
                 }
                 seen = charge.grow(builder, seen);
@@ -599,18 +520,6 @@ final class PageToEscfBatch {
 
     private static long bitsetBytes(FixedBitSet bits) {
         return bits == null ? 0 : (long) bits.getBits().length * Long.BYTES;
-    }
-
-    private static final class JsonFallbackRows {
-        @Nullable
-        private boolean[] rows;
-
-        void mark(int docCount, int row) {
-            if (rows == null) {
-                rows = new boolean[docCount];
-            }
-            rows[row] = true;
-        }
     }
 
     private static final class Charge {

@@ -102,10 +102,9 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * When the destination has an ingest pipeline, {@code INTO} falls back to inline XContent so the
-     * pipeline runs. The pipeline-added field must appear in the indexed document.
+     * A destination with an ingest pipeline cannot be written as a pre-built batch, so the query fails.
      */
-    public void testIngestPipelineFallback() {
+    public void testIngestPipelineIsRejected() {
         String pipeline = "into-add-field-pipeline";
         String pipelineDest = "dest-into-with-pipeline";
 
@@ -121,8 +120,12 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
               }
             }"""));
 
-        assertIntoTarget("ROW k = \"pipelined\"", pipelineDest, 1);
-        assertSources(pipelineDest, List.of(Map.of("k", "pipelined", "pipeline_ran", true)));
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> run("ROW k = \"pipelined\" | INTO " + pipelineDest).close()
+        );
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(e.getMessage(), containsString("ingest pipelines"));
     }
 
     private void assertSources(String index, List<Map<String, Object>> expected) {

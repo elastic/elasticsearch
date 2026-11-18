@@ -1215,14 +1215,12 @@ public class ComputeService {
         );
         if (physicalPlan instanceof IntoExec into) {
             String target = IndexNameExpressionResolver.resolveDateMathExpression(into.destination());
-            boolean prebuilt = ShardBatchIndexer.isBatchIndexingSupported(batchIndexingEnabled, clusterService)
-                && IntoPageWriter.Factory.canUsePreBuiltBatch(projectResolver.getProjectMetadata(clusterService.state()), target);
-            IntoPageWriter.Factory sink = IntoPageWriter.Factory.createFactory(
-                client,
-                target,
-                into.child().output(),
-                prebuilt ? IntoPageWriter.Factory.BatchForm.PREBUILT : IntoPageWriter.Factory.BatchForm.INLINE
+            IntoPageWriter.Factory.requireBatchDestination(
+                ShardBatchIndexer.isBatchIndexingSupported(batchIndexingEnabled, clusterService),
+                projectResolver.getProjectMetadata(clusterService.state()),
+                target
             );
+            IntoPageWriter.Factory sink = IntoPageWriter.Factory.createFactory(client, target, into.child().output());
             physicalPlan = OutputExec.withFactory(into.source(), into.child(), sink);
             listener = listener.delegateFailureAndWrap((l, result) -> {
                 Exception failure = sink.failure();

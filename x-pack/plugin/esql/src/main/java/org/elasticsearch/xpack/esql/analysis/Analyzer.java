@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
@@ -31,6 +32,7 @@ import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.ParameterizedAnalyzerRule;
 import org.elasticsearch.xpack.esql.analysis.rules.DetermineUnmappedFieldsToKeep;
 import org.elasticsearch.xpack.esql.analysis.rules.ResolveFunctions;
@@ -1458,7 +1460,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         failures,
                         context.maxBranchCountPerMerge(),
                         context.maxBranchCountPerMergeLimitSource(),
-                        ScalarizeTimeSeriesMetadataPaths.usesLabelContainer(context)
+                        EsqlCapabilities.Cap.ENABLE_TSMD_DATA_TYPE.isEnabled()
+                            && DataType.TIME_SERIES_METADATA_DATA_TYPE.supportedVersion()
+                                .supportedOn(context.minimumVersion(), Build.current().isSnapshot())
                     );
                     if (failures.hasFailures()) {
                         throw new VerificationException(failures);

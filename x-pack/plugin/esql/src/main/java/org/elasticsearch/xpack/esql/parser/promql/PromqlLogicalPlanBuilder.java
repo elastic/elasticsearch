@@ -11,6 +11,7 @@ import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -87,8 +88,8 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
     public static final Duration GLOBAL_EVALUATION_INTERVAL = Duration.ofMinutes(1);
     public static final Duration IMPLICIT_RANGE_PLACEHOLDER = Duration.ofMillis(-1);
 
-    PromqlLogicalPlanBuilder(Literal start, Literal end, int startLine, int startColumn, QueryParams params) {
-        super(start, end, startLine, startColumn, params);
+    PromqlLogicalPlanBuilder(Literal start, Literal end, int startLine, int startColumn, QueryParams params, @Nullable String viewName) {
+        super(start, end, startLine, startColumn, params, viewName);
     }
 
     /**

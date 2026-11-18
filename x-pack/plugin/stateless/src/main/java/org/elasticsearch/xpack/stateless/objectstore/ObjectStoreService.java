@@ -73,8 +73,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
-import org.elasticsearch.xpack.stateless.commits.BccUploadMetrics;
 import org.elasticsearch.xpack.stateless.commits.BccBlob;
+import org.elasticsearch.xpack.stateless.commits.BccUploadMetrics;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.MergeBlob;
@@ -1534,8 +1534,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     ) {
         public StatelessCompoundCommitReference {
             assert compoundCommit.primaryTerm() == bccBlob.primaryTerm() : "the CC term is different from the holder BCC's term";
-            assert compoundCommit.generation() >= bccBlob.generation()
-                : "the CC generation is smaller than the holder BCC's generation";
+            assert compoundCommit.generation() >= bccBlob.generation() : "the CC generation is smaller than the holder BCC's generation";
         }
     }
 

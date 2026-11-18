@@ -405,10 +405,7 @@ public class StatelessSnapshotShardContextTests extends ESTestCase {
             IndexVersion.current(),
             randomNonNegativeLong(),
             null,
-            Map.of(
-                "file",
-                new BlobLocation(new BccBlob(blobName, new PrimaryTermAndGeneration(1L, generation)), blobPadding, totalLength)
-            ),
+            Map.of("file", new BlobLocation(new BccBlob(blobName, new PrimaryTermAndGeneration(1L, generation)), blobPadding, totalLength)),
             (s, g) -> new FilterBlobContainer(blobContainer) {
                 @Override
                 protected BlobContainer wrapChild(BlobContainer child) {

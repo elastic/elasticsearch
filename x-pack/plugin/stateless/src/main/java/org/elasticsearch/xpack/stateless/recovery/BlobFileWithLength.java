@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.stateless.recovery;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xpack.stateless.commits.Blob;
 import org.elasticsearch.xpack.stateless.commits.BccBlob;
+import org.elasticsearch.xpack.stateless.commits.Blob;
 
 import java.io.IOException;
 

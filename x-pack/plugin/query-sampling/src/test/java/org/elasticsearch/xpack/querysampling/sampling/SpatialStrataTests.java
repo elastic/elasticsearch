@@ -21,6 +21,9 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
 public class SpatialStrataTests extends ESTestCase {
@@ -143,6 +146,47 @@ public class SpatialStrataTests extends ESTestCase {
         assertNull("field1 was dropped, so it starts over", assign(strata, "field1", 4).get());
         assertNotNull("field0 was used lately and is still there", assign(strata, "field0", 5).get());
         assertThat("a dropped space has no cluster any more, so its factor is 1", strata.factor(new Stratum("field2/1", 0)), equalTo(1.0));
+    }
+
+    public void testAQueryOfADroppedSpaceThatIsMetAgainHasAFactorOfOneUntilTheNewSpaceIsFitted() {
+        SpatialStrata strata = balancing(1, 2, 1.0);
+        Stratum old = null;
+        for (int i = 0; i < SpatialStrata.MAX_SPACES; i++) {
+            assign(strata, "field" + i, 1);
+            AtomicReference<Stratum> second = assign(strata, "field" + i, 2);
+            if (i == 0) {
+                old = second.get();
+            }
+        }
+        assign(strata, "beyond", 1);
+        assign(strata, "beyond", 2); // field0 is the one used least recently, and goes
+        assertNotNull(old);
+
+        assign(strata, "field0", 3); // a new space of the same name, waiting for its warmup
+        assertThat("not NaN, as nothing is counted in the new space", strata.factor(old), equalTo(1.0));
+
+        assign(strata, "field0", 4);
+        assertFalse(Double.isNaN(strata.factor(old)));
+    }
+
+    public void testWhatWaitsForTheFitIsBoundedInAllAndFreedWhenASpaceIsDropped() {
+        SpatialStrata strata = new SpatialStrata(16, 200, () -> new Random(7L));
+        float[] vector = new float[4096]; // the same array again and again: only the count matters
+        for (int i = 0; i < SpatialStrata.MAX_SPACES; i++) {
+            for (int q = 0; q < 199; q++) { // one short of the fit
+                strata.assign("field" + i, vector, stratum -> {});
+            }
+        }
+        assertThat(strata.waitingFloats(), lessThanOrEqualTo(SpatialStrata.MAX_WAITING_FLOATS));
+        assertThat("it is used up", strata.waitingFloats(), greaterThan(SpatialStrata.MAX_WAITING_FLOATS - 4096));
+
+        AtomicReference<Stratum> left = new AtomicReference<>();
+        strata.assign("field0", vector, left::set);
+        assertNull("no room to wait, so no cluster", left.get());
+
+        strata.assign("beyond", new float[] { 1f }, stratum -> {}); // the space used least recently, field1, goes and gives back what it
+                                                                    // held
+        assertThat(strata.waitingFloats(), lessThan(SpatialStrata.MAX_WAITING_FLOATS - 100_000));
     }
 
     public void testTheFactorIsOneWithoutBalanceAClusterOrAKnownSpace() {

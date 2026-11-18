@@ -10,3 +10,8 @@ esplugin {
 base {
   archivesName = 'x-pack-query-sampling'
 }
+
+tasks.named('internalClusterTest') {
+  // the plugin default is off in release builds so switch on for test
+  systemProperty 'es.query_sampling_feature_flag_enabled', 'true'
+}

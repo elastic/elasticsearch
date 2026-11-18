@@ -11,6 +11,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.querysampling.capture.CapturedQuery;
 import org.elasticsearch.xpack.querysampling.capture.CapturedSearch;
 import org.elasticsearch.xpack.querysampling.dedup.MultiplicityTracker;
+import org.elasticsearch.xpack.querysampling.dedup.QueryFingerprint;
+import org.elasticsearch.xpack.querysampling.dedup.TrackedQuery;
 import org.elasticsearch.xpack.querysampling.sampling.PickBudget;
 import org.elasticsearch.xpack.querysampling.sampling.QuerySampler;
 import org.elasticsearch.xpack.querysampling.sampling.SampledQuery;
@@ -62,6 +64,27 @@ public class SamplingPipelineTests extends ESTestCase {
         pipeline.accept(searchWithAHit(new float[] { 4f }));
         assertThat(sampled.size(), equalTo(2));
         assertTrue("what found something is put in a cluster", sampled.stream().allMatch(query -> query.tracked().stratum() != null));
+    }
+
+    public void testAQueryThatFoundNothingFirstGetsItsStrataOnTheFirstSearchThatFindsSomething() {
+        Random random = picking(0.0);
+        QuerySampler sampler = new QuerySampler(
+            1.0,
+            100,
+            () -> random,
+            new PickBudget(System::nanoTime),
+            new SpatialStrata(2, 2, () -> new Random(7L))
+        );
+        SamplingPipeline pipeline = new SamplingPipeline(tracker, sampler, List.of(sampled::add));
+        float[] vector = { 1f };
+
+        pipeline.accept(search(vector));
+        pipeline.accept(searchWithAHit(vector));
+        pipeline.accept(searchWithAHit(new float[] { 2f }));
+
+        TrackedQuery query = tracker.record(QueryFingerprint.of(search(vector).query()), 1.0);
+        assertNotNull("it found something later, and the index may have been empty before", query.stratum());
+        assertTrue(query.isPlaced());
     }
 
     private static QuerySampler sampler(double scale, double draw) {

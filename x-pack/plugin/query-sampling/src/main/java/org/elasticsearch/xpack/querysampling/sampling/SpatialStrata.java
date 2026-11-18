@@ -37,7 +37,8 @@ import java.util.function.Supplier;
  * One instance lives as long as the node and keeps the clusters of a space (a field and its dimensions) for each one it
  * meets, at most {@link #MAX_SPACES}: the fields that are searched are not known in advance. When there are more, the space
  * that was used least recently is dropped: its queries are no longer grouped, which gives them a factor of 1, and if it is
- * met again it starts over with a new warm-up.
+ * met again it starts over with a new warm-up, and until that is over the queries that were grouped by the old one also have a
+ * factor of 1. The queries that wait for the fit are bounded in all, by {@link #MAX_WAITING_FLOATS}.
  * <p>
  * Used by the pipeline thread only, which is why the spaces need no lock; only the balance, set by a setting, is volatile.
  */
@@ -52,11 +53,19 @@ public final class SpatialStrata {
 
     static final int FIT_ROUNDS = 5;
 
+    /**
+     * What the spaces that wait for their fit hold in all, in floats (32 MiB). A field that is searched less than the warm-up
+     * needs keeps its vectors until it is dropped, and without a bound 100 fields of 4096 dimensions would hold over 300 MiB.
+     * Beyond it a query that would wait is left without a cluster, which gives it a factor of 1.
+     */
+    static final long MAX_WAITING_FLOATS = 8L * 1024 * 1024;
+
     private final int clusters;
     private final int warmup;
     private final Supplier<Random> random;
     // in the order of use, the least recently used first
     private final Map<String, Space> spaces = new LinkedHashMap<>(16, 0.75f, true);
+    private long waitingFloats;
     private volatile double balance;
 
     /**
@@ -95,14 +104,23 @@ public final class SpatialStrata {
         if (space == null) {
             if (spaces.size() >= MAX_SPACES) {
                 // the one that has not been used for the longest time makes room, so spaces of fields that are gone do not stay
-                Iterator<String> leastRecentlyUsed = spaces.keySet().iterator();
-                leastRecentlyUsed.next();
+                Iterator<Space> leastRecentlyUsed = spaces.values().iterator();
+                waitingFloats -= leastRecentlyUsed.next().waitingFloats();
                 leastRecentlyUsed.remove();
             }
             space = new Space(clusters, vector.length, warmup);
             spaces.put(name, space);
         }
+        if (space.fitted == false && waitingFloats + vector.length > MAX_WAITING_FLOATS) {
+            return;
+        }
+        long before = space.waitingFloats();
         space.add(name, vector, receiver, random);
+        waitingFloats += space.waitingFloats() - before;
+    }
+
+    long waitingFloats() {
+        return waitingFloats;
     }
 
     public double factor(@Nullable Stratum stratum) {
@@ -111,7 +129,8 @@ public final class SpatialStrata {
             return 1.0;
         }
         Space space = spaces.get(stratum.space());
-        if (space == null) {
+        if (space == null || space.fitted == false) {
+            // dropped, or dropped and met again: the new space knows nothing of the cluster that the query was given
             return 1.0;
         }
         return Math.min(MAX_FACTOR, Math.pow(space.averageCount() / space.counts[stratum.cluster()], balance));
@@ -130,6 +149,10 @@ public final class SpatialStrata {
             this.centroids = new float[clusters][dims];
             this.counts = new long[clusters];
             this.warmup = warmup;
+        }
+
+        long waitingFloats() {
+            return (long) waitingVectors.size() * centroids[0].length;
         }
 
         void add(String name, float[] vector, Consumer<Stratum> receiver, Supplier<Random> random) {

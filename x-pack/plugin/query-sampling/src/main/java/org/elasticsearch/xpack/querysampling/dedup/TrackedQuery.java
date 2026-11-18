@@ -25,6 +25,7 @@ public final class TrackedQuery {
     private boolean sampled;
     private Stratum stratum;
     private Hardness hardness;
+    private boolean placed;
 
     // weight is the inverse of the capture probability: how many arrivals this captured one stands for
     synchronized void recordArrival(double weight) {
@@ -69,6 +70,15 @@ public final class TrackedQuery {
 
     public synchronized void hardness(@Nullable Hardness hardness) {
         this.hardness = hardness;
+    }
+
+    /** Whether the query has been put in its strata, which is done once, on the first capture that has hits. */
+    public synchronized boolean isPlaced() {
+        return placed;
+    }
+
+    public synchronized void markPlaced() {
+        placed = true;
     }
 
     public synchronized boolean isSampled() {

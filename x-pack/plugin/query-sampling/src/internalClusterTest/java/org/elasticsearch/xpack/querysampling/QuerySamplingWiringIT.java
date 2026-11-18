@@ -48,7 +48,6 @@ public class QuerySamplingWiringIT extends ESIntegTestCase {
     }
 
     public void testAKnnSearchReachesTheSamplingPipelineAndTheSwitchTurnsItOff() throws Exception {
-        assumeTrue("the plugin does nothing without its feature flag", KnnQuerySamplingPlugin.QUERY_SAMPLING_FEATURE_FLAG.isEnabled());
         createIndexWithVectors();
         QueryCaptureSink sink = plugin().captureSink();
         assertThat("the plugin builds its sink, and the server found it through SPI to give it searches", sink, notNullValue());

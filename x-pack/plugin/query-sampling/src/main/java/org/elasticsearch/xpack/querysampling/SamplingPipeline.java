@@ -56,11 +56,11 @@ public final class SamplingPipeline implements Consumer<CapturedSearch> {
     public synchronized void accept(CapturedSearch captured) {
         QueryFingerprint fingerprint = QueryFingerprint.of(captured.query());
         TrackedQuery tracked = tracker.record(fingerprint, captured.captureRate());
-        if (tracked != null && tracked.weights().multiplicity() == 1) {
-            // a search that found nothing says nothing of the data, its field may not even exist, and every field makes a space
-            if (captured.hits().isEmpty() == false) {
-                sampler.assignStratum(tracked, captured.query().field(), captured.query().queryVector());
-            }
+        // A search that found nothing says nothing of the data, its field may not even exist, and every field makes a space. So the
+        // strata are given on the first capture that has hits, which is not always the first capture.
+        if (tracked != null && tracked.isPlaced() == false && captured.hits().isEmpty() == false) {
+            tracked.markPlaced();
+            sampler.assignStratum(tracked, captured.query().field(), captured.query().queryVector());
             sampler.assignHardness(tracked, captured.query().field(), captured.query().queryVector().length, captured.hits());
         }
         if (tracked != null && sampler.offer(tracked)) {

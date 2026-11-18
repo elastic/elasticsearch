@@ -16,14 +16,13 @@
 
 package org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2;
 
-import org.elasticsearch.xpack.esql.core.expression.predicate.regex.Re2UnicodeTables;
-
 /**
  * Utilities for dealing with Unicode better than Java does.
  *
  * @author adonovan@google.com (Alan Donovan)
  */
-class Unicode {
+// ES: public for Re2RegExp, which builds Lucene automata from the parse
+public class Unicode {
 
   // The highest legal rune value.
   static final int MAX_RUNE = 0x10FFFF;
@@ -36,9 +35,9 @@ class Unicode {
 
   // Minimum and maximum runes involved in folding.
   // Checked during test.
-  // ES: from the JDK, see Re2UnicodeTables
-  static final int MIN_FOLD = Re2UnicodeTables.MIN_FOLD;
-  static final int MAX_FOLD = Re2UnicodeTables.MAX_FOLD;
+  // ES: from the generated tables, which are of a newer Unicode
+  static final int MIN_FOLD = UnicodeTables.MIN_FOLD;
+  static final int MAX_FOLD = UnicodeTables.MAX_FOLD;
 
   // is32 uses binary search to test whether rune is in the specified
   // slice of 32-bit ranges.
@@ -84,8 +83,7 @@ class Unicode {
     if (r <= MAX_LATIN1) {
       return Character.isUpperCase((char) r);
     }
-    // ES: from the JDK
-    return Character.isUpperCase(r);
+    return is(UnicodeTables.Upper, r);
   }
 
   // isPrint reports whether the rune is printable (Unicode L/M/N/P/S or ' ').
@@ -93,8 +91,11 @@ class Unicode {
     if (r <= MAX_LATIN1) {
       return (r >= 0x20 && r < 0x7F) || (r >= 0xA1 && r != 0xAD);
     }
-    // ES: from the JDK, see Re2UnicodeTables
-    return Re2UnicodeTables.isPrint(r);
+    return is(UnicodeTables.L, r)
+        || is(UnicodeTables.M, r)
+        || is(UnicodeTables.N, r)
+        || is(UnicodeTables.P, r)
+        || is(UnicodeTables.S, r);
   }
 
   // simpleFold iterates over Unicode code points equivalent under
@@ -114,9 +115,16 @@ class Unicode {
   //
   // Derived from Go's unicode.SimpleFold.
   //
-  static int simpleFold(int r) {
-    // ES: from the JDK, see Re2UnicodeTables
-    return Re2UnicodeTables.simpleFold(r);
+  // ES: public for Re2RegExp, which builds Lucene automata from the parse
+  public static int simpleFold(int r) {
+    // Consult caseOrbit table for special cases.
+    if (r < UnicodeTables.CASE_ORBIT.length && UnicodeTables.CASE_ORBIT[r] != 0) {
+      return UnicodeTables.CASE_ORBIT[r];
+    }
+
+    // ES: the generated table has every orbit, so a rune it lacks folds to nothing else; the
+    // JDK's case mappings may be of a newer Unicode, which would fold more than Go
+    return r;
   }
 
   // equalsIgnoreCase performs case-insensitive equality comparison

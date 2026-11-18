@@ -15,6 +15,7 @@ import org.apache.lucene.util.automaton.Transition;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.Parser;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.RE2;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.Regexp;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.Unicode;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -101,7 +102,7 @@ public final class Re2RegExp {
             int r = rune;
             do {
                 orbit.add(r);
-                r = Re2UnicodeTables.simpleFold(r);
+                r = Unicode.simpleFold(r);
             } while (r != rune);
             return orbit.stream().mapToInt(Integer::intValue).toArray();
         }

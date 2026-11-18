@@ -328,6 +328,40 @@ if (buildParams.snapshotBuild) {
 }
 
 /**********************************************
+ *     RE2 Unicode tables regeneration         *
+ **********************************************/
+
+configurations {
+  regenerateRe2UnicodeTables
+}
+
+dependencies {
+  // ICU4J 72 has Unicode 15.0, the version of Go 1.26, which Prometheus 3.13 is built with
+  regenerateRe2UnicodeTables "com.ibm.icu:icu4j:72.1"
+  regenerateRe2UnicodeTables "com.squareup:javapoet:1.13.0"
+  regenerateRe2UnicodeTables "com.google.guava:guava:${versions.jimfs_guava}"
+}
+
+def compileRe2UnicodeTablesGenerator = tasks.register("compileRe2UnicodeTablesGenerator", JavaCompile) {
+  source = fileTree('src/main/re2')
+  classpath = configurations.regenerateRe2UnicodeTables
+  destinationDirectory = layout.buildDirectory.dir('re2-unicode-tables-generator')
+  // the generator is RE2/J's, kept as RE2/J has it
+  options.compilerArgs.removeAll { it == '-Werror' || it.startsWith('-Xlint') || it.startsWith('-Xdoclint') }
+}
+
+tasks.register("regenRe2UnicodeTables", JavaExec) {
+  mainClass = 'com.google.re2j.UnicodeTablesGenerator'
+  classpath = files(compileRe2UnicodeTablesGenerator.flatMap { it.destinationDirectory }) + configurations.regenerateRe2UnicodeTables
+  def tables = file('src/main/java/org/elasticsearch/xpack/esql/core/expression/predicate/regex/re2/UnicodeTables.java')
+  def source = new ByteArrayOutputStream()
+  standardOutput = source
+  doLast {
+    tables.bytes = source.toByteArray()
+  }
+}
+
+/**********************************************
  *          ESQL Parser regeneration           *
  **********************************************/
 
@@ -353,7 +387,8 @@ pluginManager.withPlugin('com.diffplug.spotless') {
         "src/main/generated/**/*.java",
         "src/main/generated-src/generated/**/*.java",
         // forked from RE2/J and kept in its formatting, so that it diffs against it line by line
-        "src/main/java/org/elasticsearch/xpack/esql/core/expression/predicate/regex/re2/**/*.java"
+        "src/main/java/org/elasticsearch/xpack/esql/core/expression/predicate/regex/re2/**/*.java",
+        "src/main/re2/**/*.java"
       toggleOffOn('begin generated imports', 'end generated imports')
     }
   }

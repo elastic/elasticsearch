@@ -20,7 +20,7 @@
 
 package org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2;
 
-import org.elasticsearch.xpack.esql.core.expression.predicate.regex.Re2UnicodeTables;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.Re2UnicodeNames;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -1572,7 +1572,7 @@ public class Parser {
 
   // RangeTables are represented as int[][], a list of triples (start, end,
   // stride).
-  // ES: unicodeTable() is Re2UnicodeTables.table()
+  // ES: unicodeTable() is Re2UnicodeNames.table()
 
   // parseUnicodeClass() parses a leading Unicode character class like \p{Han}
   // from the beginning of t.  If one is present, it appends the characters to
@@ -1624,8 +1624,8 @@ public class Parser {
       name = name.substring(1);
     }
 
-    // ES: the tables come from the JDK and are named as in Go 1.26, see Re2UnicodeTables
-    Re2UnicodeTables.Table table = Re2UnicodeTables.table(name);
+    // ES: the tables come from the JDK and are named as in Go 1.26, see Re2UnicodeNames
+    Re2UnicodeNames.Table table = Re2UnicodeNames.table(name);
     if (table == null) {
       throw new PatternSyntaxException(ERR_INVALID_CHAR_RANGE, t.from(startPos));
     }

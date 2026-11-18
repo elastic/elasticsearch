@@ -273,7 +273,6 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.GEO_MATCH_TYPE;
 import static org.elasticsearch.xpack.esql.capabilities.TranslationAware.translatable;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.keepExistingUnsupportedAttributes;
-import static org.elasticsearch.xpack.esql.core.expression.Expressions.toReferenceAttributesPreservingIds;
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
@@ -498,10 +497,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<IndexResolution> resolutions = new ArrayList<>(context.indexResolution().values());
             resolutions.addAll(context.lookupResolution().values());
             Map<NameId, FieldSemantics> semantics = ColumnSemantics.collect(describe.child(), resolutions);
+            Map<NameId, Attribute> datasetColumns = ColumnSemantics.datasetColumns(describe.child());
             return describe.describe(
                 semantics,
-                ColumnSemantics.datasetColumns(describe.child()),
-                ColumnUnits.collect(describe.child(), semantics)
+                datasetColumns,
+                ColumnUnits.collect(describe.child(), semantics),
+                ColumnSemantics.timeColumns(describe.child(), semantics, datasetColumns)
             );
         }
 
@@ -2643,15 +2644,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             // The output has to be populated even when no branch changes: view resolution builds a BranchPlan with an empty
             // output and relies on this rule to fill it in.
-            return mergePlan.replaceSubPlansAndOutput(
-                changed ? newSubPlans : mergePlan.children(),
-                unmappedResolution.loadsAllUnmappedFields()
-                    ? keepExistingUnsupportedAttributes(
-                        toReferenceAttributesPreservingIds(outputUnion, mergePlan.output()),
-                        mergePlan.output()
-                    )
-                    : toReferenceAttributesPreservingIds(outputUnion, mergePlan.output())
-            );
+            newSubPlans = changed ? newSubPlans : mergePlan.children();
+            List<Attribute> newOutput = mergePlan.mergesScoreAsMetadata()
+                ? MergePlan.toReferenceAttributesPreservingIds(newSubPlans, outputUnion, mergePlan.output())
+                : Expressions.toReferenceAttributesPreservingIds(outputUnion, mergePlan.output());
+            if (unmappedResolution.loadsAllUnmappedFields()) {
+                newOutput = keepExistingUnsupportedAttributes(newOutput, mergePlan.output());
+            }
+            return mergePlan.replaceSubPlansAndOutput(newSubPlans, newOutput);
         }
 
         /**

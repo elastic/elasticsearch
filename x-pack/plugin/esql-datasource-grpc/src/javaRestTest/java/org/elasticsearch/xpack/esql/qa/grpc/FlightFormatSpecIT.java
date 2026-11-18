@@ -45,7 +45,10 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
  * no {@code DataSourceValidator}, so neither the data source nor its datasets can be created yet.
  */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
-@AwaitsFix(bugUrl = "https://github.com/elastic/esql-planning/issues/2059")
+@AwaitsFix(
+    bugUrl = "Flight integration tests disabled. The EXTERNAL command was removed and Flight does not accept FROM <dataset>, "
+        + "so the specs cannot run"
+)
 public class FlightFormatSpecIT extends EsqlSpecTestCase {
 
     private static final Logger logger = LogManager.getLogger(FlightFormatSpecIT.class);

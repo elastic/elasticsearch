@@ -4972,6 +4972,14 @@ public class EsqlCapabilities {
          */
         STREAMING_V2(Build.current().isSnapshot()),
 
+        /** The {@code _score} column merged by a subquery union ({@code FROM (...), (...)}) stays as live score when every
+         * branch either asked for {@code METADATA _score} or leaves the column null, so a scoring search after the merge,
+         * such as a runtime {@code MATCH}, adds to it instead of being dropped. Rows from a branch without a score stay
+         * {@code null} through that search. A branch that computed its own {@code _score} keeps the merged column out
+         * of scoring, as it does for a single source.
+         */
+        FROM_SUBQUERY_MERGE_KEEPS_METADATA_SCORE,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

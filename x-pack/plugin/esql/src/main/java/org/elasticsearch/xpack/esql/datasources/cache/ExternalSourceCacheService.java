@@ -628,6 +628,29 @@ public class ExternalSourceCacheService implements Closeable {
     }
 
     /**
+     * Stores {@code listing} at {@code key} only when that address is empty. A bounded listing that drained
+     * untruncated is the whole glob, and {@link org.elasticsearch.xpack.esql.datasources.DatasetListingService}
+     * offers it here so a later query that asked for the whole glob does not list again.
+     * <p>
+     * Does not start a compute and does not complete async in-flight waiters: those belong to a leader
+     * already listing this key. Uses {@link Cache#computeIfAbsent} so a concurrent unbounded listing that
+     * already occupies this key, or is mid-{@link #getOrComputeListing}, is not replaced with an older
+     * snapshot. A failed in-flight compute is treated as absent; that wait must not fail the listing being
+     * aliased, which is why this method swallows {@link ExecutionException} and {@link RuntimeException}.
+     * No-op when the cache is disabled.
+     */
+    public void publishListingIfAbsent(ListingCacheKey key, FileList listing) {
+        if (enabled == false) {
+            return;
+        }
+        try {
+            listingStore.cache().computeIfAbsent(key, ignored -> listing);
+        } catch (ExecutionException | RuntimeException e) {
+            logger.debug("skipping listing-cache alias for [{}]", key, e);
+        }
+    }
+
+    /**
      * Coordinator-side entry point. Takes the {@code DriverCompletionInfo.capturedSourceMetadata}
      * payload — raw per-file contribution lists shipped back from every data node — merges each
      * list via {@code SourceStatisticsSerializer.mergeStatistics} (Parquet's existing multi-row-

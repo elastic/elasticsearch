@@ -35,7 +35,7 @@ public class InnerJoin extends Join implements SortPreserving {
 
     private final List<Attribute> addedFields;
     private final boolean unique;
-    private List<Attribute> lazyOutput;
+    private volatile List<Attribute> lazyOutput;
 
     public InnerJoin(
         Source source,

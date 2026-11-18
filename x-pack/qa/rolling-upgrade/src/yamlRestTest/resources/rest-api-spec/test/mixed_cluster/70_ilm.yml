@@ -43,7 +43,8 @@
   - do:
       catch: bad_request
       node_selector:
-        version: "current"
+        attribute:
+          upgraded: "true"
       ilm.put_lifecycle:
         policy: "mixed_unbounded_total_shards_policy"
         body: |

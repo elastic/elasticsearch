@@ -50,6 +50,7 @@ class TSDBSyntheticIdDocValuesHolder {
     private final int maxDocs;
     private final boolean hasTsIdSkipper;
     private final boolean hasTimestampSkipper;
+    private final TsIdSkipIndex.Lazy tsIdSkipIndex;
 
     private SortedNumericDocValues timestampDocValues; // sorted desc. order
     private SortedDocValues routingHashDocValues; // sorted asc. order
@@ -67,8 +68,14 @@ class TSDBSyntheticIdDocValuesHolder {
     private int cachedTsIdOrd = -1;
     private BytesRef cachedTsId;
 
-    TSDBSyntheticIdDocValuesHolder(FieldInfos fieldInfos, DocValuesProducer docValuesProducer, int maxDocs) {
+    TSDBSyntheticIdDocValuesHolder(
+        FieldInfos fieldInfos,
+        DocValuesProducer docValuesProducer,
+        int maxDocs,
+        TsIdSkipIndex.Lazy tsIdSkipIndex
+    ) {
         this.maxDocs = maxDocs;
+        this.tsIdSkipIndex = tsIdSkipIndex;
         this.tsIdFieldInfo = safeFieldInfo(fieldInfos, TSDBSyntheticIdPostingsFormat.TS_ID);
         this.timestampFieldInfo = safeFieldInfo(fieldInfos, TSDBSyntheticIdPostingsFormat.TIMESTAMP);
         this.routingHashFieldInfo = safeFieldInfo(fieldInfos, TSDBSyntheticIdPostingsFormat.TS_ROUTING_HASH);
@@ -210,6 +217,11 @@ class TSDBSyntheticIdDocValuesHolder {
         if (hasTsIdSkipper == false) {
             return 0;
         }
+        final TsIdSkipIndex index = tsIdSkipIndex.get();
+        if (index != null) {
+            final int interval = index.intervalFor(tsIdOrd);
+            return interval < 0 ? DocIdSetIterator.NO_MORE_DOCS : index.minDocID(interval);
+        }
         var skipper = docValuesProducer.getSkipper(tsIdFieldInfo);
         assert skipper != null;
         if (skipper.minValue() > tsIdOrd || tsIdOrd > skipper.maxValue()) {
@@ -217,6 +229,24 @@ class TSDBSyntheticIdDocValuesHolder {
         }
         skipper.advance(tsIdOrd, Long.MAX_VALUE);
         return skipper.minDocID(0);
+    }
+
+    /**
+     * Returns an exclusive upper bound for the first document whose _tsid ordinal is at least the provided one: the end of the skipper
+     * interval that {@link #findStartDocIDForTsIdOrd} starts from, as that interval holds such a document. Returns the number of
+     * documents of the segment when the bound is not known.
+     */
+    private int findEndDocIDForTsIdOrd(int tsIdOrd) throws IOException {
+        if (hasTsIdSkipper) {
+            final TsIdSkipIndex index = tsIdSkipIndex.get();
+            if (index != null) {
+                final int interval = index.intervalFor(tsIdOrd);
+                if (interval >= 0) {
+                    return (int) Math.min(maxDocs, index.maxDocID(interval) + 1L);
+                }
+            }
+        }
+        return maxDocs;
     }
 
     /**
@@ -366,8 +396,18 @@ class TSDBSyntheticIdDocValuesHolder {
         if (ords == null) {
             return -1;
         }
-        int lo = startDocID;
-        int hi = maxDocs;
+        final int endDocID = Math.max(startDocID, findEndDocIDForTsIdOrd(tsIdOrd));
+        int lo = bisectOrdinals(ords, startDocID, endDocID, tsIdOrd);
+        if (lo == endDocID && endDocID < maxDocs) {
+            // The skipper interval should always hold the document; if its statistics are off, search the rest of the segment.
+            lo = bisectOrdinals(ords, endDocID, maxDocs, tsIdOrd);
+        }
+        return lo == maxDocs ? DocIdSetIterator.NO_MORE_DOCS : lo;
+    }
+
+    private static int bisectOrdinals(RandomAccessNumericValues ords, int fromDocID, int toDocID, int tsIdOrd) throws IOException {
+        int lo = fromDocID;
+        int hi = toDocID;
         while (lo < hi) {
             final int mid = (lo + hi) >>> 1;
             if (ords.valueAt(mid) < tsIdOrd) {
@@ -376,7 +416,7 @@ class TSDBSyntheticIdDocValuesHolder {
                 hi = mid;
             }
         }
-        return lo == maxDocs ? DocIdSetIterator.NO_MORE_DOCS : lo;
+        return lo;
     }
 
     int getTsIdValueCount() throws IOException {

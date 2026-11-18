@@ -91,7 +91,13 @@ public class TSDBSyntheticIdStoredFieldsReader extends StoredFieldsReader {
         this.context = Objects.requireNonNull(context);
         this.docValuesProducer = Objects.requireNonNull(docValuesProducer);
         this.fieldInfo = Objects.requireNonNull(fieldInfo);
-        this.docValuesHolder = new TSDBSyntheticIdDocValuesHolder(fieldInfos, docValuesProducer, segmentInfo.maxDoc());
+        this.docValuesHolder = new TSDBSyntheticIdDocValuesHolder(
+            fieldInfos,
+            docValuesProducer,
+            segmentInfo.maxDoc(),
+            // This reader only reads documents by ID and never seeks _tsid ordinals, so the index is never built.
+            new TsIdSkipIndex.Lazy(docValuesProducer, fieldInfos, segmentInfo.maxDoc())
+        );
         this.ownsDocValuesProducer = ownsDocValuesProducer;
     }
 

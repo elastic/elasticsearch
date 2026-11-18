@@ -19,7 +19,6 @@ import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -60,6 +59,8 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
     private final TimeValue taskShutdownGracePeriod;
     private final ReindexSettings reindexSettings;
     private final CircuitBreaker requestBreaker;
+    /** Null when this action was not given the node's indexing pressure. Bulks then stay unaccounted. */
+    @Nullable
     private final IndexingPressure indexingPressure;
 
     public TransportUpdateByQueryAction(
@@ -75,7 +76,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         ReindexSettings reindexSettings,
         CircuitBreakerService circuitBreakerService
     ) {
-        // Callers that were not given the node's indexing pressure get a separate budget at the default limit.
+        // No indexing pressure was given, so bulks stay unaccounted and the node charges each attempt.
         this(
             threadPool,
             actionFilters,
@@ -88,7 +89,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
             bulkByPaginatedSearchSearchContextMetrics,
             reindexSettings,
             circuitBreakerService,
-            new IndexingPressure(Settings.EMPTY)
+            null
         );
     }
 
@@ -105,7 +106,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         @Nullable BulkByPaginatedSearchSearchContextMetrics bulkByPaginatedSearchSearchContextMetrics,
         ReindexSettings reindexSettings,
         CircuitBreakerService circuitBreakerService,
-        IndexingPressure indexingPressure
+        @Nullable IndexingPressure indexingPressure
     ) {
         super(UpdateByQueryAction.NAME, transportService, actionFilters, UpdateByQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
@@ -120,7 +121,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         this.taskShutdownGracePeriod = ShutdownPrepareService.MAXIMUM_REINDEXING_TIMEOUT_SETTING.get(clusterService.getSettings());
         this.reindexSettings = Objects.requireNonNull(reindexSettings);
         this.requestBreaker = Objects.requireNonNull(circuitBreakerService.getBreaker(CircuitBreaker.REQUEST));
-        this.indexingPressure = Objects.requireNonNull(indexingPressure, "indexingPressure");
+        this.indexingPressure = indexingPressure;
     }
 
     @Override
@@ -183,6 +184,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
             ReindexSettings reindexSettings,
             CircuitBreaker requestBreaker
         ) {
+            // No indexing pressure was given, so bulks stay unaccounted and the node charges each attempt.
             this(
                 task,
                 logger,
@@ -195,7 +197,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
                 bulkByPaginatedSearchSearchContextMetrics,
                 reindexSettings,
                 requestBreaker,
-                new IndexingPressure(Settings.EMPTY)
+                null
             );
         }
 
@@ -211,7 +213,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
             @Nullable BulkByPaginatedSearchSearchContextMetrics bulkByPaginatedSearchSearchContextMetrics,
             ReindexSettings reindexSettings,
             CircuitBreaker requestBreaker,
-            IndexingPressure indexingPressure
+            @Nullable IndexingPressure indexingPressure
         ) {
             super(
                 task,

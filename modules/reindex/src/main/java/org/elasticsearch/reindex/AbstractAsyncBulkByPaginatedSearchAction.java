@@ -32,7 +32,6 @@ import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -94,9 +93,8 @@ import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
  * Abstract base for paginating across a search and executing bulk actions on all results. All package private methods are package private
  * so their tests can use them. Most methods run in the listener thread pool because they are meant to be fast and don't expect to block.
  * <p>
- * Each non-empty bulk holds one coordinating indexing pressure charge from the moment it is built until the cleanup that already runs when
- * that bulk finishes. Retries keep that same reservation, so a rejected bulk stays inside the coordinating budget instead of piling up
- * outside it. A later batch that cannot take a charge fails the task.
+ * Each admitted bulk holds one coordinating indexing pressure charge until the cleanup that already runs when that bulk finishes. Retries
+ * of an admitted bulk keep that same reservation. A batch that cannot take a charge holds nothing, backs off, and retries the same bulk.
  */
 public abstract class AbstractAsyncBulkByPaginatedSearchAction<
     Request extends AbstractBulkByPaginatedSearchRequest<Request>,
@@ -177,7 +175,19 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
     protected final ReindexSettings reindexSettings;
     private final CircuitBreaker circuitBreaker;
     private final String breakerLabel;
+    /**
+     * Null when this action was not given the node's indexing pressure. The bulk then stays unaccounted, and bulk execution charges the
+     * node's budget for that attempt only.
+     */
+    @Nullable
     private final IndexingPressure indexingPressure;
+
+    /**
+     * Set for the bulk {@link #prepareBulkRequest} is sending. That method's cleanup closes it. Null for a direct
+     * {@link #sendBulkRequest} call, which then releases any charge it takes.
+     */
+    @Nullable
+    private AtomicReference<Releasable> coordinatingChargeForAttempt;
 
     protected CircuitBreaker getCircuitBreaker() {
         return circuitBreaker;
@@ -203,7 +213,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         CircuitBreaker circuitBreaker,
         String breakerLabel
     ) {
-        // Callers that were not given the node's indexing pressure get a separate budget at the default limit.
+        // No indexing pressure was given, so this action does not reserve a charge of its own.
         this(
             task,
             needsSourceDocumentVersions,
@@ -223,7 +233,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
             reindexSettings,
             circuitBreaker,
             breakerLabel,
-            new IndexingPressure(Settings.EMPTY)
+            null
         );
     }
 
@@ -246,7 +256,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         ReindexSettings reindexSettings,
         CircuitBreaker circuitBreaker,
         String breakerLabel,
-        IndexingPressure indexingPressure
+        @Nullable IndexingPressure indexingPressure
     ) {
         this(
             task,
@@ -295,7 +305,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         CircuitBreaker circuitBreaker,
         String breakerLabel
     ) {
-        // Callers that were not given the node's indexing pressure get a separate budget at the default limit.
+        // No indexing pressure was given, so this action does not reserve a charge of its own.
         this(
             task,
             needsSourceDocumentVersions,
@@ -317,7 +327,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
             reindexSettings,
             circuitBreaker,
             breakerLabel,
-            new IndexingPressure(Settings.EMPTY)
+            null
         );
     }
 
@@ -342,7 +352,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         ReindexSettings reindexSettings,
         CircuitBreaker circuitBreaker,
         String breakerLabel,
-        IndexingPressure indexingPressure
+        @Nullable IndexingPressure indexingPressure
     ) {
         this.task = task;
         this.scriptService = scriptService;
@@ -369,7 +379,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         this.circuitBreaker = Objects.requireNonNull(circuitBreaker);
         this.breakerLabel = Objects.requireNonNull(breakerLabel);
         this.reindexSettings = Objects.requireNonNull(reindexSettings);
-        this.indexingPressure = Objects.requireNonNull(indexingPressure, "indexingPressure");
+        this.indexingPressure = indexingPressure;
         paginatedHitSource = buildPaginatedSearchResultSource(
             backoffPolicy,
             prepareSearchRequest(
@@ -679,9 +689,9 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
      * delay has been slept. Uses the generic thread pool because reindex is rare enough not to need its own thread pool and because the
      * thread may be blocked by the user script.
      * <p>
-     * A non-empty bulk takes its coordinating indexing pressure charge here, before it is sent. That update is a counter increment, so it
-     * does not block this thread. The charge stays open until the cleanup that already wraps the bulk listener. If the budget cannot hold
-     * the bulk, the task fails and nothing is scheduled to retry.
+     * Each attempt to send a non-empty bulk takes its coordinating indexing pressure charge when that attempt runs. The update is a counter
+     * increment, so it does not block. An admitted charge stays open until the cleanup that already wraps the bulk listener. A batch that
+     * cannot take a charge holds nothing and backs off to retry the same bulk.
      */
     void prepareBulkRequest(long thisBatchStartTimeNS, PaginatedSearchConsumableHitsResponse asyncResponse) {
         logger.debug("[{}]: preparing bulk request", task.getId());
@@ -735,12 +745,14 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         // is released (via cleanup) when the bulk listener completes or if we return early for any reason.
         final AtomicLong reservedBytes = new AtomicLong(0);
         final Releasable releaseBatchHits = Releasables.releaseOnce(() -> releaseHits(hits));
+        // Filled when an attempt is admitted. Closed with the hit page, including after the bulk has been retried.
+        final AtomicReference<Releasable> coordinatingCharge = new AtomicReference<>();
         final Releasable cleanup = Releasables.wrap(releaseBatchHits, () -> {
             long r = reservedBytes.getAndSet(0);
             if (r > 0) circuitBreaker.addWithoutBreaking(-r);
             asyncResponse.response().closeBodyReleasable();
+            Releasables.close(coordinatingCharge.getAndSet(null));
         });
-        Releasable bulkCleanup = cleanup;
         boolean cleanupHandedOff = false;
         try {
             final BulkRequest request;
@@ -759,90 +771,130 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
             }
             request.timeout(mainRequest.getTimeout());
             request.waitForActiveShards(mainRequest.getWaitForActiveShards());
-            final Releasable indexingPressureRelease;
-            try {
-                indexingPressureRelease = reserveCoordinatingIndexingPressure(request);
-            } catch (EsRejectedExecutionException e) {
-                // The scroll or point-in-time has already moved, so this page cannot be dropped and retried later.
-                finishHim(e);
-                return;
-            }
-            // releaseOnce because IndexingPressure asserts if its reservation is closed twice.
-            bulkCleanup = Releasables.wrap(cleanup, Releasables.releaseOnce(indexingPressureRelease));
-            sendBulkRequest(request, bulkCleanup, () -> notifyDone(thisBatchStartTimeNS, asyncResponse, request.requests().size()));
+            coordinatingChargeForAttempt = coordinatingCharge;
+            sendBulkRequest(request, cleanup, () -> notifyDone(thisBatchStartTimeNS, asyncResponse, request.requests().size()));
             cleanupHandedOff = true;
         } finally {
+            coordinatingChargeForAttempt = null;
             if (cleanupHandedOff == false) {
-                bulkCleanup.close();
+                cleanup.close();
             }
         }
     }
 
     /**
-     * Reserves one coordinating indexing pressure charge for a non-empty bulk and marks the bulk accounted, so a later attempt does not
-     * reserve those bytes again. The reservation keeps this byte count until it is closed, including after a partial retry shrinks
-     * the bulk.
+     * Reserves one coordinating indexing pressure charge for a non-empty bulk. The caller marks the bulk accounted once it keeps the
+     * reservation, so another attempt does not reserve those bytes again. The reservation keeps this byte count until it is closed,
+     * including after a partial retry shrinks the bulk.
      *
+     * @param pressure the node's coordinating budget
      * @param request the bulk about to be sent
      * @return the reservation, closed by the same cleanup that releases the hit page
      * @throws EsRejectedExecutionException when the coordinating budget cannot hold the bulk
      */
-    private Releasable reserveCoordinatingIndexingPressure(BulkRequest request) {
+    private Releasable reserveCoordinatingIndexingPressure(IndexingPressure pressure, BulkRequest request) {
         // Same bytes doExecute would charge, taken once for the life of this bulk. forceExecution stays false, so a system index
         // reindex is rejected when the node is full.
         final long bytes = request.ramBytesUsed() + threadPool.getThreadContext().estimatedRequestContextBytes();
-        final Releasable reservation = indexingPressure.markCoordinatingOperationStarted(request.numberOfActions(), bytes, false);
-        request.indexingPressureAccounted(true);
-        return reservation;
+        return pressure.markCoordinatingOperationStarted(request.numberOfActions(), bytes, false);
     }
 
     /**
      * Send a bulk request, handling retries. Releases {@code releaseBatchHits} on cancellation, terminal finish, and before the bulk
-     * listener completes (success or failure) so hits are never leaked.
+     * listener completes (success or failure) so hits and any admitted coordinating charge are never leaked.
      */
     void sendBulkRequest(BulkRequest request, Releasable releaseBatchHits, Runnable onSuccess) {
+        final AtomicReference<Releasable> coordinatingCharge;
+        final Releasable cleanup;
+        final boolean releaseUnlessHandedOff;
+        if (coordinatingChargeForAttempt != null) {
+            // prepareBulkRequest already closes this reference from the releasable it passed in.
+            coordinatingCharge = coordinatingChargeForAttempt;
+            cleanup = releaseBatchHits;
+            releaseUnlessHandedOff = false;
+        } else {
+            coordinatingCharge = new AtomicReference<>();
+            cleanup = Releasables.wrap(releaseBatchHits, () -> Releasables.close(coordinatingCharge.getAndSet(null)));
+            releaseUnlessHandedOff = true;
+        }
         final int requestSize = request.requests().size();
-        if (logger.isDebugEnabled()) {
-            logger.debug(
-                "[{}]: sending [{}] entry, [{}] bulk request",
-                task.getId(),
-                requestSize,
-                ByteSizeValue.ofBytes(request.estimatedSizeInBytes())
+        boolean handedOff = false;
+        try {
+            if (logger.isDebugEnabled()) {
+                logger.debug(
+                    "[{}]: sending [{}] entry, [{}] bulk request",
+                    task.getId(),
+                    requestSize,
+                    ByteSizeValue.ofBytes(request.estimatedSizeInBytes())
+                );
+            }
+            if (task.isCancelled()) {
+                logger.debug("[{}]: finishing early because the task was cancelled", task.getId());
+                cleanup.close();
+                finishHim(null);
+                handedOff = true;
+                return;
+            }
+            if (requestFinishing.get()) {
+                cleanup.close();
+                handedOff = true;
+                return;
+            }
+            bulkRetry.withBackoff(
+                (bulkRequest, listener) -> sendBulkUnlessCancelled(bulkRequest, listener, coordinatingCharge),
+                request,
+                ActionListener.releaseBefore(cleanup, ActionListener.wrap(response -> {
+                    logger.debug("[{}]: completed [{}] entry bulk request", task.getId(), requestSize);
+                    onBulkResponse(response, onSuccess);
+                }, this::finishHim))
             );
+            handedOff = true;
+        } finally {
+            if (releaseUnlessHandedOff && handedOff == false) {
+                cleanup.close();
+            }
         }
-        if (task.isCancelled()) {
-            logger.debug("[{}]: finishing early because the task was cancelled", task.getId());
-            releaseBatchHits.close();
-            finishHim(null);
-            return;
-        }
-        if (requestFinishing.get()) {
-            releaseBatchHits.close();
-            return;
-        }
-        bulkRetry.withBackoff(
-            this::sendBulkUnlessCancelled,
-            request,
-            ActionListener.releaseBefore(releaseBatchHits, ActionListener.wrap(response -> {
-                logger.debug("[{}]: completed [{}] entry bulk request", task.getId(), requestSize);
-                onBulkResponse(response, onSuccess);
-            }, this::finishHim))
-        );
     }
 
     /**
      * Sends one bulk attempt. When the task has been cancelled since the previous attempt, sends nothing and completes the listener so the
      * task can finish cancelled. {@link Retry} calls this for the first send and for every attempt it has scheduled.
+     * <p>
+     * A batch that is not yet admitted tries for one coordinating charge. If the budget cannot hold it, the attempt fails with that
+     * rejection and no charge is kept, so {@link Retry} backs off and runs this same bulk again.
      *
      * @param bulkRequest the bulk for this attempt
      * @param listener completed when the attempt finishes
+     * @param coordinatingCharge where an admitted reservation is stored until the bulk's cleanup runs
      */
-    private void sendBulkUnlessCancelled(BulkRequest bulkRequest, ActionListener<BulkResponse> listener) {
+    private void sendBulkUnlessCancelled(
+        BulkRequest bulkRequest,
+        ActionListener<BulkResponse> listener,
+        AtomicReference<Releasable> coordinatingCharge
+    ) {
         if (task.isCancelled()) {
             logger.debug("[{}]: not sending bulk because the task was cancelled", task.getId());
             // A non-429 failure would fail the task. Cancellation finishes with the cancel reason, so this attempt reports nothing.
             listener.onResponse(new BulkResponse(new BulkItemResponse[0], 0L));
             return;
+        }
+        final IndexingPressure pressure = indexingPressure;
+        if (pressure != null && bulkRequest.indexingPressureAccounted() == false) {
+            final Releasable reservation;
+            try {
+                reservation = reserveCoordinatingIndexingPressure(pressure, bulkRequest);
+            } catch (EsRejectedExecutionException e) {
+                // The scroll or point-in-time has already moved, so this same page is retried. Nothing is held while it waits.
+                listener.onFailure(e);
+                return;
+            }
+            // releaseOnce because IndexingPressure asserts if its reservation is closed twice.
+            final Releasable once = Releasables.releaseOnce(reservation);
+            if (coordinatingCharge.compareAndSet(null, once) == false) {
+                // This bulk already holds its charge. Drop the extra reservation and still skip the node's own charge.
+                once.close();
+            }
+            bulkRequest.indexingPressureAccounted(true);
         }
         bulkClient.bulk(bulkRequest, listener);
     }

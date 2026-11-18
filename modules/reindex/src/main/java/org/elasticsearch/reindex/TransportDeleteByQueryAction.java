@@ -17,7 +17,6 @@ import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -50,6 +49,8 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
     private final TimeValue taskShutdownGracePeriod;
     private final ReindexSettings reindexSettings;
     private final CircuitBreaker requestBreaker;
+    /** Null when this action was not given the node's indexing pressure. Bulks then stay unaccounted. */
+    @Nullable
     private final IndexingPressure indexingPressure;
 
     public TransportDeleteByQueryAction(
@@ -65,7 +66,7 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
         ReindexSettings reindexSettings,
         CircuitBreakerService circuitBreakerService
     ) {
-        // Callers that were not given the node's indexing pressure get a separate budget at the default limit.
+        // No indexing pressure was given, so bulks stay unaccounted and the node charges each attempt.
         this(
             threadPool,
             actionFilters,
@@ -78,7 +79,7 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
             bulkByPaginatedSearchSearchContextMetrics,
             reindexSettings,
             circuitBreakerService,
-            new IndexingPressure(Settings.EMPTY)
+            null
         );
     }
 
@@ -95,7 +96,7 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
         @Nullable BulkByPaginatedSearchSearchContextMetrics bulkByPaginatedSearchSearchContextMetrics,
         ReindexSettings reindexSettings,
         CircuitBreakerService circuitBreakerService,
-        IndexingPressure indexingPressure
+        @Nullable IndexingPressure indexingPressure
     ) {
         super(DeleteByQueryAction.NAME, transportService, actionFilters, DeleteByQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
@@ -114,7 +115,7 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
             circuitBreakerService.getBreaker(CircuitBreaker.REQUEST),
             "REQUEST circuit breaker must be available — delete-by-query relies on it for per-batch heap reservations"
         );
-        this.indexingPressure = Objects.requireNonNull(indexingPressure, "indexingPressure");
+        this.indexingPressure = indexingPressure;
     }
 
     @Override

@@ -646,7 +646,7 @@ public class BulkRequest extends UntypedActionRequest
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            // The accounted flag stays on the coordinating node. Shard requests are BulkShardRequests, so it never crosses the wire.
+            // Omitted on purpose. A bulk forwarded to an ingest node is a BulkRequest, and that node has not reserved these bytes.
             out.writeMap(shardLevelFailures, (o, s) -> s.writeTo(o), StreamOutput::writeException);
         }
     }

@@ -145,6 +145,8 @@ public class Reindexer {
     private final TaskResultsService taskResultsService;
     private final TimeValue reindexShutdownGracePeriod;
     private final CircuitBreaker requestBreaker;
+    /** Null when this reindexer was not given the node's indexing pressure. Bulks then stay unaccounted. */
+    @Nullable
     private final IndexingPressure indexingPressure;
 
     Reindexer(
@@ -163,7 +165,7 @@ public class Reindexer {
         TaskResultsService taskResultsService,
         CircuitBreakerService circuitBreakerService
     ) {
-        // Callers that were not given the node's indexing pressure get a separate budget at the default limit.
+        // No indexing pressure was given, so bulks stay unaccounted and the node charges each attempt.
         this(
             clusterService,
             reindexSettings,
@@ -179,7 +181,7 @@ public class Reindexer {
             featureService,
             taskResultsService,
             circuitBreakerService,
-            new IndexingPressure(Settings.EMPTY)
+            null
         );
     }
 
@@ -198,7 +200,7 @@ public class Reindexer {
         FeatureService featureService,
         TaskResultsService taskResultsService,
         CircuitBreakerService circuitBreakerService,
-        IndexingPressure indexingPressure
+        @Nullable IndexingPressure indexingPressure
     ) {
         this.clusterService = clusterService;
         this.reindexSettings = Objects.requireNonNull(reindexSettings);
@@ -216,7 +218,7 @@ public class Reindexer {
         this.taskResultsService = Objects.requireNonNull(taskResultsService);
         this.reindexShutdownGracePeriod = ShutdownPrepareService.MAXIMUM_REINDEXING_TIMEOUT_SETTING.get(clusterService.getSettings());
         this.requestBreaker = Objects.requireNonNull(circuitBreakerService.getBreaker(CircuitBreaker.REQUEST));
-        this.indexingPressure = Objects.requireNonNull(indexingPressure, "indexingPressure");
+        this.indexingPressure = indexingPressure;
     }
 
     public void initTask(BulkByPaginatedSearchTask task, ReindexRequest request, ActionListener<Void> listener) {
@@ -1055,6 +1057,7 @@ public class Reindexer {
             ReindexSettings reindexSettings,
             CircuitBreaker requestBreaker
         ) {
+            // No indexing pressure was given, so bulks stay unaccounted and the node charges each attempt.
             this(
                 task,
                 logger,
@@ -1071,7 +1074,7 @@ public class Reindexer {
                 bulkByPaginatedSearchSearchContextMetrics,
                 reindexSettings,
                 requestBreaker,
-                new IndexingPressure(Settings.EMPTY)
+                null
             );
         }
 
@@ -1091,7 +1094,7 @@ public class Reindexer {
             @Nullable BulkByPaginatedSearchSearchContextMetrics bulkByPaginatedSearchSearchContextMetrics,
             ReindexSettings reindexSettings,
             CircuitBreaker requestBreaker,
-            IndexingPressure indexingPressure
+            @Nullable IndexingPressure indexingPressure
         ) {
             super(
                 task,

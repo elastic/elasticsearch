@@ -346,6 +346,21 @@ public class BatchModeRouterTests extends ESTestCase {
         }
     }
 
+    /** One batch under two keys would be owned, and released, by two routers, so it is rejected, and released once. */
+    public void testSameBatchUnderTwoKeysIsRejected() throws IOException {
+        EscfBatch batch = buildBatch(2);
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(rowRequest("index-a", batch, 0));
+        bulkRequest.add(rowRequest("index-b", batch, 1));
+        bulkRequest.setPreBuiltBatches(Map.of("index-a", batch, "index-b", batch));
+
+        var e = expectThrows(IllegalArgumentException.class, () -> BatchRouterSet.create(bulkRequest, true, recycler));
+        assertThat(e.getMessage(), containsString("the same pre-built batch was supplied for both"));
+        assertFalse(bulkRequest.hasPreBuiltBatches());
+        // The batch must have been released, once: the check after the test fails if a page is still held, and a
+        // second release of the batch trips its own assertion.
+    }
+
     public void testCreateReturnsNullWhenNoBatches() {
         assertThat(BatchRouterSet.create(new BulkRequest(), true, recycler), nullValue());
     }

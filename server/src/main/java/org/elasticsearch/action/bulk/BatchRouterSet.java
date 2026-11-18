@@ -25,10 +25,12 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.sourcebatch.SourceBatch;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiConsumer;
 
 /**
@@ -122,7 +124,10 @@ final class BatchRouterSet implements Releasable {
             return set;
         } finally {
             if (success == false) {
-                Releasables.close(provided.values());
+                // The same batch may have been supplied under several keys, and must be released once.
+                Set<SourceBatch> distinct = Collections.newSetFromMap(new IdentityHashMap<>());
+                distinct.addAll(provided.values());
+                Releasables.close(distinct);
             }
         }
     }
@@ -131,7 +136,7 @@ final class BatchRouterSet implements Releasable {
      * Creates a router set from pre-built batches, each keyed by the name of the index abstraction the items that
      * hold its rows target. On success the set owns the batches; if this throws, the caller still owns all of them.
      *
-     * @throws IllegalArgumentException if any batch is not an {@link EscfBatch}
+     * @throws IllegalArgumentException if any batch is not an {@link EscfBatch}, or if one is supplied under several keys
      */
     private static BatchRouterSet forBatches(Map<String, SourceBatch> batches, Recycler<BytesRef> recycler) {
         for (Map.Entry<String, SourceBatch> entry : batches.entrySet()) {
@@ -142,6 +147,19 @@ final class BatchRouterSet implements Releasable {
                         + "] must be an EscfBatch but was ["
                         + entry.getValue().getClass().getName()
                         + "]"
+                );
+            }
+        }
+        Map<SourceBatch, String> keyOfBatch = new IdentityHashMap<>();
+        for (Map.Entry<String, SourceBatch> entry : batches.entrySet()) {
+            String otherKey = keyOfBatch.put(entry.getValue(), entry.getKey());
+            if (otherKey != null) {
+                throw new IllegalArgumentException(
+                    "the same pre-built batch was supplied for both ["
+                        + otherKey
+                        + "] and ["
+                        + entry.getKey()
+                        + "]; each index abstraction needs a batch of its own"
                 );
             }
         }

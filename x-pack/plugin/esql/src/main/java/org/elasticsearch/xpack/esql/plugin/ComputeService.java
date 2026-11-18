@@ -1572,7 +1572,7 @@ public class ComputeService {
             try (var computeListener = new ComputeListener(cancelQueryOnFailure, listener.map(completionInfo -> {
                 updateExecutionInfoAfterCoordinatorOnlyQuery(execInfo, exchangeSinkSupplier == null);
                 return new Result(resolvedPlan.output(), collectedPages, null, configuration, completionInfo, execInfo, null);
-            }))) {
+            }), execInfo::addFailedWork)) {
                 runCompute(
                     rootTask,
                     computeContext,
@@ -1634,7 +1634,7 @@ public class ComputeService {
                 execInfo.markEndQuery();
             }
             l.onResponse(new Result(outputAttributes, collectedPages, null, configuration, completionInfo, execInfo, null));
-        }))) {
+        }), execInfo::addFailedWork)) {
             try (Releasable ignored = exchangeSource.addEmptySink()) {
                 // run compute on the coordinator
                 final AtomicBoolean localClusterWasInterrupted = new AtomicBoolean();
@@ -1660,7 +1660,8 @@ public class ComputeService {
                                 });
                             }
                             l.onResponse(completionInfo);
-                        })
+                        }),
+                        execInfo::addFailedWork
                     )
                 ) {
                     runCompute(
@@ -1698,6 +1699,8 @@ public class ComputeService {
                             localOriginalIndices,
                             exchangeSource,
                             cancelQueryOnFailure,
+                            // what the workers that succeeded did is lost with the failure of the query unless it is reported here
+                            execInfo::addFailedWork,
                             ActionListener.wrap(r -> {
                                 localClusterWasInterrupted.set(execInfo.isStopped());
                                 execInfo.swapCluster(LOCAL_CLUSTER, (k, v) -> {
@@ -1812,7 +1815,7 @@ public class ComputeService {
                 execInfo.markEndQuery();
             }
             l.onResponse(new Result(outputAttributes, collectedPages, null, configuration, completionInfo, execInfo, null));
-        }))) {
+        }), execInfo::addFailedWork)) {
             // Run the coordinator plan
             runCompute(
                 rootTask,
@@ -2374,7 +2377,7 @@ public class ComputeService {
         String planString = needPlanString ? localPlan.toString(Node.NodeStringFormat.LIMITED, NodeStringMapper.IDENTITY) : null;
         // JSON only when a consumer will read it. EXPLAIN turns profile on, so it takes this path too.
         String planJson = profile ? PlanJsonLog.toJsonOrNull(localPlan) : null;
-        return listener.map(ignored -> {
+        ActionListener<Void> onDriversSucceeded = listener.map(ignored -> {
             if (LOGGER.isDebugEnabled() || context.configuration().profile()) {
                 DriverCompletionInfo driverCompletionInfo = DriverCompletionInfo.includingProfiles(
                     drivers,
@@ -2403,6 +2406,44 @@ public class ComputeService {
 
             return DriverCompletionInfo.excludingProfiles(drivers, planningBytesRead, context.queryLoad(), approximated);
         });
+        return ActionListener.wrap(
+            onDriversSucceeded::onResponse,
+            e -> failWithUsage(listener, e, drivers, planningBytesRead, approximated)
+        );
+    }
+
+    /**
+     * Fails {@code listener}, telling it what the drivers did if it can be told: see {@link ComputeCompletionListener}.
+     * Not covered: if the drivers all succeed but building the completion info throws, the failure reaches the listener
+     * through {@link ActionListener#map} as a plain failure, and the usage is not reported.
+     */
+    static void failWithUsage(
+        ActionListener<DriverCompletionInfo> listener,
+        Exception e,
+        List<Driver> drivers,
+        long planningBytesRead,
+        boolean approximated
+    ) {
+        if (listener instanceof ComputeCompletionListener completionListener) {
+            completionListener.onFailure(e, usageOfFailedDrivers(drivers, planningBytesRead, approximated));
+        } else {
+            listener.onFailure(e);
+        }
+    }
+
+    /**
+     * What the drivers did before the compute failed or was cancelled. Every driver has finished by now, a failed one
+     * with the status of the operators it closed, so the usage adds up the same way as for a successful compute, which
+     * {@link DriverCompletionInfo#excludingProfiles} asserts. If reading it throws, the failure of the compute is what matters, so
+     * the usage of all the drivers is reported as nothing.
+     */
+    private static DriverCompletionInfo usageOfFailedDrivers(List<Driver> drivers, long planningBytesRead, boolean approximated) {
+        try {
+            return DriverCompletionInfo.excludingProfiles(drivers, planningBytesRead, approximated);
+        } catch (Exception e) {
+            LOGGER.debug("failed to read the usage of the drivers of a failed compute", e);
+            return DriverCompletionInfo.EMPTY;
+        }
     }
 
     /**

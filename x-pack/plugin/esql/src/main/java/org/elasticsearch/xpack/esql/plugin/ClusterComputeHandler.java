@@ -384,6 +384,8 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                     originalIndices,
                     exchangeSource,
                     cancelQueryOnFailure,
+                    // the usage of a failed compute on a remote cluster is not reported yet
+                    usage -> {},
                     computeListener.acquireCompute().map(r -> {
                         finalResponse.set(r);
                         return r.getCompletionInfo();

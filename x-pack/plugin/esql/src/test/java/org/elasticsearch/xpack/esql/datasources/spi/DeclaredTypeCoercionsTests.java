@@ -295,6 +295,16 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
         // integer->long and keyword<->text are format-agnostic
         assertTrue(DeclaredTypeCoercions.fusedInDecode(DataType.INTEGER, DataType.LONG, true));
         assertTrue(DeclaredTypeCoercions.fusedInDecode(DataType.KEYWORD, DataType.TEXT, true));
+        // date_nanos->datetime is fused, and stays fused with a declared format -- unlike long->datetime above. Its
+        // castBlock arm is a unit scale that never reads the formatter, the annotation having already stated the
+        // unit, so defusing on a format would only put the nanosecond range back in front of a `date` that happens
+        // to carry one.
+        assertTrue(DeclaredTypeCoercions.fusedInDecode(DataType.DATE_NANOS, DataType.DATETIME));
+        assertTrue(DeclaredTypeCoercions.fusedInDecode(DataType.DATE_NANOS, DataType.DATETIME, false));
+        assertTrue(
+            "date_nanos->datetime stays fused with a declared format",
+            DeclaredTypeCoercions.fusedInDecode(DataType.DATE_NANOS, DataType.DATETIME, true)
+        );
     }
 
     // ---- castBlock value semantics ----

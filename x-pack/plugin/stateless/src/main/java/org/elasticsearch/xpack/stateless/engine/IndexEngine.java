@@ -340,6 +340,9 @@ public class IndexEngine extends InternalEngine {
                         assert timestampFieldMappedType.indexType().hasDocValuesSkipper();
                         try (var fieldsProducer = codec.docValuesFormat().fieldsProducer(segmentReadState)) {
                             var docValuesSkipper = fieldsProducer.getSkipper(timestampFieldInfo);
+                            if (docValuesSkipper == null || docValuesSkipper.docCount() == 0) {
+                                continue;
+                            }
                             segmentMinValue = docValuesSkipper.minValue();
                             segmentMaxValue = docValuesSkipper.maxValue();
                         }
@@ -381,7 +384,8 @@ public class IndexEngine extends InternalEngine {
                 }
             }
         }
-        if (found) {
+        // found already means min <= max today. The extra check keeps a future bug from failing the commit.
+        if (found && minTimestampValue <= maxTimestampValue) {
             if (timestampFieldMappedType.resolution() == DateFieldMapper.Resolution.MILLISECONDS) {
                 return new StatelessCompoundCommit.TimestampFieldValueRange(minTimestampValue, maxTimestampValue);
             } else {

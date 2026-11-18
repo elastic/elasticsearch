@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.routing.TsidLayout;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPoint;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPointGroupingContext;
-import org.elasticsearch.xpack.oteldata.otlp.datapoint.ExponentialHistogramConverter;
 import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 
 import java.io.IOException;
@@ -29,7 +28,7 @@ public class MetricDocumentBuilder extends OTelTsdbDocumentBuilder {
     public static final String METRIC_NAMES_HASH_FIELD = "_metric_names_hash";
 
     private final MappingHints defaultMappingHints;
-    private final ExponentialHistogramConverter.BucketBuffer scratch = new ExponentialHistogramConverter.BucketBuffer();
+    private final DataPoint.SerializationScratch scratch = new DataPoint.SerializationScratch();
 
     public MetricDocumentBuilder(BufferedByteStringAccessor byteStringAccessor, MappingHints defaultMappingHints) {
         super(byteStringAccessor);

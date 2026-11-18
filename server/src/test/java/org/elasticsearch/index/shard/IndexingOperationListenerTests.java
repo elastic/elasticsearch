@@ -12,6 +12,7 @@ import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.IndexOperationBatch;
@@ -276,7 +277,17 @@ public class IndexingOperationListenerTests extends ESTestCase {
                 new IndexRequest("index").id("doc-" + d).source(new BytesArray("{\"n\":" + d + "}"), XContentType.JSON)
             );
         }
-        return IndexOperationBatch.initFromBulk(items, 0, docCount, null, Engine.Operation.Origin.PRIMARY, 1L, 0L, null);
+        return IndexOperationBatch.initFromBulk(
+            items,
+            0,
+            docCount,
+            null,
+            IndexMode.STANDARD,
+            Engine.Operation.Origin.PRIMARY,
+            1L,
+            0L,
+            null
+        );
     }
 
     private static List<Engine.IndexResult> successResults(IndexOperationBatch batch) {

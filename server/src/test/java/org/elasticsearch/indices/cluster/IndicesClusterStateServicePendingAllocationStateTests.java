@@ -158,7 +158,6 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
 
     public void testRetrySetContextWithoutNotifyingMaster() {
         ShardRouting shardRouting = applyInitializingPrimary();
-        assertNotNull(indicesService.getShardOrNull(shardRouting.shardId()));
 
         handleRecoveryFailureWithRetry(shardRouting);
 

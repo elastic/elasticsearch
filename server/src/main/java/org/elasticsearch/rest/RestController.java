@@ -1117,8 +1117,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
     /**
      * Chunks smaller than this are not charged. The HTTP layer asks for chunks of 256 KB, so a chunk only gets this large when it holds one
-     * large item, such as a search hit with a large {@code _source}. Matches the default of {@code search.memory_accounting_buffer_size},
-     * above which streaming fetch charges a hit's source.
+     * large item, such as a search hit with a large {@code _source}.
      */
     static final int MIN_CHARGED_BYTES = 1 << 20;
 

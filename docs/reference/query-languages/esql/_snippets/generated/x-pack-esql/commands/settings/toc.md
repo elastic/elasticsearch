@@ -9,6 +9,9 @@
 :::{include} doc_partitioning_for_wide_rows.md
 :::
 
+:::{include} exemplars.md
+:::
+
 :::{include} project_routing.md
 :::
 

@@ -89,6 +89,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
+import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
 import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.ParameterizedQuery;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
@@ -204,6 +205,9 @@ public class ApproximationSupportTests extends ESTestCase {
         // leading to a chained stats.
         Fuse.class,
         FuseScoreEval.class,
+
+        // NESTED_EXPAND is snapshot-only and its expanded columns have no confidence-interval buckets yet.
+        NestedExpand.class,
 
         // These source commands makes no sense for approximation.
         Explain.class,

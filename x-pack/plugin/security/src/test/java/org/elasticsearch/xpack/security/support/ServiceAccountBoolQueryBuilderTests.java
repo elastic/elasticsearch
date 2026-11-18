@@ -12,19 +12,23 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.RegexpFlag;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.security.action.service.AuthorizedServiceAccounts;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.security.authc.service.UserManagedServiceAccountStore.SERVICE_ACCOUNT_DOC_TYPE;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -87,6 +91,33 @@ public class ServiceAccountBoolQueryBuilderTests extends ESTestCase {
         assertThat(query.should(), empty());
         assertThat(query.mustNot(), empty());
         assertThat(query.filter(), contains(QueryBuilders.termQuery("doc_type", SERVICE_ACCOUNT_DOC_TYPE)));
+    }
+
+    /**
+     * A delegated reader's grants are pushed into the search, so totals and pages count only the accounts they cover.
+     * Each group is a filter that one of its patterns must match, translated to the query that matches as the grant does.
+     */
+    public void testAuthorizedAccountsAreFilteredByPrincipal() {
+        final AuthorizedServiceAccounts authorizedAccounts = new AuthorizedServiceAccounts(
+            List.of(Set.of("apps/payroll", "apps/b?t*", "/batch/.*/"), Set.of("*"))
+        );
+        final ServiceAccountBoolQueryBuilder query = ServiceAccountBoolQueryBuilder.build(null, authorizedAccounts);
+        assertThat(query.filter(), hasSize(3));
+        assertThat(query.filter().get(0), equalTo(QueryBuilders.termQuery("doc_type", SERVICE_ACCOUNT_DOC_TYPE)));
+
+        final BoolQueryBuilder firstGroup = (BoolQueryBuilder) query.filter().get(1);
+        assertThat(firstGroup.minimumShouldMatch(), equalTo("1"));
+        assertThat(
+            firstGroup.should(),
+            containsInAnyOrder(
+                QueryBuilders.termQuery("username", "apps/payroll"),
+                QueryBuilders.wildcardQuery("username", "apps/b?t*"),
+                QueryBuilders.regexpQuery("username", "batch/.*").flags(RegexpFlag.ALL)
+            )
+        );
+
+        final BoolQueryBuilder secondGroup = (BoolQueryBuilder) query.filter().get(2);
+        assertThat(secondGroup.should(), contains(QueryBuilders.matchAllQuery()));
     }
 
     /**

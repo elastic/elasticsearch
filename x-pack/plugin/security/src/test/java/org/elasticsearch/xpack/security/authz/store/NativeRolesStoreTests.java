@@ -99,6 +99,7 @@ import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelp
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomRemoteIndicesPrivileges;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomRoleDescriptorMetadata;
 import static org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges.DatasourcePrivileges.ESQL_DATASOURCE_PRIVILEGE;
+import static org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges.ManageServiceAccountsPrivilege.SERVICE_ACCOUNT_MANAGE_PRIVILEGE;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
@@ -511,6 +512,45 @@ public class NativeRolesStoreTests extends ESTestCase {
         putRole(rolesStore, roleDescriptor, future);
         final IllegalStateException e = expectThrows(IllegalStateException.class, future::actionGet);
         assertThat(e.getMessage(), containsString("datasource privilege"));
+    }
+
+    public void testPutRoleWithServiceAccountManagePrivilegeRejectedInMixedCluster() throws IOException {
+        final ProjectId projectId = randomProjectIdOrDefault();
+        final Client client = mock(Client.class);
+        final ClusterService clusterService = mockClusterServiceWithMinNodeVersion(
+            TransportVersionUtils.getPreviousVersion(SERVICE_ACCOUNT_MANAGE_PRIVILEGE)
+        );
+        final FeatureService featureService = mock(FeatureService.class);
+        final SecuritySystemIndices systemIndices = new SecuritySystemIndices(clusterService.getSettings());
+        systemIndices.init(client, featureService, clusterService, TestProjectResolvers.singleProject(projectId));
+        final SecurityIndexManager securityIndex = systemIndices.getMainIndexManager();
+        final NativeRolesStore rolesStore = new NativeRolesStore(
+            Settings.EMPTY,
+            client,
+            TestUtils.newTestLicenseState(),
+            securityIndex,
+            clusterService,
+            mock(ReservedRoleNameChecker.class),
+            mock(NamedXContentRegistry.class)
+        );
+        securityIndex.clusterChanged(new ClusterChangedEvent("test", getClusterStateWithSecurityIndex(projectId), getEmptyClusterState()));
+
+        final RoleDescriptor roleDescriptor = new RoleDescriptor(
+            "test-role",
+            null,
+            null,
+            null,
+            new ConfigurableClusterPrivilege[] {
+                new ConfigurableClusterPrivileges.ManageServiceAccountsPrivilege(Set.of("apps/*"), Set.of("ingest-reader")) },
+            null,
+            null,
+            null
+        );
+
+        final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+        putRole(rolesStore, roleDescriptor, future);
+        final IllegalStateException e = expectThrows(IllegalStateException.class, future::actionGet);
+        assertThat(e.getMessage(), containsString("service account manage privilege"));
     }
 
     public void testGetRoleWhenDisabled() throws Exception {

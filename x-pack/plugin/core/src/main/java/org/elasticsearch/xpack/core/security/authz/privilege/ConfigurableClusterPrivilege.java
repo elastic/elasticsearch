@@ -43,7 +43,8 @@ public interface ConfigurableClusterPrivilege extends NamedWriteable, ToXContent
         APPLICATION(new ParseField("application")),
         PROFILE(new ParseField("profile")),
         ROLE(new ParseField("role")),
-        DATASOURCE(new ParseField("data_source"));
+        DATASOURCE(new ParseField("data_source")),
+        SERVICE_ACCOUNT(new ParseField("service_account"));
 
         public final ParseField field;
 

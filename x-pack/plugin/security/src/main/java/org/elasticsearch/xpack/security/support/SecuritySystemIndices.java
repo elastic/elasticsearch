@@ -39,6 +39,7 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECU
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SecurityMainIndexMappingVersion.ADD_ESQL_GLOBAL_DATASOURCE_PRIVILEGE;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SecurityMainIndexMappingVersion.ADD_MANAGE_ROLES_PRIVILEGE;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SecurityMainIndexMappingVersion.ADD_SERVICE_ACCOUNT_ATTRIBUTION_FIELDS;
+import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SecurityMainIndexMappingVersion.ADD_SERVICE_ACCOUNT_MANAGE_PRIVILEGE;
 
 /**
  * Responsible for handling system indices for the Security plugin
@@ -466,6 +467,32 @@ public class SecuritySystemIndices {
                                         builder.endObject();
                                         builder.startObject("privileges");
                                         builder.field("type", "keyword");
+                                        builder.endObject();
+                                    }
+                                    builder.endObject();
+                                }
+                                builder.endObject();
+                            }
+                            if (mappingVersion.onOrAfter(ADD_SERVICE_ACCOUNT_MANAGE_PRIVILEGE)) {
+                                builder.startObject("service_account");
+                                {
+                                    builder.field("type", "object");
+                                    builder.startObject("properties");
+                                    {
+                                        builder.startObject("manage");
+                                        {
+                                            builder.field("type", "object");
+                                            builder.startObject("properties");
+                                            {
+                                                builder.startObject("names");
+                                                builder.field("type", "keyword");
+                                                builder.endObject();
+                                                builder.startObject("roles");
+                                                builder.field("type", "keyword");
+                                                builder.endObject();
+                                            }
+                                            builder.endObject();
+                                        }
                                         builder.endObject();
                                     }
                                     builder.endObject();
@@ -1211,6 +1238,11 @@ public class SecuritySystemIndices {
          * {@code api_key}.
          */
         ADD_SERVICE_ACCOUNT_ATTRIBUTION_FIELDS(6),
+
+        /**
+         * Mapping for {@code global.service_account} configurable cluster privilege on roles.
+         */
+        ADD_SERVICE_ACCOUNT_MANAGE_PRIVILEGE(7),
 
         ;
 

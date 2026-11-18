@@ -15,6 +15,7 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.security.action.service.AuthorizedServiceAccounts;
 import org.elasticsearch.xpack.core.security.action.service.QueryServiceAccountAction;
 import org.elasticsearch.xpack.core.security.action.service.QueryServiceAccountRequest;
 import org.elasticsearch.xpack.core.security.action.service.QueryServiceAccountResponse;
@@ -33,6 +34,7 @@ import static org.elasticsearch.xpack.security.support.FieldNameTranslators.SERV
  * Turns a query request into a search of the security index. The caller's query and sort are translated and
  * restricted here, before the search is built, so that the store only ever sees a query that cannot reach past the
  * service-account documents. When asked, the profile uids of the matched accounts' authors are looked up subsequently.
+ * A request that authorization restricted to the caller's authorized accounts searches only those.
  */
 public final class TransportQueryServiceAccountAction extends TransportAction<QueryServiceAccountRequest, QueryServiceAccountResponse> {
 
@@ -52,7 +54,11 @@ public final class TransportQueryServiceAccountAction extends TransportAction<Qu
     }
 
     @Override
-    protected void doExecute(Task task, QueryServiceAccountRequest request, ActionListener<QueryServiceAccountResponse> listener) {
+    protected void doExecute(Task task, QueryServiceAccountRequest request, ActionListener<QueryServiceAccountResponse> outerListener) {
+        final AuthorizedServiceAccounts authorizedAccounts = request.getAuthorizedAccounts();
+        final ActionListener<QueryServiceAccountResponse> listener = authorizedAccounts == null
+            ? outerListener
+            : outerListener.map(response -> onlyAuthorized(response, authorizedAccounts));
         final SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.searchSource()
             .version(false)
             .fetchSource(true)
@@ -63,7 +69,7 @@ public final class TransportQueryServiceAccountAction extends TransportAction<Qu
         if (request.getSize() != null) {
             searchSourceBuilder.size(request.getSize());
         }
-        searchSourceBuilder.query(ServiceAccountBoolQueryBuilder.build(request.getQueryBuilder()));
+        searchSourceBuilder.query(ServiceAccountBoolQueryBuilder.build(request.getQueryBuilder(), request.getAuthorizedAccounts()));
         if (request.getFieldSortBuilders() != null) {
             SERVICE_ACCOUNT_FIELD_NAME_TRANSLATORS.translateFieldSortBuilders(request.getFieldSortBuilders(), searchSourceBuilder, null);
         }
@@ -82,6 +88,21 @@ public final class TransportQueryServiceAccountAction extends TransportAction<Qu
                 delegate.map(resolvedInfos -> withInfos(response, resolvedInfos))
             );
         }));
+    }
+
+    /**
+     * The search is already restricted to the authorized accounts. This drops any hit the grants' own matcher rejects,
+     * in case a pattern's query form matches more than the pattern does; the total is left as the search counted it.
+     */
+    private static QueryServiceAccountResponse onlyAuthorized(
+        QueryServiceAccountResponse response,
+        AuthorizedServiceAccounts authorizedAccounts
+    ) {
+        final List<QueryServiceAccountResponse.Item> items = response.getItems()
+            .stream()
+            .filter(item -> authorizedAccounts.test(item.info().principal()))
+            .toList();
+        return items.size() == response.getItems().size() ? response : new QueryServiceAccountResponse(response.getTotal(), items);
     }
 
     /**

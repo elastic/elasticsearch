@@ -29,7 +29,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * It costs one multi-search of the profile index with a search per distinct person,
  * by principal and realm, across all the accounts reported, so it is off unless asked for.
  */
-public class GetServiceAccountRequest extends UntypedActionRequest {
+public class GetServiceAccountRequest extends UntypedActionRequest implements ServiceAccountReadRequest {
 
     @Nullable
     private final String namespace;
@@ -37,6 +37,8 @@ public class GetServiceAccountRequest extends UntypedActionRequest {
     private final String serviceName;
     private final EnumSet<ServiceAccountType> type;
     private final boolean withProfileUid;
+    @Nullable
+    private AuthorizedServiceAccounts authorizedAccounts;
 
     /**
      * Reports on built-in accounts only, which is what this request meant before user-managed accounts existed.
@@ -87,6 +89,20 @@ public class GetServiceAccountRequest extends UntypedActionRequest {
 
     public boolean withProfileUid() {
         return withProfileUid;
+    }
+
+    /**
+     * When set, built-in accounts are not reported, since no grant covers them.
+     */
+    @Override
+    @Nullable
+    public AuthorizedServiceAccounts getAuthorizedAccounts() {
+        return authorizedAccounts;
+    }
+
+    @Override
+    public void restrictToAuthorizedAccounts(AuthorizedServiceAccounts authorizedAccounts) {
+        this.authorizedAccounts = Objects.requireNonNull(authorizedAccounts);
     }
 
     @Override

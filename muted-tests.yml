@@ -614,3 +614,8 @@ tests:
   - :x-pack:plugin:esql-datasource-parquet:test
   method: testSeededRandomPreWarmCell
   issue: https://github.com/elastic/elasticsearch/issues/166445
+- class: org.elasticsearch.xpack.esql.action.ComputeExecutorIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testWokenDriverRunsBeforeQueuedDrivers
+  issue: https://github.com/elastic/elasticsearch/issues/165298

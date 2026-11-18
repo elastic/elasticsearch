@@ -21,6 +21,7 @@ import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.scheduling.QueryScheduler;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.Transports;
@@ -100,16 +101,19 @@ public final class NodeFetchContexts implements Releasable {
 
     /**
      * Opens a single-session reader context for the shard of {@code shardRequest}, and returns the search context the
-     * query phase reads it with. Every resource taken so far is released when it fails.
+     * query phase reads it with. That context charges the breaker of {@code part}, if given. On failure, everything
+     * taken so far is released, {@code part} included.
      */
-    public SearchContext open(ShardSearchRequest shardRequest) throws IOException {
+    public SearchContext open(ShardSearchRequest shardRequest, @Nullable QueryScheduler.QueryPart part) throws IOException {
         ReaderContext readerContext = null;
         SearchContext querySearchContext = null;
         Releasable lease = null;
         boolean success = false;
         try {
             readerContext = searchService.createOrGetReaderContext(shardRequest, task);
-            querySearchContext = searchService.createSearchContext(readerContext, shardRequest, SearchService.NO_TIMEOUT);
+            querySearchContext = searchService.createSearchContext(readerContext, shardRequest, SearchService.NO_TIMEOUT, part);
+            // the search context closes the part from here on
+            part = null;
             // taken last: the query search context already holds a reference, so the context can't be gone.
             // -1 leaves the keep-alive as it is, close sets it.
             lease = readerContext.markAsUsed(-1L);
@@ -118,7 +122,7 @@ public final class NodeFetchContexts implements Releasable {
             return querySearchContext;
         } finally {
             if (success == false) {
-                Releasables.closeWhileHandlingException(lease, querySearchContext);
+                Releasables.closeWhileHandlingException(lease, querySearchContext, part);
                 if (readerContext != null) {
                     searchService.freeReaderContext(readerContext.id());
                 }

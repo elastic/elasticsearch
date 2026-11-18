@@ -541,8 +541,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                 );
             }
             try (SecureString transportKeystorePassword = newKeystorePassword()) {
-                KeyStore transportKeystore = KeyStore.getInstance("PKCS12");
-                transportKeystore.load(null);
+                KeyStore transportKeystore = CliKeyStoreFormat.forRuntime().newKeyStore();
                 // the PKCS12 keystore and the contained private key use the same password
                 transportKeystore.setKeyEntry(
                     TRANSPORT_KEY_KEYSTORE_ENTRY,
@@ -563,8 +562,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                 nodeKeystore.setString("xpack.security.transport.ssl.truststore.secure_password", transportKeystorePassword.getChars());
             }
             try (SecureString httpKeystorePassword = newKeystorePassword()) {
-                KeyStore httpKeystore = KeyStore.getInstance("PKCS12");
-                httpKeystore.load(null);
+                KeyStore httpKeystore = CliKeyStoreFormat.forRuntime().newKeyStore();
                 // the keystore contains both the node's and the CA's private keys
                 // both keys are encrypted using the same password as the PKCS12 keystore they're contained in
                 httpKeystore.setKeyEntry(

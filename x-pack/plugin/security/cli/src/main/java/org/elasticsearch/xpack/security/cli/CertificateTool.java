@@ -389,7 +389,7 @@ class CertificateTool extends MultiCommand {
                 passwordOption,
                 terminal,
                 false,
-                password -> CertParsingUtils.readPkcs12KeyPairs(path, password, a -> password)
+                password -> CliKeyStoreFormat.forRuntime().readKeyPairs(path, password, a -> password)
             );
 
             if (keys.size() != 1) {
@@ -582,8 +582,7 @@ class CertificateTool extends MultiCommand {
             char[] password,
             Terminal terminal
         ) throws Exception {
-            final KeyStore keyStore = KeyStore.getInstance("PKCS12");
-            keyStore.load(null);
+            final KeyStore keyStore = CliKeyStoreFormat.forRuntime().newKeyStore();
             withPassword(fileName, password, terminal, true, keyStorePassword -> {
                 if (isAscii(keyStorePassword)) {
                     keyStore.setKeyEntry(alias, pair.key, keyStorePassword, new Certificate[] { pair.cert });

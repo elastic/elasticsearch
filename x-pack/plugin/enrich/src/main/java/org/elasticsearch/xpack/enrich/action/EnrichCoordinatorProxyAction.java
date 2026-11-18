@@ -288,7 +288,7 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
 
         /**
          * The slots of one remote request. Slots with equal search requests share one multi-search item, slot {@code i} is answered
-         * by item {@link #itemOfSlot(int) itemOfSlot(i)}. 
+         * by item {@link #itemOfSlot(int) itemOfSlot(i)}.
          */
         static final class Batch {
             private final List<Slot> slots;

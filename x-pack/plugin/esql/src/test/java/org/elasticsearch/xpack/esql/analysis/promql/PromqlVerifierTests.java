@@ -234,7 +234,7 @@ public class PromqlVerifierTests extends ESTestCase {
             "sum by (host) (network.bytes_in) or network.connections",
             "network.connections or max by (host) (network.bytes_in)"
         )) {
-            assertSetOperatorNeedsTypedLabelContainer(query, "requires a typed label container");
+            assertSetOperatorNeedsTypedLabelContainer(query, "is not supported on every participating node");
         }
     }
 
@@ -289,16 +289,6 @@ public class PromqlVerifierTests extends ESTestCase {
             assertTrue(query, tsdb.query("PROMQL index=test step=5m " + query).resolved());
         }
         keywordTsdb.error("PROMQL index=test step=5m " + query, containsString(keywordMessage));
-    }
-
-    private void assertNeedsTypedLabelContainer(String query) {
-        if (EsqlCapabilities.Cap.ENABLE_TSMD_DATA_TYPE.isEnabled()) {
-            assertTrue(query, tsdb.query("PROMQL index=test step=5m " + query).resolved());
-        }
-        keywordTsdb.error(
-            "PROMQL index=test step=5m " + query,
-            containsString("leaving labels out of _timeseries requires a typed label container")
-        );
     }
 
     public void testUnionWithScalarOperandIsRejected() {

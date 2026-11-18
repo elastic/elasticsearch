@@ -133,7 +133,7 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
                 }
 
                 @Override
-                void verify(LogicalPlan plan1) {
+                void verify(LogicalPlan rewritten) {
                     // what is left is a typed container every node reads
                 }
             }.apply(plan);
@@ -173,9 +173,9 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
             }
 
             @Override
-            void verify(LogicalPlan plan1) {
+            void verify(LogicalPlan rewritten) {
                 // A keyword container is what the source loads, and no ts_* call takes one: none may be left.
-                plan1.forEachDown(node -> node.forEachExpression(AbstractTimeSeriesMetadataFunction.class, e -> {
+                rewritten.forEachDown(node -> node.forEachExpression(AbstractTimeSeriesMetadataFunction.class, e -> {
                     throw new VerificationException(
                         List.of(
                             Failure.fail(
@@ -285,8 +285,9 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
 
     /**
      * One run of the rule over one plan. All state is kept by the id of a label container attribute of the plan: step 1 fills what
-     * the plan asks of each container, step 2 what each container is in the rewritten plan. The hooks below are what a typed
-     * ({@link #typed}) and a keyword ({@link #keyword}) label container do differently: each run overrides every one of them.
+     * the plan asks of each container, step 2 what each container is in the rewritten plan. The hooks below are what a typed and a
+     * keyword label container do differently: each run {@link #apply(LogicalPlan, AnalyzerContext)} makes overrides every one of
+     * them.
      */
     abstract static class Run {
         /** Step 1: the labels read by name off each container. */
@@ -482,7 +483,7 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
          * the labels promoted out of it. A promoted label the container {@link #holds} is in both, alike. A label neither promoted
          * nor held is absent.
          */
-        private static final class Parts {
+        static final class Parts {
             /** What is left of the container; null when nothing is. */
             private @Nullable Expression container;
             /** The labels the container is without: left out of it, written over outside of it, or never in it. */

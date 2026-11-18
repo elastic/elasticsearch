@@ -22,9 +22,9 @@ import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.problems.Problem;
-import org.gradle.api.problems.ProblemId;
 import org.gradle.api.problems.ProblemReporter;
 import org.gradle.api.problems.Problems;
+import org.gradle.api.problems.ThirdLevelProblemGroup;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.specs.Spec;
@@ -45,7 +45,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -128,6 +127,7 @@ public abstract class DependencyLicensesTask extends AbstractDependenciesTask {
     private LinkedHashSet<String> ignoreFiles = new LinkedHashSet<>();
     private ProjectLayout projectLayout;
     private final ProblemReporter problemReporter;
+    private final ThirdLevelProblemGroup problemGroup;
     private List<Problem> collectedProblems;
 
     @Inject
@@ -135,6 +135,7 @@ public abstract class DependencyLicensesTask extends AbstractDependenciesTask {
         this.projectLayout = projectLayout;
         licensesDir = objects.directoryProperty().convention(projectLayout.getProjectDirectory().dir("licenses"));
         this.problemReporter = problems.getReporter();
+        this.problemGroup = ElasticsearchBuildProblems.DEPENDENCY_LICENSES.group(problems);
     }
 
     @InputFiles
@@ -192,7 +193,6 @@ public abstract class DependencyLicensesTask extends AbstractDependenciesTask {
         if (dependencies.isEmpty()) {
             if (licensesDirAsFile.exists() && allIgnored() == false) {
                 reportProblem(
-                    "no-dependencies",
                     "Licenses dir exists without dependencies",
                     "Licenses dir " + licensesDirAsFile + " exists, but there are no dependencies",
                     "Remove the licenses directory or add dependencies"
@@ -203,7 +203,6 @@ public abstract class DependencyLicensesTask extends AbstractDependenciesTask {
         } else if (licensesDirAsFile.exists() == false) {
             String deps = dependencies.getFiles().stream().map(File::getName).collect(Collectors.joining("\n"));
             reportProblem(
-                "missing-licenses-dir",
                 "Licenses directory missing",
                 "Licenses dir " + licensesDirAsFile + " does not exist, but there are dependencies: " + deps,
                 "Create a licenses directory with LICENSE, NOTICE, and SHA files for each dependency"
@@ -254,12 +253,9 @@ public abstract class DependencyLicensesTask extends AbstractDependenciesTask {
         }
     }
 
-    private void reportProblem(String id, String displayName, String details, String solution) {
+    private void reportProblem(String name, String details, String solution) {
         collectedProblems.add(
-            problemReporter.create(
-                ProblemId.create(id, displayName, ElasticsearchBuildProblems.DEPENDENCY_LICENSES),
-                spec -> spec.contextualLabel(details).details(details).solution(solution)
-            )
+            problemReporter.create(problemGroup.problemId(name), spec -> spec.contextualLabel(details).details(details).solution(solution))
         );
     }
 
@@ -277,12 +273,7 @@ public abstract class DependencyLicensesTask extends AbstractDependenciesTask {
 
     private void checkUnused(String item, Boolean exists, String type) {
         if (exists == false) {
-            reportProblem(
-                "unused-" + type,
-                "Unused " + type + " file",
-                "Unused " + type + " " + item,
-                "Remove the unused " + type + " file " + item
-            );
+            reportProblem("Unused " + type + " file", "Unused " + type + " " + item, "Remove the unused " + type + " file " + item);
         }
     }
 
@@ -326,7 +317,6 @@ public abstract class DependencyLicensesTask extends AbstractDependenciesTask {
 
         if (counters.containsKey(fileName) == false) {
             reportProblem(
-                "missing-" + type.toLowerCase(Locale.ROOT),
                 "Missing " + type + " file",
                 "Missing " + type + " for " + jarName + ", expected in " + fileName,
                 "Add a " + type + " file named " + fileName + " to the licenses directory"

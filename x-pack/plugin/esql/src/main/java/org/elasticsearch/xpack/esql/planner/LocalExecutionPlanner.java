@@ -2598,10 +2598,7 @@ public class LocalExecutionPlanner {
                 // Bridge the enclosing ES|QL query's own contracts so an EQL source honors them like FROM does.
                 configuration.allowPartialResults(),
                 QuerySettings.PROJECT_ROUTING.get(configuration.resolvedSettings()),
-                // The out-of-band request filter is not yet bridged to the EQL delegate. A query that combines an EQL
-                // source with a request filter is rejected in EsqlSession, so the filter is never silently ignored;
-                // EnclosingQuery.filter stays null here until the coordinator-local execution context is built.
-                null
+                eqlSource.requestFilter()
             )
         );
         // Reuse the coordinator's already-fetched field-caps so the EQL engine skips its own resolution; a null carrier

@@ -165,10 +165,8 @@ public final class EqlRequests {
     /**
      * The settings an EQL source inherits from the ES|QL query that hosts it — bridged from the query, not from the
      * command's own {@code WITH} options, so an EQL source honors the same contract as a {@code FROM} source in the
-     * same query: the partial-results contract and cross-project routing. The out-of-band request {@code filter} is
-     * reserved for a future bridge and is always null today — {@code EsqlSession} rejects a query that combines a
-     * request filter with an EQL source rather than applying it post-hoc, which would strip events out of sequence
-     * matches.
+     * same query: the result-truncation cap (the {@code size} fallback), the partial-results contract, cross-project
+     * routing, and the out-of-band request {@code filter}.
      */
     public record EnclosingQuery(boolean allowPartialSearchResults, @Nullable String projectRouting, @Nullable QueryBuilder filter) {}
 

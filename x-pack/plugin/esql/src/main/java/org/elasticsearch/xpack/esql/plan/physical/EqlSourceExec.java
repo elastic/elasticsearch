@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -48,6 +49,8 @@ public class EqlSourceExec extends LeafExec {
     // semantics).
     @Nullable
     private final FieldCapabilitiesResponse preResolvedFieldCaps;
+    @Nullable
+    private final QueryBuilder requestFilter;
 
     public EqlSourceExec(
         Source source,
@@ -57,7 +60,8 @@ public class EqlSourceExec extends LeafExec {
         EqlRelation.Mode mode,
         List<Attribute> attributes,
         Integer pushedLimit,
-        @Nullable FieldCapabilitiesResponse preResolvedFieldCaps
+        @Nullable FieldCapabilitiesResponse preResolvedFieldCaps,
+        @Nullable QueryBuilder requestFilter
     ) {
         super(source);
         this.query = query;
@@ -67,6 +71,7 @@ public class EqlSourceExec extends LeafExec {
         this.attributes = attributes;
         this.pushedLimit = pushedLimit;
         this.preResolvedFieldCaps = preResolvedFieldCaps;
+        this.requestFilter = requestFilter;
     }
 
     @SuppressWarnings("unchecked")
@@ -79,12 +84,16 @@ public class EqlSourceExec extends LeafExec {
             in.readEnum(EqlRelation.Mode.class),
             in.readNamedWriteableCollectionAsList(Attribute.class),
             in.readOptionalVInt(),
+            null,
             null
         );
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        if (requestFilter != null) {
+            throw new IllegalStateException("an EQL source carrying a request filter is coordinator-local and must not be serialized");
+        }
         // Physical plans do not preserve Source across the wire (it is coordinator-only); mirror EsSourceExec.
         Source.EMPTY.writeTo(out);
         out.writeString(query);
@@ -102,7 +111,18 @@ public class EqlSourceExec extends LeafExec {
 
     @Override
     protected NodeInfo<? extends PhysicalPlan> info() {
-        return NodeInfo.create(this, EqlSourceExec::new, query, indices, options, mode, attributes, pushedLimit, preResolvedFieldCaps);
+        return NodeInfo.create(
+            this,
+            EqlSourceExec::new,
+            query,
+            indices,
+            options,
+            mode,
+            attributes,
+            pushedLimit,
+            preResolvedFieldCaps,
+            requestFilter
+        );
     }
 
     public String query() {
@@ -124,6 +144,11 @@ public class EqlSourceExec extends LeafExec {
         return preResolvedFieldCaps;
     }
 
+    @Nullable
+    public QueryBuilder requestFilter() {
+        return requestFilter;
+    }
+
     public Map<String, Object> options() {
         return options;
     }
@@ -139,7 +164,7 @@ public class EqlSourceExec extends LeafExec {
 
     @Override
     public int hashCode() {
-        return Objects.hash(query, indices, options, mode, attributes, pushedLimit);
+        return Objects.hash(query, indices, options, mode, attributes, pushedLimit, requestFilter);
     }
 
     @Override
@@ -156,6 +181,7 @@ public class EqlSourceExec extends LeafExec {
             && Objects.equals(options, other.options)
             && mode == other.mode
             && Objects.equals(attributes, other.attributes)
-            && Objects.equals(pushedLimit, other.pushedLimit);
+            && Objects.equals(pushedLimit, other.pushedLimit)
+            && Objects.equals(requestFilter, other.requestFilter);
     }
 }

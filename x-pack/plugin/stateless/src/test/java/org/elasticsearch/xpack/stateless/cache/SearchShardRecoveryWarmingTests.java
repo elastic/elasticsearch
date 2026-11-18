@@ -43,7 +43,7 @@ import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeout.TimeoutCont
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.SearchRecoveryWaitOutcome;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.WarmTarget;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
-import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
@@ -201,7 +201,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 StatelessCompoundCommit commit,
                 BlobStoreCacheDirectory directory,
                 WarmingRatioProvider warmingRatioProvider,
-                @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
+                @Nullable Map<BccBlob, WarmTarget> endTargetsToWarm,
                 boolean preWarmForIdLookup,
                 ActionListener<Void> listener
             ) {
@@ -331,7 +331,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 mockDirectory(),
                 mock(WarmingRatioProvider.class),
                 Map.of(
-                    new BlobFile(BatchedCompoundCommit.blobNameFromGeneration(1), new PrimaryTermAndGeneration(0, 1)),
+                    new BccBlob(BatchedCompoundCommit.blobNameFromGeneration(1), new PrimaryTermAndGeneration(0, 1)),
                     WarmTarget.withUnknownTimestamp(1L, 1L)
                 ),
                 resume
@@ -390,7 +390,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 null,
                 mock(WarmingRatioProvider.class),
                 Map.of(
-                    new BlobFile(BatchedCompoundCommit.blobNameFromGeneration(1), new PrimaryTermAndGeneration(0, 1)),
+                    new BccBlob(BatchedCompoundCommit.blobNameFromGeneration(1), new PrimaryTermAndGeneration(0, 1)),
                     WarmTarget.withUnknownTimestamp(1L, 1L)
                 ),
                 resume
@@ -451,7 +451,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 mockDirectory(),
                 mock(WarmingRatioProvider.class),
                 Map.of(
-                    new BlobFile(BatchedCompoundCommit.blobNameFromGeneration(1), new PrimaryTermAndGeneration(0, 1)),
+                    new BccBlob(BatchedCompoundCommit.blobNameFromGeneration(1), new PrimaryTermAndGeneration(0, 1)),
                     new WarmTarget(1L, 1L, 1L)
                 ),
                 resume
@@ -761,7 +761,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 StatelessCompoundCommit commit,
                 BlobStoreCacheDirectory directory,
                 @Nullable WarmingRatioProvider warmingRatioProvider,
-                @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
+                @Nullable Map<BccBlob, WarmTarget> endTargetsToWarm,
                 boolean preWarmForIdLookup,
                 ActionListener<Void> listener
             ) {}

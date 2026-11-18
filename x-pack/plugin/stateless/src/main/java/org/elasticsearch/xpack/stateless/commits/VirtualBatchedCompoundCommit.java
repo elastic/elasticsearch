@@ -130,7 +130,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
     private final AtomicLong replicatedContentSizeBytes = new AtomicLong();
     private final AtomicLong copiedGenerationalFilesSizeBytes = new AtomicLong();
     private final AtomicReference<Thread> appendingCommitThread = new AtomicReference<>();
-    private final BlobFile blobFile;
+    private final BccBlob bccBlob;
     private final PrimaryTermAndGeneration primaryTermAndGeneration;
     private final long creationTimeInMillis;
     // VBCC can no longer be appended to once it is frozen
@@ -194,7 +194,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         this.uploadedBlobLocationsSupplier = uploadedBlobLocationsSupplier;
         this.pendingCompoundCommits = new ConcurrentSkipListSet<>();
         this.primaryTermAndGeneration = new PrimaryTermAndGeneration(primaryTerm, generation);
-        this.blobFile = new BlobFile(BatchedCompoundCommit.blobNameFromGeneration(generation), primaryTermAndGeneration);
+        this.bccBlob = new BccBlob(BatchedCompoundCommit.blobNameFromGeneration(generation), primaryTermAndGeneration);
         this.creationTimeInMillis = timeInMillisSupplier.getAsLong();
         this.notifiedSearchNodeIds = ConcurrentCollections.newConcurrentSet();
         this.cacheRegionSizeInBytes = cacheRegionSize;
@@ -385,7 +385,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
 
         final long sizeInBytes = headerLength + replicatedContentHeader.dataSizeInBytes() + internalFilesSize + extraContentSize;
         if (logger.isDebugEnabled()) {
-            var referencedBlobs = referencedFiles.values().stream().map(location -> location.blobFile().blobName()).distinct().count();
+            var referencedBlobs = referencedFiles.values().stream().map(location -> location.bccBlob().blobName()).distinct().count();
             logger.debug(
                 """
                     {}{} appending commit ({} bytes). References external {} files in {} other CCs and adds
@@ -438,7 +438,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
 
         for (var internalFile : internalFiles) {
             var fileLength = internalFile.length();
-            var blobLocation = new BlobLocation(blobFile, fileOffset, fileLength);
+            var blobLocation = new BlobLocation(bccBlob, fileOffset, fileLength);
 
             var previousFile = commitFiles.put(internalFile.name(), blobLocation);
             assert previousFile == null : internalFile.name();
@@ -461,7 +461,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             : Maps.newHashMapWithExpectedSize(extraContentFiles.size());
         for (var extraFile : extraContentFiles) {
             var fileLength = extraFile.length();
-            var blobLocation = new BlobLocation(blobFile, fileOffset, fileLength);
+            var blobLocation = new BlobLocation(bccBlob, fileOffset, fileLength);
 
             var previousFile = extraContent.put(extraFile.name(), blobLocation);
             assert previousFile == null : extraFile.name();
@@ -600,7 +600,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
                 })
                 .get();
             final var ccLocation = new BlobLocation(
-                maxBlobLocation.blobFile(),
+                maxBlobLocation.bccBlob(),
                 maxBlobLocation.offset() + maxBlobLocation.fileLength() - cc.sizeInBytes(),
                 cc.sizeInBytes()
             );
@@ -841,7 +841,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
     }
 
     public String getBlobName() {
-        return blobFile.blobName();
+        return bccBlob.blobName();
     }
 
     public ShardId getShardId() {

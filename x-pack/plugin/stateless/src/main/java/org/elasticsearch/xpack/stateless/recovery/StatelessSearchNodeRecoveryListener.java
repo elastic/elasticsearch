@@ -28,7 +28,7 @@ import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSett
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.WarmTarget;
 import org.elasticsearch.xpack.stateless.cache.WarmingRatioProviderFactory;
-import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
@@ -161,7 +161,7 @@ public class StatelessSearchNodeRecoveryListener extends AbstractStatelessRecove
                 SubscribableListener.<SearchRecoveryWarmingInputs>newForked(l2 -> {
                     if (useInternalFilesReplicatedContentForSearchShards) {
                         Map<String, BlobFileRanges> blobFileRanges = ConcurrentCollections.newConcurrentMap();
-                        Map<BlobFile, WarmTarget> targetsToWarm = ConcurrentCollections.newConcurrentMap();
+                        Map<BccBlob, WarmTarget> targetsToWarm = ConcurrentCollections.newConcurrentMap();
                         ObjectStoreService.readReferencedCompoundCommitsUsingCache(
                             compoundCommit.commitFiles(),
                             batchedCompoundCommit,
@@ -177,7 +177,7 @@ public class StatelessSearchNodeRecoveryListener extends AbstractStatelessRecove
                                         referencedCompoundCommit.referencedInternalFiles()
                                     )
                                 );
-                                var bccBlobFile = referencedCompoundCommit.statelessCompoundCommitReference().bccBlobFile();
+                                var bccBlobFile = referencedCompoundCommit.statelessCompoundCommitReference().bccBlob();
                                 // Aggregate a single warm target per BCC blob: the furthest offset to warm, stamped with the most recent
                                 // representative timestamp among the referenced CCs sharing that blob.
                                 // blobSize is 0 as a sentinel until the bccBlobSizeConsumer fills it in.
@@ -294,7 +294,7 @@ public class StatelessSearchNodeRecoveryListener extends AbstractStatelessRecove
         );
     }
 
-    private record SearchRecoveryWarmingInputs(Map<String, BlobFileRanges> blobFileRanges, Map<BlobFile, WarmTarget> targetsToWarm) {
+    private record SearchRecoveryWarmingInputs(Map<String, BlobFileRanges> blobFileRanges, Map<BccBlob, WarmTarget> targetsToWarm) {
         public SearchRecoveryWarmingInputs {
             Objects.requireNonNull(blobFileRanges);
             Objects.requireNonNull(targetsToWarm);

@@ -32,7 +32,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
-import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.InternalFilesReplicatedRanges;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
@@ -241,7 +241,7 @@ public class HollowShardRecoveryStateTests extends ESTestCase {
 
     private static BatchedCompoundCommit hollowCommit(long generation, Set<String> files) {
         final var termAndGeneration = new PrimaryTermAndGeneration(1, generation);
-        final var blobFile = new BlobFile(BatchedCompoundCommit.blobNameFromGeneration(generation), termAndGeneration);
+        final var blobFile = new BccBlob(BatchedCompoundCommit.blobNameFromGeneration(generation), termAndGeneration);
         final var commit = StatelessCompoundCommit.newHollowStatelessCompoundCommit(
             new ShardId("test", "uuid", 0),
             termAndGeneration,

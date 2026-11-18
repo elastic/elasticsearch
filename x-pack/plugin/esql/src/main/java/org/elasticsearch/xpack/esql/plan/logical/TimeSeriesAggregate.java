@@ -420,6 +420,17 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
                 )
             );
         }
+        // reject `TS metrics | NESTED_EXPAND ... | STATS ...`
+        if (p instanceof NestedExpand nestedExpand) {
+            failures.add(
+                fail(
+                    nestedExpand,
+                    "nested_expand [{}] in the time-series before the first aggregation [{}] is not allowed",
+                    nestedExpand.sourceText(),
+                    this.sourceText()
+                )
+            );
+        }
         List<LogicalPlan> children = p instanceof AbstractSubqueryJoin subqueryJoin ? List.of(subqueryJoin.left()) : p.children();
         for (LogicalPlan child : children) {
             checkCommandsBeforeAggregation(child, failures);

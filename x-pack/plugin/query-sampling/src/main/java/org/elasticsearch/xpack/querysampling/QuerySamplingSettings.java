@@ -113,19 +113,6 @@ public final class QuerySamplingSettings {
     );
 
     /**
-     * Share of captured searches also kept as events (a uniform sample of arrivals, unlike the once-per-query
-     * sample). 0 keeps none.
-     */
-    public static final Setting<Double> EVENT_SLICE_RATE = Setting.doubleSetting(
-        "xpack.query_sampling.event_slice_rate",
-        0.0,
-        0.0,
-        1.0,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
-    /**
      * γ, the scale of the pick probability: the first captured arrival of a query is picked with
      * {@code min(1, γ·ln(1 + 1/capture_rate))}, about 0.69·γ when every search is captured, falling as it is searched more.
      */
@@ -174,7 +161,6 @@ public final class QuerySamplingSettings {
             SPATIAL_CLUSTERS,
             SPATIAL_BALANCE,
             HARDNESS_TILT,
-            EVENT_SLICE_RATE,
             ACCEPTANCE_SCALE,
             HEAD_THRESHOLD,
             MULTIPLICITY_WINDOW

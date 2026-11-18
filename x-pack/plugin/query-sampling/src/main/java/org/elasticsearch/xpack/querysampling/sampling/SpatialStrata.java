@@ -16,7 +16,8 @@ import org.elasticsearch.xpack.querysampling.dedup.Stratum;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -34,8 +35,9 @@ import java.util.function.Supplier;
  * decay, so after a shift in the queries the balance weakens until the node restarts. The estimates stay unbiased.
  * <p>
  * One instance lives as long as the node and keeps the clusters of a space (a field and its dimensions) for each one it
- * meets, at most {@link #MAX_SPACES}: the fields that are searched are not known in advance, and queries of a space
- * beyond the limit are not grouped, which gives them a factor of 1.
+ * meets, at most {@link #MAX_SPACES}: the fields that are searched are not known in advance. When there are more, the space
+ * that was used least recently is dropped: its queries are no longer grouped, which gives them a factor of 1, and if it is
+ * met again it starts over with a new warm-up.
  * <p>
  * Used by the pipeline thread only, which is why the spaces need no lock; only the balance, set by a setting, is volatile.
  */
@@ -53,7 +55,8 @@ public final class SpatialStrata {
     private final int clusters;
     private final int warmup;
     private final Supplier<Random> random;
-    private final Map<String, Space> spaces = new HashMap<>();
+    // in the order of use, the least recently used first
+    private final Map<String, Space> spaces = new LinkedHashMap<>(16, 0.75f, true);
     private volatile double balance;
 
     /**
@@ -76,7 +79,7 @@ public final class SpatialStrata {
 
     /**
      * The receiver is called on this thread with the cluster, once the clusters are fitted. It is never called if no
-     * clusters are wanted, the vector is not finite, or there are too many spaces.
+     * clusters are wanted or the vector is not finite.
      */
     public void assign(String field, float[] vector, Consumer<Stratum> receiver) {
         if (clusters == 0 || vector.length == 0) {
@@ -91,7 +94,10 @@ public final class SpatialStrata {
         Space space = spaces.get(name);
         if (space == null) {
             if (spaces.size() >= MAX_SPACES) {
-                return;
+                // the one that has not been used for the longest time makes room, so spaces of fields that are gone do not stay
+                Iterator<String> leastRecentlyUsed = spaces.keySet().iterator();
+                leastRecentlyUsed.next();
+                leastRecentlyUsed.remove();
             }
             space = new Space(clusters, vector.length, warmup);
             spaces.put(name, space);

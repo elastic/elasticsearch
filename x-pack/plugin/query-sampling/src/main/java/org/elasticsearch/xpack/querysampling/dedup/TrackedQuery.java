@@ -33,14 +33,6 @@ public final class TrackedQuery {
         lastArrivalWeight = weight;
     }
 
-    /** An arrival kept as an event counts once; its chance of being kept is capture rate times slice rate. */
-    public static TrackedQuery event(double captureRate, double sliceRate) {
-        TrackedQuery event = new TrackedQuery();
-        event.recordArrival(1.0 / captureRate);
-        event.recordDraw(captureRate * sliceRate);
-        return event;
-    }
-
     // called for every arrival, also after the query was picked, so the inclusion probability reflects all draws
     public synchronized void recordDraw(double acceptProbability) {
         logSurvival += Math.log1p(-acceptProbability);

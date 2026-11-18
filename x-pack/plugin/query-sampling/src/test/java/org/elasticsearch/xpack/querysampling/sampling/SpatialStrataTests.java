@@ -125,15 +125,24 @@ public class SpatialStrataTests extends ESTestCase {
         assertThat(assign(strata, "body", 1, 1).get().space(), equalTo("body/2"));
     }
 
-    public void testSpacesBeyondTheLimitAreNotGroupedAndKnownOnesStillAre() {
-        SpatialStrata strata = balancing(1, 1, 1.0);
+    public void testBeyondTheLimitTheSpaceUsedLeastRecentlyIsDropped() {
+        SpatialStrata strata = balancing(1, 2, 1.0); // a space waits for two queries before it tells their cluster
         for (int i = 0; i < SpatialStrata.MAX_SPACES; i++) {
-            assertNotNull(assign(strata, "field" + i, 1).get());
+            AtomicReference<Stratum> first = assign(strata, "field" + i, 1);
+            AtomicReference<Stratum> second = assign(strata, "field" + i, 2);
+            assertNotNull(first.get());
+            assertNotNull(second.get());
         }
+        assertNotNull("field0 is used, so field1 is the one used least recently", assign(strata, "field0", 3).get());
 
-        assertNull("one space too many", assign(strata, "one-too-many", 1).get());
-        assertThat("it has no cluster, so its factor is 1", strata.factor(new Stratum("one-too-many/1", 0)), equalTo(1.0));
-        assertNotNull("a space that is known goes on", assign(strata, "field0", 2).get());
+        AtomicReference<Stratum> beyond = assign(strata, "beyond", 1);
+        assertNull("a new space starts with its warmup", beyond.get());
+        assign(strata, "beyond", 2);
+        assertNotNull("it is grouped, as there is room for it now", beyond.get());
+
+        assertNull("field1 was dropped, so it starts over", assign(strata, "field1", 4).get());
+        assertNotNull("field0 was used lately and is still there", assign(strata, "field0", 5).get());
+        assertThat("a dropped space has no cluster any more, so its factor is 1", strata.factor(new Stratum("field2/1", 0)), equalTo(1.0));
     }
 
     public void testTheFactorIsOneWithoutBalanceAClusterOrAKnownSpace() {

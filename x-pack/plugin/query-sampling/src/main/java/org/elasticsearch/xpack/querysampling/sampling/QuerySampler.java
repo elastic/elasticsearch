@@ -126,6 +126,10 @@ public final class QuerySampler {
         regulate();
         TrackedQuery.Weights weights = query.weights();
         double multiplicity = weights.weightedMultiplicity();
+        // The hottest queries are always picked, without using the limit. The damping gives a query that is seen a lot a small chance
+        // of being picked, so its weight, one over that chance, is large, and one coin flip on it would swing the whole estimate. At a
+        // chance of 1 its weight is 1 and it adds no variance. There are few of them (a query is head after headThreshold captures),
+        // and a limit must not drop the queries that matter most.
         boolean head = weights.multiplicity() >= headThreshold;
         double probability = 1.0;
         if (head == false) {

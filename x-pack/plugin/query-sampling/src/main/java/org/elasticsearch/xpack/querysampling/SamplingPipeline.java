@@ -7,14 +7,12 @@
 
 package org.elasticsearch.xpack.querysampling;
 
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.querysampling.capture.CapturedSearch;
 import org.elasticsearch.xpack.querysampling.dedup.MultiplicityTracker;
 import org.elasticsearch.xpack.querysampling.dedup.QueryFingerprint;
 import org.elasticsearch.xpack.querysampling.dedup.TrackedQuery;
-import org.elasticsearch.xpack.querysampling.sampling.EventSlice;
 import org.elasticsearch.xpack.querysampling.sampling.QuerySampler;
 import org.elasticsearch.xpack.querysampling.sampling.SampledQuery;
 
@@ -34,11 +32,9 @@ public final class SamplingPipeline implements Consumer<CapturedSearch> {
     private final MultiplicityTracker tracker;
     private final QuerySampler sampler;
     private final List<Consumer<SampledQuery>> listeners;
-    private final EventSlice events;
     private final LongAdder picked = new LongAdder();
 
-    public SamplingPipeline(MultiplicityTracker tracker, QuerySampler sampler, List<Consumer<SampledQuery>> listeners, EventSlice events) {
-        this.events = events;
+    public SamplingPipeline(MultiplicityTracker tracker, QuerySampler sampler, List<Consumer<SampledQuery>> listeners) {
         this.tracker = tracker;
         this.sampler = sampler;
         this.listeners = List.copyOf(listeners);
@@ -70,13 +66,6 @@ public final class SamplingPipeline implements Consumer<CapturedSearch> {
         if (tracked != null && sampler.offer(tracked)) {
             picked.increment();
             tell(new SampledQuery(fingerprint, captured, tracked));
-        }
-        // event selection is independent of tracking and picking
-        double sliceRate = events.draw();
-        if (sliceRate > 0) {
-            TrackedQuery event = TrackedQuery.event(captured.captureRate(), sliceRate);
-            // events of the same query are distinct documents, so the id is random rather than derived from the query
-            tell(SampledQuery.event(fingerprint, captured, event, UUIDs.randomBase64UUID()));
         }
     }
 

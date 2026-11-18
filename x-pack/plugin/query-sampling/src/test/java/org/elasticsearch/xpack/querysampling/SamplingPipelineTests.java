@@ -7,13 +7,10 @@
 
 package org.elasticsearch.xpack.querysampling;
 
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.querysampling.capture.CapturedQuery;
 import org.elasticsearch.xpack.querysampling.capture.CapturedSearch;
 import org.elasticsearch.xpack.querysampling.dedup.MultiplicityTracker;
-import org.elasticsearch.xpack.querysampling.sampling.EventSlice;
 import org.elasticsearch.xpack.querysampling.sampling.PickBudget;
 import org.elasticsearch.xpack.querysampling.sampling.QuerySampler;
 import org.elasticsearch.xpack.querysampling.sampling.SampledQuery;
@@ -22,9 +19,7 @@ import org.elasticsearch.xpack.querysampling.sampling.SpatialStrata;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
-import java.util.Set;
 
-import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SamplingPipelineTests extends ESTestCase {
@@ -34,7 +29,7 @@ public class SamplingPipelineTests extends ESTestCase {
     private final List<SampledQuery> sampled = new ArrayList<>();
 
     public void testRepeatedQueryIsPickedOnceAndKeepsBeingCounted() {
-        SamplingPipeline pipeline = new SamplingPipeline(tracker, sampler(1.0, 0.0), List.of(sampled::add), new EventSlice());
+        SamplingPipeline pipeline = new SamplingPipeline(tracker, sampler(1.0, 0.0), List.of(sampled::add));
         float[] vector = { 1f, 2f, 3f };
 
         for (int i = 0; i < 5; i++) {
@@ -46,33 +41,6 @@ public class SamplingPipelineTests extends ESTestCase {
         assertThat(tracker.distinct(), equalTo(1));
     }
 
-    public void testSomeCapturedSearchesAreAlsoKeptAsEventsWhateverHappensToTheQuery() {
-        EventSlice events = new EventSlice(() -> picking(0.0));
-        ClusterSettings clusterSettings = new ClusterSettings(
-            Settings.builder().put(QuerySamplingSettings.EVENT_SLICE_RATE.getKey(), 0.25).build(),
-            Set.of(QuerySamplingSettings.EVENT_SLICE_RATE)
-        );
-        events.watch(clusterSettings);
-        MultiplicityTracker tiny = new MultiplicityTracker(1);
-        SamplingPipeline pipeline = new SamplingPipeline(tiny, sampler(0.1, 0.999999), List.of(sampled::add), events);
-        CapturedQuery query = new CapturedQuery(new String[] { "idx" }, "vec", new float[] { 1f }, 10, 100, null, null, List.of(), null);
-
-        pipeline.accept(new CapturedSearch(query, List.of(), 1, 0.5));
-        pipeline.accept(new CapturedSearch(query, List.of(), 1, 0.5));
-        pipeline.accept(search(new float[] { 2f }));
-
-        assertThat(pipeline.picked(), equalTo(0L));
-        assertThat(sampled.size(), equalTo(3));
-        assertTrue(sampled.stream().allMatch(SampledQuery::isEvent));
-        assertThat("two events of the same query", sampled.get(0).eventId().equals(sampled.get(1).eventId()), equalTo(false));
-        assertThat(
-            "captured with 0.5 and kept with 0.25",
-            sampled.get(0).tracked().weights().inclusionProbability(),
-            closeTo(0.125, 1e-12)
-        );
-        assertThat("each is one search, standing for two", sampled.get(0).tracked().weights().weightedMultiplicity(), closeTo(2.0, 1e-12));
-    }
-
     public void testSearchesThatFoundNothingAreLeftOutOfTheSpatialStrata() {
         Random random = picking(0.0);
         QuerySampler sampler = new QuerySampler(
@@ -82,7 +50,7 @@ public class SamplingPipelineTests extends ESTestCase {
             new PickBudget(System::nanoTime),
             new SpatialStrata(2, 2, () -> new Random(7L))
         );
-        SamplingPipeline pipeline = new SamplingPipeline(tracker, sampler, List.of(sampled::add), new EventSlice());
+        SamplingPipeline pipeline = new SamplingPipeline(tracker, sampler, List.of(sampled::add));
 
         pipeline.accept(search(new float[] { 1f }));
         pipeline.accept(search(new float[] { 2f }));

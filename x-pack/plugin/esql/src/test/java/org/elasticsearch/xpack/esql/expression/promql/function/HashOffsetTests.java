@@ -11,18 +11,23 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataEncoding;
 import org.hamcrest.Matcher;
 
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
 
@@ -65,6 +70,26 @@ public class HashOffsetTests extends AbstractScalarFunctionTestCase {
     @Override
     public void testFold() {
         // HashOffset never folds: every row must hash in the engine.
+    }
+
+    /** A label container samples by the JSON object of its labels, so its offset is the one of that keyword. */
+    public void testLabelContainerSamplesByItsJsonObject() {
+        assumeTrue("_timeseries is under construction", DataType.TIME_SERIES_METADATA_DATA_TYPE.supportedVersion().supportedLocally());
+        BytesRef labels = TimeSeriesMetadataEncoding.encode(Map.of("pod", List.of("a"), "job", List.of("api")));
+        assertThat(
+            offset(DataType.TIME_SERIES_METADATA_DATA_TYPE, labels),
+            equalTo(offset(DataType.KEYWORD, new BytesRef("{\"job\":\"api\",\"pod\":\"a\"}")))
+        );
+    }
+
+    private double offset(DataType type, BytesRef key) {
+        HashOffset hash = new HashOffset(Source.EMPTY, List.of(field("key", type)));
+        try (
+            ExpressionEvaluator evaluator = evaluator(hash).get(driverContext());
+            DoubleBlock offset = (DoubleBlock) evaluator.eval(row(List.of(key)))
+        ) {
+            return offset.getDouble(0);
+        }
     }
 
     public void testToOffsetStaysInsideInterval() {

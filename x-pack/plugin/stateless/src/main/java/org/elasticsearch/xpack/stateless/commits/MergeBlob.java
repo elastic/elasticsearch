@@ -31,7 +31,7 @@ public record MergeBlob(String blobName, long primaryTerm) implements Blob {
     /// Prefix of the names of merge blobs.
     public static final String PREFIX = "stateless_merge_";
 
-    private static final int SEGMENT_ID_LENGTH = StringHelper.ID_LENGTH * 2;
+    private static final int SEGMENT_ID_HEX_LENGTH = StringHelper.ID_LENGTH * 2;
 
     /// @throws IllegalArgumentException if the blob name is not of the form `stateless_merge_<segmentId>`, with a segment id of 32
     ///                                  lowercase hexadecimal characters
@@ -94,7 +94,7 @@ public record MergeBlob(String blobName, long primaryTerm) implements Blob {
 
     /// A segment id is formatted as 32 lowercase hexadecimal characters.
     private static boolean isValidSegmentId(String segmentId) {
-        if (segmentId.length() != SEGMENT_ID_LENGTH) {
+        if (segmentId.length() != SEGMENT_ID_HEX_LENGTH) {
             return false;
         }
         for (int i = 0; i < segmentId.length(); i++) {

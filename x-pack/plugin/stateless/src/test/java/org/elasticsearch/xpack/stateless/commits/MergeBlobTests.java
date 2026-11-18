@@ -83,7 +83,8 @@ public class MergeBlobTests extends AbstractWireSerializingTestCase<MergeBlob> {
             "",
             valid.substring(1),
             valid + randomFrom("0", "a"),
-            valid.toUpperCase(Locale.ROOT).replace('0', 'A'),
+            // always contains at least one uppercase letter, even if the id only has digits
+            'A' + valid.substring(1).toUpperCase(Locale.ROOT),
             valid.substring(1) + 'g',
             valid.substring(1) + '_',
             // the former structure of merge blob names, with a generation, a segment and a discriminator

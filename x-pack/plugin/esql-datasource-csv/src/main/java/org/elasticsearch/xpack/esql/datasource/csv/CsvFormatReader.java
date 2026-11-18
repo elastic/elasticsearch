@@ -3399,7 +3399,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * or {@code \} inside the cell is data, not a quote toggle — otherwise real-world rows like
      * {@code [text",1,2013-...,38,-12345]} would look unclosed here, the splitter would treat the leading {@code [}
      * as literal, and the inner commas would become delimiters, yielding extra columns and the
-     * {@code "[N+k] columns, the schema has [N]"} failure.
+     * {@code "[N+k] columns, the header has [N]"} failure.
      */
     private static boolean hasMvcBracketClose(String line, int openBracketIndex) {
         if (openBracketIndex < 0 || openBracketIndex >= line.length() || line.charAt(openBracketIndex) != '[') {
@@ -4389,6 +4389,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * <p>Set even when {@code pad_short_rows} turns the rejection off, because the padding warning names it.
          */
         private int rowWidthFloor;
+        /**
+         * Whether {@link #rowWidthLimit} is a width the FILE states rather than the pinned schema's own, which is what
+         * a width message names it after. {@link #rowWidthFloor} needs no such field: it is only ever a width the file
+         * states, see {@link #fileStatedRowWidth}.
+         */
+        private boolean rowWidthLimitIsFileStated;
         /** The binding's widest row, or {@link HeaderBinding#NO_FILE_WIDTH}; resolves {@link #rowWidthLimit}. Unused when no binding. */
         private final int bindingMaxRowWidth;
         /**
@@ -5478,15 +5484,16 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
         /**
          * The width clause every width message carries: the row's own width, and the width it was measured against,
-         * named by where that width comes from. It is the file's {@code header} wherever the file has one, including
-         * where an inferred schema binds that file positionally and so binds no names; it is the {@code schema} only
-         * for a headerless file, whose own width nothing states.
+         * named by where that width comes from -- the file's {@code header}, or the pinned {@code schema}.
+         *
+         * <p>The caller states which, because the two bounds do not always share a source: under a width-only
+         * binding ({@link HeaderBinding#fileWidthOnly}) the floor is the file's header while the limit is the
+         * pinned schema's own width, so a single test on the binding would mislabel one of them. A bound this
+         * class derived from the file's header is the header's however it reached it, including where no binding
+         * was made at all and the schema was inferred from that very header.
          */
-        private String rowWidthClause(int actualFields, int expectedFields) {
-            // Discriminates on whether the FILE stated a width, not on whether names were bound: an inferred schema
-            // over a headered file binds positionally, and the width it is measured against is still the header's.
-            boolean headered = bindingMaxRowWidth != HeaderBinding.NO_FILE_WIDTH;
-            return "[" + actualFields + "] columns, the " + (headered ? "header" : "schema") + " has [" + expectedFields + "]";
+        private String rowWidthClause(int actualFields, int expectedFields, boolean fileStated) {
+            return "[" + actualFields + "] columns, the " + (fileStated ? "header" : "schema") + " has [" + expectedFields + "]";
         }
 
         /**
@@ -5545,6 +5552,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
             int schemaSize = schema.size();
             schemaColumnCount = schemaSize;
             rowWidthLimit = schemaFieldIndex == null ? schemaSize : bindingMaxRowWidth;
+            // Where that number came from, which is what a width message names it after. Where names bound it is the
+            // binding's file width. Where they did not it is the schema's own size, which is this file's header only
+            // when the schema was inferred from that header -- that is, when no binding was made at all. A width-only
+            // binding is the case this separates: its floor is the file's header while its limit is a pinned schema's.
+            rowWidthLimitIsFileStated = schemaFieldIndex != null
+                ? bindingMaxRowWidth != HeaderBinding.NO_FILE_WIDTH
+                : bindingMaxRowWidth == HeaderBinding.NO_FILE_WIDTH && options.headerRow();
             rowWidthFloor = fileStatedRowWidth(schemaSize);
             // Schema position per projected slot, tracked alongside projectedIdx because by-name binding makes the
             // two diverge: projectedIdx is the RAW FIELD INDEX to read out of the record, schemaPos names the
@@ -6670,12 +6684,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private RowWidthFault rowWidthError(int actualFields) {
             pendingPadNotice = null;
             if (actualFields > rowWidthLimit) {
-                return new RowWidthFault(rowWidthClause(actualFields, rowWidthLimit), RowFault.STRUCTURAL);
+                return new RowWidthFault(rowWidthClause(actualFields, rowWidthLimit, rowWidthLimitIsFileStated), RowFault.STRUCTURAL);
             }
             if (actualFields < rowWidthFloor) {
                 if (padShortRows == false) {
                     return new RowWidthFault(
-                        MISSING_TRAILING_FIELDS + ": " + rowWidthClause(actualFields, rowWidthFloor) + cutQuotedValueClause(),
+                        MISSING_TRAILING_FIELDS + ": " + rowWidthClause(actualFields, rowWidthFloor, true) + cutQuotedValueClause(),
                         RowFault.SHORT_ROW
                     );
                 }
@@ -6684,7 +6698,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     + "]: "
                     + MISSING_TRAILING_FIELDS
                     + ", read as null: "
-                    + rowWidthClause(actualFields, rowWidthFloor);
+                    + rowWidthClause(actualFields, rowWidthFloor, true);
             }
             return null;
         }

@@ -2520,7 +2520,7 @@ public class CsvFormatReaderTests extends ESTestCase {
 
         Exception e = expectThrows(Exception.class, () -> drainAllPages(reader.read(object, null, 10)));
         assertThat(e.getMessage(), containsString("Row [1] of"));
-        assertThat(e.getMessage(), containsString("missing trailing fields: [2] columns, the schema has [3]"));
+        assertThat(e.getMessage(), containsString("missing trailing fields: [2] columns, the header has [3]"));
         assertThat(e.getMessage(), containsString("[pad_short_rows]"));
     }
 
@@ -2543,7 +2543,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         List<String> warnings = drainWarnings();
         assertTrue(
             "the padded row must be reported, got: " + warnings,
-            warnings.stream().anyMatch(w -> w.contains("missing trailing fields, read as null: [2] columns, the schema has [3]"))
+            warnings.stream().anyMatch(w -> w.contains("missing trailing fields, read as null: [2] columns, the header has [3]"))
         );
     }
 
@@ -5029,7 +5029,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         // and embedded commas (e.g. `[some text",1,2013-...,38,-12345]`). The lookahead must mirror the splitter:
         // inside `[..]` only `[` and `]` matter — a stray `"` is a literal byte. Otherwise the lookahead reports
         // "no matching ]" and the splitter falls back to treating `[` as plain text, which turns inner commas into
-        // delimiters and produces `[N+k] columns, the schema has [N]` failures.
+        // delimiters and produces `[N+k] columns, the header has [N]` failures.
         String csv = "id:long,tags:keyword,when:keyword\n"
             + "1,[some text\",1,2013-07-15 13:51:28,2013-07-15,38,177794517],ok\n"
             + "2,[plain],ok\n";
@@ -7503,7 +7503,7 @@ public class CsvFormatReaderTests extends ESTestCase {
      * schema. The planner calls {@code withSchema(context.attributes())} at operator-factory
      * time with the projected output attributes, not the file's column layout. Treating that
      * list as the file schema would mis-align column indices and trigger spurious
-     * "[N] columns, the schema has [M]" errors on every data row.
+     * "[N] columns, the header has [M]" errors on every data row.
      *
      * <p>The bound-schema fast path is reserved for streaming-coordinator dispatch where
      * {@code recordAligned=true} signals that the upstream caller has bound the FULL file
@@ -8905,14 +8905,12 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertThat(cut.getMessage(), containsString("missing trailing fields: [1] columns, the header has [2]"));
         assertThat(cut.getMessage(), containsString("multiline_fields"));
 
-        // The same short row read from the file's first byte: nothing cut it, so the message stays as it is. The width
-        // is named after the schema here because no binding is made at all -- the schema was inferred from this very
-        // header, see fileStatedRowWidth -- which is beside the point the clause makes.
+        // The same short row read from the file's first byte: nothing cut it, so the message stays as it is.
         Exception whole = expectThrows(
             Exception.class,
             () -> drainAllPages(reader.read(createStorageObject("a,b\n" + tailOfAQuotedValue), null, 10))
         );
-        assertThat(whole.getMessage(), containsString("missing trailing fields: [1] columns, the schema has [2]"));
+        assertThat(whole.getMessage(), containsString("missing trailing fields: [1] columns, the header has [2]"));
         assertThat("nothing cut the file's first byte", whole.getMessage(), not(containsString("multiline_fields")));
     }
 
@@ -11350,7 +11348,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets"));
 
         Exception e = expectThrows(Exception.class, () -> drainAllPages(reader.read(object, List.of("a", "c"), 10)));
-        assertThat(e.getMessage(), containsString("missing trailing fields: [2] columns, the schema has [3]"));
+        assertThat(e.getMessage(), containsString("missing trailing fields: [2] columns, the header has [3]"));
     }
 
     /** The same file under {@code pad_short_rows}: the short row is kept with its missing column null. */

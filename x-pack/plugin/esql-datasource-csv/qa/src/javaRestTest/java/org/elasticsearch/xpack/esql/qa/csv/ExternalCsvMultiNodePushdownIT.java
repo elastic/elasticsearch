@@ -67,29 +67,23 @@ public class ExternalCsvMultiNodePushdownIT extends ESRestTestCase {
     /** The default {@code esql.external.cache.stripe.size}; the fixture spans several of these. */
     private static final long STRIPE_BYTES = 8L * 1024 * 1024;
     /**
-     * Name of the generated chunked fixture, deliberately NOT ending in {@code .csv}. It has to be written into
-     * the {@code iceberg-fixtures} classpath resource directory, the only place the cluster can read it from —
-     * {@code Clusters} pins both {@code path.repo} and {@code esql.external.local_allowed_paths} to exactly that
-     * directory, so a {@code createTempDir} elsewhere is unreadable — and that directory is a shared build output
-     * two other fixture loaders walk whole. {@code FixtureUtils.writeCompressedVariantsToFixturesPath} is the one
-     * this name defeats: it matches {@code .csv}/{@code .ndjson}/{@code .tsv} anywhere under the tree and writes
-     * five compressed copies of each with no size limit at all. The sibling
-     * {@code forEachFixtureEntryFromFilesystem} is not extension-keyed and reads every uncompressed file it finds
-     * into memory, so what keeps this fixture out of that one is its size, over the 10 MB cap it skips with a
-     * WARN. Deleting the file when the test is done is what settles both; the name and the cap are the belt to
-     * that braces, for a run that dies before the cleanup. The dataset declares {@code format} explicitly rather
-     * than having it inferred from a name that no longer says what the bytes are.
+     * The generated chunked fixture, deliberately NOT ending in {@code .csv}. It must live in the
+     * {@code iceberg-fixtures} resource directory, the only path the cluster will read ({@code Clusters} pins
+     * {@code path.repo} and {@code esql.external.local_allowed_paths} to it), and two fixture loaders walk that
+     * directory whole: {@code FixtureUtils.writeCompressedVariantsToFixturesPath} matches text extensions
+     * anywhere beneath it and writes five compressed copies with no size limit, which this name defeats, while
+     * {@code forEachFixtureEntryFromFilesystem} reads every uncompressed file into memory but skips anything
+     * over 10 MB, which this fixture's size defeats. Deleting it after the test is what actually settles both;
+     * these two are the belt for a run that dies first. The dataset declares its format explicitly, since the
+     * name no longer says what the bytes are.
      */
     private static final String CHUNKED_FIXTURE = "standalone/chunked_stripes.data";
     /**
      * Parse threads the chunked read is pinned to, as a pragma fragment. {@code external_parsing_parallelism}
-     * otherwise defaults to {@code EsExecutors.allocatedProcessors}, and at 1 the read takes the non-parallel
-     * path, which is a whole-file read publishing one authoritative summary and no stripe-addressed
-     * contribution — so the stripe-count assertion would be deciding on the runner's core count. 8 over the
-     * ~24mb fixture asks for ~3mb segments against the 8mb stripe grid, keeping every stripe stitched from
-     * more than one chunk, which is the geometry the test exists for. Only this suite's chunked test pins it;
-     * the other two read files below the 2mb (twice the 1mb minimum segment) parallel-parse threshold, where
-     * the value cannot matter.
+     * defaults to {@code EsExecutors.allocatedProcessors}, and at 1 the read takes the non-parallel path, which
+     * publishes one whole-file summary and no stripe-addressed contribution -- so the stripe-count assertion
+     * would be deciding on the runner's core count. 8 over the ~24mb fixture asks for ~3mb segments against the
+     * 8mb stripe grid, so every stripe is stitched from more than one chunk, which is the geometry under test.
      */
     private static final String PARSING_PARALLELISM = ",\"external_parsing_parallelism\":\"8\"";
 
@@ -201,24 +195,17 @@ public class ExternalCsvMultiNodePushdownIT extends ESRestTestCase {
     }
 
     /**
-     * The only test that puts a STRIPE record across a real transport.
+     * The only test that puts a stripe record across a real transport.
      * <p>
-     * {@link #testCountStarColdThenWarmShortCircuitsAcrossNodes} proves the return-flow works, but its fixture is
-     * a hundred rows: that is a whole-file read, which publishes one authoritative summary and never a
-     * stripe-addressed contribution. The staging that joins a stripe's pieces, the compact form it holds them
-     * in, and the coordinator's fold of a stripe record arriving as a generic map are all on the other path —
-     * and in a single JVM none of them crosses a wire at all.
+     * {@link #testCountStarColdThenWarmShortCircuitsAcrossNodes} proves the return flow, but its hundred-row
+     * fixture is a whole-file read: it publishes one authoritative summary and never a stripe-addressed
+     * contribution, so the staging, the compact form and the coordinator's fold of a stripe record arriving as
+     * a generic map are all on the other path -- and in a single JVM none of them crosses a wire.
      * <p>
-     * So this writes a file big enough to be cut into many read chunks (a chunk is ~1mb, the stripe grid 8mb by
-     * default), which makes the data node publish stripe records and nothing else. The data node holds them in
-     * compact form, serializes each as it writes the response, and the coordinator in the other JVM rebuilds and
-     * folds them. A warm {@code documents_found == 0} is only reachable if every step of that worked.
-     * <p>
-     * The chunking is pinned by {@link #PARSING_PARALLELISM} rather than left to its default, which is
-     * {@code EsExecutors.allocatedProcessors} — on a single-processor runner that default puts the read on the
-     * non-parallel path, which stages no stripe-addressed contribution at all, and the stripe-count assertion
-     * below would fail for the runner's core count rather than for anything about the code. The generated
-     * fixture is deleted again on the way out; see {@link #CHUNKED_FIXTURE} for why it is not named {@code .csv}.
+     * This fixture is large enough to be cut into many chunks of roughly 3mb against the 8mb grid (see
+     * {@link #PARSING_PARALLELISM}), so the data node publishes stripe records and nothing else, holds them
+     * compact, serializes each as it writes the response, and the coordinator in the other JVM rebuilds and
+     * folds them. A warm {@code documents_found == 0} is reachable only if every step of that worked.
      */
     public void testStripeRecordsCrossTheWireAndFoldOnTheCoordinator() throws Exception {
         assumeTrue("LOCAL fixtures unavailable (packaged in a JAR)", localFixturesPath != null);

@@ -251,8 +251,7 @@ public final class StripeStatsHarvester {
                         Optional.of(new ExternalStats.Stats(rows, OptionalLong.empty(), cols)),
                         OptionalLong.empty(),
                         schema
-                    ),
-                    schema
+                    )
                 );
                 continue;
             }

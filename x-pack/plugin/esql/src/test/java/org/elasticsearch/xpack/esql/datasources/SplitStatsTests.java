@@ -12,7 +12,6 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
-import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.IOException;
@@ -20,7 +19,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.OptionalLong;
 
 public class SplitStatsTests extends ESTestCase {
 
@@ -1070,70 +1068,6 @@ public class SplitStatsTests extends ESTestCase {
         var result = SplitStats.resolveEffectiveStats(List.of(split), listing);
         assertNotNull(label, result);
         assertEquals(label, ((Number) listing.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue(), result.rowCount());
-    }
-
-    /**
-     * The compact model can be built from typed statistics or from the flat {@code _stats.*} map they serialize
-     * as, and staging builds it the first way. The two must agree, or a staged record would carry different
-     * statistics from the contribution a chunk publishes for the same stripe: this walks a set of shapes
-     * carrying every statistic that
-     * reaches the fold — row count, file size, per-column null and value counts, both extrema, per-column size
-     * — and holds the two constructions key-equivalent.
-     * <p>
-     * The servability markers are deliberately not among them. {@link SourceStatistics} has no channel for
-     * them, so {@link SplitStats#fromStatistics} cannot carry one and the two constructions DO diverge on a
-     * map that has one. That is not a gap in this test: the flat-map route cannot carry a marker either,
-     * because
-     * {@code DeserializedColumnStatistics} does not read one and {@code embedStatistics} cannot write one. A
-     * marker-bearing map never reaches {@code fromStatistics}, and a test asserting it did would be asserting
-     * a claim nothing makes.
-     */
-    public void testOfTypedStatisticsMatchesOfTheFlatMap() {
-        for (Map<String, Object> flat : List.of(
-            statsMap(100L, Map.of()),
-            statsMap(100L, Map.of("a", Map.of(".null_count", 1L, ".value_count", 99L, ".min", 1L, ".max", 9L))),
-            sized(statsMap(100L, Map.of("a", Map.of(".null_count", 0L, ".value_count", 100L, ".size_bytes", 512L))), 4096L),
-            statsMap(0L, Map.of("a", Map.of(".null_count", 0L, ".value_count", 0L))),
-            statsMap(
-                7L,
-                Map.of(
-                    "a",
-                    Map.of(".null_count", 2L, ".value_count", 5L, ".min", new BytesRef("a"), ".max", new BytesRef("z")),
-                    "nested.b",
-                    Map.of(".null_count", 0L, ".value_count", 7L, ".min", 1.5, ".max", 2.5, ".size_bytes", 64L)
-                )
-            )
-        )) {
-            SplitStats fromFlat = SplitStats.of(flat);
-            assertNotNull("the fixture must parse", fromFlat);
-            SourceStatistics typed = SourceStatisticsSerializer.extractStatistics(flat).orElse(null);
-            assertNotNull("the fixture must deserialize to typed statistics", typed);
-            SplitStats fromTyped = SplitStats.fromStatistics(typed);
-            assertNotNull("typed statistics with a row count must compact", fromTyped);
-            assertEquals("the two constructions must be key-equivalent", fromFlat.toMap(), fromTyped.toMap());
-        }
-    }
-
-    /** Typed statistics without a row count are not cacheable, exactly as a flat map without one is not. */
-    public void testOfTypedStatisticsWithoutARowCountIsNothing() {
-        assertNull(SplitStats.fromStatistics(null));
-        assertNull("no row count, nothing to hold", SplitStats.fromStatistics(new SourceStatistics() {
-            @Override
-            public OptionalLong rowCount() {
-                return OptionalLong.empty();
-            }
-
-            @Override
-            public OptionalLong sizeInBytes() {
-                return OptionalLong.empty();
-            }
-        }));
-    }
-
-    /** {@code flat} with a file-level size, the one statistic that lives beside the row count rather than per column. */
-    private static Map<String, Object> sized(Map<String, Object> flat, long sizeBytes) {
-        flat.put(SourceStatisticsSerializer.STATS_SIZE_BYTES, sizeBytes);
-        return flat;
     }
 
     /** A flat {@code _stats.*} map with {@code rowCount} rows and the given per-column suffix maps. */

@@ -88,8 +88,8 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
     public static final Duration GLOBAL_EVALUATION_INTERVAL = Duration.ofMinutes(1);
     public static final Duration IMPLICIT_RANGE_PLACEHOLDER = Duration.ofMillis(-1);
 
-    PromqlLogicalPlanBuilder(Literal start, Literal end, int startLine, int startColumn, QueryParams params, @Nullable String viewName) {
-        super(start, end, startLine, startColumn, params, viewName);
+    PromqlLogicalPlanBuilder(Literal start, Literal end, QueryParams params, @Nullable String viewName) {
+        super(start, end, params, viewName);
     }
 
     /**

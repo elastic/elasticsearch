@@ -528,10 +528,21 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         ClusterState state
     ) {
         assert Thread.holdsLock(this);
-        if (currentRouting == null
-            || currentRouting.allocationId().getId().equals(key.allocationId()) == false
-            || currentRouting.initializing() == false) {
+        if (currentRouting == null || currentRouting.allocationId().getId().equals(key.allocationId()) == false) {
             logger.debug("{} evicting stale {} ticket: allocation no longer current", key, ticket);
+            pendingAllocationStates.remove(key, ticket);
+            return;
+        }
+        // Master only moves an allocation to STARTED (and, from there, to RELOCATING) after we send
+        // shardStarted for that exact allocation id, and we never do that while this ticket is held:
+        // onRecoveryDone clears the ticket before sending, and updateShard's own resend path
+        // explicitly skips while InFlight is held (AwaitingRecoveryRetry implies no local shard exists
+        // to resend from in the first place). So currentRouting must still be initializing here --
+        // the check below is a defensive fallback in case that invariant is ever violated.
+        if (currentRouting.initializing() == false) {
+            String message = "found non-initializing routing [" + currentRouting + "] for ticket " + ticket + " at " + key;
+            assert false : message;
+            logger.error("{}. Fallback to evicting stale ticket", message);
             pendingAllocationStates.remove(key, ticket);
             return;
         }

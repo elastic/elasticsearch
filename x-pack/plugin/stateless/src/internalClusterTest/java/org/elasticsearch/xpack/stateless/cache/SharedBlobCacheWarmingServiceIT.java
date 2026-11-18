@@ -838,9 +838,9 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
 
     /// Search shards draining off a shutting-down node get their warming info from the source, and the share sizes each timeout.
     /// The shards are pinned to the source until after the shutdown is registered, so joining the target does not move them first.
-    /// Two shards fit in the default recovery throttle, so both relocate at once. Warming is held until both plans are computed, which
-    /// keeps both copies on the source, so each share is that shard's bytes over the sum of both. That fraction of the remaining grace
-    /// beats the equal share (a quarter of a half) and the data volume (a few KB against a 4MB warming cache).
+    /// Incoming and outgoing recovery throttling is lifted so both shards relocate at once. Warming is held until both plans are
+    /// computed, which keeps both copies on the source, so each share is that shard's bytes over the sum of both. That fraction of
+    /// the remaining grace beats the equal share (a quarter of a half) and the data volume (a few KB against a 4MB warming cache).
     public void testSearchRecoveryWarmingTimeoutUsesSourceShardWarmingInfo() throws Exception {
         final int numberOfShards = 2;
         final var nodeSettings = Settings.builder()
@@ -854,6 +854,8 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_SOURCE_SHUTDOWN_SHARE_FACTOR_SETTING.getKey(), 0.25d)
             .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING.getKey(), TimeValue.timeValueSeconds(30))
             .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+            .put(unthrottledIncomingRecoveryNodeSettings())
+            .put(unthrottledOutgoingRecoveryNodeSettings())
             .build();
         final var indexNode = startMasterAndIndexNode(nodeSettings);
         final var sourceSearchNode = startSearchNode(nodeSettings);

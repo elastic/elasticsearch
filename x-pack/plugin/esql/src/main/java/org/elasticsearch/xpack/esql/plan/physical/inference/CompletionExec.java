@@ -35,7 +35,7 @@ public class CompletionExec extends InferenceExec {
 
     private final Expression prompt;
     private final Attribute targetField;
-    private List<Attribute> lazyOutput;
+    private volatile List<Attribute> lazyOutput;
 
     public CompletionExec(Source source, PhysicalPlan child, Expression inferenceId, Expression prompt, Attribute targetField) {
         super(source, child, inferenceId);

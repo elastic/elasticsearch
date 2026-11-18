@@ -48,7 +48,7 @@ public class ChangePoint extends UnaryPlan implements SurrogateLogicalPlan, Post
     private final Attribute targetType;
     private final Attribute targetPvalue;
 
-    private List<Attribute> output;
+    private volatile List<Attribute> output;
 
     public ChangePoint(Source source, LogicalPlan child, Attribute value, Attribute key, Attribute targetType, Attribute targetPvalue) {
         super(source, child);

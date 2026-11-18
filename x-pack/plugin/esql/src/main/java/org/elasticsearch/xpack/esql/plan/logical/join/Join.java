@@ -82,7 +82,7 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         DENSE_VECTOR };
 
     private final JoinConfig config;
-    private List<Attribute> lazyOutput;
+    private volatile List<Attribute> lazyOutput;
 
     public Join(Source source, LogicalPlan left, LogicalPlan right, JoinConfig config) {
         super(source, left, right);

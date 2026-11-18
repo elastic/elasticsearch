@@ -28,7 +28,7 @@ public class ChangePointExec extends UnaryExec {
     private final Attribute targetPvalue;
     private final List<Expression> groupings;
 
-    private List<Attribute> output;
+    private volatile List<Attribute> output;
 
     public ChangePointExec(
         Source source,

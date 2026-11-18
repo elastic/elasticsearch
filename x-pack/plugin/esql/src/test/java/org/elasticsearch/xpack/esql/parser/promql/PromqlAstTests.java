@@ -61,7 +61,7 @@ public class PromqlAstTests extends ESTestCase {
             try {
                 PromqlParser parser = new PromqlParser();
                 Literal now = new Literal(Source.EMPTY, Instant.now(), DataType.DATETIME);
-                var plan = parser.createStatement(q, now, now, 0, 0);
+                var plan = parser.createStatement(q, now, now, 1, 0);
                 log.trace("{}", plan);
                 List.of(
                     "PROMQL index=test start=0 end=1 step=1m (%s)",

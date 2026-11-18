@@ -23,6 +23,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSortConfig;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
@@ -263,10 +264,9 @@ public class BlockLoaderTestRunner {
                 // dimension and a later/earlier timestamp than the real doc: after sorting the
                 // real doc is still doc id 1.
                 long timestamp = ((Number) mapDoc().get("@timestamp")).longValue();
-                // Added one by one: a document block requires a parent field when the index is sorted.
-                iw.addDocument(emptyDocument(timestamp + 1).rootDoc());
-                iw.addDocument(doc);
-                iw.addDocument(emptyDocument(timestamp - 1).rootDoc());
+                LuceneDocument firstEmpty = emptyDocument(timestamp + 1).rootDoc();
+                LuceneDocument lastEmpty = emptyDocument(timestamp - 1).rootDoc();
+                iw.addDocuments(List.of(firstEmpty, doc, lastEmpty));
             } else {
                 iw.addDocuments(List.of(List.of(), doc, List.of()));
             }
@@ -293,6 +293,7 @@ public class BlockLoaderTestRunner {
         if (indexSort != null) {
             config.setIndexSort(indexSort);
         }
+        config.setParentField(Engine.ROOT_DOC_FIELD_NAME);
         return config;
     }
 

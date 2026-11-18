@@ -1693,6 +1693,8 @@ public class ComputeService {
                             localOriginalIndices,
                             exchangeSource,
                             cancelQueryOnFailure,
+                            // what the workers that succeeded did is lost with the failure of the query unless it is reported here
+                            execInfo::addFailedWork,
                             ActionListener.wrap(r -> {
                                 localClusterWasInterrupted.set(execInfo.isStopped());
                                 execInfo.swapCluster(LOCAL_CLUSTER, (k, v) -> {

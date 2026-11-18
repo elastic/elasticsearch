@@ -183,6 +183,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         OriginalIndices originalIndices,
         ExchangeSourceHandler exchangeSource,
         Runnable runOnTaskFailure,
+        Consumer<DriverCompletionInfo> onFailureUsage,
         ActionListener<ComputeResponse> outListener
     ) {
         Integer maxConcurrentNodesPerCluster = PlanConcurrencyCalculator.INSTANCE.calculateNodesConcurrency(dataNodePlan, configuration);
@@ -306,6 +307,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         }.startComputeOnDataNodes(
             concreteIndices,
             runOnTaskFailure,
+            onFailureUsage,
             ActionListener.releaseAfter(outListener, exchangeSource.addEmptySink())
         );
     }

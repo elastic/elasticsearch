@@ -436,11 +436,6 @@ tests:
   - :x-pack:plugin:stateless:test
   method: testSuccessfulSnapshotWithConcurrentDynamicMappingUpdates
   issue: https://github.com/elastic/elasticsearch/issues/154731
-- class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
-  tasks:
-  - :server:internalClusterTest
-  method: testSearchWithRandomDisconnects
-  issue: https://github.com/elastic/elasticsearch/issues/165284
 - class: org.elasticsearch.xpack.stateless.cache.CacheMissWaitTimeHeaderIT
   tasks:
   - :x-pack:plugin:stateless:internalClusterTest

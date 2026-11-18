@@ -7,9 +7,15 @@
 
 package org.elasticsearch.xpack.esql.core.expression.predicate.regex;
 
+import com.google.re2j.Pattern;
+import com.google.re2j.PatternSyntaxException;
+
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.test.ESTestCase;
+
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -235,6 +241,147 @@ public class Re2RegExpTests extends ESTestCase {
         assertInvalid("(?x)a", "error parsing regexp: invalid or unsupported Perl syntax: `(?x`");
         assertInvalid("(?<>a)", "error parsing regexp: invalid named capture: `(?<>`");
         assertInvalid("(?P<a-b>c)", "error parsing regexp: invalid named capture: `(?P<a-b>`");
+    }
+
+    /**
+     * RE2/J, the port of RE2 that ES|QL already uses for {@code label_replace}, agrees on what random expressions match
+     * and reject. It differs from Go in two places, so the expressions avoid them: it rejects a repeated literal
+     * {@code &#123;}, and it negates a Unicode class before folding it under {@code (?i)}.
+     */
+    public void testAgreesWithRe2j() {
+        List<String> values = values();
+        for (int i = 0; i < 200; i++) {
+            StringBuilder regexBuilder = new StringBuilder();
+            for (int tokens = between(1, 7); tokens > 0; tokens--) {
+                regexBuilder.append(randomFrom(TOKENS));
+            }
+            String regex = regexBuilder.toString();
+            Pattern re2j;
+            try {
+                re2j = Pattern.compile(regex, Pattern.DOTALL);
+            } catch (PatternSyntaxException e) {
+                expectThrows(IllegalArgumentException.class, "[" + regex + "] should be invalid", () -> new Re2RegExp(regex));
+                continue;
+            }
+            CharacterRunAutomaton run = run(new Re2RegExp(regex));
+            for (String value : values) {
+                assertThat("[" + regex + "] on [" + value + "]", run.run(value), equalTo(re2j.matches(value)));
+            }
+        }
+    }
+
+    private static final List<String> TOKENS = List.of(
+        "a",
+        "b",
+        "A",
+        "k",
+        "\u212a",
+        "_",
+        " ",
+        "-",
+        "1",
+        "#",
+        "&",
+        "~",
+        "@",
+        "<",
+        ">",
+        "\"",
+        "\u017f",
+        "\u03b1",
+        ".",
+        "*",
+        "+",
+        "?",
+        "|",
+        "(",
+        ")",
+        "[",
+        "]",
+        "^",
+        "$",
+        "}",
+        ":",
+        ",",
+        "2",
+        "0",
+        "(?i)",
+        "(?-i)",
+        "(?s)",
+        "(?-s)",
+        "(?m)",
+        "(?-m)",
+        "(?:",
+        "(?i:",
+        "(?P<n>",
+        "(?<n>",
+        "(?U)",
+        "(?is)",
+        "(?i-s:",
+        "\\b",
+        "\\B",
+        "\\A",
+        "\\z",
+        "\\d",
+        "\\D",
+        "\\w",
+        "\\W",
+        "\\s",
+        "\\S",
+        "\\pL",
+        "\\PL",
+        "\\p{Greek}",
+        "\\p{Lu}",
+        "\\pN",
+        "[[:alpha:]]",
+        "[[:^alpha:]]",
+        "[[:word:]]",
+        "[^a]",
+        "[a-c]",
+        "[^\\n]",
+        "[ak]",
+        "[^k]",
+        "[\\w-]",
+        "[]a]",
+        "[a-]",
+        "[-a]",
+        "{2}",
+        "{1,2}",
+        "{0,}",
+        "{0}",
+        "\\x41",
+        "\\x{3b1}",
+        "\\n",
+        "\\Q",
+        "\\E",
+        "\\.",
+        "\\-",
+        "\\#",
+        "\\101",
+        "\\0",
+        "\\\\"
+    );
+
+    private static final int[] ALPHABET = { 'a', 'b', 'A', 'k', 0x212A, '_', ' ', '\n', '-', '1', '#', 0x3B1 };
+
+    /** Every string of up to two code points of {@link #ALPHABET}, and some longer ones. */
+    private static List<String> values() {
+        List<String> values = new ArrayList<>();
+        values.add("");
+        for (int first : ALPHABET) {
+            values.add(Character.toString(first));
+            for (int second : ALPHABET) {
+                values.add(Character.toString(first) + Character.toString(second));
+            }
+        }
+        for (int i = 0; i < 20; i++) {
+            StringBuilder value = new StringBuilder();
+            for (int length = between(3, 6); length > 0; length--) {
+                value.appendCodePoint(ALPHABET[between(0, ALPHABET.length - 1)]);
+            }
+            values.add(value.toString());
+        }
+        return values;
     }
 
     private static void assertMatches(String regex, String... values) {

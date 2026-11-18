@@ -673,6 +673,34 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
         assertWaitOutcome(measurements.getFirst(), SearchRecoveryWaitOutcome.WARMING_COMPLETE);
     }
 
+    /// The shard must be registered as awaiting recovery warming for as long as the recovery waits on it (so that offline warming
+    /// honours a direct recovery cancellation), and deregistered however the wait ends: warming completing, failing or timing out.
+    public void testSearchRecoveryWarmingListenerRegistersShardOnlyWhileRecoveryAwaitsWarming() {
+        try (var threadPool = new CapturingScheduleThreadPool(getTestName())) {
+            var service = newWarmingService(threadPool);
+            var indexShard = randomMockIndexShard();
+            PlainActionFuture<Void> resume = new PlainActionFuture<>();
+            var warmingListener = service.searchRecoveryWarmingListener(
+                new SearchRecoveryTimeout(TimeValue.timeValueMillis(randomLongBetween(1, 100_000)), TimeoutContext.RESHARD_SPLIT_TARGET),
+                () -> null, // unused in this test case: re-evaluation is disabled, so the cluster state is never read
+                indexShard,
+                mockDirectory(),
+                randomNonNegativeLong(),
+                resume
+            );
+            assertTrue(service.shardsAwaitingRecoveryWarming.contains(indexShard));
+
+            switch (between(0, 2)) {
+                case 0 -> warmingListener.onResponse(null);
+                case 1 -> warmingListener.onFailure(new ElasticsearchException(randomAlphaOfLength(10)));
+                case 2 -> threadPool.scheduledCommand.get().run();
+                default -> throw new AssertionError("unexpected case");
+            }
+            assertFalse(service.shardsAwaitingRecoveryWarming.contains(indexShard));
+            assertTrue(service.shardsAwaitingRecoveryWarming.isEmpty());
+        }
+    }
+
     /// A warming failure that beats the timeout must propagate to the resume listener and still record the wait metric (attributed
     /// to `WARMING_COMPLETE`, since the warming side won the race), preserving the behavior that predates the race fix.
     public void testSearchRecoveryWarmingListenerWarmingFailurePropagatesAndRecordsMetric() {

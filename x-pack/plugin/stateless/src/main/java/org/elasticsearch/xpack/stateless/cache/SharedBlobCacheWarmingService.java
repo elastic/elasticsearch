@@ -460,6 +460,15 @@ public class SharedBlobCacheWarmingService {
     private volatile int warmByteRangePerFileConcurrency;
     private final SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService;
 
+    /**
+     * Shards whose search recovery is currently blocked waiting for offline warming (see {@link #searchRecoveryWarmingListener}). Offline
+     * warming only honours a direct recovery cancellation for these shards: once the recovery has resumed (warming completed, timed out
+     * or failed) it may no longer notice a cancellation, so a late one must not leave the shard that goes on to start with a colder cache.
+     * Held in the service rather than passed down so as not to change the signatures of the many {@code warmCache} overrides.
+     */
+    // package-private for tests
+    final Set<IndexShard> shardsAwaitingRecoveryWarming = ConcurrentCollections.newConcurrentSet();
+
     public SharedBlobCacheWarmingService(
         StatelessSharedBlobCacheService cacheService,
         ThreadPool threadPool,
@@ -1071,6 +1080,10 @@ public class SharedBlobCacheWarmingService {
         // - timeout: the scheduled task (possibly re-evaluated) completes it with TIMEOUT
         // - warming completing (the listener returned to warmCache): completes it with WARMING_COMPLETE
         final SubscribableListener<SearchRecoveryWaitOutcome> recoveryWait = new SubscribableListener<>();
+
+        // Registered before the caller enqueues any warming, and deregistered however the wait ends.
+        shardsAwaitingRecoveryWarming.add(indexShard);
+        recoveryWait.addListener(ActionListener.running(() -> shardsAwaitingRecoveryWarming.remove(indexShard)));
 
         final var timeoutTask = new ReevaluatingTimeoutTask(
             clusterStateSupplier,
@@ -1718,8 +1731,10 @@ public class SharedBlobCacheWarmingService {
         @Override
         protected boolean isCancelled() {
             // A direct recovery cancellation does not close the store, so also stop warming once one has been requested, otherwise the
-            // recovery cannot notice it until warming completes or times out.
-            return super.isCancelled() || indexShard.isRecoveryCancellationRequested();
+            // recovery cannot notice it until warming completes or times out. Only while the recovery is waiting on this warming though:
+            // afterwards it may no longer check for cancellation, and the shard can go on to start despite the request.
+            return super.isCancelled()
+                || (indexShard.isRecoveryCancellationRequested() && shardsAwaitingRecoveryWarming.contains(indexShard));
         }
 
         @Override

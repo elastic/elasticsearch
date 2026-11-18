@@ -4500,6 +4500,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             int alreadyAddedUnionFieldAttributes = state.unionFieldAttributes.size();
             // See if the eval function has an unresolved UnionTypeEsField field
             // Replace the entire convert function with a new FieldAttribute (containing type conversion knowledge)
+            LogicalPlan beforeConverts = plan;
             plan = plan.transformExpressionsOnly(e -> {
                 if (e instanceof ConvertFunction convert) {
                     return resolveConvertFunction(convert, state.unionFieldAttributes, context);
@@ -4508,6 +4509,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             });
 
             boolean generatedUnionFields = state.unionFieldAttributes.size() > alreadyAddedUnionFieldAttributes;
+            if (generatedUnionFields == false && plan.equals(beforeConverts) == false) {
+                // The cast reused a field an earlier cast created, so no field was generated to carry through the projects between
+                // the two. Bind it for this node within the scope. Only projects below this node are touched, so the scope's final
+                // projection is not widened.
+                List<LogicalPlan> children = plan.children()
+                    .stream()
+                    .map(c -> carryOverSyntheticAttributesThroughProjects(c, context.unmappedResolution().loadsAllUnmappedFields()))
+                    .toList();
+                if (children.equals(plan.children()) == false) {
+                    plan = plan.replaceChildren(children);
+                }
+            }
             if (generatedUnionFields == false && plan instanceof Aggregate == false) {
                 return plan;
             }

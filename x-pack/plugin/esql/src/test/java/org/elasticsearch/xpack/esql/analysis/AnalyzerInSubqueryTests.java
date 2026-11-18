@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.approximation.ApproximationVerifier;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -20,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -669,6 +671,28 @@ public class AnalyzerInSubqueryTests extends AnalyzerTestCase {
         plan.forEachDown(AbstractSubqueryJoin.class, joins::add);
         assertThat(joins, hasSize(1));
         assertThat(joins.getFirst().right().output().stream().map(Attribute::name).toList(), equalTo(List.of("name")));
+    }
+
+    /**
+     * The second cast of {@code id} inside the subquery reuses the field the first cast created, so no new field is generated to
+     * carry through the {@code KEEP} between them. The reference above the {@code KEEP} must still be bound within the subquery.
+     */
+    public void testReusedUnionTypeCastInsideInSubqueryIsCarriedThroughKeep() {
+        LogicalPlan plan = analyzer().addIndex(unionIndexResolution()).addEmployees().query("""
+            FROM union_index*
+            | WHERE name IN (
+                FROM union_index*
+                | EVAL a = id::integer
+                | KEEP id, name
+                | EVAL b = id::integer
+                | WHERE b > 0 AND name IN (FROM employees | KEEP last_name)
+                | KEEP name)
+            | EVAL id_string = id::keyword
+            """);
+
+        Failures failures = new Failures();
+        plan.forEachDown(p -> PlanConsistencyChecker.checkPlan(p, failures));
+        assertThat(failures.toString(), failures.hasFailures(), equalTo(false));
     }
 
     // LET bindings are substituted into the plan before analysis, so an IN over a binding must scope union types like an inline one.

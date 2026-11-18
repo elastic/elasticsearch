@@ -13,6 +13,7 @@ import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
+import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
@@ -37,6 +38,14 @@ public abstract class NativeLibraryPathArgumentProvider implements CommandLineAr
     @InputFiles
     @PathSensitive(PathSensitivity.RELATIVE)
     public abstract ConfigurableFileCollection getLibraryDirectories();
+
+    /**
+     * The priority of the configuration that set {@link #getLibraryDirectories()}, which
+     * {@link NativeLibraryPathExtension} uses to decide whether a later configuration replaces them. It is not an
+     * input of the task: it says how the directories were chosen, not what they are.
+     */
+    @Internal
+    public abstract Property<NativeLibraryPathExtension.Priority> getPriority();
 
     /**
      * Whether the arguments are meant for the JVMs that JMH forks from the task's JVM, instead of for the task's

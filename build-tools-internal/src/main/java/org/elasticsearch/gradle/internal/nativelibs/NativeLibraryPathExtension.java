@@ -78,27 +78,46 @@ public abstract class NativeLibraryPathExtension {
      * {@code libraryDirectories} can be anything {@link ConfigurableFileCollection#from} accepts, typically the
      * result of {@link #libraryDirectoriesOf}.
      *
-     * <p>A task passes down one list, so if the task was already configured by this extension, this replaces
-     * the directories it was configured with.
+     * <p>This is an explicit configuration of the task, with {@link Priority#EXPLICIT}: it is never overridden by
+     * the defaults that plugins set, no matter which runs first.
      */
     public void configureWithDirectories(JavaForkOptions task, Object libraryDirectories) {
+        configureWithDirectories(task, libraryDirectories, Priority.EXPLICIT);
+    }
+
+    /**
+     * Configures the task with the given directories if {@code priority} is not lower than the priority of the
+     * configuration the task already has; otherwise it does nothing. So the most specific configuration wins,
+     * regardless of the order of the calls. A task passes down one list, so a configuration with the same
+     * priority as the earlier one replaces it.
+     *
+     * <p>Plugins that set a default for a task use this with the priority of their default; code configuring a
+     * task explicitly should use {@link #configureWithDirectories(JavaForkOptions, Object)}.
+     */
+    public void configureWithDirectories(JavaForkOptions task, Object libraryDirectories, Priority priority) {
         NativeLibraryPathArgumentProvider existing = providerOf(task);
-        if (existing != null) {
+        if (existing == null) {
+            NativeLibraryPathArgumentProvider provider = newProvider(libraryDirectories);
+            provider.getPriority().set(priority);
+            task.getJvmArgumentProviders().add(provider);
+        } else if (priority.compareTo(existing.getPriority().getOrElse(Priority.FALLBACK)) >= 0) {
             existing.getLibraryDirectories().setFrom(getProjectLibraryDirectories(), libraryDirectories);
-        } else {
-            addProvider(task, libraryDirectories);
+            existing.getPriority().set(priority);
         }
     }
 
     /**
-     * Same as {@link #configureWithDirectories}, but does nothing if the task was already configured by this
-     * extension. This is for defaults: whoever configures a task explicitly wins, whatever the order the two
-     * run in.
+     * How specific a configuration of a task is. A more specific configuration replaces a less specific one,
+     * regardless of the order of the calls (see {@link #configureWithDirectories(JavaForkOptions, Object, Priority)}).
+     * The constants are declared from the least to the most specific, and the order is the ranking.
      */
-    public void configureWithDirectoriesIfAbsent(JavaForkOptions task, Object libraryDirectories) {
-        if (providerOf(task) == null) {
-            addProvider(task, libraryDirectories);
-        }
+    public enum Priority {
+        /** A guess for a task that nothing else says anything about. */
+        FALLBACK,
+        /** The libraries of the source set that the task is named after. */
+        SOURCE_SET,
+        /** Set for the task by the code that wants those libraries and knows better than any default. */
+        EXPLICIT
     }
 
     /**
@@ -119,10 +138,6 @@ public abstract class NativeLibraryPathExtension {
         NativeLibraryPathArgumentProvider forks = newProvider(libraryDirectoriesOf(runtimeClasspath));
         forks.getForJmhForks().set(true);
         task.getArgumentProviders().add(forks);
-    }
-
-    private void addProvider(JavaForkOptions task, Object libraryDirectories) {
-        task.getJvmArgumentProviders().add(newProvider(libraryDirectories));
     }
 
     private NativeLibraryPathArgumentProvider newProvider(Object libraryDirectories) {

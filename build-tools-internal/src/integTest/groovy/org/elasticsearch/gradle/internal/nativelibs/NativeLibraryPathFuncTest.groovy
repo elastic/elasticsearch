@@ -159,6 +159,35 @@ class NativeLibraryPathFuncTest extends AbstractGradleInternalPluginFuncTest {
         nativeLibraryPath('early') == [file("earlyLibrary/build/native-libs/${PLATFORM}").canonicalPath]
     }
 
+    def "an explicit configuration of a test task named like a source set wins, whether the task or the source set is created first"() {
+        given:
+        nativeLibraryProject('sourceSetLibrary')
+        buildFile << """
+        import ${NativeLibraryPathExtension.name}
+        def nativeLibraryPath = NativeLibraryPathExtension.of(project)
+
+        // the task, configured in its register closure, is created before the source set it is named after
+        tasks.register('first', Test) { nativeLibraryPath.configureWithDirectories(it, file('explicit')) }.get()
+        sourceSets.create('first')
+        // the source set is created before the task is
+        sourceSets.create('second')
+        tasks.register('second', Test) { nativeLibraryPath.configureWithDirectories(it, file('explicit')) }
+        dependencies {
+          firstImplementation project(':sourceSetLibrary')
+          secondImplementation project(':sourceSetLibrary')
+        }
+        reportOn('first')
+        reportOn('second')
+        """
+
+        when:
+        gradleRunner("reportFirst", "reportSecond").withEnvironment(["TEST_NATIVE_BUILD": "host"]).build()
+
+        then:
+        nativeLibraryPath('first') == [file("explicit/${PLATFORM}").canonicalPath]
+        nativeLibraryPath('second') == [file("explicit/${PLATFORM}").canonicalPath]
+    }
+
     def "a test task passes the directory containing the native libraries built by the project of the task"() {
         given:
         file("native/Makefile") << "all:\n\ttrue\n"

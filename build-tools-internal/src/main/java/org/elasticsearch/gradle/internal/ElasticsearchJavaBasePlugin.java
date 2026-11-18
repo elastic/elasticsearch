@@ -14,6 +14,7 @@ import groovy.lang.Closure;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitTaskPlugin;
 import org.elasticsearch.gradle.internal.info.BuildParameterExtension;
 import org.elasticsearch.gradle.internal.nativelibs.NativeLibraryPathExtension;
+import org.elasticsearch.gradle.internal.nativelibs.NativeLibraryPathExtension.Priority;
 import org.elasticsearch.gradle.internal.test.MutedTestPlugin;
 import org.gradle.api.JavaVersion;
 import org.gradle.api.Plugin;
@@ -159,8 +160,12 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
      *
      * <p>A {@code Test} task named after no source set gets, by default, the libraries of all the test source sets
      * (see {@link #isTestSourceSet}). That is a superset, because the plugin cannot know the classpath of the task.
-     * A task that wants only the libraries it loads must set its directories with
-     * {@link NativeLibraryPathExtension#configureWithDirectories}.
+     *
+     * <p>Both are defaults. A task that wants other libraries can set its directories with
+     * {@link NativeLibraryPathExtension#configureWithDirectories}, even if it is named like a source set. When
+     * several configurations apply to a task, the most specific one wins, no matter which runs first: an explicit
+     * one, then the source set of the same name, then the test source sets (see
+     * {@link NativeLibraryPathExtension.Priority}).
      */
     private static void configureNativeLibraryPath(Project project) {
         NativeLibraryPathExtension nativeLibraryPath = NativeLibraryPathExtension.of(project);
@@ -168,13 +173,14 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
         ConfigurationContainer configurations = project.getConfigurations();
         TaskContainer tasks = project.getTasks();
 
-        // A task named like a source set is bound when either of them is created, whichever comes first. Checking the
+        // A task named like a source set is bound as soon as both exist, whichever was created first. Checking the
         // name inside configureEach, and not filtering with matching(), keeps the tasks from being created early.
         sourceSets.configureEach(sourceSet -> tasks.withType(Test.class).configureEach(test -> {
             if (test.getName().equals(sourceSet.getName())) {
                 nativeLibraryPath.configureWithDirectories(
                     test,
-                    nativeLibraryPath.libraryDirectoriesOf(configurations.getByName(sourceSet.getRuntimeClasspathConfigurationName()))
+                    nativeLibraryPath.libraryDirectoriesOf(configurations.getByName(sourceSet.getRuntimeClasspathConfigurationName())),
+                    Priority.SOURCE_SET
                 );
             }
         }));
@@ -183,8 +189,8 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
         // runs on (REST test tasks, for example, run on the classpath of one of several source sets, and a project can
         // have an empty test source set next to them). Source sets for production code, benchmarks or fixtures are left
         // out, because no test task runs on their classpath. This is looked up when the task graph is built, not now,
-        // because the source sets may not exist yet. A task that the rule above binds is not changed by this: that
-        // one wins, whichever of the two runs first.
+        // because the source sets may not exist yet. A more specific configuration of the task wins over this one,
+        // no matter which runs first.
         Callable<List<FileCollection>> defaultLibraryDirectories = () -> {
             List<FileCollection> libraryDirectories = new ArrayList<>();
             for (SourceSet sourceSet : sourceSets) {
@@ -197,7 +203,7 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
             return libraryDirectories;
         };
         tasks.withType(Test.class)
-            .configureEach(test -> nativeLibraryPath.configureWithDirectoriesIfAbsent(test, defaultLibraryDirectories));
+            .configureEach(test -> nativeLibraryPath.configureWithDirectories(test, defaultLibraryDirectories, Priority.FALLBACK));
     }
 
     /**

@@ -383,6 +383,26 @@ public class BulkRequest extends UntypedActionRequest
         this.incrementalState = incrementalState;
     }
 
+    /**
+     * Records whether this bulk already holds a coordinating indexing pressure charge.
+     * Bulk execution skips its own coordinating charge when this is true.
+     * Shard failures already stored on this request are kept.
+     * The flag stays on this coordinator and is not written on the wire.
+     */
+    public void indexingPressureAccounted(boolean indexingPressureAccounted) {
+        if (incrementalState.indexingPressureAccounted() == indexingPressureAccounted) {
+            return;
+        }
+        this.incrementalState = new IncrementalState(incrementalState.shardLevelFailures(), indexingPressureAccounted);
+    }
+
+    /**
+     * Returns whether this bulk already holds a coordinating indexing pressure charge.
+     */
+    public boolean indexingPressureAccounted() {
+        return incrementalState.indexingPressureAccounted();
+    }
+
     public final BulkRequest includeSourceOnError(boolean includeSourceOnError) {
         this.includeSourceOnError = includeSourceOnError;
         return this;
@@ -620,11 +640,13 @@ public class BulkRequest extends UntypedActionRequest
         static final IncrementalState EMPTY = new IncrementalState(Collections.emptyMap(), false);
 
         IncrementalState(StreamInput in) throws IOException {
+            // A bulk read off the wire has not reserved indexing pressure on this node, so the flag stays false.
             this(in.readMap(ShardId::new, input -> input.readException()), false);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            // The accounted flag stays on the coordinating node. Shard requests are BulkShardRequests, so it never crosses the wire.
             out.writeMap(shardLevelFailures, (o, s) -> s.writeTo(o), StreamOutput::writeException);
         }
     }

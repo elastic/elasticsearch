@@ -32,13 +32,16 @@ import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
@@ -90,6 +93,10 @@ import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
 /**
  * Abstract base for paginating across a search and executing bulk actions on all results. All package private methods are package private
  * so their tests can use them. Most methods run in the listener thread pool because they are meant to be fast and don't expect to block.
+ * <p>
+ * Each non-empty bulk holds one coordinating indexing pressure charge from the moment it is built until the cleanup that already runs when
+ * that bulk finishes. Retries keep that same reservation, so a rejected bulk stays inside the coordinating budget instead of piling up
+ * outside it. A later batch that cannot take a charge fails the task.
  */
 public abstract class AbstractAsyncBulkByPaginatedSearchAction<
     Request extends AbstractBulkByPaginatedSearchRequest<Request>,
@@ -170,6 +177,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
     protected final ReindexSettings reindexSettings;
     private final CircuitBreaker circuitBreaker;
     private final String breakerLabel;
+    private final IndexingPressure indexingPressure;
 
     protected CircuitBreaker getCircuitBreaker() {
         return circuitBreaker;
@@ -195,6 +203,51 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         CircuitBreaker circuitBreaker,
         String breakerLabel
     ) {
+        // Callers that were not given the node's indexing pressure get a separate budget at the default limit.
+        this(
+            task,
+            needsSourceDocumentVersions,
+            needsSourceDocumentSeqNoAndPrimaryTerm,
+            needsVectors,
+            logger,
+            client,
+            threadPool,
+            mainRequest,
+            listener,
+            scriptService,
+            sslConfig,
+            bulkByPaginatedSearchSearchContextMetrics,
+            bulkByPaginatedSearchTaskKind,
+            remoteBulkByPaginatedSearch,
+            maxTaskShutdownGracePeriod,
+            reindexSettings,
+            circuitBreaker,
+            breakerLabel,
+            new IndexingPressure(Settings.EMPTY)
+        );
+    }
+
+    AbstractAsyncBulkByPaginatedSearchAction(
+        BulkByPaginatedSearchTask task,
+        boolean needsSourceDocumentVersions,
+        boolean needsSourceDocumentSeqNoAndPrimaryTerm,
+        boolean needsVectors,
+        Logger logger,
+        ParentTaskAssigningClient client,
+        ThreadPool threadPool,
+        Request mainRequest,
+        ActionListener<BulkByPaginatedSearchResponse> listener,
+        @Nullable ScriptService scriptService,
+        @Nullable ReindexSslConfig sslConfig,
+        @Nullable BulkByPaginatedSearchSearchContextMetrics bulkByPaginatedSearchSearchContextMetrics,
+        BulkByPaginatedSearchSearchContextMetrics.TaskKind bulkByPaginatedSearchTaskKind,
+        boolean remoteBulkByPaginatedSearch,
+        TimeValue maxTaskShutdownGracePeriod,
+        ReindexSettings reindexSettings,
+        CircuitBreaker circuitBreaker,
+        String breakerLabel,
+        IndexingPressure indexingPressure
+    ) {
         this(
             task,
             needsSourceDocumentVersions,
@@ -215,7 +268,8 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
             maxTaskShutdownGracePeriod,
             reindexSettings,
             circuitBreaker,
-            breakerLabel
+            breakerLabel,
+            indexingPressure
         );
     }
 
@@ -240,6 +294,55 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         ReindexSettings reindexSettings,
         CircuitBreaker circuitBreaker,
         String breakerLabel
+    ) {
+        // Callers that were not given the node's indexing pressure get a separate budget at the default limit.
+        this(
+            task,
+            needsSourceDocumentVersions,
+            needsSourceDocumentSeqNoAndPrimaryTerm,
+            needsVectors,
+            logger,
+            searchClient,
+            bulkClient,
+            threadPool,
+            mainRequest,
+            listener,
+            scriptService,
+            sslConfig,
+            remoteVersion,
+            bulkByPaginatedSearchSearchContextMetrics,
+            bulkByPaginatedSearchTaskKind,
+            remoteBulkByPaginatedSearch,
+            maxTaskShutdownGracePeriod,
+            reindexSettings,
+            circuitBreaker,
+            breakerLabel,
+            new IndexingPressure(Settings.EMPTY)
+        );
+    }
+
+    AbstractAsyncBulkByPaginatedSearchAction(
+        BulkByPaginatedSearchTask task,
+        boolean needsSourceDocumentVersions,
+        boolean needsSourceDocumentSeqNoAndPrimaryTerm,
+        boolean needsVectors,
+        Logger logger,
+        ParentTaskAssigningClient searchClient,
+        ParentTaskAssigningClient bulkClient,
+        ThreadPool threadPool,
+        Request mainRequest,
+        ActionListener<BulkByPaginatedSearchResponse> listener,
+        @Nullable ScriptService scriptService,
+        @Nullable ReindexSslConfig sslConfig,
+        @Nullable Version remoteVersion,
+        @Nullable BulkByPaginatedSearchSearchContextMetrics bulkByPaginatedSearchSearchContextMetrics,
+        BulkByPaginatedSearchSearchContextMetrics.TaskKind bulkByPaginatedSearchTaskKind,
+        boolean remoteBulkByPaginatedSearch,
+        TimeValue maxTaskShutdownGracePeriod,
+        ReindexSettings reindexSettings,
+        CircuitBreaker circuitBreaker,
+        String breakerLabel,
+        IndexingPressure indexingPressure
     ) {
         this.task = task;
         this.scriptService = scriptService;
@@ -266,6 +369,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         this.circuitBreaker = Objects.requireNonNull(circuitBreaker);
         this.breakerLabel = Objects.requireNonNull(breakerLabel);
         this.reindexSettings = Objects.requireNonNull(reindexSettings);
+        this.indexingPressure = Objects.requireNonNull(indexingPressure, "indexingPressure");
         paginatedHitSource = buildPaginatedSearchResultSource(
             backoffPolicy,
             prepareSearchRequest(
@@ -574,6 +678,10 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
      * Prepare the bulk request. Called on the generic thread pool after some preflight checks have been done one the SearchResponse and any
      * delay has been slept. Uses the generic thread pool because reindex is rare enough not to need its own thread pool and because the
      * thread may be blocked by the user script.
+     * <p>
+     * A non-empty bulk takes its coordinating indexing pressure charge here, before it is sent. That update is a counter increment, so it
+     * does not block this thread. The charge stays open until the cleanup that already wraps the bulk listener. If the budget cannot hold
+     * the bulk, the task fails and nothing is scheduled to retry.
      */
     void prepareBulkRequest(long thisBatchStartTimeNS, PaginatedSearchConsumableHitsResponse asyncResponse) {
         logger.debug("[{}]: preparing bulk request", task.getId());
@@ -632,6 +740,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
             if (r > 0) circuitBreaker.addWithoutBreaking(-r);
             asyncResponse.response().closeBodyReleasable();
         });
+        Releasable bulkCleanup = cleanup;
         boolean cleanupHandedOff = false;
         try {
             final BulkRequest request;
@@ -650,13 +759,41 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
             }
             request.timeout(mainRequest.getTimeout());
             request.waitForActiveShards(mainRequest.getWaitForActiveShards());
-            sendBulkRequest(request, cleanup, () -> notifyDone(thisBatchStartTimeNS, asyncResponse, request.requests().size()));
+            final Releasable indexingPressureRelease;
+            try {
+                indexingPressureRelease = reserveCoordinatingIndexingPressure(request);
+            } catch (EsRejectedExecutionException e) {
+                // The scroll or point-in-time has already moved, so this page cannot be dropped and retried later.
+                finishHim(e);
+                return;
+            }
+            // releaseOnce because IndexingPressure asserts if its reservation is closed twice.
+            bulkCleanup = Releasables.wrap(cleanup, Releasables.releaseOnce(indexingPressureRelease));
+            sendBulkRequest(request, bulkCleanup, () -> notifyDone(thisBatchStartTimeNS, asyncResponse, request.requests().size()));
             cleanupHandedOff = true;
         } finally {
             if (cleanupHandedOff == false) {
-                cleanup.close();
+                bulkCleanup.close();
             }
         }
+    }
+
+    /**
+     * Reserves one coordinating indexing pressure charge for a non-empty bulk and marks the bulk accounted, so a later attempt does not
+     * reserve those bytes again. The reservation keeps this byte count until it is closed, including after a partial retry shrinks
+     * the bulk.
+     *
+     * @param request the bulk about to be sent
+     * @return the reservation, closed by the same cleanup that releases the hit page
+     * @throws EsRejectedExecutionException when the coordinating budget cannot hold the bulk
+     */
+    private Releasable reserveCoordinatingIndexingPressure(BulkRequest request) {
+        // Same bytes doExecute would charge, taken once for the life of this bulk. forceExecution stays false, so a system index
+        // reindex is rejected when the node is full.
+        final long bytes = request.ramBytesUsed() + threadPool.getThreadContext().estimatedRequestContextBytes();
+        final Releasable reservation = indexingPressure.markCoordinatingOperationStarted(request.numberOfActions(), bytes, false);
+        request.indexingPressureAccounted(true);
+        return reservation;
     }
 
     /**

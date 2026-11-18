@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.injection.guice.Inject;
@@ -58,7 +59,8 @@ public class TransportEnrichReindexAction extends TransportReindexAction {
         ResourceWatcherService watcherService,
         FeatureService featureService,
         TaskResultsService taskResultsService,
-        CircuitBreakerService circuitBreakerService
+        CircuitBreakerService circuitBreakerService,
+        IndexingPressure indexingPressure
     ) {
         super(
             EnrichReindexAction.NAME,
@@ -81,7 +83,8 @@ public class TransportEnrichReindexAction extends TransportReindexAction {
             new ReindexSettings(),
             featureService,
             taskResultsService,
-            circuitBreakerService
+            circuitBreakerService,
+            indexingPressure
         );
         this.bulkClient = new OriginSettingClient(client, ENRICH_ORIGIN);
     }

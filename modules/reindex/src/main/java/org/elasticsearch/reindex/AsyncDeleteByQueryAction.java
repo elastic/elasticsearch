@@ -16,6 +16,7 @@ import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
@@ -38,7 +39,8 @@ public class AsyncDeleteByQueryAction extends AbstractAsyncBulkByPaginatedSearch
         @Nullable BulkByPaginatedSearchSearchContextMetrics bulkByPaginatedSearchSearchContextMetrics,
         TimeValue maxTaskShutdownGracePeriod,
         ReindexSettings reindexSettings,
-        CircuitBreaker requestBreaker
+        CircuitBreaker requestBreaker,
+        IndexingPressure indexingPressure
     ) {
         super(
             task,
@@ -58,7 +60,8 @@ public class AsyncDeleteByQueryAction extends AbstractAsyncBulkByPaginatedSearch
             maxTaskShutdownGracePeriod,
             reindexSettings,
             requestBreaker,
-            "delete_by_query_bulk_batch"
+            "delete_by_query_bulk_batch",
+            indexingPressure
         );
     }
 

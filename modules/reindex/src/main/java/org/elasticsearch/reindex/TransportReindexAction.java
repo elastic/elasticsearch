@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.ReindexAction;
@@ -72,7 +73,8 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         ReindexSettings reindexSettings,
         FeatureService featureService,
         TaskResultsService taskResultsService,
-        CircuitBreakerService circuitBreakerService
+        CircuitBreakerService circuitBreakerService,
+        IndexingPressure indexingPressure
     ) {
         this(
             ReindexAction.NAME,
@@ -93,7 +95,8 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
             reindexSettings,
             featureService,
             taskResultsService,
-            circuitBreakerService
+            circuitBreakerService,
+            indexingPressure
         );
     }
 
@@ -116,7 +119,8 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         ReindexSettings reindexSettings,
         FeatureService featureService,
         TaskResultsService taskResultsService,
-        CircuitBreakerService circuitBreakerService
+        CircuitBreakerService circuitBreakerService,
+        IndexingPressure indexingPressure
     ) {
         super(name, transportService, actionFilters, ReindexRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.client = client;
@@ -141,7 +145,8 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
             relocationNodePicker,
             featureService,
             taskResultsService,
-            circuitBreakerService
+            circuitBreakerService,
+            indexingPressure
         );
     }
 

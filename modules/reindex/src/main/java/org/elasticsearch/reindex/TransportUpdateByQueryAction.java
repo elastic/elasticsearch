@@ -19,9 +19,11 @@ import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
@@ -58,6 +60,37 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
     private final TimeValue taskShutdownGracePeriod;
     private final ReindexSettings reindexSettings;
     private final CircuitBreaker requestBreaker;
+    private final IndexingPressure indexingPressure;
+
+    public TransportUpdateByQueryAction(
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        Client client,
+        TransportService transportService,
+        ScriptService scriptService,
+        ClusterService clusterService,
+        ProjectResolver projectResolver,
+        @Nullable UpdateByQueryMetrics updateByQueryMetrics,
+        @Nullable BulkByPaginatedSearchSearchContextMetrics bulkByPaginatedSearchSearchContextMetrics,
+        ReindexSettings reindexSettings,
+        CircuitBreakerService circuitBreakerService
+    ) {
+        // Callers that were not given the node's indexing pressure get a separate budget at the default limit.
+        this(
+            threadPool,
+            actionFilters,
+            client,
+            transportService,
+            scriptService,
+            clusterService,
+            projectResolver,
+            updateByQueryMetrics,
+            bulkByPaginatedSearchSearchContextMetrics,
+            reindexSettings,
+            circuitBreakerService,
+            new IndexingPressure(Settings.EMPTY)
+        );
+    }
 
     @Inject
     public TransportUpdateByQueryAction(
@@ -71,7 +104,8 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         @Nullable UpdateByQueryMetrics updateByQueryMetrics,
         @Nullable BulkByPaginatedSearchSearchContextMetrics bulkByPaginatedSearchSearchContextMetrics,
         ReindexSettings reindexSettings,
-        CircuitBreakerService circuitBreakerService
+        CircuitBreakerService circuitBreakerService,
+        IndexingPressure indexingPressure
     ) {
         super(UpdateByQueryAction.NAME, transportService, actionFilters, UpdateByQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
@@ -86,6 +120,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         this.taskShutdownGracePeriod = ShutdownPrepareService.MAXIMUM_REINDEXING_TIMEOUT_SETTING.get(clusterService.getSettings());
         this.reindexSettings = Objects.requireNonNull(reindexSettings);
         this.requestBreaker = Objects.requireNonNull(circuitBreakerService.getBreaker(CircuitBreaker.REQUEST));
+        this.indexingPressure = Objects.requireNonNull(indexingPressure, "indexingPressure");
     }
 
     @Override
@@ -121,7 +156,8 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
                     taskShutdownGracePeriod,
                     bulkByPaginatedSearchSearchContextMetrics,
                     reindexSettings,
-                    requestBreaker
+                    requestBreaker,
+                    indexingPressure
                 ).start();
             }
         );
@@ -147,6 +183,36 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
             ReindexSettings reindexSettings,
             CircuitBreaker requestBreaker
         ) {
+            this(
+                task,
+                logger,
+                client,
+                threadPool,
+                scriptService,
+                request,
+                listener,
+                maxTaskShutdownGracePeriod,
+                bulkByPaginatedSearchSearchContextMetrics,
+                reindexSettings,
+                requestBreaker,
+                new IndexingPressure(Settings.EMPTY)
+            );
+        }
+
+        AsyncIndexBySearchAction(
+            BulkByPaginatedSearchTask task,
+            Logger logger,
+            ParentTaskAssigningClient client,
+            ThreadPool threadPool,
+            ScriptService scriptService,
+            UpdateByQueryRequest request,
+            ActionListener<BulkByPaginatedSearchResponse> listener,
+            TimeValue maxTaskShutdownGracePeriod,
+            @Nullable BulkByPaginatedSearchSearchContextMetrics bulkByPaginatedSearchSearchContextMetrics,
+            ReindexSettings reindexSettings,
+            CircuitBreaker requestBreaker,
+            IndexingPressure indexingPressure
+        ) {
             super(
                 task,
                 // use sequence number powered optimistic concurrency control unless requested
@@ -166,7 +232,8 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
                 maxTaskShutdownGracePeriod,
                 reindexSettings,
                 requestBreaker,
-                "update_by_query_bulk_batch"
+                "update_by_query_bulk_batch",
+                indexingPressure
             );
         }
 

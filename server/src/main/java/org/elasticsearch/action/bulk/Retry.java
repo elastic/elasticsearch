@@ -155,6 +155,8 @@ public class Retry {
                 }
                 index++;
             }
+            // The original bulk already holds the coordinating charge at its original size. A smaller retry must not take another one.
+            requestToReissue.indexingPressureAccounted(currentBulkRequest.indexingPressureAccounted());
             return requestToReissue;
         }
 

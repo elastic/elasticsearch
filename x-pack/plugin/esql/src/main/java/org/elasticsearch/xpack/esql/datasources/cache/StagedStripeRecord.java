@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasources.cache;
 
-import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.SplitStats;
 import org.elasticsearch.xpack.esql.datasources.spi.StripeStatsSink;
@@ -15,7 +14,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.StripeStatsSink;
 import java.util.AbstractMap;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -40,9 +38,12 @@ import java.util.Set;
  * the compact form and builds nothing at all. So a walk builds and discards, a lookup builds and keeps, a
  * membership test of an always-present key builds nothing, and once a lookup has kept one the walk uses it.
  * <p>
- * Equality, hashing and iteration order are the flat map's, so a staged record is indistinguishable on the wire
- * and in a comparison from the flat map a chunk publishes directly for the same stripe — that is the point: this
- * changes what a contribution costs in memory, never what it is.
+ * Equality and hashing are the flat map's, so a staged record carries the same entries as the flat map a chunk
+ * publishes directly for the same stripe and compares equal to it — that is the point: this changes what a
+ * contribution costs in memory, never what it says. Iteration order is NOT part of that and is deliberately not
+ * preserved: the entries follow the statistics rather than the schema, so the same entries may serialize in a
+ * different order. Nothing reads that order — {@code StreamInput.readGenericMap} rebuilds a {@code HashMap} on
+ * the far side.
  * <p>
  * The kept map is not published under a lock. A race between two readers builds it twice and one wins, which
  * costs a rebuild and nothing else, because both are equal and every value in them is immutable.
@@ -53,8 +54,8 @@ final class StagedStripeRecord extends AbstractMap<String, Object> {
      * The flat keys every stripe record carries whatever its statistics: the eight addressing keys, the file
      * version, the config fingerprint, and the row count. {@link #flatten} writes each of them unconditionally,
      * which is what lets {@link #containsKey} answer them without building anything, and what lets {@link #size}
-     * count them without consulting the statistics. The read configuration and the count licence are written
-     * only when they are set, so {@code size} adds those separately.
+     * count them without building anything. The read configuration and the count licence are written only when
+     * they are set, so {@code size} adds those separately.
      * <p>
      * A key added to {@code flatten} unconditionally belongs here too, and leaving one out is as dangerous as
      * adding one that does not belong. {@code size} starts from this set's own size, so a key {@code flatten}
@@ -90,10 +91,16 @@ final class StagedStripeRecord extends AbstractMap<String, Object> {
     private final boolean atStripeEnd;
     private final boolean eof;
     private final SplitStats stats;
-    private final List<Attribute> schema;
 
     /** The flat form a lookup built and kept; {@code null} until one does. See the class note on the two consumers. */
     private Map<String, Object> flat;
+
+    /**
+     * How many times this record has built its flat form. Not read on any production path: it exists because
+     * "builds nothing" and "keeps nothing" are different claims and {@link #keepsFlatForm} can only see the
+     * second — a walk builds and discards, so it reports {@code false} either way.
+     */
+    private int builds;
 
     StagedStripeRecord(
         StripeStatsSink.ReadIdentity identity,
@@ -103,8 +110,7 @@ final class StagedStripeRecord extends AbstractMap<String, Object> {
         boolean atStripeStart,
         boolean atStripeEnd,
         boolean eof,
-        SplitStats stats,
-        List<Attribute> schema
+        SplitStats stats
     ) {
         this.identity = identity;
         this.ordinal = ordinal;
@@ -114,15 +120,6 @@ final class StagedStripeRecord extends AbstractMap<String, Object> {
         this.atStripeEnd = atStripeEnd;
         this.eof = eof;
         this.stats = stats;
-        this.schema = schema;
-    }
-
-    /**
-     * The schema list this record holds, so a test can assert that the records of one read share ONE list rather
-     * than a copy each. Not part of the map contract and not read on any production path.
-     */
-    List<Attribute> schema() {
-        return schema;
     }
 
     @Override
@@ -214,8 +211,8 @@ final class StagedStripeRecord extends AbstractMap<String, Object> {
 
     /**
      * Unmodifiable so a write through this map fails rather than being silently dropped by the next rebuild.
-     * The wrapper keeps the underlying iteration order, which is what makes the serialized bytes identical to a
-     * directly published contribution's.
+     * The columns come from the statistics, which is also where {@link #size} counts them, so the entries and
+     * the length prefix written ahead of them cannot be drawn from two different column sets.
      * <p>
      * Every harvested column is written even when it holds nothing but zeros, and that is the load-bearing
      * part. "Harvested, and every row of it was null" and "never harvested" are different answers — the first
@@ -239,6 +236,7 @@ final class StagedStripeRecord extends AbstractMap<String, Object> {
      * counts say so.
      */
     private Map<String, Object> flatten() {
+        builds++;
         Map<String, ExternalStats.ColumnStats> columns = new HashMap<>();
         for (int i = 0; i < stats.columnCount(); i++) {
             columns.put(
@@ -254,14 +252,13 @@ final class StagedStripeRecord extends AbstractMap<String, Object> {
             atStripeStart,
             atStripeEnd,
             eof,
-            stats.rowCount(),
-            columns,
-            schema
+            TextFormatStats.harvested(stats.rowCount(), columns)
         );
         assert size() == built.size()
-            : "a staged record counts its entries from the statistics and the always-present set, and writes them "
-                + "from the schema, so the two can disagree -- and the wire prefix is written from size(), which "
-                + "would make the reader take the bytes after this record as further entries of it: counted "
+            : "a staged record counts its entries and writes them from the same statistics, so the two can only "
+                + "disagree if the counting rule and the key-writing rule have drifted apart -- and the wire "
+                + "prefix is written from size(), which would make the reader take the bytes after this record "
+                + "as further entries of it: counted "
                 + size()
                 + ", wrote "
                 + built.size();
@@ -271,5 +268,10 @@ final class StagedStripeRecord extends AbstractMap<String, Object> {
     /** Whether a lookup has made this record keep its flat form. The contract a walk must not break. */
     boolean keepsFlatForm() {
         return flat != null;
+    }
+
+    /** How many flat forms this record has built. The contract a membership test of an always-present key must not break. */
+    int buildCount() {
+        return builds;
     }
 }

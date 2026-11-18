@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.datasources.cache;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
@@ -24,11 +23,9 @@ import org.elasticsearch.xpack.esql.datasources.SplitStats;
 import org.elasticsearch.xpack.esql.datasources.spi.StripeStatsSink;
 
 import java.io.IOException;
-import java.util.AbstractList;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
@@ -191,11 +188,14 @@ public class StripeStatsStagingTests extends ESTestCase {
     }
 
     /**
-     * The wire constraint: staging changes how many records a read publishes, never what one looks like on the
-     * transport. A chunk that covers a whole stripe on its own must serialize to the same bytes whether it was
-     * staged or published directly.
+     * What a staged record is for: the same contribution, cheaper to hold. The property is the round trip —
+     * what a stream writes it must read back equal to the map the same chunk would have published directly,
+     * which pins the length prefix against the entries that follow it and the content against the direct path
+     * in one assertion. Byte identity is deliberately NOT asserted: the entries follow the statistics rather
+     * than the schema, so the same entries may order differently, and nothing reads that order because
+     * {@code readGenericMap} rebuilds a {@code HashMap} on the far side.
      */
-    public void testAStagedRecordSerializesToTheBytesTheChunkWouldHavePublished() throws IOException {
+    public void testAStagedRecordCarriesWhatTheChunkWouldHavePublished() throws IOException {
         ConcurrentMap<String, List<Map<String, Object>>> stagedSink = ExternalStatsCapture.newSink();
         StripeStatsStaging staging = new StripeStatsStaging(stagedSink);
         chunk(staging, 1024, true, 0, 1024, row(0, 1L, "a"), row(16, 5L, "q"));
@@ -208,20 +208,25 @@ public class StripeStatsStagingTests extends ESTestCase {
         assertEquals(1, staged(stagedSink).size());
         assertEquals(1, staged(directSink).size());
 
-        // The bytes FIRST, and from a record no lookup has touched. Writing one goes through the compact
-        // size() and entrySet(); a kept flat form would answer both instead, so the comparison would not
-        // exercise the path it exists to pin. The value equality below calls get() -- HashMap.equals probes the
-        // argument key by key -- so it has to come after this, not before it.
+        // The wire FIRST, and from a record no lookup has touched. Writing one goes through the compact size()
+        // and entrySet(); a kept flat form would answer both instead, so the comparison would not exercise the
+        // path it exists to pin. The value equality below calls get() -- HashMap.equals probes the argument key
+        // by key -- so it has to come after this, not before it.
         Map<String, Object> stagedRecord = staged(stagedSink).get(0);
         assertFalse(
             "the serialization path must be exercised from a record no lookup has made keep its flat form",
             ((StagedStripeRecord) stagedRecord).keepsFlatForm()
         );
-        assertArrayEquals(
-            "a staged record must serialize to the bytes the chunk would have published",
-            wire(staged(directSink).get(0)),
-            wire(stagedRecord)
-        );
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeGenericMap(stagedRecord);
+            try (StreamInput in = out.bytes().streamInput()) {
+                assertEquals(
+                    "a staged record must read back as the contribution the chunk would have published",
+                    staged(directSink).get(0),
+                    in.readGenericMap()
+                );
+            }
+        }
         assertFalse("and writing it must leave the record compact", ((StagedStripeRecord) stagedRecord).keepsFlatForm());
 
         assertEquals("the staged record must carry the same keys and values", staged(directSink).get(0), stagedRecord);
@@ -311,8 +316,7 @@ public class StripeStatsStagingTests extends ESTestCase {
             true,
             true,
             true,
-            builder.build(),
-            SCHEMA
+            builder.build()
         );
 
         // Read the preconditions through a COPY. A lookup on the record would make it keep its flat form, and
@@ -323,6 +327,32 @@ public class StripeStatsStagingTests extends ESTestCase {
         assertFalse("copying the entries must leave the record compact", record.keepsFlatForm());
 
         assertEquals("the counted size must equal the built map's", entries.size(), record.size());
+    }
+
+    /**
+     * The empty shape, which the emit loop really does produce: a chunk owns the left edge of a stripe whose
+     * first record lands in the next chunk, so that stripe is staged with no rows and no columns. It is the
+     * one record whose entries are nothing but the addressing keys, so it is where a size counted from the
+     * always-present set and entries written from the statistics would disagree with nothing to mask it.
+     */
+    public void testAStripePieceWithNoRowsCountsItsEntries() {
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        StripeStatsStaging staging = new StripeStatsStaging(sink);
+        // One chunk over two stripes, every record in the first: stripe 1 is walked, anchored and empty.
+        chunk(staging, 1024, true, 0, 2048, row(0, 1L, "a"));
+
+        List<Map<String, Object>> staged = staged(sink);
+        assertEquals("both stripes the chunk spans must stage", 2, staged.size());
+
+        StagedStripeRecord empty = (StagedStripeRecord) staged.get(1);
+        Map<String, Object> entries = new HashMap<>(empty);
+        assertFalse("copying the entries must leave the record compact", empty.keepsFlatForm());
+        assertEquals("the empty stripe must carry no rows", 0L, entries.get("_stats.row_count"));
+        assertTrue(
+            "and no column entries, or the fixture is not the empty shape",
+            entries.keySet().stream().noneMatch(k -> k.startsWith("_stats.columns."))
+        );
+        assertEquals("the counted size must equal the built map's", entries.size(), empty.size());
     }
 
     /**
@@ -528,13 +558,11 @@ public class StripeStatsStagingTests extends ESTestCase {
      * The other half of {@link StagedStripeRecord#containsKey}: an always-present key is answered without
      * building the flat form at all, not merely without keeping it. {@code keepsFlatForm} cannot see that — a
      * walk builds and discards, so it reports {@code false} either way — so the builds are counted directly,
-     * through a schema list that ticks each time {@code flatten} iterates it. Without the counter, deleting the
-     * early return leaves every answer correct and every other assertion in this suite green while costing one
-     * build per probe, and {@code Status.stripesCommitted} runs two probes per staged record on every
-     * {@code GET _tasks?detailed} during a large text scan.
+     * by the record. Without the counter, deleting the early return leaves every answer correct and every other
+     * assertion in this suite green while costing one build per probe, and {@code Status.stripesCommitted} runs
+     * two probes per staged record on every {@code GET _tasks?detailed} during a large text scan.
      */
     public void testMembershipOfAnAlwaysPresentKeyBuildsNothing() {
-        CountingSchema schema = new CountingSchema();
         SplitStats.Builder builder = new SplitStats.Builder().rowCount(1);
         int column = builder.addColumn("n");
         builder.nullCount(column, 0);
@@ -549,43 +577,21 @@ public class StripeStatsStagingTests extends ESTestCase {
             true,
             true,
             true,
-            builder.build(),
-            schema
+            builder.build()
         );
 
-        assertEquals("a staged record builds nothing until someone asks", 0, schema.builds);
+        assertEquals("a staged record builds nothing until someone asks", 0, record.buildCount());
         record.size();
-        assertEquals("the size comes from the compact count", 0, schema.builds);
+        assertEquals("the size comes from the compact count", 0, record.buildCount());
         assertTrue(record.containsKey(ExternalStats.STRIPE_ORDINAL_KEY));
         assertTrue(record.containsKey(ExternalStats.STRIPE_SIZE_KEY));
-        assertEquals("membership of the keys every record carries must build nothing", 0, schema.builds);
+        assertEquals("membership of the keys every record carries must build nothing", 0, record.buildCount());
 
         // The control: a key the set does not carry has to walk, so the counter can tick at all and a zero
-        // above is evidence about the early return rather than about a schema nothing ever iterates.
+        // above is evidence about the early return rather than about a counter nothing ever increments.
         assertFalse("a key this path never writes must not be claimed", record.containsKey(ExternalStats.STRIPE_GRID_KEY));
-        assertEquals("a key outside the set walks, which builds once", 1, schema.builds);
+        assertEquals("a key outside the set walks, which builds once", 1, record.buildCount());
         assertFalse("and the walk keeps nothing", record.keepsFlatForm());
-    }
-
-    /** {@link #SCHEMA}, counting the times {@code flatten} iterates it — one tick per flat-form build. */
-    private static final class CountingSchema extends AbstractList<Attribute> {
-        private int builds;
-
-        @Override
-        public Attribute get(int index) {
-            return SCHEMA.get(index);
-        }
-
-        @Override
-        public int size() {
-            return SCHEMA.size();
-        }
-
-        @Override
-        public Iterator<Attribute> iterator() {
-            builds++;
-            return SCHEMA.iterator();
-        }
     }
 
     /** The {@code _stats.*} statistics of a contribution, without the addressing keys a fold re-stamps. */
@@ -629,11 +635,18 @@ public class StripeStatsStagingTests extends ESTestCase {
             staged(wholeStripe).get(0),
             staged(inPieces).get(0)
         );
-        assertArrayEquals(
-            "and must serialize to the same bytes, because that is the form the coordinator consumes",
-            wire(staged(wholeStripe).get(0)),
-            wire(staged(inPieces).get(0))
-        );
+        // Through the wire too, because that is the form the coordinator consumes. Equality of the maps does
+        // not on its own say the length prefix a staged record writes matches the entries after it.
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeGenericMap(staged(inPieces).get(0));
+            try (StreamInput in = out.bytes().streamInput()) {
+                assertEquals(
+                    "and must read back as the whole-stripe read's record, prefix and entries agreeing",
+                    staged(wholeStripe).get(0),
+                    in.readGenericMap()
+                );
+            }
+        }
     }
 
     /**
@@ -677,58 +690,15 @@ public class StripeStatsStagingTests extends ESTestCase {
         harvester.emit(PATH, start, end - start, MTIME, FINGERPRINT, READ_CONFIG, true, SCHEMA);
     }
 
-    /** The bytes one contribution occupies on the transport, written exactly as {@code DriverCompletionInfo} writes it. */
-    private static byte[] wire(Map<String, Object> contribution) throws IOException {
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.writeGenericMap(contribution);
-            return BytesReference.toBytes(out.bytes());
-        }
-    }
-
     /**
-     * The records of one read share ONE schema list, because a reader hands each chunk its own.
-     * <p>
-     * {@code NdJsonFormatReader} merges the bound schema with the projection once per chunk and returns a fresh
-     * list, cloning any attribute whose nullability differs from the chunk-0 inference. A staged record keeps the
-     * list it was staged with until the query ends, so without the share a long read retains one list of every
-     * column per completing chunk: 9,640,554 live attributes against 94,096 staged records on a 105-column NDJSON
-     * read, where the arm that flattens each piece immediately held about twenty thousand.
-     * <p>
-     * Identity is the assertion, not equality — equality holds either way, which is the whole reason the copies
-     * were invisible. The clones must come from {@code withNullability} on a shared base so they keep their
-     * {@code id()} and the lists compare equal: a freshly constructed {@link ReferenceAttribute} mints a new
-     * {@code NameId}, the lists would not be equal, nothing would be shared and this would fail for the wrong
-     * reason. {@code assertEquals} below pins that precondition. Nothing here reads a value back through
-     * {@code get}, which would pin the flat form and let a later assertion answer from the kept map.
+     * Two byte-adjacent pieces of one stripe join whatever schemas they were measured under, and the joined
+     * record still reports the size its entry set yields. The pieces used to be held apart here: a record wrote
+     * its entries from the schema and counted them from the statistics, so folding two column sets while keeping
+     * one piece's schema could leave a record claiming more entries than it hands out -- and the map's length
+     * prefix is written from that claim. A record reads both from the statistics now, so the restriction is gone
+     * and these pieces fold like any other adjacent pair.
      */
-    public void testTheRecordsOfOneReadShareOneSchemaList() {
-        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
-        StripeStatsStaging staging = new StripeStatsStaging(sink);
-
-        List<Attribute> first = perChunkSchema();
-        List<Attribute> second = perChunkSchema();
-        assertNotSame("the fixture must hand the two chunks distinct lists", first, second);
-        assertNotSame("and distinct attributes in them", first.get(0), second.get(0));
-        assertEquals("which must still be equal, or nothing would be shared for a trivial reason", first, second);
-
-        chunk(staging, 1024, false, MTIME, 0, 1024, READ_CONFIG, true, first, row(0, 7L, "m"));
-        chunk(staging, 1024, true, MTIME, 1024, 2048, READ_CONFIG, true, second, row(1024, 9L, "z"));
-
-        List<Map<String, Object>> staged = staged(sink);
-        assertEquals("two covered stripes stage two records", 2, staged.size());
-        assertSame(
-            "the records of one read must share one schema list",
-            ((StagedStripeRecord) staged.get(0)).schema(),
-            ((StagedStripeRecord) staged.get(1)).schema()
-        );
-    }
-
-    /**
-     * Two pieces of one stripe described by schemas naming different columns stage separately rather than joining,
-     * and every staged record reports the size its entry set yields. {@code StripeSpan#joins} carries why the wire
-     * depends on that.
-     */
-    public void testPiecesDescribedByDifferentSchemasDoNotJoin() {
+    public void testPiecesMeasuredUnderDifferentSchemasStillJoin() {
         ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
         StripeStatsStaging staging = new StripeStatsStaging(sink);
 
@@ -739,44 +709,17 @@ public class StripeStatsStagingTests extends ESTestCase {
         chunk(staging, 1024, false, MTIME, 0, 512, READ_CONFIG, true, both, row(0, 7L, "m"));
         chunk(staging, 1024, true, MTIME, 512, 1024, READ_CONFIG, true, onlyN, row(512, 9L, "z"));
 
-        // Neither piece anchors both grid lines on its own, so with the schemas apart nothing is covered and the
-        // read leaves both in flight. That is what makes this discriminating: joined, the pair covers stripe 0
-        // and stages ONE record at contribute time, and the count below reads 1 without the flush mattering.
-        staging.flush();
-
+        // Nothing is flushed on purpose: joined, the pair anchors both grid lines and stages at contribute
+        // time. Held apart, neither piece covers the stripe on its own and this sink would be empty, which is
+        // what makes the count discriminating rather than incidental.
         List<Map<String, Object>> staged = staged(sink);
-        assertEquals("pieces whose schemas disagree stage separately rather than folding into one record", 2, staged.size());
-    }
+        assertEquals("byte-adjacent pieces must fold into one record whatever schema each was measured under", 1, staged.size());
 
-    /**
-     * Where two chunks' schemas are not equal, nothing is shared. {@link #testTheRecordsOfOneReadShareOneSchemaList}
-     * pins the sharing half; without this one the intern could return its first list unconditionally and stay green.
-     */
-    public void testSchemasThatAreNotEqualAreNotShared() {
-        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
-        StripeStatsStaging staging = new StripeStatsStaging(sink);
-
-        List<Attribute> both = SCHEMA;
-        List<Attribute> onlyN = List.of(SCHEMA.get(0));
-
-        chunk(staging, 1024, true, MTIME, 0, 1024, READ_CONFIG, true, both, row(0, 7L, "m"));
-        chunk(staging, 1024, true, MTIME, 1024, 2048, READ_CONFIG, true, onlyN, row(1024, 9L, "z"));
-
-        List<Map<String, Object>> staged = staged(sink);
-        assertEquals("two covered stripes stage two records", 2, staged.size());
-        assertEquals(
-            "a record staged under a schema the intern did not match keeps its own list",
-            onlyN,
-            ((StagedStripeRecord) staged.get(1)).schema()
-        );
-    }
-
-    /**
-     * What a reader hands one chunk: a new list of clones that keep their {@code id()}, so it is equal to every
-     * other chunk's and shares no object with them.
-     */
-    private static List<Attribute> perChunkSchema() {
-        return SCHEMA.stream().map(a -> a.withNullability(Nullability.FALSE)).toList();
+        StagedStripeRecord record = (StagedStripeRecord) staged.get(0);
+        Map<String, Object> entries = new HashMap<>(record);
+        assertFalse("copying the entries must leave the record compact", record.keepsFlatForm());
+        assertEquals("the counted size must equal the built map's", entries.size(), record.size());
+        assertEquals("and the fold must carry the whole stripe's rows", 2L, entries.get("_stats.row_count"));
     }
 
     private static Row row(long offset, long number, String keyword) {

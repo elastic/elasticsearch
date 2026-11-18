@@ -54,7 +54,6 @@ public final class StripeStatsStaging implements StripeStatsSink {
      */
     private static final class StripeSpan {
         private final StripeStatsSink.ReadIdentity identity;
-        private final List<Attribute> schema;
         private long start;
         private long end;
         private boolean atStripeStart;
@@ -64,7 +63,6 @@ public final class StripeStatsStaging implements StripeStatsSink {
 
         private StripeSpan(
             StripeStatsSink.ReadIdentity identity,
-            List<Attribute> schema,
             long start,
             long end,
             boolean atStripeStart,
@@ -73,7 +71,6 @@ public final class StripeStatsStaging implements StripeStatsSink {
             SplitStats stats
         ) {
             this.identity = identity;
-            this.schema = schema;
             this.start = start;
             this.end = end;
             this.atStripeStart = atStripeStart;
@@ -88,41 +85,13 @@ public final class StripeStatsStaging implements StripeStatsSink {
         }
 
         /**
-         * Whether {@code other} continues this span: same read, byte-adjacent, and described by the same schema.
-         * <p>
-         * The schema is part of the test because {@link #absorb} folds both pieces' column sets and keeps only one
-         * piece's schema, while {@link StagedStripeRecord} counts its entries from the statistics and writes them
-         * from the schema. Joining two pieces whose schemas name different columns would leave a record reporting
-         * a size larger than the entries it yields, and the map's length prefix is written from that size -- so the
-         * reader would take the following bytes as further entries. Pieces that disagree stage separately, exactly
-         * as pieces of different reads already do, and the coordinator covers them as it covers any other pair.
+         * Whether {@code other} continues this span: same read, byte-adjacent. Column sets are not part of the
+         * test -- {@link #absorb} folds them with {@link SplitStats#fold}, which is the same law the reconciler
+         * applies to a covering chain, and a folded piece reports and writes its columns from that one folded
+         * set.
          */
         private boolean joins(StripeSpan other) {
-            return identity.equals(other.identity) && sameColumns(schema, other.schema) && (end == other.start || other.end == start);
-        }
-
-        /**
-         * Whether two schemas name the same columns in the same order, which is the whole of what a staged record
-         * reads out of one: {@code TextFormatStats.buildColumns} uses it only as {@code cached.get(a.name())}.
-         * <p>
-         * Compared by name rather than by list equality on purpose. {@code Attribute} equality includes the
-         * {@code NameId}, and a reader that infers its schema per chunk mints a fresh id each time -- CSV does
-         * whenever no read schema was bound -- so equal-named schemas would compare unequal, every chunk boundary
-         * would strand a piece unjoined, and the record count this staging exists to cut would climb back.
-         */
-        private static boolean sameColumns(List<Attribute> a, List<Attribute> b) {
-            if (a == b) {
-                return true;
-            }
-            if (a == null || b == null || a.size() != b.size()) {
-                return false;
-            }
-            for (int i = 0; i < a.size(); i++) {
-                if (a.get(i).name().equals(b.get(i).name()) == false) {
-                    return false;
-                }
-            }
-            return true;
+            return identity.equals(other.identity) && (end == other.start || other.end == start);
         }
 
         /** Absorbs the byte-adjacent {@code other}, keeping each edge's own anchors. */
@@ -143,18 +112,6 @@ public final class StripeStatsStaging implements StripeStatsSink {
     private final ConcurrentMap<String, List<Map<String, Object>>> sink;
     private final Map<StripeKey, List<StripeSpan>> open = new HashMap<>();
 
-    /**
-     * The one schema list the records of this read share. A reader may hand a chunk an EQUAL BUT DISTINCT list:
-     * {@code NdJsonFormatReader} merges the bound read schema with its resolved-schema projection once per chunk,
-     * and {@link Attribute#withNullability} clones an attribute whose nullability differs from the projection's,
-     * so each chunk can carry its own copy of every column. A
-     * staged record keeps the list it was staged with until the query ends, so without this the read retains one
-     * list per completing chunk rather than one per read -- measured at 9,640,554 live attributes against 94,096
-     * staged records on a 105-column NDJSON read, where the control arm held about twenty thousand because it
-     * flattened each piece immediately and let the list die with its iterator.
-     */
-    private List<Attribute> sharedSchema;
-
     public StripeStatsStaging(ConcurrentMap<String, List<Map<String, Object>>> sink) {
         this.sink = Objects.requireNonNull(sink, "a staging area needs a sink to stage into");
     }
@@ -165,6 +122,9 @@ public final class StripeStatsStaging implements StripeStatsSink {
      *
      * @param statistics the piece's own statistics, already filtered to {@code schema} by
      *                   {@link TextFormatStats}, so a piece retains only what a published record carries
+     * @param schema     the schema that filter was applied against, and deliberately NOT retained: it has already
+     *                   done its work on {@code statistics}, and a staged record that held it would report its
+     *                   entry count from the statistics while writing the entries from the schema
      */
     @Override
     public void contribute(
@@ -186,7 +146,7 @@ public final class StripeStatsStaging implements StripeStatsSink {
         if (compact == null) {
             return;
         }
-        StripeSpan span = new StripeSpan(identity, shared(schema), start, end, atStripeStart, atStripeEnd, eof, compact);
+        StripeSpan span = new StripeSpan(identity, start, end, atStripeStart, atStripeEnd, eof, compact);
         StripeKey key = new StripeKey(sourceLocation, ordinal);
         synchronized (this) {
             List<StripeSpan> spans = open.computeIfAbsent(key, k -> new ArrayList<>(1));
@@ -254,44 +214,7 @@ public final class StripeStatsStaging implements StripeStatsSink {
         ExternalStatsCapture.recordTo(
             sink,
             sourceLocation,
-            new StagedStripeRecord(
-                span.identity,
-                ordinal,
-                span.start,
-                span.end,
-                span.atStripeStart,
-                span.atStripeEnd,
-                span.eof,
-                span.stats,
-                span.schema
-            )
+            new StagedStripeRecord(span.identity, ordinal, span.start, span.end, span.atStripeStart, span.atStripeEnd, span.eof, span.stats)
         );
     }
-
-    /**
-     * The shared list equal to {@code schema}, or {@code schema} itself when this read has not seen an equal one.
-     * <p>
-     * {@code SchemaInterner} already interns attribute lists by equality and charges the breaker for what it
-     * keeps, and this deliberately does not reuse it: that interner lives for a resolve and is reached only from
-     * {@code ExternalSourceResolver} and {@code SchemaReconciliation}, while these lists are produced per parse
-     * chunk on a reader thread and must die with the read. One slot per staging area is what bounds this one -
-     * it holds a single list, not a map, so it cannot outgrow the read that owns it.
-     * <p>
-     * Synchronized because the only caller builds its span OUTSIDE the critical section below, on whichever
-     * parser thread closed the chunk. Equality is what makes the substitution invisible: a clone keeps the
-     * attribute's {@code id()}, so the per-chunk lists of one read compare equal element-wise, and only names are
-     * ever read back out of the list -- {@code TextFormatStats.buildColumns} uses the schema solely as
-     * {@code cached.get(a.name())}. Where the lists are NOT equal nothing is shared and nothing changes.
-     */
-    private synchronized List<Attribute> shared(List<Attribute> schema) {
-        if (schema == null) {
-            return null;
-        }
-        if (sharedSchema == null) {
-            sharedSchema = schema;
-            return schema;
-        }
-        return sharedSchema.equals(schema) ? sharedSchema : schema;
-    }
-
 }

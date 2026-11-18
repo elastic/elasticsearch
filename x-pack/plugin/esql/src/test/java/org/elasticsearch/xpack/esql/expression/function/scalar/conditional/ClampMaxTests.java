@@ -22,11 +22,10 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.hamcrest.Matchers;
 
 import java.util.List;
-import java.util.Locale;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class ClampMaxTests extends AbstractScalarFunctionTestCase {
     public ClampMaxTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -36,29 +35,24 @@ public class ClampMaxTests extends AbstractScalarFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new java.util.ArrayList<>();
-        for (DataType stringType : DataType.stringTypes()) {
-            if (stringType == DataType.TEXT || stringType == DataType.BYTE) {
-                continue;
-            }
-            suppliers.add(
-                new TestCaseSupplier(
-                    "(a, b)",
-                    List.of(stringType, stringType),
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(
-                            new TestCaseSupplier.TypedData(new BytesRef("a"), stringType, "a"),
-                            new TestCaseSupplier.TypedData(new BytesRef("b"), stringType, "b")
-                        ),
-                        "ClampMaxBytesRefEvaluator[field=Attribute[channel=0], " + "max=Attribute[channel=1]]",
-                        stringType,
-                        Matchers.allOf(
-                            Matchers.notNullValue(),
-                            Matchers.not(Matchers.notANumber()),
-                            Matchers.not(Matchers.in(List.of(Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY)))
+        for (DataType fieldType : List.of(DataType.KEYWORD, DataType.TEXT)) {
+            for (DataType maxType : List.of(DataType.KEYWORD, DataType.TEXT)) {
+                suppliers.add(
+                    new TestCaseSupplier(
+                        "(a, b)",
+                        List.of(fieldType, maxType),
+                        () -> new TestCaseSupplier.TestCase(
+                            List.of(
+                                new TestCaseSupplier.TypedData(new BytesRef("a"), fieldType, "a"),
+                                new TestCaseSupplier.TypedData(new BytesRef("b"), maxType, "b")
+                            ),
+                            "ClampMaxBytesRefEvaluator[field=Attribute[channel=0], " + "max=Attribute[channel=1]]",
+                            DataType.KEYWORD,
+                            equalTo(new BytesRef("a"))
                         )
                     )
-                )
-            );
+                );
+            }
         }
         // function to return the correct type of number (int, long, float, double) based on the DataType
         Function<Tuple<DataType, Integer>, Object> numberValue = dt -> {
@@ -69,23 +63,14 @@ public class ClampMaxTests extends AbstractScalarFunctionTestCase {
             if (dt.v1() == DataType.UNSIGNED_LONG) return dt.v2().longValue(); // we will use long to represent unsigned long
             throw new IllegalArgumentException("Unsupported data type: " + dt);
         };
-        // function to make first letter uppercase
-        Function<String, String> capitalize = s -> s.substring(0, 1).toUpperCase(Locale.ROOT) + s.substring(1).toLowerCase(Locale.ROOT);
-
-        final Set<DataType> disallowedTypes = Set.of(
-            DataType.HALF_FLOAT,
-            DataType.SCALED_FLOAT,
-            DataType.SHORT,
-            DataType.BYTE,
-            DataType.FLOAT
-        );
-        var allNumericTypes = DataType.types().stream().filter(DataType::isNumeric).toList();
-        for (Tuple<DataType, DataType> numericTypes : allNumericTypes.stream()
-            .flatMap(nt1 -> allNumericTypes.stream().map(nt2 -> Tuple.tuple(nt1, nt2)))
-            .collect(Collectors.toSet())) {
-            var nt1 = numericTypes.v1();
-            var nt2 = numericTypes.v2();
-            if (disallowedTypes.contains(nt1) || disallowedTypes.contains(nt2)) {
+        // anyNullIsNull takes the expected type of the first case of each signature, so the narrowest bound type goes first
+        List<DataType> numericTypes = List.of(DataType.INTEGER, DataType.LONG, DataType.DOUBLE, DataType.UNSIGNED_LONG);
+        for (Tuple<DataType, DataType> types : numericTypes.stream()
+            .flatMap(nt1 -> numericTypes.stream().map(nt2 -> Tuple.tuple(nt1, nt2)))
+            .toList()) {
+            var nt1 = types.v1();
+            var nt2 = types.v2();
+            if ((nt1 == DataType.UNSIGNED_LONG) != (nt2 == DataType.UNSIGNED_LONG)) {
                 continue;
             }
             var tmpLargerDt = nt1.estimatedSize() > nt2.estimatedSize() ? nt1 : nt2;
@@ -191,7 +176,26 @@ public class ClampMaxTests extends AbstractScalarFunctionTestCase {
                 )
             )
         );
-        return parameterSuppliersFromTypedData(suppliers);
+        suppliers.add(
+            new TestCaseSupplier(
+                "(a, b)",
+                List.of(DataType.DATE_NANOS, DataType.DATE_NANOS),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(1727877348000000002L, DataType.DATE_NANOS, "a"),
+                        new TestCaseSupplier.TypedData(1727877348000000001L, DataType.DATE_NANOS, "b")
+                    ),
+                    "ClampMaxLongEvaluator[field=Attribute[channel=0], max=Attribute[channel=1]]",
+                    DataType.DATE_NANOS,
+                    equalTo(1727877348000000001L)
+                )
+            )
+        );
+        // A null-typed field is rejected, see https://github.com/elastic/elasticsearch/issues/142537
+        List<TestCaseSupplier> withNulls = anyNullIsNull(true, suppliers).stream()
+            .filter(s -> s.types().getFirst() != DataType.NULL)
+            .toList();
+        return parameterSuppliersFromTypedData(withNulls);
     }
 
     @Override

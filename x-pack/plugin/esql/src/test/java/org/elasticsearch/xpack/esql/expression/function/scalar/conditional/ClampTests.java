@@ -12,7 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.core.Tuple;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -24,13 +24,11 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.versionfield.Version;
 import org.hamcrest.Matchers;
 
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Set;
-import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -73,7 +71,7 @@ public class ClampTests extends AbstractScalarFunctionTestCase {
                 }
             }
         }
-        addUnsignedLongCases(suppliers);
+        suppliers.add(sameTypeCase(DataType.UNSIGNED_LONG, ESTestCase::randomBigInteger, BigInteger::compareTo));
         suppliers.add(sameTypeCase(DataType.BOOLEAN, () -> randomBoolean(), Boolean::compare));
         suppliers.add(
             sameTypeCase(
@@ -186,69 +184,6 @@ public class ClampTests extends AbstractScalarFunctionTestCase {
             case DOUBLE -> Math.min(Math.max(field.doubleValue(), min.doubleValue()), max.doubleValue());
             default -> throw new IllegalArgumentException("unsupported result type [" + resultType + "]");
         };
-    }
-
-    private static void addUnsignedLongCases(List<TestCaseSupplier> suppliers) {
-        // function to return the correct type of number (int, long, float, double) based on the DataType
-        Function<Tuple<DataType, Integer>, Object> numberValue = dt -> {
-            if (dt.v1() == DataType.INTEGER) return dt.v2();
-            if (dt.v1() == DataType.LONG) return dt.v2().longValue();
-            if (dt.v1() == DataType.DOUBLE) return dt.v2().doubleValue();
-            if (dt.v1() == DataType.UNSIGNED_LONG) return dt.v2().longValue(); // we will use long to represent unsigned long
-            throw new IllegalArgumentException("Unsupported data type: " + dt);
-        };
-        final Set<DataType> disallowedTypes = Set.of(
-            DataType.HALF_FLOAT,
-            DataType.SCALED_FLOAT,
-            DataType.SHORT,
-            DataType.BYTE,
-            DataType.FLOAT
-        );
-        var allNumericTypes = DataType.types().stream().filter(DataType::isNumeric).toList();
-        for (Tuple<DataType, DataType> numericTypes : allNumericTypes.stream()
-            .flatMap(nt1 -> allNumericTypes.stream().map(nt2 -> Tuple.tuple(nt1, nt2)))
-            .collect(Collectors.toSet())) {
-            var nt1 = numericTypes.v1();
-            var nt2 = numericTypes.v2();
-            if (disallowedTypes.contains(nt1) || disallowedTypes.contains(nt2)) {
-                continue;
-            }
-            if (nt1 != DataType.UNSIGNED_LONG && nt2 != DataType.UNSIGNED_LONG) {
-                continue;
-            }
-            var tmpLargerDt = nt1.estimatedSize() > nt2.estimatedSize() ? nt1 : nt2;
-            if (nt2.estimatedSize() == nt1.estimatedSize()) {
-                tmpLargerDt = nt1.isRationalNumber() ? nt1 : nt2;
-            }
-            final var largerDt = tmpLargerDt;
-            final var largerDtName = PlannerUtils.toElementType(largerDt).pascalCaseName();
-            suppliers.add(
-                new TestCaseSupplier(
-                    "(a, b, c)",
-                    List.of(nt1, nt2, nt2),
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(
-                            new TestCaseSupplier.TypedData(numberValue.apply(Tuple.tuple(nt1, 1)), nt1, "a"),
-                            new TestCaseSupplier.TypedData(numberValue.apply(Tuple.tuple(nt2, 2)), nt2, "b"),
-                            new TestCaseSupplier.TypedData(numberValue.apply(Tuple.tuple(nt2, 2)), nt2, "c")
-                        ),
-                        Matchers.stringContainsInOrder(
-                            "ClampMax",
-                            largerDtName,
-                            "Evaluator[field=ClampMin",
-                            largerDtName,
-                            "Evaluator[field="
-                        ),
-                        largerDt,
-                        Matchers.allOf(
-                            Matchers.notNullValue(),
-                            Matchers.not(Matchers.notANumber()),
-                            Matchers.not(Matchers.in(List.of(Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY)))
-                        )
-                    )
-                )
-            );
-        }
     }
 
     @Override

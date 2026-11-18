@@ -44,6 +44,24 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "Expression to clamp. If `null`, the function returns `null`."
+        },
+        {
+          "name" : "max",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "The max value to clamp data into."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "date_nanos"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "double",
           "optional" : false,
           "description" : "Expression to clamp. If `null`, the function returns `null`."
@@ -87,24 +105,6 @@
         {
           "name" : "max",
           "type" : "long",
-          "optional" : false,
-          "description" : "The max value to clamp data into."
-        }
-      ],
-      "variadic" : false,
-      "returnType" : "double"
-    },
-    {
-      "params" : [
-        {
-          "name" : "field",
-          "type" : "double",
-          "optional" : false,
-          "description" : "Expression to clamp. If `null`, the function returns `null`."
-        },
-        {
-          "name" : "max",
-          "type" : "unsigned_long",
           "optional" : false,
           "description" : "The max value to clamp data into."
         }
@@ -170,24 +170,6 @@
       "params" : [
         {
           "name" : "field",
-          "type" : "integer",
-          "optional" : false,
-          "description" : "Expression to clamp. If `null`, the function returns `null`."
-        },
-        {
-          "name" : "max",
-          "type" : "unsigned_long",
-          "optional" : false,
-          "description" : "The max value to clamp data into."
-        }
-      ],
-      "variadic" : false,
-      "returnType" : "unsigned_long"
-    },
-    {
-      "params" : [
-        {
-          "name" : "field",
           "type" : "ip",
           "optional" : false,
           "description" : "Expression to clamp. If `null`, the function returns `null`."
@@ -213,6 +195,24 @@
         {
           "name" : "max",
           "type" : "keyword",
+          "optional" : false,
+          "description" : "The max value to clamp data into."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "keyword"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "Expression to clamp. If `null`, the function returns `null`."
+        },
+        {
+          "name" : "max",
+          "type" : "text",
           "optional" : false,
           "description" : "The max value to clamp data into."
         }
@@ -278,73 +278,37 @@
       "params" : [
         {
           "name" : "field",
-          "type" : "long",
+          "type" : "text",
           "optional" : false,
           "description" : "Expression to clamp. If `null`, the function returns `null`."
         },
         {
           "name" : "max",
-          "type" : "unsigned_long",
+          "type" : "keyword",
           "optional" : false,
           "description" : "The max value to clamp data into."
         }
       ],
       "variadic" : false,
-      "returnType" : "unsigned_long"
+      "returnType" : "keyword"
     },
     {
       "params" : [
         {
           "name" : "field",
-          "type" : "unsigned_long",
+          "type" : "text",
           "optional" : false,
           "description" : "Expression to clamp. If `null`, the function returns `null`."
         },
         {
           "name" : "max",
-          "type" : "double",
+          "type" : "text",
           "optional" : false,
           "description" : "The max value to clamp data into."
         }
       ],
       "variadic" : false,
-      "returnType" : "double"
-    },
-    {
-      "params" : [
-        {
-          "name" : "field",
-          "type" : "unsigned_long",
-          "optional" : false,
-          "description" : "Expression to clamp. If `null`, the function returns `null`."
-        },
-        {
-          "name" : "max",
-          "type" : "integer",
-          "optional" : false,
-          "description" : "The max value to clamp data into."
-        }
-      ],
-      "variadic" : false,
-      "returnType" : "unsigned_long"
-    },
-    {
-      "params" : [
-        {
-          "name" : "field",
-          "type" : "unsigned_long",
-          "optional" : false,
-          "description" : "Expression to clamp. If `null`, the function returns `null`."
-        },
-        {
-          "name" : "max",
-          "type" : "long",
-          "optional" : false,
-          "description" : "The max value to clamp data into."
-        }
-      ],
-      "variadic" : false,
-      "returnType" : "long"
+      "returnType" : "keyword"
     },
     {
       "params" : [

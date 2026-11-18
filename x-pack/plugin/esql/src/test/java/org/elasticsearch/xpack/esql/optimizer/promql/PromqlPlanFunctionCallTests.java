@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.promql;
 
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -18,6 +19,8 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Absent;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AbsentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
@@ -32,12 +35,16 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Present;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PresentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMax;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCounter;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGauge;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateExpressions;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -53,6 +60,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isCounter;
@@ -322,6 +330,54 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         assertConstantResult("clamp_max(vector(5), 10)", equalTo(5.0));
         assertConstantResult("clamp_max(vector(15), 10)", equalTo(10.0));
         assertConstantResult("clamp_max(vector(10), 10)", equalTo(10.0));
+    }
+
+    /**
+     * ES|QL {@code CLAMP}, {@code CLAMP_MIN} and {@code CLAMP_MAX} don't mix {@code unsigned_long} with other numeric
+     * types, like the numeric literal bounds of PromQL. The PromQL translation converts the field to double, so a range
+     * function returning {@code unsigned_long}, like {@code max_over_time}, can still be clamped.
+     */
+    public void testClampUnsignedLongMetric() {
+        for (String promql : List.of(
+            "clamp(max_over_time(bytes[5m]), 0, 100)",
+            "clamp_min(max_over_time(bytes[5m]), 10)",
+            "clamp_max(min_over_time(bytes[5m]), 100)"
+        )) {
+            LogicalPlan plan = planUnsignedLongMetricIndex(promql);
+            List<Expression> clamps = new ArrayList<>();
+            plan.forEachExpressionDown(ClampMin.class, clamps::add);
+            plan.forEachExpressionDown(ClampMax.class, clamps::add);
+            assertThat(promql, clamps, not(empty()));
+            for (Expression clamp : clamps) {
+                assertThat(promql, clamp.dataType(), equalTo(DataType.DOUBLE));
+                Expression field = clamp.children().getFirst();
+                if (field instanceof ClampMin clampMin) {
+                    field = clampMin.children().getFirst();
+                }
+                ToDouble toDouble = as(field, ToDouble.class);
+                assertThat(promql, toDouble.field().dataType(), equalTo(DataType.UNSIGNED_LONG));
+            }
+        }
+    }
+
+    /** Plans against a time series index whose only metric, {@code bytes}, is an {@code unsigned_long}. */
+    private LogicalPlan planUnsignedLongMetricIndex(String promql) {
+        var index = new EsIndex(
+            "ul_metrics",
+            Map.of(
+                "@timestamp",
+                new EsField("@timestamp", DataType.DATETIME, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+                "pod",
+                new EsField("pod", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.DIMENSION),
+                "bytes",
+                new EsField("bytes", DataType.UNSIGNED_LONG, Map.of(), true, EsField.TimeSeriesFieldType.METRIC)
+            ),
+            Map.of("ul_metrics", new IndexProperties(IndexMode.TIME_SERIES, 0)),
+            Map.of(),
+            Map.of()
+        );
+        var analyzed = tsAnalyzer().addIndex(index).query("PROMQL index=ul_metrics step=5m result=(" + promql + ")");
+        return logicalOptimizerWithLatestVersion.optimize(analyzed);
     }
 
     public void testCounterRequiredFunctionWrapsPlainNumericWithToCounter() {

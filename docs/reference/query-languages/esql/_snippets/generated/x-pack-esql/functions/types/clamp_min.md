@@ -6,23 +6,21 @@
 | --- | --- | --- |
 | boolean | boolean | boolean |
 | date | date | date |
+| date_nanos | date_nanos | date_nanos |
 | double | double | double |
 | double | integer | double |
 | double | long | double |
-| double | unsigned_long | double |
 | integer | double | double |
 | integer | integer | integer |
 | integer | long | long |
-| integer | unsigned_long | unsigned_long |
 | ip | ip | ip |
 | keyword | keyword | keyword |
+| keyword | text | keyword |
 | long | double | double |
 | long | integer | long |
 | long | long | long |
-| long | unsigned_long | unsigned_long |
-| unsigned_long | double | double |
-| unsigned_long | integer | unsigned_long |
-| unsigned_long | long | long |
+| text | keyword | keyword |
+| text | text | keyword |
 | unsigned_long | unsigned_long | unsigned_long |
 | version | version | version |
 

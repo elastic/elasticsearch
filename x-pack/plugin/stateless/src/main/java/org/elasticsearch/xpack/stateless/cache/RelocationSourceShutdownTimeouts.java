@@ -158,8 +158,8 @@ class RelocationSourceShutdownTimeouts {
         final int shardsOnSource
     ) {
         // The current shard is itself one such relocation, floor at 1 in case it is not yet visible on the source's RoutingNode.
-        final int relocationsFromSourceToTarget = Math.max(1, countRelocationsBetween(state, sourceNodeId, targetNodeId));
-        final int allRelocationsToTarget = Math.max(1, countRelocationsFromShuttingDownNodesTo(state, targetNodeId));
+        final int relocationsFromSourceToTarget = Math.max(1, SearchShardRelocationCounts.from(state, sourceNodeId, targetNodeId));
+        final int allRelocationsToTarget = Math.max(1, SearchShardRelocationCounts.fromShuttingDownNodes(state, targetNodeId));
         return Math.min(
             shardsOnSource,
             (double) nonCriticalRecoverySlots.effectiveSlots(state, allRelocationsToTarget) * relocationsFromSourceToTarget
@@ -184,33 +184,5 @@ class RelocationSourceShutdownTimeouts {
             }
         }
         return sourceNode.size() - relocatingElsewhere;
-    }
-
-    /// Counts relocations whose source is `sourceNodeId` and whose target is `targetNodeId` (i.e. shards relocating
-    /// from `sourceNodeId` to `targetNodeId`, as seen from the source's `RoutingNode`).
-    private static int countRelocationsBetween(ClusterState state, String sourceNodeId, String targetNodeId) {
-        final var sourceNode = state.getRoutingNodes().node(sourceNodeId);
-        if (sourceNode == null) {
-            return 0;
-        }
-        int count = 0;
-        for (ShardRouting shard : sourceNode.relocating()) {
-            if (shard.isPromotableToPrimary() == false && targetNodeId.equals(shard.relocatingNodeId())) {
-                count++;
-            }
-        }
-        return count;
-    }
-
-    /// Counts the shards relocating from nodes marked for removal to `targetNodeId`.
-    private static int countRelocationsFromShuttingDownNodesTo(ClusterState state, String targetNodeId) {
-        final var nodeShutdowns = state.metadata().nodeShutdowns();
-        int count = 0;
-        for (String nodeId : nodeShutdowns.getAllNodeIds()) {
-            if (nodeShutdowns.isNodeMarkedForRemoval(nodeId)) {
-                count += countRelocationsBetween(state, nodeId, targetNodeId);
-            }
-        }
-        return count;
     }
 }

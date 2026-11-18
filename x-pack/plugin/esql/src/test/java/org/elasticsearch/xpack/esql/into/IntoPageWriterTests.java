@@ -57,10 +57,12 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -77,6 +79,7 @@ import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -366,6 +369,25 @@ public class IntoPageWriterTests extends ComputeTestCase {
         assertThat(client.bulks, empty());
         assertTrue(writer.isFinished());
         assertThat(sink.stats(), equalTo(new IntoStats(0, 0)));
+    }
+
+    public void testInexactUnsignedLongArrayIsExactJson() throws IOException {
+        BigInteger big = BigInteger.TWO.pow(63).add(BigInteger.ONE);
+        Attribute column = new ReferenceAttribute(Source.EMPTY, "n", DataType.UNSIGNED_LONG);
+        IntoPageWriter exactWriter = IntoPageWriter.Factory.createFactory(client, DESTINATION, List.of(column), PREBUILT)
+            .create(driverContext);
+        try (LongBlock.Builder values = blockFactory.newLongBlockBuilder(1)) {
+            values.beginPositionEntry()
+                .appendLong(NumericUtils.asLongUnsigned(big))
+                .appendLong(NumericUtils.asLongUnsigned(BigInteger.valueOf(7)))
+                .endPositionEntry();
+            exactWriter.consume(new Page(values.build()));
+        }
+        BulkRequest bulk = client.bulks.getFirst();
+        assertThat(bulk.hasPreBuiltBatches(), equalTo(false));
+        String json = ((IndexRequest) bulk.requests().getFirst()).indexSource().bytes().utf8ToString();
+        assertThat(json, not(containsString("\"" + big + "\"")));
+        assertThat(json, containsString(big.toString()));
     }
 
     public void testInlineConversionTripsOnTheColumnBuffer() {

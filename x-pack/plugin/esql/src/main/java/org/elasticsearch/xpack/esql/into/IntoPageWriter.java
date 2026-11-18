@@ -177,21 +177,29 @@ public final class IntoPageWriter implements PageConsumer {
     private ReservedBulk bulkFor(Page page) {
         BulkRequest bulk = new BulkRequest();
         PageToEscfBatch.ConvertResult result = PageToEscfBatch.convert(page, sink.columns, sink.types, recycler, breaker);
+        boolean[] fallback = result.jsonFallbackRows();
+        boolean inlineSources = sink.batchForm == Factory.BatchForm.INLINE || fallback != null;
         bulk.setPreBuiltBatches(Map.of(sink.destination, result.batch()));
         long reserved = result.charged();
         try {
             for (int row = 0; row < result.batch().docCount(); row++) {
                 IndexRequest request = new IndexRequest(sink.destination).opType(DocWriteRequest.OpType.CREATE);
-                request.indexSource().setSourceRow(result.batch(), row, XContentType.JSON);
-                if (sink.batchForm == Factory.BatchForm.INLINE) {
-                    inline(request);
+                if (fallback != null && fallback[row]) {
+                    request.source(PageToEscfBatch.jsonRow(sink.columns, sink.types, page, row), XContentType.JSON);
+                } else {
+                    request.indexSource().setSourceRow(result.batch(), row, XContentType.JSON);
+                    if (inlineSources) {
+                        inline(request);
+                    }
+                }
+                if (inlineSources) {
                     long rowBytes = request.indexSource().byteLength();
                     breaker.addEstimateBytesAndMaybeBreak(rowBytes, BREAKER_LABEL);
                     reserved += rowBytes;
                 }
                 bulk.add(request);
             }
-            if (sink.batchForm == Factory.BatchForm.INLINE) {
+            if (inlineSources) {
                 bulk.releasePreBuiltBatches();
                 release(result.charged());
                 reserved -= result.charged();

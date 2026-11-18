@@ -13,6 +13,7 @@ import org.elasticsearch.action.index.IndexSource;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker.Durability;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
@@ -41,9 +42,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 public class PageToEscfBatchTests extends ComputeTestCase {
     private final MockBigArrays bigArrays;
@@ -175,13 +178,16 @@ public class PageToEscfBatchTests extends ComputeTestCase {
         }
     }
 
-    public void testUnsignedLongArrayAboveLongMaxStaysNumeric() throws IOException {
-        BigInteger big = new BigInteger("10000000000000000000");
+    public void testUnsignedLongArrayAboveLongMaxStaysExact() throws IOException {
+        BigInteger big = BigInteger.TWO.pow(63).add(BigInteger.ONE);
         long encoded = NumericUtils.asLongUnsigned(big);
         try (LongBlock.Builder b = blockFactory().newLongBlockBuilder(1)) {
             b.beginPositionEntry().appendLong(encoded).appendLong(NumericUtils.asLongUnsigned(BigInteger.valueOf(7))).endPositionEntry();
-            Object value = rows(List.of(DataType.UNSIGNED_LONG), b.build()).getFirst().get("c0");
-            assertThat(value, equalTo(List.of(big.doubleValue(), 7)));
+            String json = rowJson(List.of(DataType.UNSIGNED_LONG), b.build());
+            assertThat(json, not(containsString("\"" + big + "\"")));
+            assertThat(json, containsString(big.toString()));
+            Object value = XContentHelper.convertToMap(new BytesArray(json), false, XContentType.JSON).v2().get("c0");
+            assertThat(value, equalTo(List.of(big, 7)));
         }
     }
 
@@ -280,6 +286,27 @@ public class PageToEscfBatchTests extends ComputeTestCase {
 
     public void testEmptyPage() throws IOException {
         assertThat(rows(List.of(DataType.LONG), blockFactory().newConstantNullBlock(0)), equalTo(List.of()));
+    }
+
+    private String rowJson(List<DataType> types, Block... blocks) throws IOException {
+        Page page = new Page(blocks);
+        List<String> names = new ArrayList<>(types.size());
+        for (int i = 0; i < types.size(); i++) {
+            names.add("c" + i);
+        }
+        PageToEscfBatch.ConvertResult result = PageToEscfBatch.convert(page, names, types, bigArrays.bytesRefRecycler(), null);
+        try (EscfBatch batch = result.batch()) {
+            boolean[] fallback = result.jsonFallbackRows();
+            if (fallback != null && fallback[0]) {
+                return PageToEscfBatch.jsonRow(names, types, page, 0).utf8ToString();
+            }
+            IndexSource src = new IndexSource();
+            src.setSourceRow(batch, 0, XContentType.JSON);
+            src.ensureInlineSource();
+            return src.bytes().utf8ToString();
+        } finally {
+            page.releaseBlocks();
+        }
     }
 
     private List<Map<String, Object>> rows(List<DataType> types, Block... blocks) throws IOException {

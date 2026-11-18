@@ -134,8 +134,7 @@ public class SkipperPruningTests extends ESTestCase {
     private int firstCompetitiveDocOfMatchTail(int numDocsWithTimestamp, int numDocsWithoutTimestamp, Indexing indexing)
         throws IOException {
         try (Directory dir = newDirectory()) {
-            SortField timestampSort = new SortField("@timestamp", SortField.Type.LONG, true);
-            timestampSort.setMissingValue(Long.MAX_VALUE);
+            SortField timestampSort = new SortField("@timestamp", SortField.Type.LONG, true, Long.MAX_VALUE);
             IndexWriterConfig iwc = new IndexWriterConfig(new MockAnalyzer(random())).setIndexSort(new Sort(timestampSort));
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), dir, iwc)) {
                 for (int i = 0; i < numDocsWithTimestamp; i++) {

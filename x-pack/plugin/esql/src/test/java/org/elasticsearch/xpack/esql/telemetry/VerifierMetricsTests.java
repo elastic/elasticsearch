@@ -412,6 +412,12 @@ public class VerifierMetricsTests extends ESTestCase {
         assertMetrics(c, Map.of(INLINE_STATS, 1L, FROM, 1L, IN_SUBQUERY, 1L, SORT, 1L, LIMIT, 1L, KEEP, 1L), Map.of("count", 1L));
     }
 
+    public void testInto() {
+        assumeTrue("INTO is only enabled in snapshot builds", EsqlCapabilities.Cap.INTO_COMMAND.isEnabled());
+        Counters c = esql("ROW a = 1 | INTO dst");
+        assertMetrics(c, Map.of(FeatureMetric.INTO, 1L, ROW, 1L));
+    }
+
     public void testLet() {
         assumeTrue("requires NAMED_SUBQUERY_LET capability", EsqlCapabilities.Cap.NAMED_SUBQUERY_LET.isEnabled());
         Counters c = esql("""

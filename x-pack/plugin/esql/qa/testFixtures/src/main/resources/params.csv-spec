@@ -73,6 +73,19 @@ emp_no:integer | last_name:keyword
 10004          | Koblick
 ;
 
+sameParamAsNameAndValue
+required_capability: double_parameter_markers_for_identifiers
+param: field = "first_name"
+FROM employees
+| WHERE emp_no == 10001
+| EVAL name = ?field
+| KEEP emp_no, ??field, name
+;
+
+emp_no:integer | first_name:keyword | name:keyword
+10001          | Georgi             | first_name
+;
+
 namedArray
 required_capability: query_params_multi_values
 param: ids = [10001, 10003]

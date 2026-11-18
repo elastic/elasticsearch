@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -18,7 +17,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexingPressure;
@@ -27,7 +25,6 @@ import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
@@ -37,15 +34,15 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 
 /**
- * One coordinating charge is enough for a batch that this node also writes as primary. A second update by query is rejected
- * while that charge is still held, and replica bytes already near the limit reject a reindex that has no primary here.
+ * One coordinating charge is enough for a batch that this node also writes as primary. A second update by query waits
+ * while that charge is still held, and a reindex whose coordinating node is not the primary waits while replica bytes
+ * sit near the limit.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class ReindexIndexingPressureIT extends ESIntegTestCase {
@@ -90,8 +87,11 @@ public class ReindexIndexingPressureIT extends ESIntegTestCase {
         BlockingIndexPlugin.PRE_INDEX.set((shardId, index) -> {});
     }
 
-    public void testSecondUpdateByQueryIsRejectedWhileOneBatchIsHeld() throws Exception {
-        memoryLimit.set(TWO_BATCH_LIMIT);
+    public void testSecondUpdateByQueryWaitsWhileOneBatchIsHeld() throws Exception {
+        // A search reserves one 64KiB per document in the page. Leave a little room beside that estimate for the
+        // index request already sitting in the write pool, and no room for a second page of the same size.
+        long estimate = (long) DOCS_PER_BATCH * 64 * 1024;
+        memoryLimit.set(estimate + 32 * 1024);
         String node = internalCluster().startNode();
         ensureStableCluster(1);
         createIndex("docs-a");
@@ -122,29 +122,31 @@ public class ReindexIndexingPressureIT extends ESIntegTestCase {
                 UpdateByQueryAction.INSTANCE,
                 heldRetry(batchRequest("docs-a"))
             );
-            assertBusy(() -> assertThat(pressure.stats().getCurrentCoordinatingBytes() - baseline, greaterThan(ONE_BATCH_BYTES / 2)));
+            // Wait until the fetched page is what is held. The reservation starts at the estimate and then shrinks to
+            // the documents actually found, and either of those is far larger than the blocked index request.
+            assertBusy(() -> {
+                long heldBytes = pressure.stats().getCurrentCoordinatingBytes() - baseline;
+                assertThat(heldBytes, greaterThan(64L * 1024));
+            });
             assertFalse(admitted.isDone());
 
             long rejectionsBefore = pressure.stats().getCoordinatingRejections();
-            ActionFuture<BulkByPaginatedSearchResponse> rejected = client().execute(UpdateByQueryAction.INSTANCE, batchRequest("docs-b"));
-            Exception failure = expectThrows(Exception.class, () -> rejected.actionGet(TimeValue.timeValueSeconds(30)));
-            EsRejectedExecutionException coordinatingRejection = (EsRejectedExecutionException) ExceptionsHelper.unwrap(
-                failure,
-                EsRejectedExecutionException.class
-            );
-            assertNotNull(failure.toString(), coordinatingRejection);
-            assertThat(ExceptionsHelper.status(failure), equalTo(RestStatus.TOO_MANY_REQUESTS));
-            assertThat(coordinatingRejection.getMessage(), containsString("max_coordinating_bytes"));
-            assertThat(pressure.stats().getCoordinatingRejections(), greaterThan(rejectionsBefore));
+            ActionFuture<BulkByPaginatedSearchResponse> waiting = client().execute(UpdateByQueryAction.INSTANCE, batchRequest("docs-b"));
+            assertBusy(() -> {
+                assertFalse(waiting.isDone());
+                assertThat(pressure.stats().getCoordinatingRejections(), greaterThan(rejectionsBefore));
+            });
 
             long held = pressure.stats().getCurrentCoordinatingBytes() - baseline;
-            assertThat(held, greaterThan(ONE_BATCH_BYTES / 2));
-            assertThat(held, lessThan(TWO_BATCH_LIMIT));
+            assertThat(held, greaterThan(64L * 1024));
             assertFalse(admitted.isDone());
+            assertFalse(waiting.isDone());
 
             release.countDown();
             BulkByPaginatedSearchResponse admittedResponse = admitted.actionGet(TimeValue.timeValueSeconds(30));
+            BulkByPaginatedSearchResponse waitingResponse = waiting.actionGet(TimeValue.timeValueSeconds(30));
             assertThat(admittedResponse.getUpdated(), equalTo((long) DOCS_PER_BATCH));
+            assertThat(waitingResponse.getUpdated(), equalTo((long) DOCS_PER_BATCH));
             blockingWrite.actionGet(TimeValue.timeValueSeconds(10));
             queuedWrite.actionGet(TimeValue.timeValueSeconds(10));
             assertBusy(() -> assertThat(pressure.stats().getCurrentCoordinatingBytes(), equalTo(baseline)));
@@ -194,7 +196,7 @@ public class ReindexIndexingPressureIT extends ESIntegTestCase {
         }
     }
 
-    public void testReplicaBytesNearTheLimitRejectAReindexOnANonPrimary() throws Exception {
+    public void testReplicaBytesNearTheLimitHoldAReindexUntilTheyDrop() throws Exception {
         memoryLimit.set(ROOMY_LIMIT);
         internalCluster().startNode();
         internalCluster().startNode();
@@ -213,20 +215,28 @@ public class ReindexIndexingPressureIT extends ESIntegTestCase {
 
         IndexingPressure pressure = internalCluster().getInstance(IndexingPressure.class, replicaName);
         long baseline = pressure.stats().getCurrentCoordinatingBytes();
+        long rejectionsBefore = pressure.stats().getCoordinatingRejections();
         long fill = pressure.stats().getMemoryLimit() - 128;
-        try (Releasable ignored = pressure.markReplicaOperationStarted(1, fill, false)) {
-            Exception failure = expectThrows(
-                Exception.class,
-                () -> new ReindexRequestBuilder(internalCluster().client(replicaName)).source(index).destination("dest").get()
-            );
-            EsRejectedExecutionException rejected = (EsRejectedExecutionException) ExceptionsHelper.unwrap(
-                failure,
-                EsRejectedExecutionException.class
-            );
-            assertNotNull(failure.toString(), rejected);
-            assertThat(ExceptionsHelper.status(failure), equalTo(RestStatus.TOO_MANY_REQUESTS));
-            assertThat(rejected.getMessage(), containsString("replica_bytes"));
+        Releasable pinned = pressure.markReplicaOperationStarted(1, fill, false);
+        try {
+            ActionFuture<BulkByPaginatedSearchResponse> running = new ReindexRequestBuilder(internalCluster().client(replicaName)).source(
+                index
+            ).destination("dest").execute();
+            assertBusy(() -> {
+                assertFalse(running.isDone());
+                assertThat(pressure.stats().getCoordinatingRejections(), greaterThan(rejectionsBefore));
+            });
             assertThat(pressure.stats().getCurrentCoordinatingBytes(), equalTo(baseline));
+
+            pinned.close();
+            pinned = null;
+            BulkByPaginatedSearchResponse response = running.actionGet(TimeValue.timeValueSeconds(30));
+            assertThat(response.getCreated(), equalTo(1L));
+            assertBusy(() -> assertThat(pressure.stats().getCurrentCoordinatingBytes(), equalTo(baseline)));
+        } finally {
+            if (pinned != null) {
+                pinned.close();
+            }
         }
         assertThat(pressure.stats().getCurrentReplicaBytes(), equalTo(0L));
     }

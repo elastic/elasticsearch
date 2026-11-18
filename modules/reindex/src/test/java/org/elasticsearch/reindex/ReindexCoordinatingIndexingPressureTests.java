@@ -4,7 +4,7 @@
  * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
  * Public License v 1"; you may not use this file except in compliance with, at
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
- * License v 1".
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reindex;
@@ -21,10 +21,16 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.search.ClearScrollRequest;
+import org.elasticsearch.action.search.ClearScrollResponse;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.FilterClient;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -41,6 +47,8 @@ import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
+import org.elasticsearch.index.reindex.PaginatedSearchFailure;
+import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.reindex.PaginatedHitSource.Hit;
@@ -62,6 +70,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Delayed;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -84,17 +93,17 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * A reindex family bulk takes one coordinating indexing pressure charge for its original size and holds it until the bulk's own
- * cleanup. A batch that does not fit fails the task and does not schedule a retry.
+ * A reindex family task reserves one coordinating charge before each search and keeps that same charge with the page until the
+ * page is released. A reservation that does not fit leaves the task running, with no page held, until it does fit or the task is
+ * cancelled. A page whose own bytes are above the coordinating limit fails the task.
  */
 public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
 
     /**
-     * One source fits in this limit. Two copies of it do not, so a second charge of the same bulk is rejected.
-     * The slack covers the request object and the thread context, which are small next to the source.
+     * Bytes reserved for each document before the page exists. The search size is what the worker asked to fetch, so the
+     * estimate is this many bytes times that size, plus the request context, and it stops at the coordinating limit.
      */
-    private static final int SOURCE_BYTES = 100_000;
-    private static final long ONE_BATCH_LIMIT = SOURCE_BYTES + 32_768L;
+    private static final int ESTIMATED_HIT_BYTES = 64 * 1024;
 
     private final List<ScriptedClock> clocks = new ArrayList<>();
 
@@ -106,46 +115,121 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
         clocks.clear();
     }
 
-    public void testPrepareBulkRequestFailsWhenTheCoordinatingBudgetIsFull() {
-        IndexingPressure pressure = pressure(ONE_BATCH_LIMIT);
-        AtomicLong breakerNet = new AtomicLong();
-        try (Releasable ignored = pressure.markCoordinatingOperationStarted(1, pressure.stats().getMemoryLimit(), false)) {
-            Harness harness = new Harness(pressure, updateRequest(), trackingBreaker(breakerNet), null);
-            CountingHit hit = harness.hit(bytes(SOURCE_BYTES));
-            harness.feed(List.of(hit));
-            harness.drain();
+    /**
+     * A full coordinating budget cannot take the next estimate. The task keeps running, sends no search and holds no hit.
+     * Once the budget can take the estimate, that one search is sent.
+     */
+    public void testWaitingTaskSearchesOnceTheEstimateFits() {
+        int pageSize = between(1, 3);
+        ScriptedClock clock = new ScriptedClock();
+        long estimate = rawEstimate(clock.getThreadPool(), pageSize);
+        long limit = estimate + between(1, 4_096);
+        IndexingPressure pressure = pressure(limit);
+        Harness harness = new Harness(clock, pressure, updateRequest(pageSize), NoopCircuitBreaker.INSTANCE, null);
+        CountingHit hit = harness.hit(bytes(between(32, 256)));
+        harness.client.handler = (bulk, listener) -> {
+            assertTrue(bulk.indexingPressureAccounted());
+            listener.onResponse(harness.success(bulk));
+        };
+        harness.onDone = harness::finishWithEmptyPage;
+        try (Releasable ignored = pressure.markCoordinatingOperationStarted(1, pressure.getCoordinatingLimitInBytes(), false)) {
+            harness.start();
 
-            EsRejectedExecutionException rejected = expectThrows(EsRejectedExecutionException.class, harness.listener::actionGet);
-            assertThat(rejected.getMessage(), containsString("max_coordinating_bytes"));
+            assertThat(harness.client.searches.size(), equalTo(0));
             assertThat(harness.client.bulks, equalTo(List.of()));
-            assertFalse(harness.queue.hasDeferredTasks());
-            assertThat(hit.releases.get(), equalTo(1));
-            assertThat(breakerNet.get(), equalTo(0L));
-            assertThat(pressure.stats().getCurrentCoordinatingBytes(), equalTo(pressure.stats().getMemoryLimit()));
+            assertThat(hit.releases.get(), equalTo(0));
+            assertFalse(harness.listener.isDone());
+            assertTrue("the refused estimate has to be tried again", harness.queue.hasDeferredTasks());
+            assertThat(harness.chargedBytes(), equalTo(pressure.getCoordinatingLimitInBytes()));
         }
+
+        harness.queue.advanceTime();
+        assertThat(harness.client.searches.size(), equalTo(1));
+        assertThat(harness.chargedBytes(), equalTo(Math.min(estimate, pressure.getCoordinatingLimitInBytes())));
+        harness.feed(List.of(hit));
+
+        BulkByPaginatedSearchResponse response = harness.listener.actionGet(TimeValue.ZERO);
+        assertThat(response.getUpdated(), equalTo(1L));
+        assertThat(harness.client.searches.size(), equalTo(1));
+        assertThat(harness.chargedBytes(), equalTo(0L));
+        assertThat(hit.releases.get(), equalTo(1));
+    }
+
+    /**
+     * Two tasks share a budget that can hold one estimate. The second does not search while the first still holds its page.
+     * Releasing that page lets the second search once, and both finish with nothing still charged.
+     */
+    public void testSecondTaskSearchesOnceTheHeldPageReleasesItsCharge() {
+        int pageSize = 1;
+        ScriptedClock clock = new ScriptedClock();
+        long estimate = rawEstimate(clock.getThreadPool(), pageSize);
+        IndexingPressure pressure = pressure(estimate);
+        Harness first = new Harness(clock, pressure, updateRequest(pageSize), NoopCircuitBreaker.INSTANCE, null);
+        Harness second = new Harness(clock, pressure, updateRequest(pageSize), NoopCircuitBreaker.INSTANCE, null);
+        CountingHit held = first.hit(bytes(between(64, 512)));
+        AtomicReference<ActionListener<BulkResponse>> heldListener = new AtomicReference<>();
+        first.client.handler = (bulk, listener) -> {
+            first.client.bulks.add(bulk);
+            heldListener.set(listener);
+        };
+        first.onDone = first::finishWithEmptyPage;
+        first.start();
+        assertThat(first.client.searches.size(), equalTo(1));
+        first.feed(List.of(held));
+
+        assertThat(first.client.bulks.size(), equalTo(1));
+        assertThat(held.releases.get(), equalTo(0));
+        assertThat(first.chargedBytes(), greaterThan(0L));
+        assertFalse(first.listener.isDone());
+
+        second.start();
+        assertThat(second.client.searches.size(), equalTo(0));
+        assertThat(second.client.bulks, equalTo(List.of()));
+        assertFalse(second.listener.isDone());
+        assertTrue(clock.hasDeferredTasks());
+
+        CountingHit followed = second.hit(bytes(between(64, 512)));
+        second.client.handler = (bulk, listener) -> {
+            assertTrue(bulk.indexingPressureAccounted());
+            listener.onResponse(second.success(bulk));
+        };
+        second.onDone = second::finishWithEmptyPage;
+        heldListener.get().onResponse(first.success(first.client.bulks.get(0)));
+        assertThat(first.listener.actionGet(TimeValue.ZERO).getUpdated(), equalTo(1L));
+        assertThat(held.releases.get(), equalTo(1));
+
+        clock.advanceTime();
+        assertThat(second.client.searches.size(), equalTo(1));
+        second.feed(List.of(followed));
+        assertThat(second.listener.actionGet(TimeValue.ZERO).getUpdated(), equalTo(1L));
+        assertThat(followed.releases.get(), equalTo(1));
         assertThat(pressure.stats().getCurrentCoordinatingBytes(), equalTo(0L));
     }
 
     public void testCoordinatingBytesStayElevatedWhileARejectionWaitsToRetry() {
-        Harness harness = new Harness(pressure(Settings.EMPTY), updateRequest(), NoopCircuitBreaker.INSTANCE, null);
-        CountingHit hit = harness.hit(bytes(SOURCE_BYTES));
+        Harness harness = new Harness(pressure(Settings.EMPTY), updateRequest(1), NoopCircuitBreaker.INSTANCE, null);
+        CountingHit hit = harness.hit(bytes(between(1_000, 4_000)));
         AtomicLong charged = new AtomicLong();
         harness.client.handler = (bulk, listener) -> {
             harness.client.bulks.add(bulk);
             if (harness.client.bulks.size() == 1) {
                 charged.set(harness.chargedBytes());
                 assertTrue(bulk.indexingPressureAccounted());
-                assertThat(charged.get(), greaterThanOrEqualTo((long) hit.getSource().length()));
+                long contextBytes = harness.queue.getThreadPool().getThreadContext().estimatedRequestContextBytes();
+                assertThat(charged.get(), equalTo(bulk.ramBytesUsed() + contextBytes));
                 listener.onFailure(new EsRejectedExecutionException("full"));
+                // The failed attempt's listener has run. The page is still the thing holding the charge.
+                assertThat(harness.chargedBytes(), equalTo(charged.get()));
             } else {
                 assertThat(bulk, sameInstance(harness.client.bulks.get(0)));
                 assertTrue(bulk.indexingPressureAccounted());
+                assertThat(harness.chargedBytes(), equalTo(charged.get()));
                 listener.onResponse(harness.success(bulk));
             }
         };
         harness.onDone = harness::finishWithEmptyPage;
+        harness.start();
         harness.feed(List.of(hit));
-        harness.drain();
 
         assertThat(harness.client.bulks.size(), equalTo(1));
         assertTrue(harness.queue.hasDeferredTasks());
@@ -153,7 +237,6 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
         assertFalse(harness.listener.isDone());
 
         harness.queue.advanceTime();
-        harness.drain();
         BulkByPaginatedSearchResponse response = harness.listener.actionGet(TimeValue.ZERO);
         assertThat(response.getUpdated(), equalTo(1L));
         assertThat(harness.chargedBytes(), equalTo(0L));
@@ -161,7 +244,7 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
     }
 
     public void testCoordinatingBytesDropWhenRetriesAreExhausted() {
-        UpdateByQueryRequest request = updateRequest();
+        UpdateByQueryRequest request = updateRequest(1);
         request.setMaxRetries(1);
         Harness harness = new Harness(pressure(Settings.EMPTY), request, NoopCircuitBreaker.INSTANCE, null);
         CountingHit hit = harness.hit(bytes(between(1_000, 4_000)));
@@ -173,15 +256,14 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
             }
             listener.onFailure(new EsRejectedExecutionException("full"));
         };
+        harness.start();
         harness.feed(List.of(hit));
-        harness.drain();
 
         assertThat(harness.chargedBytes(), equalTo(charged.get()));
         assertThat(charged.get(), greaterThan(0L));
         assertTrue(harness.queue.hasDeferredTasks());
 
         harness.queue.advanceTime();
-        harness.drain();
         EsRejectedExecutionException rejected = expectThrows(EsRejectedExecutionException.class, harness.listener::actionGet);
         assertThat(rejected.getMessage(), equalTo("full"));
         assertThat(harness.client.bulks.size(), equalTo(2));
@@ -191,9 +273,9 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
     }
 
     public void testPartialRetryDoesNotTakeASecondCoordinatingCharge() {
-        Harness harness = new Harness(pressure(Settings.EMPTY), updateRequest(), NoopCircuitBreaker.INSTANCE, null);
-        CountingHit kept = harness.hit(bytes(SOURCE_BYTES));
-        CountingHit rejected = harness.hit(bytes(SOURCE_BYTES));
+        Harness harness = new Harness(pressure(Settings.EMPTY), updateRequest(1), NoopCircuitBreaker.INSTANCE, null);
+        CountingHit kept = harness.hit(bytes(between(1_000, 4_000)));
+        CountingHit rejected = harness.hit(bytes(between(1_000, 4_000)));
         AtomicLong charged = new AtomicLong();
         AtomicReference<BulkRequest> retry = new AtomicReference<>();
         AtomicReference<ActionListener<BulkResponse>> retryListener = new AtomicReference<>();
@@ -208,13 +290,12 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
             }
         };
         harness.onDone = harness::finishWithEmptyPage;
+        harness.start();
         harness.feed(List.of(kept, rejected));
-        harness.drain();
 
-        assertThat(charged.get(), greaterThanOrEqualTo((long) SOURCE_BYTES));
+        assertThat(charged.get(), greaterThan(0L));
         assertThat(harness.chargedBytes(), equalTo(charged.get()));
         harness.queue.advanceTime();
-        harness.drain();
 
         BulkRequest retryBulk = retry.get();
         assertThat(retryBulk, not(sameInstance(harness.client.bulks.get(0))));
@@ -226,28 +307,35 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
         assertThat(rejected.releases.get(), equalTo(0));
 
         retryListener.get().onResponse(harness.success(retryBulk));
-        harness.drain();
         assertThat(harness.listener.actionGet(TimeValue.ZERO).getUpdated(), equalTo(2L));
         assertThat(harness.chargedBytes(), equalTo(0L));
         assertThat(kept.releases.get(), equalTo(1));
         assertThat(rejected.releases.get(), equalTo(1));
     }
 
+    /**
+     * The previous page's charge is already gone before the next estimate is reserved. The bytes are therefore not zero
+     * once the next page is being fetched. They are the next estimate, then that page's own size.
+     */
     public void testSuccessfulBatchReleasesItsChargeBeforeTheNextPage() {
-        IndexingPressure pressure = pressure(ONE_BATCH_LIMIT);
-        assertThat(pressure.stats().getMemoryLimit(), equalTo(ONE_BATCH_LIMIT));
-        Harness harness = new Harness(pressure, updateRequest(), NoopCircuitBreaker.INSTANCE, null);
-        CountingHit first = harness.hit(bytes(SOURCE_BYTES));
-        CountingHit second = harness.hit(bytes(SOURCE_BYTES));
+        int pageSize = 1;
+        ScriptedClock clock = new ScriptedClock();
+        long estimate = rawEstimate(clock.getThreadPool(), pageSize);
+        long limit = estimate + estimate;
+        WatchingPressure pressure = new WatchingPressure(limit);
+        Harness harness = new Harness(clock, pressure, updateRequest(pageSize), NoopCircuitBreaker.INSTANCE, null);
+        CountingHit first = harness.hit(bytes(between(64, 512)));
+        CountingHit second = harness.hit(bytes(between(64, 512)));
         AtomicInteger pages = new AtomicInteger();
         List<Long> charges = new ArrayList<>();
         harness.client.handler = (bulk, listener) -> {
             charges.add(harness.chargedBytes());
             assertTrue(bulk.indexingPressureAccounted());
+            long contextBytes = harness.queue.getThreadPool().getThreadContext().estimatedRequestContextBytes();
+            assertThat(harness.chargedBytes(), equalTo(bulk.ramBytesUsed() + contextBytes));
             listener.onResponse(harness.success(bulk));
         };
         harness.onDone = () -> {
-            assertThat(harness.chargedBytes(), equalTo(0L));
             if (pages.getAndIncrement() == 0) {
                 harness.feed(List.of(second));
             } else {
@@ -256,30 +344,33 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
             }
         };
         harness.action.setScroll("more");
+        harness.start();
         harness.feed(List.of(first));
-        harness.drain();
 
         BulkByPaginatedSearchResponse response = harness.listener.actionGet(TimeValue.ZERO);
         assertThat(response.getUpdated(), equalTo(2L));
         assertThat(charges.size(), equalTo(2));
-        assertThat(charges.get(0), greaterThanOrEqualTo((long) SOURCE_BYTES));
-        assertThat(charges.get(0), lessThan(ONE_BATCH_LIMIT));
-        assertThat(charges.get(1), greaterThanOrEqualTo((long) SOURCE_BYTES));
-        assertThat(charges.get(1), lessThan(ONE_BATCH_LIMIT));
+        assertThat(charges.get(0), greaterThan(0L));
+        assertThat(charges.get(1), greaterThan(0L));
+        // The first mark is the opening search. Every later mark is the next page, and the previous page has already let go.
+        assertThat(pressure.bytesBeforeReservation.size(), greaterThanOrEqualTo(2));
+        for (int i = 1; i < pressure.bytesBeforeReservation.size(); i++) {
+            assertThat(pressure.bytesBeforeReservation.get(i), equalTo(0L));
+        }
         assertThat(harness.chargedBytes(), equalTo(0L));
         assertThat(first.releases.get(), equalTo(1));
         assertThat(second.releases.get(), equalTo(1));
     }
 
     public void testCancellingDuringBackoffReleasesTheChargeWhenTheAttemptRuns() {
-        Harness harness = new Harness(pressure(Settings.EMPTY), updateRequest(), NoopCircuitBreaker.INSTANCE, null);
+        Harness harness = new Harness(pressure(Settings.EMPTY), updateRequest(1), NoopCircuitBreaker.INSTANCE, null);
         CountingHit hit = harness.hit(bytes(between(1_000, 4_000)));
         harness.client.handler = (bulk, listener) -> {
             harness.client.bulks.add(bulk);
             listener.onFailure(new EsRejectedExecutionException("full"));
         };
+        harness.start();
         harness.feed(List.of(hit));
-        harness.drain();
 
         assertThat(harness.chargedBytes(), greaterThan(0L));
         assertTrue(harness.queue.hasDeferredTasks());
@@ -288,7 +379,6 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
         assertFalse(harness.listener.isDone());
 
         harness.queue.advanceTime();
-        harness.drain();
         assertThat(harness.client.bulks.size(), equalTo(1));
         assertThat(harness.chargedBytes(), equalTo(0L));
         BulkByPaginatedSearchResponse response = harness.listener.actionGet(TimeValue.ZERO);
@@ -296,42 +386,9 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
         assertThat(hit.releases.get(), equalTo(1));
     }
 
-    public void testSecondBatchIsRejectedWhileTheFirstChargeIsHeld() {
-        ScriptedClock queue = new ScriptedClock();
-        IndexingPressure pressure = pressure(ONE_BATCH_LIMIT);
-        Harness first = new Harness(queue, pressure, updateRequest(), NoopCircuitBreaker.INSTANCE, null);
-        Harness second = new Harness(queue, pressure, updateRequest(), NoopCircuitBreaker.INSTANCE, null);
-        CountingHit held = first.hit(bytes(SOURCE_BYTES));
-        AtomicLong charged = new AtomicLong();
-        first.client.handler = (bulk, listener) -> {
-            first.client.bulks.add(bulk);
-            charged.set(first.chargedBytes());
-            listener.onFailure(new EsRejectedExecutionException("full"));
-        };
-        first.feed(List.of(held));
-        queue.runAllRunnableTasks();
-
-        assertThat(first.client.bulks.size(), equalTo(1));
-        assertThat(charged.get(), greaterThanOrEqualTo((long) SOURCE_BYTES));
-        assertThat(charged.get(), lessThan(ONE_BATCH_LIMIT));
-        assertTrue(queue.hasDeferredTasks());
-
-        CountingHit rejected = second.hit(bytes(SOURCE_BYTES));
-        second.feed(List.of(rejected));
-        queue.runAllRunnableTasks();
-
-        EsRejectedExecutionException failure = expectThrows(EsRejectedExecutionException.class, second.listener::actionGet);
-        assertThat(failure.getMessage(), containsString("max_coordinating_bytes"));
-        assertThat(second.client.bulks, equalTo(List.of()));
-        assertThat(pressure.stats().getCurrentCoordinatingBytes(), equalTo(charged.get()));
-        assertThat(rejected.releases.get(), equalTo(1));
-        assertThat(held.releases.get(), equalTo(0));
-        assertFalse(first.listener.isDone());
-    }
-
     public void testUnscriptedUpdateByQueryChargesTheSharedHitSource() {
-        Harness harness = new Harness(pressure(Settings.EMPTY), updateRequest(), NoopCircuitBreaker.INSTANCE, null);
-        CountingHit hit = harness.hit(bytes(SOURCE_BYTES));
+        Harness harness = new Harness(pressure(Settings.EMPTY), updateRequest(1), NoopCircuitBreaker.INSTANCE, null);
+        CountingHit hit = harness.hit(bytes(between(1_000, 4_000)));
         harness.client.handler = (bulk, listener) -> {
             IndexRequest index = (IndexRequest) bulk.requests().get(0);
             long charged = harness.chargedBytes();
@@ -342,13 +399,18 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
             listener.onResponse(harness.success(bulk));
         };
         harness.onDone = harness::finishWithEmptyPage;
+        harness.start();
         harness.feed(List.of(hit));
-        harness.drain();
         assertThat(harness.listener.actionGet(TimeValue.ZERO).getUpdated(), equalTo(1L));
         assertThat(harness.chargedBytes(), equalTo(0L));
+        assertThat(hit.releases.get(), equalTo(1));
     }
 
-    public void testScriptedUpdateByQueryChargesTheReserializedSource() {
+    /**
+     * A script replaces the source, so the charge follows the new source and the original hit is released once.
+     * A rejected attempt keeps those same bytes until the page itself is released.
+     */
+    public void testScriptedUpdateKeepsTheNewSourceChargeAcrossARejection() {
         ScriptService scripts = mock(ScriptService.class);
         when(scripts.compile(any(), eq(UpdateByQueryScript.CONTEXT))).thenReturn((params, ctx) -> new UpdateByQueryScript(Map.of(), ctx) {
             @Override
@@ -359,31 +421,47 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
                 source.put("a", "b");
             }
         });
-        UpdateByQueryRequest request = updateRequest();
+        UpdateByQueryRequest request = updateRequest(1);
         request.setScript(mockScript("shrink"));
         Harness harness = new Harness(pressure(Settings.EMPTY), request, NoopCircuitBreaker.INSTANCE, scripts);
-        String json = "{\"p\":\"" + "x".repeat(SOURCE_BYTES) + "\"}";
+        String json = "{\"p\":\"" + "x".repeat(between(2_000, 4_000)) + "\"}";
         CountingHit hit = harness.hit(new BytesArray(json.getBytes(StandardCharsets.UTF_8)));
+        AtomicLong charged = new AtomicLong();
         harness.client.handler = (bulk, listener) -> {
+            harness.client.bulks.add(bulk);
             IndexRequest index = (IndexRequest) bulk.requests().get(0);
-            long charged = harness.chargedBytes();
             long contextBytes = harness.queue.getThreadPool().getThreadContext().estimatedRequestContextBytes();
             assertThat(index.source().length(), lessThan(hit.getSource().length() / 10));
-            assertThat(charged, greaterThanOrEqualTo((long) index.source().length()));
-            assertThat(charged, lessThan((long) hit.getSource().length()));
-            assertThat(charged, equalTo(bulk.ramBytesUsed() + contextBytes));
-            listener.onResponse(harness.success(bulk));
+            assertThat(hit.releases.get(), equalTo(1));
+            if (harness.client.bulks.size() == 1) {
+                charged.set(harness.chargedBytes());
+                assertThat(charged.get(), greaterThanOrEqualTo((long) index.source().length()));
+                assertThat(charged.get(), lessThan((long) hit.getSource().length()));
+                assertThat(charged.get(), equalTo(bulk.ramBytesUsed() + contextBytes));
+                listener.onFailure(new EsRejectedExecutionException("full"));
+                assertThat(harness.chargedBytes(), equalTo(charged.get()));
+            } else {
+                assertTrue(bulk.indexingPressureAccounted());
+                assertThat(harness.chargedBytes(), equalTo(charged.get()));
+                listener.onResponse(harness.success(bulk));
+            }
         };
         harness.onDone = harness::finishWithEmptyPage;
+        harness.start();
         harness.feed(List.of(hit));
-        harness.drain();
+        assertTrue(harness.queue.hasDeferredTasks());
+        harness.queue.advanceTime();
         assertThat(harness.listener.actionGet(TimeValue.ZERO).getUpdated(), equalTo(1L));
         assertThat(harness.chargedBytes(), equalTo(0L));
+        assertThat(hit.releases.get(), equalTo(1));
     }
 
     public void testDeleteByQueryChargesTheDeleteAndNotTheHitSource() {
-        Harness harness = new Harness(pressure(Settings.EMPTY), new DeleteByQueryRequest("docs"), NoopCircuitBreaker.INSTANCE, null);
-        CountingHit hit = harness.hit(bytes(SOURCE_BYTES));
+        DeleteByQueryRequest request = new DeleteByQueryRequest(randomAlphaOfLength(6));
+        request.getSearchRequest().source().size(1);
+        request.setRetryBackoffInitialTime(TimeValue.timeValueMillis(randomIntBetween(1, 40)));
+        Harness harness = new Harness(pressure(Settings.EMPTY), request, NoopCircuitBreaker.INSTANCE, null);
+        CountingHit hit = harness.hit(bytes(between(4_000, 8_000)));
         harness.client.handler = (bulk, listener) -> {
             assertThat(bulk.requests().get(0), instanceOf(DeleteRequest.class));
             long charged = harness.chargedBytes();
@@ -393,34 +471,36 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
             listener.onResponse(harness.success(bulk));
         };
         harness.onDone = harness::finishWithEmptyPage;
+        harness.start();
         harness.feed(List.of(hit));
-        harness.drain();
         assertThat(harness.listener.actionGet(TimeValue.ZERO).getDeleted(), equalTo(1L));
         assertThat(harness.chargedBytes(), equalTo(0L));
+        assertThat(hit.releases.get(), equalTo(1));
     }
 
-    public void testCircuitBreakerTripLeavesCoordinatingBytesUnchanged() {
-        IndexingPressure pressure = pressure(Settings.EMPTY);
-        AtomicLong breakerNet = new AtomicLong();
-        try (Releasable ignored = pressure.markCoordinatingOperationStarted(1, 100, true)) {
-            Harness harness = new Harness(pressure, updateRequest(), trippingBreaker(breakerNet), null);
-            CountingHit hit = harness.hit(bytes(between(100, 1_000)));
-            harness.feed(List.of(hit));
-            harness.drain();
-
-            CircuitBreakingException tripped = expectThrows(CircuitBreakingException.class, harness.listener::actionGet);
-            assertThat(tripped.getMessage(), equalTo("simulated breaker trip"));
-            assertThat(harness.client.bulks, equalTo(List.of()));
-            assertFalse(harness.queue.hasDeferredTasks());
-            assertThat(hit.releases.get(), equalTo(1));
-            assertThat(breakerNet.get(), equalTo(0L));
-            assertThat(pressure.stats().getCurrentCoordinatingBytes(), equalTo(100L));
-        }
-        assertThat(pressure.stats().getCurrentCoordinatingBytes(), equalTo(0L));
+    public void testReindexOfOneDocumentReleasesItsCharge() {
+        ReindexRequest request = reindexRequest(1);
+        Harness harness = new Harness(pressure(Settings.EMPTY), request, NoopCircuitBreaker.INSTANCE, null);
+        CountingHit hit = harness.hit(bytes(between(32, 256)), -1L);
+        harness.client.handler = (bulk, listener) -> {
+            assertTrue(bulk.indexingPressureAccounted());
+            long contextBytes = harness.queue.getThreadPool().getThreadContext().estimatedRequestContextBytes();
+            assertThat(harness.chargedBytes(), equalTo(bulk.ramBytesUsed() + contextBytes));
+            // A reindex of a document that is not already there creates it.
+            listener.onResponse(harness.success(bulk, true));
+        };
+        harness.onDone = harness::finishWithEmptyPage;
+        harness.start();
+        harness.feed(List.of(hit));
+        BulkByPaginatedSearchResponse response = harness.listener.actionGet(TimeValue.ZERO);
+        assertThat(response.getCreated(), equalTo(1L));
+        assertThat(response.getBulkFailures(), equalTo(List.of()));
+        assertThat(harness.chargedBytes(), equalTo(0L));
+        assertThat(hit.releases.get(), equalTo(1));
     }
 
     public void testUpdateByQueryCompletesAndReleasesItsCharge() {
-        Harness harness = new Harness(pressure(Settings.EMPTY), updateRequest(), NoopCircuitBreaker.INSTANCE, null);
+        Harness harness = new Harness(pressure(Settings.EMPTY), updateRequest(1), NoopCircuitBreaker.INSTANCE, null);
         CountingHit hit = harness.hit(bytes(between(8, 64)));
         AtomicLong charged = new AtomicLong();
         harness.client.handler = (bulk, listener) -> {
@@ -429,8 +509,8 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
             listener.onResponse(harness.success(bulk));
         };
         harness.onDone = harness::finishWithEmptyPage;
+        harness.start();
         harness.feed(List.of(hit));
-        harness.drain();
 
         BulkByPaginatedSearchResponse response = harness.listener.actionGet(TimeValue.ZERO);
         assertThat(response.getUpdated(), equalTo(1L));
@@ -440,8 +520,323 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
         assertThat(response.getReasonCancelled(), nullValue());
     }
 
-    private static UpdateByQueryRequest updateRequest() {
-        UpdateByQueryRequest request = new UpdateByQueryRequest("docs");
+    /**
+     * A page whose script drops every hit still has to let go of its charge before the next search is reserved.
+     * The following page is then held at its own size, not left at zero.
+     */
+    public void testScriptNoopReleasesThePageChargeBeforeTheNextSearch() {
+        ScriptService scripts = mock(ScriptService.class);
+        when(scripts.compile(any(), eq(UpdateByQueryScript.CONTEXT))).thenReturn((params, ctx) -> new UpdateByQueryScript(Map.of(), ctx) {
+            @Override
+            public void execute() {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> source = (Map<String, Object>) getCtx().get("_source");
+                if (source.containsKey("skip")) {
+                    getCtx().put("op", "noop");
+                }
+            }
+        });
+        int pageSize = 1;
+        ScriptedClock clock = new ScriptedClock();
+        WatchingPressure pressure = new WatchingPressure(rawEstimate(clock.getThreadPool(), pageSize) * 4);
+        UpdateByQueryRequest request = updateRequest(pageSize);
+        request.setScript(mockScript("skip"));
+        Harness harness = new Harness(clock, pressure, request, NoopCircuitBreaker.INSTANCE, scripts);
+        CountingHit skipped = harness.hit(new BytesArray("{\"skip\":true}".getBytes(StandardCharsets.UTF_8)));
+        CountingHit kept = harness.hit(new BytesArray("{\"keep\":true}".getBytes(StandardCharsets.UTF_8)));
+        AtomicInteger pages = new AtomicInteger();
+        AtomicLong keptCharge = new AtomicLong();
+        harness.client.handler = (bulk, listener) -> {
+            harness.client.bulks.add(bulk);
+            keptCharge.set(harness.chargedBytes());
+            assertThat(keptCharge.get(), greaterThan(0L));
+            assertTrue(bulk.indexingPressureAccounted());
+            listener.onResponse(harness.success(bulk));
+        };
+        harness.onDone = () -> {
+            if (pages.getAndIncrement() == 0) {
+                harness.feed(List.of(kept));
+            } else {
+                harness.action.setScroll(null);
+                harness.finishWithEmptyPage();
+            }
+        };
+        harness.action.setScroll("more");
+        harness.start();
+        harness.feed(List.of(skipped));
+
+        BulkByPaginatedSearchResponse response = harness.listener.actionGet(TimeValue.ZERO);
+        assertThat(response.getUpdated(), equalTo(1L));
+        assertThat(response.getStatus().getNoops(), equalTo(1L));
+        assertThat(harness.client.bulks.size(), equalTo(1));
+        assertThat(pressure.bytesBeforeReservation.size(), greaterThanOrEqualTo(2));
+        assertThat(pressure.bytesBeforeReservation.get(1), equalTo(0L));
+        assertThat(keptCharge.get(), greaterThan(0L));
+        assertThat(harness.chargedBytes(), equalTo(0L));
+    }
+
+    public void testSearchRejectionReleasesTheReservationWhenRetriesAreExhausted() {
+        UpdateByQueryRequest request = updateRequest(1);
+        request.setMaxRetries(1);
+        Harness harness = new Harness(pressure(Settings.EMPTY), request, NoopCircuitBreaker.INSTANCE, null);
+        harness.start();
+        assertThat(harness.client.searches.size(), equalTo(1));
+        long reserved = harness.chargedBytes();
+        assertThat(reserved, greaterThan(0L));
+
+        harness.client.searches.get(0).onFailure(new EsRejectedExecutionException("busy"));
+        assertThat(harness.chargedBytes(), equalTo(reserved));
+        assertThat(harness.client.bulks, equalTo(List.of()));
+        assertTrue(harness.queue.hasDeferredTasks());
+        assertFalse(harness.listener.isDone());
+
+        harness.queue.advanceTime();
+        assertThat(harness.client.searches.size(), equalTo(2));
+        assertThat(harness.chargedBytes(), equalTo(reserved));
+        harness.client.searches.get(1).onFailure(new EsRejectedExecutionException("busy"));
+
+        EsRejectedExecutionException rejected = expectThrows(EsRejectedExecutionException.class, harness.listener::actionGet);
+        assertThat(rejected.getMessage(), equalTo("busy"));
+        assertThat(harness.client.bulks, equalTo(List.of()));
+        assertThat(harness.chargedBytes(), equalTo(0L));
+    }
+
+    public void testEmptyPageReleasesTheReservation() {
+        Harness harness = new Harness(pressure(Settings.EMPTY), updateRequest(1), NoopCircuitBreaker.INSTANCE, null);
+        harness.start();
+        assertThat(harness.chargedBytes(), greaterThan(0L));
+        harness.feed(List.of());
+        BulkByPaginatedSearchResponse response = harness.listener.actionGet(TimeValue.ZERO);
+        assertThat(response.getUpdated(), equalTo(0L));
+        assertThat(harness.client.bulks, equalTo(List.of()));
+        assertThat(harness.chargedBytes(), equalTo(0L));
+        assertThat(response.getReasonCancelled(), nullValue());
+    }
+
+    public void testShardFailuresReleaseTheReservationWithoutABulk() {
+        Harness harness = new Harness(pressure(Settings.EMPTY), updateRequest(1), NoopCircuitBreaker.INSTANCE, null);
+        CountingHit hit = harness.hit(bytes(between(32, 128)));
+        harness.start();
+        harness.feed(List.of(hit), false, List.of(new PaginatedSearchFailure(new IllegalStateException("shard failed"))));
+        BulkByPaginatedSearchResponse response = harness.listener.actionGet(TimeValue.ZERO);
+        assertThat(response.getSearchFailures().size(), equalTo(1));
+        assertThat(harness.client.bulks, equalTo(List.of()));
+        assertThat(harness.chargedBytes(), equalTo(0L));
+        assertThat(hit.releases.get(), equalTo(1));
+    }
+
+    public void testTimedOutSearchReleasesTheReservationWithoutABulk() {
+        Harness harness = new Harness(pressure(Settings.EMPTY), updateRequest(1), NoopCircuitBreaker.INSTANCE, null);
+        CountingHit hit = harness.hit(bytes(between(32, 128)));
+        harness.start();
+        harness.feed(List.of(hit), true, List.of());
+        BulkByPaginatedSearchResponse response = harness.listener.actionGet(TimeValue.ZERO);
+        assertTrue(response.isTimedOut());
+        assertThat(harness.client.bulks, equalTo(List.of()));
+        assertThat(harness.chargedBytes(), equalTo(0L));
+        assertThat(hit.releases.get(), equalTo(1));
+    }
+
+    /**
+     * Cancelling while the estimate is waiting must not send the search, and must not touch the budget that was already in use.
+     */
+    public void testCancelWhileTheReservationWaitsSendsNoSearch() {
+        int pageSize = between(1, 3);
+        ScriptedClock clock = new ScriptedClock();
+        long estimate = rawEstimate(clock.getThreadPool(), pageSize);
+        long limit = estimate + between(1, 2_048);
+        IndexingPressure pressure = pressure(limit);
+        Harness harness = new Harness(clock, pressure, updateRequest(pageSize), NoopCircuitBreaker.INSTANCE, null);
+        try (Releasable ignored = pressure.markCoordinatingOperationStarted(1, pressure.getCoordinatingLimitInBytes(), false)) {
+            harness.start();
+            assertThat(harness.client.searches.size(), equalTo(0));
+            assertTrue(harness.queue.hasDeferredTasks());
+            long budget = harness.chargedBytes();
+            assertThat(budget, equalTo(pressure.getCoordinatingLimitInBytes()));
+
+            harness.taskManager.cancel(harness.task, "stopped", () -> {});
+            if (harness.queue.hasDeferredTasks()) {
+                harness.queue.advanceTime();
+            }
+            BulkByPaginatedSearchResponse response = harness.listener.actionGet(TimeValue.ZERO);
+            assertThat(response.getReasonCancelled(), equalTo("stopped"));
+            assertThat(harness.client.searches.size(), equalTo(0));
+            assertThat(harness.client.bulks, equalTo(List.of()));
+            assertThat(harness.chargedBytes(), equalTo(budget));
+        }
+        assertThat(pressure.stats().getCurrentCoordinatingBytes(), equalTo(0L));
+    }
+
+    /**
+     * max_docs turns one fetched page into two bulks. The charge, and the hit the first bulk did not take, stay until the
+     * second bulk has finished and the page has nothing left.
+     */
+    public void testMaxDocsHoldsThePageChargeUntilTheLastSubBulkFinishes() {
+        UpdateByQueryRequest request = updateRequest(2);
+        request.setMaxDocs(2);
+        Harness harness = new Harness(pressure(Settings.EMPTY), request, NoopCircuitBreaker.INSTANCE, null);
+        CountingHit first = harness.hit(bytes(between(64, 256)));
+        CountingHit second = harness.hit(bytes(between(64, 256)));
+        AtomicLong charged = new AtomicLong();
+        harness.client.handler = (bulk, listener) -> {
+            harness.client.bulks.add(bulk);
+            if (harness.client.bulks.size() == 1) {
+                assertThat(bulk.numberOfActions(), equalTo(1));
+                charged.set(harness.chargedBytes());
+                assertThat(charged.get(), greaterThan(0L));
+                assertThat(second.releases.get(), equalTo(0));
+                listener.onResponse(harness.success(bulk));
+                assertThat(harness.chargedBytes(), equalTo(charged.get()));
+                assertThat(second.releases.get(), equalTo(0));
+            } else {
+                assertThat(bulk.numberOfActions(), equalTo(1));
+                assertThat(harness.chargedBytes(), equalTo(charged.get()));
+                assertThat(second.releases.get(), equalTo(0));
+                listener.onResponse(harness.success(bulk));
+            }
+        };
+        harness.onDone = harness::finishWithEmptyPage;
+        harness.start();
+        harness.feed(List.of(first, second));
+
+        assertThat(harness.client.bulks.size(), equalTo(2));
+        assertThat(harness.listener.actionGet(TimeValue.ZERO).getUpdated(), equalTo(2L));
+        assertThat(harness.chargedBytes(), equalTo(0L));
+        assertThat(first.releases.get(), equalTo(1));
+        assertThat(second.releases.get(), equalTo(1));
+    }
+
+    /**
+     * A fetched page may be larger than the estimate as long as it is still under the coordinating limit.
+     * The charge becomes that real size, and a second task cannot search until its own estimate fits beside it.
+     */
+    public void testRealPageBetweenTheEstimateAndTheLimitBlocksASibling() {
+        int pageSize = 1;
+        ScriptedClock clock = new ScriptedClock();
+        long estimate = rawEstimate(clock.getThreadPool(), pageSize);
+        // The source is past one estimate. The limit leaves room for that source and not for a second estimate beside it.
+        int sourceLength = (int) estimate + between(8_192, 16_384);
+        long limit = sourceLength + estimate / 2;
+        IndexingPressure pressure = pressure(limit);
+        Harness first = new Harness(clock, pressure, updateRequest(pageSize), NoopCircuitBreaker.INSTANCE, null);
+        Harness second = new Harness(clock, pressure, updateRequest(pageSize), NoopCircuitBreaker.INSTANCE, null);
+        CountingHit hit = first.hit(bytes(sourceLength));
+        AtomicReference<ActionListener<BulkResponse>> held = new AtomicReference<>();
+        AtomicLong realCharge = new AtomicLong();
+        first.client.handler = (bulk, listener) -> {
+            first.client.bulks.add(bulk);
+            long contextBytes = first.queue.getThreadPool().getThreadContext().estimatedRequestContextBytes();
+            realCharge.set(first.chargedBytes());
+            assertThat(realCharge.get(), greaterThan(estimate));
+            assertThat(realCharge.get(), lessThan(limit));
+            assertThat(realCharge.get(), equalTo(bulk.ramBytesUsed() + contextBytes));
+            assertFalse(first.listener.isDone());
+            held.set(listener);
+        };
+        first.onDone = first::finishWithEmptyPage;
+        first.start();
+        first.feed(List.of(hit));
+
+        second.start();
+        assertThat(second.client.searches.size(), equalTo(0));
+        assertFalse(second.listener.isDone());
+        assertThat(second.client.bulks, equalTo(List.of()));
+
+        CountingHit followed = second.hit(bytes(between(32, 128)));
+        second.client.handler = (bulk, listener) -> listener.onResponse(second.success(bulk));
+        second.onDone = second::finishWithEmptyPage;
+        held.get().onResponse(first.success(first.client.bulks.get(0)));
+        assertThat(first.listener.actionGet(TimeValue.ZERO).getUpdated(), equalTo(1L));
+        clock.advanceTime();
+        assertThat(second.client.searches.size(), equalTo(1));
+        second.feed(List.of(followed));
+        assertThat(second.listener.actionGet(TimeValue.ZERO).getUpdated(), equalTo(1L));
+        assertThat(pressure.stats().getCurrentCoordinatingBytes(), equalTo(0L));
+        assertThat(hit.releases.get(), equalTo(1));
+    }
+
+    /**
+     * A page that is already in memory and larger than the coordinating limit fails the task. Nothing is sent, the hit is
+     * released once, and the budget returns to whatever was held before the search.
+     */
+    public void testRealPageLargerThanTheLimitFailsTheTask() {
+        int pageSize = 1;
+        ScriptedClock clock = new ScriptedClock();
+        long estimate = rawEstimate(clock.getThreadPool(), pageSize);
+        long preexisting = between(128, 1_024);
+        long limit = estimate + preexisting + between(1_024, 4_096);
+        IndexingPressure pressure = pressure(limit);
+        Harness harness = new Harness(clock, pressure, updateRequest(pageSize), NoopCircuitBreaker.INSTANCE, null);
+        int sourceLength = (int) (limit + between(1_024, 4_096));
+        CountingHit hit = harness.hit(bytes(sourceLength));
+        try (Releasable ignored = pressure.markCoordinatingOperationStarted(1, preexisting, false)) {
+            harness.start();
+            assertThat(harness.client.searches.size(), equalTo(1));
+            harness.feed(List.of(hit));
+
+            EsRejectedExecutionException rejected = expectThrows(EsRejectedExecutionException.class, harness.listener::actionGet);
+            assertThat(rejected.getMessage(), containsString("max_coordinating_bytes"));
+            assertThat(harness.client.bulks, equalTo(List.of()));
+            assertThat(hit.releases.get(), equalTo(1));
+            assertThat(harness.chargedBytes(), equalTo(preexisting));
+        }
+        assertThat(pressure.stats().getCurrentCoordinatingBytes(), equalTo(0L));
+    }
+
+    public void testBuildBulkCircuitBreakerReturnsToTheBudgetHeldBeforeTheSearch() {
+        IndexingPressure pressure = pressure(Settings.EMPTY);
+        AtomicLong breakerNet = new AtomicLong();
+        long preexisting = between(64, 512);
+        try (Releasable ignored = pressure.markCoordinatingOperationStarted(1, preexisting, true)) {
+            Harness harness = new Harness(pressure, updateRequest(1), trippingBreaker(breakerNet), null);
+            CountingHit hit = harness.hit(bytes(between(100, 1_000)));
+            harness.start();
+            assertThat(harness.chargedBytes(), greaterThan(preexisting));
+            harness.feed(List.of(hit));
+
+            CircuitBreakingException tripped = expectThrows(CircuitBreakingException.class, harness.listener::actionGet);
+            assertThat(tripped.getMessage(), equalTo("simulated breaker trip"));
+            assertThat(harness.client.bulks, equalTo(List.of()));
+            assertFalse(harness.queue.hasDeferredTasks());
+            assertThat(hit.releases.get(), equalTo(1));
+            assertThat(breakerNet.get(), equalTo(0L));
+            assertThat(pressure.stats().getCurrentCoordinatingBytes(), equalTo(preexisting));
+        }
+        assertThat(pressure.stats().getCurrentCoordinatingBytes(), equalTo(0L));
+    }
+
+    public void testNullIndexingPressureSendsAnUnaccountedBulk() {
+        Harness harness = new Harness(null, updateRequest(1), NoopCircuitBreaker.INSTANCE, null);
+        CountingHit hit = harness.hit(bytes(between(16, 128)));
+        harness.client.handler = (bulk, listener) -> {
+            assertFalse(bulk.indexingPressureAccounted());
+            listener.onResponse(harness.success(bulk));
+        };
+        harness.onDone = harness::finishWithEmptyPage;
+        harness.start();
+        assertThat(harness.client.searches.size(), equalTo(1));
+        harness.feed(List.of(hit));
+        BulkByPaginatedSearchResponse response = harness.listener.actionGet(TimeValue.ZERO);
+        assertThat(response.getUpdated(), equalTo(1L));
+        assertThat(hit.releases.get(), equalTo(1));
+    }
+
+    private static long rawEstimate(ThreadPool threadPool, int pageSize) {
+        return (long) pageSize * ESTIMATED_HIT_BYTES + threadPool.getThreadContext().estimatedRequestContextBytes();
+    }
+
+    private static UpdateByQueryRequest updateRequest(int pageSize) {
+        UpdateByQueryRequest request = new UpdateByQueryRequest(randomAlphaOfLength(6));
+        request.getSearchRequest().source().size(pageSize);
+        request.setRetryBackoffInitialTime(TimeValue.timeValueMillis(randomIntBetween(1, 40)));
+        return request;
+    }
+
+    private static ReindexRequest reindexRequest(int pageSize) {
+        ReindexRequest request = new ReindexRequest();
+        request.getSearchRequest().indices(randomAlphaOfLength(6));
+        request.getSearchRequest().source().size(pageSize);
+        request.getDestination().index(randomAlphaOfLength(6));
         request.setRetryBackoffInitialTime(TimeValue.timeValueMillis(randomIntBetween(1, 40)));
         return request;
     }
@@ -456,20 +851,6 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
 
     private static BytesReference bytes(int length) {
         return new BytesArray(new byte[length]);
-    }
-
-    private static CircuitBreaker trackingBreaker(AtomicLong net) {
-        return new NoopCircuitBreaker("test") {
-            @Override
-            public void addEstimateBytesAndMaybeBreak(long bytes, String label) {
-                net.addAndGet(bytes);
-            }
-
-            @Override
-            public void addWithoutBreaking(long bytes) {
-                net.addAndGet(bytes);
-            }
-        };
     }
 
     private static CircuitBreaker trippingBreaker(AtomicLong net) {
@@ -505,6 +886,25 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
             }
         }
         return new BulkResponse(items, 1L);
+    }
+
+    /**
+     * Records the coordinating total just before each reservation so a test can see the gap after one page lets go and
+     * before the next estimate is taken. A page reservation has to be allowed to fail, so force execution stays off.
+     */
+    private static final class WatchingPressure extends IndexingPressure {
+        final List<Long> bytesBeforeReservation = new ArrayList<>();
+
+        WatchingPressure(long limit) {
+            super(Settings.builder().put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), limit + "b").build());
+        }
+
+        @Override
+        public Coordinating markCoordinatingOperationStarted(int operations, long bytes, boolean forceExecution) {
+            assertFalse(forceExecution);
+            bytesBeforeReservation.add(stats().getCurrentCoordinatingBytes());
+            return super.markCoordinatingOperationStarted(operations, bytes, forceExecution);
+        }
     }
 
     private final class Harness {
@@ -551,6 +951,25 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
                     breaker,
                     pressure
                 );
+            } else if (request instanceof ReindexRequest reindex) {
+                this.action = new Reindexer.AsyncIndexBySearchAction(
+                    task,
+                    logger,
+                    parent,
+                    parent,
+                    queue.getThreadPool(),
+                    scripts,
+                    ClusterState.EMPTY_STATE.projectState(Metadata.DEFAULT_PROJECT_ID),
+                    null,
+                    reindex,
+                    listener,
+                    null,
+                    TimeValue.ZERO,
+                    null,
+                    new ReindexSettings(),
+                    breaker,
+                    pressure
+                );
             } else {
                 this.action = new TransportUpdateByQueryAction.AsyncIndexBySearchAction(
                     task,
@@ -570,32 +989,39 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
         }
 
         CountingHit hit(BytesReference source) {
-            return new CountingHit("docs", format("id-%s", randomAlphaOfLength(4)), source);
+            return hit(source, 1L);
+        }
+
+        CountingHit hit(BytesReference source, long version) {
+            String index = action.mainRequest.getSearchRequest().indices()[0];
+            return new CountingHit(index, format("id-%s", randomAlphaOfLength(4)), source, version);
+        }
+
+        void start() {
+            action.start();
         }
 
         void feed(List<Hit> hits) {
-            PaginatedHitSource.Response response = new PaginatedHitSource.Response(false, List.of(), hits.size(), hits, null);
-            action.onPaginatedSearchResponse(
-                new AbstractAsyncBulkByPaginatedSearchAction.PaginatedSearchConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
-                    @Override
-                    public PaginatedHitSource.Response response() {
-                        return response;
-                    }
+            feed(hits, false, List.of());
+        }
 
-                    @Override
-                    public void done(TimeValue extraKeepAlive) {
-                        onDone.run();
-                    }
-                })
-            );
+        void feed(List<Hit> hits, boolean timedOut, List<PaginatedSearchFailure> failures) {
+            PaginatedHitSource.Response response = new PaginatedHitSource.Response(timedOut, failures, hits.size(), hits, null);
+            action.onPaginatedSearchResponse(new PaginatedHitSource.AsyncResponse() {
+                @Override
+                public PaginatedHitSource.Response response() {
+                    return response;
+                }
+
+                @Override
+                public void done(TimeValue extraKeepAlive) {
+                    onDone.run();
+                }
+            });
         }
 
         void finishWithEmptyPage() {
             feed(List.of());
-        }
-
-        void drain() {
-            queue.runAllRunnableTasks();
         }
 
         long chargedBytes() {
@@ -603,6 +1029,10 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
         }
 
         BulkResponse success(BulkRequest bulk) {
+            return success(bulk, false);
+        }
+
+        BulkResponse success(BulkRequest bulk, boolean created) {
             BulkItemResponse[] items = new BulkItemResponse[bulk.requests().size()];
             for (int i = 0; i < items.length; i++) {
                 DocWriteRequest<?> item = bulk.requests().get(i);
@@ -610,7 +1040,7 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
                 if (item instanceof DeleteRequest delete) {
                     items[i] = BulkItemResponse.success(i, item.opType(), new DeleteResponse(shardId, delete.id(), 1L, 1L, 1L, true));
                 } else {
-                    items[i] = BulkItemResponse.success(i, item.opType(), new IndexResponse(shardId, item.id(), 1L, 1L, 1L, false));
+                    items[i] = BulkItemResponse.success(i, item.opType(), new IndexResponse(shardId, item.id(), 1L, 1L, 1L, created));
                 }
             }
             return new BulkResponse(items, 1L);
@@ -619,6 +1049,7 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
 
     private static final class RecordingClient extends FilterClient {
         final List<BulkRequest> bulks = new ArrayList<>();
+        final List<ActionListener<SearchResponse>> searches = new ArrayList<>();
         BiConsumer<BulkRequest, ActionListener<BulkResponse>> handler = (bulk, listener) -> {
             throw new AssertionError("unexpected bulk");
         };
@@ -639,13 +1070,25 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
                 handler.accept(bulk, bulkListener);
                 return;
             }
+            if (request instanceof SearchRequest) {
+                @SuppressWarnings("unchecked")
+                ActionListener<SearchResponse> searchListener = (ActionListener<SearchResponse>) listener;
+                searches.add(searchListener);
+                return;
+            }
+            if (request instanceof ClearScrollRequest) {
+                @SuppressWarnings("unchecked")
+                ActionListener<ClearScrollResponse> clearListener = (ActionListener<ClearScrollResponse>) listener;
+                clearListener.onResponse(new ClearScrollResponse(true, 1));
+                return;
+            }
             throw new AssertionError("unexpected " + request.getClass());
         }
     }
 
     /**
      * Runs a zero delay inline, and holds a positive delay until the test releases it.
-     * Retry backoff stays pending without a real sleep, and status reads of the scheduled task still work.
+     * Cancelling removes the held attempt so a reservation retry does not search after the task is cancelled.
      */
     private final class ScriptedClock extends TestThreadPool {
         private final List<Runnable> deferred = new ArrayList<>();
@@ -667,7 +1110,7 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
                 return immediate();
             }
             deferred.add(command);
-            return held(delay);
+            return held(command, delay);
         }
 
         ThreadPool getThreadPool() {
@@ -681,8 +1124,6 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
         void advanceTime() {
             deferred.remove(0).run();
         }
-
-        void runAllRunnableTasks() {}
 
         private static ScheduledCancellable immediate() {
             return new ScheduledCancellable() {
@@ -708,7 +1149,8 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
             };
         }
 
-        private static ScheduledCancellable held(TimeValue delay) {
+        private ScheduledCancellable held(Runnable command, TimeValue delay) {
+            AtomicBoolean cancelled = new AtomicBoolean();
             return new ScheduledCancellable() {
                 @Override
                 public long getDelay(TimeUnit unit) {
@@ -722,12 +1164,15 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
 
                 @Override
                 public boolean cancel() {
-                    return false;
+                    if (cancelled.compareAndSet(false, true) == false) {
+                        return false;
+                    }
+                    return deferred.remove(command);
                 }
 
                 @Override
                 public boolean isCancelled() {
-                    return false;
+                    return cancelled.get();
                 }
             };
         }
@@ -736,8 +1181,8 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
     private static final class CountingHit extends PaginatedHitSource.BasicHit {
         final AtomicInteger releases = new AtomicInteger();
 
-        CountingHit(String index, String id, BytesReference source) {
-            super(index, id, 1L);
+        CountingHit(String index, String id, BytesReference source, long version) {
+            super(index, id, version);
             setSource(source, XContentType.JSON);
             setSeqNo(1L);
             setPrimaryTerm(1L);

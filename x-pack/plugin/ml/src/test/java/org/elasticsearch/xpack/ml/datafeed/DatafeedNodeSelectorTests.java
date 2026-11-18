@@ -646,6 +646,83 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
         );
     }
 
+    public void testSelectNode_GivenJobNotOpenedShortCircuitsIndexCheck() {
+        // When the job is not open the datafeed cannot be assigned regardless of its indices, so the
+        // cheap job-state failure is reported and the expensive index resolution is skipped. Here the
+        // index also does not exist, yet the reported reason is the job state, not the missing index.
+        Job job = createScheduledJob("job_id").build(new Date());
+        DatafeedConfig df = createDatafeed("datafeed_id", job.getId(), Collections.singletonList("not_foo"));
+
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        JobState jobState = randomFrom(JobState.FAILED, JobState.CLOSED);
+        addJobTask(job.getId(), "node_id", jobState, tasksBuilder);
+        tasks = tasksBuilder.build();
+
+        givenClusterState("foo", 1, 0);
+
+        PersistentTasksCustomMetadata.Assignment result = new DatafeedNodeSelector(
+            clusterState,
+            resolver,
+            df.getId(),
+            df.getJobId(),
+            df.getIndices(),
+            SearchRequest.DEFAULT_INDICES_OPTIONS
+        ).selectNode(makeCandidateNodes("node_id", "other_node_id"));
+        assertNull(result.getExecutorNode());
+        assertEquals(
+            "cannot start datafeed [datafeed_id], because the job's [job_id] state is [" + jobState + "] while state [opened] is required",
+            result.getExplanation()
+        );
+
+        ElasticsearchException e = expectThrows(
+            ElasticsearchException.class,
+            () -> new DatafeedNodeSelector(
+                clusterState,
+                resolver,
+                df.getId(),
+                df.getJobId(),
+                df.getIndices(),
+                SearchRequest.DEFAULT_INDICES_OPTIONS
+            ).checkDatafeedTaskCanBeCreated()
+        );
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "No node found to start datafeed [datafeed_id], allocation explanation "
+                    + "[cannot start datafeed [datafeed_id], because the job's [job_id] state is ["
+                    + jobState
+                    + "] while state [opened] is required]"
+            )
+        );
+    }
+
+    public void testSelectNode_GivenJobStaleShortCircuitsIndexCheck() {
+        // A stale job task state is also a critical failure, so the index resolution is skipped even
+        // when the datafeed's index does not exist. This is the dominant case during mass reassignment.
+        Job job = createScheduledJob("job_id").build(new Date());
+        DatafeedConfig df = createDatafeed("datafeed_id", job.getId(), Collections.singletonList("not_foo"));
+
+        String nodeId = randomBoolean() ? "node_id2" : null;
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        addJobTask(job.getId(), nodeId, JobState.OPENED, tasksBuilder);
+        // Set to lower allocationId, so job task is stale:
+        tasksBuilder.updateTaskState(MlTasks.jobTaskId(job.getId()), new JobTaskState(JobState.OPENED, 0, null, Instant.now()));
+        tasks = tasksBuilder.build();
+
+        givenClusterState("foo", 1, 0);
+
+        PersistentTasksCustomMetadata.Assignment result = new DatafeedNodeSelector(
+            clusterState,
+            resolver,
+            df.getId(),
+            df.getJobId(),
+            df.getIndices(),
+            SearchRequest.DEFAULT_INDICES_OPTIONS
+        ).selectNode(makeCandidateNodes("node_id1", "node_id2", "node_id3"));
+        assertNull(result.getExecutorNode());
+        assertEquals("cannot start datafeed [datafeed_id], because the job's [job_id] state is stale", result.getExplanation());
+    }
+
     public void testSelectNode_GivenMlUpgradeMode() {
         Job job = createScheduledJob("job_id").build(new Date());
         DatafeedConfig df = createDatafeed("datafeed_id", job.getId(), Collections.singletonList("foo"));

@@ -44,6 +44,8 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * The caller's query settings stop at view boundaries: a view must produce the same rows
@@ -852,9 +854,10 @@ public class ViewSettingsIT extends AbstractEsqlIntegTestCase {
 
     /**
      * {@code foo} is {@code double} in {@code mt_a}, {@code long} in {@code mt_b}, and present only in {@code _source} in
-     * {@code mt_c}. The view loads it, so {@code TO_DEGREES(foo)} is a type conflict even when the caller set nothing.
+     * {@code mt_c}. The view loads it even when the caller set nothing: {@code TO_DEGREES(foo)} converts both mapped types, and
+     * {@code mt_c}, read from {@code _source} as a {@code keyword}, is null with a warning.
      */
-    public void testLoadSetInsideViewReportsMixedTypeConflictWhenCallerUsesDefault() {
+    public void testLoadSetInsideViewLoadsUnmappedIndexWhenCallerUsesDefault() throws InterruptedException {
         String dynamicOff = "{\"dynamic\": false, \"properties\": {\"id\": {\"type\": \"integer\"}}}";
         assertAcked(indicesAdmin().prepareCreate("mt_a").setMapping("""
             {"dynamic": false, "properties": {"id": {"type": "integer"}, "foo": {"type": "double"}}}
@@ -871,14 +874,21 @@ public class ViewSettingsIT extends AbstractEsqlIntegTestCase {
             FROM mt_a, mt_b, mt_c | EVAL x = TO_DEGREES(foo) | KEEP id, x
             """));
         for (String query : List.of(
-            "FROM mt_view",
-            "SET unmapped_fields=\"nullify\"; FROM mt_view",
-            "SET unmapped_fields=\"load\"; FROM mt_view"
+            "FROM mt_view | SORT id",
+            "SET unmapped_fields=\"nullify\"; FROM mt_view | SORT id",
+            "SET unmapped_fields=\"load\"; FROM mt_view | SORT id"
         )) {
-            expectThrows(
-                VerificationException.class,
-                containsString("Cannot use field [foo] due to ambiguities"),
-                () -> run(query).close()
+            try (var resp = run(query)) {
+                List<List<Object>> values = getValuesList(resp);
+                assertThat(query, values.stream().map(row -> row.get(0)).toList(), equalTo(List.of(1, 2, 3)));
+                assertThat(query, values.get(0).get(1), notNullValue());
+                assertThat(query, values.get(1).get(1), notNullValue());
+                assertThat(query, values.get(2).get(1), nullValue());
+            }
+            assertThat(
+                query,
+                warningHeaders(query),
+                hasItem(containsString("Field [foo] of type [keyword] due to loading from _source cannot be converted to [DOUBLE]"))
             );
         }
     }

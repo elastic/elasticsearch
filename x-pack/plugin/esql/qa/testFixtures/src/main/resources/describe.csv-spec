@@ -128,6 +128,25 @@ name:keyword | origin:keyword | role:keyword
 t            | computed       | time
 ;
 
+describeRoundedAndConvertedTime
+required_capability: describe_command
+required_capability: describe_time_columns
+required_capability: round_to
+
+FROM k8s
+| EVAL nanos = TO_DATE_NANOS(@timestamp), millis = TO_DATETIME(nanos), rounded = ROUND_TO(@timestamp, "2024-05-10T00:00:00Z"::DATE, "2024-05-11T00:00:00Z"::DATE), shifted = @timestamp + 1 hour
+| KEEP nanos, millis, rounded, shifted
+| DESCRIBE
+| KEEP name, type, origin, role
+;
+
+name:keyword | type:keyword | origin:keyword | role:keyword
+nanos        | date_nanos   | computed       | time
+millis       | date         | computed       | time
+rounded      | date         | computed       | time
+shifted      | date         | computed       | null
+;
+
 describeBucketsOfOtherDates
 required_capability: describe_command
 required_capability: describe_time_columns

@@ -19,7 +19,10 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TStep;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundTo;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.FieldSemantics;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
@@ -102,8 +105,9 @@ public final class ColumnSemantics {
 
     /**
      * Returns the ids of the columns of {@code plan} that hold time but read no mapped field: the {@code @timestamp}
-     * column of a dataset and the buckets of a time column ({@code BUCKET}, {@code TBUCKET}, {@code TSTEP},
-     * {@code DATE_TRUNC}), nested or not. Renames keep it, and so do merges whose branches all hold time.
+     * column of a dataset, and a time column rounded ({@code BUCKET}, {@code TBUCKET}, {@code TSTEP}, {@code DATE_TRUNC},
+     * {@code ROUND_TO}) or converted ({@code TO_DATETIME}, {@code TO_DATE_NANOS}), nested or not. Renames keep it, and
+     * so do merges whose branches all hold time.
      */
     public static Set<NameId> timeColumns(LogicalPlan plan, Map<NameId, FieldSemantics> semantics, Map<NameId, Attribute> datasetColumns) {
         Set<NameId> time = new HashSet<>();
@@ -116,7 +120,7 @@ public final class ColumnSemantics {
             node.forEachExpression(Alias.class, alias -> {
                 Expression source = alias.child();
                 while (source != null && (source instanceof Attribute) == false) {
-                    source = bucketed(source);
+                    source = timeOf(source);
                 }
                 if (source instanceof Attribute attribute && isTime(attribute.id(), semantics, time)) {
                     time.add(alias.id());
@@ -139,9 +143,9 @@ public final class ColumnSemantics {
     }
 
     /**
-     * What a time bucketing function buckets, or null for any other expression.
+     * The expression whose time {@code e} keeps: what it rounds or converts, or null for any other expression.
      */
-    private static Expression bucketed(Expression e) {
+    private static Expression timeOf(Expression e) {
         if (e instanceof Bucket bucket) {
             return bucket.field();
         }
@@ -153,6 +157,15 @@ public final class ColumnSemantics {
         }
         if (e instanceof DateTrunc dateTrunc) {
             return dateTrunc.field();
+        }
+        if (e instanceof RoundTo roundTo) {
+            return roundTo.field();
+        }
+        if (e instanceof ToDatetime toDatetime) {
+            return toDatetime.field();
+        }
+        if (e instanceof ToDateNanos toDateNanos) {
+            return toDateNanos.field();
         }
         return null;
     }

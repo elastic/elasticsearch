@@ -1289,14 +1289,24 @@ public class CsvFormatReader implements SegmentableFormatReader {
      */
     private record HeaderBinding(int[] fieldIndex, int maxRowWidth) {
         /**
-         * A headerless file's names ARE positions ({@code col4} -> field 4), so it states no width to bound rows
-         * from above. What a row of such a file must at least carry comes from the mapping instead, see
-         * {@link CsvBatchIterator#fileStatedRowWidth}.
+         * A headerless file's names ARE positions ({@code col4} -> field 4), so it states no width at all -- neither
+         * a bound on rows from above, nor one from below, see {@link CsvBatchIterator#fileStatedRowWidth}.
          */
         static final int NO_FILE_WIDTH = Integer.MAX_VALUE;
 
         static HeaderBinding withoutFileWidth(int[] fieldIndex) {
             return new HeaderBinding(fieldIndex, NO_FILE_WIDTH);
+        }
+
+        /**
+         * The file's header width with no names bound: an inferred schema over a HEADERED file reads by position,
+         * so it binds no names, but the file's header still states how wide its rows are. That width has to come
+         * from this file rather than from the pinned schema, which cross-file resolution may have taken from a
+         * wider sibling -- {@code first_file_wins} over a three-column anchor would otherwise make every complete
+         * row of a two-column sibling fall short.
+         */
+        static HeaderBinding fileWidthOnly(int maxRowWidth) {
+            return new HeaderBinding(null, maxRowWidth);
         }
     }
 
@@ -2693,12 +2703,19 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     );
                 } else if (options.headerRow() == false && declaredProvenanceBinding) {
                     // A headerless file's physical names ARE positions (col4 -> field 4), so binding needs no file content
-                    // and runs on EVERY split. Its rows are not bounded from above by a width the file does not state;
-                    // what they must at least carry comes from the names the mapping declares.
+                    // and runs on EVERY split. Such a file states no width, so its rows are bounded neither from above
+                    // nor from below -- a mapping over it declares which positions to read, not how many fields a row has.
                     headerBinding = HeaderBinding.withoutFileWidth(fieldIndexes(readSchema, null, object));
+                } else if (options.headerRow()) {
+                    // An inferred schema over a HEADERED file reads by position -- always for a headerless-style
+                    // positional read, and under headerBindingByProvenance for a headered one -- so no names bind. The
+                    // file's own header still states its width, which is the floor; the schema's width stays the limit.
+                    List<String> fileHeader = context.firstSplit() ? leadingColumns : context.fileHeaderColumns();
+                    if (fileHeader != null) {
+                        headerBinding = HeaderBinding.fileWidthOnly(fileHeader.size());
+                    }
                 }
-                // An inferred headerless schema binds positionally, as does an inferred headered one under
-                // headerBindingByProvenance: no binding, rows bounded by the schema's width.
+                // An inferred headerless schema binds positionally: no binding, and no width either way.
             } catch (Exception e) {
                 abortRead(object, rawStream, e);
                 throw e;
@@ -5475,6 +5492,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * an inferred schema was read off that header, or as the binding's width, when a pinned schema binds to it
          * by name.
          *
+         * <p>The width is always THIS file's, never the pinned schema's: cross-file resolution can take the schema
+         * from a wider sibling, and a complete row of a narrower file is not a short row.
+         *
          * <p>A headerless file states no width and so gets no floor, whatever schema is pinned over it. A mapping
          * is deliberately NOT an authority here: the reader is told only that the schema's provenance is
          * {@code DECLARED}, which {@code ExternalSourceResolver} sets both for a {@code dynamic: false} mapping and
@@ -5486,10 +5506,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * which of its rows are well-formed.
          */
         private int fileStatedRowWidth(int schemaSize) {
-            if (schemaFieldIndex == null) {
-                return options.headerRow() ? schemaSize : NO_ROW_WIDTH_FLOOR;
+            if (bindingMaxRowWidth != HeaderBinding.NO_FILE_WIDTH) {
+                return bindingMaxRowWidth;
             }
-            return bindingMaxRowWidth == HeaderBinding.NO_FILE_WIDTH ? NO_ROW_WIDTH_FLOOR : bindingMaxRowWidth;
+            // No binding was made at all, so there is no pinned schema and the schema was inferred from THIS file's
+            // header -- its size is that header's width. A headerless file reaches here with no width to state.
+            return schemaFieldIndex == null && options.headerRow() ? schemaSize : NO_ROW_WIDTH_FLOOR;
         }
 
         private void initProjection() {

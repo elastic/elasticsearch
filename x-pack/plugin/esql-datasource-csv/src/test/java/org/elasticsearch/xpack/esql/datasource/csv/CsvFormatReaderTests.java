@@ -89,6 +89,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 
@@ -8826,6 +8827,25 @@ public class CsvFormatReaderTests extends ESTestCase {
         CsvFormatReader reader = new CsvFormatReader(blockFactory).withHeaderBindingByProvenance(true);
 
         assertEquals(List.of("2", "1"), firstRow(reader, "2,1\n", readSchema, false));
+    }
+
+    /**
+     * The width floor is THIS file's header, not the pinned schema's. Under headerBindingByProvenance an inferred
+     * schema over a headered file binds positionally, so the schema can be one cross-file resolution took from a
+     * wider sibling -- {@code first_file_wins} over a three-column anchor. A complete row of a two-column file is
+     * not a short row, and taking the floor from the schema would have failed every row of that sibling.
+     */
+    public void testWidthFloorComesFromTheFileNotAWiderSiblingsSchema() throws Exception {
+        // The pinned schema is three columns wide; this file's own header is two.
+        List<Attribute> anchorSchema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "id", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "name", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "extra", DataType.KEYWORD)
+        );
+        CsvFormatReader reader = new CsvFormatReader(blockFactory).withHeaderBindingByProvenance(true);
+
+        assertEquals(List.of("1", "alice"), firstRow(reader, "id,name\n1,alice\n", anchorSchema, true).subList(0, 2));
+        assertThat(drainWarnings(), everyItem(not(containsString("missing trailing fields"))));
     }
 
     /**

@@ -185,7 +185,7 @@ $$$error-mode$$$
     {applies_to}`stack: preview 9.6+` Under `null_field`, a multi-valued cell loses only the values that fail to parse, and is null only when none of its values can be read.
 
     :::{dropdown} When `null_field` drops rows
-    `null_field` keeps a row only when the failure can be attributed to a single value. This applies to every format, including Parquet. When a failure affects the row's structure, `null_field` drops the row, as `skip_row` does. For example, an NDJSON line that isn't valid JSON is dropped, and so is a CSV row that can't be split into fields, or one whose number of fields isn't the file's width. {applies_to}`stack: preview 9.7+` A CSV row with fewer fields than the file's width can be read instead, with its missing fields as `null`, by setting [`pad_short_rows`](#csv-pad-short-rows).
+    `null_field` keeps a row only when the failure can be attributed to a single value. This applies to every format, including Parquet. When a failure affects the row's structure, `null_field` drops the row, as `skip_row` does. For example, an NDJSON line that isn't valid JSON is dropped, and so is a CSV row that can't be split into fields, or one whose number of fields isn't the file's header width. {applies_to}`stack: preview 9.7+` A CSV row with fewer fields than the file's width can be read instead, with its missing fields as `null`, by setting [`pad_short_rows`](#csv-pad-short-rows).
 
     :::
 
@@ -472,7 +472,9 @@ $$$csv-pad-short-rows$$$
     - **Valid values:** `true`, `false`
     - **Related:** [`error_mode`](#error-mode)
 
-    A row's width is the header's field count when the file has a header, and otherwise the columns a `dynamic: false` mapping declares. By default a row that stops before that width is a malformed row, as a row past it already is, and the dataset's `error_mode` decides what happens to it: `fail_fast` fails the query naming the row and both widths, while `skip_row` and `null_field` drop the row, report it with a `Warning` header and count it against the error limit.
+    A file's width is its header's field count, so this setting applies to a file that has a header. A headerless file states no width — its columns are named by position, and a mapping over it declares which positions to read rather than how many fields a row carries — so no row of one is short and none is padded.
+
+    By default a row that stops before its file's width is a malformed row, as a row past it already is, and the dataset's `error_mode` decides what happens to it: `fail_fast` fails the query naming the row and both widths, while `skip_row` and `null_field` drop the row, report it with a `Warning` header and count it against the error limit.
 
     Set `true` to read such a row instead, with the fields it lacks as `null`, under every `error_mode`. Each padded row is reported with a `Warning` header, because a padded `null` cannot otherwise be told from a `null` the file carries.
 

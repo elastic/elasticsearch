@@ -55,7 +55,7 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
         }
     }
 
-    private record IndexedColumn(Column column, BlockArrowFormatter converter, int blockIndex, boolean multivalued) {}
+    private record IndexedColumn(Column column, BlockArrowFormatter converter, int blockIndex, boolean asList) {}
 
     private final List<IndexedColumn> columns;
     private Iterator<ResponseSegment> segments;
@@ -88,14 +88,16 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
                         "ES|QL type [" + column.esqlType.outputType() + "] is not supported by the Arrow format"
                     );
                 }
-                boolean multivalued = false;
-                for (Page page : pages) {
-                    if (converter.isMultivalued(column.name, page.getBlock(blockIndex))) {
-                        multivalued = true;
-                        break;
+                boolean asList = converter.alwaysList();
+                if (asList == false) {
+                    for (Page page : pages) {
+                        if (converter.isMultivalued(column.name, page.getBlock(blockIndex))) {
+                            asList = true;
+                            break;
+                        }
                     }
                 }
-                indexedColumns.add(new IndexedColumn(column, converter, blockIndex, multivalued));
+                indexedColumns.add(new IndexedColumn(column, converter, blockIndex, asList));
             }
         }
         this.columns = List.copyOf(indexedColumns);
@@ -237,7 +239,7 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
         private Schema arrowSchema() {
             return new Schema(response.columns.stream().map(c -> {
                 var field = c.converter().arrowField(c.column().name);
-                if (c.multivalued()) {
+                if (c.asList()) {
                     // A variable-sized list is a vector of offsets and a child vector of values
                     // See https://arrow.apache.org/docs/format/Columnar.html#variable-size-list-layout
                     var fieldType = field.getFieldType();
@@ -247,7 +249,7 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
                         fieldType.getMetadata().get(BlockArrowFormatter.ESQL_TYPE_METADATA)
                     );
                     var listType = new FieldType(true, LIST_FIELD_TYPE.getType(), null, listMetadata);
-                    // Value vector is non-nullable (ES|QL multivalues cannot contain nulls).
+                    // List elements are non-nullable: neither ES|QL multivalues nor vector coordinates contain nulls.
                     var valueType = new FieldType(false, fieldType.getType(), fieldType.getDictionary(), fieldType.getMetadata());
                     // The nested vector is named "$data$", following what the Arrow/Java library does.
                     return new Field(c.column().name, listType, List.of(new Field("$data$", valueType, field.getChildren())));
@@ -341,8 +343,8 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
                     var converter = indexedColumn.converter();
 
                     Block block = page.getBlock(indexedColumn.blockIndex());
-                    converter.addFieldNodes(block, indexedColumn.multivalued(), nodes);
-                    converter.convert(block, indexedColumn.multivalued(), bufs, bufWriters, releasables);
+                    converter.addFieldNodes(block, indexedColumn.asList(), nodes);
+                    converter.convert(block, indexedColumn.asList(), bufs, bufWriters, releasables);
                 }
 
                 // Consistency check
@@ -394,13 +396,7 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
 
     private static final BlockArrowFormatter TO_BE_IMPLEMENTED_MARKER = new BlockArrowFormatter(DataType.UNSUPPORTED, MinorType.NULL) {
         @Override
-        public void convert(
-            Block block,
-            boolean multivalued,
-            List<ArrowBuf> bufs,
-            List<BufWriter> bufWriters,
-            List<Releasable> releasables
-        ) {}
+        public void convert(Block block, boolean asList, List<ArrowBuf> bufs, List<BufWriter> bufWriters, List<Releasable> releasables) {}
     };
 
     /**
@@ -473,7 +469,7 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
             case DOUBLE_RANGE -> new BlockArrowFormatter.AsDoubleRange(type);
 
             case TSID_DATA_TYPE -> new BlockArrowFormatter.AsVarBinary(type);
-            case DENSE_VECTOR -> TO_BE_IMPLEMENTED_MARKER;
+            case DENSE_VECTOR -> new BlockArrowFormatter.AsDenseVector(type);
 
             case AGGREGATE_METRIC_DOUBLE -> new BlockArrowFormatter.AsAggregateMetricDouble(type);
             case EXPONENTIAL_HISTOGRAM -> TO_BE_IMPLEMENTED_MARKER;

@@ -9388,13 +9388,47 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * The second bound has to be able to exist where the first does not. A declared HEADERLESS schema deliberately
-     * carries NO upper row-width limit — the file states no width — but the columns it names ARE a width every row
-     * must fill: {@code col2} declared over a 2-field row is a row that stops short, while a 4-field row is still
-     * read, because nothing bounds such a file from above.
+     * The pad notice describes a row the reader KEPT. A short row is padded at the width check, but one of the
+     * fields it does carry can still fail conversion and drop it under {@code skip_row} -- and a notice emitted at
+     * the width check would then say the missing fields of a returned row were read as null when no such row was
+     * returned.
      */
-    public void testDeclaredHeaderlessRowMustFillTheColumnsTheMappingNames() throws Exception {
-        // Rows: full (3), short (2), wider than the declaration (4).
+    public void testPaddedShortRowDroppedForABadFieldIsNotReportedAsPadded() throws Exception {
+        // Row 2 is short AND carries a non-integer id, so padding admits it and the coercion failure drops it.
+        String csv = "id:integer,tags:keyword,score:integer\n1,alpha,10\nNOPE,solo\n";
+        Map<String, Object> config = Map.of(
+            "header_row",
+            true,
+            "multi_value_syntax",
+            "NONE",
+            "pad_short_rows",
+            true,
+            "error_mode",
+            "skip_row",
+            "max_errors",
+            10
+        );
+        for (boolean directBlock : List.of(false, true)) {
+            String desc = "directBlock=" + directBlock;
+            CsvFormatReader reader = declaredReader(true, directBlock, config);
+            int rows = readRowCount(reader, createStorageObject(csv), idTagsScore(), List.of("id", "tags"));
+            List<String> warnings = drainWarnings();
+            assertEquals(desc + " the bad row is dropped despite the padding", 1, rows);
+            assertTrue(
+                desc + " a dropped row must not be reported as padded, got: " + warnings,
+                warnings.stream().noneMatch(w -> w.contains("read as null"))
+            );
+        }
+    }
+
+    /**
+     * A mapping is not a width authority. The reader is told only that the schema's provenance is DECLARED, which
+     * covers both a {@code dynamic: false} mapping and a non-strict overlay appending the columns an inferred
+     * sample never reached -- and those appended columns read null rather than being required. So a headerless
+     * file keeps null-filling whatever is declared over it, and a row short of the declaration is not an error.
+     */
+    public void testDeclaredHeaderlessRowIsNotMeasuredAgainstTheMapping() throws Exception {
+        // Rows: full (3), short (2), wider than the declaration (4). None of them is a width fault.
         StorageObject object = createStorageObject("1,x,10\n2,y\n3,z,30,SURPLUS\n");
         List<Attribute> readSchema = List.of(
             new ReferenceAttribute(Source.EMPTY, null, "col0", DataType.INTEGER),
@@ -9409,19 +9443,18 @@ public class CsvFormatReaderTests extends ESTestCase {
             );
             int rows = readRowCount(reader, object, readSchema, List.of("col0", "col2"));
             List<String> warnings = drainWarnings();
-            assertEquals(desc + " the full row and the wider row are read, the short one is not", 2, rows);
+            assertEquals(desc + " a headerless file states no width, so every row is read", 3, rows);
             assertTrue(
-                desc + " expected the mapping's width in the message, got: " + warnings,
-                warnings.stream().anyMatch(w -> w.contains("missing trailing fields: [2] columns, the schema has [3]"))
+                desc + " expected no width warning, got: " + warnings,
+                warnings.stream().noneMatch(w -> w.contains("missing trailing fields"))
             );
         }
     }
 
     /**
-     * A HEADERLESS file with no declaration states its width the only way it can: through the schema inferred from
-     * a sample of its own rows, which is already the width a row may not exceed. So it is also the width a row may
-     * not fall short of — the alternative being a file whose rows are bounded from above and not from below, which
-     * is the asymmetry this change exists to remove.
+     * A HEADERLESS file states no width at all -- not through its mapping, and not through a schema inferred from a
+     * sample of its own rows, which is a bound on what was seen rather than one the file declares. So it has no
+     * floor, and a row shorter than the sample's widest still null-fills.
      */
     public void testInferredHeaderlessRowKeepsNullFillingBecauseNoWidthIsStated() throws Exception {
         // A headerless file with no mapping states neither of the rule's authorities, so it has no floor -- just as
@@ -9442,6 +9475,31 @@ public class CsvFormatReaderTests extends ESTestCase {
                 () -> readRowCount(reader, createStorageObject(RAGGED_MV_CSV), idTagsScore(), List.of("id", "tags"))
             );
             assertThat("directBlock=" + directBlock, e.getMessage(), containsString("the header has [3]"));
+            drainWarnings();
+        }
+    }
+
+    /**
+     * The width exit builds its excerpt through rowExcerptIfRead(), which returns null outside fail_fast, and
+     * ErrorExcerpts.summarize renders null as "null". The sibling above asserts only the width text, so it would
+     * pass on a message that had lost the record; this pins the record itself on the one mode that prints it.
+     */
+    public void testDeclaredBindingRowWidthFailFastQuotesTheRecord() throws Exception {
+        String csv = "id:integer,tags:keyword,score:integer\n1,alpha,10,SURPLUS\n";
+        Map<String, Object> config = Map.of("header_row", true, "multi_value_syntax", "NONE", "error_mode", "fail_fast");
+        for (boolean directBlock : List.of(false, true)) {
+            CsvFormatReader reader = declaredReader(true, directBlock, config);
+            Exception e = expectThrows(
+                Exception.class,
+                () -> readRowCount(reader, createStorageObject(csv), idTagsScore(), List.of("id", "tags"))
+            );
+            assertThat("directBlock=" + directBlock, e.getMessage(), containsString("[4] columns, the header has [3]"));
+            assertThat("directBlock=" + directBlock, e.getMessage(), containsString("row: "));
+            assertThat(
+                "directBlock=" + directBlock + " must quote the record: " + e.getMessage(),
+                e.getMessage(),
+                containsString(directBlock ? "1,alpha,10,SURPLUS" : "col0=[1]")
+            );
             drainWarnings();
         }
     }
@@ -9937,7 +9995,7 @@ public class CsvFormatReaderTests extends ESTestCase {
      * <p>The absent column is named {@code note}, which is not of the {@code col<N>} form a headerless file's
      * physical names take, so it binds {@code ABSENT_FIELD} — the sentinel this is about. It used to be
      * {@code col5}, which binds raw field 5 rather than the sentinel, and so exercised the row's trailing edge
-     * instead; that case is now {@link #testDeclaredHeaderlessRowMustFillTheColumnsTheMappingNames}.
+     * instead; that case is now {@link #testDeclaredHeaderlessRowIsNotMeasuredAgainstTheMapping}.
      */
     public void testAbsentDeclaredColumnThroughAllStripeScope() throws Exception {
         StorageObject object = createStorageObject("7,alpha,3.5\n8,beta,4.5\n");

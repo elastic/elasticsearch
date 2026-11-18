@@ -4321,6 +4321,15 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * the same machinery {@link #skipWarnings} uses, so a file of short rows cannot flood the response.
          */
         private final SkipWarnings padWarnings;
+
+        /**
+         * The pad notice this row staged, or {@code null} when it needed none. Staged rather than emitted at the
+         * width check because a short row is not yet a kept row: one of the fields it DOES carry can still fail
+         * conversion and drop it under {@code skip_row}, and a notice saying its missing fields were read as null
+         * would then describe a row the reader never returned. {@link #flushPadNotice()} emits it where the row is
+         * committed; the next width check overwrites it, so a dropped row's notice never reaches a later row.
+         */
+        private String pendingPadNotice;
         /** The read context's informational sink; the read-time null-marker hint goes here. */
         @Nullable
         private final Consumer<String> warningSink;
@@ -5460,37 +5469,27 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
 
         /**
-         * The width this file states, which every row of it has to fill — {@link #rowWidthFloor}. Three sources, in
-         * the order they are authoritative:
-         * <ul>
-         *   <li>the file's own header, for a headered file: its field count, the same number
-         *       {@link #rowWidthLimit} bounds rows by from above, so there a row must be exactly that wide;</li>
-         *   <li>the schema, under positional binding: the schema IS the file's width there — read off its header, or
-         *       inferred from a sample of its own rows — and is likewise already the limit;</li>
-         *   <li>the columns a declared headerless schema binds, where neither of the above exists: one past the
-         *       widest {@code col<N>} it names, which is what such a mapping declares a row to be. This is the one
-         *       case where the floor is not the limit (there is none), so a row may carry fields past it.</li>
-         * </ul>
-         * Zero when a declared headerless schema binds no field at all, which bounds nothing.
+         * The width this file states, which every row of it has to fill — {@link #rowWidthFloor}. Only the file's
+         * own header states one: its field count, the same number {@link #rowWidthLimit} bounds rows by from above,
+         * so a row of a headered file must be exactly that wide. It reaches this either as the schema's size, when
+         * an inferred schema was read off that header, or as the binding's width, when a pinned schema binds to it
+         * by name.
+         *
+         * <p>A headerless file states no width and so gets no floor, whatever schema is pinned over it. A mapping
+         * is deliberately NOT an authority here: the reader is told only that the schema's provenance is
+         * {@code DECLARED}, which {@code ExternalSourceResolver} sets both for a {@code dynamic: false} mapping and
+         * for a non-strict overlay that appends the columns an inferred sample never reached. Those appended
+         * columns are contractually absent-and-null-filled rather than required, and nothing reaching this class
+         * tells the two apart -- so a floor taken from the bound columns would make one dataset's optional trailing
+         * column another's mandatory one. Being a function of the file alone also keeps the floor out of the
+         * read-configuration fingerprint: two datasets declaring different columns over one file still agree about
+         * which of its rows are well-formed.
          */
         private int fileStatedRowWidth(int schemaSize) {
             if (schemaFieldIndex == null) {
-                // An inferred HEADERED schema's width is the header's, which is a width the file states. A headerless
-                // file with no declaration states neither of the rule's two authorities, so it gets no floor -- just
-                // as it gets no upper limit.
                 return options.headerRow() ? schemaSize : NO_ROW_WIDTH_FLOOR;
             }
-            if (bindingMaxRowWidth != HeaderBinding.NO_FILE_WIDTH) {
-                return bindingMaxRowWidth;
-            }
-            int declared = 0;
-            for (int fieldIndex : schemaFieldIndex) {
-                // ABSENT_FIELD columns are skipped by the >= 0 test: they bind no field, so they ask nothing of a row.
-                if (fieldIndex >= 0 && fieldIndex + 1 > declared) {
-                    declared = fieldIndex + 1;
-                }
-            }
-            return declared;
+            return bindingMaxRowWidth == HeaderBinding.NO_FILE_WIDTH ? NO_ROW_WIDTH_FLOOR : bindingMaxRowWidth;
         }
 
         private void initProjection() {
@@ -5655,6 +5654,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     // ALL scope: COUNT(*) projects zero columns, so the page carries no blocks — harvest
                     // every file column's min/max/null straight from the raw record here. rowIdx indexes
                     // rowStartBytes (built parallel to rows) so the stripe attribution is exact.
+                    flushPadNotice();
                     harvestAllColumns(row, rowIdx);
                     survivors.accept(rowIdx);
                     acceptedRows++;
@@ -5700,6 +5700,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         continue;
                     }
                     if (convertRowInPlace(row, rowIdx)) {
+                        flushPadNotice();
                         for (int i = 0; i < columnCount; i++) {
                             builders[i].append().accept(rowBuffer[i]);
                         }
@@ -6380,6 +6381,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * Reports the row's held coercion errors now that its width has been accepted. Returns false when the row
          * must be dropped. A row that failed BOTH its width and a conversion never reaches here: the width guard
          * clears the pending state and reports the structural error, which is the one the caller needs.
+         *
+         * @param rawLine the record text a row-level rejection hands on as its excerpt, or {@code null} from a caller
+         *                whose error mode has no reader for one. Only the row-error branch passes it on at all, and
+         *                only {@code FAIL_FAST} goes on to read it -- see {@link #rowExcerptIfRead()}.
          */
         private boolean flushPendingErrors(String rawLine) {
             if (hasPendingErrors == false) {
@@ -6574,6 +6579,31 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
 
         /**
+         * Whether anything goes on to read a row error's excerpt.
+         *
+         * <p>{@link #onRowErrorImpl} reads it in one place, the {@code FAIL_FAST} throw. Every other mode falls
+         * through to a warning and a log line carrying {@code message} alone -- {@code null_field} included, which
+         * reaches that branch for a width rejection even though a failed conversion never becomes a row error.
+         * Both {@code onRowError} overloads consult this before summarizing, so no caller can make a message out of
+         * an excerpt nobody reads.
+         */
+        private boolean excerptIsRead() {
+            return modeOrdinal == ErrorPolicy.Mode.FAIL_FAST.ordinal();
+        }
+
+        /**
+         * The record text for a row error on the direct path, or {@code null} where nothing reads one.
+         *
+         * <p>The consumers above already decline to summarize an unread excerpt; this declines to BUILD one. The
+         * direct walkers hold their record as a range of a reused buffer, so {@link #directRawLine()} is a copy of
+         * the whole record, and under {@code null_field} every row with a failed conversion would pay for it. The
+         * fused bracket walker needs none of this: it already holds its line, so passing it costs nothing.
+         */
+        private String rowExcerptIfRead() {
+            return excerptIsRead() ? directRawLine() : null;
+        }
+
+        /**
          * The whole row-width rule, and the only place either bound is compared: why a row of {@code actualFields}
          * fields is rejected, or {@code null} when its width is acceptable. A row is measured against the width the
          * file states (see {@link #fileStatedRowWidth}) and is a structural fault either side of it — too many
@@ -6589,6 +6619,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
          */
         @Nullable
         private RowWidthFault rowWidthError(int actualFields) {
+            pendingPadNotice = null;
             if (actualFields > rowWidthLimit) {
                 return new RowWidthFault(rowWidthClause(actualFields, rowWidthLimit), RowFault.STRUCTURAL);
             }
@@ -6599,16 +6630,22 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         RowFault.SHORT_ROW
                     );
                 }
-                padWarnings.add(
-                    "row ["
-                        + totalRowCount
-                        + "]: "
-                        + MISSING_TRAILING_FIELDS
-                        + ", read as null: "
-                        + rowWidthClause(actualFields, rowWidthFloor)
-                );
+                pendingPadNotice = "row ["
+                    + totalRowCount
+                    + "]: "
+                    + MISSING_TRAILING_FIELDS
+                    + ", read as null: "
+                    + rowWidthClause(actualFields, rowWidthFloor);
             }
             return null;
+        }
+
+        /** Emits the notice {@link #rowWidthError} staged, at the point the row it describes is kept. */
+        private void flushPadNotice() {
+            if (pendingPadNotice != null) {
+                padWarnings.add(pendingPadNotice);
+                pendingPadNotice = null;
+            }
         }
 
         /**
@@ -6634,9 +6671,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * <p>The three direct walkers share this -- plain, and the quoted dialect's optimistic and full walkers. The
          * fused projected walker does not, because it interleaves trailing-field handling with its own fill.
          *
-         * <p>Allocation-sensitive: {@link #directRawLine()} materializes the record as a {@link String}, and the
-         * {@code hasPendingErrors} short-circuit is what keeps a clean row from paying for it. A row that staged a
-         * field error does pay, accepted or not -- under {@code null_field} such a row is reported and kept.
+         * <p>Allocation-sensitive: {@link #directRawLine()} materializes the record as a {@link String}, which only
+         * {@code fail_fast} goes on to read. {@link #rowExcerptIfRead()} is what keeps the other modes from building
+         * one, and the {@code hasPendingErrors} short-circuit keeps a clean row out of the call entirely.
          *
          * @param totalFields the number of fields the walker counted in this record
          * @return {@code true} if the row was accepted, {@code false} if the error policy rejected it
@@ -6647,14 +6684,15 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 // The structural error wins: a row of the wrong width has no meaningful columns to report field
                 // errors about.
                 clearPendingErrors();
-                onRowError(widthFault.message(), null, directRawLine(), widthFault.fault());
+                onRowError(widthFault.message(), null, rowExcerptIfRead(), widthFault.fault());
                 return false;
             }
-            // hasPendingErrors guards the call, not the result: directRawLine() materialises the row as a String, so
-            // a row that staged nothing never builds one. A row that did is reported here and may still be kept.
-            if (hasPendingErrors && flushPendingErrors(directRawLine()) == false) {
+            // hasPendingErrors keeps a clean row out of the call; rowExcerptIfRead() keeps every lenient mode from
+            // building a copy the flush will not read. Under null_field this row is reported and kept.
+            if (hasPendingErrors && flushPendingErrors(rowExcerptIfRead()) == false) {
                 return false;
             }
+            flushPadNotice();
             // Null-fill projected columns whose source index falls past the row's trailing edge.
             for (int c = 0; c < columnCount; c++) {
                 if (projectedIdx[c] < 0 || projectedIdx[c] >= totalFields) {
@@ -7353,6 +7391,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             if (flushPendingErrors(line) == false) {
                 return false;
             }
+            flushPadNotice();
 
             for (int c = 0; c < columnCount; c++) {
                 int si = projectedIdx[c];
@@ -7844,7 +7883,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
          *              query's projection, so the publish is suppressed (see {@code projectionDependentDrop}).
          */
         private void onRowError(String message, Exception cause, String[] row, RowFault fault) {
-            onRowErrorImpl(message, cause, CsvErrorMessages.summarizeRow(row), fault);
+            onRowErrorImpl(message, cause, excerptIsRead() ? CsvErrorMessages.summarizeRow(row) : null, fault);
         }
 
         /**
@@ -7852,11 +7891,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * {@code String[]}. Uses the raw CSV line for the error excerpt instead.
          */
         private void onRowError(String message, Exception cause, String rawLine, RowFault fault) {
-            onRowErrorImpl(message, cause, ErrorExcerpts.summarize(rawLine), fault);
+            onRowErrorImpl(message, cause, excerptIsRead() ? ErrorExcerpts.summarize(rawLine) : null, fault);
         }
 
         private void onRowErrorImpl(String message, Exception cause, String rowExcerpt, RowFault fault) {
             if (modeOrdinal == ErrorPolicy.Mode.FAIL_FAST.ordinal()) {
+                assert rowExcerpt != null : "fail_fast quotes the row, so a caller must supply its excerpt";
                 throw ExternalFailures.rowError(
                     cause,
                     "Row [" + totalRowCount + "] of [" + messageLocation + "]: " + message + "; row: " + rowExcerpt + fault.hint()

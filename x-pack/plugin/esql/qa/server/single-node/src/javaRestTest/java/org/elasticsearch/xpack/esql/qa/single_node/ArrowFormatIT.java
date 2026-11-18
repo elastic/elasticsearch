@@ -19,6 +19,7 @@ import org.apache.arrow.vector.UInt8Vector;
 import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
+import org.apache.arrow.vector.complex.ListVector;
 import org.apache.arrow.vector.complex.StructVector;
 import org.apache.arrow.vector.ipc.ArrowStreamReader;
 import org.apache.arrow.vector.types.Types;
@@ -374,6 +375,63 @@ public class ArrowFormatIT extends ESRestTestCase {
             assertEquals(-2.0, sum.get(2), 0.0);
             assertEquals(2, count.get(2));
         }
+    }
+
+    public void testMappedDenseVectors() throws IOException {
+        Request request = new Request("PUT", "/arrow-dense-vector-test");
+        request.setJsonEntity("""
+            {
+              "mappings": {
+                "properties": {
+                  "id": { "type": "integer" },
+                  "float_vector": { "type": "dense_vector", "dims": 3, "index": false },
+                  "byte_vector": { "type": "dense_vector", "dims": 3, "element_type": "byte", "index": false }
+                }
+              }
+            }
+            """);
+        assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+
+        request = new Request("POST", "/_bulk?index=arrow-dense-vector-test&refresh=true");
+        request.setJsonEntity("""
+            {"index": {"_id": "1"}}
+            {"id": 1, "float_vector": [1.25, -2.5, 3.75], "byte_vector": [-128, 0, 127]}
+            {"index": {"_id": "2"}}
+            {"id": 2, "float_vector": [-4.5, 0.0, 6.25]}
+            {"index": {"_id": "3"}}
+            {"id": 3, "byte_vector": [1, -2, 3]}
+            """);
+        assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+
+        try (VectorSchemaRoot root = esql("""
+            {
+                "query": "FROM arrow-dense-vector-test | SORT id | LIMIT 100 | KEEP float_vector, byte_vector"
+            }""")) {
+            assertEquals(3, root.getRowCount());
+
+            ListVector floatVector = (ListVector) root.getVector("float_vector");
+            assertDenseVectorSchema(floatVector);
+            assertEquals(List.of(1.25f, -2.5f, 3.75f), floatVector.getObject(0));
+            assertEquals(List.of(-4.5f, 0.0f, 6.25f), floatVector.getObject(1));
+            assertTrue(floatVector.isNull(2));
+
+            ListVector byteVector = (ListVector) root.getVector("byte_vector");
+            assertDenseVectorSchema(byteVector);
+            assertEquals(List.of(-128.0f, 0.0f, 127.0f), byteVector.getObject(0));
+            assertTrue(byteVector.isNull(1));
+            assertEquals(List.of(1.0f, -2.0f, 3.0f), byteVector.getObject(2));
+        }
+    }
+
+    private void assertDenseVectorSchema(ListVector vector) {
+        Field field = vector.getField();
+        assertEquals(Types.MinorType.LIST.getType(), field.getType());
+        assertEquals("dense_vector", field.getMetadata().get("elastic:type"));
+        assertEquals(1, field.getChildren().size());
+        Field values = field.getChildren().get(0);
+        assertEquals("$data$", values.getName());
+        assertEquals(Types.MinorType.FLOAT4.getType(), values.getType());
+        assertFalse(values.isNullable());
     }
 
     private VectorSchemaRoot readArrow(InputStream input) throws IOException {

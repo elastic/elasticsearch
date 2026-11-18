@@ -8870,6 +8870,53 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
+     * A split that begins at a quote-blind cut may be holding the tail of a quoted value rather than a row that ends
+     * early, and nothing in that row tells the two apart -- so its short-row error names {@code multiline_fields} too.
+     * The split that OWNS the value's start reports the broken contract itself, but this one reaches its own first
+     * record first, and the message that wins the race used to send the user to {@code pad_short_rows}, which would
+     * have padded a cut value. A read starting at the file's first byte was cut by nobody, so it keeps the plain
+     * message.
+     */
+    public void testShortRowOnACutSplitAlsoNamesMultilineFields() throws Exception {
+        List<Attribute> schema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "a", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "b", DataType.KEYWORD)
+        );
+        // What a cut inside a three-line quoted value hands the next split: its tail lines, each one field wide.
+        String tailOfAQuotedValue = "xxxx\n1,alice\n";
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        Exception cut = expectThrows(
+            Exception.class,
+            () -> drainAllPages(
+                reader.read(
+                    new TrackingStorageObject(tailOfAQuotedValue),
+                    FormatReadContext.builder()
+                        .firstSplit(false)
+                        .recordAligned(true)
+                        .splitStartByte(4096)
+                        .readSchema(schema)
+                        .fileHeaderColumns(List.of("a", "b"))
+                        .batchSize(10)
+                        .build()
+                )
+            )
+        );
+        assertThat(cut.getMessage(), containsString("missing trailing fields: [1] columns, the header has [2]"));
+        assertThat(cut.getMessage(), containsString("multiline_fields"));
+
+        // The same short row read from the file's first byte: nothing cut it, so the message stays as it is. The width
+        // is named after the schema here because no binding is made at all -- the schema was inferred from this very
+        // header, see fileStatedRowWidth -- which is beside the point the clause makes.
+        Exception whole = expectThrows(
+            Exception.class,
+            () -> drainAllPages(reader.read(createStorageObject("a,b\n" + tailOfAQuotedValue), null, 10))
+        );
+        assertThat(whole.getMessage(), containsString("missing trailing fields: [1] columns, the schema has [2]"));
+        assertThat("nothing cut the file's first byte", whole.getMessage(), not(containsString("multiline_fields")));
+    }
+
+    /**
      * While an older node may read part of the query, the first split of a headered file keeps main's header read: the
      * escape-aware data reader steps over the header and names the columns, for a declared and an inferred schema alike.
      * This is the same escaped header as {@link #testFirstSplitStepsOverAHeaderWhereItsColumnsAreRead}, read with the gate

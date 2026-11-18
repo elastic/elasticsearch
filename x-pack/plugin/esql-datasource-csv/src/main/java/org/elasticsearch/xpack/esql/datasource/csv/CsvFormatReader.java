@@ -5489,6 +5489,24 @@ public class CsvFormatReader implements SegmentableFormatReader {
             return "[" + actualFields + "] columns, the " + (headered ? "header" : "schema") + " has [" + expectedFields + "]";
         }
 
+        /**
+         * The other thing a short row can be, where the file was cut at a plain newline: not a row that ends early,
+         * but the tail of a quoted value the cut landed inside, which {@code multiline_fields: true} would have read
+         * whole. The split that OWNS such a value's start does report the broken contract itself, see
+         * {@link CsvLogicalRecordReader#failOnLineSpan()} -- but a split that BEGINS inside the value reaches its own
+         * first record first, and nothing in that record distinguishes the two, so the message names both.
+         *
+         * <p>Empty unless this split could be holding one: its start has to be a quote-blind cut, which is a quoting
+         * dialect read under {@link #newlineSplitting()} from somewhere other than the file's first byte. An escaping
+         * dialect is excluded with it, no record of one spanning a raw newline.
+         */
+        private String cutQuotedValueClause() {
+            return newlineSplitting() && options.quoting() && splitStartByte > 0
+                ? "; or a quoted value spans several lines while [multiline_fields] is not [true] and this split begins "
+                    + "inside one, in which case set [multiline_fields] to [true]"
+                : "";
+        }
+
         /** The raw field index a pinned-schema position reads; the identity under positional binding. */
         private int rawFieldIndex(int schemaPosition) {
             return schemaFieldIndex == null ? schemaPosition : schemaFieldIndex[schemaPosition];
@@ -6657,7 +6675,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             if (actualFields < rowWidthFloor) {
                 if (padShortRows == false) {
                     return new RowWidthFault(
-                        MISSING_TRAILING_FIELDS + ": " + rowWidthClause(actualFields, rowWidthFloor),
+                        MISSING_TRAILING_FIELDS + ": " + rowWidthClause(actualFields, rowWidthFloor) + cutQuotedValueClause(),
                         RowFault.SHORT_ROW
                     );
                 }

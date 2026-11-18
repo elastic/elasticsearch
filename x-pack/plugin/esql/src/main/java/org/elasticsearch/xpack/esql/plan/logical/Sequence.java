@@ -68,8 +68,9 @@ public final class Sequence extends LogicalPlan
     public static final TransportVersion ESQL_SEQUENCE_R5 = TransportVersion.fromName("esql_sequence_r5");
     public static final TransportVersion ESQL_SEQUENCE_R6_SOURCE_SCOPE = TransportVersion.fromName("esql_sequence_r6_source_scope");
 
-    /** Syntax capacity; stage-specific candidate bounds and the search-step limit govern matching work separately. */
+    /** Structural capacity for parsing and plan decoding. Execution admission is checked separately. */
     public static final int MAX_STAGES = 256;
+    public static final int MAX_EXECUTION_STAGES = 4;
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Sequence", Sequence::new);
 
     private static final String PROVENANCE_ATTRIBUTE = "_sequence_provenance";

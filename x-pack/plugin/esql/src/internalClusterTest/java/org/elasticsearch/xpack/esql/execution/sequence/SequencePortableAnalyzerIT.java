@@ -92,6 +92,17 @@ public class SequencePortableAnalyzerIT extends AbstractSequenceIntegTestCase {
         }
     }
 
+    public void testHighlightExplicitAnalyzerOverridesConflictingUnionAnalyzers() {
+        String query = base(union(STANDARD, WHITE, "", "message"), STANDARD + "," + WHITE, 1) + """
+             | HIGHLIGHT MATCH(message, "alpha") ON message WITH {"analyzer": "standard"}
+            """;
+        assertRows(
+            query + " | KEEP key,highlight_message | SORT key | LIMIT 10",
+            List.of(List.of("s", "<em>Alpha</em> Beta"), List.of("w", "<em>Alpha</em> Beta"))
+        );
+        assertRefused(query + " | WHERE MATCH(message,\"alpha\") | KEEP key | LIMIT 10");
+    }
+
     /** A direct EVAL copy must preserve whitespace's case sensitivity across PRIMARY and MEMBER output. */
     public void testMappedAnalyzerSurvivesStageEvalAlias() {
         assertAlias(" | EVAL copied=message");

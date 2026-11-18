@@ -188,6 +188,11 @@ public class Verifier {
 
         // collect plan checkers
         QueryPragmas pragmas = context.configuration() == null ? QueryPragmas.EMPTY : context.configuration().pragmas();
+        plan.forEachDown(Sequence.class, sequence -> {
+            if (sequence.children().size() > Sequence.MAX_EXECUTION_STAGES) {
+                failures.add(fail(sequence, "SEQUENCE supports at most [{}] stages", Sequence.MAX_EXECUTION_STAGES));
+            }
+        });
         Consumer<String> warnings = context.deferredHeaderWarnings()::add;
         var planCheckers = planCheckers(plan, context.analysisRegistry(), warnings, pragmas, context.flags());
         planCheckers.addAll(extraCheckers);

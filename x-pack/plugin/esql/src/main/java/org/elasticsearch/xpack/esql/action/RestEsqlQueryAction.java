@@ -161,7 +161,10 @@ public class RestEsqlQueryAction extends BaseRestHandler {
             cancellableClient.execute(
                 EsqlQueryAction.INSTANCE,
                 esqlRequest,
-                new EsqlResponseListener(channel, request, esqlRequest).wrapWithLogging()
+                EsqlSequenceKeyFilterProfileHeaders.consume(
+                    client.threadPool().getThreadContext(),
+                    new EsqlResponseListener(channel, request, esqlRequest).wrapWithLogging()
+                )
             );
         };
     }

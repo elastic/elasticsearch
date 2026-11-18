@@ -42,7 +42,11 @@ public class RestEsqlGetAsyncResultAction extends BaseRestHandler {
         if (request.hasParam("keep_alive")) {
             get.setKeepAlive(request.paramAsTime("keep_alive", get.getKeepAlive()));
         }
-        return channel -> client.execute(EsqlAsyncGetResultAction.INSTANCE, get, new EsqlResponseListener(channel, request));
+        return channel -> client.execute(
+            EsqlAsyncGetResultAction.INSTANCE,
+            get,
+            EsqlSequenceKeyFilterProfileHeaders.consume(client.threadPool().getThreadContext(), new EsqlResponseListener(channel, request))
+        );
     }
 
     @Override

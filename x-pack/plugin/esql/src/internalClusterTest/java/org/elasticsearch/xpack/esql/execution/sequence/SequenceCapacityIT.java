@@ -111,21 +111,23 @@ public class SequenceCapacityIT extends AbstractSequenceIntegTestCase {
         Measured projected = measure("sparse_projected", SEQUENCE + PROJECT + "| sort key | limit 100", shape);
         assertEquals(expected, projected.values());
         assertEquals(774L, projected.source().candidateRowsFetched());
-        assertEquals(12L, projected.source().payloadRowsFetched());
-        assertEquals(4L, projected.source().payloadSearchRequests());
+        // Three full first-stage pages require an empty continuation; the second stage fits in one page.
+        assertEquals(5L, projected.source().candidateSearchRequests());
+        assertEquals(4L, projected.source().stageDrivers());
+        assertEquals(0L, projected.source().payloadRowsFetched());
+        assertEquals(0L, projected.source().payloadSearchRequests());
         assertEquals(6L, projected.source().completedMatches());
         assertEquals(6L, projected.source().rowsEmitted());
         Measured counted = measure("sparse_count_only", SEQUENCE + "| stats count(*) | limit 1", shape);
         assertEquals(List.of(List.of(6L)), counted.values());
         assertEquals(774L, counted.source().candidateRowsFetched());
+        assertEquals(5L, counted.source().candidateSearchRequests());
+        assertEquals(4L, counted.source().stageDrivers());
         assertEquals(0L, counted.source().payloadRowsFetched());
         assertEquals(0L, counted.source().payloadSearchRequests());
         assertEquals(6L, counted.source().completedMatches());
         assertEquals(6L, counted.source().rowsEmitted());
-        assertTrue(
-            "COUNT-only selection should avoid the selected-event payload searches",
-            counted.search().queryPhases() < projected.search().queryPhases()
-        );
+        // The source counters above measure exact request and driver work. Cluster shard-phase deltas are diagnostic.
     }
 
     public void testManyLiveKeysAcrossCandidatePages() {
@@ -234,19 +236,21 @@ public class SequenceCapacityIT extends AbstractSequenceIntegTestCase {
         assertEquals(expected, complete.values());
         assertEquals(900L, complete.source().candidateRowsFetched());
         assertEquals(5L, complete.source().candidateSearchRequests());
-        assertEquals(600L, complete.source().payloadRowsFetched());
-        assertEquals(12L, complete.source().payloadSearchRequests());
-        // Untouched raw payloads load late; the five candidate pages are the only stage executions.
+        assertEquals(0L, complete.source().payloadRowsFetched());
+        assertEquals(0L, complete.source().payloadSearchRequests());
+        // The five candidate pages retain all demanded values in their only stage executions.
         assertEquals(5L, complete.source().stageDrivers());
         assertEquals(300L, complete.source().completedMatches());
         assertEquals(300L, complete.source().rowsEmitted());
         Measured limited = measure("many_completed_limit_one", SEQUENCE + PROJECT + "| limit 1", shape);
         assertEquals(List.of(expected.getFirst()), limited.values());
-        assertEquals(2L, limited.source().payloadRowsFetched());
-        assertEquals(2L, limited.source().payloadSearchRequests());
+        assertEquals(0L, limited.source().payloadRowsFetched());
+        assertEquals(0L, limited.source().payloadSearchRequests());
         assertEquals(1L, limited.source().completedMatches());
         assertEquals(1L, limited.source().rowsEmitted());
         assertTrue(limited.source().candidateRowsFetched() < complete.source().candidateRowsFetched());
+        assertTrue(limited.source().candidateSearchRequests() < complete.source().candidateSearchRequests());
+        assertTrue(limited.source().stageDrivers() < complete.source().stageDrivers());
         assertTrue(
             "LIMIT 1 should stop native searches before all completed matches are materialized",
             limited.search().queryPhases() < complete.search().queryPhases()
@@ -299,12 +303,14 @@ public class SequenceCapacityIT extends AbstractSequenceIntegTestCase {
         assertEquals(150L, measured.source().completedMatches());
         assertEquals(150L, measured.source().rowsEmitted());
         assertEquals(2L, measured.source().candidateRowsFetched());
-        assertEquals(8L, measured.source().payloadRowsFetched());
-        assertEquals(8L, measured.source().payloadSearchRequests());
-        assertEquals(10L, measured.source().stageDrivers());
+        assertEquals(2L, measured.source().candidateSearchRequests());
+        assertEquals(0L, measured.source().payloadRowsFetched());
+        assertEquals(0L, measured.source().payloadSearchRequests());
+        // Both drivers retain the selected expansion values across all output pages without replay.
+        assertEquals(2L, measured.source().stageDrivers());
     }
 
-    /** Physical continuation skips an unrelated routed copy outside the selected shard's bounded identity batch. */
+    /** Retained values distinguish a selected event from an unrelated routed copy with the same ID. */
     public void testPayloadBatchPagesRoutedDuplicateIds() {
         createIndices();
         IndexRouting routing = IndexRouting.fromIndexMetadata(clusterService().state().metadata().getProject().index(FIRST));
@@ -376,13 +382,13 @@ public class SequenceCapacityIT extends AbstractSequenceIntegTestCase {
         assertEquals(3L, measured.source().rowsEmitted());
         assertEquals(7L, measured.source().candidateRowsFetched());
         assertEquals(2L, measured.source().candidateSearchRequests());
-        assertEquals(6L, measured.source().payloadRowsFetched());
-        assertEquals(4L, measured.source().payloadSearchRequests());
-        // Physical late-field paging still fetches all selected payloads, without running replay drivers.
+        assertEquals(0L, measured.source().payloadRowsFetched());
+        assertEquals(0L, measured.source().payloadSearchRequests());
+        // The selected payloads come from the original candidate page for each stage.
         assertEquals(2L, measured.source().stageDrivers());
     }
 
-    /** Physical membership excludes a routed duplicate between selected coordinates for both primaries. */
+    /** Retained source and computed values exclude an interleaved routed duplicate for both primaries. */
     public void testPhysicalPayloadPagingSkipsInterleavedRoutedDuplicate() {
         createIndices();
         IndexRouting routing = IndexRouting.fromIndexMetadata(clusterService().state().metadata().getProject().index(FIRST));
@@ -458,9 +464,12 @@ public class SequenceCapacityIT extends AbstractSequenceIntegTestCase {
             assertEquals(expected, measured.values());
             assertEquals(4L, measured.source().completedMatches());
             assertEquals(4L, measured.source().rowsEmitted());
-            // Two stages and two output batches fetch only the selected positions, without paging through the routed duplicate.
-            assertEquals(4L, measured.source().payloadSearchRequests());
-            assertEquals(8L, measured.source().payloadRowsFetched());
+            // Both stages retain source and computed values from their single candidate page.
+            assertEquals(9L, measured.source().candidateRowsFetched());
+            assertEquals(2L, measured.source().candidateSearchRequests());
+            assertEquals(2L, measured.source().stageDrivers());
+            assertEquals(0L, measured.source().payloadSearchRequests());
+            assertEquals(0L, measured.source().payloadRowsFetched());
         }
     }
 

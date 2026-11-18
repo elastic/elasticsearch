@@ -195,7 +195,7 @@ public class SequenceTimeBoundIT extends AbstractSequenceIntegTestCase {
         add(bulk, B, "after", first.plusNanos(1).toString(), "key", "yes", "7");
         finishSeed(bulk, A, B);
         Outcome bounded = verify(ordinary(), List.of(List.of("key", "A", "after")));
-        assertEquals(3L, bounded.status.candidateRowsFetched());
+        assertEquals(2L, bounded.status.candidateRowsFetched());
     }
 
     /** The hidden source-time bound must not inherit a mapping that accepts only numeric epoch timestamps. */
@@ -306,7 +306,7 @@ public class SequenceTimeBoundIT extends AbstractSequenceIntegTestCase {
         verifyFilteredTail(false);
     }
 
-    /** An in-window unrelated head remains readable while the finalized horizon excludes the later filtered tail. */
+    /** Key pruning skips the unrelated head and the finalized horizon excludes the later filtered tail. */
     public void testFilteredTailAfterNonmatchingHeadIsBounded() throws Exception {
         verifyFilteredTail(true);
     }
@@ -324,7 +324,7 @@ public class SequenceTimeBoundIT extends AbstractSequenceIntegTestCase {
         finishSeed(bulk, A, B);
         Outcome result = verify(sequence(stage(A), branch(B)), List.of());
         assertEquals("read only the start and bounded later source", 2L, result.status.candidateSearchRequests());
-        assertEquals(includeHead ? 2L : 1L, result.status.candidateRowsFetched());
+        assertEquals(1L, result.status.candidateRowsFetched());
     }
 
     /** A far-future raw page end cannot expire an earlier valid completion in the same page. */
@@ -879,8 +879,8 @@ public class SequenceTimeBoundIT extends AbstractSequenceIntegTestCase {
         finishSeed(bulk, A, B);
         UpperOutcome result = observeUpper(upperSequence("10ms", stage(A), stage(B)));
         assertRows(List.of(List.of("early", "early-A", "early-B"), List.of("late", "late-A", "late-B")), result.outcome);
-        assertTrue(
-            "the late completion must require a later candidate page",
+        assertFalse(
+            "key filtering fits both completions on the first later-stage page",
             result.requests.stream().anyMatch(r -> r.indices.contains(B) && r.after.isEmpty() == false)
         );
         assertUpperRequests(result, B, BASE.plusMillis(1010));
@@ -938,10 +938,8 @@ public class SequenceTimeBoundIT extends AbstractSequenceIntegTestCase {
                 List<CandidateRequest> reloaded = result.requests.stream()
                     .filter(r -> r.indices.contains(terminal) && r.after.isEmpty() == false)
                     .toList();
-                assertFalse("the terminal event must be on a later page", reloaded.isEmpty());
-                for (CandidateRequest request : reloaded) {
-                    assertEquals(List.of(BASE.plusMillis(110).toString()), timestampUppers(request.query));
-                }
+                assertTrue("key filtering fits the terminal event on the first page", reloaded.isEmpty());
+                assertUpperRequests(result, terminal, BASE.plusMillis(110));
             } finally {
                 cleanup();
             }

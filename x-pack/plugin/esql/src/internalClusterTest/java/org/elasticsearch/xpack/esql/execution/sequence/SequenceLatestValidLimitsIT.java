@@ -256,16 +256,16 @@ public class SequenceLatestValidLimitsIT extends AbstractSequenceIntegTestCase {
 
     /** Native condition failures saturate their own allowance while both terminal resource summaries survive. */
     public void testNativeWorkLimitAndIndependentWarningBudgets() {
-        createIndices(6);
+        createIndices(4);
         var bulk = client().prepareBulk();
-        for (int stage = 0; stage < 6; stage++) {
-            int perKey = stage == 0 ? 17 : 16;
+        for (int stage = 0; stage < 4; stage++) {
+            int perKey = stage == 0 ? 65 : 64;
             for (int key = 0; key < 2; key++) {
-                if (stage == 5) {
+                if (stage == 3) {
                     bulk.add(
-                        prepareIndex(PREFIX + "f").setSource(
+                        prepareIndex(PREFIX + "d").setSource(
                             "@timestamp",
-                            BASE.plusMillis(162 + key).toString(),
+                            BASE.plusMillis(386 + key).toString(),
                             "key",
                             "key" + key,
                             "payload",
@@ -274,7 +274,7 @@ public class SequenceLatestValidLimitsIT extends AbstractSequenceIntegTestCase {
                     );
                 } else {
                     for (int row = 0; row < perKey; row++) {
-                        long time = stage == 0 ? key * 17L + row : 34 + (stage - 1) * 32L + key * 16L + row;
+                        long time = stage == 0 ? key * 65L + row : 130 + (stage - 1) * 128L + key * 64L + row;
                         bulk.add(
                             prepareIndex(PREFIX + (char) ('a' + stage)).setSource(
                                 "@timestamp",
@@ -290,14 +290,13 @@ public class SequenceLatestValidLimitsIT extends AbstractSequenceIntegTestCase {
             }
         }
         assertFalse(bulk.get().hasFailures());
-        refresh(PREFIX + "a", PREFIX + "b", PREFIX + "c", PREFIX + "d", PREFIX + "e", PREFIX + "f");
+        refresh(PREFIX + "a", PREFIX + "b", PREFIX + "c", PREFIX + "d");
         Observed observed = observe("""
             SEQUENCE BY key WITHIN 30 seconds PRIMARY 1
             (FROM sequence-limits-a | KEEP key,payload),(FROM sequence-limits-b | KEEP key),(FROM sequence-limits-c | KEEP key),
-            (FROM sequence-limits-d | KEEP key),(FROM sequence-limits-e | KEEP key),
-            (FROM sequence-limits-f | WHERE TO_LONG(payload)==TO_LONG(MEMBER(1,payload)) | KEEP key)
+            (FROM sequence-limits-d | WHERE TO_LONG(payload)==TO_LONG(MEMBER(1,payload)) | KEEP key)
             | KEEP key,payload | LIMIT 10
-            """, 16);
+            """, 64);
         assertEquals(List.of(), observed.values());
         var counters = observed.status().latestValidCounters();
         assertEquals(2, counters.candidatesDroppedAtBound());
@@ -309,21 +308,21 @@ public class SequenceLatestValidLimitsIT extends AbstractSequenceIntegTestCase {
         assertEquals(1, observed.warnings().stream().filter(warning -> warning.contains("Only first 20 failures recorded.")).count());
         assertEquals(
             List.of(
-                "SEQUENCE dropped [2] candidates at the limit of [16] per stage and key; matches may be missing",
+                "SEQUENCE dropped [2] candidates at the limit of [64] per stage and key; matches may be missing",
                 "SEQUENCE abandoned [2] searches at the work limit of [131072] steps; matches may be missing"
             ),
             observed.warnings().stream().filter(warning -> warning.startsWith("SEQUENCE ")).toList()
         );
     }
 
-    /** Admitted N=8 still exercises the work guard after R6 lowers the seven-stage default; LIMIT closes before the tail. */
+    /** A legal explicit bound reaches the work guard in four stages; LIMIT closes before the tail. */
     public void testLimitOneKeepsDropAndWorkLimitSummaries() {
-        createIndices(7);
+        createIndices(4);
         var bulk = client().prepareBulk();
-        for (int stage = 0; stage < 6; stage++) {
-            int rows = stage == 0 ? 9 : 8;
+        for (int stage = 0; stage < 3; stage++) {
+            int rows = stage == 0 ? 65 : 64;
             for (int row = 0; row < rows; row++) {
-                long time = stage == 0 ? row : 9 + (stage - 1) * 8L + row;
+                long time = stage == 0 ? row : 65 + (stage - 1) * 64L + row;
                 bulk.add(
                     prepareIndex(PREFIX + (char) ('a' + stage)).setSource(
                         "@timestamp",
@@ -339,14 +338,14 @@ public class SequenceLatestValidLimitsIT extends AbstractSequenceIntegTestCase {
             }
         }
         bulk.add(
-            prepareIndex(PREFIX + "g").setSource("@timestamp", BASE.plusMillis(49).toString(), "key", "bad", "v", 1, "label", "bad-final")
+            prepareIndex(PREFIX + "d").setSource("@timestamp", BASE.plusMillis(193).toString(), "key", "bad", "v", 1, "label", "bad-final")
         );
         for (String key : List.of("good", "tail")) {
-            for (int stage = 0; stage < 7; stage++) {
+            for (int stage = 0; stage < 4; stage++) {
                 bulk.add(
                     prepareIndex(PREFIX + (char) ('a' + stage)).setSource(
                         "@timestamp",
-                        BASE.plusMillis((key.equals("good") ? 60 : 70) + stage).toString(),
+                        BASE.plusMillis((key.equals("good") ? 200 : 210) + stage).toString(),
                         "key",
                         key,
                         "v",
@@ -358,28 +357,27 @@ public class SequenceLatestValidLimitsIT extends AbstractSequenceIntegTestCase {
             }
         }
         assertFalse(bulk.get().hasFailures());
-        refresh(PREFIX + "a", PREFIX + "b", PREFIX + "c", PREFIX + "d", PREFIX + "e", PREFIX + "f", PREFIX + "g");
+        refresh(PREFIX + "a", PREFIX + "b", PREFIX + "c", PREFIX + "d");
         Observed observed = observe("""
             SEQUENCE BY key WITHIN 30s PRIMARY 1
-            (FROM sequence-limits-a | KEEP key,v,label),(FROM sequence-limits-b | KEEP key),
-            (FROM sequence-limits-c | KEEP key),(FROM sequence-limits-d | KEEP key),
-            (FROM sequence-limits-e | KEEP key),(FROM sequence-limits-f | KEEP key),
-            (FROM sequence-limits-g | WHERE v==MEMBER(1,v) | KEEP key,label)
-            | KEEP key,label | LIMIT 1
-            """, 8);
-        assertEquals(List.of(List.of("good", "good-1")), observed.values());
+            (FROM sequence-limits-a | KEEP key,v,label),(FROM sequence-limits-b | KEEP key,label),
+            (FROM sequence-limits-c | KEEP key,label),(FROM sequence-limits-d | WHERE v==MEMBER(1,v) | KEEP key,label)
+            | EVAL middle=MEMBER(2,label),third=MEMBER(3,label),final=MEMBER(4,label)
+            | KEEP key,label,middle,third,final | LIMIT 1
+            """, 64);
+        assertEquals(List.of(List.of("good", "good-1", "good-2", "good-3", "good-4")), observed.values());
         assertEquals(1, observed.status().completedMatches());
         assertEquals(1, observed.status().rowsEmitted());
         var counters = observed.status().latestValidCounters();
         assertEquals(1, counters.candidatesDroppedAtBound());
         assertEquals(1, counters.keysThatHitBound());
         assertEquals(1, counters.searchesAbandonedAtWorkLimit());
-        assertEquals(131078, counters.searchSteps());
+        assertEquals(131075, counters.searchSteps());
         assertEquals(131072, counters.maxSearchStepsPerFinalRow());
-        assertEquals(8, counters.largestRingFill());
+        assertEquals(64, counters.largestRingFill());
         assertEquals(
             List.of(
-                "SEQUENCE dropped [1] candidates at the limit of [8] per stage and key; matches may be missing",
+                "SEQUENCE dropped [1] candidates at the limit of [64] per stage and key; matches may be missing",
                 "SEQUENCE abandoned [1] searches at the work limit of [131072] steps; matches may be missing"
             ),
             observed.warnings()

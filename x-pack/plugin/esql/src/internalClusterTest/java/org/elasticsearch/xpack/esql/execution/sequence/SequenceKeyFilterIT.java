@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.execution.sequence;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -24,6 +25,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.AbstractSequenceIntegTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
+import org.elasticsearch.xpack.esql.action.SequenceProvenance;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.After;
 
@@ -33,6 +35,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
@@ -166,6 +169,129 @@ public class SequenceKeyFilterIT extends AbstractSequenceIntegTestCase {
         Compared compared = compare(sequence(index, ""), List.of());
         assertEquals(1, fetched(compared.on()));
         assertTrue(fetched(compared.on()) < fetched(compared.off()));
+        assertNull(compared.off().keyFilterProfile());
+        var on = compared.on().keyFilterProfile();
+        assertNotNull(on);
+        assertEquals(1L, on.get("built_searches"));
+        assertEquals(2L, on.get("applied_shard_searches"));
+        assertEquals(Map.of(), on.get("rejected_shard_searches"));
+        assertEquals(Map.of("standard", 2L), on.get("index_modes"));
+    }
+
+    public void testKeyFilterProfileReportsMixedShardDecisions() {
+        String eligible = "sequence-key-profile-eligible";
+        String fallback = "sequence-key-profile-fallback";
+        create(eligible, KEYWORD, Settings.EMPTY);
+        create(fallback, "{\"type\":\"keyword\",\"index\":false}", Settings.EMPTY);
+        var bulk = client().prepareBulk()
+            .add(event(eligible, "A", 0, "match", "A"))
+            .add(event(eligible, "B", 10, "match", "B"))
+            .add(event(fallback, "C", 20, "unrelated", "B"));
+        assertFalse(bulk.get().hasFailures());
+        refresh(eligible, fallback);
+
+        Compared compared = compare(sequence("sequence-key-profile-*", ""), List.of(List.of("A", "B")));
+        var on = compared.on().keyFilterProfile();
+        assertNotNull(on);
+        assertEquals(1L, on.get("built_searches"));
+        assertEquals(2L, on.get("applied_shard_searches"));
+        assertEquals(Map.of("no_indexed_terms", 2L), on.get("rejected_shard_searches"));
+        assertEquals(Map.of("standard", 4L), on.get("index_modes"));
+    }
+
+    public void testUnrelatedMultivaluedKeyCanBePrunedBeforeValidation() {
+        String index = "sequence-key-filter-unrelated-multivalue";
+        create(index, KEYWORD, Settings.EMPTY);
+        assertFalse(
+            client().prepareBulk()
+                .add(event(index, "start", 0, "waiting", "A", Map.of("raw", "start-value")))
+                .add(event(index, "unrelated", 1, "unused", "B", Map.of("key", List.of("outside-a", "outside-b"))))
+                .add(event(index, "end", 2, "waiting", "B", Map.of("raw", "end-value")))
+                .get()
+                .hasFailures()
+        );
+        refresh(index);
+        String query = """
+            SEQUENCE BY key WITHIN 1h PRIMARY 1
+            (FROM %s METADATA _id | WHERE phase=="A"), (FROM %s METADATA _id | WHERE phase=="B")
+            | EVAL second_id=MEMBER(2,_id),second_raw=MEMBER(2,raw)
+            | KEEP key,_id,raw,second_id,second_raw,sequence_provenance | LIMIT 10
+            """.formatted(index, index);
+
+        var failureWarnings = new AtomicReference<List<String>>();
+        Exception failure = expectThrows(Exception.class, () -> observe(query, false, Settings.builder(), failureWarnings));
+        Throwable cause = ExceptionsHelper.unwrapCause(failure);
+        assertTrue(cause.toString(), cause instanceof IllegalArgumentException);
+        assertEquals("SEQUENCE member [2] BY column [key] is multivalued; use MV_EXPAND inside the stage", cause.getMessage());
+        assertEquals(List.of(), queryWarnings(failureWarnings.get()));
+
+        Observed on = observe(query, true, "NONE");
+        assertSelectedMembers(
+            on,
+            List.of("waiting", "start", "start-value", "end", "end-value"),
+            List.of(new SequenceProvenance.Member(1, index, "start"), new SequenceProvenance.Member(2, index, "end"))
+        );
+        assertEquals(List.of(), on.queryWarnings());
+        assertEquals(2L, fetched(on));
+    }
+
+    public void testUnrelatedMiddleRingCanBePrunedBeforeDefaultLimit() {
+        String index = "sequence-key-filter-unrelated-middle";
+        create(index, KEYWORD, Settings.EMPTY);
+        var bulk = client().prepareBulk().add(event(index, "start", 0, "waiting", "A", Map.of("raw", "start-value")));
+        for (int i = 1; i <= 9; i++) {
+            bulk.add(event(index, "unrelated-" + i, i, "outside", "B"));
+        }
+        bulk.add(event(index, "middle", 10, "waiting", "B", Map.of("raw", "middle-value")));
+        bulk.add(event(index, "end", 11, "waiting", "C", Map.of("raw", "end-value")));
+        assertFalse(bulk.get().hasFailures());
+        refresh(index);
+        String query = """
+            SEQUENCE BY key WITHIN 1h PRIMARY 1
+            (FROM %s METADATA _id | WHERE phase=="A"), (FROM %s METADATA _id | WHERE phase=="B"),
+            (FROM %s METADATA _id | WHERE phase=="C")
+            | EVAL second_id=MEMBER(2,_id),second_raw=MEMBER(2,raw),third_id=MEMBER(3,_id),third_raw=MEMBER(3,raw)
+            | KEEP key,_id,raw,second_id,second_raw,third_id,third_raw,sequence_provenance | LIMIT 10
+            """.formatted(index, index, index);
+
+        // Keep the original key-filter comparison on a rule that can retain middle rows without a start.
+        Observed off = observe(query, false, Settings.builder().put("sequence_remembered_chains", false), null);
+        Observed on = observe(query, true, Settings.builder().put("sequence_remembered_chains", false), null);
+        assertSelectedMembers(
+            off,
+            List.of("waiting", "start", "start-value", "middle", "middle-value", "end", "end-value"),
+            List.of(
+                new SequenceProvenance.Member(1, index, "start"),
+                new SequenceProvenance.Member(2, index, "middle"),
+                new SequenceProvenance.Member(3, index, "end")
+            )
+        );
+        assertEquals(off.values(), on.values());
+        assertEquals(
+            List.of("SEQUENCE dropped [1] candidates at the limit of [8] per stage and key; matches may be missing"),
+            off.queryWarnings()
+        );
+        assertEquals(List.of(), on.queryWarnings());
+        assertEquals(1L, off.status().latestValidCounters().candidatesDroppedAtBound());
+        assertEquals(0L, on.status().latestValidCounters().candidatesDroppedAtBound());
+        assertEquals(12L, fetched(off));
+        assertEquals(3L, fetched(on));
+
+        // The ordinary matcher rejects those middle rows before the candidate bound is reached.
+        for (boolean enabled : List.of(false, true)) {
+            Observed ordinary = observe(query, enabled, Settings.builder(), null);
+            assertEquals(off.values(), ordinary.values());
+            assertEquals(List.of(), ordinary.queryWarnings());
+            assertEquals(0L, ordinary.status().latestValidCounters().candidatesDroppedAtBound());
+            assertEquals(enabled ? 3L : 12L, fetched(ordinary));
+        }
+    }
+
+    private static void assertSelectedMembers(Observed observed, List<Object> cells, List<SequenceProvenance.Member> members) {
+        assertEquals(1, observed.values().size());
+        List<Object> row = observed.values().getFirst();
+        assertEquals(cells, row.subList(0, row.size() - 1));
+        assertEquals(members, SequenceProvenance.decode(row.getLast()));
     }
 
     /** An EVAL that overwrites a mapped key must not be mistaken for that physical field merely by name. */
@@ -190,6 +316,12 @@ public class SequenceKeyFilterIT extends AbstractSequenceIntegTestCase {
                 """.formatted(dateTuple ? "bucket,key" : "key", index, eval, index, eval);
             Compared compared = compare(query, List.of(List.of("A", "B")));
             assertEquals("computed/unsupported components disable the whole predicate", fetched(compared.off()), fetched(compared.on()));
+            var profile = compared.on().keyFilterProfile();
+            assertNotNull(profile);
+            assertEquals(0L, profile.get("built_searches"));
+            assertEquals(0L, profile.get("applied_shard_searches"));
+            assertTrue(((Map<?, ?>) profile.get("coordinator_fallbacks")).containsKey("non_pushable_key"));
+            assertEquals(Map.of(), profile.get("rejected_shard_searches"));
         }
     }
 
@@ -244,8 +376,8 @@ public class SequenceKeyFilterIT extends AbstractSequenceIntegTestCase {
         assertTrue(fetched(compared.on()) < fetched(compared.off()));
     }
 
-    /** A real eligible reader proves that the dedicated qualification view actually activates default requests. */
-    public void testDefaultRequestMatchesEffectiveQualificationFlag() {
+    /** Default requests prune eligible reads and explicit opt-out preserves matching rows. */
+    public void testDefaultRequestMatchesExplicitOn() {
         String index = "sequence-key-filter-default";
         create(index, KEYWORD, Settings.EMPTY);
         seedNarrowingFixture(index, "match");
@@ -256,13 +388,8 @@ public class SequenceKeyFilterIT extends AbstractSequenceIntegTestCase {
         assertEquals(List.of(List.of("A", "B")), off.values());
         assertEquals(off.values(), on.values());
         assertEquals(on.values(), defaultRequest.values());
-        assertTrue("explicitON must perform real native work reduction", fetched(on) < fetched(off));
-        boolean forced = Boolean.getBoolean("tests.sequence_key_filter.forced_on");
-        assertEquals(
-            "default requests must use the artifact's declared effective flag",
-            fetched(forced ? on : off),
-            fetched(defaultRequest)
-        );
+        assertTrue("explicit opt-out reads the unrelated keys", fetched(on) < fetched(off));
+        assertEquals(fetched(on), fetched(defaultRequest));
         assertEquals(List.of(), defaultRequest.queryWarnings());
     }
 
@@ -327,8 +454,21 @@ public class SequenceKeyFilterIT extends AbstractSequenceIntegTestCase {
     }
 
     private Observed observe(String query, @Nullable Boolean enabled, String preference) {
-        String coordinator = randomFrom(internalCluster().getNodeNames());
         Settings.Builder settings = Settings.builder().put("field_extract_preference", preference).put("sequence_max_candidates", 128);
+        Observed observed = observe(query, enabled, settings, null);
+        assertEquals(0L, observed.status().latestValidCounters().candidatesDroppedAtBound());
+        assertEquals(0L, observed.status().latestValidCounters().searchesAbandonedAtWorkLimit());
+        assertEquals(0L, observed.status().latestValidCounters().keysThatHitBound());
+        return observed;
+    }
+
+    private Observed observe(
+        String query,
+        @Nullable Boolean enabled,
+        Settings.Builder settings,
+        @Nullable AtomicReference<List<String>> failureWarnings
+    ) {
+        String coordinator = randomFrom(internalCluster().getNodeNames());
         if (enabled != null) {
             settings.put("sequence_key_filter", enabled);
         }
@@ -351,17 +491,29 @@ public class SequenceKeyFilterIT extends AbstractSequenceIntegTestCase {
                 if (statuses.size() != 1) {
                     throw new IllegalStateException("Key-filter request needs exactly one real reader status");
                 }
-                var context = internalCluster().getInstance(TransportService.class, coordinator).getThreadPool().getThreadContext();
-                List<String> warnings = context.getResponseHeaders()
-                    .getOrDefault("Warning", List.of())
-                    .stream()
-                    .map(warning -> HeaderWarning.extractWarningValueFromWarningHeader(warning, false))
-                    .toList();
-                future.onResponse(new Observed(getValuesList(response), warnings, queryWarnings(warnings), statuses.getFirst()));
+                List<String> warnings = responseWarnings(coordinator);
+                var keyFilterProfile = response.getExecutionInfo().queryProfile().sequenceKeyFilterSnapshot();
+                future.onResponse(
+                    new Observed(getValuesList(response), warnings, queryWarnings(warnings), statuses.getFirst(), keyFilterProfile)
+                );
             } catch (Exception failure) {
                 future.onFailure(failure);
             }
-        }, future::onFailure));
+        }, failure -> {
+            if (failureWarnings != null) {
+                List<String> warnings = responseWarnings(coordinator);
+                failureWarnings.set(warnings);
+                logger.info(
+                    "key-filter observation enabled={} coordinator={} failure={} warnings={} query_warnings={}",
+                    enabled,
+                    coordinator,
+                    ExceptionsHelper.unwrapCause(failure).getMessage(),
+                    warnings,
+                    queryWarnings(warnings)
+                );
+            }
+            future.onFailure(failure);
+        }));
         Observed observed = future.actionGet(TimeValue.timeValueSeconds(60));
         logger.info(
             "key-filter observation enabled={} coordinator={} values={} warnings={} query_warnings={} node_deprecations={} status={}",
@@ -373,10 +525,16 @@ public class SequenceKeyFilterIT extends AbstractSequenceIntegTestCase {
             observed.warnings().stream().filter(NODE_DEPRECATIONS::contains).toList(),
             observed.status()
         );
-        assertEquals(0L, observed.status().latestValidCounters().candidatesDroppedAtBound());
-        assertEquals(0L, observed.status().latestValidCounters().searchesAbandonedAtWorkLimit());
-        assertEquals(0L, observed.status().latestValidCounters().keysThatHitBound());
         return observed;
+    }
+
+    private List<String> responseWarnings(String coordinator) {
+        var context = internalCluster().getInstance(TransportService.class, coordinator).getThreadPool().getThreadContext();
+        return context.getResponseHeaders()
+            .getOrDefault("Warning", List.of())
+            .stream()
+            .map(warning -> HeaderWarning.extractWarningValueFromWarningHeader(warning, false))
+            .toList();
     }
 
     private static List<String> queryWarnings(List<String> warnings) {
@@ -387,7 +545,13 @@ public class SequenceKeyFilterIT extends AbstractSequenceIntegTestCase {
         return observed.status().candidateRowsFetched();
     }
 
-    private record Observed(List<List<Object>> values, List<String> warnings, List<String> queryWarnings, SequenceSourceStatus status) {}
+    private record Observed(
+        List<List<Object>> values,
+        List<String> warnings,
+        List<String> queryWarnings,
+        SequenceSourceStatus status,
+        @Nullable Map<String, Object> keyFilterProfile
+    ) {}
 
     private record Compared(Observed off, Observed on) {}
 

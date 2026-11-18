@@ -138,18 +138,17 @@ public final class SequenceStage extends UnaryPlan implements PostAnalysisPlanVe
         return true;
     }
 
-    /** Direct callers retain the default-off stage checks without request pragmas. */
+    /** Direct callers use the ordinary request defaults. */
     public void postAnalysisVerification(Failures failures) {
-        postAnalysisVerification(failures, false);
+        postAnalysisVerification(failures, QueryPragmas.EMPTY.sequenceUriParts());
     }
 
-    /** Direct plan checkers retain the default-off behavior. */
     @Override
     public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
-        return stageChecker(false);
+        return stageChecker(QueryPragmas.EMPTY.sequenceUriParts());
     }
 
-    /** Apply a request opt-in only to this stage, preserving its complete source and key validation. */
+    /** Apply the request setting only to this stage, preserving its complete source and key validation. */
     @Override
     public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification(
         AnalysisRegistry analysisRegistry,

@@ -33,7 +33,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.esql.core.type.EsField.TimeSeriesFieldType.NONE;
 import static org.hamcrest.Matchers.containsString;
 
-/** Qualifies the request-pragmas verifier route without enabling URI_PARTS for ordinary stage callers. */
+/** Qualifies default URI_PARTS stage admission and its explicit request override. */
 public class SequenceUriPartsAnalyzerTests extends ESTestCase {
     private static final String QUERY = """
         SEQUENCE BY id WITHIN 30s PRIMARY 1
@@ -47,11 +47,10 @@ public class SequenceUriPartsAnalyzerTests extends ESTestCase {
         assumeTrue("requires native SEQUENCE", EsqlCapabilities.Cap.SEQUENCE_COMMAND.isEnabled());
     }
 
-    /** Absence and explicit false preserve the existing refusal through the real verifier. */
-    public void testDefaultAndExplicitOffRefuseUriParts() {
-        assertFalse(QueryPragmas.EMPTY.sequenceUriParts());
+    public void testDefaultAdmitsUriPartsAndExplicitOffRefusesIt() {
+        assertTrue(QueryPragmas.EMPTY.sequenceUriParts());
         assertTrue(QueryPragmas.VALID_PRAGMA_NAMES.contains("sequence_uri_parts"));
-        configured(QueryPragmas.EMPTY).statementError(QUERY, containsString("[UriParts] is not supported inside a SEQUENCE stage"));
+        assertEquals(1, configured(QueryPragmas.EMPTY).statement(QUERY).collect(UriParts.class).size());
         configured(pragmas(false)).statementError(QUERY, containsString("[UriParts] is not supported inside a SEQUENCE stage"));
     }
 
@@ -67,7 +66,7 @@ public class SequenceUriPartsAnalyzerTests extends ESTestCase {
     }
 
     /** Identity scoping prevents a stage checker from validating other stage instances. */
-    public void testCallbackIdentityAndDefaultOffEntrypoints() {
+    public void testCallbackIdentityAndDefaultEntrypoints() {
         var stages = configured(pragmas(true)).statement(QUERY).collect(SequenceStage.class);
         var first = stages.stream().filter(stage -> stage.child().collect(UriParts.class).isEmpty() == false).findFirst().orElseThrow();
         var other = stages.stream().filter(stage -> stage != first).findFirst().orElseThrow();
@@ -78,10 +77,9 @@ public class SequenceUriPartsAnalyzerTests extends ESTestCase {
         on.accept(first, failures);
         assertFalse(failures.hasFailures());
         first.postAnalysisPlanVerification().accept(first, failures);
-        assertTrue(failures.hasFailures());
-        Failures direct = new Failures();
-        first.postAnalysisVerification(direct);
-        assertTrue(direct.hasFailures());
+        assertFalse(failures.hasFailures());
+        first.postAnalysisVerification(failures);
+        assertFalse(failures.hasFailures());
     }
 
     /** URI admission must retain unrelated command refusal and the independent URI input-type check. */

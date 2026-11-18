@@ -17,6 +17,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -56,21 +58,33 @@ public final class SequenceSourceQueryBuilder extends AbstractQueryBuilder<Seque
 
     private final QueryBuilder query;
     private final List<String> indices;
+    @Nullable
+    private final ThreadContext threadContext;
 
     /**
      * Retains the source's physical indices so unrelated shared-PIT slots stay empty before delegate rewriting.
      * Even a clause that ultimately matches nothing can otherwise parse timestamp bounds against a foreign mapping.
      */
     public SequenceSourceQueryBuilder(QueryBuilder query, List<String> indices) {
+        this(query, indices, null);
+    }
+
+    public SequenceSourceQueryBuilder(QueryBuilder query, List<String> indices, @Nullable ThreadContext threadContext) {
         this.query = Objects.requireNonNull(query);
         this.indices = List.copyOf(indices);
+        this.threadContext = threadContext;
     }
 
     /** Restores source isolation only on peers that understand this internal query. */
     public SequenceSourceQueryBuilder(StreamInput in) throws IOException {
+        this(in, null);
+    }
+
+    public SequenceSourceQueryBuilder(StreamInput in, @Nullable ThreadContext threadContext) throws IOException {
         super(checkSupported(in));
         query = in.readNamedWriteable(QueryBuilder.class);
         indices = in.readStringCollectionAsList();
+        this.threadContext = threadContext;
     }
 
     private static StreamInput checkSupported(StreamInput in) {
@@ -103,17 +117,24 @@ public final class SequenceSourceQueryBuilder extends AbstractQueryBuilder<Seque
         BoolQueryBuilder envelope = keyFilterEnvelope(query);
         if (envelope == null) {
             QueryBuilder rewritten = query.rewrite(context);
-            return rewritten == query ? this : new SequenceSourceQueryBuilder(rewritten, indices);
+            return rewritten == query ? this : new SequenceSourceQueryBuilder(rewritten, indices, threadContext);
         }
         QueryBuilder base = envelope.filter().getFirst();
         QueryBuilder predicate = envelope.filter().get(1);
         QueryBuilder rewritten = base.rewrite(context);
-        if (index != null && (predicate instanceof MatchAllQueryBuilder) == false && indexedKeyPredicate(predicate, context, 0) == false) {
-            // Keep the structural envelope until Lucene conversion: a user-named base must never become a compiler tag.
-            return new SequenceSourceQueryBuilder(withKeyFilter(rewritten, new MatchAllQueryBuilder()), indices);
+        if (index != null && (predicate instanceof MatchAllQueryBuilder) == false) {
+            String rejection = keyPredicateRejection(predicate, context, 0);
+            if (rejection != null) {
+                // Preserve the ordinary fallback. Its compiler-owned name, when requested, is never converted to a named query.
+                var fallback = new MatchAllQueryBuilder();
+                if (SequenceKeyFilterShardProfile.enabled(threadContext)) {
+                    fallback.queryName(rejection);
+                }
+                return new SequenceSourceQueryBuilder(withKeyFilter(rewritten, fallback), indices, threadContext);
+            }
         }
         // Rewriting the entire Bool could erase its base on MatchNone. Keep generated values opaque until toQuery.
-        return rewritten == base ? this : new SequenceSourceQueryBuilder(withKeyFilter(rewritten, predicate), indices);
+        return rewritten == base ? this : new SequenceSourceQueryBuilder(withKeyFilter(rewritten, predicate), indices, threadContext);
     }
 
     @Override
@@ -130,7 +151,15 @@ public final class SequenceSourceQueryBuilder extends AbstractQueryBuilder<Seque
         Query base = Rewriteable.rewrite(envelope.filter().getFirst(), context, true).toQuery(context, visitor);
         QueryBuilder predicate = envelope.filter().get(1);
         int remainingClauses = visitor.getMaxClauseCount() - visitor.getNumClauses();
-        if (remainingClauses <= 0 || predicate instanceof MatchAllQueryBuilder || indexedKeyPredicate(predicate, context, 0) == false) {
+        if (remainingClauses <= 0) {
+            recordKeyFilterDecision(context, "clause_limit");
+            return base;
+        }
+        String rejection = predicate instanceof MatchAllQueryBuilder
+            ? Objects.requireNonNullElse(predicate.queryName(), "ineligible_predicate")
+            : keyPredicateRejection(predicate, context, 0);
+        if (rejection != null) {
+            recordKeyFilterDecision(context, rejection);
             return base;
         }
         var queryBreaker = context.getCircuitBreaker();
@@ -144,20 +173,33 @@ public final class SequenceSourceQueryBuilder extends AbstractQueryBuilder<Seque
         Query filter;
         try {
             filter = Rewriteable.rewrite(predicate, context, true).toQuery(context, additional);
-        } catch (IndexSearcher.TooManyNestedClauses | CircuitBreakingException optionalLimit) {
+        } catch (IndexSearcher.TooManyNestedClauses optionalLimit) {
             // The shared visitor is untouched: an optional predicate must not turn a valid base into a limit failure.
+            recordKeyFilterDecision(context, "clause_limit");
+            return base;
+        } catch (CircuitBreakingException optionalLimit) {
+            recordKeyFilterDecision(context, "query_breaker");
             return base;
         }
         // Real mapper-only contexts may omit a query-construction breaker, as permitted by SearchExecutionContext.
         if (queryBreaker != null) {
             long limit = queryBreaker.getLimit();
             if (limit >= 0 && queryBreaker.getUsed() + visitor.getEstimatedBytes() + additional.getEstimatedBytes() > limit) {
+                recordKeyFilterDecision(context, "query_breaker");
                 return base;
             }
         }
         visitor.merge(additional);
         // The compiler marker never enters named-query matching; user names inside the base remain unchanged.
-        return new BooleanQuery.Builder().add(base, BooleanClause.Occur.FILTER).add(filter, BooleanClause.Occur.FILTER).build();
+        Query filtered = new BooleanQuery.Builder().add(base, BooleanClause.Occur.FILTER).add(filter, BooleanClause.Occur.FILTER).build();
+        recordKeyFilterDecision(context, SequenceKeyFilterShardProfile.APPLIED);
+        return filtered;
+    }
+
+    private void recordKeyFilterDecision(SearchExecutionContext context, String decision) {
+        if (SequenceKeyFilterShardProfile.enabled(threadContext)) {
+            SequenceKeyFilterShardProfile.record(threadContext, context, decision);
+        }
     }
 
     /** Adds an exact compiler-owned envelope only after all ordinary stage and time predicates are assembled. */
@@ -182,73 +224,89 @@ public final class SequenceSourceQueryBuilder extends AbstractQueryBuilder<Seque
         throw new IllegalStateException("Invalid compiler-owned SEQUENCE key-filter envelope");
     }
 
-    private static boolean indexedKeyPredicate(QueryBuilder predicate, QueryRewriteContext context, int depth) {
+    private static String keyPredicateRejection(QueryBuilder predicate, QueryRewriteContext context, int depth) {
         if (depth > 2 || predicate.queryName() != null || predicate.boost() != DEFAULT_BOOST) {
-            return false;
+            return "ineligible_predicate";
         }
         if (predicate instanceof TermQueryBuilder term) {
-            return term.caseInsensitive() == false && indexedKeyTerm(term, context);
+            return term.caseInsensitive() ? "ineligible_predicate" : keyTermRejection(term, context);
         }
         if (predicate instanceof BoolQueryBuilder bool && bool.must().isEmpty() && bool.mustNot().isEmpty() && bool.adjustPureNegative()) {
+            final List<QueryBuilder> children;
             if (bool.filter().isEmpty() && bool.should().isEmpty() == false && "1".equals(bool.minimumShouldMatch())) {
-                return bool.should().stream().allMatch(child -> indexedKeyPredicate(child, context, depth + 1));
+                children = bool.should();
+            } else if (bool.should().isEmpty() && bool.filter().isEmpty() == false && bool.minimumShouldMatch() == null) {
+                children = bool.filter();
+            } else {
+                return "ineligible_predicate";
             }
-            if (bool.should().isEmpty() && bool.filter().isEmpty() == false && bool.minimumShouldMatch() == null) {
-                return bool.filter().stream().allMatch(child -> indexedKeyPredicate(child, context, depth + 1));
+            for (QueryBuilder child : children) {
+                String rejection = keyPredicateRejection(child, context, depth + 1);
+                if (rejection != null) {
+                    return rejection;
+                }
             }
+            return null;
         }
-        return false;
+        return "ineligible_predicate";
     }
 
-    private static boolean indexedKeyTerm(TermQueryBuilder term, QueryRewriteContext context) {
-        if (context.getIndexSettings() == null || context.getIndexSettings().getMode() != IndexMode.STANDARD) {
-            return false;
+    private static String keyTermRejection(TermQueryBuilder term, QueryRewriteContext context) {
+        var settings = context.getIndexSettings();
+        IndexMode mode = settings == null ? null : settings.getMode();
+        if (mode != IndexMode.STANDARD && mode != IndexMode.LOGSDB) {
+            return "index_mode";
         }
         var effective = context.getFieldType(term.fieldName());
         if (effective == null
             || effective.name().equals(term.fieldName()) == false
             || effective.hasDocValues() == false
             || effective.hasScriptValues()) {
-            return false;
+            return "ineligible_field";
         }
         var indexed = context.getMappingLookup().getMapper(term.fieldName());
         if (indexed instanceof FieldMapper == false || ((FieldMapper) indexed).fieldType() != effective) {
-            return false;
+            return "ineligible_field";
         }
         Object value = term.value();
         if (effective.getClass() == KeywordFieldMapper.KeywordFieldType.class
             && effective instanceof KeywordFieldMapper.KeywordFieldType keyword) {
             // Under NONE/DOC_VALUES this exact mapper loads indexed sorted-set bytes. Historical ignore_above
             // exclusions have no such bytes; current source-fetch settings are never reapplied to these keys.
-            return value instanceof String text
-                && keyword.indexType().hasTerms()
-                && keyword.usesBinaryDocValues() == false
+            if (keyword.usesBinaryDocValues()) {
+                return "binary_doc_values";
+            }
+            if (keyword.indexType().hasTerms() == false) {
+                return "no_indexed_terms";
+            }
+            if (value instanceof String text
                 && keyword.hasNormalizer() == false
                 && keyword.getTextSearchInfo().searchAnalyzer() == Lucene.KEYWORD_ANALYZER
                 && keyword.hasNullValue() == false
                 && keyword.hasScriptValues() == false
-                && (text.isEmpty() == false || keyword.emptyStringReadsAsNull() == false);
+                && (text.isEmpty() == false || keyword.emptyStringReadsAsNull() == false)) {
+                return null;
+            }
+            return "ineligible_keyword";
         }
-        if (effective instanceof BooleanFieldMapper.BooleanFieldType) {
-            return value instanceof Boolean && effective.indexType().hasTerms();
+        if (effective instanceof BooleanFieldMapper.BooleanFieldType && value instanceof Boolean && effective.indexType().hasTerms()) {
+            return null;
         }
         if (effective.getClass() == NumberFieldMapper.NumberFieldType.class
             && effective instanceof NumberFieldMapper.NumberFieldType number
             && number.indexType().hasPoints()) {
-            if (number.numberType() == NumberFieldMapper.NumberType.BYTE) {
-                return value instanceof Integer integer && integer >= Byte.MIN_VALUE && integer <= Byte.MAX_VALUE;
-            }
-            if (number.numberType() == NumberFieldMapper.NumberType.SHORT) {
-                return value instanceof Integer integer && integer >= Short.MIN_VALUE && integer <= Short.MAX_VALUE;
-            }
-            if (number.numberType() == NumberFieldMapper.NumberType.INTEGER) {
-                return value instanceof Integer;
-            }
-            if (number.numberType() == NumberFieldMapper.NumberType.LONG) {
-                return value instanceof Long;
+            boolean supported = switch (number.numberType()) {
+                case BYTE -> value instanceof Integer integer && integer >= Byte.MIN_VALUE && integer <= Byte.MAX_VALUE;
+                case SHORT -> value instanceof Integer integer && integer >= Short.MIN_VALUE && integer <= Short.MAX_VALUE;
+                case INTEGER -> value instanceof Integer;
+                case LONG -> value instanceof Long;
+                default -> false;
+            };
+            if (supported) {
+                return null;
             }
         }
-        return false;
+        return "ineligible_field";
     }
 
     /**

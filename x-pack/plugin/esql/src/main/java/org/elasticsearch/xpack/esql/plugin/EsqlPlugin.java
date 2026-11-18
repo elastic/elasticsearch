@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockFactoryBuilder;
 import org.elasticsearch.compute.data.BlockFactoryProvider;
@@ -53,6 +54,7 @@ import org.elasticsearch.compute.operator.topn.TopNOperatorStatus;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -152,6 +154,7 @@ import org.elasticsearch.xpack.esql.enrich.StreamingLookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.execution.sequence.SequenceDocValuesFetchSubPhase;
 import org.elasticsearch.xpack.esql.execution.sequence.SequenceDocValuesSearchExt;
+import org.elasticsearch.xpack.esql.execution.sequence.SequenceKeyFilterShardProfile;
 import org.elasticsearch.xpack.esql.execution.sequence.SequenceSourceQueryBuilder;
 import org.elasticsearch.xpack.esql.execution.sequence.SequenceSourceStatus;
 import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
@@ -387,6 +390,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
     private final SetOnce<BlockFactory> sequenceBlockFactory = new SetOnce<>();
     private final SetOnce<ClusterSettings> sequenceClusterSettings = new SetOnce<>();
+    private final SetOnce<ThreadContext> sequenceThreadContext = new SetOnce<>();
 
     /** Closed by {@link #close()} on node shutdown to release S3/Azure workload-identity resources. */
     private volatile DataSourceModule dataSourceModule;
@@ -416,6 +420,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         );
         sequenceBlockFactory.set(blockFactoryProvider.blockFactory());
         sequenceClusterSettings.set(services.clusterService().getClusterSettings());
+        sequenceThreadContext.set(services.threadPool().getThreadContext());
         setupSharedSecrets();
         List<BiConsumer<LogicalPlan, Failures>> extraCheckers = extraCheckerProviders.stream()
             .flatMap(p -> p.checkers(services.projectResolver(), services.clusterService()).stream())
@@ -983,9 +988,18 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     }
 
     @Override
+    public void onIndexModule(IndexModule indexModule) {
+        indexModule.addSearchOperationListener(new SequenceKeyFilterShardProfile(sequenceThreadContext::get));
+    }
+
+    @Override
     public List<QuerySpec<?>> getQueries() {
         return List.of(
-            new QuerySpec<>(SequenceSourceQueryBuilder.NAME, SequenceSourceQueryBuilder::new, SequenceSourceQueryBuilder::fromXContent)
+            new QuerySpec<>(
+                SequenceSourceQueryBuilder.NAME,
+                in -> new SequenceSourceQueryBuilder(in, sequenceThreadContext.get()),
+                SequenceSourceQueryBuilder::fromXContent
+            )
         );
     }
 

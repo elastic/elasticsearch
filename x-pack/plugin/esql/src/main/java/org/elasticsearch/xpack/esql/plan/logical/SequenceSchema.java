@@ -74,6 +74,10 @@ final class SequenceSchema {
         if (plan == sequence || plan.anyMatch(node -> node == sequence) == false) {
             return;
         }
+        // HIGHLIGHT analyzes materialized values with its explicit analyzer. Each search predicate is checked on its own plan node.
+        if (plan instanceof Highlight highlight && highlight.hasAnalyzerOption()) {
+            return;
+        }
         plan.forEachExpression(SingleFieldFullTextFunction.class, function -> {
             Expression searched = resolveTextInput(plan, function.field());
             if (searched instanceof Attribute attribute) {

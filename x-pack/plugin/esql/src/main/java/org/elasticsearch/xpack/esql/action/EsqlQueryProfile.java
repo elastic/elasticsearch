@@ -12,10 +12,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.compute.operator.ProfileSchema;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
+import org.elasticsearch.xpack.esql.execution.sequence.SequenceKeyFilterProfile;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -86,7 +88,12 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
         .optional(RESOLUTION_BYTES_READ, ProfileSchema.integer())
         .optional(RESOLUTION_REQUESTS, ProfileSchema.integer())
         .optional(SPLIT_DISCOVERY_PROBES, ProfileSchema.integer())
+        .optional("sequence_key_filter", SequenceKeyFilterProfile.PROFILE_SCHEMA.schema())
         .build();
+
+    // Coordinator state and a validated snapshot restored by the async REST response listener.
+    private SequenceKeyFilterProfile sequenceKeyFilter;
+    private Map<String, Object> restoredSequenceKeyFilter;
 
     /** Time elapsed since start of query till the final result rendering */
     private final TimeSpanMarker totalMarker;
@@ -909,6 +916,24 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
         }
     }
 
+    public synchronized SequenceKeyFilterProfile prepareSequenceKeyFilterProfile() {
+        if (sequenceKeyFilter == null) {
+            sequenceKeyFilter = new SequenceKeyFilterProfile();
+        }
+        return sequenceKeyFilter;
+    }
+
+    @Nullable
+    public synchronized Map<String, Object> sequenceKeyFilterSnapshot() {
+        var live = sequenceKeyFilter == null ? null : sequenceKeyFilter.snapshot();
+        return live != null ? live : restoredSequenceKeyFilter;
+    }
+
+    /** Restores a validated snapshot from the async response headers for REST rendering. */
+    public synchronized void restoreSequenceKeyFilterSnapshot(Map<String, Object> snapshot) {
+        restoredSequenceKeyFilter = Map.copyOf(snapshot);
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return PROFILE_SCHEMA.write(builder, this, params);
@@ -974,6 +999,10 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
         int probes = profile.splitDiscoveryProbes.get();
         if (probes > 0) {
             builder.field(SPLIT_DISCOVERY_PROBES, probes);
+        }
+        var sequenceKeyFilter = profile.sequenceKeyFilterSnapshot();
+        if (sequenceKeyFilter != null) {
+            builder.field("sequence_key_filter", sequenceKeyFilter);
         }
         return builder;
     }

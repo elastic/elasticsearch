@@ -36,7 +36,11 @@ public class RestEsqlStopAsyncAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
         AsyncStopRequest stopReq = new AsyncStopRequest(request.param("id"));
-        return channel -> client.execute(EsqlAsyncStopAction.INSTANCE, stopReq, new EsqlResponseListener(channel, request));
+        return channel -> client.execute(
+            EsqlAsyncStopAction.INSTANCE,
+            stopReq,
+            EsqlSequenceKeyFilterProfileHeaders.consume(client.threadPool().getThreadContext(), new EsqlResponseListener(channel, request))
+        );
     }
 
     @Override

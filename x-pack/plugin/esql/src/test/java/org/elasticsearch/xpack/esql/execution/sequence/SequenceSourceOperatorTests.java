@@ -110,8 +110,10 @@ import org.elasticsearch.xpack.esql.plan.physical.SequenceExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.ConfigurationBuilder;
 import org.junit.BeforeClass;
+import org.mockito.ArgumentCaptor;
 
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayDeque;
@@ -119,12 +121,18 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.core.type.EsField.TimeSeriesFieldType.NONE;
 import static org.hamcrest.Matchers.containsString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 
 /**
  * Delays transport and stage-terminal callbacks deliberately to exercise ownership after the real driver context
@@ -141,19 +149,24 @@ public class SequenceSourceOperatorTests extends ESTestCase {
     public void testProductionFactorySelectsStageAwareDefaults() throws ReflectiveOperationException {
         var boundField = SequenceSourceOperator.class.getDeclaredField("candidateBound");
         boundField.setAccessible(true);
-        for (int[] row : new int[][] { { 2, 8 }, { 7, 4 }, { 10, 2 }, { 18, 1 } }) {
-            List<String> members = new ArrayList<>();
-            for (int stage = 0; stage < row[0]; stage++) {
-                members.add("(FROM a | KEEP key)");
-            }
-            Sequence sequence = plan("SEQUENCE BY key WITHIN 30s PRIMARY 1 " + String.join(",", members) + " | KEEP key | LIMIT 1");
+        for (int stages : List.of(2, 3, 4)) {
+            String members = String.join(",", java.util.Collections.nCopies(stages, "(FROM a | KEEP key)"));
+            Sequence sequence = plan("SEQUENCE BY key WITHIN 30s PRIMARY 1 " + members + " | KEEP key | LIMIT 1");
             try (var harness = new Harness(false, null, null, sequence)) {
-                assertEquals("factory default for [" + row[0] + "] stages", row[1], boundField.getInt(harness.source));
+                assertEquals("factory default for [" + stages + "] stages", 8, boundField.getInt(harness.source));
                 assertTrue("constructing the production factory must not start a search", harness.client.pending.isEmpty());
                 harness.finishDriver();
                 harness.assertFinished();
             }
         }
+        Sequence accepted = plan("SEQUENCE BY key WITHIN 30s PRIMARY 1 (FROM a | KEEP key),(FROM a | KEEP key) | KEEP key | LIMIT 1");
+        // The factory must refuse an oversized plan even if it arrives without running through the analyzer.
+        Sequence overlong = accepted.replaceChildren(java.util.Collections.nCopies(5, accepted.children().getFirst()));
+        assertThat(expectThrows(IllegalArgumentException.class, () -> {
+            try (var harness = new Harness(false, null, null, overlong)) {
+                assertTrue(harness.client.pending.isEmpty());
+            }
+        }).getMessage(), containsString("SEQUENCE supports at most [4] stages"));
     }
 
     /** A failed stage releases raw/bound cells and the prepared compiler on the same held-memory timeline. */
@@ -906,6 +919,171 @@ public class SequenceSourceOperatorTests extends ESTestCase {
             harness.client.take(TransportClosePointInTimeAction.TYPE).listener.onResponse(new ClosePointInTimeResponse(true, 2));
             harness.assertFinished();
         }
+    }
+
+    public void testKeyFilterRefundsBeforeResponseAdmissionAndWake() {
+        try (var harness = Harness.withKeyFilter()) {
+            var search = harness.prepareFilteredSearch();
+            long noFilter = harness.breaker.getUsed() - harness.keyFilterBytes();
+            AtomicLong usedAtWake = observeSearchWake(harness);
+            var response = SearchResponse.emptyResponseBuilder().build();
+            try (Releasable ignored = response::decRef) {
+                // The response fits exactly once the in-flight snapshot's charge is gone.
+                harness.breaker.setLimitAndOverhead(noFilter + 256, 1);
+                search.listener.onResponse(response);
+                assertEquals(noFilter + 256, usedAtWake.get());
+            }
+            assertTrue("the published completion owns a response reference", response.hasReferences());
+            harness.finishDriver();
+            assertFalse(response.hasReferences());
+            assertSearchFinished(harness, "snapshot");
+        }
+    }
+
+    public void testKeyFilterRefundDoesNotAdmitAnOversizedResponse() {
+        try (var harness = Harness.withKeyFilter()) {
+            var search = harness.prepareFilteredSearch();
+            long noFilter = harness.breaker.getUsed() - harness.keyFilterBytes();
+            AtomicLong usedAtWake = observeSearchWake(harness);
+            var response = renewedSearchResponse();
+            try (Releasable ignored = response::decRef) {
+                harness.breaker.setLimitAndOverhead(noFilter + 255, 1);
+                search.listener.onResponse(response);
+                expectThrows(CircuitBreakingException.class, harness.source::getOutput);
+                assertTrue(response.hasReferences());
+            }
+            assertFalse("admission failure must not retain a response reference", response.hasReferences());
+            assertEquals(noFilter, usedAtWake.get());
+            harness.finishDriver();
+            assertSearchFinished(harness, "renewed");
+        }
+    }
+
+    public void testKeyFilterRefundsOnSynchronousDispatchFailure() {
+        try (var harness = Harness.withKeyFilter()) {
+            harness.prepareFirstSearch();
+            var rejected = new IllegalStateException("controlled search dispatch failure");
+            harness.client.searchDispatchFailure = rejected;
+            assertNull(harness.source.getOutput());
+            assertSame(rejected, expectThrows(IllegalStateException.class, harness.source::getOutput));
+            long filterBytes = harness.keyFilterBytes();
+            verify(harness.breaker).addWithoutBreaking(-filterBytes);
+            harness.finishDriver();
+            assertSearchFinished(harness, "snapshot");
+        }
+    }
+
+    public void testKeyFilterRefundsBeforeCancelledDriverCompletes() {
+        for (boolean deliverResponse : List.of(false, true)) {
+            try (var harness = Harness.withKeyFilter()) {
+                long unrelated = 777;
+                harness.breaker.addWithoutBreaking(unrelated);
+                try {
+                    var search = harness.prepareFilteredSearch();
+                    long filterBytes = harness.keyFilterBytes();
+                    AtomicLong usedAtWake = observeSearchWake(harness);
+                    AtomicLong usedAtDriverCompletion = new AtomicLong(-1);
+                    harness.finishDriver();
+                    harness.context.waitForAsyncActions(
+                        ActionListener.running(() -> usedAtDriverCompletion.set(harness.breaker.getUsed()))
+                    );
+                    assertFalse(harness.done.isDone());
+                    assertEquals(unrelated + filterBytes, harness.breaker.getUsed());
+                    assertTrue(harness.client.pending.isEmpty());
+                    if (deliverResponse) {
+                        var response = renewedSearchResponse();
+                        try (Releasable ignored = response::decRef) {
+                            search.listener.onResponse(response);
+                            assertTrue(response.hasReferences());
+                        }
+                        assertFalse(response.hasReferences());
+                    } else {
+                        search.listener.onFailure(new IllegalStateException("late search failure"));
+                    }
+                    assertEquals(unrelated, usedAtWake.get());
+                    assertEquals(unrelated, usedAtDriverCompletion.get());
+                    assertEquals(unrelated, harness.breaker.getUsed());
+                    verify(harness.breaker).addWithoutBreaking(-filterBytes);
+                } finally {
+                    harness.breaker.addWithoutBreaking(-unrelated);
+                }
+                assertSearchFinished(harness, deliverResponse ? "renewed" : "snapshot");
+            }
+        }
+    }
+
+    public void testKeyFilterRefundExceptionPreservesSearchFailureAndRenewedSnapshot() {
+        for (boolean deliverResponse : List.of(false, true)) {
+            try (var harness = Harness.withKeyFilter()) {
+                var search = harness.prepareFilteredSearch();
+                long filterBytes = harness.keyFilterBytes();
+                long noFilter = harness.breaker.getUsed() - filterBytes;
+                var refundFailure = new IllegalStateException("controlled key filter refund failure");
+                doAnswer(invocation -> {
+                    invocation.callRealMethod();
+                    throw refundFailure;
+                }).when(harness.breaker).addWithoutBreaking(-filterBytes);
+                AtomicLong usedAtWake = observeSearchWake(harness);
+                if (deliverResponse) {
+                    var response = renewedSearchResponse();
+                    try (Releasable ignored = response::decRef) {
+                        search.listener.onResponse(response);
+                        assertTrue(response.hasReferences());
+                    }
+                    assertFalse("refund failure must not retain a response reference", response.hasReferences());
+                    assertSame(refundFailure, expectThrows(IllegalStateException.class, harness.source::getOutput));
+                } else {
+                    var primary = new IllegalStateException("controlled search failure");
+                    search.listener.onFailure(primary);
+                    assertSame(primary, expectThrows(IllegalStateException.class, harness.source::getOutput));
+                    assertArrayEquals(new Throwable[] { refundFailure }, primary.getSuppressed());
+                }
+                assertEquals(noFilter, usedAtWake.get());
+                verify(harness.breaker).addWithoutBreaking(-filterBytes);
+                harness.finishDriver();
+                assertSearchFinished(harness, deliverResponse ? "renewed" : "snapshot");
+            }
+        }
+    }
+
+    private static AtomicLong observeSearchWake(Harness harness) {
+        var blocked = harness.source.isBlocked().listener();
+        assertFalse(blocked.isDone());
+        AtomicLong used = new AtomicLong(-1);
+        blocked.addListener(ActionListener.running(() -> used.set(harness.breaker.getUsed())));
+        return used;
+    }
+
+    private static SearchResponse renewedSearchResponse() {
+        return new SearchResponse(
+            SearchHits.empty(Lucene.TOTAL_HITS_EQUAL_TO_ZERO, Float.NaN),
+            InternalAggregations.EMPTY,
+            null,
+            false,
+            null,
+            null,
+            1,
+            null,
+            2,
+            2,
+            0,
+            1,
+            ShardSearchFailure.EMPTY_ARRAY,
+            SearchResponse.Clusters.EMPTY,
+            new BytesArray("renewed"),
+            null,
+            null
+        );
+    }
+
+    private static void assertSearchFinished(Harness harness, String snapshot) {
+        var close = harness.client.take(TransportClosePointInTimeAction.TYPE);
+        assertEquals(new BytesArray(snapshot), ((ClosePointInTimeRequest) close.request).getId());
+        close.listener.onResponse(new ClosePointInTimeResponse(true, 2));
+        assertEquals(2, harness.source.status().candidateSearchRequests());
+        assertEquals(1, harness.stageExecutions);
+        assertTrue(harness.client.pending.isEmpty());
+        harness.assertFinished();
     }
 
     public void testNativeByteResponseCannotBypassCoordinatorBreaker() {
@@ -2549,8 +2727,7 @@ public class SequenceSourceOperatorTests extends ESTestCase {
         Sequence sequence = optimizedPlan("""
             SEQUENCE BY key WITHIN 30 seconds PRIMARY 1
             (FROM a | KEEP key,payload),(FROM b | KEEP key),(FROM c | KEEP key),
-            (FROM d | KEEP key),(FROM e | KEEP key),
-            (FROM f | WHERE TO_LONG(payload) == TO_LONG(MEMBER(1,payload)) | KEEP key)
+            (FROM d | WHERE TO_LONG(payload) == TO_LONG(MEMBER(1,payload)) | KEEP key)
             | KEEP key,payload | LIMIT 10
             """);
         try (var harness = new Harness(sequence)) {
@@ -2559,14 +2736,14 @@ public class SequenceSourceOperatorTests extends ESTestCase {
                 assertTrue("summaries and condition warnings wait for terminal closure", harness.observedWarnings.isEmpty());
                 String index = request.getPointInTimeAuthorizationScope().indices()[0];
                 int stage = index.charAt(0) - 'a';
-                int perKey = stage == 0 ? 17 : 16;
+                int perKey = stage == 0 ? 65 : 64;
                 List<LatestRow> rows = new ArrayList<>();
                 for (int key = 0; key < 2; key++) {
-                    if (stage == 5) {
-                        rows.add(new LatestRow(162 + key, key, "key" + key, List.of("1")));
+                    if (stage == 3) {
+                        rows.add(new LatestRow(386 + key, key, "key" + key, List.of("1")));
                     } else {
                         for (int row = 0; row < perKey; row++) {
-                            long time = stage == 0 ? key * 17L + row : 34 + (stage - 1) * 32L + key * 16L + row;
+                            long time = stage == 0 ? key * 65L + row : 130 + (stage - 1) * 128L + key * 64L + row;
                             rows.add(
                                 new LatestRow(time, key * perKey + row, "key" + key, List.of(stage == 0 ? "bad-" + key + "-" + row : "0"))
                             );
@@ -2582,11 +2759,11 @@ public class SequenceSourceOperatorTests extends ESTestCase {
             assertEquals(2, counters.searchesAbandonedAtWorkLimit());
             assertEquals(2 * SequenceLatestValidConfig.SEARCH_STEP_LIMIT, counters.searchSteps());
             assertEquals(SequenceLatestValidConfig.SEARCH_STEP_LIMIT, counters.maxSearchStepsPerFinalRow());
-            assertEquals(16, counters.largestRingFill());
+            assertEquals(64, counters.largestRingFill());
             assertEquals(21, harness.observedWarnings.stream().filter(warning -> warning.startsWith("SEQUENCE ") == false).count());
             assertEquals(
                 List.of(
-                    "SEQUENCE dropped [2] candidates at the limit of [16] per stage and key; matches may be missing",
+                    "SEQUENCE dropped [2] candidates at the limit of [64] per stage and key; matches may be missing",
                     "SEQUENCE abandoned [2] searches at the work limit of [131072] steps; matches may be missing"
                 ),
                 harness.observedWarnings.stream().filter(warning -> warning.startsWith("SEQUENCE ")).toList()
@@ -3034,6 +3211,22 @@ public class SequenceSourceOperatorTests extends ESTestCase {
             this(realStages, null, null, null, null, null, false, DriverContext.WarningsMode.COLLECT, profile);
         }
 
+        private static Harness withKeyFilter() {
+            return new Harness(
+                true,
+                null,
+                null,
+                null,
+                null,
+                null,
+                false,
+                DriverContext.WarningsMode.COLLECT,
+                true,
+                PlannerSettings.SEQUENCE_MAX_MEMORY.getDefault(Settings.EMPTY).getBytes(),
+                true
+            );
+        }
+
         private Harness(boolean realStages, DeterministicTaskQueue queue) {
             this(realStages, queue, null);
         }
@@ -3114,6 +3307,34 @@ public class SequenceSourceOperatorTests extends ESTestCase {
             boolean profile,
             long memoryLimit
         ) {
+            this(
+                realStages,
+                queue,
+                executionInfo,
+                suppliedSequence,
+                requestFilter,
+                latestValid,
+                compileConditions,
+                warningsMode,
+                profile,
+                memoryLimit,
+                false
+            );
+        }
+
+        private Harness(
+            boolean realStages,
+            DeterministicTaskQueue queue,
+            EsqlExecutionInfo executionInfo,
+            Sequence suppliedSequence,
+            QueryBuilder requestFilter,
+            SequenceLatestValidConfig latestValid,
+            boolean compileConditions,
+            DriverContext.WarningsMode warningsMode,
+            boolean profile,
+            long memoryLimit,
+            boolean keyFilter
+        ) {
             realThreadPool = queue == null ? new TestThreadPool("sequence-callbacks") : null;
             threadPool = queue == null ? realThreadPool : queue.getThreadPool();
             client = new PendingClient(threadPool);
@@ -3121,12 +3342,13 @@ public class SequenceSourceOperatorTests extends ESTestCase {
                 .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "1mb")
                 .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
                 .build();
-            breaker = new HierarchyCircuitBreakerService(
+            CircuitBreaker requestBreaker = new HierarchyCircuitBreakerService(
                 CircuitBreakerMetrics.NOOP,
                 settings,
                 List.of(),
                 new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
             ).getBreaker(CircuitBreaker.REQUEST);
+            breaker = keyFilter ? spy(requestBreaker) : requestBreaker;
             blocks = new MockBlockFactory(BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker));
             context = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blocks, null) {
                 @Override
@@ -3146,12 +3368,16 @@ public class SequenceSourceOperatorTests extends ESTestCase {
             sequence = suppliedSequence == null ? computedOutputPlan() : suppliedSequence;
             try (var ignored = threadPool.getThreadContext().stashContext()) {
                 threadPool.getThreadContext().putHeader("sequence-test-caller", "owner");
+                var configuration = new ConfigurationBuilder(EsqlTestUtils.TEST_CFG).profile(profile);
+                if (keyFilter) {
+                    configuration.pragmas(new QueryPragmas(Settings.builder().put("sequence_key_filter", true).build()));
+                }
                 operatorFactory = new SequenceSourceOperator.Factory(
                     new SequenceExec(sequence.source(), sequence, requestFilter),
                     client,
                     client,
                     null,
-                    profile ? new ConfigurationBuilder(EsqlTestUtils.TEST_CFG).profile(true).build() : EsqlTestUtils.TEST_CFG,
+                    configuration.build(),
                     (physical, output) -> {
                         if (realStages == false) {
                             throw new AssertionError("stage execution is not expected");
@@ -3169,7 +3395,7 @@ public class SequenceSourceOperatorTests extends ESTestCase {
                     memoryLimit
                 );
                 source = (SequenceSourceOperator) (compileConditions
-                    ? operatorFactory.getWithConditions(context, sequence.children().size() == 6 ? 16 : 8, null)
+                    ? operatorFactory.getWithConditions(context, sequence.children().size() == 4 ? 64 : 8, null)
                     : latestValid == null ? operatorFactory.get(context)
                     : operatorFactory.get(context, latestValid));
             } catch (RuntimeException | Error e) {
@@ -3310,6 +3536,30 @@ public class SequenceSourceOperatorTests extends ESTestCase {
             }
         }
 
+        private void prepareFirstSearch() {
+            prepareOpen().listener.onResponse(openResponse());
+            assertNull(source.getOutput());
+            respond(client.take(TransportSearchAction.TYPE), 0);
+            assertNull(source.getOutput());
+            assertEquals(1, stageExecutions);
+            assertTrue(client.pending.isEmpty());
+        }
+
+        private Pending<SearchResponse> prepareFilteredSearch() {
+            prepareFirstSearch();
+            assertNull(source.getOutput());
+            var search = client.take(TransportSearchAction.TYPE);
+            assertThat(((SearchRequest) search.request).source().query().toString(), containsString("__esql_sequence_waiting_keys_v1"));
+            assertTrue(client.pending.isEmpty());
+            return search;
+        }
+
+        private long keyFilterBytes() {
+            var bytes = ArgumentCaptor.forClass(Long.class);
+            verify(breaker, atLeastOnce()).addEstimateBytesAndMaybeBreak(bytes.capture(), eq("esql_sequence_key_filter"));
+            return bytes.getAllValues().stream().mapToLong(Long::longValue).sum();
+        }
+
         private void prepareCompletedStages() {
             prepareOpen().listener.onResponse(openResponse());
             for (int stage = 0; stage < 2; stage++) {
@@ -3362,9 +3612,20 @@ public class SequenceSourceOperatorTests extends ESTestCase {
     /** Controls only transport delivery, so callback ordering is deterministic rather than dependent on scheduler timing. */
     private static final class PendingClient extends NoOpClient {
         private final ArrayDeque<Pending<?>> pending = new ArrayDeque<>();
+        private RuntimeException searchDispatchFailure;
 
         private PendingClient(ThreadPool threadPool) {
             super(threadPool);
+        }
+
+        @Override
+        public void search(SearchRequest request, ActionListener<SearchResponse> listener) {
+            if (searchDispatchFailure != null) {
+                assertEquals("owner", threadPool().getThreadContext().getHeader("sequence-test-caller"));
+                assertThat(request.source().query().toString(), containsString("__esql_sequence_waiting_keys_v1"));
+                throw searchDispatchFailure;
+            }
+            super.search(request, listener);
         }
 
         @Override

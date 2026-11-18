@@ -30,9 +30,11 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
 
 /**
- * Row-native latest-valid pairing. Rings retain rows, never partial chains; backward search borrows one pointer
- * per stage. Used markers keep their recency slots but release all predicate values and payload ownership.
- * Calls, including closure, are serialized by the owning source. Returned matches own independent references.
+ * Row-native latest-valid pairing. The default retains recency lists; the experimental admission rule also
+ * retains rows remembered by listed middle rows. Backward search borrows one pointer per earlier stage and binds
+ * the arriving row as its terminal. Used markers release their values and output ownership but keep their list
+ * slots and experimental remembered references. Calls, including closure, are serialized by the owning source.
+ * Returned matches own independent references.
  */
 final class SequenceLatestValidMatcher implements SequencePairing {
     private static final String LABEL = "esql_sequence_matcher";
@@ -52,6 +54,7 @@ final class SequenceLatestValidMatcher implements SequencePairing {
     private final long maxSpanNanos;
     private final int bound;
     private final long searchStepLimit;
+    private final boolean rememberChains;
     private final CircuitBreaker breaker;
     private final BooleanSupplier cancelled;
     private final Comparator<BytesRef> keyOrder;
@@ -63,6 +66,9 @@ final class SequenceLatestValidMatcher implements SequencePairing {
     private Row[] selected;
     private int[] positions;
     private ValuesView view;
+    private int terminalStage;
+    private boolean arrivalSearch;
+    private boolean searchAbandoned;
     private SequenceOrdinal finalOrdinal;
     private SequenceCandidateValues finalValues;
     private SequenceLatestValidConfig.PredicateGroup currentGroup;
@@ -81,6 +87,11 @@ final class SequenceLatestValidMatcher implements SequencePairing {
     private long maxSearchStepsPerFinalRow;
     private long conditionEvaluations;
     private long expiredCandidates;
+    private long candidatesNotKept;
+    private long arrivalSearchesAbandoned;
+    private long arrivalSearchSteps;
+    private long conditionEvaluationsOnArrival;
+    private long peakCandidatesKeptPerKey;
     private int largestRingFill;
     private boolean closed;
 
@@ -114,6 +125,7 @@ final class SequenceLatestValidMatcher implements SequencePairing {
         maxSpanNanos = maxSpan.nanos();
         bound = config.maxCandidates().orElse(Integer.MAX_VALUE);
         searchStepLimit = config.searchStepLimit();
+        rememberChains = config.rememberChains();
         this.breaker = Objects.requireNonNull(breaker);
         this.cancelled = Objects.requireNonNull(cancelled);
         this.keyOrder = Objects.requireNonNull(keyOrder);
@@ -175,16 +187,30 @@ final class SequenceLatestValidMatcher implements SequencePairing {
             prune(ordinal);
             KeyState state = keys.get(key);
             if (stage < stages - 1) {
-                retainedValues = insert(state, stage, key, ordinal, rank, handle, values);
+                boolean found = false;
+                if (rememberChains && stage > 0) {
+                    terminalStage = stage;
+                    finalOrdinal = ordinal;
+                    finalValues = values;
+                    arrivalSearch = true;
+                    found = state != null && search(state, stage);
+                    if (found == false && searchAbandoned == false) {
+                        candidatesNotKept = Math.incrementExact(candidatesNotKept);
+                        return null;
+                    }
+                }
+                retainedValues = insert(state, stage, key, ordinal, rank, handle, values, found);
                 return null;
             }
             // Even an empty start ring requires the prescribed later-stage visits when this search is invoked.
             if (state == null) {
                 return null;
             }
+            terminalStage = stage;
+            arrivalSearch = false;
             finalOrdinal = ordinal;
             finalValues = values;
-            if (search(state) == false) {
+            if (search(state, stage) == false) {
                 return null;
             }
             findDirectTargets(state);
@@ -215,6 +241,8 @@ final class SequenceLatestValidMatcher implements SequencePairing {
             finalOrdinal = null;
             finalValues = null;
             currentGroup = null;
+            arrivalSearch = false;
+            searchAbandoned = false;
             if (selected != null) {
                 Arrays.fill(selected, null);
             }
@@ -269,8 +297,12 @@ final class SequenceLatestValidMatcher implements SequencePairing {
         SequenceOrdinal ordinal,
         long rank,
         BytesRef handle,
-        SequenceCandidateValues values
+        SequenceCandidateValues values,
+        boolean found
     ) {
+        if (rememberChains) {
+            return insertRemembered(state, stage, key, ordinal, rank, handle, values, found);
+        }
         if (state == null) {
             state = addKey(key);
         }
@@ -321,6 +353,185 @@ final class SequenceLatestValidMatcher implements SequencePairing {
         } finally {
             if (published == false) {
                 payload.decRef();
+            }
+        }
+    }
+
+    /** Admission owns a flat earlier chain; only listed rows hold those references. */
+    private boolean insertRemembered(
+        KeyState state,
+        int stage,
+        BytesRef key,
+        SequenceOrdinal ordinal,
+        long rank,
+        BytesRef handle,
+        SequenceCandidateValues values,
+        boolean found
+    ) {
+        if (state == null) {
+            state = addKey(key);
+        }
+        Ring ring = state.rings[stage];
+        if (ring == null) {
+            long bytes = RamUsageEstimator.shallowSizeOfInstance(Ring.class);
+            reserve(bytes);
+            ring = new Ring();
+            state.rings[stage] = ring;
+            state.bytes += bytes;
+        }
+        // The extra temporary list cell is charged and trimmed before sampling the kept peak.
+        ensureRememberedCapacity(state, ring, true, ring.size + 1);
+        ensureRememberedCapacity(state, ring, false, ring.keptSize + 1);
+        SequencePayloadHandle payload = SequencePayloadHandle.copyOf(handle, breaker);
+        boolean published = false;
+        try {
+            long bytes = ROW_BYTES + (stage == 0 ? TREE_ENTRY_BYTES : 0);
+            reserve(bytes);
+            DocState document = addDocument(state, ordinal);
+            Row row = new Row(state, document, stage, ordinal, rank, payload, values, bytes);
+            state.records++;
+            if (document != null) {
+                document.records++;
+            }
+            int position = ring.size;
+            while (position > 0 && RECENCY.compare(ring.rows[position - 1], row) > 0) {
+                position--;
+            }
+            System.arraycopy(ring.rows, position, ring.rows, position + 1, ring.size - position);
+            ring.rows[position] = row;
+            ring.size++;
+            row.listed = true;
+            position = ring.keptSize;
+            while (position > 0 && RECENCY.compare(ring.kept[position - 1], row) > 0) {
+                position--;
+            }
+            System.arraycopy(ring.kept, position, ring.kept, position + 1, ring.keptSize - position);
+            ring.kept[position] = row;
+            ring.keptSize++;
+            published = true;
+            expiry.add(row);
+            if (stage == 0) {
+                unusedStarts.add(row);
+            }
+            // Publish the new holders before releasing the evicted row's chain.
+            if (found) {
+                long chainBytes = referenceArrayBytes(stage);
+                reserve(chainBytes);
+                row.remembered = Arrays.copyOf(selected, stage);
+                row.bytes += chainBytes;
+                for (Row ancestor : row.remembered) {
+                    ancestor.holders++;
+                }
+            }
+            if (ring.size > bound) {
+                unlist(ring.rows[0], true);
+            }
+            largestRingFill = Math.max(largestRingFill, ring.size);
+            peakCandidatesKeptPerKey = Math.max(peakCandidatesKeptPerKey, state.records);
+            return true;
+        } finally {
+            if (published == false) {
+                payload.decRef();
+            }
+        }
+    }
+
+    private void ensureRememberedCapacity(KeyState state, Ring ring, boolean listed, int needed) {
+        Row[] current = listed ? ring.rows : ring.kept;
+        if (needed > current.length) {
+            int capacity = Math.max(needed, Math.max(4, Math.multiplyExact(current.length, 2)));
+            long bytes = referenceArrayBytes(capacity);
+            long previous = current.length == 0 ? 0 : referenceArrayBytes(current.length);
+            reserve(bytes);
+            Row[] next = Arrays.copyOf(current, capacity);
+            if (listed) {
+                ring.rows = next;
+            } else {
+                ring.kept = next;
+            }
+            state.bytes += bytes - previous;
+            release(previous);
+        }
+    }
+
+    private void unlist(Row row, boolean atBound) {
+        Ring ring = row.state.rings[row.stage];
+        int position = 0;
+        while (ring.rows[position] != row) {
+            position++;
+        }
+        System.arraycopy(ring.rows, position + 1, ring.rows, position, ring.size - position - 1);
+        ring.rows[--ring.size] = null;
+        row.listed = false;
+        releaseRemembered(row, atBound);
+        if (row.holders == 0 && row.destroyed == false) {
+            destroyRemembered(row, atBound);
+        }
+    }
+
+    private void releaseRemembered(Row row, boolean atBound) {
+        Row[] chain = row.remembered;
+        row.remembered = null;
+        if (chain != null) {
+            long bytes = referenceArrayBytes(chain.length);
+            row.bytes -= bytes;
+            release(bytes);
+            for (Row ancestor : chain) {
+                if (ancestor != null && --ancestor.holders == 0 && ancestor.listed == false && ancestor.destroyed == false) {
+                    destroyRemembered(ancestor, atBound);
+                }
+            }
+        }
+    }
+
+    private void expireRemembered(Row row) {
+        // Expired references cannot keep row metadata alive after its values leave the window.
+        KeyState state = row.state;
+        for (Ring ring : state.rings) {
+            for (int position = 0; position < size(ring); position++) {
+                Row holder = ring.rows[position];
+                if (holder.remembered != null && holder.stage > row.stage && holder.remembered[row.stage] == row) {
+                    holder.remembered[row.stage] = null;
+                    row.holders--;
+                }
+            }
+        }
+        if (row.listed) {
+            unlist(row, false);
+        } else {
+            destroyRemembered(row, false);
+        }
+    }
+
+    private void destroyRemembered(Row row, boolean atBound) {
+        assert row.listed == false && row.holders == 0 && row.remembered == null && row.destroyed == false;
+        row.destroyed = true;
+        expiry.remove(row);
+        if (row.stage == 0 && row.used == false) {
+            unusedStarts.remove(row);
+        }
+        KeyState state = row.state;
+        Ring ring = state.rings[row.stage];
+        int position = 0;
+        while (ring.kept[position] != row) {
+            position++;
+        }
+        System.arraycopy(ring.kept, position + 1, ring.kept, position, ring.keptSize - position - 1);
+        ring.kept[--ring.keptSize] = null;
+        if (atBound) {
+            recordBoundDrop(state);
+        }
+        try {
+            row.releaseValues();
+        } finally {
+            release(row.bytes);
+            if (row.document != null && --row.document.records == 0) {
+                state.documents.remove(row.document.ordinal);
+                release(row.document.bytes);
+            }
+            if (--state.records == 0) {
+                keys.remove(state.key);
+                release(state.bytes);
             }
         }
     }
@@ -395,7 +606,11 @@ final class SequenceLatestValidMatcher implements SequencePairing {
     private void prune(SequenceOrdinal watermark) {
         while (expiry.isEmpty() == false && watermark.exceedsSpan(expiry.first().ordinal, maxSpanNanos)) {
             checkCancelled();
-            remove(expiry.first());
+            if (rememberChains) {
+                expireRemembered(expiry.first());
+            } else {
+                remove(expiry.first());
+            }
             expiredCandidates = Math.incrementExact(expiredCandidates);
         }
     }
@@ -429,12 +644,18 @@ final class SequenceLatestValidMatcher implements SequencePairing {
         }
     }
 
-    private boolean search(KeyState state) {
+    /**
+     * Search exactly the earlier stages of this terminal row, preserving traversal and charged-visit order.
+     * Arrival abandonment is distinct from a miss because it must admit the row without a remembered chain.
+     */
+    private boolean search(KeyState state, int terminal) {
         long steps = 0;
+        searchAbandoned = false;
+        long limit = arrivalSearch ? config.arrivalStepLimit() : searchStepLimit;
         try {
-            int stage = stages - 2;
-            positions[stage] = size(state.rings[stage]) - 1;
-            while (stage < stages - 1) {
+            int stage = terminal - 1;
+            positions[stage] = poolSize(state.rings[stage]) - 1;
+            while (stage < terminal) {
                 // Checking every loop also bounds cancellation during scans consisting only of used markers.
                 checkCancelled();
                 if (positions[stage] < 0) {
@@ -442,17 +663,25 @@ final class SequenceLatestValidMatcher implements SequencePairing {
                     stage++;
                     continue;
                 }
-                Row row = state.rings[stage].rows[positions[stage]--];
+                Row row = poolRow(state.rings[stage], positions[stage]--);
                 if (row.used) {
                     continue;
                 }
-                if (steps == searchStepLimit) {
+                if (steps == limit) {
                     // Exhaustion at the budget is a miss. Only another unused candidate requires abandonment.
                     abandonedSearches = Math.incrementExact(abandonedSearches);
+                    searchAbandoned = true;
+                    if (arrivalSearch) {
+                        arrivalSearchesAbandoned = Math.incrementExact(arrivalSearchesAbandoned);
+                    }
                     return false;
                 }
                 steps++;
-                searchSteps = Math.incrementExact(searchSteps);
+                if (arrivalSearch) {
+                    arrivalSearchSteps = Math.incrementExact(arrivalSearchSteps);
+                } else {
+                    searchSteps = Math.incrementExact(searchSteps);
+                }
                 selected[stage] = row;
                 if (validAt(stage) == false) {
                     selected[stage] = null;
@@ -462,11 +691,13 @@ final class SequenceLatestValidMatcher implements SequencePairing {
                     return true;
                 }
                 stage--;
-                positions[stage] = size(state.rings[stage]) - 1;
+                positions[stage] = poolSize(state.rings[stage]) - 1;
             }
             return false;
         } finally {
-            maxSearchStepsPerFinalRow = Math.max(maxSearchStepsPerFinalRow, steps);
+            if (arrivalSearch == false) {
+                maxSearchStepsPerFinalRow = Math.max(maxSearchStepsPerFinalRow, steps);
+            }
         }
     }
 
@@ -481,7 +712,7 @@ final class SequenceLatestValidMatcher implements SequencePairing {
         }
         for (var group : config.groups()) {
             checkCancelled();
-            if (group.minReferencedStage() == stage && evaluate(group) == false) {
+            if (group.ownStage() <= terminalStage && group.minReferencedStage() == stage && evaluate(group) == false) {
                 return false;
             }
         }
@@ -493,13 +724,16 @@ final class SequenceLatestValidMatcher implements SequencePairing {
     }
 
     private SequenceOrdinal ordinalAt(int stage) {
-        return stage == stages - 1 ? finalOrdinal : selected[stage].ordinal;
+        return stage == terminalStage ? finalOrdinal : selected[stage].ordinal;
     }
 
     private boolean evaluate(SequenceLatestValidConfig.PredicateGroup group) {
         currentGroup = group;
         try {
             conditionEvaluations = Math.incrementExact(conditionEvaluations);
+            if (arrivalSearch) {
+                conditionEvaluationsOnArrival = Math.incrementExact(conditionEvaluationsOnArrival);
+            }
             return group.predicate().test(view);
         } finally {
             currentGroup = null;
@@ -513,9 +747,9 @@ final class SequenceLatestValidMatcher implements SequencePairing {
             Row emitted = selected[stage];
             directTarget(emitted);
             Ring ring = state.rings[stage];
-            for (int position = 0; position < size(ring); position++) {
+            for (int position = 0; position < poolSize(ring); position++) {
                 checkCancelled();
-                Row row = ring.rows[position];
+                Row row = poolRow(ring, position);
                 if (row.used || row == emitted) {
                     continue;
                 }
@@ -569,9 +803,9 @@ final class SequenceLatestValidMatcher implements SequencePairing {
     private void commitUsed(KeyState state) {
         for (Ring ring : state.rings) {
             checkCancelled();
-            for (int position = 0; position < size(ring); position++) {
+            for (int position = 0; position < poolSize(ring); position++) {
                 checkCancelled();
-                Row row = ring.rows[position];
+                Row row = poolRow(ring, position);
                 if (row.used == false
                     && (row.directGeneration == generation
                         || (row.document != null
@@ -718,6 +952,33 @@ final class SequenceLatestValidMatcher implements SequencePairing {
         breaker.addWithoutBreaking(-bytes, LABEL);
     }
 
+    private int poolSize(Ring ring) {
+        return rememberChains ? (ring == null ? 0 : ring.keptSize) : size(ring);
+    }
+
+    private Row poolRow(Ring ring, int position) {
+        return rememberChains ? ring.kept[position] : ring.rows[position];
+    }
+
+    /** Matcher-local measurements. The kept peak is sampled after list trimming. */
+    record AdmissionCounters(
+        long candidatesNotKept,
+        long arrivalSearchesAbandoned,
+        long arrivalSearchSteps,
+        long conditionEvaluationsOnArrival,
+        long peakCandidatesKeptPerKey
+    ) {}
+
+    AdmissionCounters admissionCounters() {
+        return new AdmissionCounters(
+            candidatesNotKept,
+            arrivalSearchesAbandoned,
+            arrivalSearchSteps,
+            conditionEvaluationsOnArrival,
+            peakCandidatesKeptPerKey
+        );
+    }
+
     private static int size(Ring ring) {
         return ring == null ? 0 : ring.size;
     }
@@ -763,9 +1024,9 @@ final class SequenceLatestValidMatcher implements SequencePairing {
                 if (keys != null) {
                     for (KeyState state : keys.values()) {
                         for (Ring ring : state.rings) {
-                            for (int position = 0; position < size(ring); position++) {
+                            for (int position = 0; position < poolSize(ring); position++) {
                                 try {
-                                    ring.rows[position].releaseValues();
+                                    poolRow(ring, position).releaseValues();
                                 } catch (RuntimeException | Error e) {
                                     if (failure == null) {
                                         failure = e;
@@ -805,7 +1066,7 @@ final class SequenceLatestValidMatcher implements SequencePairing {
             if (currentGroup == null || (stage != currentGroup.ownStage() && currentGroup.referencedStages().contains(stage) == false)) {
                 throw new IllegalArgumentException("sequence predicate accessed an undeclared stage");
             }
-            SequenceCandidateValues values = stage == stages - 1 ? finalValues : selected[stage].values;
+            SequenceCandidateValues values = stage == terminalStage ? finalValues : selected[stage].values;
             if (values == null) {
                 throw new IllegalArgumentException("sequence predicate accessed a missing mandatory value");
             }
@@ -834,6 +1095,8 @@ final class SequenceLatestValidMatcher implements SequencePairing {
     private static final class Ring {
         private Row[] rows = EMPTY_ROWS;
         private int size;
+        private Row[] kept = EMPTY_ROWS;
+        private int keptSize;
     }
 
     private static final class DocState {
@@ -860,6 +1123,10 @@ final class SequenceLatestValidMatcher implements SequencePairing {
         private long bytes;
         private long directGeneration;
         private boolean used;
+        private boolean listed;
+        private boolean destroyed;
+        private int holders;
+        private Row[] remembered;
 
         private Row(
             KeyState state,

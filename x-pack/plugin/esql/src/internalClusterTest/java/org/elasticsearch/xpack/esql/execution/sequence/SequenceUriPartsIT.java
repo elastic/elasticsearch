@@ -15,6 +15,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.compute.operator.OperatorStatus;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.TransportService;
@@ -127,6 +129,20 @@ public class SequenceUriPartsIT extends AbstractSequenceIntegTestCase {
         );
     }
 
+    public void testUriOutputsFeedLaterExpressionsAndTrailingProjection() {
+        String index = "sequence-uri-later-expressions";
+        createFixture(index);
+        String pipeline = "URI_PARTS parsed=url"
+            + " | EVAL next_port=parsed.port + 1,lower_domain=TO_LOWER(parsed.domain)"
+            + " | RENAME parsed.domain AS copied_domain"
+            + " | KEEP id,copied_domain,next_port,lower_domain";
+        assertParity(
+            observe(stage(index, "B", "") + " | " + pipeline + " | LIMIT 100"),
+            observe(sequence(index, 2, "KEEP id", pipeline) + " | KEEP id,copied_domain,next_port,lower_domain | LIMIT 100"),
+            URLS.size() + 4
+        );
+    }
+
     /** A URI output can participate in a key and a native cross-member condition without a separate reader. */
     public void testDerivedKeyAndConditionUseOrdinaryUriValues() {
         String index = "sequence-uri-derived";
@@ -137,8 +153,40 @@ public class SequenceUriPartsIT extends AbstractSequenceIntegTestCase {
         );
         String correlated = sequence(index, 1, selected, selected + " | WHERE parsed.domain==MEMBER(1,parsed.domain)");
         assertParity(ordinary, observe(correlated + " | KEEP id,parsed.domain,parsed.port | LIMIT 100"), 1);
-        String keyed = sequence(index, 1, selected, selected).replace("SEQUENCE BY id", "SEQUENCE BY parsed.domain");
-        assertParity(ordinary, observe(keyed + " | KEEP id,parsed.domain,parsed.port | LIMIT 100"), 1);
+        String unequal = sequence(index, 1, selected, selected + " | WHERE parsed.domain!=MEMBER(1,parsed.domain)");
+        assertParity(
+            observe(
+                stage(index, "A", " AND id==\"u13\"")
+                    + " | URI_PARTS parsed=url | WHERE parsed.domain!=\"example.com\" | KEEP id,parsed.domain,parsed.port | LIMIT 100"
+            ),
+            observe(unequal + " | KEEP id,parsed.domain,parsed.port | LIMIT 100"),
+            0
+        );
+
+        String later = "WHERE id IN (\"u11\",\"u13\") | URI_PARTS parsed=url";
+        String keyed = sequence(index, 1, selected, later).replace("SEQUENCE BY id", "SEQUENCE BY parsed.domain")
+            + " | KEEP id,parsed.domain,parsed.port | LIMIT 100";
+        for (boolean enabled : List.of(false, true)) {
+            var keyPragmas = new QueryPragmas(Settings.builder().put("sequence_key_filter", enabled).put("page_size", 3).build());
+            Observed result = observe(keyed, keyPragmas, true);
+            assertParity(ordinary, result, 1);
+            assertNotNull(result.sourceStatus());
+            long fetched = result.sourceStatus().candidateRowsFetched();
+            assertEquals(3L, fetched);
+            logger.info("uri_parts computed key enabled={} candidate_rows_fetched={}", enabled, fetched);
+        }
+    }
+
+    public void testOrdinaryRequestUsesDefaultUriParts() {
+        String index = "sequence-uri-default";
+        createFixture(index);
+        String uri = "URI_PARTS parsed=url";
+        String columns = " | KEEP id,parsed.domain,parsed.port | LIMIT 100";
+        assertParity(
+            observe(stage(index, "A", "") + " | " + uri + columns, QueryPragmas.EMPTY, false),
+            observe(sequence(index, 1, uri, "KEEP id") + columns, QueryPragmas.EMPTY, false),
+            URLS.size() + 4
+        );
     }
 
     private static String stage(String index, String phase, String predicate) {
@@ -168,12 +216,15 @@ public class SequenceUriPartsIT extends AbstractSequenceIntegTestCase {
     }
 
     private Observed observe(String query) {
+        return observe(query, new QueryPragmas(Settings.builder().put("page_size", 3).build()), false);
+    }
+
+    private Observed observe(String query, QueryPragmas pragmas, boolean profile) {
         var coordinator = randomFrom(clusterService().state().nodes().stream().toList());
         var future = new PlainActionFuture<Observed>();
-        var pragmas = new QueryPragmas(Settings.builder().put("sequence_uri_parts", true).put("page_size", 3).build());
         client(coordinator.getName()).execute(
             EsqlQueryAction.INSTANCE,
-            syncEsqlQueryRequest(query).pragmas(pragmas),
+            syncEsqlQueryRequest(query).pragmas(pragmas).profile(profile),
             ActionListener.wrap(response -> {
                 // The transport listener borrows this response; respondAndRelease owns its eventual release.
                 // Detach every value and warning before returning, without closing an unacquired reference.
@@ -220,12 +271,27 @@ public class SequenceUriPartsIT extends AbstractSequenceIntegTestCase {
                         warningClasses,
                         functionWarnings,
                         rawWarnings,
-                        uncomparedWarnings
+                        uncomparedWarnings,
+                        profile ? sourceStatus(response) : null
                     )
                 );
             }, future::onFailure)
         );
         return future.actionGet(DEFAULT_REQUEST_TIMEOUT);
+    }
+
+    private static SequenceSourceStatus sourceStatus(EsqlQueryResponse response) {
+        assertNotNull(response.profile());
+        var statuses = response.profile()
+            .drivers()
+            .stream()
+            .flatMap(driver -> driver.operators().stream())
+            .map(OperatorStatus::status)
+            .filter(SequenceSourceStatus.class::isInstance)
+            .map(SequenceSourceStatus.class::cast)
+            .toList();
+        assertEquals(1, statuses.size());
+        return statuses.getFirst();
     }
 
     private static Map<String, List<Object>> byId(List<List<Object>> ids, List<List<Object>> rows) {
@@ -317,6 +383,7 @@ public class SequenceUriPartsIT extends AbstractSequenceIntegTestCase {
         Set<String> warningClasses,
         Set<String> functionWarnings,
         List<String> rawWarnings,
-        List<String> uncomparedWarnings
+        List<String> uncomparedWarnings,
+        @Nullable SequenceSourceStatus sourceStatus
     ) {}
 }

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.execution.sequence;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -15,18 +16,28 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.TestBlockFactory;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DateEsField;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
+import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
+import org.elasticsearch.xpack.esql.plan.logical.Sequence;
+import org.elasticsearch.xpack.esql.plan.logical.SequenceStage;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.util.ArrayList;
@@ -116,6 +127,40 @@ public class SequenceKeyFilterTests extends ESTestCase {
         assertEquals(0, breaker.getUsed());
     }
 
+    /** The key of a real optimized URI_PARTS stage has no native field identity for the coordinator predicate. */
+    public void testUriDerivedKeyFallsBackAtCoordinator() {
+        assumeTrue("requires native SEQUENCE", EsqlCapabilities.Cap.SEQUENCE_COMMAND.isEnabled());
+        var configuration = EsqlTestUtils.configuration(QueryPragmas.EMPTY);
+        var mapping = Map.<String, EsField>of(
+            "@timestamp",
+            DateEsField.dateEsField("@timestamp", Map.of(), true, NONE),
+            "url",
+            new EsField("url", DataType.KEYWORD, Map.of(), true, NONE)
+        );
+        var analyzer = EsqlTestUtils.analyzer()
+            .configuration(configuration)
+            .minimumTransportVersion(TransportVersion.current())
+            .addIndex(new EsIndex("events", mapping, Map.of("events", new IndexProperties(IndexMode.STANDARD, 0)), Map.of(), Map.of()));
+        var plan = analyzer.statement("""
+            SEQUENCE BY parsed.domain WITHIN 30s PRIMARY 1
+            (FROM events | URI_PARTS parsed=url), (FROM events | URI_PARTS parsed=url)
+            | KEEP parsed.domain | LIMIT 10
+            """);
+        var optimizer = new LogicalPlanOptimizer(
+            EsqlTestUtils.logicalOptimizerContext(configuration, FoldContext.small(), TransportVersion.current())
+        );
+        var sequence = optimizer.optimize(plan).collect(Sequence.class).getFirst();
+        var later = (SequenceStage) sequence.children().getLast();
+        var input = SequenceStageInput.selection(later, List.of());
+        assertEquals(List.of("parsed.domain"), later.keys().stream().map(Attribute::name).toList());
+        assertTrue(input.source(0).output().stream().anyMatch(attribute -> attribute.name().equals("url")));
+        var breaker = breaker("1mb");
+        try (var filter = SequenceKeyFilter.create(later.keys(), input.source(0).output(), breaker, () -> {})) {
+            assertNull(filter);
+        }
+        assertEquals(0, breaker.getUsed());
+    }
+
     /** Matcher storage can be released after the snapshot, and terminal callbacks may close the query owner repeatedly. */
     public void testSnapshotOwnsBytesAndRefundsOnce() {
         var breaker = breaker("1mb");
@@ -173,9 +218,8 @@ public class SequenceKeyFilterTests extends ESTestCase {
         assertEquals(0, breaker.getUsed());
     }
 
-    /** The qualification overlay must make default requests effective ON while respecting deliberate comparisons. */
-    public void testEffectiveQualificationFlag() {
-        assertEquals(Boolean.getBoolean("tests.sequence_key_filter.forced_on"), new QueryPragmas(Settings.EMPTY).sequenceKeyFilter());
+    public void testEnabledByDefaultAndExplicitSettingsAreHonored() {
+        assertTrue(new QueryPragmas(Settings.EMPTY).sequenceKeyFilter());
         assertFalse(new QueryPragmas(Settings.builder().put("sequence_key_filter", false).build()).sequenceKeyFilter());
         assertTrue(new QueryPragmas(Settings.builder().put("sequence_key_filter", true).build()).sequenceKeyFilter());
     }

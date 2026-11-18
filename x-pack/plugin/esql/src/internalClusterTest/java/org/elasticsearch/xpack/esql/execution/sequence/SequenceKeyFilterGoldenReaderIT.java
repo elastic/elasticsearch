@@ -26,6 +26,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.action.AbstractSequenceIntegTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryTask;
+import org.elasticsearch.xpack.esql.action.SequenceProvenance;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.After;
 
@@ -44,7 +45,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQuery
 
 /**
  * The frozen fifty histories reach the native transport, PIT and stage readers with one physical document per event.
- * This additional QA overlay does not substitute a matcher replay for reader qualification or adopt the remembered rule.
+ * The reader cases use native candidate filtering and the frozen row identity and expansion-rank oracle.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 2)
 public class SequenceKeyFilterGoldenReaderIT extends AbstractSequenceIntegTestCase {
@@ -52,13 +53,55 @@ public class SequenceKeyFilterGoldenReaderIT extends AbstractSequenceIntegTestCa
     private static final String PLAN_SHA256 = "c057616f13465a0e6ec8fccfcfafa1c268eac5f9fd5013957583a368c6708eef";
 
     /** Every original history checks its native rows, physical identity and expanded rank in both explicit flag modes. */
-    public void testAllFiftyNativeHistoriesAgainstTodayWithKeyFilterOffAndOn() throws Exception {
+    public void testNativeHistoriesAgainstTodayWithKeyFilterOffAndOn() throws Exception {
+        assertGoldenHistories(false);
+    }
+
+    public void testNativeKiHistoriesWithKeyFilterOffAndOn() throws Exception {
+        assertGoldenHistories(true);
+    }
+
+    public void testBusyInstallerG41AlertsUsingOrdinaryDefaults() throws Exception {
+        String id = "G41-busy-installer-with-expansion";
+        Map<String, Object> fixture = pinnedCase("golden50-native-plan.json", PLAN_SHA256, id);
+        Map<String, Object> frozen = pinnedCase("pinned-golden-ki-r2.json", INPUT_SHA256, id);
+        assertEquals(8, number(frozen.get("limit")));
+        assertEquals(List.of(List.of("dl", "run", "install")), object(frozen.get("expected")).get("rule"));
+        String index = text(fixture.get("index"));
+        try {
+            createAndSeed(fixture);
+            verifyPhysicalEventAndTokenOrder(fixture);
+            String query = text(fixture.get("query")).replace(" | LIMIT 1000", ",sequence_provenance | LIMIT 1000");
+            Observed observed = observe(query, true, null);
+            List<List<Object>> expected = expectedFromFrozenRows(frozen, "rule");
+            assertEquals(expected, observed.rows());
+            assertEquals(expectedProvenance(expected, index), observed.provenance());
+            assertEquals(1L, observed.status().completedMatches());
+            assertEquals(1L, observed.status().rowsEmitted());
+            assertEquals(List.of(), observed.expressionWarnings());
+        } finally {
+            if (indexExists(index)) {
+                assertAcked(indicesAdmin().prepareDelete(index));
+            }
+        }
+    }
+
+    private Map<String, Object> pinnedCase(String resourceName, String sha256, String id) throws Exception {
+        return list(resource(resourceName, sha256).get("cases")).stream()
+            .map(SequenceKeyFilterGoldenReaderIT::object)
+            .filter(fixture -> id.equals(fixture.get("id")))
+            .findFirst()
+            .orElseThrow();
+    }
+
+    private void assertGoldenHistories(boolean rememberedChains) throws Exception {
         Map<String, Object> original = resource("pinned-golden-ki-r2.json", INPUT_SHA256);
         Map<String, Object> plan = resource("golden50-native-plan.json", PLAN_SHA256);
         List<?> originals = list(original.get("cases"));
         List<?> cases = list(plan.get("cases"));
         assertEquals(50, originals.size());
         assertEquals(50, cases.size());
+        int checked = 0;
         for (int position = 0; position < 50; position++) {
             Map<String, Object> fixture = object(cases.get(position));
             Map<String, Object> frozen = object(originals.get(position));
@@ -68,38 +111,54 @@ public class SequenceKeyFilterGoldenReaderIT extends AbstractSequenceIntegTestCa
             assertEquals(object(frozen.get("counters")).get("today"), fixture.get("fixture_today_counters"));
             assertEquals(number(frozen.get("stages")), number(fixture.get("stages")));
             assertEquals(number(frozen.get("limit")), number(object(fixture.get("pragmas_common")).get("sequence_max_candidates")));
+            if (number(frozen.get("stages")) > 4) {
+                // G47's six-stage work-limit history remains covered by SequenceRememberedGoldenTests.
+                assertTrue(id.startsWith("G47-"));
+                assertEquals(6, number(frozen.get("stages")));
+                assertEquals(131072, number(frozen.get("final_step_limit")));
+                continue;
+            }
             String index = text(fixture.get("index"));
+            String oracle = "today";
+            if (rememberedChains) {
+                // Native queries use the production arrival limit. These three fixtures also pin the
+                // expected outcome without their artificial one-visit arrival limit.
+                oracle = frozen.get("arrival_step_limit") == null ? "rule" : "rule_without_arrival_limit";
+            }
             Throwable primaryFailure = null;
             try {
                 createAndSeed(fixture);
                 verifyPhysicalEventAndTokenOrder(fixture);
                 for (Object controlValue : list(fixture.get("native_stage_controls"))) {
                     Map<String, Object> control = object(controlValue);
-                    Observed actual = observe(text(control.get("query")), fixture, false, false);
+                    Observed actual = observe(text(control.get("query")), fixture, false, false, rememberedChains);
                     assertEquals(id + "/native-stage-" + control.get("stage"), control.get("expected"), actual.rows());
                     assertEquals(List.of(), actual.expressionWarnings());
                     assertReleased();
                 }
-                Observed off = observe(text(fixture.get("query")), fixture, false, true);
+                String query = text(fixture.get("query")).replace(" | LIMIT 1000", ",sequence_provenance | LIMIT 1000");
+                Observed off = observe(query, fixture, false, true, rememberedChains);
                 assertReleased();
-                Observed on = observe(text(fixture.get("query")), fixture, true, true);
+                Observed on = observe(query, fixture, true, true, rememberedChains);
                 assertReleased();
                 // Identity/rank assertions remain tied to the original JSON, not to results from either engine leg.
-                List<List<Object>> expected = expectedFromFrozenRows(frozen);
-                assertEquals(fixture.get("expected_today_rows"), expected);
+                List<List<Object>> expected = expectedFromFrozenRows(frozen, oracle);
+                if (rememberedChains == false) {
+                    assertEquals(fixture.get("expected_today_rows"), expected);
+                    assertEquals(id + "/expression-warning-difference", off.expressionWarnings(), on.expressionWarnings());
+                }
+                List<List<SequenceProvenance.Member>> provenance = expectedProvenance(expected, index);
+                assertEquals(id + "/OFF provenance", provenance, off.provenance());
+                assertEquals(id + "/ON provenance", provenance, on.provenance());
                 assertEquals(id + "/OFF", expected, off.rows());
                 assertEquals(id + "/ON", expected, on.rows());
-                assertEquals(id + "/expression-warning-difference", off.expressionWarnings(), on.expressionWarnings());
                 assertEquals(off.status().completedMatches(), on.status().completedMatches());
                 assertEquals(off.status().rowsEmitted(), on.status().rowsEmitted());
-                if (id.startsWith("G35-")) {
+                if (id.startsWith("G35-") && rememberedChains == false) {
                     assertEquals(List.of(List.of("A3", "B2", "C1")), fixture.get("expected_today_labels"));
                 }
-                if (id.startsWith("G47-")) {
-                    assertEquals(6, number(frozen.get("stages")));
-                    assertEquals(131072, number(frozen.get("final_step_limit")));
-                }
-                logCase(fixture, off, on);
+                logCase(fixture, oracle, off, on);
+                checked++;
             } catch (Exception | Error failure) {
                 primaryFailure = failure;
                 throw failure;
@@ -134,6 +193,7 @@ public class SequenceKeyFilterGoldenReaderIT extends AbstractSequenceIntegTestCa
                 }
             }
         }
+        assertEquals(49, checked);
     }
 
     private void createAndSeed(Map<String, Object> fixture) {
@@ -203,16 +263,24 @@ public class SequenceKeyFilterGoldenReaderIT extends AbstractSequenceIntegTestCa
         }
     }
 
-    private Observed observe(String query, Map<String, Object> fixture, boolean enabled, boolean profile) {
-        // Lower the frozen adapter sentinel operation to native ES|QL syntax; keep pinned inputs unchanged.
-        query = query.replace("NULLIF(encoded_values,\"~\")", "CASE(encoded_values == \"~\", null, encoded_values)");
-        String coordinator = randomFrom(internalCluster().getNodeNames());
+    private Observed observe(String query, Map<String, Object> fixture, boolean enabled, boolean profile, boolean rememberedChains) {
         Settings.Builder settings = Settings.builder();
         for (var entry : object(fixture.get("pragmas_common")).entrySet()) {
             settings.put(entry.getKey(), entry.getValue().toString());
         }
         settings.put("sequence_key_filter", enabled);
-        var request = syncEsqlQueryRequest(query).pragmas(new QueryPragmas(settings.build())).profile(profile).allowPartialResults(false);
+        settings.put("sequence_remembered_chains", rememberedChains);
+        return observe(query, profile, new QueryPragmas(settings.build()));
+    }
+
+    private Observed observe(String query, boolean profile, @Nullable QueryPragmas pragmas) {
+        // Lower the frozen adapter sentinel operation to native ES|QL syntax; keep pinned inputs unchanged.
+        query = query.replace("NULLIF(encoded_values,\"~\")", "CASE(encoded_values == \"~\", null, encoded_values)");
+        String coordinator = randomFrom(internalCluster().getNodeNames());
+        var request = syncEsqlQueryRequest(query).profile(profile).allowPartialResults(false);
+        if (pragmas != null) {
+            request.pragmas(pragmas);
+        }
         var future = new PlainActionFuture<Observed>();
         client(coordinator).execute(EsqlQueryAction.INSTANCE, request, ActionListener.wrap(response -> {
             // The transport releases this borrowed response after the callback; only copied values escape.
@@ -245,7 +313,12 @@ public class SequenceKeyFilterGoldenReaderIT extends AbstractSequenceIntegTestCa
                     .map(warning -> HeaderWarning.extractWarningValueFromWarningHeader(warning, false))
                     .toList();
                 List<String> expressionWarnings = warnings.stream().filter(warning -> warning.startsWith("Line ")).toList();
-                future.onResponse(new Observed(getValuesList(response), warnings, expressionWarnings, status));
+                List<List<Object>> values = getValuesList(response);
+                List<List<SequenceProvenance.Member>> provenance = profile
+                    ? values.stream().map(row -> SequenceProvenance.decode(row.getLast())).toList()
+                    : List.of();
+                List<List<Object>> rows = profile ? values.stream().map(row -> row.subList(0, row.size() - 1)).toList() : values;
+                future.onResponse(new Observed(rows, provenance, warnings, expressionWarnings, status));
             } catch (Exception failure) {
                 future.onFailure(failure);
             }
@@ -253,7 +326,7 @@ public class SequenceKeyFilterGoldenReaderIT extends AbstractSequenceIntegTestCa
         return future.actionGet(TimeValue.timeValueSeconds(60));
     }
 
-    private static List<List<Object>> expectedFromFrozenRows(Map<String, Object> frozen) {
+    private static List<List<Object>> expectedFromFrozenRows(Map<String, Object> frozen, String oracle) {
         Map<String, List<Object>> identities = new LinkedHashMap<>();
         for (Object value : list(frozen.get("rows"))) {
             Map<String, Object> row = object(value);
@@ -264,7 +337,7 @@ public class SequenceKeyFilterGoldenReaderIT extends AbstractSequenceIntegTestCa
             }
         }
         List<List<Object>> expected = new ArrayList<>();
-        for (Object value : list(object(frozen.get("expected")).get("today"))) {
+        for (Object value : list(object(frozen.get("expected")).get(oracle))) {
             List<Object> output = new ArrayList<>();
             for (Object label : list(value)) {
                 output.add(label);
@@ -275,12 +348,24 @@ public class SequenceKeyFilterGoldenReaderIT extends AbstractSequenceIntegTestCa
         return expected;
     }
 
-    private void logCase(Map<String, Object> fixture, Observed off, Observed on) throws IOException {
+    private static List<List<SequenceProvenance.Member>> expectedProvenance(List<List<Object>> rows, String index) {
+        return rows.stream().map(row -> {
+            List<SequenceProvenance.Member> members = new ArrayList<>();
+            for (int offset = 0; offset < row.size(); offset += 3) {
+                members.add(new SequenceProvenance.Member(offset / 3 + 1, index, text(row.get(offset + 1))));
+            }
+            return members;
+        }).toList();
+    }
+
+    private void logCase(Map<String, Object> fixture, String oracle, Observed off, Observed on) throws IOException {
         try (var builder = JsonXContent.contentBuilder()) {
             builder.startObject();
             builder.field("id", fixture.get("id"));
-            builder.field("oracle", "expected.today");
-            builder.field("original_model_counters", fixture.get("fixture_today_counters"));
+            builder.field("oracle", "expected." + oracle);
+            if ("today".equals(oracle)) {
+                builder.field("original_model_counters", fixture.get("fixture_today_counters"));
+            }
             builder.field("off_rows", off.rows());
             builder.field("on_rows", on.rows());
             builder.field("off_warnings", off.warnings());
@@ -344,6 +429,7 @@ public class SequenceKeyFilterGoldenReaderIT extends AbstractSequenceIntegTestCa
 
     private record Observed(
         List<List<Object>> rows,
+        List<List<SequenceProvenance.Member>> provenance,
         List<String> warnings,
         List<String> expressionWarnings,
         @Nullable SequenceSourceStatus status

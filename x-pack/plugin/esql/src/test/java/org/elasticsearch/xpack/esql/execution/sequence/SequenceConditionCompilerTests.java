@@ -48,13 +48,308 @@ import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.containsString;
 
 /** Native scalar evaluators and the real matcher share typed, separately owned one-position candidate values. */
 public class SequenceConditionCompilerTests extends ESTestCase {
+    /** A false data-dependent conjunct does not suppress a warning inside its ordinary compiled AND group. */
+    public void testRememberedArrivalEagerAndWarnsForRowNotKept() {
+        Source source = new Source(1, 0, "TO_LONG(MEMBER(1,a)) == 1");
+        Attribute a = attribute("a", DataType.KEYWORD);
+        Attribute b = attribute("b", DataType.INTEGER);
+        var first = input(0, a);
+        var own = input(1, b);
+        var condition = new SequenceCondition(
+            source,
+            local(b),
+            1,
+            new And(
+                source,
+                new Equals(source, own.reference(), new Literal(Source.EMPTY, 1, DataType.INTEGER)),
+                new Equals(
+                    source,
+                    new org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong(source, first.reference()),
+                    new Literal(Source.EMPTY, 1L, DataType.LONG)
+                )
+            ),
+            List.of(0),
+            List.of(first, own)
+        );
+        try (Resources resources = new Resources("1mb")) {
+            resources.context.setWarningsBudget(new Warnings.Budget());
+            try (var compiler = compile(sequence(local(a), condition, local()), resources)) {
+                var config = compiler.config().withRememberedChains(true);
+                assertEquals(1, config.groups().size());
+                try (
+                    var matcher = new SequenceLatestValidMatcher(
+                        3,
+                        TimeValue.timeValueSeconds(10),
+                        resources.breaker,
+                        () -> false,
+                        BytesRef::compareTo,
+                        null,
+                        config
+                    )
+                ) {
+                    assertNull(add(matcher, config, resources, 0, 0, "A", new BytesRef("not-a-number")));
+                    assertNull(add(matcher, config, resources, 1, 1, "not-kept-B", 0));
+                    assertEquals(1L, matcher.admissionCounters().candidatesNotKept());
+                    assertEquals(1L, matcher.admissionCounters().conditionEvaluationsOnArrival());
+                    assertEquals(0L, matcher.boundDrops());
+                    assertEquals(1, matcher.retainedCandidates());
+                }
+            }
+            resources.context.finish();
+            assertEquals(2, resources.context.warnings().size());
+            assertThat(resources.context.warnings().getFirst(), containsString("TO_LONG(MEMBER(1,a))"));
+            assertTrue(resources.context.warnings().stream().anyMatch(warning -> warning.contains("not-a-number")));
+        }
+    }
+
+    /** The warning integration fixture's admission work is measured directly on the matcher. */
+    public void testRememberedArrivalCountersForRejectedWarningRow() {
+        Source source = new Source(1, 0, "TO_LONG(text)");
+        Attribute a = attribute("a_value", DataType.LONG);
+        Attribute b = attribute("b_value", DataType.LONG);
+        Attribute text = attribute("text", DataType.KEYWORD);
+        Attribute c = attribute("c_value", DataType.LONG);
+        var first = input(0, a);
+        var second = input(1, b);
+        var secondText = input(1, text);
+        var third = input(2, c);
+        Sequence sequence = sequence(
+            local(a),
+            new SequenceCondition(
+                source,
+                local(b, text),
+                1,
+                new And(
+                    source,
+                    new Equals(source, second.reference(), first.reference()),
+                    new Equals(
+                        source,
+                        new org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong(source, secondText.reference()),
+                        first.reference()
+                    )
+                ),
+                List.of(0),
+                List.of(first, second, secondText)
+            ),
+            new SequenceCondition(
+                Source.EMPTY,
+                local(c),
+                2,
+                new Equals(Source.EMPTY, third.reference(), first.reference()),
+                List.of(0),
+                List.of(first, third)
+            )
+        );
+        for (boolean withRejected : List.of(true, false)) {
+            try (Resources resources = new Resources("1mb")) {
+                resources.context.setWarningsBudget(new Warnings.Budget());
+                try (var compiler = compile(sequence, resources)) {
+                    var config = compiler.config().withRememberedChains(true);
+                    try (
+                        var matcher = new SequenceLatestValidMatcher(
+                            3,
+                            TimeValue.timeValueSeconds(10),
+                            resources.breaker,
+                            () -> false,
+                            BytesRef::compareTo,
+                            null,
+                            config
+                        )
+                    ) {
+                        assertNull(addArrivalRow(matcher, config, resources, 0, 0, "A1", Map.of(a, 7L)));
+                        if (withRejected) {
+                            assertNull(
+                                addArrivalRow(
+                                    matcher,
+                                    config,
+                                    resources,
+                                    1,
+                                    1,
+                                    "bad-middle",
+                                    Map.of(b, 0L, text, new BytesRef("not-a-number"))
+                                )
+                            );
+                        }
+                        assertNull(addArrivalRow(matcher, config, resources, 1, 2, "good-middle", Map.of(b, 7L, text, new BytesRef("7"))));
+                        var admission = matcher.admissionCounters();
+                        assertEquals(withRejected ? 1L : 0L, admission.candidatesNotKept());
+                        assertEquals(withRejected ? 2L : 1L, admission.conditionEvaluationsOnArrival());
+                        try (var match = addArrivalRow(matcher, config, resources, 2, 3, "C1", Map.of(c, 7L))) {
+                            assertNotNull(match);
+                            assertEquals(List.of("A1", "good-middle", "C1"), match.handles().stream().map(BytesRef::utf8ToString).toList());
+                        }
+                        assertEquals(admission, matcher.admissionCounters());
+                    }
+                }
+                resources.context.finish();
+                assertEquals(withRejected ? 2 : 0, resources.context.warnings().size());
+            }
+        }
+    }
+
+    private static SequenceMatch addArrivalRow(
+        SequenceLatestValidMatcher matcher,
+        SequenceLatestValidConfig config,
+        Resources resources,
+        int stage,
+        int time,
+        String handle,
+        Map<Attribute, Object> byAttribute
+    ) {
+        var demands = config.mandatoryDemands().get(stage);
+        Object[] row = demands.stream().map(demand -> byAttribute.get(demand.attribute())).toArray();
+        try (Page page = page(resources, row)) {
+            SequenceCandidateValues values = SequenceCandidateValues.copyRow(
+                page,
+                0,
+                demands,
+                IntStream.range(0, row.length).toArray(),
+                resources.blocks,
+                resources.breaker
+            );
+            return matcher.match(stage, new BytesRef("k1"), new SequenceOrdinal(time, 0, time), new BytesRef(handle), values);
+        }
+    }
+
+    /** A native scalar error on arrival releases a remembered-only start as well as listed cells. */
+    public void testRememberedOnlyCleanupAfterNativeConcatErrorOnArrival() {
+        Attribute a = attribute("a", DataType.KEYWORD);
+        Attribute b = attribute("b", DataType.KEYWORD);
+        var first = input(0, a);
+        var own = input(1, b);
+        Source source = new Source(1, 0, "CONCAT(MEMBER(1,a),b) != \"never\"");
+        var condition = new SequenceCondition(
+            source,
+            local(b),
+            1,
+            new org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals(
+                source,
+                new org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat(
+                    source,
+                    first.reference(),
+                    List.of(own.reference())
+                ),
+                new Literal(Source.EMPTY, new BytesRef("never"), DataType.KEYWORD)
+            ),
+            List.of(0),
+            List.of(first, own)
+        );
+        Sequence sequence = sequence(local(a), condition, local());
+        SequenceMemoryBudget budget = new SequenceMemoryBudget(20_000_000);
+        try (
+            Resources resources = new Resources("32mb");
+            var compiler = SequenceConditionCompiler.compile(sequence, 2, FoldContext.small(), resources.context, null)
+        ) {
+            var config = compiler.config().withRememberedChains(true);
+            try (
+                var matcher = new SequenceLatestValidMatcher(
+                    3,
+                    TimeValue.timeValueSeconds(10),
+                    budget.newScope().breaker(resources.breaker),
+                    () -> false,
+                    BytesRef::compareTo,
+                    null,
+                    config
+                )
+            ) {
+                BytesRef large = new BytesRef("a".repeat(600_000));
+                assertNull(add(matcher, config, resources, 0, 0, "A0", large));
+                assertNull(add(matcher, config, resources, 1, 1, "B0", new BytesRef("short")));
+                assertNull(add(matcher, config, resources, 0, 2, "A1", large));
+                assertNull(add(matcher, config, resources, 0, 3, "A2", large));
+                assertEquals(4, matcher.retainedCandidates());
+                assertEquals(0L, matcher.boundDrops());
+                var failure = expectThrows(
+                    org.elasticsearch.xpack.esql.EsqlClientException.class,
+                    () -> add(matcher, config, resources, 1, 4, "failing-B", large)
+                );
+                assertThat(failure.getMessage(), containsString("concatenating more than [1048576] bytes is not supported"));
+                assertEquals(0, matcher.retainedCandidates());
+                assertEquals(0L, budget.currentBytes());
+                matcher.close();
+                assertEquals(0L, budget.currentBytes());
+            }
+        }
+    }
+
+    /** Arrival binds each actual terminal and never reads a later owner's unbound input. */
+    public void testRememberedArrivalUsesTwoMiddleTerminalsAndRechecksAtFinal() {
+        Attribute a = attribute("a", DataType.INTEGER);
+        Attribute b = attribute("b", DataType.INTEGER);
+        Attribute c = attribute("c", DataType.INTEGER);
+        Attribute d = attribute("d", DataType.INTEGER);
+        var first = input(0, a);
+        var second = input(1, b);
+        var third = input(2, c);
+        var fourth = input(3, d);
+        Sequence sequence = sequence(
+            local(a),
+            new SequenceCondition(
+                Source.EMPTY,
+                local(b),
+                1,
+                new Equals(Source.EMPTY, first.reference(), second.reference()),
+                List.of(0),
+                List.of(first, second)
+            ),
+            new SequenceCondition(
+                Source.EMPTY,
+                local(c),
+                2,
+                new Equals(Source.EMPTY, first.reference(), third.reference()),
+                List.of(0),
+                List.of(first, third)
+            ),
+            new SequenceCondition(
+                Source.EMPTY,
+                local(d),
+                3,
+                new Equals(Source.EMPTY, first.reference(), fourth.reference()),
+                List.of(0),
+                List.of(first, fourth)
+            )
+        );
+        try (Resources resources = new Resources("1mb"); var compiler = compile(sequence, resources)) {
+            var config = compiler.config().withRememberedChains(true);
+            assertEquals(3, config.groups().size());
+            try (
+                var matcher = new SequenceLatestValidMatcher(
+                    4,
+                    TimeValue.timeValueSeconds(10),
+                    resources.breaker,
+                    () -> false,
+                    BytesRef::compareTo,
+                    null,
+                    config
+                )
+            ) {
+                assertNull(add(matcher, config, resources, 0, 0, "A", 7));
+                assertNull(add(matcher, config, resources, 1, 1, "bad-B", 8));
+                assertEquals(1L, matcher.admissionCounters().candidatesNotKept());
+                assertEquals(1L, matcher.admissionCounters().conditionEvaluationsOnArrival());
+                assertNull(add(matcher, config, resources, 1, 2, "B", 7));
+                assertEquals(2L, matcher.admissionCounters().conditionEvaluationsOnArrival());
+                assertNull(add(matcher, config, resources, 2, 3, "C", 7));
+                assertEquals(4L, matcher.admissionCounters().conditionEvaluationsOnArrival());
+                try (var match = add(matcher, config, resources, 3, 4, "D", 7)) {
+                    assertNotNull(match);
+                    assertEquals(List.of("A", "B", "C", "D"), match.handles().stream().map(BytesRef::utf8ToString).toList());
+                }
+                assertEquals(7L, matcher.latestValidCounters().conditionEvaluations());
+                assertEquals(4L, matcher.admissionCounters().conditionEvaluationsOnArrival());
+            }
+        }
+    }
+
     /** Returned evaluator blocks are Source-owned even when a failed admission closes them immediately. */
     public void testReturnedBooleanBlockAdmissionFailureReleasesResultAndBorrowedInputs() throws Exception {
         Attribute first = attribute("first", DataType.INTEGER);

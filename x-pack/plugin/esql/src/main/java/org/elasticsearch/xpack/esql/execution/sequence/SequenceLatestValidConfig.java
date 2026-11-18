@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.execution.sequence;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.elasticsearch.xpack.esql.plan.logical.Sequence;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -27,6 +28,8 @@ final class SequenceLatestValidConfig {
 
     private final OptionalInt maxCandidates;
     private final long searchStepLimit;
+    private long arrivalStepLimit;
+    private boolean rememberChains;
     private final boolean testOnly;
     private final List<List<ValueDemand>> mandatoryDemands;
     private final List<PredicateGroup> groups;
@@ -44,6 +47,7 @@ final class SequenceLatestValidConfig {
         }
         this.maxCandidates = maxCandidates;
         this.searchStepLimit = searchStepLimit;
+        arrivalStepLimit = searchStepLimit;
         this.testOnly = testOnly;
         List<List<ValueDemand>> copy = new ArrayList<>(demands.size());
         for (List<ValueDemand> stage : demands) {
@@ -65,7 +69,8 @@ final class SequenceLatestValidConfig {
     }
 
     static SequenceLatestValidConfig defaults(List<List<ValueDemand>> demands, List<PredicateGroup> groups) {
-        return bounded(defaultCandidates(demands.size()), demands, groups);
+        validateProductionStageCount(demands.size());
+        return bounded(DEFAULT_MAX_CANDIDATES, demands, groups);
     }
 
     static SequenceLatestValidConfig bounded(int maxCandidates, List<List<ValueDemand>> demands, List<PredicateGroup> groups) {
@@ -88,12 +93,36 @@ final class SequenceLatestValidConfig {
         return new SequenceLatestValidConfig(OptionalInt.of(maxCandidates), searchStepLimit, true, demands, groups);
     }
 
-    /** The complete default search stays below the step limit for every supported stage count. */
-    static int defaultCandidates(int stages) {
-        if (stages < 2) {
-            throw new IllegalArgumentException("sequence requires at least two stages");
+    /**
+     * Select the experimental admission rule. Its default supports at most four stages, whose final search
+     * takes at most 3,208 steps at the default candidate bound.
+     */
+    SequenceLatestValidConfig withRememberedChains(boolean enabled) {
+        rememberChains = enabled;
+        return this;
+    }
+
+    /** Separate arrival work cap is reserved for direct matcher tests. */
+    SequenceLatestValidConfig withArrivalLimitForTests(long limit) {
+        if (testOnly == false || limit < 1) {
+            throw new IllegalArgumentException("arrival work override requires a positive test-only limit");
         }
-        return 1 << Math.min(Integer.numberOfTrailingZeros(DEFAULT_MAX_CANDIDATES), 16 / (stages - 1));
+        arrivalStepLimit = limit;
+        return this;
+    }
+
+    boolean rememberChains() {
+        return rememberChains;
+    }
+
+    long arrivalStepLimit() {
+        return arrivalStepLimit;
+    }
+
+    static void validateProductionStageCount(int stages) {
+        if (stages > Sequence.MAX_EXECUTION_STAGES) {
+            throw new IllegalArgumentException("SEQUENCE supports at most [" + Sequence.MAX_EXECUTION_STAGES + "] stages");
+        }
     }
 
     /** The hidden setting retains its previous ceiling for tests and measurements above the default. */
@@ -121,7 +150,8 @@ final class SequenceLatestValidConfig {
 
     /** Ordinary exceptions enforce this boundary even when assertions and snapshot checks are disabled. */
     void validateForProduction(int stages) {
-        if (testOnly || maxCandidates.isEmpty() || searchStepLimit != SEARCH_STEP_LIMIT) {
+        validateProductionStageCount(stages);
+        if (testOnly || maxCandidates.isEmpty() || searchStepLimit != SEARCH_STEP_LIMIT || arrivalStepLimit != SEARCH_STEP_LIMIT) {
             throw new IllegalArgumentException("test-only SEQUENCE limits cannot be used by a source operator");
         }
         if (mandatoryDemands.size() != stages) {
@@ -143,7 +173,16 @@ final class SequenceLatestValidConfig {
                 }
             }));
         }
-        return new SequenceLatestValidConfig(maxCandidates, searchStepLimit, testOnly, mandatoryDemands, wrapped);
+        SequenceLatestValidConfig profiled = new SequenceLatestValidConfig(
+            maxCandidates,
+            searchStepLimit,
+            testOnly,
+            mandatoryDemands,
+            wrapped
+        );
+        profiled.rememberChains = rememberChains;
+        profiled.arrivalStepLimit = arrivalStepLimit;
+        return profiled;
     }
 
     long searchStepLimit() {

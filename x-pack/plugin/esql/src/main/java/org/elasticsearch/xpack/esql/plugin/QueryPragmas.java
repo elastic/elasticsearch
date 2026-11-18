@@ -259,16 +259,19 @@ public final class QueryPragmas implements Writeable {
 
     /**
      * Hidden bounded override for native SEQUENCE qualification and cost measurements. The Setting default is never
-     * consumed: sequenceMaxCandidates() preserves absence so the source can choose min(8, the stage-count ceiling).
-     * Keep this private so callers cannot accidentally bypass that stage-dependent default through Setting.get().
+     * consumed: sequenceMaxCandidates() preserves absence so the source can use its default.
+     * Keep this private so callers cannot accidentally bypass the explicit-override check through Setting.get().
      */
+    /** Remembered-chain admission is the default. Setting this to false selects the legacy rule. */
+    private static final Setting<Boolean> SEQUENCE_REMEMBERED_CHAINS = Setting.boolSetting("sequence_remembered_chains", true);
+
     private static final Setting<Integer> SEQUENCE_MAX_CANDIDATES = Setting.intSetting("sequence_max_candidates", 8, 1, 1024);
 
-    /** Hidden opt-in for qualifying the existing URI_PARTS operator inside a native SEQUENCE stage. */
-    private static final Setting<Boolean> SEQUENCE_URI_PARTS = Setting.boolSetting("sequence_uri_parts", false);
+    /** Hidden override for URI_PARTS inside a native SEQUENCE stage. */
+    private static final Setting<Boolean> SEQUENCE_URI_PARTS = Setting.boolSetting("sequence_uri_parts", true);
 
-    /** Hidden experimental source pruning; ordinary candidate reads remain the default. */
-    private static final Setting<Boolean> SEQUENCE_KEY_FILTER = Setting.boolSetting("sequence_key_filter", false);
+    /** Hidden override for optional source key pruning. */
+    private static final Setting<Boolean> SEQUENCE_KEY_FILTER = Setting.boolSetting("sequence_key_filter", true);
 
     public static final QueryPragmas EMPTY = new QueryPragmas(Settings.EMPTY);
 
@@ -301,6 +304,7 @@ public final class QueryPragmas implements Writeable {
         SEQUENCE_MAX_CANDIDATES,
         SEQUENCE_URI_PARTS,
         SEQUENCE_KEY_FILTER,
+        SEQUENCE_REMEMBERED_CHAINS,
         PlannerSettings.TIME_SERIES_TARGET_CHUNK_ROWS,
         PlannerSettings.AGG_PARTITIONING_COUNT_THRESHOLD,
         SINGLE_NODE_OPTIMIZATIONS
@@ -333,7 +337,12 @@ public final class QueryPragmas implements Writeable {
         return settings;
     }
 
-    /** Absence lets SEQUENCE choose its stage-dependent default; explicit overrides must be positive. */
+    /** Selects conditions-on-arrival admission. */
+    public boolean sequenceRememberedChains() {
+        return SEQUENCE_REMEMBERED_CHAINS.get(settings);
+    }
+
+    /** Absence selects the default candidate bound; explicit overrides must be positive. */
     public OptionalInt sequenceMaxCandidates() {
         return SEQUENCE_MAX_CANDIDATES.exists(settings) ? OptionalInt.of(SEQUENCE_MAX_CANDIDATES.get(settings)) : OptionalInt.empty();
     }

@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlAsyncGetResultAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.action.EsqlQueryTask;
+import org.elasticsearch.xpack.esql.action.EsqlSequenceKeyFilterProfileHeaders;
 import org.elasticsearch.xpack.esql.core.plugin.AbstractTransportQlAsyncGetResultsAction;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
@@ -88,6 +89,7 @@ public class TransportEsqlAsyncGetResultsAction extends AbstractTransportQlAsync
             @Override
             public void onResponse(EsqlQueryResponse response) {
                 boolean isRunning = response.isRunning();
+                EsqlSequenceKeyFilterProfileHeaders.add(threadPool.getThreadContext(), response);
                 threadPool.getThreadContext()
                     .addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_IS_RUNNING_HEADER, isRunning ? "?1" : "?0");
                 threadPool.getThreadContext().addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_ID_HEADER, asyncExecutionId);

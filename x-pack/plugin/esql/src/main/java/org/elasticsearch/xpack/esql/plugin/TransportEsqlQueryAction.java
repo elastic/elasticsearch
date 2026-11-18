@@ -65,6 +65,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.action.EsqlQueryTask;
 import org.elasticsearch.xpack.esql.action.EsqlResponseListener;
+import org.elasticsearch.xpack.esql.action.EsqlSequenceKeyFilterProfileHeaders;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.core.async.AsyncTaskManagementService;
 import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
@@ -448,6 +449,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                 assert response.isAsync() == request.async() : "The response must be async if the request was async";
 
                 if (response.isAsync()) {
+                    EsqlSequenceKeyFilterProfileHeaders.add(threadPool.getThreadContext(), response);
                     if (response.asyncExecutionId().isPresent()) {
                         String asyncExecutionId = response.asyncExecutionId().get();
                         threadPool.getThreadContext().addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_ID_HEADER, asyncExecutionId);

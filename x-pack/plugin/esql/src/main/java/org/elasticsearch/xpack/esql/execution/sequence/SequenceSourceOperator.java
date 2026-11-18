@@ -165,10 +165,7 @@ public final class SequenceSourceOperator extends SourceOperator {
     }
 
     private static int configuredBound(Factory factory) {
-        int stages = factory.plan.sequence().children().size();
-        int bound = factory.configuration.pragmas().sequenceMaxCandidates().orElse(SequenceLatestValidConfig.defaultCandidates(stages));
-        SequenceLatestValidConfig.validateCandidateBound(bound, stages);
-        return bound;
+        return factory.configuration.pragmas().sequenceMaxCandidates().orElse(SequenceLatestValidConfig.DEFAULT_MAX_CANDIDATES);
     }
 
     /** Request-scoped dependencies; each driver gets a separate matcher, snapshot and cursor set. */
@@ -222,7 +219,9 @@ public final class SequenceSourceOperator extends SourceOperator {
 
         /** Compiles conditions per source and transfers evaluator ownership after successful source construction. */
         SourceOperator getWithConditions(DriverContext context, int maxCandidates, @Nullable AnalysisRegistry analysisRegistry) {
-            SequenceLatestValidConfig.validateCandidateBound(maxCandidates, plan.sequence().children().size());
+            int stages = plan.sequence().children().size();
+            SequenceLatestValidConfig.validateProductionStageCount(stages);
+            SequenceLatestValidConfig.validateCandidateBound(maxCandidates, stages);
             MemoryAccounting accounting = memoryAccounting(this, context);
             var conditions = SequenceConditionCompiler.compile(
                 plan.sequence(),
@@ -272,6 +271,8 @@ public final class SequenceSourceOperator extends SourceOperator {
     private final Sequence sequence;
     private final SequencePairing matcher;
     private final SequenceRuntimeProfiler profiler;
+    @Nullable
+    private final SequenceKeyFilterProfile keyFilterProfile;
     private final SequenceMemoryBudget memoryBudget;
     private final Releasable conditionResources;
     private final SequenceExecutionInfo executionInfo;
@@ -338,7 +339,11 @@ public final class SequenceSourceOperator extends SourceOperator {
             throw new IllegalArgumentException("SEQUENCE snapshot keep-alive must be positive");
         }
         sequence = factory.plan.sequence();
+        SequenceLatestValidConfig.validateProductionStageCount(sequence.children().size());
         profiler = new SequenceRuntimeProfiler(factory.configuration.profile(), sequence.children().size());
+        keyFilterProfile = factory.configuration.profile()
+            && factory.configuration.pragmas().sequenceKeyFilter()
+            && factory.executionInfo != null ? factory.executionInfo.queryProfile().prepareSequenceKeyFilterProfile() : null;
         if (latestValid == null) {
             if (sequence.hasConditions()) {
                 throw new IllegalStateException("SEQUENCE conditions require a prepared production configuration");
@@ -349,6 +354,7 @@ public final class SequenceSourceOperator extends SourceOperator {
                 List.of()
             );
         }
+        latestValid.withRememberedChains(factory.configuration.pragmas().sequenceRememberedChains());
         latestValid.validateForProduction(sequence.children().size());
         SequenceLatestValidConfig.validateCandidateBound(latestValid.maxCandidates().orElseThrow(), sequence.children().size());
         candidateBound = latestValid.maxCandidates().orElseThrow();
@@ -1078,10 +1084,12 @@ public final class SequenceSourceOperator extends SourceOperator {
         }
         var preference = factory.configuration.pragmas().fieldExtractPreference();
         if (preference != MappedFieldType.FieldExtractPreference.NONE && preference != MappedFieldType.FieldExtractPreference.DOC_VALUES) {
+            recordKeyFilterFallback("field_extraction_preference");
             return null;
         }
         for (Cursor cursor : cursors) {
             if (cursor.stage == 0 && cursor.exhausted == false) {
+                recordKeyFilterFallback("start_reader_open");
                 return null;
             }
         }
@@ -1090,7 +1098,12 @@ public final class SequenceSourceOperator extends SourceOperator {
         try {
             Cursor target = cursor(stage, branch);
             owner = SequenceKeyFilter.create(target.keys, target.input.source(branch).output(), breaker, context::checkForEarlyTermination);
-            if (owner == null || matcher.visitUnusedStartKeys(owner::add) == false) {
+            if (owner == null) {
+                recordKeyFilterFallback("non_pushable_key");
+                return null;
+            }
+            if (matcher.visitUnusedStartKeys(owner::add) == false) {
+                recordKeyFilterFallback("key_snapshot_limit");
                 return null;
             }
             for (Cursor cursor : cursors) {
@@ -1098,22 +1111,31 @@ public final class SequenceSourceOperator extends SourceOperator {
                     for (int row = cursor.offset; row < cursor.rows.size(); row++) {
                         context.checkForEarlyTermination();
                         if (owner.add(cursor.rows.get(row).key.bytes()) == false) {
+                            recordKeyFilterFallback("key_snapshot_limit");
                             return null;
                         }
                     }
                 }
             }
             if (owner.predicate() == null) {
+                recordKeyFilterFallback("empty_or_unbuildable_predicate");
                 return null;
             }
             transferred = true;
             return owner;
         } catch (CircuitBreakingException optionalLimit) {
+            recordKeyFilterFallback("coordinator_breaker");
             return null;
         } finally {
             if (transferred == false) {
                 Releasables.close(owner);
             }
+        }
+    }
+
+    private void recordKeyFilterFallback(String reason) {
+        if (keyFilterProfile != null) {
+            keyFilterProfile.coordinatorFallback(reason);
         }
     }
 
@@ -1129,16 +1151,25 @@ public final class SequenceSourceOperator extends SourceOperator {
             QueryBuilder query = keyFilter == null
                 ? source.query()
                 : SequenceSourceQueryBuilder.withKeyFilter(source.query(), keyFilter.predicate());
-            source.query(new SequenceSourceQueryBuilder(query, readIndices));
+            boolean profileFilter = keyFilter != null && keyFilterProfile != null;
+            ThreadContext threadContext = profileFilter ? factory.client.threadPool().getThreadContext() : null;
+            source.query(new SequenceSourceQueryBuilder(query, readIndices, threadContext));
+            if (profileFilter) {
+                source.profile(true);
+            }
             candidateSearchRequests++;
             source.pointInTimeBuilder(new PointInTimeBuilder(pit).setKeepAlive(keepAlive));
             begin();
-            ActionListener<SearchResponse> listener = ActionListener.notifyOnce(ActionListener.runAfter(ActionListener.wrap(response -> {
+            ActionListener<SearchResponse> listener = ActionListener.notifyOnce(ActionListener.wrap(response -> {
                 profiler.addRowsFetched(stage, response.getHits().getHits().length);
                 synchronized (this) {
                     if (response.pointInTimeId() != null) {
                         pit = response.pointInTimeId();
                     }
+                }
+                Releasables.close(keyFilter);
+                if (profileFilter) {
+                    keyFilterProfile.recordShardSearches(response);
                 }
                 long admitted;
                 try {
@@ -1173,9 +1204,16 @@ public final class SequenceSourceOperator extends SourceOperator {
                         release.run();
                     }
                 }, release);
-            }, e -> failed(e)), () -> Releasables.close(keyFilter)));
+            }, e -> {
+                closeOnFailure(e, keyFilter);
+                failed(e);
+            }));
             transferred = true;
             try (var ignored = factory.requestContext.get()) {
+                if (profileFilter) {
+                    threadContext.putHeader(SequenceKeyFilterShardProfile.REQUEST_HEADER, "1");
+                    keyFilterProfile.builtSearch();
+                }
                 // Can-match removes shards and renumbers shardRequestIndex, changing _shard_doc's high bits. Keep all PIT
                 // shards in the same order, with stage membership expressed in the query rather than request indices.
                 var request = new SearchRequest(factory.configuration.absoluteStartedTimeInMillis()).source(source)

@@ -154,6 +154,43 @@
         "split_discovery_probes" : {
           "type" : "integer"
         },
+        "sequence_key_filter" : {
+          "type" : "object",
+          "properties" : {
+            "built_searches" : {
+              "type" : "integer"
+            },
+            "applied_shard_searches" : {
+              "type" : "integer"
+            },
+            "coordinator_fallbacks" : {
+              "type" : "object",
+              "additionalProperties" : {
+                "type" : "integer"
+              }
+            },
+            "rejected_shard_searches" : {
+              "type" : "object",
+              "additionalProperties" : {
+                "type" : "integer"
+              }
+            },
+            "index_modes" : {
+              "type" : "object",
+              "additionalProperties" : {
+                "type" : "integer"
+              }
+            }
+          },
+          "required" : [
+            "built_searches",
+            "applied_shard_searches",
+            "coordinator_fallbacks",
+            "rejected_shard_searches",
+            "index_modes"
+          ],
+          "additionalProperties" : false
+        },
         "drivers" : {
           "type" : "array",
           "items" : {

@@ -87,6 +87,17 @@ public class SequenceUnknownAnalyzerIT extends AbstractSequenceIntegTestCase {
         assertFullTextRefused(true);
     }
 
+    public void testHighlightExplicitAnalyzerOverridesUnknownMappedAnalyzer() {
+        String query = sequence(false, false) + """
+             | HIGHLIGHT MATCH(value, "alpha") ON value WITH {"analyzer": "standard"}
+            """;
+        try (var response = run(query + " | KEEP key,highlight_value | LIMIT 10")) {
+            assertFalse(response.isPartial());
+            assertEquals(List.of(List.of("k", "<em>Alpha</em> Beta")), getValuesList(response));
+        }
+        assertAnalyzerRefusal(query + " | WHERE MATCH(value,\"Alpha\") | KEEP key | LIMIT 10");
+    }
+
     private void assertFullTextRefused(boolean member) {
         for (boolean stageAlias : List.of(false, true)) {
             String field = stageAlias ? "copied" : "message";

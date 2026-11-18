@@ -638,3 +638,9 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testTranslogStressRecoveryTest
   issue: https://github.com/elastic/elasticsearch/issues/166061
+- class: org.elasticsearch.snapshots.ShardGenerationListenerIT
+  method: testListenerSeesCommittedGenerationAfterSnapshotAndDeletion
+  issue: https://github.com/elastic/elasticsearch/pull/166395
+- class: org.elasticsearch.snapshots.ShardGenerationListenerIT
+  method: testListenerFailureDoesNotFailSnapshotOrDeletion
+  issue: https://github.com/elastic/elasticsearch/pull/166395

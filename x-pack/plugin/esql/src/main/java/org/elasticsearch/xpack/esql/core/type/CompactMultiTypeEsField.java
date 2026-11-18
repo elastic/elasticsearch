@@ -18,8 +18,10 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /** Memory-efficient variant of {@link MultiTypeEsField} that stores the per-source-type conversion instead of per-index. */
 public final class CompactMultiTypeEsField extends UnionTypeEsField {
@@ -95,6 +97,24 @@ public final class CompactMultiTypeEsField extends UnionTypeEsField {
             convertExpression.dataType(),
             isAggregatable(),
             UnionTypeEsField.replaceChildrenWithExpressionField(typeToConversionExpressions, convertExpression),
+            getTimeSeriesFieldType(),
+            unmappedConversionExpression
+        );
+    }
+
+    @Override
+    public UnionTypeEsField retainingSupportedSourceTypes(Set<DataType> supportedTypes) {
+        Map<DataType, Expression> kept = new LinkedHashMap<>();
+        typeToConversionExpressions.forEach((type, expression) -> {
+            if (sourceTypeSupported(expression, supportedTypes)) {
+                kept.put(type, expression);
+            }
+        });
+        return new CompactMultiTypeEsField(
+            getName(),
+            getDataType(),
+            isAggregatable(),
+            kept,
             getTimeSeriesFieldType(),
             unmappedConversionExpression
         );

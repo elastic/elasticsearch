@@ -9,13 +9,16 @@ package org.elasticsearch.compute.aggregation.table;
 
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.IntArray;
+import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.aggregation.blockhash.PackedValuesBlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.IntArrayBlock;
+import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
@@ -53,11 +56,36 @@ final class RepeatedKeyBlockHashRowInTableLookup extends RowInTableLookup {
         boolean success = false;
         try {
             try (IntArray groupsByRow = blockFactory.bigArrays().newIntArray(rowCount, false)) {
-                builtHash.add(new Page(keys), new BlockHashGroupIdsAddInput() {
+                builtHash.add(new Page(keys), new GroupingAggregatorFunction.AddInput() {
                     @Override
-                    protected void addGroupId(int row, int groupId) {
-                        groupsByRow.set(row, groupId);
+                    public void add(int positionOffset, IntArrayBlock groupIds) {
+                        addBlock(positionOffset, groupIds);
                     }
+
+                    @Override
+                    public void add(int positionOffset, IntBigArrayBlock groupIds) {
+                        addBlock(positionOffset, groupIds);
+                    }
+
+                    @Override
+                    public void add(int positionOffset, IntVector groupIds) {
+                        for (int p = 0; p < groupIds.getPositionCount(); p++) {
+                            groupsByRow.set(positionOffset + p, groupIds.getInt(p));
+                        }
+                    }
+
+                    /**
+                     * Build keys are single-valued and non-null, so each row has exactly one group.
+                     */
+                    private void addBlock(int positionOffset, IntBlock groupIds) {
+                        for (int p = 0; p < groupIds.getPositionCount(); p++) {
+                            assert groupIds.getValueCount(p) == 1 : "expected one group per build row";
+                            groupsByRow.set(positionOffset + p, groupIds.getInt(groupIds.getFirstValueIndex(p)));
+                        }
+                    }
+
+                    @Override
+                    public void close() {}
                 });
                 int groupCount = builtHash.numKeys();
                 offsets = blockFactory.bigArrays().newIntArray((long) groupCount + 1, true);
@@ -89,13 +117,7 @@ final class RepeatedKeyBlockHashRowInTableLookup extends RowInTableLookup {
 
     @Override
     public ReleasableIterator<IntBlock> lookup(Page page, BlockFactory blockFactory, ByteSizeValue targetBlockSize) {
-        return lookup(page, blockFactory, targetBlockSize, Warnings.NOOP_WARNINGS);
-    }
-
-    @Override
-    public ReleasableIterator<IntBlock> lookup(Page page, BlockFactory blockFactory, ByteSizeValue targetBlockSize, Warnings warnings) {
         // A multivalued key can't match, so the hash returns a miss for it rather than looking up its values.
-        warnOnMultivaluedKeys(page, warnings);
         return new Results(hash.lookup(page, blockFactory, targetBlockSize, true), blockFactory, targetBlockSize.getBytes());
     }
 

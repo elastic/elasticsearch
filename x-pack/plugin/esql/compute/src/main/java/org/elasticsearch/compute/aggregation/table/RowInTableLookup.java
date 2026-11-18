@@ -14,7 +14,6 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.ReleasableIterator;
 
@@ -38,25 +37,6 @@ public abstract sealed class RowInTableLookup implements Releasable permits Empt
      * </p>
      */
     public abstract ReleasableIterator<IntBlock> lookup(Page page, BlockFactory blockFactory, ByteSizeValue targetBlockSize);
-
-    /**
-     * Look up rows with a warning collector owned by the probing driver, not by the shared table.
-     */
-    public ReleasableIterator<IntBlock> lookup(Page page, BlockFactory blockFactory, ByteSizeValue targetBlockSize, Warnings warnings) {
-        return lookup(page, blockFactory, targetBlockSize);
-    }
-
-    /**
-     * Warns once for a probe page with a multivalued key, which can't match a single-valued build key.
-     */
-    static void warnOnMultivaluedKeys(Page page, Warnings warnings) {
-        for (int k = 0; k < page.getBlockCount(); k++) {
-            if (page.getBlock(k).doesHaveMultivaluedFields()) {
-                warnings.registerException(IllegalArgumentException.class, "LOOKUP JOIN encountered multi-value");
-                return;
-            }
-        }
-    }
 
     @Override
     public abstract String toString();

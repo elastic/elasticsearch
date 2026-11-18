@@ -252,13 +252,27 @@ public class RowInTableLookupOperator extends AbstractPageMappingToIteratorOpera
     protected ReleasableIterator<Page> receive(Page page) {
         Page mapped = page.projectBlocks(blockMapping);
         try {
+            warnOnMultivaluedKeys(mapped);
             // lookup increments any references we need to keep for the iterator
-            return appendBlocks(
-                page,
-                shared.table.lookup(mapped, blockFactory, BlockFactory.DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE, warnings)
-            );
+            return appendBlocks(page, shared.table.lookup(mapped, blockFactory, BlockFactory.DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE));
         } finally {
             mapped.releaseBlocks();
+        }
+    }
+
+    /**
+     * A repeated-key table returns a miss for a multivalued key, so warn once for each page that has one, whatever the
+     * table holds. Only repeated-key operators get real {@link Warnings}, which spares the other operators the scan.
+     */
+    private void warnOnMultivaluedKeys(Page keys) {
+        if (warnings == Warnings.NOOP_WARNINGS) {
+            return;
+        }
+        for (int k = 0; k < keys.getBlockCount(); k++) {
+            if (keys.getBlock(k).doesHaveMultivaluedFields()) {
+                warnings.registerException(IllegalArgumentException.class, "LOOKUP JOIN encountered multi-value");
+                return;
+            }
         }
     }
 

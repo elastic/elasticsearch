@@ -2171,8 +2171,9 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     /**
-     * Views that lack the same fields under the same SET share one entry, so an index pattern over many similar views stays short.
-     * The same fields under another view's SET, or a different set of fields, get their own entry.
+     * Views that lack the same fields under the same SET share one entry, so an index pattern over many similar views stays short,
+     * also when their fields were filled in a different order. The same fields under another view's SET, or a different set of fields,
+     * get their own entry.
      */
     public void testViewBoundaryNullFillWarningMergesViewsWithSameFields() {
         Set<AnalyzerContext.ViewBoundaryNullFill> fills = new LinkedHashSet<>();
@@ -2181,11 +2182,13 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         addNullFills(fills, viewBoundary("w2"), "a");
         addNullFills(fills, new AnalyzerContext.ViewBoundary("outer", "w3", null), "a", "b");
         addNullFills(fills, viewBoundary("w4"), "a", "b");
+        addNullFills(fills, viewBoundary("w5"), "b", "a");
         assertThat(
             Analyzer.viewBoundaryNullFillWarning(fills),
             equalTo(
                 VIEW_BOUNDARY_PLURAL_ADVICE
-                    + "[a], [b] in views [w0], [w1] nested in view [top], [w4]; [a] in view [w2]; [a], [b] in view [w3] (SET by view [outer])"
+                    + "[a], [b] in views [w0], [w1] nested in view [top], [w4], [w5]; [a] in view [w2]; [a], [b] in view [w3] "
+                    + "(SET by view [outer])"
             )
         );
     }

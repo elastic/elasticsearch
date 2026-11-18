@@ -439,9 +439,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
     /**
      * Views that null-filled the same fields under the {@code SET} of the same scope, reported as one entry of the
-     * {@link #viewBoundaryNullFillWarning}.
+     * {@link #viewBoundaryNullFillWarning}. {@code fields} is a set so that views whose fields were filled in different orders,
+     * e.g. by sibling subqueries that reference them in different orders, still share the entry; it lists them in the order of
+     * the first such view.
      */
-    private record ViewBoundaryEntry(@Nullable String settingView, List<String> fields) {}
+    private record ViewBoundaryEntry(@Nullable String settingView, Set<String> fields) {}
 
     /**
      * The one warning about outer references null-filled at view outputs because the loading {@code unmapped_fields} mode of the
@@ -458,10 +460,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         if (nullFills.isEmpty()) {
             return null;
         }
-        Map<AnalyzerContext.ViewBoundary, List<String>> fieldsByBoundary = new LinkedHashMap<>();
+        Map<AnalyzerContext.ViewBoundary, Set<String>> fieldsByBoundary = new LinkedHashMap<>();
         Set<String> allFields = new HashSet<>();
         for (AnalyzerContext.ViewBoundaryNullFill fill : nullFills) {
-            fieldsByBoundary.computeIfAbsent(fill.boundary(), k -> new ArrayList<>()).add(fill.fieldName());
+            fieldsByBoundary.computeIfAbsent(fill.boundary(), k -> new LinkedHashSet<>()).add(fill.fieldName());
             allFields.add(fill.fieldName());
         }
         Map<ViewBoundaryEntry, List<AnalyzerContext.ViewBoundary>> boundariesByEntry = new LinkedHashMap<>();
@@ -479,7 +481,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         Set<String> unlistedFields = new HashSet<>();
         int unlistedViews = 0;
         for (Map.Entry<ViewBoundaryEntry, List<AnalyzerContext.ViewBoundary>> e : boundariesByEntry.entrySet()) {
-            List<String> fields = e.getKey().fields();
+            List<String> fields = List.copyOf(e.getKey().fields());
             List<AnalyzerContext.ViewBoundary> views = e.getValue();
             if (fieldBudget == 0 || viewBudget == 0) {
                 unlistedFields.addAll(fields);

@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -30,7 +31,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.SerializationTestUtils;
-import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -42,8 +42,11 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
+import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
+import org.elasticsearch.xpack.esql.plan.physical.IntoExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -64,6 +67,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.logicalOptimizerContext
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
 
 public class DataNodeRequestSerializationTests extends AbstractWireSerializingTestCase<DataNodeRequest> {
@@ -283,17 +287,85 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
         assertThat(after, equalTo(before));
     }
 
-    public void testValidIntoQueryProducesNoDataNodePlanEvenAtOldestVersion() {
+    /**
+     * The data-node plan of a FROM ... | INTO query is serialized to the data nodes, and must still plan locally there.
+     */
+    public void testIntoDataNodePlanRoundTripsAndPlansLocally() throws IOException {
+        assumeTrue("INTO is only enabled in snapshot builds", EsqlCapabilities.Cap.INTO_COMMAND.isEnabled());
+
+        String query = "FROM test | KEEP emp_no | INTO dst";
+        Configuration configuration = randomConfiguration(query, randomTables());
+        TransportVersion minimumVersion = TransportVersion.current();
+        LogicalPlan analyzed = analyzer().addIndex("test", "mapping-basic.json")
+            .minimumTransportVersion(minimumVersion)
+            .buildAnalyzer()
+            .analyze(TEST_PARSER.parseQuery(query));
+        LogicalPlan logicallyOptimized = new LogicalPlanOptimizer(
+            logicalOptimizerContext(configuration, FoldContext.small(), minimumVersion)
+        ).optimize(analyzed);
+        PhysicalPlan physicalPlan = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration, minimumVersion)).optimize(
+            new Mapper().map(new Versioned<>(logicallyOptimized, minimumVersion))
+        );
+        PhysicalPlan dataNodePlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(
+            EstimatesRowSize.estimateRowSize(0, physicalPlan),
+            configuration
+        ).v2();
+        DataNodeRequest request = new DataNodeRequest(
+            "into-session",
+            new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),
+            configuration,
+            "",
+            List.of(new DataNodeRequest.Shard(new ShardId("test", "n/a", 0), SplitShardCountSummary.fromInt(0))),
+            Map.of(),
+            dataNodePlan,
+            new String[] { "test" },
+            IndicesOptions.STRICT_EXPAND_OPEN,
+            true,
+            true,
+            false
+        );
+
+        DataNodeRequest received;
+        try (
+            StreamInput in = new NamedWriteableAwareStreamInput(
+                StreamInput.wrap(serialize(request, minimumVersion)),
+                getNamedWriteableRegistry()
+            )
+        ) {
+            in.setTransportVersion(minimumVersion);
+            received = new DataNodeRequest(in);
+        }
+
+        ReductionPlan reductionPlan = ComputeService.reductionPlan(
+            PlannerSettings.DEFAULTS,
+            EsqlFlags.DEFAULTS,
+            received.configuration(),
+            received.configuration().newFoldContext(),
+            (ExchangeSinkExec) received.plan(),
+            received.runNodeLevelReduction(),
+            received.reductionLateMaterialization(),
+            new PlanTimeProfile()
+        );
+        PhysicalPlan localPlan = PlannerUtils.localPlan(
+            PlannerSettings.DEFAULTS,
+            EsqlFlags.DEFAULTS,
+            received.configuration(),
+            received.configuration().newFoldContext(),
+            reductionPlan.dataNodePlan(),
+            EsqlTestUtils.TEST_SEARCH_STATS,
+            new PlanTimeProfile()
+        );
+        List<IntoExec> intoExecs = localPlan.collect(IntoExec.class);
+        assertThat(intoExecs, hasSize(1));
+        assertThat(intoExecs.getFirst().mode(), equalTo(IntoExec.Mode.WRITE));
+    }
+
+    /** ROW ... | INTO never leaves the coordinator, so even the oldest node gets no data-node plan. */
+    public void testRowIntoProducesNoDataNodePlanEvenAtOldestVersion() {
         assumeTrue("INTO is only enabled in snapshot builds", EsqlCapabilities.Cap.INTO_COMMAND.isEnabled());
 
         TransportVersion oldest = TransportVersion.minimumCompatible();
-        var oldAnalyzer = analyzer().addIndex("test", "mapping-basic.json").minimumTransportVersion(oldest).buildAnalyzer();
-        VerificationException rejected = expectThrows(
-            VerificationException.class,
-            () -> oldAnalyzer.analyze(TEST_PARSER.parseQuery("FROM test | INTO dst"))
-        );
-        assertThat(rejected.getMessage(), containsString("INTO currently only supports ROW as a source, without FORK"));
-
+        var oldAnalyzer = analyzer().minimumTransportVersion(oldest).buildAnalyzer();
         String query = "ROW a = 1 | INTO dst";
         Configuration configuration = randomConfiguration(query, randomTables());
         LogicalPlan analyzed = oldAnalyzer.analyze(TEST_PARSER.parseQuery(query));

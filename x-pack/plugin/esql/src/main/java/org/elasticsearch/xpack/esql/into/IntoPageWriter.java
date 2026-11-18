@@ -48,7 +48,7 @@ import java.util.function.Supplier;
  */
 public final class IntoPageWriter {
     // visible for testing
-    // TODO: once FROM supports INTO, share a per-node or per-query in-flight byte budget across drivers
+    // TODO: INTO over FROM: share a per-node or per-query in-flight byte budget across drivers
     static final long MAX_IN_FLIGHT_BYTES = 3L * Operator.TARGET_PAGE_SIZE;
 
     private static final String BREAKER_LABEL = "into";
@@ -196,7 +196,6 @@ public final class IntoPageWriter {
         for (BulkItemResponse item : response) {
             if (item.isFailed()) {
                 Exception cause = item.getFailure().getCause();
-                // TODO: once FROM supports INTO, do not let DataNodeRequestSender treat destination errors as missing source shards
                 recordFailure(
                     new ElasticsearchStatusException(
                         "INTO [{}] failed: {}",

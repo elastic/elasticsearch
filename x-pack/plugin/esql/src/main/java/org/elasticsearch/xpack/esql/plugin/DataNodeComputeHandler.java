@@ -85,8 +85,10 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.fetch.NodeFetchContexts;
+import org.elasticsearch.xpack.esql.plan.logical.Into;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
+import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlanConcurrencyCalculator;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
@@ -199,6 +201,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             PlannerUtils.sliceSelection(dataNodePlan),
             clusterAlias,
             configuration.allowPartialResults(),
+            // A failed attempt may already have written some rows, which a retry would write again
+            dataNodePlan.anyMatch(p -> p instanceof FragmentExec f && f.fragment().anyMatch(Into.class::isInstance)) == false,
             maxConcurrentNodesPerCluster == null ? -1 : maxConcurrentNodesPerCluster,
             configuration.pragmas().unavailableShardResolutionAttempts()
         ) {
@@ -215,7 +219,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 }
 
                 final AtomicLong pagesFetched = new AtomicLong();
-                // TODO: once FROM supports INTO, do not retry requests whose writer has already sent a bulk
                 var listener = ActionListener.wrap(nodeListener::onResponse, e -> nodeListener.onFailure(e, pagesFetched.get() > 0));
                 final Transport.Connection connection;
                 try {
@@ -676,7 +679,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
      * fetched from this walk cannot be replayed, so a failure after the first page is terminal.
      */
     static boolean shouldRerouteExternalWorker(Exception failure, long pagesFetched, boolean hasNextWorker) {
-        // TODO: once FROM supports INTO, do not reroute external workers whose writer has already sent a bulk
+        // TODO: INTO over FROM: do not reroute external workers whose writer has already sent a bulk
         return hasNextWorker && pagesFetched == 0 && isRetryableExternalWorkerFailure(failure);
     }
 
@@ -1243,7 +1246,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
 
                 @Override
                 public void onFailure(Exception e) {
-                    // TODO: once FROM supports INTO, fail fast if a writer in this batch has already sent a bulk
                     if (pagesProduced.get() == 0 && failFastOnShardFailure == false) {
                         for (DataNodeRequest.Shard shard : batch) {
                             addShardLevelFailure(shard.shardId(), e);

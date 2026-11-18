@@ -140,6 +140,7 @@ import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
+import org.elasticsearch.xpack.esql.plan.logical.Into;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
@@ -690,8 +691,8 @@ public class EsqlSession {
             request.profile(),
             request.tables(),
             System.nanoTime(),
-            // TODO: force allowPartialResults=false for INTO once FROM is supported so shard failures do not write partial data
-            request.allowPartialResults(),
+            // A partial INTO would still have written the rows of the shards that succeeded
+            request.allowPartialResults() && viewResolution.plan().anyMatch(Into.class::isInstance) == false,
             analyzerSettings.timeseriesResultTruncationMaxSize(),
             analyzerSettings.timeseriesResultTruncationDefaultSize(),
             resolved,

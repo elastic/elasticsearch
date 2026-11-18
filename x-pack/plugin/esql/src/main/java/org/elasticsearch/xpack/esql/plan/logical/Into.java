@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
@@ -42,6 +44,8 @@ public class Into extends UnaryPlan
         PipelineBreaker,
         PostAnalysisPlanVerificationAware,
         PostAnalysisVerificationAware {
+    public static final String UNSUPPORTED_SOURCE = "INTO currently only supports ROW or local FROM as a source, without FORK";
+
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Into", Into::new);
 
     private final String destination;
@@ -57,9 +61,17 @@ public class Into extends UnaryPlan
         this.output = output;
     }
 
+    /**
+     * Reads the output too, rather than minting new {@code [total, created]} attributes: the coordinator plan built around this
+     * node refers to them by id.
+     */
     private Into(StreamInput in) throws IOException {
-        // TODO: once FROM supports INTO, align regenerated output NameIds with ProjectAwayColumns and ComputeService.reductionPlan
-        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(LogicalPlan.class), in.readString());
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteable(LogicalPlan.class),
+            in.readString(),
+            in.readNamedWriteableCollectionAsList(Attribute.class)
+        );
     }
 
     @Override
@@ -67,6 +79,7 @@ public class Into extends UnaryPlan
         Source.EMPTY.writeTo(out);
         out.writeNamedWriteable(child());
         out.writeString(destination);
+        out.writeNamedWriteableCollection(output);
     }
 
     @Override
@@ -124,7 +137,7 @@ public class Into extends UnaryPlan
             if (p instanceof MergePlan) {
                 return true;
             }
-            if (p instanceof LeafPlan == false || p instanceof Row) {
+            if (p instanceof LeafPlan == false || isSupportedSource(p)) {
                 return false;
             }
             if (allowMaterializedRow && p instanceof LocalRelation) {
@@ -136,11 +149,18 @@ public class Into extends UnaryPlan
 
     @Override
     public void postAnalysisVerification(Failures failures) {
-        // TODO: once FROM is supported, gate Into on a minimum TransportVersion in Verifier for mixed-version clusters
+        // TODO: before INTO leaves snapshot, gate Into on a minimum TransportVersion in Verifier for mixed-version clusters
         // RejectUnsupportedIntoSource already saw the original producer. DESCRIBE has since replaced it with a LocalRelation.
         if (unsupportedSource(child(), true)) {
-            failures.add(fail(this, "INTO currently only supports ROW as a source, without FORK"));
+            failures.add(fail(this, UNSUPPORTED_SOURCE));
         }
+    }
+
+    private static boolean isSupportedSource(LogicalPlan leaf) {
+        return leaf instanceof Row
+            || (leaf instanceof EsRelation relation
+                && relation.indexMode() != IndexMode.TIME_SERIES
+                && relation.originalIndices().keySet().stream().allMatch(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY::equals));
     }
 
     @Override

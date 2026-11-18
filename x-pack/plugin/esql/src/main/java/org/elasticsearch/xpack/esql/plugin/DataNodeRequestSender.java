@@ -100,6 +100,7 @@ abstract class DataNodeRequestSender {
     private final SliceSelection slices;
 
     private final boolean allowPartialResults;
+    private final boolean retryFailedShards;
     private final Semaphore concurrentRequests;
     private final ReentrantLock sendingLock = new ReentrantLock();
     private final Queue<ShardId> pendingShardIds = ConcurrentCollections.newQueue();
@@ -110,6 +111,10 @@ abstract class DataNodeRequestSender {
     private boolean reportedFailure = false; // guarded by sendingLock
     private final AtomicInteger remainingUnavailableShardResolutionAttempts;
 
+    /**
+     * @param retryFailedShards whether a shard that failed on one copy may run again on another; false when a failed
+     *                          attempt may already have had side effects, such as the writes of {@code INTO}
+     */
     DataNodeRequestSender(
         ClusterService clusterService,
         ProjectResolver projectResolver,
@@ -121,6 +126,7 @@ abstract class DataNodeRequestSender {
         SliceSelection slices,
         String clusterAlias,
         boolean allowPartialResults,
+        boolean retryFailedShards,
         int concurrentRequests,
         int unavailableShardResolutionAttempts
     ) {
@@ -134,6 +140,7 @@ abstract class DataNodeRequestSender {
         this.slices = slices;
         this.clusterAlias = clusterAlias;
         this.allowPartialResults = allowPartialResults;
+        this.retryFailedShards = retryFailedShards;
         this.concurrentRequests = concurrentRequests > 0 ? new Semaphore(concurrentRequests) : null;
         this.remainingUnavailableShardResolutionAttempts = new AtomicInteger(
             unavailableShardResolutionAttempts >= 0 ? unavailableShardResolutionAttempts : Integer.MAX_VALUE
@@ -324,7 +331,7 @@ abstract class DataNodeRequestSender {
                     }
                     for (var entry : response.shardLevelFailures().entrySet()) {
                         final ShardId shardId = entry.getKey();
-                        trackShardLevelFailure(shardId, false, entry.getValue());
+                        trackShardLevelFailure(shardId, retryFailedShards == false, entry.getValue());
                         pendingShardIds.add(shardId);
                     }
                     onAfterRequest();
@@ -341,7 +348,7 @@ abstract class DataNodeRequestSender {
                 try {
                     for (var shard : request.shards) {
                         ShardId shardId = shard.shardId();
-                        trackShardLevelFailure(shardId, receivedData, e);
+                        trackShardLevelFailure(shardId, receivedData || retryFailedShards == false, e);
                         pendingShardIds.add(shardId);
                     }
                     onAfterRequest();

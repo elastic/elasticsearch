@@ -117,6 +117,29 @@ public class MergeMutedTestsTaskTests {
         assertThat(result.removed(), equalTo(1));
     }
 
+    /** Incoming deleted a mute whose tasks or issue the receiving branch changed. That is a modify/delete conflict. */
+    @Test
+    public void testRemovalOfEntryModifiedOnReceivingFails() {
+        String changedIssue = A.replace("issues/1", "issues/100");
+        GradleException issue = assertThrows(
+            GradleException.class,
+            () -> MergeMutedTestsTask.merge(BASE, "tests:\n" + changedIssue + COMMENT + B, "tests:\n" + COMMENT + B)
+        );
+        assertThat(issue.getMessage(), containsString("[org.acme.ATests testA] was modified on the receiving branch and removed"));
+        assertThat(issue.getMessage(), containsString("issues/1"));
+        assertThat(issue.getMessage(), containsString("issues/100"));
+
+        String changedTasks = C.replace("- :server:test", "- :server:internalClusterTest");
+        String base = "tests:\n" + C + B;
+        GradleException tasks = assertThrows(
+            GradleException.class,
+            () -> MergeMutedTestsTask.merge(base, "tests:\n" + changedTasks + B, "tests:\n" + B)
+        );
+        assertThat(tasks.getMessage(), containsString("[org.acme.CTests testC] was modified on the receiving branch and removed"));
+        assertThat(tasks.getMessage(), containsString(":server:test"));
+        assertThat(tasks.getMessage(), containsString(":server:internalClusterTest"));
+    }
+
     @Test
     public void testRemovalOfMissingEntryIsIgnored() {
         MergeMutedTestsTask.Result result = MergeMutedTestsTask.merge(BASE, "tests:\n" + COMMENT + B + D, "tests:\n" + COMMENT + B);
@@ -145,5 +168,75 @@ public class MergeMutedTestsTaskTests {
         );
 
         assertThat(e.getMessage(), containsString("has no class"));
+    }
+
+    /**
+     * A blank line between properties is still that entry. Removing it must take the following {@code method}, {@code tasks},
+     * and {@code issue} lines with it, rather than leaving them as a block with no class.
+     */
+    @Test
+    public void testBlankLineInsideEntryIsRemovedWithTheEntry() {
+        String entry = """
+            - class: org.acme.CTests
+              tasks:
+              - :server:test
+
+              method: testC
+              issue: https://github.com/elastic/elasticsearch/issues/3
+            """;
+        String base = "tests:\n" + entry + B;
+
+        MergeMutedTestsTask.Result result = MergeMutedTestsTask.merge(base, base + D, "tests:\n" + B);
+
+        assertThat(result.content(), equalTo("tests:\n" + B + D));
+        assertThat(result.removed(), equalTo(1));
+    }
+
+    @Test
+    public void testBlankLineInsideAddedEntryIsKept() {
+        String entry = """
+            - class: org.acme.ETests
+              method: testE
+
+              issue: https://github.com/elastic/elasticsearch/issues/5
+            """;
+
+        MergeMutedTestsTask.Result result = MergeMutedTestsTask.merge(BASE, BASE, BASE + entry);
+
+        assertThat(result.content(), equalTo(BASE + entry));
+        assertThat(result.added(), equalTo(1));
+    }
+
+    /** Changing a property that follows an internal blank line is still a modification of that one entry. */
+    @Test
+    public void testChangeAfterInternalBlankLineIsAModification() {
+        String entry = """
+            - class: org.acme.CTests
+              tasks:
+              - :server:test
+
+              method: testC
+              issue: https://github.com/elastic/elasticsearch/issues/3
+            """;
+        String changed = entry.replace("issues/3", "issues/99");
+
+        GradleException e = assertThrows(
+            GradleException.class,
+            () -> MergeMutedTestsTask.merge("tests:\n" + entry, "tests:\n" + entry, "tests:\n" + changed)
+        );
+
+        assertThat(e.getMessage(), containsString("[org.acme.CTests testC] was modified rather than added or removed"));
+        assertThat(e.getMessage(), containsString("issues/99"));
+    }
+
+    /** A blank line after an entry, before the next one, is a separator and stays when the preceding entry is removed. */
+    @Test
+    public void testBlankLineBetweenEntriesIsNotPartOfTheEntry() {
+        String base = "tests:\n" + A + "\n" + B;
+
+        MergeMutedTestsTask.Result result = MergeMutedTestsTask.merge(base, base, "tests:\n" + "\n" + B);
+
+        assertThat(result.content(), equalTo("tests:\n" + "\n" + B));
+        assertThat(result.removed(), equalTo(1));
     }
 }

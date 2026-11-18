@@ -38,8 +38,8 @@ import javax.inject.Inject;
  * to lines the other side touched. This task reads the three index stages git leaves behind (merge base, receiving branch,
  * incoming change), works out which entries the incoming change added or removed relative to the base, re-applies those to the
  * receiving branch's copy, writes the result and stages it. Entries are identified by {@code class} + {@code method}. Anything
- * that is not a plain addition or removal (an entry modified by the incoming change, or added on both sides with different
- * content) fails the task so that a human decides.
+ * that is not a plain addition or removal (an entry modified by the incoming change, removed by the incoming change after the
+ * receiving branch changed it, or added on both sides with different content) fails the task so that a human decides.
  * <p>
  * The file is edited at the text level, one entry block at a time, so comments and the formatting of untouched entries are
  * preserved.
@@ -93,8 +93,8 @@ public abstract class MergeMutedTestsTask extends DefaultTask {
     /**
      * Applies the entries added or removed between {@code base} and {@code incoming} to {@code receiving}.
      *
-     * @throws GradleException when an entry was modified rather than added or removed, or when both sides added the same entry
-     *                         with different content
+     * @throws GradleException when an entry was modified rather than added or removed, when the receiving branch changed an entry
+     *                         that the incoming change removed, or when both sides added the same entry with different content
      */
     static Result merge(String base, String receiving, String incoming) {
         Map<Key, Block> baseEntries = entries(split(base));
@@ -106,7 +106,20 @@ public abstract class MergeMutedTestsTask extends DefaultTask {
             Key key = entry.getKey();
             Block incomingBlock = incomingEntries.get(key);
             if (incomingBlock == null) {
-                // removed entry
+                // removed entry, unless the receiving branch changed its tasks or issue
+                for (Block block : result) {
+                    if (key.equals(block.key()) && block.node().equals(entry.getValue().node()) == false) {
+                        throw new GradleException(
+                            "Muted test entry ["
+                                + key
+                                + "] was modified on the receiving branch and removed by the incoming change, "
+                                + "resolve the conflict manually:\n"
+                                + entry.getValue().text()
+                                + "\n---\n"
+                                + block.text()
+                        );
+                    }
+                }
                 if (result.removeIf(block -> key.equals(block.key()))) {
                     removed++;
                 }
@@ -158,16 +171,25 @@ public abstract class MergeMutedTestsTask extends DefaultTask {
     }
 
     /**
-     * Splits the file into blocks: a list entry starts at a column-0 {@code - } line and continues through indented lines; a run
-     * of any other lines (the {@code tests:} key, comments, blank lines) is one verbatim block so it survives entry removal.
+     * Splits the file into blocks. A list entry starts at a column-0 {@code - } line and continues through indented lines.
+     * A blank line stays with that entry when a later indented line continues it, which is how YAML separates properties;
+     * otherwise the following {@code method}, {@code tasks}, or {@code issue} lines would be left behind when the entry is
+     * removed. A blank line followed by a new entry or a comment is a separator, not part of the entry. A run of any other
+     * lines (the {@code tests:} key, comments, separator blank lines) is one verbatim block so it survives entry removal.
      */
     private static List<Block> split(String text) {
+        List<String> lines = text.lines().toList();
         List<List<String>> chunks = new ArrayList<>();
         List<String> current = null;
         boolean inEntry = false;
-        for (String line : text.lines().toList()) {
+        for (int i = 0; i < lines.size(); i++) {
+            String line = lines.get(i);
+            if (inEntry && line.isBlank() && entryContinuesAfter(lines, i)) {
+                current.add(line);
+                continue;
+            }
             boolean startsEntry = line.startsWith("- ");
-            boolean continuesCurrent = current != null && (inEntry ? line.startsWith(" ") || line.startsWith("\t") : startsEntry == false);
+            boolean continuesCurrent = current != null && (inEntry ? isIndented(line) : startsEntry == false);
             if (continuesCurrent == false) {
                 current = new ArrayList<>();
                 chunks.add(current);
@@ -180,6 +202,21 @@ public abstract class MergeMutedTestsTask extends DefaultTask {
             blocks.add(new Block(chunk, chunk.get(0).startsWith("- ") ? parseEntry(chunk) : null));
         }
         return blocks;
+    }
+
+    /** A blank line is inside the current entry when the next non-blank line is still indented. */
+    private static boolean entryContinuesAfter(List<String> lines, int blankIndex) {
+        for (int j = blankIndex + 1; j < lines.size(); j++) {
+            String later = lines.get(j);
+            if (later.isBlank() == false) {
+                return isIndented(later);
+            }
+        }
+        return false;
+    }
+
+    private static boolean isIndented(String line) {
+        return line.startsWith(" ") || line.startsWith("\t");
     }
 
     private static JsonNode parseEntry(List<String> lines) {

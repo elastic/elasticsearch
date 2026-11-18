@@ -4921,6 +4921,12 @@ public class EsqlCapabilities {
         COLUMN_METADATA_LISTED_UNITS(Build.current().isSnapshot()),
 
         /**
+         * {@code DESCRIBE} reports {@code role: time} for the {@code @timestamp} column of a dataset and for a time column
+         * that is rounded or converted to another date type.
+         */
+        DESCRIBE_TIME_COLUMNS(Build.current().isSnapshot()),
+
+        /**
          * Fixes a bug in the planner where {@code TS} queries failed with an {@link IllegalStateException} when an aggregation
          * with a filter combined several aggregate functions, such as {@code max(...) - min(...) WHERE ...}.
          */

@@ -483,7 +483,7 @@ public class BatchModeRouterTests extends ESTestCase {
         BatchRouterSet router = BatchRouterSet.create(bulkRequest, true, recycler);
         try {
             var e = expectThrows(IllegalArgumentException.class, () -> routeAll(router, bulkRequest, project));
-            assertThat(e.getMessage(), containsString("no pre-built batch was supplied"));
+            assertThat(e.getMessage(), containsString("no pre-built batch was supplied for [index-c]"));
         } finally {
             router.close();
         }
@@ -693,7 +693,7 @@ public class BatchModeRouterTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> router.route(item, request, ia, other.getIndex(), IndexRouting.fromIndexMetadata(other), project, new HashMap<>())
         );
-        assertThat(e.getMessage(), containsString("no pre-built batch was supplied under that name"));
+        assertThat(e.getMessage(), containsString("no pre-built batch was supplied for [otherindex]"));
         router.close();
     }
 
@@ -997,7 +997,7 @@ public class BatchModeRouterTests extends ESTestCase {
                 requestsByShard
             )
         );
-        assertThat(e.getMessage(), containsString("no pre-built batch was supplied under that name"));
+        assertThat(e.getMessage(), containsString("no pre-built batch was supplied for [" + iaOther.getName() + "]"));
         router.close();
     }
 

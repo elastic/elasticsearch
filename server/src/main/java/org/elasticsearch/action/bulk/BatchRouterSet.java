@@ -241,8 +241,9 @@ final class BatchRouterSet implements Releasable {
             throw new IllegalArgumentException(
                 "item targeting index ["
                     + request.index()
-                    + "] carries a source-row reference but no pre-built batch was supplied under that name;"
-                    + " batches must be keyed by the name set on the requests whose rows they hold"
+                    + "] carries a source-row reference but no pre-built batch was supplied for ["
+                    + abstraction.getName()
+                    + "]; a batch must be keyed by the name of the index, alias, or data stream its items resolve to"
             );
         }
         if (xContent == false && ((IndexRequest) request).indexSource().sourceBatch() != router.source()) {

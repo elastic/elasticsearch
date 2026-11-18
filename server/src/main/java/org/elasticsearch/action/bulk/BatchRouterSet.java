@@ -62,18 +62,27 @@ final class BatchRouterSet implements Releasable {
     @Nullable
     private final Map<Index, BatchModeRouter> routerByIndex;
 
-    private BatchRouterSet(BatchModeRouter sole, boolean xContent) {
+    /**
+     * The router of each pre-built batch, found by the batch itself, which is what an item's row points to, and not by
+     * a name. It compares batches by identity: the question is which batch an item's row is in. Null in x-content mode.
+     */
+    @Nullable
+    private final Map<SourceBatch, BatchModeRouter> routersByBatch;
+
+    private BatchRouterSet(BatchModeRouter sole, boolean xContent, @Nullable Map<SourceBatch, BatchModeRouter> routersByBatch) {
         this.sole = sole;
         this.xContent = xContent;
         this.routers = null;
         this.routerByIndex = null;
+        this.routersByBatch = routersByBatch;
     }
 
-    private BatchRouterSet(Map<String, BatchModeRouter> routers) {
+    private BatchRouterSet(Map<String, BatchModeRouter> routers, Map<SourceBatch, BatchModeRouter> routersByBatch) {
         this.sole = null;
         this.xContent = false;
         this.routers = routers;
         this.routerByIndex = new HashMap<>();
+        this.routersByBatch = routersByBatch;
     }
 
     /**
@@ -88,7 +97,7 @@ final class BatchRouterSet implements Releasable {
     static BatchRouterSet create(BulkRequest bulkRequest, boolean batchIndexingSupported, Recycler<BytesRef> recycler) {
         if (bulkRequest.hasPreBuiltBatches() == false) {
             BatchModeRouter xContentRouter = BatchModeRouter.createForXContent(bulkRequest, batchIndexingSupported, recycler);
-            return xContentRouter == null ? null : new BatchRouterSet(xContentRouter, true);
+            return xContentRouter == null ? null : new BatchRouterSet(xContentRouter, true, null);
         }
         if (batchIndexingSupported == false) {
             throw new IllegalStateException(
@@ -150,28 +159,26 @@ final class BatchRouterSet implements Releasable {
                 );
             }
         }
-        Map<SourceBatch, String> keyOfBatch = new IdentityHashMap<>();
+        Map<String, BatchModeRouter> routers = new HashMap<>(batches.size() * 2);
+        Map<SourceBatch, BatchModeRouter> routersByBatch = new IdentityHashMap<>();
         for (Map.Entry<String, SourceBatch> entry : batches.entrySet()) {
-            String otherKey = keyOfBatch.put(entry.getValue(), entry.getKey());
-            if (otherKey != null) {
+            BatchModeRouter router = new BatchModeRouter(entry.getKey(), (EscfBatch) entry.getValue(), recycler);
+            BatchModeRouter other = routersByBatch.put(entry.getValue(), router);
+            if (other != null) {
                 throw new IllegalArgumentException(
                     "the same pre-built batch was supplied for both ["
-                        + otherKey
+                        + other.key
                         + "] and ["
                         + entry.getKey()
                         + "]; each index abstraction needs a batch of its own"
                 );
             }
+            routers.put(entry.getKey(), router);
         }
-        if (batches.size() == 1) {
-            Map.Entry<String, SourceBatch> only = batches.entrySet().iterator().next();
-            return new BatchRouterSet(new BatchModeRouter(only.getKey(), (EscfBatch) only.getValue(), recycler), false);
+        if (routers.size() == 1) {
+            return new BatchRouterSet(routers.values().iterator().next(), false, routersByBatch);
         }
-        Map<String, BatchModeRouter> map = new HashMap<>(batches.size() * 2);
-        for (Map.Entry<String, SourceBatch> entry : batches.entrySet()) {
-            map.put(entry.getKey(), new BatchModeRouter(entry.getKey(), (EscfBatch) entry.getValue(), recycler));
-        }
-        return new BatchRouterSet(map);
+        return new BatchRouterSet(routers, routersByBatch);
     }
 
     /**
@@ -187,31 +194,29 @@ final class BatchRouterSet implements Releasable {
             sole.preResolveTimestamps(project, requests);
             return;
         }
-        Map<SourceBatch, List<DocWriteRequest<?>>> requestsByBatch = null;
+        Map<BatchModeRouter, List<DocWriteRequest<?>>> requestsByRouter = null;
         for (BatchModeRouter router : routers.values()) {
             if (router.resolvesTimestamps(project)) {
-                if (requestsByBatch == null) {
-                    requestsByBatch = new IdentityHashMap<>();
+                if (requestsByRouter == null) {
+                    requestsByRouter = new HashMap<>();
                 }
-                requestsByBatch.put(router.source(), new ArrayList<>());
+                requestsByRouter.put(router, new ArrayList<>());
             }
         }
-        if (requestsByBatch == null) {
+        if (requestsByRouter == null) {
             return;
         }
         for (DocWriteRequest<?> request : requests) {
             if (request instanceof IndexRequest indexRequest && indexRequest.indexSource().hasSourceRow()) {
-                List<DocWriteRequest<?>> routerRequests = requestsByBatch.get(indexRequest.indexSource().sourceBatch());
+                BatchModeRouter router = routersByBatch.get(indexRequest.indexSource().sourceBatch());
+                List<DocWriteRequest<?>> routerRequests = router == null ? null : requestsByRouter.get(router);
                 if (routerRequests != null) {
                     routerRequests.add(request);
                 }
             }
         }
-        for (BatchModeRouter router : routers.values()) {
-            List<DocWriteRequest<?>> routerRequests = requestsByBatch.get(router.source());
-            if (routerRequests != null) {
-                router.preResolveTimestamps(project, routerRequests);
-            }
+        for (Map.Entry<BatchModeRouter, List<DocWriteRequest<?>>> entry : requestsByRouter.entrySet()) {
+            entry.getKey().preResolveTimestamps(project, entry.getValue());
         }
     }
 

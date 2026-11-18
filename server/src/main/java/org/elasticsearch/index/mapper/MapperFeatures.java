@@ -180,6 +180,7 @@ public class MapperFeatures implements FeatureSpecification {
     public static final NodeFeature COLUMNAR_DOC_VALUES_NO_OP_ALL_MAPPERS = new NodeFeature("mapper.columnar.doc_values_no_op_all_mappers");
     public static final NodeFeature COLUMNAR_STORED_SOURCE_FILTER_FIX = new NodeFeature("mapper.columnar_stored.source_filter_fix");
     public static final NodeFeature COLUMNAR_STORED_SOURCE_FLS_FIX = new NodeFeature("mapper.columnar_stored.source_fls_fix");
+    public static final NodeFeature COLUMNAR_TEMPLATE_MODE_VALIDATION_FIX = new NodeFeature("mapper.columnar.template_mode_validation_fix");
     public static final NodeFeature TEXT_SEARCH_WITHOUT_TERMS = new NodeFeature("mapper.text.search_without_terms");
     public static final NodeFeature TSDB_METRIC_TEMPORALITY_SUPPORT = new NodeFeature("mapper.tsdb.metric_temporality_support");
     /**
@@ -315,6 +316,7 @@ public class MapperFeatures implements FeatureSpecification {
             COLUMNAR_DOC_VALUES_NO_OP_ALL_MAPPERS,
             COLUMNAR_STORED_SOURCE_FILTER_FIX,
             COLUMNAR_STORED_SOURCE_FLS_FIX,
+            COLUMNAR_TEMPLATE_MODE_VALIDATION_FIX,
             DOC_VALUES_MULTI_VALUE_INDEX_SETTING,
             DOC_VALUES_MULTI_VALUE_FALSE_ALIAS,
             DOC_VALUES_EXTENDED_FORM_ONLY_IN_COLUMNAR,

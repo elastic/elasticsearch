@@ -19,17 +19,19 @@ import org.elasticsearch.action.ingest.SimulateIndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
+import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -37,9 +39,10 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
-import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
@@ -70,9 +73,11 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.isDataStreamsLifecycleOnlyMode;
@@ -215,21 +220,16 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
         IndexRequest request,
         MapperService.MergeReason mappingMergeReason
     ) {
-        final SourceToParse sourceToParse = new SourceToParse(
-            request.id(),
-            new BytesSource(request.source(), request.getContentType(), request.getIncludeSourceOnError()),
-            request.routing(),
-            request.getDynamicTemplates(),
-            request.getDynamicTemplateParams(),
-            XContentMeteringParserDecorator.NOOP,
-            request.tsid()
-        );
-
         ProjectMetadata project = projectResolver.getProjectMetadata(clusterService.state());
         CompressedXContent effectiveMapping = null;
         Exception mappingValidationException = null;
         Collection<String> ignoredFields = List.of();
         IndexAbstraction indexAbstraction = project.getIndicesLookup().get(request.index());
+        if (indexAbstraction != null && indexAbstraction.isDataStreamRelated()) {
+            // _ingest/_simulate sends op_type index, but a real write to a data stream must use op_type create.
+            // For a time_series data stream, create picks the backing index whose time range covers the @timestamp.
+            request.opType(DocWriteRequest.OpType.CREATE);
+        }
         try {
             if (indexAbstraction != null && componentTemplateSubstitutions.isEmpty() && indexTemplateSubstitutions.isEmpty()) {
                 /*
@@ -239,7 +239,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                 IndexMetadata imd = project.getIndexSafe(indexAbstraction.getWriteIndex(request, project));
                 CompressedXContent mappings = Optional.ofNullable(imd.mapping()).map(MappingMetadata::source).orElse(null);
                 effectiveMapping = mappingAddition == null ? null : mergeMappings(mappings, mappingAddition);
-                ignoredFields = validateUpdatedMappingsFromIndexMetadata(imd, effectiveMapping, request, sourceToParse, mappingMergeReason);
+                ignoredFields = validateUpdatedMappingsFromIndexMetadata(imd, false, effectiveMapping, request, mappingMergeReason);
             } else {
                 /*
                  * The index did not exist, or we have component template substitutions, so we put together the mappings from existing
@@ -298,7 +298,22 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                     );
                     CompressedXContent mappings = template.mappings();
                     effectiveMapping = mergeMappings(mappings, mappingAddition);
-                    ignoredFields = validateUpdatedMappings(mappings, effectiveMapping, request, sourceToParse, mappingMergeReason);
+                    Settings templateSettings = template.settings();
+                    if (indexAbstraction instanceof DataStream dataStream
+                        && templateSettings.hasValue(IndexSettings.TIME_SERIES_START_TIME.getKey())) {
+                        // The data stream was removed above, so the provider set the time range of a new first backing index.
+                        // A real write goes to the backing index whose time range covers the @timestamp, so validate with that range.
+                        Settings writeIndexSettings = project.getIndexSafe(dataStream.getWriteIndex(request, project)).getSettings();
+                        Set<String> timeRange = Set.of(
+                            IndexSettings.TIME_SERIES_START_TIME.getKey(),
+                            IndexSettings.TIME_SERIES_END_TIME.getKey()
+                        );
+                        templateSettings = Settings.builder()
+                            .put(templateSettings)
+                            .put(writeIndexSettings.filter(timeRange::contains))
+                            .build();
+                    }
+                    ignoredFields = validateUpdatedMappings(templateSettings, mappings, effectiveMapping, request, mappingMergeReason);
                 } else {
                     List<IndexTemplateMetadata> matchingTemplates = findV1Templates(simulatedProjectMetadata, request.index(), false);
                     if (matchingTemplates.isEmpty() == false) {
@@ -312,7 +327,8 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                             xContentRegistry
                         );
                         effectiveMapping = mergeMappings(new CompressedXContent(mappingsMap), mappingAddition);
-                        ignoredFields = validateUpdatedMappings(null, effectiveMapping, request, sourceToParse, mappingMergeReason);
+                        Settings templateSettings = MetadataIndexTemplateService.resolveSettings(matchingTemplates);
+                        ignoredFields = validateUpdatedMappings(templateSettings, null, effectiveMapping, request, mappingMergeReason);
                     } else {
                         /*
                          * The index matched no templates and had no mapping of its own. If there were component template substitutions
@@ -320,7 +336,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                          * and validate.
                          */
                         effectiveMapping = mergeMappings(null, mappingAddition);
-                        ignoredFields = validateUpdatedMappings(null, effectiveMapping, request, sourceToParse, mappingMergeReason);
+                        ignoredFields = validateUpdatedMappings(Settings.EMPTY, null, effectiveMapping, request, mappingMergeReason);
                     }
                 }
             }
@@ -339,42 +355,58 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
      * Otherwise the returned Collection is empty.
      */
     private Collection<String> validateUpdatedMappings(
+        Settings templateSettings,
         @Nullable CompressedXContent originalMappings,
         @Nullable CompressedXContent updatedMappings,
         IndexRequest request,
-        SourceToParse sourceToParse,
         MapperService.MergeReason mappingMergeReason
     ) throws IOException {
-        Settings dummySettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-            .build();
+        // The template settings carry the index mode, which mapping validation needs.
+        Settings dummySettings = MetadataIndexTemplateService.temporaryIndexSettings(templateSettings);
         IndexMetadata.Builder originalIndexMetadataBuilder = IndexMetadata.builder(request.index()).settings(dummySettings);
         if (originalMappings != null) {
             originalIndexMetadataBuilder.putMapping(new MappingMetadata(originalMappings));
         }
         final IndexMetadata originalIndexMetadata = originalIndexMetadataBuilder.build();
-        return validateUpdatedMappingsFromIndexMetadata(originalIndexMetadata, updatedMappings, request, sourceToParse, mappingMergeReason);
+        return validateUpdatedMappingsFromIndexMetadata(originalIndexMetadata, true, updatedMappings, request, mappingMergeReason);
     }
 
     private Collection<String> validateUpdatedMappingsFromIndexMetadata(
         IndexMetadata originalIndexMetadata,
+        boolean newIndex,
         @Nullable CompressedXContent updatedMappings,
         IndexRequest request,
-        SourceToParse sourceToParse,
         MapperService.MergeReason mappingMergeReason
     ) throws IOException {
-        if (updatedMappings == null) {
-            return List.of(); // no validation to do
+        IndexMode indexMode = originalIndexMetadata.getIndexMode();
+        if (updatedMappings == null && (newIndex == false || indexMode == null || indexMode == IndexMode.STANDARD)) {
+            return List.of(); // no validation to do, since a new standard index gets no default mapping
         }
-        final IndexMetadata updatedIndexMetadata = IndexMetadata.builder(request.index())
-            .settings(originalIndexMetadata.getSettings())
-            .putMapping(new MappingMetadata(updatedMappings))
-            .build();
+        if (IndexMode.isTsdb(originalIndexMetadata.getIndexMode())) {
+            // time_series parsing needs the routing hash (and _tsid with index.dimensions) that a real write computes when routing.
+            IndexRouting indexRouting = IndexRouting.fromIndexMetadata(originalIndexMetadata);
+            request.preRoutingProcess(indexRouting);
+            request.route(indexRouting);
+            request.postRoutingProcess(indexRouting);
+        }
+        final SourceToParse sourceToParse = new SourceToParse(
+            request.id(),
+            new BytesSource(request.source(), request.getContentType(), request.getIncludeSourceOnError()),
+            request.routing(),
+            request.getDynamicTemplates(),
+            request.getDynamicTemplateParams(),
+            XContentMeteringParserDecorator.NOOP,
+            request.tsid()
+        );
         Engine.Index result = indicesService.withTempIndexService(originalIndexMetadata, indexService -> {
-            indexService.mapperService().merge(updatedIndexMetadata, mappingMergeReason);
+            IndexSettings indexSettings = indexService.getIndexSettings();
+            CompressedXContent defaultMapping = newIndex ? indexSettings.getMode().getDefaultMapping(indexSettings) : null;
+            // Index creation merges the index mode's default mapping first, e.g. @timestamp and the time_series timestamp check.
+            List<CompressedXContent> mappings = Stream.of(defaultMapping, updatedMappings).filter(Objects::nonNull).toList();
+            if (mappings.isEmpty()) {
+                return null; // a new index without mappings in a mode without a default mapping, so there is nothing to validate
+            }
+            indexService.mapperService().merge(MapperService.SINGLE_MAPPING_NAME, mappings, mappingMergeReason);
             return IndexShard.prepareIndex(
                 indexService.mapperService(),
                 sourceToParse,

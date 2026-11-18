@@ -1,0 +1,342 @@
+---
+"Simulate with a columnar template that uses multi_value":
+  - requires:
+      test_runner_features: [ allowed_warnings, headers ]
+      cluster_features: [ "mapper.columnar.template_mode_validation_fix" ]
+      reason: "simulate validates the mappings with the index mode of the template"
+
+  # multi_value is only valid in columnar index modes.
+  - do:
+      allowed_warnings:
+        - "index template [mv-sim-template] has index patterns [mv-sim*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [mv-sim-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: mv-sim-template
+        body:
+          index_patterns: [ "mv-sim*" ]
+          template:
+            settings:
+              index.mode: columnar
+            mappings:
+              properties:
+                kw:
+                  type: keyword
+                  multi_value: false
+
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        body: >
+          {
+            "docs": [
+              { "_index": "mv-sim-index", "_id": "1", "_source": { "kw": "a" } }
+            ]
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc._index: mv-sim-index }
+  - is_false: docs.0.doc.error
+
+---
+"Simulate with a time_series template":
+  - requires:
+      test_runner_features: [ allowed_warnings, headers ]
+      cluster_features: [ "mapper.columnar.template_mode_validation_fix" ]
+      reason: "simulate validates the mappings with the index mode of the template"
+
+  - do:
+      allowed_warnings:
+        - "index template [tsdb-sim-template] has index patterns [tsdb-sim*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [tsdb-sim-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: tsdb-sim-template
+        body:
+          index_patterns: [ "tsdb-sim*" ]
+          template:
+            settings:
+              index.mode: time_series
+              index.routing_path: [ dim ]
+              index.time_series.start_time: 2021-04-28T00:00:00Z
+              index.time_series.end_time: 2021-04-29T00:00:00Z
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                dim:
+                  type: keyword
+                  time_series_dimension: true
+
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        body: >
+          {
+            "docs": [
+              { "_index": "tsdb-sim-index", "_source": { "@timestamp": "2021-04-28T18:35:24.467Z", "dim": "a" } }
+            ]
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc._index: tsdb-sim-index }
+  - is_false: docs.0.doc.error
+
+  # A time_series index derives the _id from the document, so only a time_series validation rejects a different _id.
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        body: >
+          {
+            "docs": [
+              { "_index": "tsdb-sim-index", "_id": "1", "_source": { "@timestamp": "2021-04-28T18:35:24.467Z", "dim": "a" } }
+            ]
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc.error.type: document_parsing_exception }
+  - match: { docs.0.doc.error.caused_by.type: illegal_argument_exception }
+  - match: { docs.0.doc.error.reason: "/_id\\ must\\ be\\ unset\\ or\\ set\\ to\\ .+\\ because\\ \\[tsdb-sim-index\\]\\ is\\ in\\ time_series\\ mode/" }
+
+---
+"Simulate with an existing time_series index and a mapping addition":
+  - requires:
+      test_runner_features: [ headers ]
+      cluster_features: [ "mapper.columnar.template_mode_validation_fix" ]
+      reason: "simulate computes the routing hash of time_series documents"
+
+  - do:
+      indices.create:
+        index: tsdb-sim-existing
+        body:
+          settings:
+            index.mode: time_series
+            index.routing_path: [ dim ]
+            index.time_series.start_time: 2021-04-28T00:00:00Z
+            index.time_series.end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              dim:
+                type: keyword
+                time_series_dimension: true
+
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        body: >
+          {
+            "docs": [
+              { "_index": "tsdb-sim-existing", "_source": { "@timestamp": "2021-04-28T18:35:24.467Z", "dim": "a", "kw": "b" } }
+            ],
+            "mapping_addition": {
+              "properties": { "kw": { "type": "keyword" } }
+            }
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc._index: tsdb-sim-existing }
+  - is_false: docs.0.doc.error
+
+---
+"Simulate with a time_series data stream template and a timestamp outside the time range":
+  - requires:
+      test_runner_features: [ allowed_warnings, headers ]
+      cluster_features: [ "mapper.columnar.template_mode_validation_fix" ]
+      reason: "simulate validates the mappings with the index mode of the template"
+
+  # The time_series index setting provider sets the time range of the first backing index to around now, as a real write does.
+  - do:
+      allowed_warnings:
+        - "index template [tsds-sim-template] has index patterns [tsds-sim*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [tsds-sim-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: tsds-sim-template
+        body:
+          index_patterns: [ "tsds-sim*" ]
+          data_stream: {}
+          template:
+            settings:
+              index.mode: time_series
+              index.routing_path: [ dim ]
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                dim:
+                  type: keyword
+                  time_series_dimension: true
+
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        body: >
+          {
+            "docs": [
+              { "_index": "tsds-sim-ds", "_source": { "@timestamp": "2000-01-01T00:00:00Z", "dim": "a" } }
+            ]
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc.error.type: document_parsing_exception }
+  - match: { docs.0.doc.error.reason: "/.*time\\ series\\ index\\ @timestamp\\ value\\ \\[2000-01-01T00:00:00Z\\]\\ must\\ be\\ larger\\ than.*/" }
+
+  # Once the data stream exists, simulate picks the backing index by @timestamp as a real write does, and no backing index covers it.
+  - do:
+      indices.create_data_stream:
+        name: tsds-sim-ds
+
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        body: >
+          {
+            "docs": [
+              { "_index": "tsds-sim-ds", "_source": { "@timestamp": "2000-01-01T00:00:00Z", "dim": "a" } }
+            ]
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc.error.reason: "/.*the\\ document\\ timestamp\\ \\[2000-01-01T00:00:00(\\.000)?Z\\]\\ is\\ outside\\ of\\ ranges\\ of\\ currently\\ writable\\ indices.*/" }
+
+---
+"Simulate with a legacy template that sets the index mode":
+  - requires:
+      test_runner_features: [ allowed_warnings, headers ]
+      cluster_features: [ "mapper.columnar.template_mode_validation_fix" ]
+      reason: "simulate validates the mappings with the index mode of the template"
+
+  # multi_value is only valid in columnar index modes.
+  - do:
+      allowed_warnings:
+        - "Legacy index templates are deprecated in favor of composable templates."
+      indices.put_template:
+        name: mv-legacy-sim-template
+        body:
+          index_patterns: [ "mv-legacy-sim*" ]
+          settings:
+            index.mode: columnar
+          mappings:
+            properties:
+              kw:
+                type: keyword
+                multi_value: false
+
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        body: >
+          {
+            "docs": [
+              { "_index": "mv-legacy-sim-index", "_id": "1", "_source": { "kw": "a" } }
+            ]
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc._index: mv-legacy-sim-index }
+  - is_false: docs.0.doc.error
+
+---
+"Simulate with a legacy template that sets a routing partition size without a shard count":
+  - requires:
+      test_runner_features: [ allowed_warnings, headers ]
+      cluster_features: [ "mapper.columnar.template_mode_validation_fix" ]
+      reason: "simulate validates the mappings with the settings of the template"
+
+  # Without a shard count, a partition size above 1 is valid, because index creation computes more routing shards than the partition size.
+  - do:
+      allowed_warnings:
+        - "Legacy index templates are deprecated in favor of composable templates."
+      indices.put_template:
+        name: partition-legacy-sim-template
+        body:
+          index_patterns: [ "partition-legacy-sim*" ]
+          settings:
+            index.routing_partition_size: 2
+          mappings:
+            _routing:
+              required: true
+            properties:
+              kw:
+                type: keyword
+
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        body: >
+          {
+            "docs": [
+              { "_index": "partition-legacy-sim-index", "_id": "1", "_routing": "r", "_source": { "kw": "a" } }
+            ]
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc._index: partition-legacy-sim-index }
+  - is_false: docs.0.doc.error
+
+---
+"Simulate with a template that sets a routing partition size without a shard count":
+  - requires:
+      test_runner_features: [ allowed_warnings, headers ]
+      cluster_features: [ "mapper.columnar.template_mode_validation_fix" ]
+      reason: "simulate validates the mappings with the settings of the template"
+
+  # Without a shard count, a partition size above 1 is valid, because index creation computes more routing shards than the partition size.
+  - do:
+      allowed_warnings:
+        - "index template [partition-sim-template] has index patterns [partition-sim*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [partition-sim-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: partition-sim-template
+        body:
+          index_patterns: [ "partition-sim*" ]
+          template:
+            settings:
+              index.routing_partition_size: 2
+            mappings:
+              _routing:
+                required: true
+              properties:
+                kw:
+                  type: keyword
+
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        body: >
+          {
+            "docs": [
+              { "_index": "partition-sim-index", "_id": "1", "_routing": "r", "_source": { "kw": "a" } }
+            ]
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc._index: partition-sim-index }
+  - is_false: docs.0.doc.error
+
+---
+"Simulate with a logsdb template that has no mappings":
+  - requires:
+      test_runner_features: [ allowed_warnings, headers ]
+      cluster_features: [ "mapper.columnar.template_mode_validation_fix" ]
+      reason: "simulate validates the mappings with the index mode of the template"
+
+  # Index creation adds the default mapping of logsdb, which requires @timestamp, even when the template has no mappings.
+  - do:
+      allowed_warnings:
+        - "index template [logsdb-sim-template] has index patterns [logsdb-sim*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logsdb-sim-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: logsdb-sim-template
+        body:
+          index_patterns: [ "logsdb-sim*" ]
+          template:
+            settings:
+              index.mode: logsdb
+
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        body: >
+          {
+            "docs": [
+              { "_index": "logsdb-sim-index", "_id": "1", "_source": { "message": "no timestamp" } }
+            ]
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc.error.reason: "/.*data\\ stream\\ timestamp\\ field\\ \\[@timestamp\\]\\ is\\ missing.*/" }

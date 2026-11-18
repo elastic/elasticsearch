@@ -1,0 +1,118 @@
+---
+"Data stream mappings are validated with the provider index mode when the template has no mode":
+  - requires:
+      test_runner_features: [ allowed_warnings ]
+      cluster_features: [ "mapper.columnar.template_mode_validation_fix" ]
+      reason: "the effective mappings of a data stream are validated with the index mode of the next write index"
+
+  # The template has no index mode, so the logsdb index setting provider sets logsdb or logsdb_columnar for logs-*-* data streams.
+  - do:
+      allowed_warnings:
+        - "index template [no-mode-template] has index patterns [logs-nomode-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [no-mode-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: no-mode-template
+        body:
+          index_patterns: [ "logs-nomode-*" ]
+          priority: 500
+          data_stream: {}
+          template:
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+
+  - do:
+      indices.create_data_stream:
+        name: logs-nomode-default
+
+  - do:
+      indices.get_data_stream:
+        name: logs-nomode-default
+  - match: { data_streams.0.index_mode: '/^logsdb(_columnar)?$/' }
+
+  # The next write index still gets a logsdb mode from the provider, and logsdb rejects a disabled _source.
+  - do:
+      allowed_warnings:
+        - "index template [no-mode-template] has index patterns [logs-nomode-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [no-mode-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: no-mode-template
+        body:
+          index_patterns: [ "logs-nomode-*" ]
+          priority: 500
+          data_stream: {}
+          template:
+            mappings:
+              _source:
+                enabled: false
+              properties:
+                "@timestamp":
+                  type: date
+
+  - do:
+      catch: bad_request
+      indices.get_data_stream_mappings:
+        name: logs-nomode-default
+  - match: { error.reason: "/.*_source\\ can\\ not\\ be\\ disabled\\ in\\ index\\ using\\ \\[logsdb(_columnar)?\\]\\ index\\ mode.*/" }
+
+---
+"Data stream mappings are validated with the provider index mode after the template drops time_series":
+  - requires:
+      test_runner_features: [ allowed_warnings ]
+      cluster_features: [ "mapper.columnar.template_mode_validation_fix" ]
+      reason: "the effective mappings of a data stream are validated with the index mode of the next write index"
+
+  - do:
+      allowed_warnings:
+        - "index template [ts-template] has index patterns [logs-ts-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [ts-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: ts-template
+        body:
+          index_patterns: [ "logs-ts-*" ]
+          priority: 500
+          data_stream: {}
+          template:
+            settings:
+              index.mode: time_series
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                dim:
+                  type: keyword
+                  time_series_dimension: true
+
+  - do:
+      indices.create_data_stream:
+        name: logs-ts-default
+
+  - do:
+      indices.get_data_stream:
+        name: logs-ts-default
+  - match: { data_streams.0.index_mode: time_series }
+
+  # Without a mode in the template, the logsdb index setting provider sets a logsdb mode for the next write index, not standard.
+  - do:
+      allowed_warnings:
+        - "index template [ts-template] has index patterns [logs-ts-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [ts-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: ts-template
+        body:
+          index_patterns: [ "logs-ts-*" ]
+          priority: 500
+          data_stream: {}
+          template:
+            mappings:
+              _source:
+                enabled: false
+              properties:
+                "@timestamp":
+                  type: date
+                dim:
+                  type: keyword
+                  time_series_dimension: true
+
+  - do:
+      catch: bad_request
+      indices.get_data_stream_mappings:
+        name: logs-ts-default
+  - match: { error.reason: "/.*_source\\ can\\ not\\ be\\ disabled\\ in\\ index\\ using\\ \\[logsdb(_columnar)?\\]\\ index\\ mode.*/" }

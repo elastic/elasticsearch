@@ -25,6 +25,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -3227,7 +3228,10 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         // No matching template, so we expect an IllegalArgumentException
         DataStream dataStream = createTestInstance();
         ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(randomProjectIdOrDefault());
-        assertThrows(IllegalArgumentException.class, () -> dataStream.getEffectiveMappings(projectMetadataBuilder.build(), null));
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> dataStream.getEffectiveMappings(projectMetadataBuilder.build(), null, IndexSettingProviders.EMPTY)
+        );
     }
 
     public void testGetEffectiveIndexTemplateDataStreamMappingsOnly() throws IOException {

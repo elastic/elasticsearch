@@ -68,6 +68,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -101,6 +102,8 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
     private static final String ES_README_P12 = "es-readme-p12.txt";
     private static final String ES_YML_P12 = "es-sample-p12.yml";
     private static final String CA_README_P12 = "ca-readme-p12.txt";
+    private static final String HTTP_KEYSTORE_BASENAME = "http";
+    private static final String CA_KEYSTORE_BASENAME = "ca";
     private static final String KIBANA_README = "kibana-readme.txt";
     private static final String KIBANA_YML = "kibana-sample.yml";
 
@@ -231,12 +234,23 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
             terminal.println("If you do not wish to use a password, simply press <enter> at the prompt below.");
             password = readPassword(terminal, "Provide a password for the private key: ", true);
         } else {
-            terminal.println("Your private key(s) will be stored in a PKCS#12 keystore file named \"http.p12\".");
+            terminal.println(
+                "Your private key(s) will be stored in a "
+                    + keyStoreFormat.description()
+                    + " keystore file named \""
+                    + HTTP_KEYSTORE_BASENAME
+                    + keyStoreFormat.extension()
+                    + "\"."
+            );
             terminal.println("This type of keystore is always password protected, but it is possible to use a");
             terminal.println("blank password.");
             terminal.println("");
             terminal.println("If you wish to use a blank password, simply press <enter> at the prompt below.");
-            password = readPassword(terminal, "Provide a password for the \"http.p12\" file: ", true);
+            password = readPassword(
+                terminal,
+                "Provide a password for the \"" + HTTP_KEYSTORE_BASENAME + keyStoreFormat.extension() + "\" file: ",
+                true
+            );
         }
 
         printHeader("Where should we save the generated files?", terminal);
@@ -401,11 +415,17 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
                     Set.of(KeyPurpose.SERVER_AUTH)
                 );
 
-                final String keyStoreName = "http.p12";
+                final String keyStoreName = HTTP_KEYSTORE_BASENAME + keyStoreFormat.extension();
                 final String ymlFile = "sample-elasticsearch.yml";
                 final Map<String, String> substitutions = buildSubstitutions(
                     env,
-                    Map.ofEntries(Map.entry("P12", keyStoreName), Map.entry("YML", ymlFile), Map.entry("PASSWORD", hasPassword ? "*" : ""))
+                    Map.ofEntries(
+                        Map.entry("KEYSTORE", keyStoreName),
+                        Map.entry("KEYSTORE_FORMAT", keyStoreFormat.description()),
+                        Map.entry("KEYSTORE_TYPE", Objects.requireNonNullElse(keyStoreFormat.settingsType(), "")),
+                        Map.entry("YML", ymlFile),
+                        Map.entry("PASSWORD", hasPassword ? "*" : "")
+                    )
                 );
                 writeTextFile(zip, dirName + "/README.txt", ES_README_P12, substitutions);
                 writeKeyStore(zip, dirName + "/" + keyStoreName, certificate, keyPair.getPrivate(), password, ca.certAndKey.cert);
@@ -420,6 +440,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
         assert ca != null;
         assert ca.generated;
 
+        final String keyStoreName = CA_KEYSTORE_BASENAME + keyStoreFormat.extension();
         try {
             writeTextFile(
                 zip,
@@ -428,8 +449,10 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
                 buildSubstitutions(
                     env,
                     Map.of(
-                        "P12",
-                        "ca.p12",
+                        "KEYSTORE",
+                        keyStoreName,
+                        "KEYSTORE_FORMAT",
+                        keyStoreFormat.description(),
                         "DN",
                         ca.certAndKey.cert.getSubjectX500Principal().getName(),
                         "PASSWORD",
@@ -439,7 +462,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
             );
             final KeyStore keyStore = keyStoreFormat.newKeyStore();
             keyStore.setKeyEntry("ca", ca.certAndKey.key, ca.password, new Certificate[] { ca.certAndKey.cert });
-            try (ZipEntryStream entry = new ZipEntryStream(zip, dirName + "/ca.p12")) {
+            try (ZipEntryStream entry = new ZipEntryStream(zip, dirName + "/" + keyStoreName)) {
                 keyStore.store(entry, ca.password);
             }
         } catch (KeyStoreException | IOException | CertificateException | NoSuchAlgorithmException e) {
@@ -724,7 +747,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
             if (csr) {
                 terminal.println("This will be included in the name of the files that are generated");
             } else {
-                terminal.println("This will be the entry name in the PKCS#12 keystore that is generated");
+                terminal.println("This will be the entry name in the " + keyStoreFormat.description() + " keystore that is generated");
             }
             terminal.println("It is helpful to have a meaningful name for this key");
             terminal.println("");

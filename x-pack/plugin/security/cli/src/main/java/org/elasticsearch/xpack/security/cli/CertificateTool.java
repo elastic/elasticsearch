@@ -90,7 +90,7 @@ class CertificateTool extends MultiCommand {
     private static final String DEFAULT_CSR_ZIP = "csr-bundle.zip";
     private static final String DEFAULT_CERT_ZIP = "certificate-bundle.zip";
     private static final String DEFAULT_CA_ZIP = "elastic-stack-ca.zip";
-    private static final String DEFAULT_CA_P12 = "elastic-stack-ca.p12";
+    private static final String DEFAULT_CA_KEYSTORE_BASENAME = "elastic-stack-ca";
 
     static final String DEFAULT_CERT_NAME = "instance";
 
@@ -232,14 +232,15 @@ class CertificateTool extends MultiCommand {
         }
 
         final void acceptCertificateGenerationOptions() {
-            pemFormatSpec = parser.accepts("pem", "output certificates and keys in PEM format instead of PKCS#12");
+            pemFormatSpec = parser.accepts("pem", "output certificates and keys in PEM format instead of " + keyStoreFormat.description());
             daysSpec = parser.accepts("days", "number of days that the generated certificates are valid")
                 .withRequiredArg()
                 .ofType(Integer.class);
         }
 
         final void acceptsCertificateAuthority() {
-            caKeyStorePathSpec = parser.accepts("ca", "path to an existing ca key pair (in PKCS#12 format)").withRequiredArg();
+            caKeyStorePathSpec = parser.accepts("ca", "path to an existing ca key pair (in " + keyStoreFormat.description() + " format)")
+                .withRequiredArg();
             caCertPathSpec = parser.accepts("ca-cert", "path to an existing ca certificate")
                 .availableUnless(caKeyStorePathSpec)
                 .withRequiredArg();
@@ -784,7 +785,7 @@ class CertificateTool extends MultiCommand {
             terminal.println("");
             terminal.println(CA_EXPLANATION);
             terminal.println("");
-            terminal.println("By default the 'cert' mode produces a single PKCS#12 output file which holds:");
+            terminal.println("By default the 'cert' mode produces a single " + keyStoreFormat.description() + " output file which holds:");
             terminal.println("    * The instance certificate");
             terminal.println("    * The private key for the instance certificate");
             terminal.println("    * The CA certificate");
@@ -805,9 +806,9 @@ class CertificateTool extends MultiCommand {
             if (writeZipFile) {
                 outputName = DEFAULT_CERT_ZIP;
             } else if (options.has(nameSpec)) {
-                outputName = nameSpec.value(options) + ".p12";
+                outputName = nameSpec.value(options) + keyStoreFormat.extension();
             } else {
-                outputName = "elastic-certificates.p12";
+                outputName = "elastic-certificates" + keyStoreFormat.extension();
             }
             final Path output = resolveOutputPath(terminal, options, outputName);
 
@@ -831,13 +832,19 @@ class CertificateTool extends MultiCommand {
                     terminal.println("Each instance has a certificate and private key.");
                     filesDescription = "the certificate, key, and CA certificate";
                 } else {
-                    terminal.println("Each instance has a single PKCS#12 (.p12) file containing the instance");
+                    terminal.println(
+                        "Each instance has a single "
+                            + keyStoreFormat.description()
+                            + " ("
+                            + keyStoreFormat.extension()
+                            + ") file containing the instance"
+                    );
                     terminal.println("certificate, instance private key and the CA certificate");
-                    filesDescription = "this '.p12' file";
+                    filesDescription = "this '" + keyStoreFormat.extension() + "' file";
                 }
             } else {
                 terminal.println("This file is a self contained file and can be copied and used 'as is'");
-                filesDescription = "this '.p12' file";
+                filesDescription = "this '" + keyStoreFormat.extension() + "' file";
             }
             terminal.println("For each Elastic product that you wish to configure, you should copy");
             terminal.println(filesDescription + " to the relevant configuration directory");
@@ -858,10 +865,10 @@ class CertificateTool extends MultiCommand {
         }
 
         /**
-         * Generates signed certificates in either PKCS#12 format or PEM format, wrapped in a zip file if necessary.
+         * Generates signed certificates in either keystore format or PEM format, wrapped in a zip file if necessary.
          *
-         * @param output       the output file (either zip, or PKCS#12)
-         * @param writeZipFile if true, output a zip file, otherwise output a single PKCS#12 file
+         * @param output       the output file (either zip, or keystore)
+         * @param writeZipFile if true, output a zip file, otherwise output a single keystore file
          * @param options      the current command line options
          * @param certs        the certificates to write to the file
          * @param caInfo       the CA information to sign the certificates with
@@ -903,7 +910,7 @@ class CertificateTool extends MultiCommand {
                             // write private key
                             writePemPrivateKey(terminal, options, outputStream, pemWriter, entryBase + ".key", pair.key);
                         } else {
-                            final String fileName = entryBase + ".p12";
+                            final String fileName = entryBase + keyStoreFormat.extension();
                             final char[] outputPassword = super.getOutputPassword(options);
                             outputStream.putNextEntry(new ZipEntry(fileName));
                             writeKeyStore(
@@ -1006,7 +1013,7 @@ class CertificateTool extends MultiCommand {
             terminal.println("Use the 'ca-dn' option if you wish to configure the 'distinguished name'");
             terminal.println("of the certificate authority");
             terminal.println("");
-            terminal.println("By default the 'ca' mode produces a single PKCS#12 output file which holds:");
+            terminal.println("By default the 'ca' mode produces a single " + keyStoreFormat.description() + " output file which holds:");
             terminal.println("    * The CA certificate");
             terminal.println("    * The CA's private key");
             terminal.println("");
@@ -1016,7 +1023,11 @@ class CertificateTool extends MultiCommand {
 
             CAInfo caInfo = generateCA(terminal, options);
             final boolean writeZipFile = usePemFormat(options);
-            final Path output = resolveOutputPath(terminal, options, writeZipFile ? DEFAULT_CA_ZIP : DEFAULT_CA_P12);
+            final Path output = resolveOutputPath(
+                terminal,
+                options,
+                writeZipFile ? DEFAULT_CA_ZIP : DEFAULT_CA_KEYSTORE_BASENAME + keyStoreFormat.extension()
+            );
             writeCertificateAuthority(output, caInfo, writeZipFile, terminal);
         }
 

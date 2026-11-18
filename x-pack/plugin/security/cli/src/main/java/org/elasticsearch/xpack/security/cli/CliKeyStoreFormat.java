@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.security.cli;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 
 import java.io.IOException;
@@ -29,12 +30,19 @@ import java.util.function.Function;
  */
 final class CliKeyStoreFormat {
 
-    static final CliKeyStoreFormat PKCS12 = new CliKeyStoreFormat("PKCS12");
+    static final CliKeyStoreFormat PKCS12 = new CliKeyStoreFormat("PKCS12", "PKCS#12", ".p12", null);
 
     private final String type;
+    private final String description;
+    private final String extension;
+    @Nullable
+    private final String settingsType;
 
-    private CliKeyStoreFormat(String type) {
+    private CliKeyStoreFormat(String type, String description, String extension, @Nullable String settingsType) {
         this.type = type;
+        this.description = description;
+        this.extension = extension;
+        this.settingsType = settingsType;
     }
 
     /**
@@ -42,6 +50,29 @@ final class CliKeyStoreFormat {
      */
     static CliKeyStoreFormat forRuntime() {
         return PKCS12;
+    }
+
+    /**
+     * The name of this format to show to users, e.g. {@code PKCS#12}.
+     */
+    String description() {
+        return description;
+    }
+
+    /**
+     * The file name extension for keystores of this format, including the leading dot, e.g. {@code .p12}.
+     */
+    String extension() {
+        return extension;
+    }
+
+    /**
+     * The value for {@code *.keystore.type} and {@code *.truststore.type} settings that point to a keystore of this format, or
+     * {@code null} if Elasticsearch infers the type from the {@link #extension()} and the setting can be omitted.
+     */
+    @Nullable
+    String settingsType() {
+        return settingsType;
     }
 
     /**

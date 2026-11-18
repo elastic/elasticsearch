@@ -23,12 +23,20 @@ import javax.security.auth.x500.X500Principal;
 
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class CliKeyStoreFormatTests extends ESTestCase {
 
     public void testForRuntimeIsPkcs12() {
         assertThat(CliKeyStoreFormat.forRuntime(), sameInstance(CliKeyStoreFormat.PKCS12));
+    }
+
+    public void testPkcs12Naming() {
+        assertThat(CliKeyStoreFormat.PKCS12.description(), equalTo("PKCS#12"));
+        assertThat(CliKeyStoreFormat.PKCS12.extension(), equalTo(".p12"));
+        // Elasticsearch infers PKCS12 from the .p12 extension, so generated configuration does not need a type setting
+        assertThat(CliKeyStoreFormat.PKCS12.settingsType(), nullValue());
     }
 
     public void testWriteAndReadKeyPairs() throws Exception {

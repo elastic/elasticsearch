@@ -68,7 +68,6 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
@@ -170,7 +169,6 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             clusterInfoService,
             snapshotsInfoService,
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
-            MeterRegistry.NOOP,
             ClusterSettings.createBuiltInClusterSettings()
         );
         allocationService.setExistingShardsAllocators(Map.of(GatewayAllocator.ALLOCATOR_NAME, new TestGatewayAllocator()));

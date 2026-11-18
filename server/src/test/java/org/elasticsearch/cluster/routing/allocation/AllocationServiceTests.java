@@ -45,7 +45,6 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
@@ -157,7 +156,6 @@ public class AllocationServiceTests extends ESTestCase {
             new EmptyClusterInfoService(),
             EmptySnapshotsInfoService.INSTANCE,
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
-            MeterRegistry.NOOP,
             clusterSettings
         );
 
@@ -273,7 +271,6 @@ public class AllocationServiceTests extends ESTestCase {
             () -> ClusterInfo.EMPTY,
             () -> SnapshotShardSizeInfo.EMPTY,
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
-            MeterRegistry.NOOP,
             createBuiltInClusterSettings()
         );
         allocationService.setExistingShardsAllocators(
@@ -341,7 +338,6 @@ public class AllocationServiceTests extends ESTestCase {
             () -> ClusterInfo.EMPTY,
             () -> SnapshotShardSizeInfo.EMPTY,
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
-            MeterRegistry.NOOP,
             clusterSettings
         );
         final Supplier<AllocationQueryContext> newContext = () -> allocationService.createAllocationQueryContext(
@@ -425,7 +421,6 @@ public class AllocationServiceTests extends ESTestCase {
             new EmptyClusterInfoService(),
             EmptySnapshotsInfoService.INSTANCE,
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
-            MeterRegistry.NOOP,
             clusterSettings
         );
 

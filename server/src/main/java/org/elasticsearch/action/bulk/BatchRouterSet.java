@@ -24,6 +24,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.sourcebatch.SourceBatch;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -146,16 +147,40 @@ final class BatchRouterSet implements Releasable {
     }
 
     /**
-     * Resolves {@code @timestamp} from each router's ESCF columns and caches it on its items'
+     * Resolves {@code @timestamp} from the ESCF columns of each router that needs it and caches it on its items'
      * {@link IndexRequest}s. Must be called before {@link #route}.
+     *
+     * <p>With several routers the rows of their batches overlap, so the requests are first sorted out by batch key,
+     * in one pass over the bulk and only when some router needs timestamps.
      */
     void preResolveTimestamps(ProjectMetadata project, List<DocWriteRequest<?>> requests) {
         if (sole != null) {
             sole.preResolveTimestamps(project, requests);
-        } else {
-            for (BatchModeRouter router : routers.values()) {
-                router.preResolveTimestamps(project, requests);
+            return;
+        }
+        Map<String, List<DocWriteRequest<?>>> requestsByKey = null;
+        for (BatchModeRouter router : routers.values()) {
+            if (router.resolvesTimestamps(project)) {
+                if (requestsByKey == null) {
+                    requestsByKey = new HashMap<>();
+                }
+                requestsByKey.put(router.key, new ArrayList<>());
             }
+        }
+        if (requestsByKey == null) {
+            return;
+        }
+        for (DocWriteRequest<?> request : requests) {
+            if (request instanceof IndexRequest indexRequest && indexRequest.indexSource().hasSourceRow()) {
+                String batchKey = BatchModeRouter.batchKey(project.getIndicesLookup().get(indexRequest.index()), project);
+                List<DocWriteRequest<?>> routerRequests = batchKey == null ? null : requestsByKey.get(batchKey);
+                if (routerRequests != null) {
+                    routerRequests.add(request);
+                }
+            }
+        }
+        for (Map.Entry<String, List<DocWriteRequest<?>>> entry : requestsByKey.entrySet()) {
+            routers.get(entry.getKey()).preResolveTimestamps(project, entry.getValue());
         }
     }
 

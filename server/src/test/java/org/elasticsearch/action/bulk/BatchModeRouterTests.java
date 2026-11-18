@@ -1083,6 +1083,61 @@ public class BatchModeRouterTests extends ESTestCase {
     }
 
     /**
+     * With several batches, only the router of a TSDB data stream resolves timestamps, from the rows of its own
+     * items. The batch of a plain index in the same bulk has overlapping row indices and no {@code @timestamp}
+     * column, and its items must neither reach the other router nor get a timestamp.
+     */
+    public void testPreResolveTimestampsWithSeveralBatches() throws IOException {
+        IndexMetadata backing = tsdbBackingIndex(1, 1, GEN_1_START, GEN_1_END);
+        ProjectMetadata project = ProjectMetadata.builder(projectWithDataStream(backing))
+            .put(plainMetadata("plain-index", 1), false)
+            .build();
+
+        Instant ts0 = Instant.parse("2024-02-01T12:34:56.789Z");
+        Instant ts1 = IN_GEN_1;
+        EscfBatch tsdbBatch;
+        try (EscfEncoder encoder = new EscfEncoder()) {
+            for (Instant ts : List.of(ts0, ts1)) {
+                XContentBuilder doc = JsonXContent.contentBuilder();
+                doc.startObject();
+                doc.field("dim", "d");
+                doc.field("@timestamp", ts.toEpochMilli());
+                doc.endObject();
+                encoder.parseToScratch(BytesReference.bytes(doc), XContentType.JSON, LeafSink.NO_OP);
+                encoder.commitScratchTo(0);
+            }
+            tsdbBatch = encoder.buildPartition(0);
+        }
+        EscfBatch plainBatch = buildBatch(3);
+
+        List<IndexRequest> tsdbRequests = new ArrayList<>();
+        List<IndexRequest> plainRequests = new ArrayList<>();
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int row = 0; row < 3; row++) {
+            if (row < 2) {
+                IndexRequest request = new IndexRequest(DATA_STREAM).opType(DocWriteRequest.OpType.CREATE);
+                request.indexSource().setSourceRow(tsdbBatch, row, XContentType.JSON);
+                tsdbRequests.add(request);
+                bulkRequest.add(request);
+            }
+            IndexRequest request = rowRequest("plain-index", plainBatch, row);
+            plainRequests.add(request);
+            bulkRequest.add(request);
+        }
+        bulkRequest.setPreBuiltBatches(Map.of(DATA_STREAM, tsdbBatch, "plain-index", plainBatch));
+
+        BatchRouterSet router = BatchRouterSet.create(bulkRequest, true, recycler);
+        router.preResolveTimestamps(project, bulkRequest.requests());
+
+        assertThat(tsdbRequests.get(0).getTimeSeriesTimestamp(), equalTo(DataStream.getCanonicalTimestampBound(ts0)));
+        assertThat(tsdbRequests.get(1).getTimeSeriesTimestamp(), equalTo(DataStream.getCanonicalTimestampBound(ts1)));
+        for (IndexRequest request : plainRequests) {
+            assertThat(request.getTimeSeriesTimestamp(), nullValue());
+        }
+        router.close();
+    }
+
+    /**
      * {@link BatchModeRouter#preResolveTimestamps} reads an ISO-8601 STRING value from the batch's
      * {@code @timestamp} column, parses it, and caches the canonical bound on the request.
      */

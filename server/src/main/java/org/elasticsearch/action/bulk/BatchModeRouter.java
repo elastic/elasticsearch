@@ -161,6 +161,22 @@ final class BatchModeRouter implements Releasable {
     }
 
     /**
+     * Whether {@link #preResolveTimestamps} has anything to do for this router: its batch is for a TSDB data stream,
+     * the only kind of target that selects the backing index of each document by its timestamp.
+     */
+    boolean resolvesTimestamps(ProjectMetadata project) {
+        if (encoders != null || source == null) {
+            return false;
+        }
+        IndexAbstraction ia = project.getIndicesLookup().get(key);
+        if (ia == null) {
+            return false;
+        }
+        DataStream dataStream = DataStream.resolveDataStream(ia, project);
+        return dataStream != null && IndexMode.isTsdb(dataStream.getIndexMode());
+    }
+
+    /**
      * Resolves {@code @timestamp} from the ESCF columns and caches it on each item's
      * {@link IndexRequest} via {@link IndexRequest#setTimeSeriesTimestamp}. Must be called before the
      * per-item routing loop (before {@link #route}) so that
@@ -172,22 +188,13 @@ final class BatchModeRouter implements Releasable {
      * <p>All-or-none: if every request already has a timestamp set (producer supplied it out-of-band),
      * returns immediately. A mixed batch (some set, some not) throws.
      *
-     * @param requests the bulk request's items; only those whose {@link #batchKey} matches this router are
-     *                 considered, so the full request list of a multi-batch bulk can be passed
+     * @param requests the items whose rows this router's batch holds; each row-bearing {@link IndexRequest}'s
+     *                 row index is used to map it to the batch column
      * @throws IllegalArgumentException if {@code @timestamp} is missing, an unsupported kind,
      *                                  or a row has no value for it
      */
     void preResolveTimestamps(ProjectMetadata project, List<DocWriteRequest<?>> requests) {
-        if (encoders != null || source == null) {
-            return;
-        }
-        // Only TSDB data streams need per-document backing-index selection.
-        IndexAbstraction ia = project.getIndicesLookup().get(key);
-        if (ia == null) {
-            return;
-        }
-        DataStream dataStream = DataStream.resolveDataStream(ia, project);
-        if (dataStream == null || IndexMode.isTsdb(dataStream.getIndexMode()) == false) {
+        if (resolvesTimestamps(project) == false) {
             return;
         }
 
@@ -198,10 +205,6 @@ final class BatchModeRouter implements Releasable {
         boolean anyLacksTimestamp = false;
         for (DocWriteRequest<?> req : requests) {
             if (req instanceof IndexRequest ir && ir.indexSource().hasSourceRow()) {
-                // Items of other routers of the same bulk have overlapping row indices; skip them.
-                if (key.equals(batchKey(project.getIndicesLookup().get(ir.index()), project)) == false) {
-                    continue;
-                }
                 int rowIndex = ir.indexSource().rowIndex();
                 if (rowIndex >= 0 && rowIndex < byRow.length) {
                     byRow[rowIndex] = ir;

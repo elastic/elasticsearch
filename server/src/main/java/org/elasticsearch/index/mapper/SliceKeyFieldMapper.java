@@ -25,6 +25,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.sourcebatch.MappedColumns;
 
 import java.util.Collections;
+import java.util.Set;
 
 /**
  * Writes the slice sort key of a slice-enabled index.
@@ -115,7 +116,7 @@ public class SliceKeyFieldMapper extends MetadataFieldMapper {
     private static final IndexableFieldType SLICE_KEY_DV_TYPE = SortedDocValuesField.indexedField("", new BytesRef()).fieldType();
 
     @Override
-    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings, Set<String> relativeKeys) {
         return true;
     }
 

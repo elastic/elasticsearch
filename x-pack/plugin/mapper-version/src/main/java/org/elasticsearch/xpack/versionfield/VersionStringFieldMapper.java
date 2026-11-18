@@ -78,6 +78,7 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.apache.lucene.search.MultiTermQuery.CONSTANT_SCORE_REWRITE;
 import static org.apache.lucene.search.RegexpQuery.DEFAULT_PROVIDER;
@@ -413,7 +414,7 @@ public class VersionStringFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings, Set<String> relativeKeys) {
         // version fields have no store/null_value/ignore_malformed/dimension parameters and are always
         // both indexed and doc-valued. script, copy_to, mode gate, and legacy-version gate are handled
         // by the base class. TIME_SERIES is allowed by the mode gate: the emitted doc-values field is

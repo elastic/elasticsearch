@@ -52,6 +52,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -784,14 +785,14 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
         final GeoPointFieldMapper mapperWithField = (GeoPointFieldMapper) withMultiField.mappingLookup().getMapper("field");
         assertFalse(
             "doSupportsColumnarParse must be false when [fields] is present",
-            mapperWithField.doSupportsColumnarParse(withMultiField.getIndexSettings())
+            mapperWithField.doSupportsColumnarParse(withMultiField.getIndexSettings(), Set.of())
         );
 
         final MapperService withoutMultiField = createMapperService(columnarSettings, fieldMapping(b -> b.field("type", "geo_point")));
         final GeoPointFieldMapper mapperWithoutField = (GeoPointFieldMapper) withoutMultiField.mappingLookup().getMapper("field");
         assertTrue(
             "doSupportsColumnarParse must be true when no [fields] are present",
-            mapperWithoutField.doSupportsColumnarParse(withoutMultiField.getIndexSettings())
+            mapperWithoutField.doSupportsColumnarParse(withoutMultiField.getIndexSettings(), Set.of())
         );
     }
 

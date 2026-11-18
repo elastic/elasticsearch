@@ -52,8 +52,11 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * Abstract base for compatibility tests that verify the columnar batch-mapping path produces the
@@ -439,24 +442,17 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
                 causes.add("metadata mapper [" + m.typeName() + "] does not support columnar parse");
             }
         }
+        final Map<FieldMapper, Set<String>> groupKeys = new LinkedHashMap<>();
         for (int c = 0; c < schema.leafCount(); c++) {
             final String path = schema.getFullPath(c);
             final Mapper mapper = mappingLookup.getMapper(path);
             if (mapper instanceof FieldMapper fm) {
-                if (fm.supportsColumnarParse(indexSettings) == false) {
+                if (fm.supportsColumnarParse(indexSettings, Set.of()) == false) {
                     causes.add("field [" + path + "] has mapper [" + fm.typeName() + "] that does not support columnar parse");
                 }
             } else if (mapper == null) {
                 if (ColumnGroupResolver.findColumnGroup(path, mappingLookup) instanceof ColumnGroupResolver.ColumnGroupLookup.Owned owned) {
-                    if (owned.mapper().supportsColumnarParse(indexSettings) == false) {
-                        causes.add(
-                            "field ["
-                                + owned.ownerPath()
-                                + "] has mapper ["
-                                + owned.mapper().typeName()
-                                + "] that does not support columnar parse"
-                        );
-                    }
+                    groupKeys.computeIfAbsent(owned.mapper(), m -> new TreeSet<>()).add(owned.relativeKey());
                     if (owned.mapper().resolvesColumnGroup() == FieldMapper.ColumnGroup.SINGLE_OBJECT
                         && ColumnGroupResolver.isDirectlyInOwnerObject(schema, c, path, owned.ownerPath()) == false) {
                         causes.add(
@@ -470,6 +466,18 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
                 causes.add("leaf [" + path + "] resolves to a non-field mapper");
             }
         }
+        groupKeys.forEach((mapper, keys) -> {
+            if (mapper.supportsColumnarParse(indexSettings, keys) == false) {
+                causes.add(
+                    "field ["
+                        + mapper.fullPath()
+                        + "] has mapper ["
+                        + mapper.typeName()
+                        + "] that does not support columnar parse of keys "
+                        + keys
+                );
+            }
+        });
         return causes.isEmpty()
             ? "No single leaf or mapper explains it; enable DEBUG logging for ShardBatchMapper to see the reason."
             : "Candidate causes: " + String.join("; ", causes) + ".";

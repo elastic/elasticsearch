@@ -21,6 +21,7 @@ import org.elasticsearch.plugins.Plugin;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Verifies that {@link ShardBatchMapper#resolveMappers} correctly recognizes {@link MatchOnlyTextFieldMapper}
@@ -77,7 +78,7 @@ public class MatchOnlyTextShardBatchMapperResolveTests extends AbstractShardBatc
         );
         var rawMapper = ms.mappingLookup().getMapper("f");
         assertTrue(rawMapper instanceof MatchOnlyTextFieldMapper);
-        assertFalse(((MatchOnlyTextFieldMapper) rawMapper).supportsColumnarParse(ms.getIndexSettings()));
+        assertFalse(((MatchOnlyTextFieldMapper) rawMapper).supportsColumnarParse(ms.getIndexSettings(), Set.of()));
     }
 
     public void testMatchOnlyTextDocValuesDisabledFallsBack() throws IOException {

@@ -135,6 +135,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * A {@link FieldMapper} for full-text fields that only indexes
@@ -1188,7 +1189,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings, Set<String> relativeKeys) {
         // usesBinaryDocValues() requires doc_values to be enabled which means synthetic-source stored-fallback is unreachable.
         // Additionally, this excludes the low-cardinality SORTED_SET encoding.
         // copy_to, script, mode gate, and legacy-version gate are handled by the base class.

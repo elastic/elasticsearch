@@ -24,6 +24,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Parity tests for {@link KeywordFieldMapper#mapColumnBatch} against the row path.
@@ -554,7 +555,7 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
         final FieldMapper mapper = (FieldMapper) mapperService.mappingLookup().getMapper(FIELD);
         assertFalse(
             "a dimension whose routing is extracted while mapping must not be columnar",
-            mapper.supportsColumnarParse(mapperService.getIndexSettings())
+            mapper.supportsColumnarParse(mapperService.getIndexSettings(), Set.of())
         );
     }
 
@@ -574,7 +575,7 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
         );
         assertTrue(
             "TSDB keyword dimensions now take the columnar path via SORTED_SET emission",
-            mapper.supportsColumnarParse(mapperService.getIndexSettings())
+            mapper.supportsColumnarParse(mapperService.getIndexSettings(), Set.of())
         );
     }
 
@@ -629,7 +630,11 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
                 b.endObject();
             }));
             final FieldMapper mapper = (FieldMapper) mapperService.mappingLookup().getMapper(FIELD);
-            assertEquals("keep all: " + keepAll, keepAll == false, mapper.supportsColumnarParse(mapperService.getIndexSettings()));
+            assertEquals(
+                "keep all: " + keepAll,
+                keepAll == false,
+                mapper.supportsColumnarParse(mapperService.getIndexSettings(), Set.of())
+            );
         }
     }
 

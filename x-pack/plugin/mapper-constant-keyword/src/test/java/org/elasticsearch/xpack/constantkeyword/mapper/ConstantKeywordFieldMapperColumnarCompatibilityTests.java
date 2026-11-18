@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.constantkeyword.ConstantKeywordMapperPlugin;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -278,7 +279,7 @@ public class ConstantKeywordFieldMapperColumnarCompatibilityTests extends Abstra
         FieldMapper mapper = (FieldMapper) ms.mappingLookup().getMapper(FIELD);
         assertFalse(
             "supportsColumnarParse must be false when value is not configured",
-            mapper.supportsColumnarParse(ms.getIndexSettings())
+            mapper.supportsColumnarParse(ms.getIndexSettings(), Set.of())
         );
     }
 
@@ -289,7 +290,10 @@ public class ConstantKeywordFieldMapperColumnarCompatibilityTests extends Abstra
             mapping(b -> b.startObject(FIELD).field("type", "constant_keyword").field("value", "hello").endObject())
         );
         FieldMapper mapper = (FieldMapper) ms.mappingLookup().getMapper(FIELD);
-        assertTrue("supportsColumnarParse must be true when value is configured", mapper.supportsColumnarParse(ms.getIndexSettings()));
+        assertTrue(
+            "supportsColumnarParse must be true when value is configured",
+            mapper.supportsColumnarParse(ms.getIndexSettings(), Set.of())
+        );
     }
 
     /**
@@ -353,6 +357,6 @@ public class ConstantKeywordFieldMapperColumnarCompatibilityTests extends Abstra
             b.startObject("other").field("type", "keyword").endObject();
         }));
         FieldMapper mapper = (FieldMapper) ms.mappingLookup().getMapper(FIELD);
-        assertFalse("supportsColumnarParse must be false with copy_to", mapper.supportsColumnarParse(ms.getIndexSettings()));
+        assertFalse("supportsColumnarParse must be false with copy_to", mapper.supportsColumnarParse(ms.getIndexSettings(), Set.of()));
     }
 }

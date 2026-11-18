@@ -45,6 +45,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -1307,7 +1308,10 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
             mapping(b -> { b.startObject("loc").field("type", "geo_point").field("store", true).endObject(); })
         );
         var mapper = (GeoPointFieldMapper) ms.mappingLookup().getMapper("loc");
-        assertFalse("geo_point with store=true must not support the columnar fast path", mapper.supportsColumnarParse(indexSettings));
+        assertFalse(
+            "geo_point with store=true must not support the columnar fast path",
+            mapper.supportsColumnarParse(indexSettings, Set.of())
+        );
     }
 
     /** A geo_point with a configured {@code null_value} falls back (silence would drop the point). */
@@ -1343,7 +1347,7 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
         var mapper = (GeoPointFieldMapper) ms.mappingLookup().getMapper("loc");
         assertTrue(
             "geo_point with time_series_metric=position should support the columnar path in TSDB mode",
-            mapper.supportsColumnarParse(ms.getIndexSettings())
+            mapper.supportsColumnarParse(ms.getIndexSettings(), Set.of())
         );
     }
 
@@ -1411,6 +1415,44 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
     public void testGeoPointAliasedKeysFallBack() throws IOException {
         MapperService ms = columnarMapperService(mapping(b -> b.startObject("loc").field("type", "geo_point").endObject()));
         SourceSchema schema = schemaOfJson("{\"loc\":{\"lat\":51.5,\"lon\":-0.1},\"loc.lat\":52.0}");
+        assertNull(ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), indexSettings));
+    }
+
+    /**
+     * The row path rejects a key other than those of a geo_point form as malformed. Refusing it at resolution keeps the batch from
+     * failing only once a chunk is mapped, even when just one document in the batch carries it.
+     */
+    public void testGeoPointUnknownKeyFallsBack() throws IOException {
+        MapperService ms = columnarMapperService(mapping(b -> b.startObject("loc").field("type", "geo_point").endObject()));
+        SourceSchema schema = schemaOfJson("{\"loc\":{\"lat\":51.5,\"lon\":-0.1}}", "{\"loc\":{\"lat\":51.5,\"lon\":-0.1,\"alt\":3}}");
+        assertNull(ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), indexSettings));
+    }
+
+    /** The GeoJSON object form is valid on the row path, but the batch path only maps {@code lat} and {@code lon}. */
+    public void testGeoPointGeoJsonFormFallsBack() throws IOException {
+        MapperService ms = columnarMapperService(mapping(b -> b.startObject("loc").field("type", "geo_point").endObject()));
+        SourceSchema schema = schemaOfJson("{\"loc\":{\"type\":\"Point\",\"coordinates\":[-0.1,51.5]}}");
+        assertNull(ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), indexSettings));
+    }
+
+    /** With no {@code lon} anywhere in the batch, every point is malformed on the row path, so the batch falls back. */
+    public void testGeoPointMissingKeyFallsBack() throws IOException {
+        MapperService ms = columnarMapperService(mapping(b -> b.startObject("loc").field("type", "geo_point").endObject()));
+        SourceSchema schema = schemaOfJson("{\"loc\":{\"lat\":51.5}}");
+        assertNull(ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), indexSettings));
+    }
+
+    /** Each group mapper gets only its own keys: a valid geo_point next to one with an unknown key still falls back. */
+    public void testGeoPointKeysCheckedPerField() throws IOException {
+        MapperService ms = columnarMapperService(mapping(b -> {
+            b.startObject("src").field("type", "geo_point").endObject();
+            b.startObject("dst").field("type", "geo_point").endObject();
+        }));
+        IndexSettings settings = ms.getIndexSettings();
+        var src = (GeoPointFieldMapper) ms.mappingLookup().getMapper("src");
+        assertTrue(src.supportsColumnarParse(settings, Set.of("lat", "lon")));
+        assertFalse(src.supportsColumnarParse(settings, Set.of("lat", "lon", "z")));
+        SourceSchema schema = schemaOfJson("{\"src\":{\"lat\":51.5,\"lon\":-0.1},\"dst\":{\"lat\":48.9,\"lon\":2.3,\"z\":1}}");
         assertNull(ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), indexSettings));
     }
 }

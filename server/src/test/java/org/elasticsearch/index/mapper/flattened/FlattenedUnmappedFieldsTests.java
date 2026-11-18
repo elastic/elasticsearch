@@ -37,6 +37,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -336,7 +337,7 @@ public class FlattenedUnmappedFieldsTests extends MapperServiceTestCase {
         var sink = (UnmappedSinkFieldMapper) mapperService.mappingLookup().getMapper(FlattenedFieldMapper.UNMAPPED_SINK_NAME);
         assertTrue(sink.supportsColumnarMetadataParse(mapperService.getIndexSettings()));
         assertEquals(indexDisabled, sink.supportsColumnarAbsorb(mapperService.getIndexSettings()));
-        assertFalse(sink.supportsColumnarParse(mapperService.getIndexSettings()));
+        assertFalse(sink.supportsColumnarParse(mapperService.getIndexSettings(), Set.of()));
     }
 
     /**

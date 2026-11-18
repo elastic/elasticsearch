@@ -88,6 +88,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.BiFunction;
 
 import static org.elasticsearch.index.mapper.FieldArrayContext.getOffsetsFieldName;
@@ -869,7 +870,7 @@ public class IpFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings, Set<String> relativeKeys) {
         final IndexMode mode = indexSettings.getMode();
         return (mode.isStrictColumnar() || mode.isTsdb())
             && supportsColumnarDocValues(mode)

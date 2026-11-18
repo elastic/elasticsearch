@@ -32,9 +32,11 @@ import org.elasticsearch.plugins.internal.MeteringModel;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.sourcebatch.SourceSchema;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.IntPredicate;
 
 /**
@@ -200,14 +202,7 @@ public final class ShardBatchMapper {
                     return null;
                 }
                 if (group instanceof ColumnGroupLookup.Owned owned) {
-                    if (owned.mapper().supportsColumnarParse(indexSettings) == false) {
-                        logger.debug(
-                            "columnar batch mapping disabled: group mapper at [{}] of type [{}] does not support columnar parsing",
-                            owned.ownerPath(),
-                            owned.mapper().typeName()
-                        );
-                        return null;
-                    }
+                    // Whether the group mapper supports columnar parse is checked once all of its keys are known, below.
                     if (owned.mapper().resolvesColumnGroup() == FieldMapper.ColumnGroup.SINGLE_OBJECT) {
                         if (ColumnGroupResolver.isDirectlyInOwnerObject(schema, leaf, fullPath, owned.ownerPath()) == false) {
                             logger.debug(
@@ -311,7 +306,7 @@ public final class ShardBatchMapper {
                 logger.debug("batch indexing disabled: field [{}] is a mapped as a multi-field", fullPath);
                 return null;
             }
-            if (fieldMapper.supportsColumnarParse(indexSettings) == false) {
+            if (fieldMapper.supportsColumnarParse(indexSettings, Set.of()) == false) {
                 logger.debug(
                     "columnar batch mapping disabled: mapper at [{}] of type [{}] does not support columnar parsing",
                     fullPath,
@@ -340,6 +335,20 @@ public final class ShardBatchMapper {
         }
 
         final ColumnGroupResolution[] columnGroups = groupBuilder != null ? groupBuilder.build() : ColumnGroupResolver.EMPTY;
+        for (ColumnGroupResolution columnGroup : columnGroups) {
+            final FieldMapper mapper = columnGroup.mapper();
+            // The unmapped sink is not a group mapper of its own; unmappedSink already checked that it can absorb leaves.
+            if (mapper.resolvesColumnGroup() != FieldMapper.ColumnGroup.NONE
+                && mapper.supportsColumnarParse(indexSettings, Set.copyOf(Arrays.asList(columnGroup.relativeKeys()))) == false) {
+                logger.debug(
+                    "columnar batch mapping disabled: group mapper at [{}] of type [{}] does not support columnar parsing of keys {}",
+                    mapper.fullPath(),
+                    mapper.typeName(),
+                    columnGroup.relativeKeys()
+                );
+                return null;
+            }
+        }
         return new BatchMapperResolution(columnMappers, columnGroups);
     }
 

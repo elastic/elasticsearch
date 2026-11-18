@@ -43,6 +43,7 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexingPressure;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
@@ -671,10 +672,10 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
     }
 
     /**
-     * A fetched page that is larger than the docs still allowed is sent as more than one bulk. The charge, and every hit
-     * the first bulk did not take, stay until the last of those bulks has finished and the page has nothing left.
+     * max_docs stops the task. A page larger than the allowance is one truncated bulk. The hits that bulk does not
+     * take are still held when it is sent, and those hits and the coordinating charge drop when the task finishes.
      */
-    public void testMaxDocsHoldsThePageChargeUntilTheLastSubBulkFinishes() {
+    public void testMaxDocsDropsTheChargeAndLeftoverHitsWhenTheTaskFinishes() {
         int maxDocs = between(1, 3);
         int pageSize = maxDocs + between(1, 3);
         UpdateByQueryRequest request = updateRequest(pageSize);
@@ -684,47 +685,76 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
         for (int i = 0; i < pageSize; i++) {
             hits.add(harness.hit(bytes(between(64, 256))));
         }
-        AtomicLong charged = new AtomicLong();
         harness.client.handler = (bulk, listener) -> {
             harness.client.bulks.add(bulk);
             long contextBytes = harness.queue.getThreadPool().getThreadContext().estimatedRequestContextBytes();
+            assertThat(harness.client.bulks.size(), equalTo(1));
+            assertThat(bulk.numberOfActions(), equalTo(maxDocs));
+            assertTrue(bulk.indexingPressureAccounted());
+            assertThat(harness.chargedBytes(), equalTo(bulk.ramBytesUsed() + contextBytes));
+            for (int i = maxDocs; i < hits.size(); i++) {
+                assertThat(hits.get(i).releases.get(), equalTo(0));
+            }
+            listener.onResponse(harness.success(bulk));
+            assertThat(harness.client.bulks.size(), equalTo(1));
+            assertThat(harness.chargedBytes(), equalTo(0L));
+            for (CountingHit hit : hits) {
+                assertThat(hit.releases.get(), equalTo(1));
+            }
+        };
+        harness.start();
+        harness.feed(new ArrayList<Hit>(hits));
+
+        BulkByPaginatedSearchResponse response = harness.listener.actionGet(TimeValue.ZERO);
+        assertThat(response.getUpdated(), equalTo((long) maxDocs));
+        assertThat(harness.client.bulks.size(), equalTo(1));
+        assertThat(harness.chargedBytes(), equalTo(0L));
+    }
+
+    /**
+     * A bulk that does not use up max_docs leaves the rest of the page for another bulk. The charge and the hit the
+     * first bulk did not take stay until that second bulk finishes and the page has nothing left.
+     */
+    public void testChargeStaysUntilASecondBulkEmptiesThePage() {
+        int maxDocs = 2;
+        UpdateByQueryRequest request = updateRequest(3);
+        request.setMaxDocs(maxDocs);
+        request.setAbortOnVersionConflict(false);
+        Harness harness = new Harness(pressure(Settings.EMPTY), request, NoopCircuitBreaker.INSTANCE, null);
+        CountingHit updated = harness.hit(bytes(between(64, 256)));
+        CountingHit conflicted = harness.hit(bytes(between(64, 256)));
+        CountingHit left = harness.hit(bytes(between(64, 256)));
+        boolean conflictFirst = randomBoolean();
+        List<CountingHit> hits = conflictFirst ? List.of(conflicted, updated, left) : List.of(updated, conflicted, left);
+        int conflictAt = conflictFirst ? 0 : 1;
+        harness.client.handler = (bulk, listener) -> {
+            harness.client.bulks.add(bulk);
+            long contextBytes = harness.queue.getThreadPool().getThreadContext().estimatedRequestContextBytes();
+            assertTrue(bulk.indexingPressureAccounted());
+            assertThat(harness.chargedBytes(), greaterThan(0L));
+            assertThat(harness.chargedBytes(), equalTo(bulk.ramBytesUsed() + contextBytes));
+            assertThat(left.releases.get(), equalTo(0));
             if (harness.client.bulks.size() == 1) {
                 assertThat(bulk.numberOfActions(), equalTo(maxDocs));
-                assertTrue(bulk.indexingPressureAccounted());
-                charged.set(harness.chargedBytes());
-                assertThat(charged.get(), equalTo(bulk.ramBytesUsed() + contextBytes));
-                for (int i = maxDocs; i < hits.size(); i++) {
-                    assertThat(hits.get(i).releases.get(), equalTo(0));
-                }
-                listener.onResponse(harness.success(bulk));
+                listener.onResponse(withConflict(bulk, conflictAt));
             } else {
-                // The first bulk's cleanup has run. Hits it left on the page are still held, and so is the one charge.
-                assertThat(bulk.numberOfActions(), equalTo(pageSize - maxDocs));
-                assertTrue(bulk.indexingPressureAccounted());
-                assertThat(harness.chargedBytes(), greaterThan(0L));
-                assertThat(harness.chargedBytes(), equalTo(bulk.ramBytesUsed() + contextBytes));
-                for (int i = maxDocs; i < hits.size(); i++) {
-                    assertThat(hits.get(i).releases.get(), equalTo(0));
-                }
+                assertThat(bulk.numberOfActions(), equalTo(1));
                 listener.onResponse(harness.success(bulk));
             }
         };
-        // The scroll stays open so the worker can build the rest of this page.
+        // The scroll stays open so a bulk that has not used up max_docs can come back for the hit it left behind.
         harness.action.setScroll("more");
-        harness.onDone = () -> {
-            harness.action.setScroll(null);
-            harness.finishWithEmptyPage();
-        };
         harness.start();
         harness.feed(new ArrayList<Hit>(hits));
 
         assertThat(harness.client.bulks.size(), equalTo(2));
         BulkByPaginatedSearchResponse response = harness.listener.actionGet(TimeValue.ZERO);
-        assertThat(response.getUpdated(), equalTo((long) pageSize));
+        assertThat(response.getUpdated(), equalTo(2L));
+        assertThat(response.getVersionConflicts(), equalTo(1L));
         assertThat(harness.chargedBytes(), equalTo(0L));
-        for (CountingHit hit : hits) {
-            assertThat(hit.releases.get(), equalTo(1));
-        }
+        assertThat(updated.releases.get(), equalTo(1));
+        assertThat(conflicted.releases.get(), equalTo(1));
+        assertThat(left.releases.get(), equalTo(1));
     }
 
     /**
@@ -886,6 +916,28 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
                 net.addAndGet(bytes);
             }
         };
+    }
+
+    private static BulkResponse withConflict(BulkRequest bulk, int conflictAt) {
+        BulkItemResponse[] items = new BulkItemResponse[bulk.requests().size()];
+        for (int i = 0; i < items.length; i++) {
+            DocWriteRequest<?> item = bulk.requests().get(i);
+            ShardId shardId = new ShardId(item.index(), "uuid", 0);
+            if (i == conflictAt) {
+                items[i] = BulkItemResponse.failure(
+                    i,
+                    item.opType(),
+                    new BulkItemResponse.Failure(
+                        item.index(),
+                        item.id(),
+                        new VersionConflictEngineException(shardId, item.id(), "conflict")
+                    )
+                );
+            } else {
+                items[i] = BulkItemResponse.success(i, item.opType(), new IndexResponse(shardId, item.id(), 1L, 1L, 1L, false));
+            }
+        }
+        return new BulkResponse(items, 1L);
     }
 
     private static BulkResponse oneRejected(BulkRequest bulk) {

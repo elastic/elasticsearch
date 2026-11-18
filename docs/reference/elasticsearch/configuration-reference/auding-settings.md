@@ -20,11 +20,11 @@ Audit logs are only available on certain subscription levels. For more informati
 
 If configured, auditing settings must be set on every node in the cluster. For dynamic auditing settings, use the [cluster update settings API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings) to ensure the setting is the same on all nodes.
 
-    :::{note}
+    ::::{note}
     :applies_to: stack: ga 9.0-9.4
 
     In {{stack}} versions 9.4 and earlier, `xpack.security.audit.enabled` is a static setting, and must be configured in `elasticsearch.yml` on each node.
-    :::
+    ::::
 
 ## General Auditing Settings [general-audit-settings]
 
@@ -35,11 +35,11 @@ $$$xpack-security-audit-enabled$$$
 
     This setting can be changed at runtime using the [cluster update settings API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings) without requiring a node restart.
     
-    :::{note} 
+    ::::{note} 
     :applies_to: stack: ga 9.0-9.4
     
     In {{stack}} versions 9.4 and earlier, this setting was [static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting). Static settings must be configured manually in `elasticsearch.yml` on all nodes in the cluster.
-    :::
+    ::::
 
 
 

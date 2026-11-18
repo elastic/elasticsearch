@@ -34,9 +34,11 @@ final class FailedComputeUsageHeader {
     private static final Logger logger = LogManager.getLogger(FailedComputeUsageHeader.class);
 
     static final String NAME = "X-Elasticsearch-Esql-Failed-Compute-Usage";
-    private static final String FORMAT = "2:";
+    private static final String FORMAT = "1:";
     /** The counters of {@link DriverCompletionInfo} that add up: see {@link #write} and {@link #take}. */
     static final int FIELDS = 11;
+    /** The counters sent by a node that does not carry the search load yet, which then reads as zero. */
+    private static final int FIELDS_WITHOUT_SEARCH_LOAD = 8;
 
     private FailedComputeUsageHeader() {}
 
@@ -116,13 +118,13 @@ final class FailedComputeUsageHeader {
             return null;
         }
         String[] parts = value.substring(FORMAT.length()).split(",");
-        if (parts.length != FIELDS) {
+        if (parts.length != FIELDS && parts.length != FIELDS_WITHOUT_SEARCH_LOAD) {
             logger.debug("ignoring the usage of a failed compute with [{}] fields instead of [{}]", parts.length, FIELDS);
             return null;
         }
         long[] fields = new long[FIELDS];
         try {
-            for (int i = 0; i < FIELDS; i++) {
+            for (int i = 0; i < parts.length; i++) {
                 fields[i] = Long.parseLong(parts[i]);
             }
         } catch (NumberFormatException e) {

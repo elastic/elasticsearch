@@ -90,14 +90,28 @@ public class FailedComputeUsageHeaderTests extends ESTestCase {
 
     public void testValuesThatCannotBeReadAreIgnoredAndStillRemoved() {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        threadContext.addResponseHeader(FailedComputeUsageHeader.NAME, "3:1,2,3,4,5,6,7,8,9,10,11");
-        threadContext.addResponseHeader(FailedComputeUsageHeader.NAME, "2:1,2,3");
-        threadContext.addResponseHeader(FailedComputeUsageHeader.NAME, "2:1,2,3,4,5,6,7,8,9,10,eleven");
+        threadContext.addResponseHeader(FailedComputeUsageHeader.NAME, "2:1,2,3,4,5,6,7,8,9,10,11");
+        threadContext.addResponseHeader(FailedComputeUsageHeader.NAME, "1:1,2,3");
+        threadContext.addResponseHeader(FailedComputeUsageHeader.NAME, "1:1,2,3,4,5,6,7,8,9,10,eleven");
         FailedComputeUsageHeader.write(threadContext, usage(10));
         DriverCompletionInfo taken = FailedComputeUsageHeader.take(threadContext);
         // only the well formed value counts
         assertSameNumbers(taken, usage(10));
         assertFalse(threadContext.getResponseHeaders().containsKey(FailedComputeUsageHeader.NAME));
+    }
+
+    /**
+     * A node that does not carry the search load yet sends the other counters, and the search load reads as zero.
+     */
+    public void testTakesTheCountersOfANodeWithoutTheSearchLoad() {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext.addResponseHeader(FailedComputeUsageHeader.NAME, "1:1,2,3,4,5,6,7,8");
+        DriverCompletionInfo taken = FailedComputeUsageHeader.take(threadContext);
+        assertThat(taken.documentsFound(), equalTo(1L));
+        assertThat(taken.driverNanos(), equalTo(8L));
+        assertThat(taken.searchLoadNanos(), equalTo(0L));
+        assertThat(taken.searchCpuNanos(), equalTo(0L));
+        assertThat(taken.searchWaitingNanos(), equalTo(0L));
     }
 
     /**

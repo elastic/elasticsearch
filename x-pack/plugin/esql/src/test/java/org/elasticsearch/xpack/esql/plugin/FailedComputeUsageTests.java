@@ -108,12 +108,19 @@ public class FailedComputeUsageTests extends ComputeTestCase {
             }
         };
 
-        ComputeService.failWithUsage(listener, failure, List.of(first, second), planningBytesRead, new QueryLoad(), false);
+        QueryLoad computeLoad = new QueryLoad();
+        long loadNanos = randomLongBetween(1, 1_000_000);
+        long cpuNanos = randomLongBetween(0, loadNanos);
+        computeLoad.charging((nanos, cpu, finishNanos) -> {}).charge(loadNanos, cpuNanos, System.nanoTime());
+
+        ComputeService.failWithUsage(listener, failure, List.of(first, second), planningBytesRead, computeLoad, false);
 
         assertThat(reportedFailure.get(), sameInstance(failure));
         assertThat(reportedUsage.get().bytesRead(), equalTo(1_100 + planningBytesRead));
         assertThat(reportedUsage.get().readNanos(), equalTo(30L));
         assertThat(reportedUsage.get().readCpuNanos(), equalTo(12L));
+        assertThat(reportedUsage.get().searchLoadNanos(), equalTo(loadNanos));
+        assertThat(reportedUsage.get().searchCpuNanos(), equalTo(cpuNanos));
     }
 
     public void testPlainListenerGetsAPlainFailure() {

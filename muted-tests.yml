@@ -669,3 +669,8 @@ tests:
   - :x-pack:plugin:async-search:internalClusterTest
   method: testUpdateStoreKeepAlive
   issue: https://github.com/elastic/elasticsearch/issues/166452
+- class: org.elasticsearch.xpack.esql.action.ExternalAsyncStopAndCancelIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testSyncTaskCancelHardFailsWithNoRows
+  issue: https://github.com/elastic/elasticsearch/issues/166559

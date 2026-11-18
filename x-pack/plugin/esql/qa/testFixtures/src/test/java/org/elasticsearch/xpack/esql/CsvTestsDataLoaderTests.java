@@ -32,6 +32,7 @@ public class CsvTestsDataLoaderTests extends ESTestCase {
         DataType.TIME_DURATION,
         DataType.DOC_DATA_TYPE,
         DataType.TSID_DATA_TYPE,
+        DataType.TIME_SERIES_METADATA_DATA_TYPE,
         DataType.PARTIAL_AGG,
         DataType.GEOHASH,
         DataType.GEOTILE,

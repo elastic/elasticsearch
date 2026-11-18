@@ -315,13 +315,32 @@ public final class TimeSeriesMetadataFunctionEvaluator implements ExpressionEval
      * container read from it and the JSON object written back.
      */
     private final class Buffers implements AutoCloseable {
-        private final BreakingBytesRefBuilder rewritten = new BreakingBytesRefBuilder(context.breaker(), "ts_metadata");
-        private final @Nullable BreakingBytesRefBuilder source = keyword
-            ? new BreakingBytesRefBuilder(context.breaker(), "ts_metadata_source")
-            : null;
-        private final @Nullable BreakingBytesRefBuilder json = keyword
-            ? new BreakingBytesRefBuilder(context.breaker(), "ts_metadata_json")
-            : null;
+        private final BreakingBytesRefBuilder rewritten;
+        private final @Nullable BreakingBytesRefBuilder source;
+        private final @Nullable BreakingBytesRefBuilder json;
+
+        /** Each buffer reserves memory, so the ones made before a reservation fails are released. */
+        Buffers() {
+            BreakingBytesRefBuilder rewritten = null;
+            BreakingBytesRefBuilder source = null;
+            BreakingBytesRefBuilder json = null;
+            boolean made = false;
+            try {
+                rewritten = new BreakingBytesRefBuilder(context.breaker(), "ts_metadata");
+                if (keyword) {
+                    source = new BreakingBytesRefBuilder(context.breaker(), "ts_metadata_source");
+                    json = new BreakingBytesRefBuilder(context.breaker(), "ts_metadata_json");
+                }
+                made = true;
+            } finally {
+                if (made == false) {
+                    Releasables.closeExpectNoException(rewritten, source, json);
+                }
+            }
+            this.rewritten = rewritten;
+            this.source = source;
+            this.json = json;
+        }
 
         /** The label container {@code stored} holds: a keyword {@code _timeseries} reads into one. */
         BytesRef container(BytesRef stored) {

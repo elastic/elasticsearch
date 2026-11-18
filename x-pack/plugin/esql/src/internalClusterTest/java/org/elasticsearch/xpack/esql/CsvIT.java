@@ -78,6 +78,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsRequest;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.datasource.TestEncryptionServicePlugin;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
@@ -121,6 +122,7 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -299,7 +301,7 @@ public class CsvIT extends ESTestCase {
     private final String groupName;
     private final String testName;
     private final Integer lineNumber;
-    private final CsvSpecReader.CsvTestCase testCase;
+    protected final CsvSpecReader.CsvTestCase testCase;
     private final String instructions;
 
     public CsvIT(
@@ -442,45 +444,26 @@ public class CsvIT extends ESTestCase {
             groupName + "." + testName,
             testCase
         );
-        EsqlQueryRequest request = syncEsqlQueryRequest(transformed.query());
-        if (testCase.requestTimeRangeGte != null && testCase.requestTimeRangeGte.isEmpty() == false) {
-            request.filter(new RangeQueryBuilder("@timestamp").gte(testCase.requestTimeRangeGte).lte(testCase.requestTimeRangeLte));
-        }
-
         Settings.Builder pragmaSettings = Settings.builder();
         if (randomBoolean()) {
             pragmaSettings.put("max_concurrent_shards_per_node", randomBoolean() ? 1 : between(2, 10));
         }
         pragmaSettings.put(transformed.extraPragmas());
         testCase.pragmas.forEach(pragmaSettings::put);
-        if (pragmaSettings.build().isEmpty() == false) {
-            request.acceptedPragmaRisks(true).pragmas(new QueryPragmas(pragmaSettings.build()));
-        }
+        Settings pragmas = pragmaSettings.build();
 
-        var listener = new ResponseListener(cluster.getInstance(TransportService.class).getThreadPool());
-        cluster.client().execute(EsqlQueryAction.INSTANCE, request, listener);
-        // Using a longer timeout here as test infrastructure might populate data lazily while request is in progress.
-        try (var response = listener.actionGet(5, TimeUnit.MINUTES)) {
-            assertFalse("response must not be partial: " + response.getExecutionInfo(), response.isPartial());
+        try {
+            QueryResult result = runQuery(transformed.query(), pragmas);
             TestResults expected = differentialTestStrategy.transformExpectedResults(
                 groupName + "." + testName,
                 testCase,
                 loadCsvSpecValues(testCase.expectedResults)
             );
-            ActualResults actual = new ActualResults(
-                response.zoneId(),
-                response.columns().stream().map(ColumnInfoImpl::name).toList(),
-                response.columns().stream().map(column -> CsvTestUtils.Type.asType(column.type().nameUpper())).toList(),
-                response.columns().stream().map(ColumnInfoImpl::type).toList(),
-                response.pages(),
-                Map.of()
-            );
-
             var actualResults = differentialTestStrategy.transformActualResults(
                 groupName + "." + testName,
                 testCase,
                 expected,
-                new TestResults(actual.columnNames(), actual.columnTypes(), actual.values())
+                new TestResults(result.columnNames(), result.columnTypes(), result.values())
             );
 
             var assertionLogger = logResults() ? logger : null;
@@ -493,21 +476,122 @@ public class CsvIT extends ESTestCase {
                 false,
                 assertionLogger
             );
-            var warnings = listener.warnings.stream()
-                .map(w -> HeaderWarning.extractWarningValueFromWarningHeader(w, false))
-                .filter(w -> w.startsWith("No limit defined, adding default limit of") == false)
-                .map(differentialTestStrategy::normalizeWarning)
-                .toList();
+            var warnings = result.warnings().stream().map(differentialTestStrategy::normalizeWarning).toList();
             // Apply the same normalization to the expected warnings so a variant that rewrites the
             // query can reconcile warnings whose expression text or source position shifted purely
             // as a side effect of the rewrite. For the identity strategy this is a no-op.
             testCase.adjustExpectedWarnings(differentialTestStrategy::normalizeWarning);
             testCase.assertWarnings(false).assertWarnings(warnings, null);
-            CsvAssert.assertDocumentsFound(testCase.expectedDocumentsFound, response.documentsFound());
-            CsvAssert.assertApproximationApplied(testCase.expectedApproximationApplied, response.approximationApplied());
+            CsvAssert.assertDocumentsFound(testCase.expectedDocumentsFound, result.documentsFound());
+            CsvAssert.assertApproximationApplied(testCase.expectedApproximationApplied, result.approximationApplied());
+            afterQueryPassed(transformed.query(), pragmas, result);
         } catch (Throwable t) {
             t.setStackTrace(prependSpec(t.getStackTrace()));
             throw t;
+        }
+    }
+
+    /**
+     * Outcome of one ES|QL request.
+     */
+    protected record QueryResult(
+        List<String> columnNames,
+        List<DataType> dataTypes,
+        List<List<Object>> values,
+        List<String> warnings,
+        long documentsFound,
+        Boolean approximationApplied
+    ) {
+        List<CsvTestUtils.Type> columnTypes() {
+            return dataTypes.stream().map(type -> CsvTestUtils.Type.asType(type.nameUpper())).toList();
+        }
+
+        QueryResult mapWarnings(UnaryOperator<String> mapper) {
+            return new QueryResult(
+                columnNames,
+                dataTypes,
+                values,
+                warnings.stream().map(mapper).toList(),
+                documentsFound,
+                approximationApplied
+            );
+        }
+    }
+
+    /**
+     * Runs {@code query} against the test cluster with the given pragmas and the test case's request
+     * filter, and fails if the response is partial.
+     */
+    protected QueryResult runQuery(String query, Settings pragmas) {
+        EsqlQueryRequest request = syncEsqlQueryRequest(query);
+        if (testCase.requestTimeRangeGte != null && testCase.requestTimeRangeGte.isEmpty() == false) {
+            request.filter(new RangeQueryBuilder("@timestamp").gte(testCase.requestTimeRangeGte).lte(testCase.requestTimeRangeLte));
+        }
+        if (pragmas.isEmpty() == false) {
+            request.acceptedPragmaRisks(true).pragmas(new QueryPragmas(pragmas));
+        }
+
+        var listener = new ResponseListener(cluster.getInstance(TransportService.class).getThreadPool());
+        cluster.client().execute(EsqlQueryAction.INSTANCE, request, listener);
+        // Using a longer timeout here as test infrastructure might populate data lazily while request is in progress.
+        try (var response = listener.actionGet(5, TimeUnit.MINUTES)) {
+            assertFalse("response must not be partial: " + response.getExecutionInfo(), response.isPartial());
+            ActualResults actual = new ActualResults(
+                response.zoneId(),
+                response.columns().stream().map(ColumnInfoImpl::name).toList(),
+                response.columns().stream().map(column -> CsvTestUtils.Type.asType(column.type().nameUpper())).toList(),
+                response.columns().stream().map(ColumnInfoImpl::type).toList(),
+                response.pages(),
+                Map.of()
+            );
+            var warnings = listener.warnings.stream()
+                .map(w -> HeaderWarning.extractWarningValueFromWarningHeader(w, false))
+                .filter(w -> w.startsWith("No limit defined, adding default limit of") == false)
+                .toList();
+            return new QueryResult(
+                actual.columnNames(),
+                actual.dataTypes(),
+                actual.values(),
+                warnings,
+                response.documentsFound(),
+                response.approximationApplied()
+            );
+        }
+    }
+
+    /**
+     * Called once the csv-spec query has passed every assertion, with the query, pragmas and result it ran with.
+     */
+    protected void afterQueryPassed(String query, Settings pragmas, QueryResult result) {}
+
+    protected static void putView(String name, String query) {
+        assertAcked(
+            cluster.client()
+                .execute(
+                    PutViewAction.INSTANCE,
+                    new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new View(name, query))
+                )
+        );
+    }
+
+    protected static void deleteView(String name) {
+        assertAcked(
+            cluster.client()
+                .execute(
+                    DeleteViewAction.INSTANCE,
+                    new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { name })
+                )
+        );
+    }
+
+    /**
+     * Runs {@code action} and discards the response headers it adds on the test thread, which would otherwise
+     * reach every later response sent from this thread.
+     */
+    protected void withoutResponseHeaders(Runnable action) {
+        ThreadContext nodeContext = cluster.getInstance(TransportService.class).getThreadPool().getThreadContext();
+        try (var node = nodeContext.stashContext(); var test = threadContext.stashContext()) {
+            action.run();
         }
     }
 
@@ -829,25 +913,13 @@ public class CsvIT extends ESTestCase {
         @Override
         protected void load(CsvTestsDataLoader.ViewConfig view) {
             logger.info("Loading view [{}]", view.name());
-            assertAcked(
-                cluster.client()
-                    .execute(
-                        PutViewAction.INSTANCE,
-                        new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new View(view.name(), view.loadQuery()))
-                    )
-            );
+            putView(view.name(), view.loadQuery());
         }
 
         @Override
         protected void unload(String name) {
             logger.info("Unloading view [{}]", name);
-            assertAcked(
-                cluster.client()
-                    .execute(
-                        DeleteViewAction.INSTANCE,
-                        new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { name })
-                    )
-            );
+            deleteView(name);
         }
     };
 

@@ -9,7 +9,7 @@
 
 package org.elasticsearch.cluster.routing.allocation.shards;
 
-import org.elasticsearch.cluster.routing.allocation.shards.LocalRecoveryRetriesHealthInfo.RecoveryKey;
+import org.elasticsearch.cluster.routing.ShardAllocationKey;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.health.node.HealthInfoTests;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -33,19 +33,19 @@ public class LocalRecoveryRetriesHealthInfoTests extends AbstractWireSerializing
 
     @Override
     protected LocalRecoveryRetriesHealthInfo mutateInstance(LocalRecoveryRetriesHealthInfo instance) throws IOException {
-        Map<RecoveryKey, Integer> mutated = new HashMap<>(instance.localRetries());
+        Map<ShardAllocationKey, Integer> mutated = new HashMap<>(instance.localRetries());
         switch (mutated.isEmpty() ? 0 : randomIntBetween(0, 2)) {
-            case 0 -> mutated.put(HealthInfoTests.randomRecoveryKey(), randomIntBetween(1, 10));
+            case 0 -> mutated.put(HealthInfoTests.randomShardAllocationKey(), randomIntBetween(1, 10));
             case 1 -> {
                 // Change the retry count for an existing recovery.
-                RecoveryKey key = randomFrom(mutated.keySet());
+                ShardAllocationKey key = randomFrom(mutated.keySet());
                 mutated.put(key, randomValueOtherThan(mutated.get(key), () -> randomIntBetween(1, 10)));
             }
             case 2 -> {
                 // Change only the allocation ID of an existing recovery, keeping the shard ID and the count.
-                RecoveryKey key = randomFrom(mutated.keySet());
+                ShardAllocationKey key = randomFrom(mutated.keySet());
                 mutated.put(
-                    new RecoveryKey(key.shardId(), randomValueOtherThan(key.allocationId(), ESTestCase::randomUUID)),
+                    new ShardAllocationKey(key.shardId(), randomValueOtherThan(key.allocationId(), ESTestCase::randomUUID)),
                     mutated.remove(key)
                 );
             }

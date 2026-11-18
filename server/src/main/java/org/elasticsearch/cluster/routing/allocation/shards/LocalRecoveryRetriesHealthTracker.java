@@ -9,8 +9,8 @@
 
 package org.elasticsearch.cluster.routing.allocation.shards;
 
+import org.elasticsearch.cluster.routing.ShardAllocationKey;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.allocation.shards.LocalRecoveryRetriesHealthInfo.RecoveryKey;
 import org.elasticsearch.health.node.UpdateHealthInfoCacheAction;
 import org.elasticsearch.health.node.tracker.HealthTracker;
 import org.elasticsearch.index.IndexService;
@@ -35,7 +35,7 @@ public class LocalRecoveryRetriesHealthTracker extends HealthTracker<LocalRecove
 
     @Override
     protected LocalRecoveryRetriesHealthInfo determineCurrentHealth() {
-        Map<RecoveryKey, Integer> localRetriesByRecovery = new HashMap<>();
+        Map<ShardAllocationKey, Integer> localRetriesByRecovery = new HashMap<>();
         for (IndexService indexService : indicesService) {
             for (IndexShard shard : indexService) {
                 // The retry count is retained after the recovery completes, but the health indicator only reads the retry count for shards
@@ -44,7 +44,7 @@ public class LocalRecoveryRetriesHealthTracker extends HealthTracker<LocalRecove
                 if (routing.active() == false) {
                     int localRetries = shard.recoveryState().getLocalRetries();
                     if (localRetries > 0) {
-                        localRetriesByRecovery.put(RecoveryKey.of(routing), localRetries);
+                        localRetriesByRecovery.put(ShardAllocationKey.fromRouting(routing), localRetries);
                     }
                 }
             }

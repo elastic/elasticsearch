@@ -118,19 +118,15 @@ public class ExponentialHistogramConverter {
         ExponentialHistogramDataPoint.Buckets buckets
     ) {
         EscfColumnBuilder indices = builder.beginArray(indicesColIdx);
-        for (int i = 0; i < buckets.getBucketCountsCount(); i++) {
-            if (buckets.getBucketCounts(i) != 0) {
-                indices.appendLong(buckets.getOffset() + i);
-            }
-        }
-        indices.endArray();
         EscfColumnBuilder counts = builder.beginArray(countsColIdx);
         for (int i = 0; i < buckets.getBucketCountsCount(); i++) {
             long count = buckets.getBucketCounts(i);
             if (count != 0) {
+                indices.appendLong(buckets.getOffset() + i);
                 counts.appendLong(count);
             }
         }
+        indices.endArray();
         counts.endArray();
     }
 

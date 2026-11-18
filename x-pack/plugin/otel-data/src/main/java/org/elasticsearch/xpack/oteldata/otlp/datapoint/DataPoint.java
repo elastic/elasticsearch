@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.oteldata.otlp.docbuilder.OTLPMetricBatchBuilder;
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
+import java.util.function.BiConsumer;
 
 import static io.opentelemetry.proto.metrics.v1.AggregationTemporality.AGGREGATION_TEMPORALITY_CUMULATIVE;
 import static io.opentelemetry.proto.metrics.v1.AggregationTemporality.AGGREGATION_TEMPORALITY_DELTA;
@@ -309,24 +310,14 @@ public interface DataPoint {
         ) {
             switch (mappingHints.histogramMapping()) {
                 case AGGREGATE_METRIC_DOUBLE -> writeAggregateMetricDouble(batchBuilder, metric, dataPoint.getSum(), dataPoint.getCount());
-                case TDIGEST -> {
-                    var schema = batchBuilder.getMetricSubSchema(metric.getName(), HistogramEscfSchema.FACTORY);
-                    EscfColumnBuilder counts = batchBuilder.beginArray(schema.countsColIdx());
+                case TDIGEST -> writeHistogram(batchBuilder, metric, (counts, values) -> {
                     TDigestConverter.counts(dataPoint, counts::appendLong);
-                    counts.endArray();
-                    EscfColumnBuilder values = batchBuilder.beginArray(schema.valuesColIdx());
                     TDigestConverter.centroidValues(dataPoint, values::appendDouble);
-                    values.endArray();
-                }
-                case HISTOGRAM_RAW -> {
-                    var schema = batchBuilder.getMetricSubSchema(metric.getName(), HistogramEscfSchema.FACTORY);
-                    EscfColumnBuilder counts = batchBuilder.beginArray(schema.countsColIdx());
+                });
+                case HISTOGRAM_RAW -> writeHistogram(batchBuilder, metric, (counts, values) -> {
                     RawHistogramConverter.counts(dataPoint, counts::appendLong);
-                    counts.endArray();
-                    EscfColumnBuilder values = batchBuilder.beginArray(schema.valuesColIdx());
                     RawHistogramConverter.values(dataPoint, values::appendDouble);
-                    values.endArray();
-                }
+                });
                 case EXPONENTIAL_HISTOGRAM -> ExponentialHistogramConverter.writeExponentialHistogram(
                     dataPoint,
                     batchBuilder,
@@ -451,24 +442,14 @@ public interface DataPoint {
                     batchBuilder.getMetricSubSchema(metric.getName(), ExponentialHistogramEscfSchema.FACTORY),
                     scratch
                 );
-                case TDIGEST -> {
-                    var schema = batchBuilder.getMetricSubSchema(metric.getName(), HistogramEscfSchema.FACTORY);
-                    EscfColumnBuilder counts = batchBuilder.beginArray(schema.countsColIdx());
+                case TDIGEST -> writeHistogram(batchBuilder, metric, (counts, values) -> {
                     TDigestConverter.counts(dataPoint, counts::appendLong);
-                    counts.endArray();
-                    EscfColumnBuilder values = batchBuilder.beginArray(schema.valuesColIdx());
                     TDigestConverter.centroidValues(dataPoint, values::appendDouble);
-                    values.endArray();
-                }
-                case HISTOGRAM_RAW -> {
-                    var schema = batchBuilder.getMetricSubSchema(metric.getName(), HistogramEscfSchema.FACTORY);
-                    EscfColumnBuilder counts = batchBuilder.beginArray(schema.countsColIdx());
+                });
+                case HISTOGRAM_RAW -> writeHistogram(batchBuilder, metric, (counts, values) -> {
                     RawHistogramConverter.counts(dataPoint, counts::appendLong);
-                    counts.endArray();
-                    EscfColumnBuilder values = batchBuilder.beginArray(schema.valuesColIdx());
                     RawHistogramConverter.values(dataPoint, values::appendDouble);
-                    values.endArray();
-                }
+                });
                 case AGGREGATE_METRIC_DOUBLE -> writeAggregateMetricDouble(batchBuilder, metric, dataPoint.getSum(), dataPoint.getCount());
             }
         }
@@ -609,6 +590,19 @@ public interface DataPoint {
         public boolean isValid(Set<String> errors, MappingHints mappingHints) {
             return true;
         }
+    }
+
+    private static void writeHistogram(
+        OTLPMetricBatchBuilder batchBuilder,
+        Metric metric,
+        BiConsumer<EscfColumnBuilder, EscfColumnBuilder> countsAndValuesBuilder
+    ) {
+        var schema = batchBuilder.getMetricSubSchema(metric.getName(), HistogramEscfSchema.FACTORY);
+        EscfColumnBuilder counts = batchBuilder.beginArray(schema.countsColIdx());
+        EscfColumnBuilder values = batchBuilder.beginArray(schema.valuesColIdx());
+        countsAndValuesBuilder.accept(counts, values);
+        counts.endArray();
+        values.endArray();
     }
 
     private static void buildAggregateMetricDouble(XContentBuilder builder, double sum, long valueCount) throws IOException {

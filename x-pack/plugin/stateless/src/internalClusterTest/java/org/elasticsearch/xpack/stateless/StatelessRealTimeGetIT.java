@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.stateless;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.NoShardAvailableActionException;
@@ -21,6 +22,7 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.MultiGetItemResponse;
+import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.action.get.TransportGetFromTranslogAction;
 import org.elasticsearch.action.get.TransportShardMultiGetAction;
@@ -31,6 +33,8 @@ import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -44,6 +48,9 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
@@ -186,6 +193,76 @@ public class StatelessRealTimeGetIT extends AbstractStatelessPluginIntegTestCase
         assertThat(getFromTranslogActionsSent.get(), equalTo(2));
         assertThat(shardRefreshActionsSent.get(), equalTo(1));
         assertThat(getResponse.getSource().get("field"), equalTo("value2"));
+    }
+
+    public void testMGetFailsDocumentWithoutRoomInSearchNodeBreaker() throws Exception {
+        final var indexNode = startIndexNode(disableIndexingDiskAndMemoryControllersNodeSettings());
+        // the indexing node has room for the large document, but the search node that receives it has not
+        startSearchNode(
+            Settings.builder()
+                .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_TYPE_SETTING.getKey(), "memory")
+                .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "2mb")
+                .build()
+        );
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        assertAcked(
+            prepareCreate(indexName).setSettings(indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1))
+                .setMapping("payload", "type=keyword,index=false,doc_values=false")
+        );
+        ensureGreen(indexName);
+        // A realtime get makes the indexing shard store translog locations, so that the documents indexed next are read from the translog
+        client().prepareIndex(indexName).setId("0").setSource("payload", "first").get();
+        assertTrue(client().prepareGet(indexName, "0").get().isExists());
+        client().prepareIndex(indexName).setId("large").setSource("payload", randomAlphaOfLength(3 * 1024 * 1024)).get();
+        client().prepareIndex(indexName).setId("small").setSource("payload", "small").get();
+
+        // The order of the steps matters. The translog steps need the documents unrefreshed, and the last one sees them only because of
+        // the refresh step.
+
+        // received from the translog of the indexing shard
+        assertLargeFailsAlone(client().prepareMultiGet().addIds(indexName, "large", "small").get());
+
+        // received from the translog after a retry
+        final var shardId = findIndexShard(indexName).shardId();
+        final var failNextAttempt = new AtomicBoolean(true);
+        MockTransportService.getInstance(indexNode)
+            .addRequestHandlingBehavior(TransportShardMultiGetFomTranslogAction.NAME, (handler, request, channel, task) -> {
+                if (failNextAttempt.compareAndSet(true, false)) {
+                    channel.sendResponse(new ShardNotFoundException(shardId));
+                    // the search shard retries once the cluster state changes
+                    indicesAdmin().preparePutMapping(indexName)
+                        .setSource("retry", "type=keyword")
+                        .execute(assertNoFailureListener(ignored -> {}));
+                } else {
+                    handler.messageReceived(request, channel, task);
+                }
+            });
+        assertLargeFailsAlone(client().prepareMultiGet().addIds(indexName, "large", "small").get());
+        assertFalse(failNextAttempt.get());
+
+        // loaded by the search shard after a refresh
+        assertLargeFailsAlone(
+            client().prepareMultiGet().addIds(indexName, "large", "small").setRefresh(true).setRealtime(randomBoolean()).get()
+        );
+
+        // loaded by the search shard without a refresh
+        assertLargeFailsAlone(client().prepareMultiGet().addIds(indexName, "large", "small").setRealtime(false).get());
+
+        for (CircuitBreakerService service : internalCluster().getInstances(CircuitBreakerService.class)) {
+            CircuitBreaker breaker = service.getBreaker(CircuitBreaker.REQUEST);
+            assertBusy(() -> assertThat(breaker.getUsed(), equalTo(0L)));
+        }
+    }
+
+    private static void assertLargeFailsAlone(MultiGetResponse response) {
+        var failure = response.getResponses()[0].getFailure();
+        assertNotNull("the large document should have failed", failure);
+        assertThat(ExceptionsHelper.status(failure.getFailure()), equalTo(RestStatus.TOO_MANY_REQUESTS));
+        assertThat(
+            ExceptionsHelper.unwrap(failure.getFailure(), CircuitBreakingException.class).getMessage(),
+            containsString("[get[source]]")
+        );
+        assertTrue(response.getResponses()[1].getResponse().isExists());
     }
 
     public void testMGet() {

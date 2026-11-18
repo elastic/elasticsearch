@@ -31,7 +31,6 @@ import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.simdvec.ESVectorUtil;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -100,11 +99,6 @@ public class FlattenedUnmappedFieldsTests extends MapperServiceTestCase {
         return false;
     }
 
-    @Before
-    public void testFeatureFlag() {
-        assumeTrue("flattened_unmapped_fields is enabled", FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled());
-    }
-
     public void testDynamicFlattenedRejectedOutsideStrictColumnar() {
         Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), randomFrom(IndexMode.STANDARD, IndexMode.LOGSDB).getName())
@@ -114,7 +108,7 @@ public class FlattenedUnmappedFieldsTests extends MapperServiceTestCase {
     }
 
     public void testDynamicFlattenedRejectedBeforeGateVersion() {
-        IndexVersion version = IndexVersionUtils.getPreviousVersion(IndexVersions.UNMAPPED_SINK_ON_STRICT_COLUMNAR);
+        IndexVersion version = IndexVersionUtils.getPreviousVersion(IndexVersions.UNMAPPED_SINK_FEATURE_FLAG_REMOVAL);
         var e = expectThrows(
             MapperParsingException.class,
             () -> createMapperService(version, columnarSettings(), dynamicFlattenedMapping(b -> {}))
@@ -123,7 +117,7 @@ public class FlattenedUnmappedFieldsTests extends MapperServiceTestCase {
             e.getMessage(),
             containsString(
                 "dynamic [flattened] is not supported on indices created before ["
-                    + IndexVersions.UNMAPPED_SINK_ON_STRICT_COLUMNAR.toReleaseVersion()
+                    + IndexVersions.UNMAPPED_SINK_FEATURE_FLAG_REMOVAL.toReleaseVersion()
                     + "]"
             )
         );
@@ -177,7 +171,7 @@ public class FlattenedUnmappedFieldsTests extends MapperServiceTestCase {
 
     /** An index created before the gate version has no sink, so a user field named {@code _unmapped} is an ordinary field. */
     public void testNoSinkBeforeGateVersion() throws IOException {
-        IndexVersion version = IndexVersionUtils.getPreviousVersion(IndexVersions.UNMAPPED_SINK_ON_STRICT_COLUMNAR);
+        IndexVersion version = IndexVersionUtils.getPreviousVersion(IndexVersions.UNMAPPED_SINK_FEATURE_FLAG_REMOVAL);
         MapperService mapperService = createMapperService(
             version,
             columnarSettings(),
@@ -539,23 +533,36 @@ public class FlattenedUnmappedFieldsTests extends MapperServiceTestCase {
     }
 
     public void testExplicitSubObjectDynamicOverridesAbsorption() throws IOException {
-        // A sub-object declared dynamic:false becomes a prefix property resolving to FALSE, so unmapped fields under it are
-        // dropped rather than absorbed; unmapped fields elsewhere still inherit the root's FLATTENED.
+        // A sub-object that sets its own dynamic becomes a prefix property resolving to that value, so unmapped fields under it follow
+        // the sub-object's setting rather than being absorbed; unmapped fields elsewhere still inherit the root's FLATTENED.
+        String dynamic = randomFrom("false", "true", "strict");
         DocumentMapper mapper = columnarService(b -> {
             b.startObject("attributes");
-            b.field("dynamic", "false");
+            b.field("dynamic", dynamic);
             b.startObject("properties").startObject("host").field("type", "keyword").endObject().endObject();
             b.endObject();
         }).documentMapper();
 
         String top = randomAlphanumericOfLength(5);
-        ParsedDocument doc = mapper.parse(source(b -> {
+        String value = randomAlphanumericOfLength(5);
+        CheckedConsumer<XContentBuilder, IOException> body = b -> {
             b.field("toplevel", top);
-            b.startObject("attributes").field("unmapped", randomAlphanumericOfLength(5)).endObject();
-        }));
-
+            b.startObject("attributes").field("unmapped", value).endObject();
+        };
+        if (dynamic.equals("strict")) {
+            var e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(body)));
+            assertThat(e.getMessage(), containsString("dynamic introduction of [attributes.unmapped] within [_doc] is not allowed"));
+            return;
+        }
+        ParsedDocument doc = mapper.parse(source(body));
         assertTrue("root-level unmapped field is absorbed", hasKeyedSlot(doc, "toplevel\0" + top));
-        assertFalse("dynamic:false sub-object drops its unmapped field", hasKeyedSlot(doc, "attributes.unmapped\0"));
+        assertFalse("the sub-object's unmapped field is not absorbed", hasKeyedSlot(doc, "attributes.unmapped\0"));
+        if (dynamic.equals("true")) {
+            assertNotNull(doc.dynamicMappingsUpdate());
+            assertThat(doc.dynamicMappingsUpdate().toString(), containsString("unmapped"));
+        } else {
+            assertNull(doc.dynamicMappingsUpdate());
+        }
     }
 
     public void testSinkSurvivesMerge() throws IOException {

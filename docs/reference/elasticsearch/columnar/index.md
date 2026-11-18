@@ -163,6 +163,7 @@ Dynamic mapping behavior is controlled by the [`dynamic`](/reference/elasticsear
 - `true` (default): Turns on the dynamic mapping behavior as described in the preceding paragraphs.
 - `false`: Unmapped fields are not mapped or stored. Data in unmapped fields are lost.
 - `strict`: Documents containing unmapped fields don't get indexed, raising indexing errors instead.
+- `flattened` {applies_to}`stack: preview 9.7` {applies_to}`serverless: preview`: Unmapped fields are kept without being added to the mappings. Refer to [Keeping unmapped fields without mapping them](#dynamic-flattened).
 
 Note that the `runtime` option is not supported in columnar mode.
 
@@ -171,6 +172,46 @@ Note that the `runtime` option is not supported in columnar mode.
 If you configure `"dynamic": false`, then only fields that are explicitly mapped in the mappings are stored.
 Fields that are not explicitly mapped in the mappings are not stored and therefore lost.
 :::
+
+### Keeping unmapped fields without mapping them [dynamic-flattened]
+```yaml {applies_to}
+stack: preview 9.7
+serverless: preview
+```
+
+Setting `"dynamic": "flattened"` on the root of the mappings keeps the values of unmapped fields without adding the fields to the mappings. This avoids a mapping explosion when documents carry many different fields that you don't need to search:
+
+```console
+PUT my-index
+{
+  "settings": {
+    "index.mode": "logsdb_columnar"
+  },
+  "mappings": {
+    "dynamic": "flattened",
+    "properties": {
+      "message": { "type": "match_only_text" }
+    }
+  }
+}
+```
+
+Fields that you map explicitly, and fields that match a [dynamic template](docs-content://manage-data/data-store/mapping/dynamic-templates.md), are mapped as usual. Other fields can only be read:
+
+- From `_source`, under their original paths. Their values are returned as strings: a number `3` comes back as `"3"`, and `true` as `"true"`.
+- From the search `fields` option with `include_unmapped: true`, under their original paths. Values are returned as strings, in document order.
+- With {{esql}}, under [`SET unmapped_fields="load"`](/reference/query-languages/esql/esql-unmapped-fields.md), which loads them as `keyword` values. Multiple values of a field outside a `nested` object are returned sorted and without duplicates.
+
+Query DSL queries on these fields match no documents, they can't be used in aggregations or sorts, and they aren't listed by the field capabilities API.
+
+The following rules also apply:
+
+- `dynamic: flattened` can only be set on the root object, not on an inner object, a `nested` field, or a `passthrough` field.
+- Unmapped fields under an object that sets its own `dynamic` follow that object's setting instead.
+- It's only supported on columnar indices created on or after 9.7. Older indices get it at the next rollover of their data stream, or by reindexing into a new index.
+- You can switch `dynamic` between `flattened` and other values with a mapping update. Fields kept before the switch can still be read as described in this section.
+- If you later map a field that was kept this way, searches, aggregations, and {{esql}} queries on the mapped field don't see its values in documents indexed before the mapping change.
+- On columnar indices created on or after 9.7, the field name `_unmapped`, and any field name that starts with `_unmapped.`, is reserved and rejected in the mappings and in documents, whatever the `dynamic` setting.
 
 ## Auto flattening [auto-flattening]
 

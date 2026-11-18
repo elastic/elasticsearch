@@ -10,7 +10,6 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.index.SliceIndexing;
-import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -69,10 +68,12 @@ public class CreateIndexCapabilities {
 
     /**
      * Support for root {@code dynamic:flattened}, which absorbs unmapped fields into the {@code _unmapped} sink of strict columnar indices.
-     * Advertised only when the feature flag is on, so yaml tests can gate on it and skip on builds where the sink is unavailable. Replaces
-     * {@code flattened_unmapped_fields}, which older nodes advertise without accepting {@code dynamic: flattened}.
+     * Always advertised now that the feature is no longer behind a flag; kept so mixed-version yaml tests still skip against older nodes
+     * that do not accept {@code dynamic: flattened}. Replaces {@code dynamic_flattened}, which snapshot nodes built between the sink's
+     * introduction and the flag removal advertise while accepting {@code dynamic: flattened} on indices created before the GA index
+     * version, which this version rejects.
      */
-    private static final String DYNAMIC_FLATTENED_CAPABILITY = "dynamic_flattened";
+    private static final String DYNAMIC_FLATTENED_CAPABILITY = "dynamic_flattened_v2";
 
     public static final Set<String> CAPABILITIES;
 
@@ -95,9 +96,7 @@ public class CreateIndexCapabilities {
         if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {
             caps.add(SLICE_INDEXING_CAPABILITY);
         }
-        if (FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled()) {
-            caps.add(DYNAMIC_FLATTENED_CAPABILITY);
-        }
+        caps.add(DYNAMIC_FLATTENED_CAPABILITY);
         CAPABILITIES = Set.copyOf(caps);
     }
 }

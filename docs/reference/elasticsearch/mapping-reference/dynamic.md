@@ -98,6 +98,9 @@ If you configure `"dynamic": false` on a [columnar](/reference/elasticsearch/col
 `strict`
 :   If new fields are detected, an exception is thrown and the document is rejected. New fields must be explicitly added to the mapping.
 
+`flattened` {applies_to}`stack: preview 9.7` {applies_to}`serverless: preview`
+:   New fields are kept without being added to the mapping. They're returned in `_source` and can be read with {{esql}} under `SET unmapped_fields="load"`, but they can't be searched or aggregated on. This option is only supported on the root object of [columnar](/reference/elasticsearch/columnar/index.md) indices created on or after 9.7. For details, refer to [Keeping unmapped fields without mapping them](/reference/elasticsearch/columnar/index.md#dynamic-flattened).
+
 
 ## Behavior when reaching the field limit [dynamic-field-limit]
 

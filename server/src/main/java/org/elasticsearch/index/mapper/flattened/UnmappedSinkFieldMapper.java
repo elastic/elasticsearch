@@ -50,13 +50,12 @@ public final class UnmappedSinkFieldMapper extends MetadataFieldMapper {
     );
 
     /**
-     * Whether an index has the sink, and so accepts {@code dynamic: flattened} at its root. The flag is fixed per build, and the mode and
-     * creation version cannot change on an existing index, so the sink is present on every parse of its mapping, or on none.
+     * Whether an index has the sink, and so accepts {@code dynamic: flattened} at its root. The gate is the flag-removal version so that
+     * indices created since the sink's introduction gain no sink on upgrade; flag-on snapshot indices from that window are unsupported.
      */
     public static boolean isEnabled(IndexSettings indexSettings) {
-        return FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled()
-            && indexSettings.getMode().isStrictColumnar()
-            && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.UNMAPPED_SINK_ON_STRICT_COLUMNAR);
+        return indexSettings.getMode().isStrictColumnar()
+            && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.UNMAPPED_SINK_FEATURE_FLAG_REMOVAL);
     }
 
     private final FlattenedFieldMapper delegate;

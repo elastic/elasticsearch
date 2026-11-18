@@ -52,3 +52,70 @@ teardown:
   - match: { searchable_snapshot_policy.policy.phases.frozen.min_age: "1d" }
   - match: { searchable_snapshot_policy.policy.phases.frozen.actions.searchable_snapshot.snapshot_repository: "foo" }
   - match: { searchable_snapshot_policy.policy.phases.frozen.actions.searchable_snapshot.force_merge_on_clone: false }
+
+---
+"Test put lifecycle with searchable snapshot action using unbounded total_shards_per_node":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /_ilm/policy/{name}
+          capabilities: [ searchable_snapshot_unbounded_total_shards_per_node ]
+      reason: Capability must be present to run test
+
+  - do:
+      ilm.put_lifecycle:
+        policy: searchable_snapshot_unbounded_policy
+        body: |
+          {
+            "policy": {
+              "phases": {
+                "cold": {
+                  "min_age": "1d",
+                  "actions": {
+                    "searchable_snapshot": {
+                      "snapshot_repository": "foo",
+                      "total_shards_per_node": -1
+                    }
+                  }
+                }
+              }
+            }
+          }
+
+  - do:
+      ilm.get_lifecycle:
+        policy: searchable_snapshot_unbounded_policy
+
+  - match: { searchable_snapshot_unbounded_policy.policy.phases.cold.actions.searchable_snapshot.total_shards_per_node: -1 }
+
+---
+"Test put lifecycle with searchable snapshot action rejects total_shards_per_node below -1":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /_ilm/policy/{name}
+          capabilities: [ searchable_snapshot_unbounded_total_shards_per_node ]
+      reason: Capability must be present to run test
+
+  - do:
+      catch: bad_request
+      ilm.put_lifecycle:
+        policy: searchable_snapshot_invalid_policy
+        body: |
+          {
+            "policy": {
+              "phases": {
+                "cold": {
+                  "min_age": "1d",
+                  "actions": {
+                    "searchable_snapshot": {
+                      "snapshot_repository": "foo",
+                      "total_shards_per_node": -2
+                    }
+                  }
+                }
+              }
+            }
+          }

@@ -18,9 +18,11 @@ import java.security.Key;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
+import java.security.Provider;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 
 /**
@@ -30,19 +32,35 @@ import java.util.function.Function;
  */
 final class CliKeyStoreFormat {
 
-    static final CliKeyStoreFormat PKCS12 = new CliKeyStoreFormat("PKCS12", "PKCS#12", ".p12", null);
+    static final CliKeyStoreFormat PKCS12 = new CliKeyStoreFormat("PKCS12", "PKCS#12", ".p12", null, null);
 
     private final String type;
     private final String description;
     private final String extension;
     @Nullable
     private final String settingsType;
+    @Nullable
+    private final Provider provider;
 
-    private CliKeyStoreFormat(String type, String description, String extension, @Nullable String settingsType) {
+    private CliKeyStoreFormat(
+        String type,
+        String description,
+        String extension,
+        @Nullable String settingsType,
+        @Nullable Provider provider
+    ) {
         this.type = type;
         this.description = description;
         this.extension = extension;
         this.settingsType = settingsType;
+        this.provider = provider;
+    }
+
+    /**
+     * The BCFKS format, as implemented by the given provider. The provider does not need to be registered with the JVM.
+     */
+    static CliKeyStoreFormat bcfks(Provider provider) {
+        return new CliKeyStoreFormat("BCFKS", "BCFKS", ".bcfks", "BCFKS", Objects.requireNonNull(provider));
     }
 
     /**
@@ -76,10 +94,23 @@ final class CliKeyStoreFormat {
     }
 
     /**
+     * Explains why {@code password} cannot protect a keystore of this format, or returns {@code null} if it can.
+     */
+    @Nullable
+    String passwordError(char[] password) {
+        return switch (type) {
+            case "PKCS12" -> CertificateTool.isAscii(password) ? null : description + " passwords must be plain ASCII";
+            // BC-FIPS enforces a 112 bit minimum for PBKDF2 in approved-only mode, but not for the keys that protect a BCFKS keystore
+            case "BCFKS" -> null;
+            default -> throw new IllegalStateException("unexpected keystore type [" + type + "]");
+        };
+    }
+
+    /**
      * Creates a new, empty, in-memory keystore of this format.
      */
     KeyStore newKeyStore() throws KeyStoreException, IOException, NoSuchAlgorithmException, CertificateException {
-        final KeyStore keyStore = KeyStore.getInstance(type);
+        final KeyStore keyStore = getInstance();
         keyStore.load(null);
         return keyStore;
     }
@@ -91,10 +122,14 @@ final class CliKeyStoreFormat {
      */
     Map<Certificate, Key> readKeyPairs(Path path, char[] password, Function<String, char[]> keyPassword) throws GeneralSecurityException,
         IOException {
-        final KeyStore keyStore = KeyStore.getInstance(type);
+        final KeyStore keyStore = getInstance();
         try (InputStream in = Files.newInputStream(path)) {
             keyStore.load(in, password);
         }
         return CertParsingUtils.readKeyPairsFromKeystore(keyStore, keyPassword);
+    }
+
+    private KeyStore getInstance() throws KeyStoreException {
+        return provider == null ? KeyStore.getInstance(type) : KeyStore.getInstance(type, provider);
     }
 }

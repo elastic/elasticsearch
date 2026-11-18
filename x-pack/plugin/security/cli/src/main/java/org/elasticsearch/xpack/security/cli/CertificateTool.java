@@ -592,16 +592,16 @@ class CertificateTool extends MultiCommand {
         ) throws Exception {
             final KeyStore keyStore = keyStoreFormat.newKeyStore();
             withPassword(fileName, password, terminal, true, keyStorePassword -> {
-                if (isAscii(keyStorePassword)) {
-                    keyStore.setKeyEntry(alias, pair.key, keyStorePassword, new Certificate[] { pair.cert });
-                    if (caCert != null) {
-                        keyStore.setCertificateEntry("ca", caCert);
-                    }
-                    keyStore.store(output, keyStorePassword);
-                    return null;
-                } else {
-                    throw new UserException(ExitCodes.CONFIG, "PKCS#12 passwords must be plain ASCII");
+                final String passwordError = keyStoreFormat.passwordError(keyStorePassword);
+                if (passwordError != null) {
+                    throw new UserException(ExitCodes.CONFIG, passwordError);
                 }
+                keyStore.setKeyEntry(alias, pair.key, keyStorePassword, new Certificate[] { pair.cert });
+                if (caCert != null) {
+                    keyStore.setCertificateEntry("ca", caCert);
+                }
+                keyStore.store(output, keyStorePassword);
+                return null;
             });
         }
 

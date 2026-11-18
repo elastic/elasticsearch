@@ -14,6 +14,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker.Durability;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
@@ -26,12 +27,16 @@ import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
+import org.elasticsearch.compute.data.ExponentialHistogramBlockBuilder;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.escf.EscfBatch;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
+import org.elasticsearch.exponentialhistogram.ReleasableExponentialHistogram;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
@@ -225,6 +230,57 @@ public class PageToEscfBatchTests extends ComputeTestCase {
         }
     }
 
+    public void testSourceBigIntegerStaysANumber() throws IOException {
+        BigInteger big = BigInteger.TWO.pow(63).add(BigInteger.ONE);
+        try (BytesRefBlock.Builder b = blockFactory().newBytesRefBlockBuilder(1)) {
+            b.appendBytesRef(new BytesRef("{\"n\":" + big + "}"));
+            Object value = rows(List.of(DataType.SOURCE), b.build()).getFirst().get("c0");
+            assertThat(value, instanceOf(Map.class));
+            Object n = ((Map<?, ?>) value).get("n");
+            assertThat(n, instanceOf(BigInteger.class));
+            assertThat(n, equalTo(big));
+        }
+    }
+
+    public void testFallbackRowWritesFlattenedAsAString() throws IOException {
+        BigInteger big = BigInteger.TWO.pow(63).add(BigInteger.ONE);
+        try (
+            BytesRefBlock.Builder flat = blockFactory().newBytesRefBlockBuilder(1);
+            LongBlock.Builder nums = blockFactory().newLongBlockBuilder(1)
+        ) {
+            flat.appendBytesRef(new BytesRef("{\"a\":1}"));
+            nums.beginPositionEntry()
+                .appendLong(NumericUtils.asLongUnsigned(big))
+                .appendLong(NumericUtils.asLongUnsigned(BigInteger.valueOf(7)))
+                .endPositionEntry();
+            Map<String, Object> row = indexedRow(List.of(DataType.FLATTENED, DataType.UNSIGNED_LONG), flat.build(), nums.build());
+            assertThat(row.get("c0"), equalTo("{\"a\":1}"));
+            assertThat(row.get("c1"), equalTo(List.of(big, 7)));
+        }
+    }
+
+    public void testFallbackRowWritesExponentialHistogramAsAString() throws IOException {
+        BigInteger big = BigInteger.TWO.pow(63).add(BigInteger.ONE);
+        try (
+            ReleasableExponentialHistogram histogram = ExponentialHistogram.create(4, ExponentialHistogramCircuitBreaker.noop(), 1.0);
+            ExponentialHistogramBlockBuilder histos = blockFactory().newExponentialHistogramBlockBuilder(1);
+            LongBlock.Builder nums = blockFactory().newLongBlockBuilder(1)
+        ) {
+            histos.append(histogram);
+            nums.beginPositionEntry()
+                .appendLong(NumericUtils.asLongUnsigned(big))
+                .appendLong(NumericUtils.asLongUnsigned(BigInteger.valueOf(7)))
+                .endPositionEntry();
+            Map<String, Object> row = indexedRow(
+                List.of(DataType.EXPONENTIAL_HISTOGRAM, DataType.UNSIGNED_LONG),
+                histos.build(),
+                nums.build()
+            );
+            assertThat(row.get("c0"), instanceOf(String.class));
+            assertThat(row.get("c1"), equalTo(List.of(big, 7)));
+        }
+    }
+
     public void testSourceColumnIsAnObject() throws IOException {
         try (BytesRefBlock.Builder b = blockFactory().newBytesRefBlockBuilder(1)) {
             b.appendBytesRef(new BytesRef("{\"n\":1}"));
@@ -288,6 +344,10 @@ public class PageToEscfBatchTests extends ComputeTestCase {
         assertThat(rows(List.of(DataType.LONG), blockFactory().newConstantNullBlock(0)), equalTo(List.of()));
     }
 
+    private Map<String, Object> indexedRow(List<DataType> types, Block... blocks) throws IOException {
+        return XContentHelper.convertToMap(new BytesArray(rowJson(types, blocks)), false, XContentType.JSON).v2();
+    }
+
     private String rowJson(List<DataType> types, Block... blocks) throws IOException {
         Page page = new Page(blocks);
         List<String> names = new ArrayList<>(types.size());
@@ -315,8 +375,23 @@ public class PageToEscfBatchTests extends ComputeTestCase {
         for (int i = 0; i < types.size(); i++) {
             names.add("c" + i);
         }
-        try (EscfBatch batch = PageToEscfBatch.convert(page, names, types, bigArrays.bytesRefRecycler(), null).batch()) {
-            return toMaps(batch);
+        PageToEscfBatch.ConvertResult result = PageToEscfBatch.convert(page, names, types, bigArrays.bytesRefRecycler(), null);
+        try (EscfBatch batch = result.batch()) {
+            boolean[] fallback = result.jsonFallbackRows();
+            List<Map<String, Object>> maps = new ArrayList<>();
+            for (int row = 0; row < batch.docCount(); row++) {
+                BytesReference json;
+                if (fallback != null && fallback[row]) {
+                    json = PageToEscfBatch.jsonRow(names, types, page, row);
+                } else {
+                    IndexSource src = new IndexSource();
+                    src.setSourceRow(batch, row, XContentType.JSON);
+                    src.ensureInlineSource();
+                    json = src.bytes();
+                }
+                maps.add(XContentHelper.convertToMap(json, false, XContentType.JSON).v2());
+            }
+            return maps;
         } finally {
             page.releaseBlocks();
         }

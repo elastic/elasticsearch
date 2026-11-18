@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -35,6 +36,7 @@ import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -52,6 +54,8 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -369,6 +373,38 @@ public class IntoPageWriterTests extends ComputeTestCase {
         assertThat(client.bulks, empty());
         assertTrue(writer.isFinished());
         assertThat(sink.stats(), equalTo(new IntoStats(0, 0)));
+    }
+
+    public void testAllFalseBooleanPageReservesBreakerBytes() {
+        Attribute column = new ReferenceAttribute(Source.EMPTY, "b", DataType.BOOLEAN);
+        IntoPageWriter booleans = IntoPageWriter.Factory.createFactory(client, DESTINATION, List.of(column), PREBUILT)
+            .create(driverContext);
+        try (BooleanBlock.Builder values = blockFactory.newBooleanBlockBuilder(2)) {
+            values.appendBoolean(false);
+            values.appendBoolean(false);
+            booleans.consume(new Page(values.build()));
+        }
+        assertThat(driverContext.breaker().getUsed(), greaterThanOrEqualTo((long) driverContext.bigArrays().bytesRefRecycler().pageSize()));
+    }
+
+    public void testScalarUnsignedLongAboveLongMaxIsNotPreBuilt() throws IOException {
+        BigInteger big = BigInteger.TWO.pow(63).add(BigInteger.ONE);
+        Attribute column = new ReferenceAttribute(Source.EMPTY, "n", DataType.UNSIGNED_LONG);
+        IntoPageWriter exactWriter = IntoPageWriter.Factory.createFactory(client, DESTINATION, List.of(column), PREBUILT)
+            .create(driverContext);
+        try (LongBlock.Builder values = blockFactory.newLongBlockBuilder(1)) {
+            values.appendLong(NumericUtils.asLongUnsigned(big));
+            exactWriter.consume(new Page(values.build()));
+        }
+        BulkRequest bulk = client.bulks.getFirst();
+        assertThat(bulk.hasPreBuiltBatches(), equalTo(false));
+        String json = ((IndexRequest) bulk.requests().getFirst()).indexSource().bytes().utf8ToString();
+        try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, new BytesArray(json))) {
+            assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
+            assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
+            assertThat(parser.nextToken(), equalTo(XContentParser.Token.VALUE_NUMBER));
+            assertThat(parser.numberValue(), equalTo(big));
+        }
     }
 
     public void testInexactUnsignedLongArrayIsExactJson() throws IOException {

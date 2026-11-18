@@ -34,15 +34,12 @@ import org.elasticsearch.escf.EscfColumnKind;
 import org.elasticsearch.sourcebatch.SourceBatchEncodeHelper;
 import org.elasticsearch.sourcebatch.SourceSchema;
 import org.elasticsearch.sourcebatch.SourceValueType;
-import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentString;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
-import org.elasticsearch.xpack.esql.action.PositionToXContent;
 import org.elasticsearch.xpack.esql.action.ResponseValueUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
@@ -104,10 +101,7 @@ final class PageToEscfBatch {
         );
     }
 
-    /**
-     * JSON for one row. Used when an {@code unsigned_long} array holds a value above {@code Long.MAX_VALUE}:
-     * an array element cannot store the decimal spelling a scalar double can.
-     */
+    /** JSON for one row that ESCF cannot store exactly. Values come from {@link ResponseValueUtils}. */
     static BytesReference jsonRow(List<String> names, List<DataType> types, Page page, int row) {
         final XContentBuilder builder;
         try {
@@ -124,8 +118,19 @@ final class PageToEscfBatch {
                     continue;
                 }
                 builder.field(names.get(c));
-                PositionToXContent.positionToXContent(new ColumnInfoImpl(names.get(c), types.get(c), null), block, ZoneOffset.UTC, scratch)
-                    .positionToXContent(builder, ToXContent.EMPTY_PARAMS, row);
+                int count = block.getValueCount(row);
+                boolean isArray = count > 1;
+                if (isArray) {
+                    builder.startArray();
+                }
+                int start = block.getFirstValueIndex(row);
+                ResponseValueUtils.BlockValueExtractor extractor = ResponseValueUtils.valueExtractorFor(types.get(c), ZoneOffset.UTC);
+                for (int i = 0; i < count; i++) {
+                    builder.value(extractor.extract(block, start + i, scratch));
+                }
+                if (isArray) {
+                    builder.endArray();
+                }
             }
             builder.endObject();
             return BytesReference.bytes(builder);
@@ -176,7 +181,7 @@ final class PageToEscfBatch {
                 BytesRef scratch = new BytesRef();
                 yield stringColumn(block, i -> new BytesRef(extractor.extract(block, i, scratch).toString()), recycler, charge);
             }
-            case SOURCE -> sourceColumn((BytesRefBlock) block, recycler, charge);
+            case SOURCE -> sourceColumn((BytesRefBlock) block, recycler, charge, fallback);
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }
@@ -392,6 +397,7 @@ final class PageToEscfBatch {
             }
         }
         int docCount = block.getPositionCount();
+        charge.add(recycler.pageSize());
         FixedBitSet validity = buildValidity(block);
         FixedBitSet values = null;
         for (int p = 0; p < docCount; p++) {
@@ -450,7 +456,11 @@ final class PageToEscfBatch {
                     int first = block.getFirstValueIndex(p);
                     int count = block.getValueCount(p);
                     if (count == 1) {
-                        writeUnsignedLong(builder, block.getLong(first));
+                        long encoded = block.getLong(first);
+                        if (encoded >= 0) {
+                            fallback.mark(docCount, p);
+                        }
+                        writeUnsignedLong(builder, encoded);
                     } else {
                         boolean aboveLongMax = false;
                         builder.beginArray(builder.nextAppendRow());
@@ -490,17 +500,27 @@ final class PageToEscfBatch {
         }
     }
 
-    private static EscfColumnData sourceColumn(BytesRefBlock block, Recycler<BytesRef> recycler, Charge charge) {
+    private static EscfColumnData sourceColumn(BytesRefBlock block, Recycler<BytesRef> recycler, Charge charge, JsonFallbackRows fallback) {
         try (EscfColumnBuilder builder = new EscfColumnBuilder(CollisionPolicy.SPLIT, recycler)) {
             builder.hintUnion();
             long seen = 0;
             BytesRef scratch = new BytesRef();
-            for (int p = 0; p < block.getPositionCount(); p++) {
+            int docCount = block.getPositionCount();
+            for (int p = 0; p < docCount; p++) {
                 if (block.isNull(p)) {
                     builder.addAbsent();
                 } else {
                     int first = block.getFirstValueIndex(p);
                     int count = block.getValueCount(p);
+                    boolean rawJson = false;
+                    for (int i = 0; i < count; i++) {
+                        if (unrepresentableNumber(block.getBytesRef(first + i, scratch))) {
+                            rawJson = true;
+                        }
+                    }
+                    if (rawJson) {
+                        fallback.mark(docCount, p);
+                    }
                     if (count == 1) {
                         byte[] packed = keyValue(block.getBytesRef(first, scratch));
                         builder.addKeyValue(packed);
@@ -526,6 +546,30 @@ final class PageToEscfBatch {
                 seen = charge.grow(builder, seen);
             }
             return builder.finish(block.getPositionCount());
+        }
+    }
+
+    private static boolean unrepresentableNumber(BytesRef json) {
+        try (
+            XContentParser parser = XContentHelper.createParser(
+                XContentParserConfiguration.EMPTY,
+                new BytesArray(json.bytes, json.offset, json.length)
+            )
+        ) {
+            while (parser.nextToken() != null) {
+                if (parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
+                    switch (parser.numberType()) {
+                        case INT, LONG, FLOAT, DOUBLE -> {
+                        }
+                        case BIG_INTEGER, BIG_DECIMAL -> {
+                            return true;
+                        }
+                    }
+                }
+            }
+            return false;
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 

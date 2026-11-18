@@ -73,7 +73,6 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.lookup.LeafFieldLookupProvider;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.search.sort.SortAndFormats;
@@ -969,26 +968,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 ) {
                     @Override
                     public SearchLookup lookup() {
-                        return runtimeField ? runtimeFieldLookup() : super.lookup();
+                        return runtimeField ? super.lookup().withoutOnlyMappedAsRuntimeField() : super.lookup();
                     }
                 }
             );
             return loader == null ? ConstantNull.INSTANCE : loader;
-        }
-
-        /**
-         * A lookup that reports no field as only mapped as a runtime field, so a runtime field that is parsed from {@code _source}
-         * loads by running its script, as it does from stored source, rather than reading the {@code _ignored_source} that
-         * synthetic source keeps.
-         */
-        private SearchLookup runtimeFieldLookup() {
-            return new SearchLookup(
-                ctx::getFieldType,
-                fieldName -> false,
-                (fieldType, lookup, operation) -> ctx.getForField(fieldType, operation),
-                ctx.createSourceProvider(null),
-                LeafFieldLookupProvider.fromStoredFields()
-            );
         }
 
         @Override

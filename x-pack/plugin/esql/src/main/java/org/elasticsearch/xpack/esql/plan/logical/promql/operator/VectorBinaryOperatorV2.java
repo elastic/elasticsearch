@@ -441,7 +441,7 @@ public final class VectorBinaryOperatorV2 {
         boolean leftScalar = PromqlPlan.returnsScalar(left());
         IntermediateResult probe = leftScalar ? right : left;
         IntermediateResult build = reidentify(context, leftScalar ? left : right);
-        // Step-only join: no PackDims join-key needs, so pin on the IntermediateResult is safe.
+        // Step-only join: no signature to carry through the pin, so the IntermediateResult is pinned as it is.
         if (needsLayoutPin(probe)) {
             probe = pinOperandLayout(context, probe);
         }
@@ -467,8 +467,8 @@ public final class VectorBinaryOperatorV2 {
      * {@code step} + match keys. The join reads keys and result labels from the operands as references: a label comes
      * back as a concrete column wherever the operand can carry it, and a label the operand dropped binds to null.
      * <p>
-     * For vector x vector: how the sides are ordered (probe vs build), how fields are placed (match key packed next to
-     * step, build value and {@code group_x} labels carried across), and what is projected. The result exposes its step
+     * For vector x vector: how the sides are ordered (probe vs build), how fields are placed (the signature next to step,
+     * build value and {@code group_x} labels carried across), and what is projected. The result exposes its step
      * under the enclosing translation's step identity and only the labels it declares.
      */
     private IntermediateResult translateAsLeftJoin(TranslationContextV2 context) {
@@ -686,7 +686,7 @@ public final class VectorBinaryOperatorV2 {
     }
 
     /**
-     * The inner join of two already-packed (and optionally pinned) inputs on step plus the match key.
+     * The inner join of two join sides, optionally pinned, on step plus the signature.
      * <p>
      * A set operator matches many-to-many: {@code and} keeps each left series once when any right series shares its
      * signature. The build side is reduced to one row per key so a left row matches at most once, and the join does not
@@ -695,7 +695,7 @@ public final class VectorBinaryOperatorV2 {
     private LogicalPlan emitHashJoin(TranslationContextV2 context, JoinSide probe, JoinSide build) {
         PromqlCommand cmd = context.cmd();
         // The build side carries its join fields plus what the join adds: its value and the group_x labels. Neither can
-        // already be a join field (the step, or the freshly packed key), so the two lists are disjoint.
+        // already be a join field (the step, or the signature), so the two lists are disjoint.
         List<Attribute> added = new ArrayList<>(List.of(build.valueColumn()));
         if (match().groupingLabels().isEmpty() == false && build.labels() != null) {
             added.add(build.labels());
@@ -737,7 +737,8 @@ public final class VectorBinaryOperatorV2 {
     private JoinSide emitJoinSide(TranslationContextV2 context, IntermediateResult input, boolean oneSide) {
         PromqlCommand cmd = context.cmd();
         var evals = new ArrayList<Alias>();
-        // The join keys by the signature as a whole; label pushdown splits it into the columns the join compares.
+        // The join keys by the signature as a whole: scalarization keeps a typed one whole, and splits a keyword one into
+        // the labels the join compares, packed.
         Alias signature = new Alias(cmd.source(), SIGNATURE, signature(input.labels()));
         evals.add(signature);
         Attribute labels = null;

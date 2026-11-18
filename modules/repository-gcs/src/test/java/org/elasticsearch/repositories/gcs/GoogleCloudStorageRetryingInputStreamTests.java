@@ -24,6 +24,7 @@ import com.google.cloud.storage.StorageException;
 import com.google.cloud.storage.StorageOptions;
 
 import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.blobstore.RequestedRangeNotSatisfiedException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -33,12 +34,19 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.SocketException;
+import java.net.SocketTimeoutException;
+import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.Locale;
+
+import javax.net.ssl.SSLException;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class GoogleCloudStorageRetryingInputStreamTests extends ESTestCase {
@@ -123,6 +131,42 @@ public class GoogleCloudStorageRetryingInputStreamTests extends ESTestCase {
             )
         );
         assertThat(exception.getCause(), instanceOf(StorageException.class));
+    }
+
+    public void testOpenRetriesTransportFailures() throws IOException {
+        final byte[] bytes = randomByteArrayOfLength(randomIntBetween(1, 512));
+        final HttpTransport transport = getMockHttpTransport(bytes, 0, bytes.length);
+        final HttpResponse httpResponse = transport.createRequestFactory().buildGetRequest(HttpTesting.SIMPLE_GENERIC_URL).execute();
+        final IOException transportFailure = randomFrom(
+            new UnknownHostException("storage.googleapis.com"),
+            new SocketException("Connection reset"),
+            new SocketTimeoutException("Read timed out"),
+            new SSLException("(internal_error) Unhandled exception")
+        );
+        when(get.executeMedia()).thenThrow(transportFailure).thenReturn(httpResponse);
+
+        try (var stream = createRetryingInputStreamForCurrentMock()) {
+            final var out = new ByteArrayOutputStream();
+            org.elasticsearch.core.Streams.copy(stream, out);
+            assertArrayEquals(bytes, out.toByteArray());
+        }
+        verify(get, times(2)).executeMedia();
+    }
+
+    public void testOpenDoesNotRetryOtherIOExceptions() throws IOException {
+        when(get.executeMedia()).thenThrow(new IOException(randomAlphaOfLength(10)));
+
+        expectThrows(StorageException.class, () -> createRetryingInputStreamForCurrentMock().close());
+        verify(get, times(1)).executeMedia();
+    }
+
+    private GoogleCloudStorageRetryingInputStream createRetryingInputStreamForCurrentMock() throws IOException {
+        final GoogleCloudStorageBlobStore mockBlobStore = mock(GoogleCloudStorageBlobStore.class);
+        when(mockBlobStore.client()).thenReturn(meteredStorage);
+        when(mockBlobStore.getMaxRetries()).thenReturn(6);
+        when(mockBlobStore.getRepositoriesMetrics()).thenReturn(RepositoriesMetrics.NOOP);
+        when(mockBlobStore.getRepositoryName()).thenReturn(randomIdentifier());
+        return new GoogleCloudStorageRetryingInputStream(mockBlobStore, OperationPurpose.SNAPSHOT_DATA, blobId);
     }
 
     private GoogleCloudStorageRetryingInputStream createRetryingInputStream(byte[] data) throws IOException {

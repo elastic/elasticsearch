@@ -142,7 +142,10 @@ class GoogleCloudStorageRetryingInputStream extends RetryingInputStream<Long> {
                 return false;
             }
             return switch (action) {
-                case OPEN -> BaseService.EXCEPTION_HANDLER.shouldRetry(e, null);
+                // The raw `executeMedia()` call bypasses the retry strategy of the `Storage` client, so it must also retry transport
+                // failures
+                // such as DNS resolution errors here
+                case OPEN -> BaseService.EXCEPTION_HANDLER.shouldRetry(e, null) || GoogleCloudStorageService.isRetryableTransportFailure(e);
                 case READ -> e instanceof StorageException;
             };
         }

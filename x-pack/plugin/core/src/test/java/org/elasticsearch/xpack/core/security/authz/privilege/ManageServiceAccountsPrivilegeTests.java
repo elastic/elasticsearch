@@ -25,10 +25,14 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.action.service.AuthorizedServiceAccounts;
+import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenRequest;
 import org.elasticsearch.xpack.core.security.action.service.CreateUserManagedServiceAccountTokenAction;
+import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenAction;
+import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenRequest;
 import org.elasticsearch.xpack.core.security.action.service.DeleteUserManagedServiceAccountAction;
 import org.elasticsearch.xpack.core.security.action.service.DeleteUserManagedServiceAccountRequest;
+import org.elasticsearch.xpack.core.security.action.service.DeleteUserManagedServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountAction;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountRequest;
 import org.elasticsearch.xpack.core.security.action.service.PutUserManagedServiceAccountAction;
@@ -226,12 +230,46 @@ public class ManageServiceAccountsPrivilegeTests extends ESTestCase {
         assertThat(checkPut(permission, "apps", "payroll", List.of("r1", "r2")), is(false));
     }
 
+    /**
+     * Tokens can be created for the named accounts. The roles are not consulted, as the request does not carry them:
+     * they are checked when the account is written.
+     */
+    public void testTokensAreCreatedForTheNamedAccounts() {
+        final ClusterPermission permission = permissionFor(
+            new ManageServiceAccountsPrivilege(Set.of("apps/*", "batch/nightly"), Set.of(randomFrom("r1", "*")))
+        );
+        assertThat(checkCreateToken(permission, "apps", "payroll"), is(true));
+        assertThat(checkCreateToken(permission, "batch", "nightly"), is(true));
+        assertThat(checkCreateToken(permission, "batch", "hourly"), is(false));
+        assertThat(checkCreateToken(permission, "apps-other", "payroll"), is(false));
+    }
+
+    public void testTokensAreDeletedForTheNamedAccounts() {
+        final ClusterPermission permission = permissionFor(
+            new ManageServiceAccountsPrivilege(Set.of("apps/*", "batch/nightly"), Set.of(randomFrom("r1", "*")))
+        );
+        assertThat(checkDeleteToken(permission, "apps", "payroll"), is(true));
+        assertThat(checkDeleteToken(permission, "batch", "nightly"), is(true));
+        assertThat(checkDeleteToken(permission, "batch", "hourly"), is(false));
+        assertThat(checkDeleteToken(permission, "apps-other", "payroll"), is(false));
+    }
+
+    /**
+     * The user-managed token actions are the only ones granted, even though built-in accounts' tokens are created and
+     * deleted with the same requests.
+     */
+    public void testBuiltInAccountTokensAreNotCovered() {
+        final ClusterPermission permission = permissionFor(new ManageServiceAccountsPrivilege(Set.of("*"), Set.of("r1")));
+        final TransportRequest createToken = new CreateServiceAccountTokenRequest("elastic", "fleet-server", "token");
+        assertThat(permission.check(CreateServiceAccountTokenAction.NAME, createToken, authentication()), is(false));
+        final TransportRequest deleteToken = new DeleteServiceAccountTokenRequest("elastic", "fleet-server", "token");
+        assertThat(permission.check(DeleteServiceAccountTokenAction.NAME, deleteToken, authentication()), is(false));
+    }
+
     public void testGrantsNoOtherServiceAccountAction() {
         final ClusterPermission permission = permissionFor(new ManageServiceAccountsPrivilege(Set.of("*"), Set.of("r1")));
         final TransportRequest delete = new DeleteUserManagedServiceAccountRequest("apps", "payroll");
         assertThat(permission.check(DeleteUserManagedServiceAccountAction.NAME, delete, authentication()), is(false));
-        final TransportRequest createToken = new CreateServiceAccountTokenRequest("apps", "payroll", "token");
-        assertThat(permission.check(CreateUserManagedServiceAccountTokenAction.NAME, createToken, authentication()), is(false));
         final TransportRequest put = new PutUserManagedServiceAccountRequest("apps", "payroll", List.of("r1"), true, null);
         assertThat(permission.check("cluster:admin/xpack/security/user_managed_service_account/delete", put, authentication()), is(false));
     }
@@ -305,6 +343,16 @@ public class ManageServiceAccountsPrivilegeTests extends ESTestCase {
             randomBoolean() ? null : randomAlphaOfLength(8)
         );
         return permission.check(PutUserManagedServiceAccountAction.NAME, request, authentication());
+    }
+
+    private static boolean checkCreateToken(ClusterPermission permission, String namespace, String serviceName) {
+        final CreateServiceAccountTokenRequest request = new CreateServiceAccountTokenRequest(namespace, serviceName, "token");
+        return permission.check(CreateUserManagedServiceAccountTokenAction.NAME, request, authentication());
+    }
+
+    private static boolean checkDeleteToken(ClusterPermission permission, String namespace, String serviceName) {
+        final DeleteServiceAccountTokenRequest request = new DeleteServiceAccountTokenRequest(namespace, serviceName, "token");
+        return permission.check(DeleteUserManagedServiceAccountTokenAction.NAME, request, authentication());
     }
 
     static ManageServiceAccountsPrivilege buildPrivileges() {

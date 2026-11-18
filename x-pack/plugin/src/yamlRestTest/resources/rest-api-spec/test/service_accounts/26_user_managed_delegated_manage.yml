@@ -66,6 +66,13 @@ setup:
 ---
 teardown:
   - do:
+      security.delete_service_token:
+        namespace: apps
+        service: delegated_worker
+        name: delegated-token
+        ignore: 404
+
+  - do:
       security.delete_user_managed_service_account:
         namespace: apps
         service: delegated_worker
@@ -227,7 +234,7 @@ teardown:
           }
 
 ---
-"Test the privilege grants no deletes or credentials":
+"Test a delegate creates and deletes tokens for the named accounts":
   - do:
       headers:
         Authorization: "Basic c2FfZGVsZWdhdGU6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # sa_delegate
@@ -241,13 +248,110 @@ teardown:
   - match: { created: true }
 
   - do:
-      catch: forbidden
       headers:
         Authorization: "Basic c2FfZGVsZWdhdGU6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # sa_delegate
       security.create_service_token:
         namespace: apps
         service: delegated_worker
         name: delegated-token
+  - is_true: created
+  - set: { "token.value": delegated_service_token }
+
+  - do:
+      headers:
+        Authorization: Bearer ${delegated_service_token}
+      security.authenticate: {}
+  - match: { username: "apps/delegated_worker" }
+  - match: { roles: ["delegated_ingest_reader"] }
+
+  - do:
+      headers:
+        Authorization: "Basic c2FfZGVsZWdhdGU6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # sa_delegate
+      security.delete_service_token:
+        namespace: apps
+        service: delegated_worker
+        name: delegated-token
+  - match: { found: true }
+
+  - do:
+      catch: unauthorized
+      headers:
+        Authorization: Bearer ${delegated_service_token}
+      security.authenticate: {}
+
+  - do:
+      security.put_user_managed_service_account:
+        namespace: batch
+        service: delegated_worker
+        body: >
+          {
+            "roles": ["delegated_ingest_reader"]
+          }
+  - match: { created: true }
+
+  - do:
+      catch: forbidden
+      headers:
+        Authorization: "Basic c2FfZGVsZWdhdGU6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # sa_delegate
+      security.create_service_token:
+        namespace: batch
+        service: delegated_worker
+        name: delegated-token
+
+  - do:
+      catch: forbidden
+      headers:
+        Authorization: "Basic c2FfZGVsZWdhdGU6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # sa_delegate
+      security.delete_service_token:
+        namespace: batch
+        service: delegated_worker
+        name: delegated-token
+
+  - do:
+      catch: forbidden
+      headers:
+        Authorization: "Basic c2FfZGVsZWdhdGU6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # sa_delegate
+      security.create_service_token:
+        namespace: elastic
+        service: fleet-server
+        name: delegated-token
+
+---
+"Test tokens are created whatever roles a named account holds":
+  # Roles are checked when an account is written, so an account that an administrator gave a role outside the grant
+  # still gets a token: the names are what bound the delegate's tokens.
+  - do:
+      security.put_user_managed_service_account:
+        namespace: apps
+        service: delegated_worker
+        body: >
+          {
+            "roles": ["delegated_unlisted"]
+          }
+  - match: { created: true }
+
+  - do:
+      headers:
+        Authorization: "Basic c2FfZGVsZWdhdGU6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # sa_delegate
+      security.create_service_token:
+        namespace: apps
+        service: delegated_worker
+        name: delegated-token
+  - is_true: created
+
+---
+"Test the privilege grants no account deletes or credential reads":
+  - do:
+      headers:
+        Authorization: "Basic c2FfZGVsZWdhdGU6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # sa_delegate
+      security.put_user_managed_service_account:
+        namespace: apps
+        service: delegated_worker
+        body: >
+          {
+            "roles": ["delegated_ingest_reader"]
+          }
+  - match: { created: true }
 
   - do:
       catch: forbidden

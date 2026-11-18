@@ -29,7 +29,7 @@ import java.util.TreeMap;
  * nested fields.
  */
 public final class NestedScopeField extends EsField {
-    public static final String NAMESPACE = "$$nested_reductions";
+    public static final String NAMESPACE = "$$nested_scope";
     public static final String PREFIX = NAMESPACE + ".";
 
     /**

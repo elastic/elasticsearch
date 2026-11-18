@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.approximation.ApproximationVerifier;
@@ -19,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -27,6 +29,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
+import org.elasticsearch.xpack.esql.view.ViewResolver;
 import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
@@ -35,6 +38,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.hamcrest.Matchers.allOf;
@@ -652,6 +656,69 @@ public class AnalyzerInSubqueryTests extends AnalyzerTestCase {
 
         assertThat(outputType(plan, "id_string"), equalTo(DataType.KEYWORD));
         assertConvertedFields(plan, List.of("$$id$converted_to$keyword"), List.of("$$id$converted_to$integer"));
+    }
+
+    // LET bindings are substituted into the plan before analysis, so an IN over a binding must scope union types like an inline one.
+
+    public void testUnionTypeCastAfterInLetBindingWithStats() {
+        LogicalPlan plan = letQuery(analyzer().addIndex(unionIndexResolution()).addEmployees(), """
+            LET names = (FROM employees | STATS c = COUNT(*) BY last_name | KEEP last_name);
+            FROM union_index*
+            | WHERE name IN (FROM names)
+            | EVAL id_string = id::keyword
+            """);
+
+        assertThat(outputType(plan, "id_string"), equalTo(DataType.KEYWORD));
+        assertConvertedFields(plan, List.of("$$id$converted_to$keyword"), List.of());
+    }
+
+    public void testUnionTypeCastAfterInLetBindingIsNotLoadedByBinding() {
+        LogicalPlan plan = letQuery(analyzer().addIndex(unionIndexResolution()).addEmployees(), """
+            LET names = (FROM employees | KEEP last_name);
+            FROM union_index*
+            | WHERE name IN (FROM names)
+            | EVAL id_string = id::keyword
+            """);
+
+        assertThat(outputType(plan, "id_string"), equalTo(DataType.KEYWORD));
+        assertConvertedFields(plan, List.of("$$id$converted_to$keyword"), List.of());
+    }
+
+    public void testUnionTypeCastsInsideLetBindingAndAfterInStayInTheirScope() {
+        LogicalPlan plan = letQuery(analyzer().addIndex(unionIndexResolution()).addEmployees(), """
+            LET ks = (FROM union_index* | STATS c = COUNT(*) BY k = id::integer | EVAL k = k::keyword | KEEP k);
+            FROM union_index*
+            | WHERE name IN (FROM ks)
+            | EVAL id_string = id::keyword
+            """);
+
+        assertThat(outputType(plan, "id_string"), equalTo(DataType.KEYWORD));
+        assertConvertedFields(plan, List.of("$$id$converted_to$keyword"), List.of("$$id$converted_to$integer"));
+    }
+
+    /**
+     * Only possible with {@code LET}: the same binding body is the source of both the main query and the IN subquery.
+     */
+    public void testUnionTypeCastAfterInWithLetBindingOnBothSides() {
+        LogicalPlan plan = letQuery(analyzer().addIndex(unionIndexResolution()).addEmployees(), """
+            LET u = (FROM union_index* | KEEP id, name);
+            FROM u
+            | WHERE name IN (FROM u | STATS c = COUNT(*) BY name | KEEP name)
+            | EVAL id_string = id::keyword
+            """);
+
+        assertThat(outputType(plan, "id_string"), equalTo(DataType.KEYWORD));
+        assertConvertedFields(plan, List.of("$$id$converted_to$keyword"), List.of());
+    }
+
+    /**
+     * Resolves the {@code LET} bindings before view and IN-subquery resolution and analysis, as {@code EsqlSession} does.
+     */
+    private static LogicalPlan letQuery(TestAnalyzer analyzer, String query) {
+        assumeTrue("Requires LET", EsqlCapabilities.Cap.NAMED_SUBQUERY_LET.isEnabled());
+        EsqlStatement statement = TEST_PARSER.createStatement(query);
+        LogicalPlan plan = LetResolver.resolve(statement.plan(), statement.letBindings(), ViewResolver.DEFAULT_MAX_PLAN_NODES_COUNT);
+        return analyzer.buildAnalyzer().analyze(analyzer.resolveViewsAndInSubqueries(plan));
     }
 
     private static DataType outputType(LogicalPlan plan, String name) {

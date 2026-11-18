@@ -2775,7 +2775,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         awaitClusterState(state -> getTargetPrimary(state, index).unassigned());
         final var unassignedTargetPrimary = getTargetPrimary(index);
         // The target failed before HANDOFF, so the source still serves its documents and its recovery stays deferrable
-        assertThat(unassignedTargetPrimary.recoveryPriority(), equalTo(RecoveryPriority.UNASSIGNED_PERFORMANCE_SCALING));
+        assertThat(unassignedTargetPrimary.recoveryPriority(), equalTo(RecoveryPriority.UNASSIGNED_RESHARD_SPLIT_TARGET));
 
         MockLog.awaitLogger(
             proceedAfterShardFailure::countDown,
@@ -4114,6 +4114,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
             .values()
             .stream()
             .map(BlobMetadata::name)
+            .filter(BatchedCompoundCommit::startsWithBlobPrefix)
             .max(Comparator.comparingLong(BatchedCompoundCommit::parseGenerationFromBlobName))
             .orElseThrow();
         blobToBlock.set(latestBlob);
@@ -4701,8 +4702,8 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
                     fail("Search should throw stale request exception");
                 } catch (ExecutionException e) {
                     var searchPhaseException = (SearchPhaseExecutionException) e.getCause();
-                    assertEquals(1, searchPhaseException.shardFailures().length);
-                    assertTrue(searchPhaseException.shardFailures()[0].getCause() instanceof StaleRequestException);
+                    assertEquals(1, searchPhaseException.shardFailures().size());
+                    assertTrue(searchPhaseException.shardFailures().getFirst().getCause() instanceof StaleRequestException);
                 } catch (TimeoutException e) {
                     throw new RuntimeException(e);
                 }

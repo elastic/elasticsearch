@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardAllocationKey;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
@@ -460,7 +461,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
 
         final long primaryTerm = localState.metadata().getProject().index(index).primaryTerm(shardId.id());
 
-        final var key = IndicesClusterStateService.ShardAllocationKey.fromRouting(shardRouting);
+        final var key = ShardAllocationKey.fromRouting(shardRouting);
         final var inFlightTicket = indicesCSSvc.pendingAllocationStates.get(key);
         assertThat(inFlightTicket, instanceOf(IndicesClusterStateService.PendingAllocationState.InFlight.class));
 

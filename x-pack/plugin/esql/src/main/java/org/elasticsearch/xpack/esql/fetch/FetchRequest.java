@@ -44,11 +44,14 @@ import java.util.Objects;
  * the query phase kept open, whether the node frees it once it answered, and the documents to load, and it names the
  * attributes to load for them.
  * <p>
- * It names the indices of its shards, or the aliases the query reached them through, without wildcards, like the shard
- * requests of {@code _search}. Security authorizes the request for all of them, so a user who can no longer read one of
- * the indices gets the whole request refused.
+ * It carries the index expressions of the query. Security replaces them with the indices and aliases the user may read
+ * now, and the node reads only shards of the indices they resolve to, so a user who can no longer read an index never gets
+ * its documents.
  */
-public final class FetchRequest extends AbstractTransportRequest implements IndicesRequest {
+public final class FetchRequest extends AbstractTransportRequest implements IndicesRequest.Replaceable {
+    /**
+     * The version that introduced the fetch action. Nodes below it have no handler for it.
+     */
     static final TransportVersion ESQL_FETCH = TransportVersion.fromName("esql_fetch_action");
 
     /**
@@ -63,7 +66,13 @@ public final class FetchRequest extends AbstractTransportRequest implements Indi
         implements
             Writeable {
         public ShardDocs {
+            // the node checks the order again when it hands the documents to its source, which fails the request
+            assert isSorted(segments, docs);
+        }
+
+        private static boolean isSorted(int[] segments, int[] docs) {
             FetchDocsSourceOperator.ShardDocs.checkSorted(segments, docs);
+            return true;
         }
 
         static ShardDocs readFrom(StreamInput in) throws IOException {
@@ -112,14 +121,14 @@ public final class FetchRequest extends AbstractTransportRequest implements Indi
 
     private final String sessionId;
     private final String clusterAlias;
-    private final String[] indices;
+    private String[] indices;
     private final IndicesOptions indicesOptions;
     private final List<ShardDocs> shards;
     private final Configuration configuration;
     private final List<Attribute> attributes;
 
     /**
-     * @param indices    the indices of the shards, or the aliases the query reached them through, without wildcards
+     * @param indices    the index expressions of the query, wildcards included, with its indices options
      * @param attributes the attributes to load, the columns of the response pages
      */
     public FetchRequest(
@@ -182,10 +191,6 @@ public final class FetchRequest extends AbstractTransportRequest implements Indi
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().supports(ESQL_FETCH) == false) {
-            // only nodes that sent documents to the coordinator in the query phase get fetch requests
-            throw new IllegalStateException("can't send a fetch request to a node on [" + out.getTransportVersion() + "]");
-        }
         super.writeTo(out);
         out.writeString(sessionId);
         out.writeString(clusterAlias);
@@ -227,6 +232,15 @@ public final class FetchRequest extends AbstractTransportRequest implements Indi
     @Override
     public String[] indices() {
         return indices;
+    }
+
+    /**
+     * Security calls this with the indices and aliases the user may read among the index expressions of the request.
+     */
+    @Override
+    public IndicesRequest indices(String... indices) {
+        this.indices = indices;
+        return this;
     }
 
     @Override

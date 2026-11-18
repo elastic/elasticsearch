@@ -17,11 +17,9 @@ import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
-import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.ProfileSchema;
 import org.elasticsearch.compute.operator.SourceOperator;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -34,8 +32,9 @@ import java.util.Objects;
 
 /**
  * Emits the documents a fetch asks its shards for, as {@code _doc} pages for {@link ValuesSourceReaderOperator}. Each
- * page holds documents of a single segment: a constant shard, a constant segment and strictly increasing docs. That is
- * the shape the reader loads fastest, with one reader per page and no sorting or copying.
+ * page holds the documents of one segment of one shard: a constant shard, a constant segment and strictly increasing
+ * docs. That is the shape the reader loads fastest, with one reader per page and no sorting or copying. A segment is
+ * one page however many documents it holds, because the request already bounds them.
  */
 public final class FetchDocsSourceOperator extends SourceOperator {
     /**
@@ -44,7 +43,7 @@ public final class FetchDocsSourceOperator extends SourceOperator {
      * of failing, so the constructor checks it. The arrays belong to this object once it is built, and nobody may
      * change them.
      *
-     * @param shard the slot of the shard in {@link ShardDocsProvider#refCounteds()}
+     * @param shard the slot of the shard in the shard references the operator takes its pages' references from
      */
     public record ShardDocs(int shard, int[] segments, int[] docs) {
         /**
@@ -166,52 +165,9 @@ public final class FetchDocsSourceOperator extends SourceOperator {
         }
     }
 
-    /**
-     * Hands out the documents of one fetch request, one shard or one {@link ShardDocs#split piece} of a shard per driver.
-     * The drivers of the request share it.
-     */
-    public interface ShardDocsProvider {
-        /**
-         * The documents the driver of {@code driverContext} loads, or {@code null} once all of them have a driver. Called
-         * once per driver, from the thread that builds the drivers of the request.
-         */
-        @Nullable
-        ShardDocs claim(DriverContext driverContext);
-
-        /**
-         * The shard references the pages take, by {@link ShardDocs#shard()}.
-         */
-        IndexedByShardId<? extends RefCounted> refCounteds();
-    }
-
-    /**
-     * @param maxPageSize the most rows in one page. A segment run longer than that spans several pages.
-     */
-    public record Factory(ShardDocsProvider provider, int maxPageSize) implements SourceOperatorFactory {
-        public Factory {
-            checkMaxPageSize(maxPageSize);
-        }
-
-        @Override
-        public SourceOperator get(DriverContext driverContext) {
-            return new FetchDocsSourceOperator(
-                driverContext.blockFactory(),
-                provider.refCounteds(),
-                provider.claim(driverContext),
-                maxPageSize
-            );
-        }
-
-        @Override
-        public String describe() {
-            return "FetchDocsSourceOperator[maxPageSize=" + maxPageSize + "]";
-        }
-    }
-
     private final BlockFactory blockFactory;
     private final IndexedByShardId<? extends RefCounted> refCounteds;
     private final List<ShardDocs> shards;
-    private final int maxPageSize;
 
     /**
      * The position in {@link #shards} of the shard the next page comes from.
@@ -225,32 +181,14 @@ public final class FetchDocsSourceOperator extends SourceOperator {
     private int segmentRuns;
 
     /**
-     * @param shardDocs the documents to emit, {@code null} for a driver that got no shard
-     */
-    public FetchDocsSourceOperator(
-        BlockFactory blockFactory,
-        IndexedByShardId<? extends RefCounted> refCounteds,
-        @Nullable ShardDocs shardDocs,
-        int maxPageSize
-    ) {
-        this(blockFactory, refCounteds, shardDocs == null ? List.of() : List.of(shardDocs), maxPageSize);
-    }
-
-    /**
      * Emits the documents of several shards, one shard after the other, so one driver loads them all.
      *
      * @param shards the documents to emit, in the order their rows come out
      */
-    public FetchDocsSourceOperator(
-        BlockFactory blockFactory,
-        IndexedByShardId<? extends RefCounted> refCounteds,
-        List<ShardDocs> shards,
-        int maxPageSize
-    ) {
+    public FetchDocsSourceOperator(BlockFactory blockFactory, IndexedByShardId<? extends RefCounted> refCounteds, List<ShardDocs> shards) {
         this.blockFactory = blockFactory;
         this.refCounteds = refCounteds;
         this.shards = List.copyOf(shards);
-        this.maxPageSize = checkMaxPageSize(maxPageSize);
         skipEmittedShards();
     }
 
@@ -263,14 +201,6 @@ public final class FetchDocsSourceOperator extends SourceOperator {
             shardIndex++;
             cursor = 0;
         }
-    }
-
-    private static int checkMaxPageSize(int maxPageSize) {
-        // an empty page would never move the cursor, and the driver would spin
-        if (maxPageSize < 1) {
-            throw new IllegalArgumentException("maxPageSize must be positive but was [" + maxPageSize + "]");
-        }
-        return maxPageSize;
     }
 
     @Override
@@ -292,7 +222,7 @@ public final class FetchDocsSourceOperator extends SourceOperator {
         int[] segments = shardDocs.segments();
         int segment = segments[cursor];
         int end = cursor;
-        while (end < segments.length && segments[end] == segment && end - cursor < maxPageSize) {
+        while (end < segments.length && segments[end] == segment) {
             end++;
         }
         int positions = end - cursor;
@@ -337,7 +267,7 @@ public final class FetchDocsSourceOperator extends SourceOperator {
 
     @Override
     public String toString() {
-        return "FetchDocsSourceOperator[maxPageSize=" + maxPageSize + "]";
+        return "FetchDocsSourceOperator";
     }
 
     /**

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.fetch;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ChannelActionListener;
@@ -39,7 +38,6 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ReaderContext;
@@ -47,7 +45,6 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -93,8 +90,8 @@ public final class FetchService {
     private static final Logger logger = LogManager.getLogger(FetchService.class);
 
     /**
-     * Loads documents on the node that holds them. Its requests name the indices they read, so security authorizes them for
-     * every shard they read.
+     * Loads documents on the node that holds them. Its requests carry the index expressions of the query, which security
+     * resolves to what the user may read. The node refuses a request for a shard outside them.
      */
     public static final String FETCH_ACTION_NAME = EsqlQueryAction.NAME + "/fetch";
 
@@ -238,22 +235,32 @@ public final class FetchService {
             long setupNanos = System.nanoTime() - startNanos;
             // runs at once when the task is already cancelled, and the driver fails on its first iteration
             task.addListener(() -> driver.cancel(Objects.requireNonNullElse(task.getReasonCancelled(), "task was cancelled")));
+            // not ActionListener#wrap: when respond throws, wrap would fail the request again and release the pages twice
             Driver.start(
                 transportService.getThreadPool().getThreadContext(),
                 driverExecutor,
                 driver,
                 Driver.DEFAULT_MAX_ITERATIONS,
-                ActionListener.wrap(ignored -> respond(pages, driver, setupNanos), e -> {
-                    Releasables.closeExpectNoException(pages);
-                    fail(e);
-                })
+                new ActionListener<>() {
+                    @Override
+                    public void onResponse(Void ignored) {
+                        respond(pages, driver, setupNanos);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        Releasables.closeExpectNoException(pages);
+                        fail(e);
+                    }
+                }
             );
         }
 
         /**
-         * Security authorized the request for the indices it names, as they resolve now, and the searcher of a shard of
-         * another index would read it without the document and field level security of that index. That happens when an
-         * alias the query read through moved to other indices before the fetch. So such a shard fails the request.
+         * Security replaced the index expressions of the request with the indices and aliases the user may read, and the
+         * searcher of a shard of another index would read it without the document and field level security of that index.
+         * That happens when an alias the query read through moved to other indices before the fetch. So such a shard fails
+         * the request.
          */
         private void ensureTheIndicesHoldEveryShard() {
             String[] resolved = indexNameExpressionResolver.concreteIndexNames(
@@ -277,11 +284,6 @@ public final class FetchService {
         private DefaultShardContext openShard(int position, FetchRequest.ShardDocs shard, Set<String> unmappedFieldNames)
             throws IOException {
             ReaderContext readerContext = searchService.findReaderContext(shard.contextId(), request, shard.shardId());
-            // the lookup ignores the searcher id, and the documents of another searcher are other documents. A scroll or a
-            // point in time whose id the request learned isn't for the fetch phase either, as for the fetch phase of _search.
-            if (readerContext.id().equals(shard.contextId()) == false || readerContext.singleSession() == false) {
-                throw new SearchContextMissingException(shard.contextId());
-            }
             ShardSearchRequest shardRequest = new ShardSearchRequest(
                 shard.shardId(),
                 request.configuration().absoluteStartedTimeInMillis(),
@@ -292,7 +294,6 @@ public final class FetchService {
             SearchContext searchContext = searchService.createSearchContext(readerContext, shardRequest, SearchService.NO_TIMEOUT);
             boolean success = false;
             try {
-                checkBounds(searchContext, shard);
                 // reads the fields as the query phase did, a name under a flattened field included
                 EsqlSearchExecutionContext executionContext = new EsqlSearchExecutionContext(
                     searchContext.getSearchExecutionContext(),
@@ -347,12 +348,7 @@ public final class FetchService {
                     localBreakerSettings,
                     DESCRIPTION
                 );
-                FetchDocsSourceOperator source = new FetchDocsSourceOperator(
-                    driverContext.blockFactory(),
-                    shardContexts,
-                    docs,
-                    pageSize(request.attributes())
-                );
+                FetchDocsSourceOperator source = new FetchDocsSourceOperator(driverContext.blockFactory(), shardContexts, docs);
                 built.add(source);
                 Operator reader = operationProviders.valuesSourceReader(request.attributes(), 0).get(driverContext);
                 built.add(reader);
@@ -391,22 +387,15 @@ public final class FetchService {
         private void respond(List<Page> pages, Driver driver, long setupNanos) {
             FetchResponse response;
             try {
-                if (task.isCancelled()) {
-                    throw new TaskCancelledException(Objects.requireNonNullElse(task.getReasonCancelled(), "task was cancelled"));
-                }
-                int rows = 0;
-                for (Page page : pages) {
-                    rows += page.getPositionCount();
-                }
-                if (rows != request.totalDocs()) {
-                    throw new IllegalStateException("fetched [" + rows + "] rows for [" + request.totalDocs() + "] documents");
-                }
                 response = new FetchResponse(pages, completionInfo(driver), System.nanoTime() - startNanos, setupNanos);
             } catch (Exception e) {
                 Releasables.closeExpectNoException(pages);
                 fail(e);
                 return;
             }
+            // the coordinator checks that every document has a row
+            assert response.rows() == request.totalDocs()
+                : "fetched [" + response.rows() + "] rows for [" + request.totalDocs() + "] documents";
             logger.debug(
                 "fetch [{}] loaded [{}] rows from [{}] shards in [{}]",
                 request.sessionId(),
@@ -498,33 +487,5 @@ public final class FetchService {
             }
         }
         return names;
-    }
-
-    /**
-     * The most documents in one page, sized like the pages of the query phase for the columns the request loads.
-     */
-    private static int pageSize(List<Attribute> attributes) {
-        // the shard, the segment and the doc of each row
-        int rowSize = 3 * Integer.BYTES;
-        for (Attribute attribute : attributes) {
-            rowSize += attribute.dataType().estimatedSize();
-        }
-        return Math.max(Operator.MIN_TARGET_PAGE_SIZE, Operator.TARGET_PAGE_SIZE / rowSize);
-    }
-
-    /**
-     * A document outside the reader would fail deep in the loaders, or load another document.
-     */
-    private static void checkBounds(SearchContext searchContext, FetchRequest.ShardDocs shard) {
-        List<LeafReaderContext> leaves = searchContext.searcher().getIndexReader().leaves();
-        int[] segments = shard.segments();
-        int[] docs = shard.docs();
-        for (int i = 0; i < docs.length; i++) {
-            if (segments[i] >= leaves.size() || docs[i] >= leaves.get(segments[i]).reader().maxDoc()) {
-                throw new IllegalArgumentException(
-                    "document [" + segments[i] + ", " + docs[i] + "] isn't in the reader of " + shard.shardId()
-                );
-            }
-        }
     }
 }

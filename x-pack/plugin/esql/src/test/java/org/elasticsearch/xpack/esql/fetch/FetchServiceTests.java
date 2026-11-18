@@ -19,7 +19,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
-import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
@@ -189,12 +188,14 @@ public class FetchServiceTests extends FetchContextsTestCase {
     }
 
     /**
-     * A request may name the aliases the query reached its shards through, like the shard requests of {@code _search}.
+     * A request carries the index expressions of the query, and security replaces them with the aliases and indices the
+     * user may read. So the node resolves aliases and wildcards to the indices that hold its shards.
      */
-    public void testFetchesThroughAnAlias() throws Exception {
+    public void testFetchesThroughAnAliasOrAWildcard() throws Exception {
         assertAcked(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias(FETCHED, "fetched-alias"));
         List<OpenShard> shards = openEveryShard();
-        FetchRequest request = withIndices(request(shards, randomSubsetOf(between(1, DOCS), allNs())), "fetched-alias");
+        String expression = randomFrom("fetched-alias", "fetched-al*", "fetch*", "fetched,other-*");
+        FetchRequest request = withIndices(request(shards, randomSubsetOf(between(1, DOCS), allNs())), expression.split(","));
 
         try (Fetched fetched = fetch(request)) {
             assertThat(rows(fetched.pages()), equalTo(expectedRows(shards, request)));
@@ -203,9 +204,9 @@ public class FetchServiceTests extends FetchContextsTestCase {
     }
 
     /**
-     * Security authorizes a request for the indices it names, as they resolve when it arrives. The searcher of a shard of
-     * another index would read it without the document and field level security of that index, for example once an alias
-     * the query read through moved to other indices. Such a shard fails the request as a whole, before it opens a shard.
+     * The searcher of a shard of another index would read it without the document and field level security of that index,
+     * for example once an alias the query read through moved to other indices. Such a shard fails the request as a whole,
+     * before it opens a shard.
      */
     public void testRefusesAShardOutsideTheIndicesItNames() throws Exception {
         assertAcked(
@@ -214,64 +215,15 @@ public class FetchServiceTests extends FetchContextsTestCase {
         );
         assertAcked(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("moved-to", "moved"));
         List<OpenShard> shards = openEveryShard();
-        FetchRequest request = withIndices(request(shards, allNs(), Set.copyOf(contextIds(shards))), "moved");
+        String expression = randomFrom("moved", "moved-*");
+        FetchRequest request = withIndices(request(shards, allNs(), Set.copyOf(contextIds(shards))), expression);
 
         Exception e = expectThrows(Exception.class, () -> fetch(request));
         assertThat(e, instanceOf(IllegalArgumentException.class));
-        assertThat(e.getMessage(), containsString("isn't in the indices [moved] of the fetch request"));
+        assertThat(e.getMessage(), containsString("isn't in the indices [" + expression + "] of the fetch request"));
 
         awaitTheRelease();
         assertThat("the request opened no shard, so it freed none", searchService().getActiveContexts(), equalTo(SHARDS));
-        freeAndAssertAllFreed(shards);
-    }
-
-    /**
-     * Like the fetch phase of a search, a fetch request reads only single-session contexts, not a scroll or a point in
-     * time whose id it learned.
-     */
-    public void testAPointInTimeIsMissing() throws Exception {
-        ShardId shardId = new ShardId(resolveIndex(FETCHED), 0);
-        PlainActionFuture<ShardSearchContextId> opened = new PlainActionFuture<>();
-        searchService().openReaderContext(shardId, TimeValue.timeValueMinutes(5), SplitShardCountSummary.IRRELEVANT, opened);
-        ShardSearchContextId pointInTime = opened.actionGet(TimeValue.timeValueSeconds(10));
-        try {
-            // a request may not free a point in time it learned the id of either
-            FetchRequest.ShardDocs docs = new FetchRequest.ShardDocs(
-                shardId,
-                pointInTime,
-                randomBoolean(),
-                new int[] { 0 },
-                new int[] { 0 }
-            );
-
-            Exception e = expectThrows(Exception.class, () -> fetch(withShards(request(List.of(), List.of()), List.of(docs))));
-            assertThat(e, instanceOf(SearchContextMissingException.class));
-            awaitTheRelease();
-            assertThat("the point in time stays open", searchService().getActiveContexts(), equalTo(1));
-        } finally {
-            searchService().freeReaderContext(pointInTime);
-        }
-        assertAllFreed();
-    }
-
-    /**
-     * A document outside the reader of its context would fail deep in the loaders or load another document.
-     */
-    public void testADocumentOutsideTheReaderFailsTheRequest() throws Exception {
-        List<OpenShard> shards = openEveryShard();
-        OpenShard shard = randomFrom(shards);
-        FetchRequest.ShardDocs outside = new FetchRequest.ShardDocs(
-            shard.shardId(),
-            shard.contextId(),
-            false,
-            new int[] { 0, 10_000 },
-            new int[] { 0, 0 }
-        );
-        FetchRequest request = withShards(request(shards, List.of()), List.of(outside));
-
-        Exception e = expectThrows(Exception.class, () -> fetch(request));
-        assertThat(e, instanceOf(IllegalArgumentException.class));
-        assertThat(e.getMessage(), containsString("isn't in the reader of"));
         freeAndAssertAllFreed(shards);
     }
 

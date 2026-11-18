@@ -27,7 +27,6 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.core.AbstractRefCounted;
-import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 
@@ -35,7 +34,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.compute.lucene.read.FetchDocsSourceOperator.ShardDocs.MIN_PIECE_DOCS;
 import static org.hamcrest.Matchers.contains;
@@ -86,7 +84,7 @@ public class FetchDocsSourceOperatorTests extends ComputeTestCase {
             new int[] { 1, 5, 9, 4, 0, 8 }
         );
         List<int[]> pages = new ArrayList<>();
-        try (FetchDocsSourceOperator source = new FetchDocsSourceOperator(blockFactory, refCounteds(), docs, 100)) {
+        try (FetchDocsSourceOperator source = new FetchDocsSourceOperator(blockFactory, refCounteds(), List.of(docs))) {
             while (source.isFinished() == false) {
                 Page page = source.getOutput();
                 try {
@@ -155,8 +153,7 @@ public class FetchDocsSourceOperatorTests extends ComputeTestCase {
                     FetchDocsSourceOperator source = new FetchDocsSourceOperator(
                         driverContext.blockFactory(),
                         refCounteds(),
-                        shardDocs,
-                        between(1, 20)
+                        List.of(shardDocs)
                     );
                     Operator values = ValuesSourceReaderOperatorTests.factory(reader, key, ElementType.LONG).get(driverContext)
                 ) {
@@ -186,43 +183,28 @@ public class FetchDocsSourceOperatorTests extends ComputeTestCase {
         }
     }
 
-    public void testLongRunsSpanSeveralPages() {
+    /**
+     * However many documents a segment holds, they come out as one page.
+     */
+    public void testALongRunIsOnePage() {
         BlockFactory blockFactory = blockFactory();
-        int docCount = between(10, 100);
-        int maxPageSize = between(1, 9);
+        int docCount = between(1000, 20_000);
         int[] segments = new int[docCount];
         int[] docIds = new int[docCount];
         for (int i = 0; i < docCount; i++) {
             docIds[i] = i * 3;
         }
         FetchDocsSourceOperator.ShardDocs docs = new FetchDocsSourceOperator.ShardDocs(0, segments, docIds);
-        int emitted = 0;
-        int pageCount = 0;
-        try (FetchDocsSourceOperator source = new FetchDocsSourceOperator(blockFactory, refCounteds(), docs, maxPageSize)) {
-            while (source.isFinished() == false) {
-                Page page = source.getOutput();
-                assertThat(page.getPositionCount() <= maxPageSize, equalTo(true));
-                emitted += page.getPositionCount();
-                pageCount++;
+        try (FetchDocsSourceOperator source = new FetchDocsSourceOperator(blockFactory, refCounteds(), List.of(docs))) {
+            Page page = source.getOutput();
+            try {
+                assertThat(page.getPositionCount(), equalTo(docCount));
+            } finally {
                 page.releaseBlocks();
             }
-            assertThat("a run split across pages is still one run", source.status().segmentRuns(), equalTo(1));
+            assertTrue(source.isFinished());
+            assertThat(source.status(), equalTo(new FetchDocsSourceOperator.Status(1, docCount, 1)));
         }
-        assertThat(emitted, equalTo(docCount));
-        assertThat(pageCount, equalTo((docCount + maxPageSize - 1) / maxPageSize));
-    }
-
-    /**
-     * An empty page would never move the cursor, so both the factory and the operator refuse a page size below one.
-     */
-    public void testRejectsPagesWithoutRows() {
-        int maxPageSize = between(-5, 0);
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> new FetchDocsSourceOperator(blockFactory(), refCounteds(), (FetchDocsSourceOperator.ShardDocs) null, maxPageSize)
-        );
-        assertThat(e.getMessage(), equalTo("maxPageSize must be positive but was [" + maxPageSize + "]"));
-        expectThrows(IllegalArgumentException.class, () -> new FetchDocsSourceOperator.Factory(null, maxPageSize));
     }
 
     /**
@@ -357,14 +339,7 @@ public class FetchDocsSourceOperatorTests extends ComputeTestCase {
     }
 
     public void testNoShardEmitsNothing() {
-        try (
-            FetchDocsSourceOperator source = new FetchDocsSourceOperator(
-                blockFactory(),
-                refCounteds(),
-                (FetchDocsSourceOperator.ShardDocs) null,
-                10
-            )
-        ) {
+        try (FetchDocsSourceOperator source = new FetchDocsSourceOperator(blockFactory(), refCounteds(), List.of())) {
             assertTrue(source.isFinished());
             assertThat(source.getOutput(), nullValue());
         }
@@ -384,7 +359,7 @@ public class FetchDocsSourceOperatorTests extends ComputeTestCase {
             new FetchDocsSourceOperator.ShardDocs(0, new int[] { 4 }, new int[] { 9 })
         );
         List<int[]> pages = new ArrayList<>();
-        try (FetchDocsSourceOperator source = new FetchDocsSourceOperator(blockFactory(), shards, docs, 100)) {
+        try (FetchDocsSourceOperator source = new FetchDocsSourceOperator(blockFactory(), shards, docs)) {
             while (source.isFinished() == false) {
                 Page page = source.getOutput();
                 try {
@@ -406,34 +381,11 @@ public class FetchDocsSourceOperatorTests extends ComputeTestCase {
 
     public void testFinishStops() {
         FetchDocsSourceOperator.ShardDocs docs = new FetchDocsSourceOperator.ShardDocs(0, new int[] { 0, 1 }, new int[] { 0, 0 });
-        try (FetchDocsSourceOperator source = new FetchDocsSourceOperator(blockFactory(), refCounteds(), docs, 10)) {
+        try (FetchDocsSourceOperator source = new FetchDocsSourceOperator(blockFactory(), refCounteds(), List.of(docs))) {
             source.getOutput().releaseBlocks();
             source.finish();
             assertTrue(source.isFinished());
             assertThat(source.getOutput(), nullValue());
-        }
-    }
-
-    public void testFactoryClaimsAShardPerDriver() {
-        FetchDocsSourceOperator.ShardDocs docs = new FetchDocsSourceOperator.ShardDocs(0, new int[] { 0 }, new int[] { 4 });
-        AtomicInteger claims = new AtomicInteger();
-        FetchDocsSourceOperator.ShardDocsProvider provider = new FetchDocsSourceOperator.ShardDocsProvider() {
-            @Override
-            public FetchDocsSourceOperator.ShardDocs claim(DriverContext driverContext) {
-                return claims.getAndIncrement() == 0 ? docs : null;
-            }
-
-            @Override
-            public IndexedByShardId<? extends RefCounted> refCounteds() {
-                return FetchDocsSourceOperatorTests.this.refCounteds();
-            }
-        };
-        FetchDocsSourceOperator.Factory factory = new FetchDocsSourceOperator.Factory(provider, 10);
-        assertThat(factory.describe(), equalTo("FetchDocsSourceOperator[maxPageSize=10]"));
-        try (var first = factory.get(driverContext()); var second = factory.get(driverContext())) {
-            first.getOutput().releaseBlocks();
-            assertTrue(first.isFinished());
-            assertTrue("the second driver got no shard", second.isFinished());
         }
     }
 

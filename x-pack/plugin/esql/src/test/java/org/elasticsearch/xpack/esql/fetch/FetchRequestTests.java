@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.fetch;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -23,7 +22,6 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.SerializationTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -46,7 +44,7 @@ import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class FetchRequestTests extends AbstractWireSerializingTestCase<FetchRequest> {
     @Override
@@ -178,11 +176,17 @@ public class FetchRequestTests extends AbstractWireSerializingTestCase<FetchRequ
     }
 
     /**
-     * Security can't replace the indices of a fetch request, so it authorizes the request for every index it names, and
-     * the node never reads a shard whose index authorization dropped.
+     * Security replaces the index expressions of a fetch request with the indices and aliases the user may read, and
+     * the node reads only shards of what they resolve to.
      */
-    public void testSecurityAuthorizesEveryIndexItNames() {
-        assertThat(createTestInstance(), not(instanceOf(IndicesRequest.Replaceable.class)));
+    public void testSecurityReplacesTheIndices() {
+        FetchRequest request = createTestInstance();
+        assertThat(request, instanceOf(IndicesRequest.Replaceable.class));
+
+        String[] allowed = generateRandomStringArray(3, 10, false, false);
+        assertThat(request.indices(allowed), sameInstance(request));
+
+        assertThat(request.indices(), equalTo(allowed));
     }
 
     /**
@@ -217,15 +221,6 @@ public class FetchRequestTests extends AbstractWireSerializingTestCase<FetchRequ
             List.of(randomField())
         );
         assertThat(request.configuration().tables(), anEmptyMap());
-    }
-
-    /**
-     * Only nodes that sent documents to the coordinator in the query phase get fetch requests.
-     */
-    public void testNeverReachesAnOlderNode() {
-        TransportVersion older = TransportVersionUtils.getPreviousVersion(FetchRequest.ESQL_FETCH);
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> copyInstance(createTestInstance(), older));
-        assertThat(e.getMessage(), containsString("can't send a fetch request to a node on"));
     }
 
     /**

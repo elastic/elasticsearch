@@ -22,6 +22,8 @@ import org.elasticsearch.xpack.esql.plugin.ComputeService;
 
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
@@ -32,6 +34,8 @@ import static org.elasticsearch.xpack.esql.action.SerializedPlanBreakerIT.assert
 import static org.elasticsearch.xpack.esql.action.SerializedPlanBreakerIT.fillBreakerAfterNthSend;
 import static org.elasticsearch.xpack.esql.action.SerializedPlanBreakerIT.key;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
 
 /**
@@ -80,6 +84,35 @@ public class CrossClusterSerializedPlanBreakerIT extends AbstractCrossClusterTes
                 failures.append(resp.getExecutionInfo().getCluster(alias).getFailures());
             }
             assertThat(failures.toString(), containsString("data for [" + SERIALIZED_REQUEST_LABEL + "]"));
+        }
+    }
+
+    /**
+     * {@code skip_unavailable=true} skips a remote cluster on any failure of its branch, a coordinator-side breaker trip included,
+     * so the query succeeds without that cluster even when partial results are disallowed.
+     */
+    public void testTripSkipsClusterWithSkipUnavailable() {
+        populateRemotes();
+        setSkipUnavailable(REMOTE_CLUSTER_1, true);
+        setSkipUnavailable(REMOTE_CLUSTER_2, true);
+        try {
+            String coordinator = cluster(LOCAL_CLUSTER).getRandomNodeName();
+            try (Releasable filled = fillCoordinatorBreaker(coordinator); EsqlQueryResponse resp = run(coordinator, false)) {
+                assertTrue(resp.isPartial());
+                List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
+                assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo((long) NUM_DOCS / 2));
+                Map<Boolean, List<EsqlExecutionInfo.Cluster>> byTripped = Stream.of(REMOTE_CLUSTER_1, REMOTE_CLUSTER_2)
+                    .map(alias -> resp.getExecutionInfo().getCluster(alias))
+                    .collect(Collectors.partitioningBy(cluster -> cluster.getFailures().isEmpty() == false));
+                List<EsqlExecutionInfo.Cluster> tripped = byTripped.get(true);
+                assertThat(tripped, hasSize(1));
+                assertThat(tripped.get(0).getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+                assertThat(tripped.get(0).getFailures().toString(), containsString("data for [" + SERIALIZED_REQUEST_LABEL + "]"));
+                assertThat(byTripped.get(false).get(0).getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+            }
+        } finally {
+            setSkipUnavailable(REMOTE_CLUSTER_1, false);
+            setSkipUnavailable(REMOTE_CLUSTER_2, false);
         }
     }
 

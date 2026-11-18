@@ -15,6 +15,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -251,6 +252,26 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             canonicalConfig,
             declaredDateFormats,
             newReadConfig
+        );
+    }
+
+    @Override
+    public NdJsonFormatReader withBlockFactory(@Nullable BlockFactory factory) {
+        if (factory == null || factory == blockFactory) {
+            return this;
+        }
+        return new NdJsonFormatReader(
+            settings,
+            factory,
+            resolvedSchema,
+            schemaSampleSize,
+            schemaSampleBytes,
+            schemaMaxFields,
+            segmentSizeBytes,
+            datetimeFormatter,
+            canonicalConfig,
+            declaredDateFormats,
+            readConfig
         );
     }
 

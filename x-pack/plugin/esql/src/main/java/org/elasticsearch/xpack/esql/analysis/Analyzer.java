@@ -609,6 +609,19 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         return list;
     }
 
+    private static FieldAttribute fieldAttribute(Source source, String parentName, String name, EsField field, boolean synthetic) {
+        if (field instanceof UnsupportedEsField uef) {
+            return new UnsupportedAttribute(source, name, uef);
+        }
+        if (field instanceof InvalidMappedTsField imtf) {
+            // Convert the TS role conflict directly to an UnsupportedAttribute with a meaningful message.
+            // The original types don't matter. We pass a custom error message, anyway, which will fail the query in the verifier.
+            var carrier = new UnsupportedEsField(imtf.getName(), List.of(), null, imtf.getProperties());
+            return new UnsupportedAttribute(source, name, carrier, imtf.errorMessage());
+        }
+        return new FieldAttribute(source, parentName, null, name, field, synthetic);
+    }
+
     private static void mappingAsAttributes(List<Attribute> list, Source source, String parentName, Map<String, EsField> mapping) {
         for (Map.Entry<String, EsField> entry : mapping.entrySet()) {
             String name = entry.getKey();
@@ -620,19 +633,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 t = t.withWidenedSmallNumeric();
                 var type = t.getDataType();
 
-                FieldAttribute attribute;
-                if (t instanceof UnsupportedEsField uef) {
-                    attribute = new UnsupportedAttribute(source, name, uef);
-                } else if (t instanceof InvalidMappedTsField imtf) {
-                    // Convert the TS role conflict directly to an UnsupportedAttribute with a meaningful message.
-                    // The original types don't matter. We pass a custom error message, anyway, which will fail the query in the verifier.
-                    var carrier = new UnsupportedEsField(imtf.getName(), List.of(), null, imtf.getProperties());
-                    attribute = new UnsupportedAttribute(source, name, carrier, imtf.errorMessage());
-                } else {
-                    // Nested-scope fields exist only for NESTED_EXPAND. Marking them synthetic keeps them out of name
-                    // resolution and out of the query output.
-                    attribute = new FieldAttribute(source, parentName, null, name, t, t instanceof NestedScopeField);
-                }
+                // Nested-scope fields exist only for NESTED_EXPAND. Marking them synthetic keeps them out of name
+                // resolution and out of the query output.
+                FieldAttribute attribute = fieldAttribute(source, parentName, name, t, t instanceof NestedScopeField);
                 // primitive branch
                 if (DataType.isPrimitive(type)) {
                     list.add(attribute);
@@ -1832,7 +1835,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<String> paths = new ArrayList<>();
             for (FieldAttribute child : children) {
                 String relative = child.name().substring(NestedScopeField.PREFIX.length() + path.length() + 1);
-                expanded.add(new ReferenceAttribute(expand.source(), path + "." + relative, child.dataType()));
+                String childName = path + "." + relative;
+                String parentName = childName.substring(0, childName.lastIndexOf('.'));
+                expanded.add(fieldAttribute(expand.source(), parentName, childName, ((NestedScopeField) child.field()).leaf(), false));
                 paths.add(relative);
             }
             return new NestedExpand(expand.source(), expand.child(), null, path, expanded, paths);

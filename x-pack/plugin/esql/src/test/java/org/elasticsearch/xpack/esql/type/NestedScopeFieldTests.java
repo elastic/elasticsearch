@@ -20,8 +20,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -30,14 +30,18 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class NestedScopeFieldTests extends ESTestCase {
 
-    private static final Function<IndexFieldCapabilities, DataType> ORDINARY_TYPES = fc -> EsqlDataTypeRegistry.INSTANCE.fromEs(
-        fc.type(),
-        fc.metricType()
+    /** Stands in for ordinary resolution: the type of the first occurrence, with no merging of types, which is its own tests' job. */
+    private static final NestedScopeField.LeafMerger FIRST_OCCURRENCE = (name, fullName, occurrences) -> new EsField(
+        name,
+        EsqlDataTypeRegistry.INSTANCE.fromEs(occurrences.getFirst().type(), occurrences.getFirst().metricType()),
+        new TreeMap<>(),
+        false,
+        EsField.TimeSeriesFieldType.NONE
     );
 
     public void testNoNestedFieldHasNoNamespace() {
         assertThat(
-            NestedScopeField.namespace(List.of(index("a", field("id", "keyword"), field("obj", "object"))), ORDINARY_TYPES),
+            NestedScopeField.namespace(List.of(index("a", field("id", "keyword"), field("obj", "object"))), FIRST_OCCURRENCE),
             nullValue()
         );
     }
@@ -48,7 +52,7 @@ public class NestedScopeFieldTests extends ESTestCase {
                 index("a", field("items", "nested"), field("items.sku", "keyword")),
                 index("b", field("items", "nested"), field("items.sku", "keyword"), field("items.qty", "long"))
             ),
-            ORDINARY_TYPES
+            FIRST_OCCURRENCE
         );
         NestedScopeField items = scoped(root, "items");
         assertThat(items.kind(), equalTo(NestedScopeField.Kind.COLLECTION));
@@ -59,43 +63,55 @@ public class NestedScopeFieldTests extends ESTestCase {
         assertThat(scoped(items, "qty").getDataType(), equalTo(DataType.LONG));
     }
 
-    public void testLeavesOfDifferentTypesAreUnsupported() {
+    public void testValueKeepsTheLeafTheMergerMade() {
+        List<List<IndexFieldCapabilities>> seen = new ArrayList<>();
+        NestedScopeField.LeafMerger recording = (name, fullName, occurrences) -> {
+            seen.add(occurrences);
+            return new EsField(name, DataType.KEYWORD, new TreeMap<>(), false, EsField.TimeSeriesFieldType.NONE);
+        };
         EsField root = NestedScopeField.namespace(
             List.of(
-                index("a", field("items", "nested"), field("items.v", "keyword")),
-                index("b", field("items", "nested"), field("items.v", "long"))
+                index("a", field("items", "nested"), field("items.sku", "keyword")),
+                index("b", field("items", "nested"), field("items.sku", "keyword"))
             ),
-            ORDINARY_TYPES
+            recording
         );
-        assertThat(scoped(scoped(root, "items"), "v").getDataType(), equalTo(DataType.UNSUPPORTED));
+        NestedScopeField sku = scoped(scoped(root, "items"), "sku");
+        assertThat(sku.leaf(), equalTo(new EsField("sku", DataType.KEYWORD, new TreeMap<>(), false, EsField.TimeSeriesFieldType.NONE)));
+        assertThat(sku.getDataType(), equalTo(DataType.KEYWORD));
+        assertThat(seen.size(), equalTo(1));
     }
 
-    public void testSmallNumericsWidenAndDoNotConflict() {
+    public void testOnlyValuesCarryALeaf() {
         EsField root = NestedScopeField.namespace(
-            List.of(
-                index("a", field("items", "nested"), field("items.n", "short"), field("items.f", "float"), field("items.b", "byte")),
-                index("b", field("items", "nested"), field("items.n", "integer"), field("items.f", "double"), field("items.b", "byte"))
-            ),
-            ORDINARY_TYPES
+            List.of(index("a", field("items", "nested"), field("items.o", "object"), field("items.o.v", "keyword"))),
+            FIRST_OCCURRENCE
         );
         NestedScopeField items = scoped(root, "items");
-        assertThat(scoped(items, "n").getDataType(), equalTo(DataType.INTEGER));
-        assertThat(scoped(items, "f").getDataType(), equalTo(DataType.DOUBLE));
-        assertThat(scoped(items, "b").getDataType(), equalTo(DataType.INTEGER));
+        assertThat(items.leaf(), nullValue());
+        assertThat(scoped(items, "o").leaf(), nullValue());
+        assertThat(scoped(scoped(items, "o"), "v").leaf(), notNullValue());
     }
 
-    public void testUnknownTypeIsUnsupported() {
+    public void testFieldNestedInOneIndexAndNotInAnotherIsAnUnsupportedValueWithALeaf() {
         EsField root = NestedScopeField.namespace(
-            List.of(index("a", field("items", "nested"), field("items.h", "completion"))),
-            ORDINARY_TYPES
+            List.of(
+                index("a", field("p", "nested"), field("p.q", "nested"), field("p.q.v", "keyword")),
+                index("b", field("p", "nested"), field("p.q", "keyword"))
+            ),
+            FIRST_OCCURRENCE
         );
-        assertThat(scoped(scoped(root, "items"), "h").getDataType(), equalTo(DataType.UNSUPPORTED));
+        NestedScopeField q = scoped(scoped(root, "p"), "q");
+        assertThat(q.kind(), equalTo(NestedScopeField.Kind.VALUE));
+        assertThat(q.getDataType(), equalTo(DataType.UNSUPPORTED));
+        assertThat(q.leaf(), notNullValue());
+        assertThat(q.leaf().getDataType(), equalTo(DataType.UNSUPPORTED));
     }
 
     public void testObjectUnderACollectionIsNotAValue() {
         EsField root = NestedScopeField.namespace(
             List.of(index("a", field("items", "nested"), field("items.o", "object"), field("items.o.v", "keyword"))),
-            ORDINARY_TYPES
+            FIRST_OCCURRENCE
         );
         NestedScopeField o = scoped(scoped(root, "items"), "o");
         assertThat(o.kind(), equalTo(NestedScopeField.Kind.OBJECT));
@@ -110,7 +126,7 @@ public class NestedScopeFieldTests extends ESTestCase {
                 index("b", field("p", "nested"), field("p.q", "object"), field("p.q.v", "keyword")),
                 index("c", field("p", "nested"), field("p.q", "keyword"), field("p.q.v", "keyword"))
             ),
-            ORDINARY_TYPES
+            FIRST_OCCURRENCE
         );
         NestedScopeField v = scoped(scoped(scoped(root, "p"), "q"), "v");
         assertThat(v.conflict(), equalTo("its nested path is [p.q] in [a] but [p] in [b]"));
@@ -122,7 +138,7 @@ public class NestedScopeFieldTests extends ESTestCase {
                 index("a", field("items", "nested"), field("items.sku", "keyword"), field("items.qty", "long")),
                 index("b", field("items", "object"), field("items.sku", "keyword"), field("items.qty", "long"))
             ),
-            ORDINARY_TYPES
+            FIRST_OCCURRENCE
         );
         String conflict = "[items] is [nested] in [a] but [object] in [b]";
         NestedScopeField items = scoped(root, "items");
@@ -138,7 +154,7 @@ public class NestedScopeFieldTests extends ESTestCase {
                 index("b", field("items", "flattened"), field("items.sku", "keyword")),
                 index("a", field("items", "nested"), field("items.sku", "keyword"))
             ),
-            ORDINARY_TYPES
+            FIRST_OCCURRENCE
         );
         assertThat(scoped(root, "items").conflict(), equalTo("[items] is [nested] in [a] but [flattened] in [b]"));
     }
@@ -149,7 +165,7 @@ public class NestedScopeFieldTests extends ESTestCase {
                 index("a", field("p", "nested"), field("p.q", "nested"), field("p.q.v", "keyword")),
                 index("b", field("p", "nested"), field("p.q", "object"), field("p.q.v", "keyword"))
             ),
-            ORDINARY_TYPES
+            FIRST_OCCURRENCE
         );
         NestedScopeField q = scoped(scoped(root, "p"), "q");
         assertThat(scoped(q, "v").conflict(), equalTo("its nested path is [p.q] in [a] but [p] in [b]"));
@@ -174,7 +190,7 @@ public class NestedScopeFieldTests extends ESTestCase {
                     )
                 );
             }
-            assertThat(NestedScopeField.namespace(responses, ORDINARY_TYPES), notNullValue());
+            assertThat(NestedScopeField.namespace(responses, FIRST_OCCURRENCE), notNullValue());
             assertThat("indices: " + n, lookups.get(), lessThanOrEqualTo(10L));
         }
     }
@@ -198,7 +214,7 @@ public class NestedScopeFieldTests extends ESTestCase {
                     )
                 );
             }
-            assertThat(NestedScopeField.namespace(responses, ORDINARY_TYPES), notNullValue());
+            assertThat(NestedScopeField.namespace(responses, FIRST_OCCURRENCE), notNullValue());
             assertThat("indices: " + n, lookups.get(), lessThanOrEqualTo(10L * n));
         }
     }

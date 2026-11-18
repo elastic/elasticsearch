@@ -17,10 +17,13 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.NestedScopeField;
+import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.equalTo;
@@ -94,6 +97,54 @@ public class IndexResolverNestedScopeTests extends ESTestCase {
         Map<String, EsField> mapping = resolve(true, TransportVersion.minimumCompatible(), true, index);
         assertThat(mapping.get("span").getDataType(), equalTo(DataType.UNSUPPORTED));
         assertThat(nestedLeaf(mapping, "items", "span").getDataType(), equalTo(DataType.UNSUPPORTED));
+    }
+
+    public void testNestedLeafIsTheFieldAnOrdinaryFieldWouldBe() {
+        String[][] typesPerIndex = {
+            { "keyword" },
+            { "long" },
+            { "date" },
+            { "text" },
+            { "short" },
+            { "completion" },
+            { "keyword", "keyword" },
+            { "integer", "keyword" },
+            { "short", "integer" },
+            { "long", "double" },
+            { "text", "keyword" } };
+        for (String[] types : typesPerIndex) {
+            FieldCapabilitiesIndexResponse[] indices = new FieldCapabilitiesIndexResponse[types.length];
+            for (int i = 0; i < types.length; i++) {
+                indices[i] = index("i" + i, field("v", types[i]), field("items", "nested"), field("items.v", types[i]));
+            }
+            Map<String, EsField> mapping = resolve(true, indices);
+            NestedScopeField nested = (NestedScopeField) nestedLeaf(mapping, "items", "v");
+            assertThat(Arrays.toString(types), nested.leaf(), equalTo(mapping.get("v")));
+        }
+    }
+
+    public void testNestedLeafMergesOnlyTheOccurrencesInNestedScope() {
+        Map<String, EsField> mapping = resolve(
+            true,
+            index("a", field("items", "nested"), field("items.v", "integer")),
+            index("b", field("items", "nested"), field("items.v", "keyword")),
+            index("c", field("items", "object"), field("items.v", "long"))
+        );
+        TypeConflictedField leaf = (TypeConflictedField) ((NestedScopeField) nestedLeaf(mapping, "items", "v")).leaf();
+        assertThat(leaf.getTypesToIndices(), equalTo(Map.of("integer", Set.of("a"), "keyword", Set.of("b"))));
+        assertThat(mapping.get("items").getProperties().get("v").getDataType(), equalTo(DataType.LONG));
+    }
+
+    public void testSmallNumericLeafIsWidenedLikeAnOrdinaryColumn() {
+        Map<String, EsField> mapping = resolve(
+            true,
+            index("a", field("small", "short"), field("items", "nested"), field("items.small", "short"))
+        );
+        NestedScopeField nested = (NestedScopeField) nestedLeaf(mapping, "items", "small");
+        assertThat(nested.getDataType(), equalTo(DataType.SHORT));
+        assertThat(nested.withWidenedSmallNumeric(), instanceOf(NestedScopeField.class));
+        assertThat(nested.withWidenedSmallNumeric().getDataType(), equalTo(DataType.INTEGER));
+        assertThat(((NestedScopeField) nested.withWidenedSmallNumeric()).leaf().getDataType(), equalTo(DataType.INTEGER));
     }
 
     private static EsField nestedLeaf(Map<String, EsField> mapping, String collection, String name) {

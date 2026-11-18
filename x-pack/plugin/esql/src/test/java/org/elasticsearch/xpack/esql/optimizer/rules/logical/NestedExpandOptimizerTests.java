@@ -7,13 +7,18 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
+import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
+import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -21,6 +26,7 @@ import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
@@ -30,6 +36,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 
 /**
  * The logical rules that move other commands past {@code NESTED_EXPAND} or narrow it. The index is the one
@@ -184,6 +191,29 @@ public class NestedExpandOptimizerTests extends AbstractLogicalPlanOptimizerTest
                     + "either move the SORT after it, or add a LIMIT after the SORT"
             )
         );
+    }
+
+    public void testLocalOptimizerKeepsAnOrdinaryChild() {
+        LogicalPlan local = localPlan(nestedPlan("FROM ne_types | NESTED_EXPAND items | EVAL q = items.small + 1 | WHERE q > 2 | KEEP q"));
+        assertThat(fieldNames(local), hasItem("items.small"));
+    }
+
+    /** A data node's stats count a field of a nested object as not extractable from its parent, so none exists there. */
+    private static LogicalPlan localPlan(LogicalPlan plan) {
+        var stats = new EsqlTestUtils.TestSearchStats() {
+            @Override
+            public boolean exists(FieldAttribute.FieldName field) {
+                return field.string().startsWith("items.") == false && field.string().startsWith("$$items.") == false;
+            }
+        };
+        return new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), stats))
+            .localOptimize(plan);
+    }
+
+    private static List<String> fieldNames(LogicalPlan plan) {
+        List<String> names = new ArrayList<>();
+        plan.forEachExpressionDown(FieldAttribute.class, field -> names.add(field.name()));
+        return names;
     }
 
     private LogicalPlan nestedPlan(String query) {

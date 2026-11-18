@@ -159,6 +159,25 @@ public class DatasetResolverTests extends ESTestCase {
         );
     }
 
+    /**
+     * The datasets of a closed data source are not readable whatever the view says, so changing the view as the warning advises
+     * would not help: the lookup leaves them out, and a view whose wildcards only reach closed datasets gets no warning.
+     */
+    public void testStoppedViewWildcardDoesNotWarnAboutDatasetsOfAClosedDataSource() {
+        AtomicInteger localCalls = new AtomicInteger();
+        DatasetResolver resolver = resolver(crossProjectEnabled(false), localCalls);
+
+        LinkedHashMap<String, LogicalPlan> branches = new LinkedHashMap<>();
+        branches.put("main", relationOf("other"));
+        branches.put("logs_view", relationOf("log*"));
+        BranchPlan plan = new BranchPlan(Source.EMPTY, branches, Map.of("logs_view", BranchIdentity.view("logs_view")), List.of());
+
+        IndexViewOrigins origins = new IndexViewOrigins(Map.of("log*", Set.of(List.of("logs_view"))));
+        replaceDatasets(resolver, plan, project(false), true, origins);
+        assertEquals("the lookup still runs: the closed state is applied to its answer", 1, localCalls.get());
+        // no warning: ESTestCase fails the test on a warning it was not told to expect
+    }
+
     /** Normal resolution evaluates date math before expanding wildcards, so the lookup does too. */
     public void testDateMathWildcardInViewBranchIsLookedUp() {
         AtomicInteger localCalls = new AtomicInteger();
@@ -453,7 +472,11 @@ public class DatasetResolverTests extends ESTestCase {
     }
 
     private static ProjectMetadata project() {
-        DataSource parent = new DataSource("s3_parent", "test", null, Map.<String, DataSourceSetting>of());
+        return project(true);
+    }
+
+    private static ProjectMetadata project(boolean dataSourceOpen) {
+        DataSource parent = new DataSource("s3_parent", "test", null, Map.<String, DataSourceSetting>of(), dataSourceOpen);
         Dataset dataset = new Dataset(DATASET_NAME, new DataSourceReference("s3_parent"), "s3://logs/*.parquet", null, Map.of());
         return ProjectMetadata.builder(ProjectId.DEFAULT)
             .putCustom(DataSourceMetadata.TYPE, new DataSourceMetadata(Map.of("s3_parent", parent)))

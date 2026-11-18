@@ -638,8 +638,12 @@ public final class DatasetRewriter {
      * Whether an admin closed the data source of {@code name}. A dataset whose data source is not registered is not closed:
      * {@link #buildDatasetBranch} reports that state.
      */
-    private static boolean isClosed(String name, DatasetMetadata datasets, DataSourceMetadata dataSources) {
-        DataSource parent = dataSources.get(datasets.get(name).dataSource().getName());
+    static boolean isClosed(String name, DatasetMetadata datasets, DataSourceMetadata dataSources) {
+        Dataset dataset = datasets.get(name);
+        if (dataset == null) {
+            return false;
+        }
+        DataSource parent = dataSources.get(dataset.dataSource().getName());
         return parent != null && parent.enabled() == false;
     }
 

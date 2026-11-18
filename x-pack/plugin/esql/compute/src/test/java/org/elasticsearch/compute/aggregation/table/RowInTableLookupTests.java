@@ -19,11 +19,13 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.MockBlockFactory;
 import org.elasticsearch.core.ReleasableIterator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 
 import java.util.List;
+import java.util.concurrent.CyclicBarrier;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
@@ -106,6 +108,50 @@ public class RowInTableLookupTests extends ESTestCase {
         }
     }
 
+    public void testConcurrentRepeatedKeyLookups() {
+        int threads = between(2, 4);
+        int positions = 64;
+        int[] keys = IntStream.range(0, threads * 2).map(p -> p % threads).toArray();
+        List<MockBlockFactory> probeFactories = IntStream.range(0, threads).mapToObj(t -> newProbeFactory()).toList();
+        Page[] probes = new Page[threads];
+        try (
+            IntBlock buildKeys = blockFactory.newIntArrayVector(keys, keys.length).asBlock();
+            RowInTableLookup lookup = RowInTableLookup.build(blockFactory, new Block[] { buildKeys }, true)
+        ) {
+            long tableBytes = breaker.getUsed();
+            for (int t = 0; t < threads; t++) {
+                int hit = t;
+                int[] probeKeys = IntStream.range(0, positions).map(p -> p % 2 == 0 ? hit : -1).toArray();
+                probes[t] = new Page(probeFactories.get(t).newIntArrayVector(probeKeys, positions).asBlock());
+            }
+
+            var probesReady = new CyclicBarrier(threads);
+            startInParallel(threads, t -> {
+                MockBlockFactory probeFactory = probeFactories.get(t);
+                List<Integer> expectedMatches = List.of(t, t + threads);
+                try (ReleasableIterator<IntBlock> blocks = lookup.lookup(probes[t], probeFactory, ByteSizeValue.ofKb(8))) {
+                    safeAwait(probesReady);
+                    try (IntBlock matches = blocks.next()) {
+                        assertThat(matches.blockFactory(), sameInstance(probeFactory));
+                        assertThat(matches.getPositionCount(), equalTo(positions));
+                        for (int p = 0; p < positions; p += 2) {
+                            assertThat(toJavaObject(matches, p), equalTo(expectedMatches));
+                            assertTrue(matches.isNull(p + 1));
+                        }
+                        assertThat(breaker.getUsed(), equalTo(tableBytes));
+                    }
+                    assertFalse(blocks.hasNext());
+                }
+            });
+        } finally {
+            Releasables.close(probes);
+        }
+        for (MockBlockFactory probeFactory : probeFactories) {
+            probeFactory.ensureAllBlocksAreReleased();
+            assertThat(probeFactory.breaker().getUsed(), is(0L));
+        }
+    }
+
     public void testRepeatedLookupSplitsResultsBetweenProbeRows() {
         int buildRows = 300;
         int probeRows = 4;
@@ -147,11 +193,7 @@ public class RowInTableLookupTests extends ESTestCase {
     }
 
     public void testEmptyTable() {
-        MockBlockFactory probeFactory = new MockBlockFactory(
-            BlockFactory.builder(
-                new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, newLimitedBreakerService(ByteSizeValue.ofGb(1)))
-            )
-        );
+        MockBlockFactory probeFactory = newProbeFactory();
         try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(0)) {
             try (Block keys = builder.build(); RowInTableLookup lookup = RowInTableLookup.build(blockFactory, new Block[] { keys })) {
                 assertThat(lookup, instanceOf(EmptyRowInTableLookup.class));
@@ -170,6 +212,14 @@ public class RowInTableLookupTests extends ESTestCase {
             }
         }
         probeFactory.ensureAllBlocksAreReleased();
+    }
+
+    private static MockBlockFactory newProbeFactory() {
+        return new MockBlockFactory(
+            BlockFactory.builder(
+                new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, newLimitedBreakerService(ByteSizeValue.ofGb(1)))
+            )
+        );
     }
 
     @After

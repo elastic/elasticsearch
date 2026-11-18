@@ -972,6 +972,10 @@ public class ViewSettingsIT extends AbstractEsqlIntegTestCase {
             """));
         assertAcked(createView("multi_plain", "FROM pass_through_view, filtered_view"));
         assertAcked(createView("top_plain", "FROM multi_plain, caller_idx"));
+        assertAcked(createView("outer_load_multi", """
+            SET unmapped_fields="load";
+            FROM multi_plain | KEEP id, extra
+            """));
         assertAcked(createView("union_keep_view", "FROM (FROM caller_idx | KEEP id), (FROM view_source | KEEP id) | WHERE id > 0"));
 
         assertThat(
@@ -1006,23 +1010,20 @@ public class ViewSettingsIT extends AbstractEsqlIntegTestCase {
             warningHeaders("SET unmapped_fields=\"load\"; FROM load_view | KEEP id, extra"),
             hasItem(viewBoundaryWarning("[extra] in view [load_view]"))
         );
-        // A nested view keeps its own name only while its rows stay apart from the enclosing view's: the rows of a pass-through
-        // view merge into the enclosing view's, so those are reported under the enclosing view. Views lacking the same field
-        // share one entry.
+        // The caller's SET stops at the view the query reads, so the views nested in it are behind the same boundary and not
+        // named, even though compaction lifts their rows up to the caller's level.
         assertThat(
             warningHeaders("SET unmapped_fields=\"load\"; FROM multi_plain | KEEP id, extra"),
-            hasItem(viewBoundaryWarning(true, false, "[extra] in views [multi_plain], [filtered_view] nested in view [multi_plain]"))
+            hasItem(viewBoundaryWarning("[extra] in view [multi_plain]"))
         );
-        // Lifted through two levels, a nested view is named with the view that reads it, not the outermost one.
         assertThat(
             warningHeaders("SET unmapped_fields=\"load\"; FROM top_plain | KEEP id, extra"),
-            hasItem(
-                viewBoundaryWarning(
-                    true,
-                    false,
-                    "[extra] in views [top_plain], [multi_plain] nested in view [top_plain], [filtered_view] nested in view [multi_plain]"
-                )
-            )
+            hasItem(viewBoundaryWarning("[extra] in view [top_plain]"))
+        );
+        // The same holds for a view's own SET: it stops at the view its definition reads.
+        assertThat(
+            warningHeaders("FROM outer_load_multi"),
+            hasItem(viewBoundaryWarning("[extra] in view [multi_plain] (SET by view [outer_load_multi])"))
         );
 
         for (String query : List.of(

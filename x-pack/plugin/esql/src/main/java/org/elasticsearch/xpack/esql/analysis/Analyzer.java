@@ -434,8 +434,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     static final int MAX_LISTED_VIEW_BOUNDARY_FIELDS = 10;
 
     /**
-     * At most this many view names are printed in the {@link #viewBoundaryNullFillWarning}, counted across its entries: a view, the
-     * view it is nested in and the view whose definition SET the mode each count, as each can be up to 255 bytes long and three
+     * At most this many view names are printed in the {@link #viewBoundaryNullFillWarning}, counted across its entries: a view and
+     * the view whose definition SET the mode each count, as each can be up to 255 bytes long and three
      * times that once percent-encoded in the header. Views that no longer fit are only counted. See
      * {@link #MAX_LISTED_VIEW_BOUNDARY_FIELDS}.
      */
@@ -487,24 +487,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         for (Map.Entry<ViewBoundaryEntry, List<AnalyzerContext.ViewBoundary>> e : boundariesByEntry.entrySet()) {
             List<String> fields = List.copyOf(e.getKey().fields());
             List<AnalyzerContext.ViewBoundary> views = e.getValue();
-            // A nested view prints two names, so one that no longer fits can be followed by one that still does.
-            int remainingViewNames = viewNameBudget - (e.getKey().settingView() == null ? 0 : 1);
-            List<AnalyzerContext.ViewBoundary> listedViews = new ArrayList<>(Math.min(views.size(), MAX_LISTED_VIEW_BOUNDARY_VIEW_NAMES));
-            for (AnalyzerContext.ViewBoundary view : views) {
-                if (remainingViewNames <= 0) {
-                    break;
-                }
-                if (viewNamesPrinted(view) <= remainingViewNames) {
-                    listedViews.add(view);
-                    remainingViewNames -= viewNamesPrinted(view);
-                }
-            }
-            if (fieldBudget == 0 || listedViews.isEmpty()) {
+            int settingViewNames = e.getKey().settingView() == null ? 0 : 1;
+            int viewsListed = Math.min(views.size(), viewNameBudget - settingViewNames);
+            if (fieldBudget == 0 || viewsListed <= 0) {
                 unlistedFields.addAll(fields);
                 unlistedViews += views.size();
                 continue;
             }
-            viewNameBudget = remainingViewNames;
+            viewNameBudget -= settingViewNames + viewsListed;
             int fieldsListed = Math.min(fields.size(), fieldBudget);
             fieldBudget -= fieldsListed;
             listedFields.addAll(fields.subList(0, fieldsListed));
@@ -513,15 +503,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             appendBoundedList(list, fields, fieldsListed, field -> "[" + field + "]");
             list.append(views.size() == 1 ? " in view " : " in views ");
-            appendBoundedList(
-                list,
-                listedViews,
-                listedViews.size(),
-                view -> "[" + view.viewName() + "]" + (view.enclosingView() == null ? "" : " nested in view [" + view.enclosingView() + "]")
-            );
-            if (views.size() > listedViews.size()) {
-                list.append(" and [").append(views.size() - listedViews.size()).append("] more");
-            }
+            appendBoundedList(list, views, viewsListed, view -> "[" + view.viewName() + "]");
             if (e.getKey().settingView() != null) {
                 list.append(" (SET by view [").append(e.getKey().settingView()).append("])");
             }
@@ -552,11 +534,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             oneField ? "it" : "them",
             list
         );
-    }
-
-    /** How many view names listing {@code view} prints: its own, and the one of the view it is nested in. */
-    private static int viewNamesPrinted(AnalyzerContext.ViewBoundary view) {
-        return view.enclosingView() == null ? 1 : 2;
     }
 
     /**

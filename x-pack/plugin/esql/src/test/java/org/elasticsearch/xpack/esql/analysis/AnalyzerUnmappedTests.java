@@ -2115,7 +2115,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         + "fields are null in their rows; to load them, the view definitions must reference them under SET unmapped_fields=\"load\": ";
 
     private static AnalyzerContext.ViewBoundary viewBoundary(String viewName) {
-        return new AnalyzerContext.ViewBoundary(null, viewName, null);
+        return new AnalyzerContext.ViewBoundary(null, viewName);
     }
 
     private static void addNullFills(
@@ -2140,18 +2140,18 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
 
     /**
      * One warning for all view boundaries, with one entry per boundary in the order the fills were recorded. An entry names the
-     * view a nested view was merged into, and the view whose definition SET the mode when it is not the caller's.
+     * view whose definition SET the mode when it is not the caller's.
      */
     public void testViewBoundaryNullFillWarningEntries() {
         var v1 = viewBoundary("v1");
-        var v2 = new AnalyzerContext.ViewBoundary("outer", "v2", "v3");
+        var v2 = new AnalyzerContext.ViewBoundary("outer", "v2");
         Set<AnalyzerContext.ViewBoundaryNullFill> fills = new LinkedHashSet<>();
         addNullFills(fills, v1, "a");
         addNullFills(fills, v2, "c");
         addNullFills(fills, v1, "b");
         assertThat(
             Analyzer.viewBoundaryNullFillWarning(fills),
-            equalTo(VIEW_BOUNDARY_PLURAL_ADVICE + "[a], [b] in view [v1]; [c] in view [v2] nested in view [v3] (SET by view [outer])")
+            equalTo(VIEW_BOUNDARY_PLURAL_ADVICE + "[a], [b] in view [v1]; [c] in view [v2] (SET by view [outer])")
         );
 
         // One view lacking two fields still reads as one view; one field lacking from two views still reads as one field.
@@ -2180,7 +2180,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         addNullFills(fills, viewBoundary("w0"), "a", "b");
         addNullFills(fills, viewBoundary("w1"), "b", "a");
         addNullFills(fills, viewBoundary("w2"), "a");
-        addNullFills(fills, new AnalyzerContext.ViewBoundary("outer", "w3", null), "a", "b");
+        addNullFills(fills, new AnalyzerContext.ViewBoundary("outer", "w3"), "a", "b");
         assertThat(
             Analyzer.viewBoundaryNullFillWarning(fills),
             equalTo(
@@ -2228,41 +2228,29 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     /**
-     * The view a view is nested in and the view that SET the mode count against
-     * {@link Analyzer#MAX_LISTED_VIEW_BOUNDARY_VIEW_NAMES} too, as each is a view name the warning prints. An entry whose first view
-     * no longer fits is only counted, while a later entry that still fits is listed.
+     * The view that SET the mode counts against {@link Analyzer#MAX_LISTED_VIEW_BOUNDARY_VIEW_NAMES} too, as it is a view name the
+     * warning prints. An entry that no longer fits is only counted, while a later entry that still fits is listed.
      */
     public void testViewBoundaryNullFillWarningCountsEveryViewName() {
         assertThat(Analyzer.MAX_LISTED_VIEW_BOUNDARY_VIEW_NAMES, equalTo(5));
         Set<AnalyzerContext.ViewBoundaryNullFill> fills = new LinkedHashSet<>();
-        for (int i = 0; i < 3; i++) {
-            addNullFills(fills, new AnalyzerContext.ViewBoundary(null, "v" + i, "e" + i), "a");
+        for (int i = 1; i <= 4; i++) {
+            addNullFills(fills, viewBoundary("y" + i), "f" + i);
         }
-        addNullFills(fills, new AnalyzerContext.ViewBoundary("outer", "x", null), "b");
-        addNullFills(fills, viewBoundary("y"), "c");
+        addNullFills(fills, new AnalyzerContext.ViewBoundary("outer", "x"), "b");
+        addNullFills(fills, viewBoundary("z"), "g");
         assertThat(
             Analyzer.viewBoundaryNullFillWarning(fills),
             equalTo(
                 VIEW_BOUNDARY_PLURAL_ADVICE
-                    + "[a] in views [v0] nested in view [e0], [v1] nested in view [e1] and [1] more; [c] in view [y]; "
+                    + "[f1] in view [y1]; [f2] in view [y2]; [f3] in view [y3]; [f4] in view [y4]; [g] in view [z]; "
                     + "and [1] more field in [1] more view"
-            )
-        );
-
-        // A nested view that no longer fits is skipped, and a later view of the same entry that still fits is named.
-        addNullFills(fills, viewBoundary("w"), "a");
-        assertThat(
-            Analyzer.viewBoundaryNullFillWarning(fills),
-            equalTo(
-                VIEW_BOUNDARY_PLURAL_ADVICE
-                    + "[a] in views [v0] nested in view [e0], [v1] nested in view [e1], [w] and [1] more; "
-                    + "and [2] more fields in [2] more views"
             )
         );
 
         // The name of the view that SET the mode uses up the budget once it is printed: it and x leave room for three more views.
         fills.clear();
-        addNullFills(fills, new AnalyzerContext.ViewBoundary("outer", "x", null), "a");
+        addNullFills(fills, new AnalyzerContext.ViewBoundary("outer", "x"), "a");
         for (int i = 1; i <= 4; i++) {
             addNullFills(fills, viewBoundary("y" + i), "f" + i);
         }

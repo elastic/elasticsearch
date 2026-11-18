@@ -140,9 +140,7 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
             return applyScoped(branch, viewResolution, viewName, context);
         });
         BiConsumer<BranchIdentity, String> onViewNullFill = (identity, fieldName) -> {
-            List<String> lineage = identity.lineage();
-            String enclosingView = lineage.size() < 2 ? null : lineage.get(lineage.size() - 2);
-            var boundary = new AnalyzerContext.ViewBoundary(settingView, identity.settingsViewName(), enclosingView);
+            var boundary = new AnalyzerContext.ViewBoundary(settingView, boundaryViewName(identity, settingView));
             context.viewBoundaryNullFills().add(new AnalyzerContext.ViewBoundaryNullFill(boundary, fieldName));
         };
         return switch (resolution) {
@@ -150,6 +148,20 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
             case UnmappedResolution.NULLIFY -> resolveOutsideViews(withInnerScopes, false, onViewNullFill);
             case UnmappedResolution.LOAD, UnmappedResolution.LOAD_ALL -> resolveOutsideViews(withInnerScopes, true, onViewNullFill);
         };
+    }
+
+    /**
+     * The view at which the {@code SET} of {@code settingView}'s scope (the caller's query when {@code null}) stopped, for a view
+     * branch of that scope: the outermost view of the branch's lineage below {@code settingView}. Compaction can lift the pieces
+     * of a view nested in it up to the scope's level, but the user's query reads only that view, and the mode stopped there.
+     */
+    private static String boundaryViewName(BranchIdentity identity, @Nullable String settingView) {
+        List<String> lineage = identity.lineage();
+        if (lineage.isEmpty()) {
+            return identity.settingsViewName();
+        }
+        // The caller's scope, or a branch that was not lifted through settingView, starts at the outermost view.
+        return lineage.get(settingView == null ? 0 : lineage.indexOf(settingView) + 1);
     }
 
     /**

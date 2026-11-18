@@ -743,6 +743,11 @@ public class StripeStatsStagingTests extends ESTestCase {
         chunk(staging, 1024, false, MTIME, 0, 512, READ_CONFIG, true, both, row(0, 7L, "m"));
         chunk(staging, 1024, true, MTIME, 512, 1024, READ_CONFIG, true, onlyN, row(512, 9L, "z"));
 
+        // Neither piece anchors both grid lines on its own, so with the schemas apart nothing is covered and the
+        // read leaves both in flight. That is what makes this discriminating: joined, the pair covers stripe 0
+        // and stages ONE record at contribute time, and the count below reads 1 without the flush mattering.
+        staging.flush();
+
         List<Map<String, Object>> staged = staged(sink);
         assertEquals("pieces whose schemas disagree stage separately rather than folding into one record", 2, staged.size());
         for (Map<String, Object> record : staged) {

@@ -116,10 +116,6 @@ final class StagedStripeRecord extends AbstractMap<String, Object> {
         this.eof = eof;
         this.stats = stats;
         this.schema = schema;
-        assert everyColumnIsNamedBySchema(stats, schema)
-            : "a staged record counts its column entries from the statistics and writes them from the schema, so a "
-                + "column the schema does not name would make size() exceed the entries this record yields, and the "
-                + "map's length prefix is written from size()";
     }
 
     /**
@@ -127,6 +123,11 @@ final class StagedStripeRecord extends AbstractMap<String, Object> {
      * with the entries {@link #flatten} produces. Assertion-only: in production a mismatch is not worth a throw on
      * the harvest path, and {@link StripeStatsStaging} keeps pieces whose schemas differ apart rather than folding
      * them into a record that could reach this state.
+     * <p>
+     * Checked in {@link #flatten} rather than in the constructor, because it walks the schema and construction is
+     * required to touch nothing: {@code StripeStatsStagingTests#testMembershipOfAnAlwaysPresentKeyBuildsNothing}
+     * counts iterations of the schema it passes in and asserts the count is zero until something asks for a key.
+     * {@code flatten} already walks the schema, so the check is free where it sits.
      */
     private static boolean everyColumnIsNamedBySchema(SplitStats stats, List<Attribute> schema) {
         if (stats.columnCount() == 0) {
@@ -268,6 +269,10 @@ final class StagedStripeRecord extends AbstractMap<String, Object> {
      * counts say so.
      */
     private Map<String, Object> flatten() {
+        assert everyColumnIsNamedBySchema(stats, schema)
+            : "a staged record counts its column entries from the statistics and writes them from the schema, so a "
+                + "column the schema does not name would make size() exceed the entries this record yields, and the "
+                + "map's length prefix is written from size()";
         Map<String, ExternalStats.ColumnStats> columns = new HashMap<>();
         for (int i = 0; i < stats.columnCount(); i++) {
             columns.put(

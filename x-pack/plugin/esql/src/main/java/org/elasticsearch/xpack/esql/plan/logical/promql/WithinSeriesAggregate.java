@@ -69,12 +69,6 @@ public final class WithinSeriesAggregate extends PromqlFunctionCall {
         return output;
     }
 
-    /** {@code first_over_time} and {@code last_over_time} keep the metric name; Prometheus drops it from other range functions. */
-    @Override
-    protected boolean dropsMetricName() {
-        return definition() != FirstOverTime.PROMQL_DEFINITION && definition() != LastOverTime.PROMQL_DEFINITION;
-    }
-
     @Override
     public Set<String> excludedLabels() {
         return PromqlLabels.excludedWith(child(), keepsMetricName() ? List.of() : List.of(LabelMatcher.NAME));

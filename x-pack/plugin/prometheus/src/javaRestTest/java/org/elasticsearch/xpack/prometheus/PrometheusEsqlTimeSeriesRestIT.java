@@ -139,6 +139,28 @@ public class PrometheusEsqlTimeSeriesRestIT extends AbstractPrometheusRestIT {
         }
     }
 
+    /**
+     * Remote write maps metrics as a passthrough above labels, so a metric named like a label ({@code status}) takes the
+     * label's bare name. A PromQL label reference still reads the label, in a grouping and in a matcher alike.
+     */
+    public void testLabelNamedLikeAMetric() throws Exception {
+        long timestamp = System.currentTimeMillis();
+        sendRemoteWrite("status", Map.of("job", "node"), 1.0, timestamp);
+        sendRemoteWrite("http_requests", Map.of("job", "node", "status", "ok"), 3.0, timestamp);
+        sendRemoteWrite("http_requests", Map.of("job", "node", "status", "err"), 5.0, timestamp);
+
+        List<Map<String, Object>> grouped = rangeQuery("sum by (status) (http_requests)", timestamp).evaluate("data.result");
+        assertThat(
+            grouped.stream().map(seriesResult -> seriesResult.get("metric")).toList(),
+            containsInAnyOrder(Map.of("status", "ok"), Map.of("status", "err"))
+        );
+        List<Map<String, Object>> matched = rangeQuery("http_requests{status=\"ok\"}", timestamp).evaluate("data.result");
+        assertThat(
+            matched.stream().map(seriesResult -> seriesResult.get("metric")).toList(),
+            containsInAnyOrder(Map.of("__name__", "http_requests", "job", "node", "status", "ok"))
+        );
+    }
+
     private static Map<String, String> series(String cluster, String pod, String region) {
         return Map.of("job", "test_job", "instance", "localhost:9090", "cluster", cluster, "pod", pod, "region", region);
     }

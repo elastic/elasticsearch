@@ -75,14 +75,6 @@ public class PromqlVerifierTests extends ESTestCase {
         .unmappedResolution(UnmappedResolution.NULLIFY)
         .minimumTransportVersion(TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("tsmd_data_type")));
 
-    /** A cluster with a node that does not know the label container functions, which still rejects the shapes that take them. */
-    private final TestAnalyzer mixedTsdb = analyzer().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
-        .stripErrorPrefix(true)
-        .unmappedResolution(UnmappedResolution.NULLIFY)
-        .minimumTransportVersion(
-            TransportVersionUtils.getPreviousVersion(AbstractTimeSeriesMetadataFunction.ESQL_TIMESERIES_METADATA_FUNCTIONS)
-        );
-
     public void testPredictLinearArguments() {
         tsdb.error(
             "PROMQL index=test step=5m predict_linear(network.bytes_in[5m])",
@@ -343,7 +335,7 @@ public class PromqlVerifierTests extends ESTestCase {
         assertTrue(tsdb.query("PROMQL index=test step=5m " + atLimit).resolved());
 
         String tooManyOperands = String.join(" or ", Collections.nCopies(maxOperands + 1, "network.bytes_in"));
-        mixedTsdb.error(
+        tsdb.error(
             "PROMQL index=test step=5m " + tooManyOperands,
             allOf(
                 containsString("PromQL set operator [or] supports up to [" + maxOperands + "] operands, got [" + (maxOperands + 1) + "]"),

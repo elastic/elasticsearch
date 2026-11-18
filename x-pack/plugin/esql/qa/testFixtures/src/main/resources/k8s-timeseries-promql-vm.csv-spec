@@ -840,8 +840,8 @@ r:double           | cluster:keyword | pod:keyword | step:datetime
 vector_match_matrix_opaque_ignoring
 required_capability: promql_command_v0
 required_capability: promql_vector_matching_v0
-required_capability: enable_tsmd_data_type
 required_capability: promql_binary_opaque_signature_match
+required_capability: enable_tsmd_data_type
 PROMQL index=k8s step=10m r=(network.eth0.tx / ignoring (pod, region) group_left sum by (cluster) (network.eth0.rx))
 | WHERE step == "2024-05-10T00:10:00.000Z"
 | KEEP r, _timeseries
@@ -865,8 +865,8 @@ r:double            | _timeseries:keyword
 vector_match_matrix_opaque_ignoring_group_left_include
 required_capability: promql_command_v0
 required_capability: promql_vector_matching_v0
-required_capability: enable_tsmd_data_type
 required_capability: promql_binary_opaque_signature_match
+required_capability: enable_tsmd_data_type
 PROMQL index=k8s step=10m r=(network.eth0.tx / ignoring (pod, region) group_left (region) sum by (cluster, region) (network.eth0.rx{cluster="staging"}))
 | WHERE step == "2024-05-10T00:10:00.000Z"
 | KEEP r, region, _timeseries
@@ -1078,8 +1078,8 @@ r:double | cluster:keyword | pod:keyword | step:datetime
 vector_match_matrix_and
 required_capability: promql_command_v0
 required_capability: promql_vector_matching_v0
-required_capability: enable_tsmd_data_type
 required_capability: fn_json_extract
+required_capability: enable_tsmd_data_type
 PROMQL index=k8s step=10m r=(network.eth0.tx and on (cluster, pod) network.eth0.rx)
 | WHERE step == "2024-05-10T00:10:00.000Z"
 | EVAL cluster = JSON_EXTRACT(_timeseries, "cluster"), pod = JSON_EXTRACT(_timeseries, "pod")

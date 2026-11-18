@@ -135,16 +135,6 @@ public abstract sealed class PromqlFunctionCall extends UnaryPlan implements Pro
 
     public abstract FunctionType functionType();
 
-    /** Whether the result drops the metric name, as Prometheus does for most functions over each series. */
-    protected boolean dropsMetricName() {
-        return false;
-    }
-
-    /** {@code labels} without the metric name, for a function whose result drops it. */
-    protected static List<Attribute> withoutMetricName(List<Attribute> labels) {
-        return labels.stream().filter(label -> LabelMatcher.NAME.equals(PromqlLabels.labelName(label)) == false).toList();
-    }
-
     /**
      * {@inheritDoc}
      * <p>

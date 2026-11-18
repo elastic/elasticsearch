@@ -53,12 +53,7 @@ public final class ValueTransformationFunction extends PromqlFunctionCall {
 
     @Override
     public List<Attribute> output() {
-        return withoutMetricName(child().output());
-    }
-
-    @Override
-    protected boolean dropsMetricName() {
-        return true;
+        return child().output();
     }
 
     @Override

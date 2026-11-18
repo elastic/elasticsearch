@@ -23,7 +23,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Stream;
 
 /**
  * Represents a PromQL aggregate function call that operates across multiple time series.
@@ -122,8 +121,7 @@ public final class AcrossSeriesAggregate extends PromqlFunctionCall {
         if (grouping == Grouping.WITHOUT) {
             List<Attribute> childOutput = child().output();
             if (childOutput.stream().noneMatch(a -> MetadataAttribute.isTimeSeriesAttributeName(a.name()))) {
-                // Like every aggregation, a without drops the metric name.
-                Set<String> excluded = new HashSet<>(List.of(LabelMatcher.NAME));
+                Set<String> excluded = new HashSet<>();
                 for (Attribute label : groupings) {
                     excluded.add(labelKey(label));
                 }

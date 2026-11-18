@@ -1185,6 +1185,31 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertEquals(0L, nodeBreaker.getUsed());
     }
 
+    /**
+     * {@code withBlockFactory} (every split after the per-query factory) and {@code withReadConfig}
+     * (every file) copy the reader with the same {@code WITH} options. Rebuilding {@code CsvMapper}
+     * there is wasted work; the copy must keep the receiver's mapper.
+     */
+    public void testWithBlockFactoryReusesSharedCsvMapper() {
+        BlockFactory other = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
+        CsvFormatReader nodeReader = new CsvFormatReader(blockFactory);
+        CsvFormatReader perRead = nodeReader.withBlockFactory(other);
+        assertNotSame("a distinct factory must copy, not mutate the node singleton", nodeReader, perRead);
+        assertSame(
+            "withBlockFactory must reuse sharedCsvMapper; options are unchanged",
+            nodeReader.sharedCsvMapper(),
+            perRead.sharedCsvMapper()
+        );
+
+        CsvFormatReader perFile = nodeReader.withReadConfig("0123456789abcdef0123456789abcdef");
+        assertNotSame(nodeReader, perFile);
+        assertSame(
+            "withReadConfig must reuse sharedCsvMapper; options are unchanged",
+            nodeReader.sharedCsvMapper(),
+            perFile.sharedCsvMapper()
+        );
+    }
+
     public void testReadWithBatching() throws IOException {
         StringBuilder csv = new StringBuilder("id:long,value:integer\n");
         for (int i = 1; i <= 25; i++) {
@@ -9233,6 +9258,31 @@ public class CsvFormatReaderTests extends ESTestCase {
                 () -> readRowCount(reader, createStorageObject(RAGGED_MV_CSV), idTagsScore(), List.of("id", "tags"))
             );
             assertThat("directBlock=" + directBlock, e.getMessage(), containsString("the header has [3]"));
+            drainWarnings();
+        }
+    }
+
+    /**
+     * The width exit builds its excerpt through rowExcerptIfRead(), which returns null outside fail_fast, and
+     * ErrorExcerpts.summarize renders null as "null". The sibling above asserts only the width text, so it would
+     * pass on a message that had lost the record; this pins the record itself on the one mode that prints it.
+     */
+    public void testDeclaredBindingRowWidthFailFastQuotesTheRecord() throws Exception {
+        String csv = "id:integer,tags:keyword,score:integer\n1,alpha,10,SURPLUS\n";
+        Map<String, Object> config = Map.of("header_row", true, "multi_value_syntax", "NONE", "error_mode", "fail_fast");
+        for (boolean directBlock : List.of(false, true)) {
+            CsvFormatReader reader = declaredReader(true, directBlock, config);
+            Exception e = expectThrows(
+                Exception.class,
+                () -> readRowCount(reader, createStorageObject(csv), idTagsScore(), List.of("id", "tags"))
+            );
+            assertThat("directBlock=" + directBlock, e.getMessage(), containsString("[4] columns, the header has [3]"));
+            assertThat("directBlock=" + directBlock, e.getMessage(), containsString("row: "));
+            assertThat(
+                "directBlock=" + directBlock + " must quote the record: " + e.getMessage(),
+                e.getMessage(),
+                containsString(directBlock ? "1,alpha,10,SURPLUS" : "col0=[1]")
+            );
             drainWarnings();
         }
     }

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.SerializationTestUtils;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -80,6 +81,7 @@ public class NestedExpandSerializationTests extends AbstractLogicalPlanSerializa
     }
 
     public static NestedExpand analyzedExpand(String query) {
+        assumeTrue("NESTED_EXPAND is snapshot-only", EsqlCapabilities.Cap.NESTED_EXPAND.isEnabled());
         List<NestedExpand> found = new ArrayList<>();
         nestedAnalyzer(NestedExpand.VERSION).query(query).forEachDown(NestedExpand.class, found::add);
         return found.getFirst();

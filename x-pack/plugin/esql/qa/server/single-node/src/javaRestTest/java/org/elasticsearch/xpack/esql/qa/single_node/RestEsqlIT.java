@@ -146,15 +146,29 @@ public class RestEsqlIT extends RestEsqlTestCase {
         assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("[pragma] only allowed in snapshot builds"));
     }
 
-    public void testStreamingNotAllowed() throws IOException {
-        assumeFalse("streaming is disabled on release builds", Build.current().isSnapshot());
+    public void testStreamingParameterNotAcceptedOnQuery() {
         Request request = new Request("POST", "/_query");
         request.addParameter("streaming", "true");
         request.addParameter("format", "ndjson");
         request.setJsonEntity("{\"query\": \"ROW a = 1\"}");
-        ResponseException re = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        ResponseException re = expectThrows(
+            ResponseException.class,
+            containsString("contains unrecognized parameter: [streaming]"),
+            () -> client().performRequest(request)
+        );
         assertThat(re.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("contains unrecognized parameter: [streaming]"));
+    }
+
+    public void testStreamingEndpointNotAvailableOnReleaseBuilds() {
+        assumeFalse("streaming is disabled on release builds", Build.current().isSnapshot());
+        Request request = new Request("POST", "/_query/stream");
+        request.setJsonEntity("{\"query\": \"ROW a = 1\"}");
+        ResponseException re = expectThrows(
+            ResponseException.class,
+            containsString("no handler found for uri"),
+            () -> client().performRequest(request)
+        );
+        assertThat(re.getResponse().getStatusLine().getStatusCode(), equalTo(400));
     }
 
     public void testDoNotLogWithInfo() throws IOException {
@@ -1275,6 +1289,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
             .entry("description", any(String.class))
             .entry("cluster_name", any(String.class))
             .entry("node_name", any(String.class))
+            .entry("kind", any(String.class))
             .entry("start_millis", greaterThan(0L))
             .entry("stop_millis", greaterThan(0L))
             .entry("iterations", greaterThan(0L))
@@ -1289,7 +1304,9 @@ public class RestEsqlIT extends RestEsqlTestCase {
             .entry("rows_emitted", greaterThanOrEqualTo(0L))
             .entry("bytes_read", greaterThanOrEqualTo(0L))
             .entry("read_nanos", greaterThanOrEqualTo(0L))
-            .entry("read_cpu_nanos", greaterThanOrEqualTo(0L));
+            .entry("read_cpu_nanos", greaterThanOrEqualTo(0L))
+            // The labels of a driver of a FORK or UNION (branch) or of a query that runs in several phases (phase, phase_kind)
+            .extraOk();
     }
 
     public void testProfileConditionalBlockLoader() throws IOException {
@@ -1438,7 +1455,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
                         MapMatcher status = matchesMap().entry("total_slices", equalTo(1))
                             .entry("partitioning_strategies", matchesMap().entry("rest-esql-test:0", "SHARD"))
                             .extraOk();
-                        assertMap(o, matchesMap().entry("operator", startsWith(name)).entry("status", status));
+                        assertMap(o, matchesMap().entry("operator", startsWith(name)).entry("status", status).extraOk());
                     }
                 }
             }
@@ -1470,7 +1487,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
                         MapMatcher status = matchesMap().entry("total_slices", equalTo(1))
                             .entry("partitioning_strategies", matchesMap().entry("rest-esql-test:0", "DOC"))
                             .extraOk();
-                        assertMap(o, matchesMap().entry("operator", startsWith(name)).entry("status", status));
+                        assertMap(o, matchesMap().entry("operator", startsWith(name)).entry("status", status).extraOk());
                     }
                 }
             }
@@ -1597,7 +1614,8 @@ public class RestEsqlIT extends RestEsqlTestCase {
             expectedOp = expectedOp.entry("status", status);
         }
 
-        assertMap(o, expectedOp);
+        // Operators built from a plan node also report its id, and exchange operators their exchange
+        assertMap(o, expectedOp.extraOk());
     }
 
     private MapMatcher basicProfile() {
@@ -1638,12 +1656,13 @@ public class RestEsqlIT extends RestEsqlTestCase {
             // Verify columns
             @SuppressWarnings("unchecked")
             List<Map<String, String>> columns = (List<Map<String, String>>) result.get("columns");
-            assertThat(columns.size(), equalTo(5));
+            assertThat(columns.size(), equalTo(6));
             assertThat(columns.get(0).get("name"), equalTo("cluster"));
             assertThat(columns.get(1).get("name"), equalTo("node"));
             assertThat(columns.get(2).get("name"), equalTo("role"));
             assertThat(columns.get(3).get("name"), equalTo("type"));
             assertThat(columns.get(4).get("name"), equalTo("plan"));
+            assertThat(columns.get(5).get("name"), equalTo("plan_json"));
 
             // Verify we have plan rows
             @SuppressWarnings("unchecked")

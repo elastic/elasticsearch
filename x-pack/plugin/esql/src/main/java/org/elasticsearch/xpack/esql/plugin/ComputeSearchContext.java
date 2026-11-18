@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardCo
 
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.function.BooleanSupplier;
 
 /**
@@ -36,15 +37,20 @@ class ComputeSearchContext implements Releasable {
     @Nullable
     private final SearchContext searchContext;
     private final SetOnce<ShardContext> shardContext = new SetOnce<>();
+    /** The rows the sources emitted from the shard, shared by the contexts of the shard in a request. */
+    @Nullable
+    private final LongAdder rowsEmitted;
 
-    ComputeSearchContext(int index, SearchContext searchContext) {
+    ComputeSearchContext(int index, SearchContext searchContext, LongAdder rowsEmitted) {
         this.index = index;
         this.searchContext = Objects.requireNonNull(searchContext);
+        this.rowsEmitted = Objects.requireNonNull(rowsEmitted);
     }
 
     private ComputeSearchContext(int index) {
         this.index = index;
         this.searchContext = null;
+        this.rowsEmitted = null;
     }
 
     /** Tombstone with no {@link SearchContext}, so the closed search context can be GC'd. */
@@ -104,7 +110,7 @@ class ComputeSearchContext implements Releasable {
             flattenedKeys
         );
         searchContext.addReleasable(searchExecutionContext::releaseQueryConstructionMemory);
-        return new DefaultShardContext(index, this, searchExecutionContext, searchContext.request().getAliasFilter());
+        return new DefaultShardContext(index, this, searchExecutionContext, searchContext.request().getAliasFilter(), rowsEmitted);
     }
 
     @Override

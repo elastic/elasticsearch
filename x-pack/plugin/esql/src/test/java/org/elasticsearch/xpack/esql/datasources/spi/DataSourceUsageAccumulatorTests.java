@@ -17,6 +17,49 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class DataSourceUsageAccumulatorTests extends ESTestCase {
 
+    /**
+     * The CPU of the queries that succeeded is what is billed and keeps its own counters, so that they keep matching the billing
+     * signal. The CPU of those that failed or were cancelled is counted apart, by outcome.
+     */
+    public void testQueryCpuIsCountedApartByOutcome() {
+        DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
+        acc.recordQueryCpu(10L, 20L, 30L, 40L);
+        acc.recordQueryCpu(DataSourceUsageAccumulator.OUTCOME_FAILURE, 1L, 2L, 3L, 4L);
+        acc.recordQueryCpu(DataSourceUsageAccumulator.OUTCOME_FAILURE, 1L, 2L, 3L, 4L);
+        acc.recordQueryCpu(DataSourceUsageAccumulator.OUTCOME_CANCELLED, 100L, -5L, 0L, 0L);
+
+        assertThat(acc.queryCpuNanos(DataSourceUsageAccumulator.CPU_EXECUTION), equalTo(10L));
+        assertThat(acc.queryCpuNanos(DataSourceUsageAccumulator.OUTCOME_SUCCESS, DataSourceUsageAccumulator.CPU_READ), equalTo(20L));
+        assertThat(acc.queryCpuNanos(DataSourceUsageAccumulator.OUTCOME_FAILURE, DataSourceUsageAccumulator.CPU_EXECUTION), equalTo(2L));
+        assertThat(
+            acc.queryCpuNanos(DataSourceUsageAccumulator.OUTCOME_FAILURE, DataSourceUsageAccumulator.CPU_SPLIT_DISCOVERY),
+            equalTo(8L)
+        );
+        assertThat(
+            acc.queryCpuNanos(DataSourceUsageAccumulator.OUTCOME_CANCELLED, DataSourceUsageAccumulator.CPU_EXECUTION),
+            equalTo(100L)
+        );
+        // a negative value is clamped to zero
+        assertThat(acc.queryCpuNanos(DataSourceUsageAccumulator.OUTCOME_CANCELLED, DataSourceUsageAccumulator.CPU_READ), equalTo(0L));
+
+        Counters counters = new Counters();
+        DataSourceCounters.populate(acc, counters);
+        // the keys of the queries that succeeded do not include the ones that did not
+        assertThat(counters.get("datasources.queries.cpu_nanos.execution"), equalTo(10L));
+        assertThat(counters.get("datasources.queries.cpu_nanos.total"), equalTo(100L));
+        assertThat(counters.get("datasources.queries.cpu_nanos.by_outcome.failure.execution"), equalTo(2L));
+        assertThat(counters.get("datasources.queries.cpu_nanos.by_outcome.failure.split_discovery"), equalTo(8L));
+        assertThat(counters.get("datasources.queries.cpu_nanos.by_outcome.failure.total"), equalTo(20L));
+        assertThat(counters.get("datasources.queries.cpu_nanos.by_outcome.cancelled.execution"), equalTo(100L));
+        assertThat(counters.get("datasources.queries.cpu_nanos.by_outcome.cancelled.total"), equalTo(100L));
+    }
+
+    public void testQueryCpuOutcomeIndexIsChecked() {
+        DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
+        expectThrows(IllegalArgumentException.class, () -> acc.recordQueryCpu(DataSourceUsageAccumulator.OUTCOME_COUNT, 1L, 1L, 1L, 1L));
+        expectThrows(IllegalArgumentException.class, () -> acc.queryCpuNanos(-1, DataSourceUsageAccumulator.CPU_READ));
+    }
+
     public void testRecordRequestIncrementsByScheme() {
         DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
         acc.recordRequest(Type.S3, 50L, 1024L);

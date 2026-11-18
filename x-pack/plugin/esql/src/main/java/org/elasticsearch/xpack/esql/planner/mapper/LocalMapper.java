@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -58,6 +59,10 @@ public class LocalMapper {
     private LocalMapper() {}
 
     public PhysicalPlan map(LogicalPlan p) {
+        return MapperUtils.stampOrigin(mapUnstamped(p), p);
+    }
+
+    private PhysicalPlan mapUnstamped(LogicalPlan p) {
 
         if (p instanceof LeafPlan leaf) {
             return mapLeaf(leaf);
@@ -94,6 +99,13 @@ public class LocalMapper {
 
         if (leaf instanceof ExternalRelation external) {
             return external.toPhysicalExec();
+        }
+
+        if (leaf instanceof EqlRelation) {
+            // EqlRelation is coordinator-local: it is never wrapped in a FragmentExec, so it must never reach the
+            // local (data-node) mapper. If it does, the never-fragmented invariant has broken; fail loud rather than
+            // silently planning a coordinator-only source on a data node.
+            throw new EsqlIllegalArgumentException("EQL source command cannot be planned on a data node");
         }
 
         return MapperUtils.mapLeaf(leaf);
@@ -189,7 +201,7 @@ public class LocalMapper {
             }
             // we want to do local physical planning on the lookup node eventually for the right side of the lookup join
             // so here we will wrap the logical plan with a FragmentExec and keep it as is
-            FragmentExec fragmentExec = new FragmentExec(binary.right());
+            FragmentExec fragmentExec = MapperUtils.stampOrigin(new FragmentExec(binary.right()), binary.right());
             return new LookupJoinExec(
                 join.source(),
                 left,

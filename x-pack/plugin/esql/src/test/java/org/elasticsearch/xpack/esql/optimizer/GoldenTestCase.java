@@ -39,9 +39,14 @@ import org.elasticsearch.xpack.esql.analysis.LetResolver;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -52,17 +57,21 @@ import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.dsltranslate.RequestFilterRewriter;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.enrich.MatchConfig;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ExtractDimensionFieldsAfterAggregation;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
+import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
@@ -112,7 +121,6 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.logicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.rewriteDatasetsUnsecured;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
@@ -263,6 +271,7 @@ public abstract class GoldenTestCase extends ESTestCase {
         private QueryBuilder requestFilter;
         private Map<String, String> views = Map.of();
         private boolean singleConcreteIndex;
+        private EsqlFlags flags = EsqlFlags.withFetchPhase(EsqlFlags.FetchPhaseMode.DISABLED);
 
         private TestBuilder(
             String esqlQuery,
@@ -296,6 +305,11 @@ public abstract class GoldenTestCase extends ESTestCase {
 
         public EnumSet<Stage> stages() {
             return stages;
+        }
+
+        public TestBuilder flags(EsqlFlags flags) {
+            this.flags = flags;
+            return this;
         }
 
         public TestBuilder searchStats(SearchStats searchStats) {
@@ -632,7 +646,8 @@ public abstract class GoldenTestCase extends ESTestCase {
                 externalSourceResolution,
                 requestFilter,
                 views,
-                singleConcreteIndex
+                singleConcreteIndex,
+                flags
             );
         }
 
@@ -781,7 +796,8 @@ public abstract class GoldenTestCase extends ESTestCase {
         ExternalSourceResolution externalSourceResolution,
         QueryBuilder requestFilter,
         Map<String, String> views,
-        boolean singleConcreteIndex
+        boolean singleConcreteIndex,
+        EsqlFlags flags
     ) {
 
         private List<Tuple<Stage, TestResult>> doTests() throws IOException {
@@ -868,7 +884,7 @@ public abstract class GoldenTestCase extends ESTestCase {
             if (stages.equals(EnumSet.of(Stage.ANALYSIS))) {
                 return result;
             }
-            var optimizerContext = logicalOptimizerContext(configuration, FoldContext.small(), transportVersion);
+            var optimizerContext = new LogicalOptimizerContext(configuration, FoldContext.small(), transportVersion, flags);
             var optimizer = optimizerFactory != null
                 ? optimizerFactory.apply(optimizerContext)
                 : new LogicalPlanOptimizer(optimizerContext);
@@ -1037,7 +1053,7 @@ public abstract class GoldenTestCase extends ESTestCase {
         }
 
         private PhysicalPlan localOptimize(PhysicalPlan plan, Configuration conf) {
-            return PlannerUtils.localPlan(
+            PhysicalPlan localPlan = PlannerUtils.localPlan(
                 PlannerSettings.DEFAULTS,
                 new EsqlFlags(false),
                 conf,
@@ -1046,6 +1062,11 @@ public abstract class GoldenTestCase extends ESTestCase {
                 searchStats,
                 new PlanTimeProfile()
             );
+            assertTrue(
+                "[" + MetadataAttribute.TIMESERIES + "] is loaded per document below a time-series aggregation:\n" + localPlan,
+                checkTimeSeriesMetadataLoadOncePerTimeSeries(localPlan)
+            );
+            return localPlan;
         }
 
         private static List<LookupJoinExec> findLookupJoins(PhysicalPlan plan) {
@@ -1111,6 +1132,34 @@ public abstract class GoldenTestCase extends ESTestCase {
     // Visible for testing.
     static String normalizeString(String input) {
         return normalizeRandomSeeds(normalizeNameIds(normalizeSyntheticNames(input)));
+    }
+
+    /**
+     * Checks that no {@link TimeSeriesAggregateExec} reading documents has a {@link FieldExtractExec} below it that loads
+     * the {@code _timeseries} label container. Its block loader parses {@code _source} for every document it is loaded
+     * for and has no per-series cache, so a load below the aggregation parses {@code _source} once per sample, a
+     * regression the expected plans alone do not flag. The translation reads the container with {@code DIMENSION_VALUES}
+     * and {@link ExtractDimensionFieldsAfterAggregation} moves that read after the aggregation, once per {@code _tsid}.
+     * The only loads allowed below the aggregation are the ones it reads with {@link Values} itself: the translation used
+     * until every node supports {@code dimension_values} and an explicit {@code STATS VALUES(_timeseries)} load it per
+     * document on purpose.
+     */
+    static boolean checkTimeSeriesMetadataLoadOncePerTimeSeries(PhysicalPlan plan) {
+        return plan.collect(TimeSeriesAggregateExec.class, agg -> agg.getMode().isInputPartial() == false).stream().allMatch(agg -> {
+            AttributeSet.Builder valuesFields = AttributeSet.builder();
+            for (NamedExpression aggregate : agg.aggregates()) {
+                if (Alias.unwrap(aggregate) instanceof Values values && values.field() instanceof Attribute field) {
+                    valuesFields.add(field);
+                }
+            }
+            return agg.child()
+                .anyMatch(
+                    p -> p instanceof FieldExtractExec extract
+                        && extract.attributesToExtract()
+                            .stream()
+                            .anyMatch(attr -> attr instanceof TimeSeriesMetadataAttribute && valuesFields.contains(attr) == false)
+                ) == false;
+        });
     }
 
     /**

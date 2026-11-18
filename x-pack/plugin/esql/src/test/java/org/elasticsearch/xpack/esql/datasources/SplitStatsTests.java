@@ -1069,16 +1069,4 @@ public class SplitStatsTests extends ESTestCase {
         assertNotNull(label, result);
         assertEquals(label, ((Number) listing.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue(), result.rowCount());
     }
-
-    /** A flat {@code _stats.*} map with {@code rowCount} rows and the given per-column suffix maps. */
-    private static Map<String, Object> statsMap(long rowCount, Map<String, Map<String, Object>> columns) {
-        Map<String, Object> flat = new HashMap<>();
-        flat.put(SourceStatisticsSerializer.STATS_ROW_COUNT, rowCount);
-        for (Map.Entry<String, Map<String, Object>> column : columns.entrySet()) {
-            for (Map.Entry<String, Object> stat : column.getValue().entrySet()) {
-                flat.put("_stats.columns." + column.getKey() + stat.getKey(), stat.getValue());
-            }
-        }
-        return flat;
-    }
 }

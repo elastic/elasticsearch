@@ -211,14 +211,18 @@ final class StagedStripeRecord extends AbstractMap<String, Object> {
             eof,
             TextFormatStats.harvested(stats.rowCount(), columns)
         );
-        assert size() == built.size()
-            : "a staged record counts its entries and writes them from the same statistics, so the two can only "
-                + "disagree if the counting rule and the key-writing rule have drifted apart -- and the wire "
-                + "prefix is written from size(), which would make the reader take the bytes after this record "
-                + "as further entries of it: counted "
-                + size()
-                + ", wrote "
-                + built.size();
+        int counted = size();
+        if (counted != built.size()) {
+            throw new IllegalStateException(
+                "a staged record counts its entries and writes them from the same statistics, so the two can only "
+                    + "disagree if the counting rule and the key-writing rule have drifted apart -- and the wire "
+                    + "prefix is written from size(), which would make the reader take the bytes after this record "
+                    + "as further entries of it: counted "
+                    + counted
+                    + ", wrote "
+                    + built.size()
+            );
+        }
         return Collections.unmodifiableMap(built);
     }
 

@@ -32,8 +32,6 @@ import java.util.Map;
 import java.util.OptionalLong;
 import java.util.concurrent.ConcurrentMap;
 
-import static org.hamcrest.Matchers.greaterThan;
-
 /**
  * What a read stages for a stripe its chunks each saw part of. A chunk is cut on buffer fill, never on the
  * stripe grid, so these cases drive the production harvester chunk by chunk — the geometry and the identity come
@@ -248,7 +246,7 @@ public class StripeStatsStagingTests extends ESTestCase {
         assertFalse("a stripe is staged in compact form", record.keepsFlatForm());
 
         int size = record.size();
-        assertThat("the record carries its addressing keys and both columns", size, greaterThan(12));
+        assertEquals("the record carries its addressing keys and both columns", 21, size);
         assertFalse("asking the size must leave the record compact", record.keepsFlatForm());
 
         int walked = 0;

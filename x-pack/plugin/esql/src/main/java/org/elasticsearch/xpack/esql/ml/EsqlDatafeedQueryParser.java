@@ -214,9 +214,9 @@ public class EsqlDatafeedQueryParser implements EsqlQueryParser {
     }
 
     /**
-     * Tech Preview only: it re-implements a subset of the analysis pipeline (plan walk). 
+     * Tech Preview only: it re-implements a subset of the analysis pipeline (plan walk).
      * It is to be replaced by the primitives behind {@code DESCRIBE}, or by a call to
-     * {@code DESCRIBE} and handling of its response. Tracked in 
+     * {@code DESCRIBE} and handling of its response. Tracked in
      * https://github.com/elastic/elasticsearch/issues/166310
      */
     @Override

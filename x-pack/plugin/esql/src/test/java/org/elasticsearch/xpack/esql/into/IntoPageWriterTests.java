@@ -342,6 +342,19 @@ public class IntoPageWriterTests extends ComputeTestCase {
         assertFalse(driverContext.hasPendingAsyncActions());
     }
 
+    public void testCloseWithoutFinishDropsTheProducersOpenBatch() {
+        writer.consume(page("sent"));
+        writer.consume(page("held"));
+        assertThat(client.bulks, hasSize(1));
+
+        // A bulk slot is still free, so closing the producer before failing the writer would send the held batch.
+        writer.close();
+        client.answer(CREATED);
+        assertThat(client.bulks, empty());
+        assertThat(driverContext.breaker().getUsed(), equalTo(0L));
+        assertFalse(driverContext.hasPendingAsyncActions());
+    }
+
     public void testCloseAfterFailureReleasesTheAsyncAction() {
         Attribute column = new ReferenceAttribute(Source.EMPTY, "n", DataType.UNSIGNED_LONG);
         IntoPageWriter exactWriter = IntoPageWriter.Factory.createFactory(

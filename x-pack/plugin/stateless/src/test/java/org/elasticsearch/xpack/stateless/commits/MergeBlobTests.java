@@ -117,7 +117,18 @@ public class MergeBlobTests extends AbstractWireSerializingTestCase<MergeBlob> {
             IOException.class,
             () -> copyWriteable(blobFile, writableRegistry(), reader, TransportVersionUtils.randomCompatibleVersion())
         );
-        assertThat(exception.getMessage(), containsString("expected a [MergeBlob] but blob [" + blobFile.blobName() + "] is a [BlobFile]"));
+        assertThat(
+            exception.getMessage(),
+            containsString(
+                "expected a ["
+                    + MergeBlob.class.getSimpleName()
+                    + "] but blob ["
+                    + blobFile.blobName()
+                    + "] is a ["
+                    + blobFile.getClass().getSimpleName()
+                    + ']'
+            )
+        );
     }
 
     public void testReadRejectsMalformedBlobName() {

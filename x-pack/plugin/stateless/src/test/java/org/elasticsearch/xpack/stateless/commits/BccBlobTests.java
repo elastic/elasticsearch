@@ -121,7 +121,15 @@ public class BccBlobTests extends AbstractWireSerializingTestCase<BccBlob> {
         );
         assertThat(
             exception.getMessage(),
-            containsString("expected a [BlobFile] but blob [" + mergeBlob.blobName() + "] is a [MergeBlob]")
+            containsString(
+                "expected a ["
+                    + BccBlob.class.getSimpleName()
+                    + "] but blob ["
+                    + mergeBlob.blobName()
+                    + "] is a ["
+                    + mergeBlob.getClass().getSimpleName()
+                    + ']'
+            )
         );
     }
 

@@ -11,7 +11,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreClusterStateListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -32,6 +31,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.FixForMultiProject;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.injection.guice.Inject;
@@ -55,6 +55,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.regex.Matcher;
 import java.util.stream.Collectors;
@@ -197,15 +198,45 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
             .renamePattern("^(.*)$")
             .renameReplacement(Matcher.quoteReplacement(request.getFollowerIndex()))
             .indexSettings(overrideSettings)
-            .quiet(true);
+            .quiet(true)
+            .waitForCompletion(true);
 
         final Client clientWithHeaders = CcrLicenseChecker.wrapClient(
             this.client,
             threadPool.getThreadContext().getHeaders(),
             clusterService.state()
         );
-        ActionListener<RestoreService.RestoreCompletionResponse> delegatelistener = listener.delegateFailure(
-            (delegatedListener, response) -> afterRestoreStarted(clientWithHeaders, request, delegatedListener, response)
+        final Runnable onStarted;
+        final ActionListener<PutFollowAction.Response> afterRestoreListener;
+        if (ActiveShardCount.NONE.equals(request.waitForActiveShards())) {
+            // Answer when the restore starts; a later outcome only goes to the log.
+            final var answered = new AtomicBoolean();
+            onStarted = () -> {
+                if (answered.compareAndSet(false, true)) {
+                    listener.onResponse(new PutFollowAction.Response(true, false, false));
+                }
+            };
+            afterRestoreListener = new ActionListener<>() {
+                @Override
+                public void onResponse(PutFollowAction.Response response) {
+                    logger.debug("put follow {} completed with {}", request, response);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    if (answered.compareAndSet(false, true)) {
+                        listener.onFailure(e);
+                    } else {
+                        logger.debug(() -> "put follow " + request + " failed during the restore process", e);
+                    }
+                }
+            };
+        } else {
+            onStarted = () -> {};
+            afterRestoreListener = listener;
+        }
+        final ActionListener<RestoreService.RestoreCompletionResponse> restoreListener = afterRestoreListener.delegateFailure(
+            (delegatedListener, response) -> afterRestoreCompleted(clientWithHeaders, request, delegatedListener, response.restoreInfo())
         );
 
         @FixForMultiProject(
@@ -248,52 +279,30 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
             };
         }
         threadPool.executor(ThreadPool.Names.SNAPSHOT_META)
-            .execute(ActionRunnable.wrap(delegatelistener, l -> restoreService.restoreSnapshot(projectId, restoreRequest, l, updater)));
+            .execute(
+                ActionRunnable.wrap(
+                    restoreListener,
+                    l -> restoreService.restoreSnapshotAndNotifyStart(projectId, restoreRequest, onStarted, l, updater)
+                )
+            );
     }
 
-    private void afterRestoreStarted(
+    private void afterRestoreCompleted(
         Client clientWithHeaders,
         PutFollowAction.Request request,
-        ActionListener<PutFollowAction.Response> originalListener,
-        RestoreService.RestoreCompletionResponse response
+        ActionListener<PutFollowAction.Response> listener,
+        @Nullable RestoreInfo restoreInfo
     ) {
-        final ActionListener<PutFollowAction.Response> listener;
-        if (ActiveShardCount.NONE.equals(request.waitForActiveShards())) {
-            originalListener.onResponse(new PutFollowAction.Response(true, false, false));
-            listener = new ActionListener<>() {
-
-                @Override
-                public void onResponse(PutFollowAction.Response response) {
-                    logger.debug("put follow {} completed with {}", request, response);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    logger.debug(() -> "put follow " + request + " failed during the restore process", e);
-                }
-            };
+        if (restoreInfo == null) {
+            // If restoreInfo is null then it is possible there was a master failure during the
+            // restore.
+            listener.onResponse(new PutFollowAction.Response(true, false, false));
+        } else if (restoreInfo.failedShards() == 0) {
+            initiateFollowing(clientWithHeaders, request, listener);
         } else {
-            listener = originalListener;
+            assert restoreInfo.failedShards() > 0 : "Should have failed shards";
+            listener.onResponse(new PutFollowAction.Response(true, false, false));
         }
-
-        RestoreClusterStateListener.createAndRegisterListener(
-            clusterService,
-            response,
-            listener.delegateFailure((delegatedListener, restoreSnapshotResponse) -> {
-                RestoreInfo restoreInfo = restoreSnapshotResponse.getRestoreInfo();
-                if (restoreInfo == null) {
-                    // If restoreInfo is null then it is possible there was a master failure during the
-                    // restore.
-                    delegatedListener.onResponse(new PutFollowAction.Response(true, false, false));
-                } else if (restoreInfo.failedShards() == 0) {
-                    initiateFollowing(clientWithHeaders, request, delegatedListener);
-                } else {
-                    assert restoreInfo.failedShards() > 0 : "Should have failed shards";
-                    delegatedListener.onResponse(new PutFollowAction.Response(true, false, false));
-                }
-            }),
-            threadPool.getThreadContext()
-        );
     }
 
     private void initiateFollowing(

@@ -1403,6 +1403,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
             return;
         }
         int[] schemaFieldIndex = binding.fieldIndex();
+        if (schemaFieldIndex == null) {
+            // A binding carrying only the file's width (HeaderBinding#fileWidthOnly) bound no names, so no column of
+            // the schema can be absent from the file BY NAME -- there is nothing here to warn about.
+            return;
+        }
         for (int i = 0; i < schemaFieldIndex.length; i++) {
             if (schemaFieldIndex[i] == ABSENT_FIELD) {
                 String name = readSchema.get(i).name();
@@ -1417,8 +1422,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * NON-CANONICAL ({@code col007} is not how the file names field 7; inference produces exactly {@code col7}), or
      * names an index beyond {@link #MAX_HEADERLESS_COLUMN_INDEX}. The cap keeps a pathological declaration
      * ({@code col500000000}) from sizing a multi-gigabyte projection array or overflowing the bound; a real
-     * {@code col<N>} beyond the row's width makes the row too short to read (see
-     * {@link CsvBatchIterator#fileStatedRowWidth}), or null-fills it under {@code pad_short_rows}.
+     * {@code col<N>} beyond a row's trailing edge null-fills, a headerless file stating no width for the row to
+     * fall short of (see {@link CsvBatchIterator#fileStatedRowWidth}).
      */
     private int headerlessFieldIndex(String physical, StorageObject object) {
         String prefix = options.columnPrefix();
@@ -4369,17 +4374,20 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * A row narrower than the file's width is {@link #rowWidthFloor}'s concern, not this field's.
          */
         private int rowWidthLimit;
+        /** The floor for a file that states no width: every row clears it, so none of them is ever short. */
+        private static final int NO_ROW_WIDTH_FLOOR = 0;
+
         /**
-         * Narrowest row this file accepts: the width the file states, which a row has to fill. It is a SECOND bound
-         * rather than the same number read the other way, because the two can be absent independently. A declared
-         * headerless file states no width to bound rows from above ({@link #rowWidthLimit} is
-         * {@link HeaderBinding#NO_FILE_WIDTH} there, by design), yet its {@code dynamic: false} mapping does state the
-         * columns every row must carry — so that file has a floor and no limit, and comparing against one number
-         * would reject every row of it. Zero where nothing states a width, which admits any row.
+         * Narrowest row this file accepts: the width the file states, which a row has to fill. Only a header states
+         * one, so this is the FILE's own header width wherever the file has a header, and {@link #NO_ROW_WIDTH_FLOOR}
+         * for a headerless file, whatever schema is pinned over it -- see {@link #fileStatedRowWidth}.
+         *
+         * <p>It is a field of its own rather than {@link #rowWidthLimit} read the other way, because the two are not
+         * the same number on every path: a headerless file bounded from above by its inferred schema's width still
+         * has no floor, that schema being a bound on what the sample saw rather than a width the file declares.
+         *
          * <p>Set even when {@code pad_short_rows} turns the rejection off, because the padding warning names it.
          */
-        /** A floor no row can fall below, for a file that states no width. */
-        private static final int NO_ROW_WIDTH_FLOOR = 0;
         private int rowWidthFloor;
         /** The binding's widest row, or {@link HeaderBinding#NO_FILE_WIDTH}; resolves {@link #rowWidthLimit}. Unused when no binding. */
         private final int bindingMaxRowWidth;

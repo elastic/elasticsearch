@@ -8843,8 +8843,29 @@ public class CsvFormatReaderTests extends ESTestCase {
             new ReferenceAttribute(Source.EMPTY, null, "extra", DataType.KEYWORD)
         );
         CsvFormatReader reader = new CsvFormatReader(blockFactory).withHeaderBindingByProvenance(true);
-
-        assertEquals(List.of("1", "alice"), firstRow(reader, "id,name\n1,alice\n", anchorSchema, true).subList(0, 2));
+        // An informational sink is present on every production read, and the width-only binding this path builds
+        // binds no names -- so whatever consumes the binding has to tolerate its absent field-index array.
+        List<String> informational = new ArrayList<>();
+        int rows = 0;
+        try (
+            CloseableIterator<Page> it = reader.read(
+                new TrackingStorageObject("id,name\n1,alice\n2,bob\n"),
+                FormatReadContext.builder()
+                    .firstSplit(true)
+                    .recordAligned(true)
+                    .batchSize(10)
+                    .readSchema(anchorSchema)
+                    .informationalWarningSink(informational::add)
+                    .build()
+            )
+        ) {
+            while (it.hasNext()) {
+                Page page = it.next();
+                rows += page.getPositionCount();
+                page.releaseBlocks();
+            }
+        }
+        assertEquals("every complete row of the narrower file is read", 2, rows);
         assertThat(drainWarnings(), everyItem(not(containsString("missing trailing fields"))));
     }
 

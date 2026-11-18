@@ -981,6 +981,20 @@ public class PromqlParserTests extends ESTestCase {
         assertThat(function.groupingKeys().stream().map(key -> key.name()).toList(), equalTo(List.of("pod")));
     }
 
+    /** Folding must not erase the ON/GROUP overlap, including when the group list is a subset of the matching list. */
+    public void testOnAndGroupLabelsMustBeDisjointBeforeFolding() {
+        PromqlParser parser = new PromqlParser();
+        for (String grouping : List.of("group_left", "group_right")) {
+            for (String matching : List.of("on(instance)", "on(instance,job)")) {
+                for (String operands : List.of("foo + %s bar")) {
+                    String query = String.format(Locale.ROOT, operands, matching + " " + grouping + "(instance)");
+                    ParsingException e = expectThrows(ParsingException.class, () -> parser.createStatement(query));
+                    assertThat(e.getErrorMessage(), containsString("must not occur in ON and GROUP clause at once"));
+                }
+            }
+        }
+    }
+
     public void testNamedIdentifierParamsInOnAndGroupLeftLabelLists() {
         PromqlCommand promql = as(
             TEST_PARSER.parseQuery(
@@ -1358,6 +1372,48 @@ public class PromqlParserTests extends ESTestCase {
         String inner = "m" + " + m".repeat(PromqlParser.MAX_BINARY_OPERATORS + 500);
         ParsingException e = assertThrows(ParsingException.class, () -> parse("PROMQL index=test step=5m (" + inner + ")"));
         assertThat(e.getMessage(), containsString("exceeded the maximum number of binary operators allowed"));
+    }
+
+    public void testBuilderErrorLocation() {
+        ParsingException e = assertThrows(ParsingException.class, () -> parse("PROMQL index=test step=5m foo and on(job) group_left bar"));
+        assertThat(e.getMessage(), containsString("line 1:35: No grouping [LEFT] allowed for [and] operator"));
+    }
+
+    public void testBuilderErrorLocationMultiline() {
+        ParsingException e = assertThrows(ParsingException.class, () -> parse("PROMQL index=test step=5m foo\nand on(job) group_left bar"));
+        assertThat(e.getMessage(), containsString("line 2:5: No grouping [LEFT] allowed for [and] operator"));
+    }
+
+    public void testBuilderErrorLocationStandalone() {
+        ParsingException e = assertThrows(
+            ParsingException.class,
+            () -> new PromqlParser().createStatement("foo and on(job) group_left bar")
+        );
+        assertThat(e.getMessage(), containsString("line 1:9: No grouping [LEFT] allowed for [and] operator"));
+    }
+
+    public void testBuilderErrorLocationStandaloneMultiline() {
+        ParsingException e = assertThrows(
+            ParsingException.class,
+            () -> new PromqlParser().createStatement("foo\nand on(job) group_left bar")
+        );
+        assertThat(e.getMessage(), containsString("line 2:5: No grouping [LEFT] allowed for [and] operator"));
+    }
+
+    public void testSyntaxErrorLocation() {
+        ParsingException e = assertThrows(ParsingException.class, () -> parse("PROMQL index=test step=5m foo{not valid}"));
+        assertThat(e.getMessage(), containsString("line 1:35: extraneous input 'valid' expecting '}'"));
+    }
+
+    public void testSyntaxErrorLocationMultiline() {
+        // the PromQL query starts at foo on line 2, so its second line is line 3
+        ParsingException e = assertThrows(ParsingException.class, () -> parse("PROMQL index=test step=5m (\nfoo +\nfoo{not valid})"));
+        assertThat(e.getMessage(), containsString("line 3:9: extraneous input 'valid' expecting '}'"));
+    }
+
+    public void testSyntaxErrorLocationStandaloneMultiline() {
+        ParsingException e = assertThrows(ParsingException.class, () -> new PromqlParser().createStatement("foo +\nfoo{not valid}"));
+        assertThat(e.getMessage(), containsString("line 2:9: extraneous input 'valid' expecting '}'"));
     }
 
     private static PromqlCommand parse(String query) {

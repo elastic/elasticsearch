@@ -760,9 +760,7 @@ public class TumblingWindow implements Executable {
         log.trace("Sending payload for [{}] sequences", completed.size());
 
         if (completed.isEmpty() || (allowPartialSequenceResults == false && shardFailures.isEmpty() == false)) {
-            listener.onResponse(
-                new EmptyPayload(Type.SEQUENCE, timeTook(), shardFailures.values().toArray(new ShardSearchFailure[shardFailures.size()]))
-            );
+            listener.onResponse(new EmptyPayload(Type.SEQUENCE, timeTook(), List.copyOf(shardFailures.values())));
             return;
         }
 
@@ -776,7 +774,7 @@ public class TumblingWindow implements Executable {
                 addMissingEventPlaceholders(listOfHits),
                 false,
                 timeTook(),
-                shardFailures.values().toArray(new ShardSearchFailure[0])
+                List.copyOf(shardFailures.values())
             );
         }));
     }

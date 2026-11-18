@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 166092
+summary: Name the file, column, and codec when a Parquet page fails to decompress
+type: bug

@@ -27,8 +27,8 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.Transition;
 
+import java.util.ArrayDeque;
 import java.util.BitSet;
-import java.util.LinkedList;
 
 /**
  * Operations for minimizing automata.
@@ -81,7 +81,7 @@ public final class MinimizationOperations {
         final int[] block = new int[statesLen];
         final StateList[][] active = new StateList[statesLen][sigmaLen];
         final StateListNode[][] active2 = new StateListNode[statesLen][sigmaLen];
-        final LinkedList<IntPair> pending = new LinkedList<>();
+        final ArrayDeque<IntPair> pending = new ArrayDeque<>();
         final BitSet pending2 = new BitSet(sigmaLen * statesLen);
         final BitSet split = new BitSet(statesLen), refine = new BitSet(statesLen), refine2 = new BitSet(statesLen);
         for (int q = 0; q < statesLen; q++) {
@@ -147,8 +147,8 @@ public final class MinimizationOperations {
             for (StateListNode m = active[p][x].first; m != null; m = m.next) {
                 final IntArrayList r = reverse[m.q][x];
                 if (r != null) {
-                    for (IntCursor iCursor : r) {
-                        final int i = iCursor.value;
+                    for (int index = 0; index < r.size(); index++) {
+                        final int i = r.get(index);
                         if (false == split.get(i)) {
                             split.set(i);
                             final int j = block[i];
@@ -168,8 +168,8 @@ public final class MinimizationOperations {
                 if (sb.size() < partition[j].size()) {
                     final IntHashSet b1 = partition[j];
                     final IntHashSet b2 = partition[k];
-                    for (IntCursor iCursor : sb) {
-                        final int s = iCursor.value;
+                    for (int index = 0; index < sb.size(); index++) {
+                        final int s = sb.get(index);
                         b1.remove(s);
                         b2.add(s);
                         block[s] = k;
@@ -200,8 +200,8 @@ public final class MinimizationOperations {
                     k++;
                 }
                 refine2.clear(j);
-                for (IntCursor iCursor : sb) {
-                    final int s = iCursor.value;
+                for (int index = 0; index < sb.size(); index++) {
+                    final int s = sb.get(index);
                     split.clear(s);
                 }
                 sb.clear();

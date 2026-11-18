@@ -30,6 +30,8 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -78,6 +80,9 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.threadpool.FixedExecutorBuilder;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -93,12 +98,16 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.datasources.CoalescedSplit;
+import org.elasticsearch.xpack.esql.datasources.DeferredExtractionCapable;
+import org.elasticsearch.xpack.esql.datasources.ExternalFieldExtractOperator;
 import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
+import org.elasticsearch.xpack.esql.datasources.SourceExtractors;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
+import org.elasticsearch.xpack.esql.datasources.SyntheticColumns;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.ConfigKeyValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.Connector;
@@ -128,10 +137,12 @@ import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
+import org.elasticsearch.xpack.esql.plan.logical.local.CopyingLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.DistinctByExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
+import org.elasticsearch.xpack.esql.plan.physical.ExternalFieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
@@ -161,6 +172,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
@@ -172,7 +185,9 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.mock;
@@ -697,8 +712,116 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         );
 
         assertThat(captured.get(), notNullValue());
+        assertThat(captured.get().queryId(), nullValue());
         assertThat(captured.get().executor(), sameInstance(mainExecutor));
         assertThat(captured.get().fileReadExecutor(), sameInstance(fileReadExecutor));
+    }
+
+    public void testPlanExternalSourceWrapsProducerOnlyWhenIoTargetNull() throws IOException {
+        AtomicReference<SourceOperatorContext> captured = new AtomicReference<>();
+        Executor producer = r -> r.run();
+        Executor fileRead = r -> r.run();
+        OperatorFactoryRegistry operatorFactoryRegistry = new OperatorFactoryRegistry(
+            Map.of(),
+            Map.of("file", capturingProvider(captured)),
+            producer,
+            fileRead
+        );
+        TaskId queryId = new TaskId("test-node", 7);
+        var externalCompute = new LocalExecutionPlanner.ExternalComputeContext(queryId, (nanos, cpuNanos, finishNanos) -> {}, null);
+
+        planner(operatorFactoryRegistry, true, null, true, externalCompute).plan(
+            "test",
+            FoldContext.small(),
+            PlannerSettings.DEFAULTS,
+            simpleFileSource(),
+            EmptyIndexedByShardId.instance(),
+            randomBoolean()
+        );
+
+        SourceOperatorContext context = captured.get();
+        assertThat(context, notNullValue());
+        assertThat(context.queryId(), sameInstance(queryId));
+        assertThat(context.executor(), not(sameInstance(producer)));
+        assertThat(context.fileReadExecutor(), sameInstance(fileRead));
+    }
+
+    public void testPlanExternalFieldExtractWrapsFileReadExecutor() throws IOException {
+        Executor producer = r -> r.run();
+        Executor fileRead = r -> r.run();
+        TaskId queryId = new TaskId("test-node", 7);
+
+        ExternalFieldExtractOperator.Factory identity = planExtractFactory(
+            new LocalExecutionPlanner.ExternalComputeContext(queryId, (nanos, cpuNanos, finishNanos) -> {}, null),
+            producer,
+            fileRead
+        );
+        assertThat(identity.executor(), sameInstance(fileRead));
+
+        ExternalFieldExtractOperator.Factory wrapped = planExtractFactory(
+            new LocalExecutionPlanner.ExternalComputeContext(
+                queryId,
+                (nanos, cpuNanos, finishNanos) -> {},
+                (nanos, cpuNanos, finishNanos) -> {}
+            ),
+            producer,
+            fileRead
+        );
+        assertThat(wrapped.executor(), not(sameInstance(fileRead)));
+    }
+
+    public void testPlanExternalSourceChargesLoadTargetAndPassesQueryId() throws Exception {
+        AtomicReference<SourceOperatorContext> captured = new AtomicReference<>();
+        SourceOperatorFactoryProvider provider = capturingProvider(captured);
+        TestThreadPool threadPool = new TestThreadPool(
+            getTestName(),
+            attributingBuilder("test-df-producer"),
+            attributingBuilder("test-df-io")
+        );
+        try {
+            var producerPool = (TaskExecutionTimeTrackingEsThreadPoolExecutor) threadPool.executor("test-df-producer");
+            var ioPool = (TaskExecutionTimeTrackingEsThreadPoolExecutor) threadPool.executor("test-df-io");
+            OperatorFactoryRegistry operatorFactoryRegistry = new OperatorFactoryRegistry(
+                Map.of(),
+                Map.of("file", provider),
+                producerPool,
+                ioPool
+            );
+            AtomicLong producerCharged = new AtomicLong();
+            AtomicLong ioCharged = new AtomicLong();
+            TaskId queryId = new TaskId("test-node", 7);
+            var externalCompute = new LocalExecutionPlanner.ExternalComputeContext(
+                queryId,
+                (nanos, cpuNanos, finishNanos) -> producerCharged.addAndGet(nanos),
+                (nanos, cpuNanos, finishNanos) -> ioCharged.addAndGet(nanos)
+            );
+
+            planner(operatorFactoryRegistry, true, null, true, externalCompute).plan(
+                "test",
+                FoldContext.small(),
+                PlannerSettings.DEFAULTS,
+                simpleFileSource(),
+                EmptyIndexedByShardId.instance(),
+                randomBoolean()
+            );
+
+            SourceOperatorContext context = captured.get();
+            assertThat(context, notNullValue());
+            assertThat(context.queryId(), sameInstance(queryId));
+            assertThat(context.executor(), not(sameInstance((Executor) producerPool)));
+            assertThat(context.fileReadExecutor(), not(sameInstance((Executor) ioPool)));
+            assertThat(context.executor(), not(sameInstance(context.fileReadExecutor())));
+
+            runCharged(context.executor(), producerPool, 1);
+            assertBusy(() -> assertThat(producerCharged.get(), greaterThan(0L)));
+            assertThat(ioCharged.get(), equalTo(0L));
+            long producerBeforeIo = producerCharged.get();
+            runCharged(context.fileReadExecutor(), ioPool, 1);
+            assertBusy(() -> assertThat(ioCharged.get(), greaterThan(0L)));
+            assertThat(producerCharged.get(), equalTo(producerBeforeIo));
+        } finally {
+            terminate(threadPool);
+        }
     }
 
     /**
@@ -1317,6 +1440,48 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         assertThat(e.getMessage(), containsString("only single valued keys are supported"));
     }
 
+    public void testHashJoinReadsCopyingLocalSupplierWithoutCopying() throws IOException {
+        var blockFactory = TestBlockFactory.getNonBreakingInstance();
+        AtomicInteger gets = new AtomicInteger();
+        AtomicInteger peeks = new AtomicInteger();
+        Page buildPage = new Page(
+            blockFactory.newLongArrayVector(new long[] { 10, 20, 30 }, 3).asBlock(),
+            blockFactory.newLongArrayVector(new long[] { 100, 200, 300 }, 3).asBlock()
+        );
+        // The copy that get() makes uses a non-breaking block factory, so counting the calls is the only way to observe it
+        LocalSupplier counting = new CopyingLocalSupplier(buildPage) {
+            @Override
+            public Page get() {
+                gets.incrementAndGet();
+                return super.get();
+            }
+
+            @Override
+            public Page peek() {
+                peeks.incrementAndGet();
+                return super.peek();
+            }
+        };
+        ReferenceAttribute buildKey = new ReferenceAttribute(Source.EMPTY, "k0", DataType.LONG);
+        ReferenceAttribute buildValue = new ReferenceAttribute(Source.EMPTY, "v0", DataType.LONG);
+        LocalSourceExec build = new LocalSourceExec(Source.EMPTY, List.of(buildKey, buildValue), counting);
+        ReferenceAttribute probeKey = new ReferenceAttribute(Source.EMPTY, "k0", DataType.LONG);
+        LocalSourceExec probe = new LocalSourceExec(
+            Source.EMPTY,
+            List.of(probeKey),
+            LocalSupplier.of(new Page(blockFactory.newLongArrayVector(new long[] { 10, 20, 10 }, 3).asBlock()))
+        );
+        PhysicalPlan hashJoin = hashJoinPhysical(false, probe, build, List.of(probeKey), List.of(buildKey), List.of(buildValue));
+
+        var plan = planHashJoin(hashJoin);
+        assertThat(gets.get(), equalTo(0));
+        assertThat(peeks.get(), equalTo(1));
+
+        List<Page> results = runPlanned(plan.driverFactories.get(0).driverSupplier().physicalOperation());
+        assertHashJoinOutput(results, List.of(100L, 200L, 100L), List.of(10L, 20L, 10L));
+        assertThat(gets.get(), equalTo(0));
+    }
+
     /**
      * Builds the physical plan shape Mapper produces for HashJoin:
      * LEFT HashJoin(lookup ordinal as added field) -> Filter(ordinal IS NOT NULL) -> [DistinctBy(ordinal) when unique] -> Project.
@@ -1880,6 +2045,22 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         InferenceService inferenceService,
         boolean snapshotBuild
     ) throws IOException {
+        return planner(
+            operatorFactoryRegistry,
+            federationEnabled,
+            inferenceService,
+            snapshotBuild,
+            LocalExecutionPlanner.ExternalComputeContext.NONE
+        );
+    }
+
+    private LocalExecutionPlanner planner(
+        OperatorFactoryRegistry operatorFactoryRegistry,
+        boolean federationEnabled,
+        InferenceService inferenceService,
+        boolean snapshotBuild,
+        LocalExecutionPlanner.ExternalComputeContext externalCompute
+    ) throws IOException {
         List<EsPhysicalOperationProviders.ShardContext> shardContexts = createShardContexts();
         return new LocalExecutionPlanner(
             "test",
@@ -1910,8 +2091,124 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             0,    // esqlWorkerPoolSize - not needed for these tests
             MatcherWatchdog.noop(),
             TransportVersion.current(),
-            null  // client - not needed for these tests
+            null, // client - not needed for these tests
+            externalCompute
         );
+    }
+
+    private ExternalFieldExtractOperator.Factory planExtractFactory(
+        LocalExecutionPlanner.ExternalComputeContext externalCompute,
+        Executor producer,
+        Executor fileRead
+    ) throws IOException {
+        OperatorFactoryRegistry operatorFactoryRegistry = new OperatorFactoryRegistry(
+            Map.of(),
+            Map.of("file", context -> new DeferredNoopSourceFactory()),
+            producer,
+            fileRead
+        );
+        Attribute id = new FieldAttribute(
+            Source.EMPTY,
+            "id",
+            new EsField("id", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        Attribute rowPos = SyntheticColumns.newRowPositionMetadataAttribute(Source.EMPTY);
+        Attribute wide = new FieldAttribute(
+            Source.EMPTY,
+            "wide",
+            new EsField("wide", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        ExternalSourceExec source = new ExternalSourceExec(
+            Source.EMPTY,
+            "s3://bucket/data.parquet",
+            "file",
+            List.of(id, rowPos),
+            Map.of(),
+            Map.of(),
+            null,
+            10
+        ).withDeferredExtraction();
+        ExternalFieldExtractExec extract = new ExternalFieldExtractExec(Source.EMPTY, source, List.of(wide), rowPos);
+        var plan = planner(operatorFactoryRegistry, true, null, true, externalCompute).plan(
+            "test",
+            FoldContext.small(),
+            PlannerSettings.DEFAULTS,
+            extract,
+            EmptyIndexedByShardId.instance(),
+            randomBoolean()
+        );
+        List<Operator.OperatorFactory> factories = plan.driverFactories.get(0)
+            .driverSupplier()
+            .physicalOperation().intermediateOperatorFactories;
+        return (ExternalFieldExtractOperator.Factory) factories.stream()
+            .filter(ExternalFieldExtractOperator.Factory.class::isInstance)
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("no extract factory in " + factories));
+    }
+
+    private static final class DeferredNoopSourceFactory implements SourceOperator.SourceOperatorFactory, DeferredExtractionCapable {
+        @Override
+        public SourceOperator get(DriverContext driverContext) {
+            return new SourceOperator() {
+                @Override
+                public Page getOutput() {
+                    return null;
+                }
+
+                @Override
+                public boolean isFinished() {
+                    return true;
+                }
+
+                @Override
+                public void finish() {}
+
+                @Override
+                public void close() {}
+            };
+        }
+
+        @Override
+        public String describe() {
+            return "test-deferred-source";
+        }
+
+        @Override
+        public SourceExtractors sourceExtractorsFor(DriverContext driverContext) {
+            throw new AssertionError("planning must not open extractors");
+        }
+    }
+
+    private static ExternalSourceExec simpleFileSource() {
+        List<Attribute> attrs = List.of(
+            new FieldAttribute(Source.EMPTY, "a", new EsField("a", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
+        );
+        return new ExternalSourceExec(Source.EMPTY, "s3://bucket/data.csv", "file", attrs, Map.of(), Map.of(), null, 10);
+    }
+
+    private static FixedExecutorBuilder attributingBuilder(String name) {
+        return new FixedExecutorBuilder(
+            Settings.EMPTY,
+            name,
+            1,
+            1024,
+            name,
+            EsExecutors.TaskTrackingConfig.builder()
+                .trackExecutionTime(EsExecutors.TaskTrackingConfig.DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST)
+                .attributeTaskLoad()
+                .build()
+        );
+    }
+
+    private static void runCharged(Executor charging, TaskExecutionTimeTrackingEsThreadPoolExecutor inner, long completed)
+        throws Exception {
+        charging.execute(() -> {
+            long start = System.nanoTime();
+            while (System.nanoTime() - start < 25_000) {
+                Thread.onSpinWait();
+            }
+        });
+        assertBusy(() -> assertThat(inner.getCompletedTaskCount(), equalTo(completed)));
     }
 
     private Configuration config() {

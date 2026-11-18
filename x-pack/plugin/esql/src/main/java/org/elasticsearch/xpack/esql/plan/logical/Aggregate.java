@@ -71,7 +71,7 @@ public class Aggregate extends UnaryPlan
     protected final List<Expression> groupings;
     protected final List<? extends NamedExpression> aggregates;
 
-    protected List<Attribute> lazyOutput;
+    protected volatile List<Attribute> lazyOutput;
 
     public Aggregate(Source source, LogicalPlan child, List<Expression> groupings, List<? extends NamedExpression> aggregates) {
         super(source, child);

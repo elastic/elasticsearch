@@ -756,19 +756,49 @@ public class ExchangeServiceTests extends ESTestCase {
     }
 
     /**
-     * The data node charges the page it sends as it serializes it, through the channel, so a page that does not fit is rejected there.
+     * The data node charges the page it sends as it serializes it, through the channel, to the breaker of its blocks, which is the
+     * breaker of its query. A page that does not fit is rejected there.
      */
     public void testDataNodeChargesPageWhileSendingIt() throws Exception {
-        BlockFactory pageFactory = blockFactory();
-        Page page = intPage(pageFactory, 10_000);
-        // Room for less than the serialized page.
-        TrackingCircuitBreaker dataNodeBreaker = new TrackingCircuitBreaker(serializedSize(page) / 2);
+        Page sized = intPage(blockFactory(), 10_000);
+        long blockBytes = sized.ramBytesUsedByBlocks();
+        long serializedBytes = serializedSize(sized);
+        sized.releaseBlocks();
+        // Room for the blocks, but not for the serialized page on top of them.
+        long queryLimit = blockBytes + serializedBytes / 2;
+        TrackingCircuitBreaker queryBreaker = new TrackingCircuitBreaker(queryLimit);
+        Page page = intPage(trackingBlockFactory(queryBreaker), 10_000);
+        TrackingCircuitBreaker dataNodeBreaker = new TrackingCircuitBreaker();
         PlainActionFuture<Page> fetched = fetchFirstPage(blockFactory(), trackingBlockFactory(dataNodeBreaker), page);
         Exception e = expectThrows(Exception.class, fetched::actionGet);
         CircuitBreakingException trip = (CircuitBreakingException) ExceptionsHelper.unwrap(e, CircuitBreakingException.class);
         assertNotNull(e.toString(), trip);
         assertThat(trip.getMessage(), containsString("RecyclerBytesStreamOutput"));
+        assertThat(trip.getByteLimit(), equalTo(queryLimit));
+        assertBusy(() -> assertThat(queryBreaker.getUsed(), equalTo(0L)));
         assertBusy(() -> assertThat(dataNodeBreaker.getUsed(), equalTo(0L)));
+    }
+
+    /**
+     * A remote sink created with the block factory of a query charges the page to it while it arrives and reads it, and nothing to the
+     * factory of the exchange service.
+     */
+    public void testRemoteSinkChargesItsOwnFactory() throws Exception {
+        TrackingCircuitBreaker coordinatorBreaker = new TrackingCircuitBreaker();
+        TrackingCircuitBreaker queryBreaker = new TrackingCircuitBreaker();
+        BlockFactory dataNodeFactory = blockFactory();
+        Page page = intPage(dataNodeFactory, 10_000);
+        long blockBytes = page.ramBytesUsedByBlocks();
+        long serializedBytes = serializedSize(page);
+        BlockFactory coordinatorFactory = trackingBlockFactory(coordinatorBreaker);
+        BlockFactory queryFactory = trackingBlockFactory(queryBreaker);
+        try (Page ignored = fetchPages(coordinatorFactory, queryFactory, dataNodeFactory, false, page).getFirst().actionGet()) {
+            assertThat(queryBreaker.peak(), greaterThanOrEqualTo(blockBytes + serializedBytes));
+            assertThat(queryBreaker.getUsed(), equalTo(blockBytes));
+        }
+        assertThat(queryBreaker.getUsed(), equalTo(0L));
+        assertThat(coordinatorBreaker.peak(), equalTo(0L));
+        assertThat(coordinatorBreaker.getUsed(), equalTo(0L));
     }
 
     /**
@@ -779,12 +809,23 @@ public class ExchangeServiceTests extends ESTestCase {
         return fetchPages(coordinatorFactory, dataNodeFactory, false, page).getFirst();
     }
 
+    private List<PlainActionFuture<Page>> fetchPages(
+        BlockFactory coordinatorFactory,
+        BlockFactory dataNodeFactory,
+        boolean releaseEach,
+        Page... pages
+    ) throws Exception {
+        return fetchPages(coordinatorFactory, coordinatorFactory, dataNodeFactory, releaseEach, pages);
+    }
+
     /**
      * Starts a coordinator and a data node, adds {@code pages} to a sink on the data node and fetches them one after another from the
-     * coordinator. If {@code releaseEach}, each page is released as soon as it arrives.
+     * coordinator through a remote sink that reads them with {@code remoteSinkFactory}. If {@code releaseEach}, each page is released as
+     * soon as it arrives.
      */
     private List<PlainActionFuture<Page>> fetchPages(
         BlockFactory coordinatorFactory,
+        BlockFactory remoteSinkFactory,
         BlockFactory dataNodeFactory,
         boolean releaseEach,
         Page... pages
@@ -805,7 +846,13 @@ public class ExchangeServiceTests extends ESTestCase {
                 sink.addPage(page);
             }
             Task task = new Task(1, "", "", "", null, Collections.emptyMap());
-            RemoteSink remoteSink = exchange0.newRemoteSink(task, exchangeId, node0, node0.getConnection(node1.getLocalNode()));
+            RemoteSink remoteSink = exchange0.newRemoteSink(
+                task,
+                exchangeId,
+                node0,
+                node0.getConnection(node1.getLocalNode()),
+                remoteSinkFactory
+            );
             for (Page ignored : pages) {
                 PlainActionFuture<Page> future = new PlainActionFuture<>();
                 fetched.add(future);

@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -40,11 +41,13 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.transport.ActionTransportException;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -96,6 +99,7 @@ public class SplitTargetService {
     private final Client client;
     private final ClusterService clusterService;
     private final ReshardIndexService reshardIndexService;
+    // TODO use this
     private final TimeValue startSplitRetryTimeout;
     private final TimeValue searchShardsOnlineTimeout;
     private final TimeValue splitStateAppliedTimeout;
@@ -142,7 +146,10 @@ public class SplitTargetService {
                     () -> onGoingSplits.remove(indexShard),
                     reshardIndexService.getReshardMetrics(),
                     clusterService.threadPool().relativeTimeInMillisSupplier(),
-                    new StateMachine.State.Clone(recoveryListener)
+                    new StateMachine.State.Clone(
+                        new StateMachine.StartSplitRetries(clusterService.threadPool().relativeTimeInMillis(), startSplitRetryTimeout),
+                        recoveryListener
+                    )
                 );
                 if (registerStateMachine(indexShard, stateMachine)) {
                     stateMachine.run();
@@ -219,7 +226,7 @@ public class SplitTargetService {
                 () -> {},
                 reshardIndexService.getReshardMetrics(),
                 () -> 0,
-                new StateMachine.State.Clone(ActionListener.noop())
+                new StateMachine.State.Clone(new StateMachine.StartSplitRetries(0, TimeValue.MAX_VALUE), ActionListener.noop())
             )
         );
     }
@@ -325,9 +332,10 @@ public class SplitTargetService {
             switch (newState) {
                 case State.Clone clone -> {
                     resolveSourceShard(
-                        new StateAdvancingListener<>(
-                            clone,
-                            activeSourceShard -> new State.ReadyForSplit(activeSourceShard, clone.recoveryListener)
+                        new StartSplitListener<>(
+                            clone.recoveryListener,
+                            clone.retryState,
+                            activeSourceShard -> new State.ReadyForSplit(clone.retryState, activeSourceShard, clone.recoveryListener)
                         )
                     );
                 }
@@ -340,18 +348,15 @@ public class SplitTargetService {
                     // Advance beforehand to eliminate theoretical race conditions with sending
                     // a request to the source shard.
                     // This can be done since the advancement does nothing anyway.
-                    advance(new State.WaitingForHandoff(readyForSplit.activeSourceShard));
-                    initiateSplitWithSourceShard(readyForSplit.activeSourceShard, new ActionListener<>() {
-                        @Override
-                        public void onResponse(Void unused) {
-                            advance(new State.StartSplitRpcComplete(readyForSplit.recoveryListener));
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            advance(new State.StartSplitFailed(e, readyForSplit.recoveryListener));
-                        }
-                    });
+                    advance(new State.WaitingForHandoff(readyForSplit.retryState, readyForSplit.activeSourceShard));
+                    initiateSplitWithSourceShard(
+                        readyForSplit.activeSourceShard,
+                        new StartSplitListener<>(
+                            readyForSplit.recoveryListener,
+                            readyForSplit.retryState,
+                            ignored -> new State.StartSplitRpcComplete(readyForSplit.recoveryListener)
+                        )
+                    );
                 }
                 case State.WaitingForHandoff ignored -> {
                     /// This is a special state since we are not doing any action
@@ -412,12 +417,12 @@ public class SplitTargetService {
                         .addListener(new StateAdvancingListener<>(recoveringInSplit, new State.SplitApplied()));
                 }
                 case State.StartSplitFailed startSplitFailed -> {
+                    // We need to release the recovery listener so that the shard can be properly closed.
+                    // Technically it doesn't matter if this is a success or a failure since the shard is closed anyway.
+                    // We only use failure here to short-circuit any following work (like reading shard state)
+                    // which we know is unnecessary.
                     if (cancelled.get()) {
-                        // We need to release the recovery listener so that the shard can be properly closed.
-                        // Technically it doesn't matter if this is success or failure since the shard is closed anyway.
-                        // We only use failure here to short-circuit any following work (like reading shard state)
-                        // which we know is unnecessary.
-                        startSplitFailed.recoveryListener.onFailure(startSplitFailed.exception);
+                        advance(new State.FailedInRecovery(startSplitFailed.exception, startSplitFailed.recoveryListener));
                         return;
                     }
 
@@ -441,16 +446,32 @@ public class SplitTargetService {
                     if (TransportActions.isShardNotAvailableException(cause)
                         // Connection errors and such.
                         || cause instanceof ActionTransportException) {
+                        Optional<TimeValue> retryDelay = startSplitFailed.retryState.getRetryDelay(
+                            clusterService.threadPool().relativeTimeInMillis()
+                        );
+                        if (retryDelay.isEmpty()) {
+                            logger.debug("Start split failed with retryable error but retry timeout was reached", cause);
+                            advance(new State.FailedInRecovery(startSplitFailed.exception, startSplitFailed.recoveryListener));
+                            return;
+                        }
+
                         logger.debug("Start split failed with retryable error, will retry.", cause);
                         // We need to re-resolve the source shard because it may have relocated
                         // or advanced its primary term.
-                        advance(new State.Clone(startSplitFailed.recoveryListener));
+                        clusterService.threadPool()
+                            .schedule(
+                                () -> advance(new State.Clone(startSplitFailed.retryState, startSplitFailed.recoveryListener)),
+                                retryDelay.get(),
+                                clusterService.threadPool().generic()
+                            );
                     } else {
                         logger.info("Start split failed with non-retryable error: ", cause);
                         // Nothing we can do here, fail the recovery.
                         advance(new State.FailedInRecovery(startSplitFailed.exception, startSplitFailed.recoveryListener));
                     }
                 }
+                // Recovery listener should only be failed in this state in order to produce clear state transition logs
+                // and metrics.
                 case State.FailedInRecovery failedInRecovery -> {
                     failedInRecovery.recoveryListener.onFailure(failedInRecovery.exception);
                 }
@@ -461,7 +482,7 @@ public class SplitTargetService {
 
                     logger.warn("Failed to complete split target shard sequence", failed.exception);
 
-                    if (failed.fromState instanceof State.SearchShardsOnline) {
+                    if (failed.destinationState instanceof State.Split) {
                         reshardIndexService.notifySplitFailure(shard, failed.exception);
                         /// Transition to SPLIT failed in some unexpected way and now we are failing all incoming refresh requests
                         /// due to the `notifySplitFailure` call above.
@@ -498,6 +519,7 @@ public class SplitTargetService {
             // occurs on the source shard (e.g. source node gets disconnected)
             // As a result, we might try to transition from FailedInRecovery -> HandoffReceived
             // which is not a valid state transition. We treat this state transition as a noop.
+            // TODO fix
             if (handoffReceivedAfterFailure(newState)) {
                 return false;
             }
@@ -532,9 +554,9 @@ public class SplitTargetService {
                 put(State.RecoveringInHandoff.class, Set.of(State.RecoveringInHandoff.class));
                 put(State.RecoveringInSplit.class, Set.of(State.RecoveringInSplit.class));
 
-                put(State.StartSplitFailed.class, Set.of(State.WaitingForHandoff.class, State.HandoffReceived.class));
+                put(State.StartSplitFailed.class, Set.of(State.Clone.class, State.WaitingForHandoff.class, State.HandoffReceived.class));
 
-                put(State.FailedInRecovery.class, Set.of(State.WaitingForHandoff.class, State.HandoffReceived.class));
+                put(State.FailedInRecovery.class, Set.of(State.StartSplitFailed.class));
                 put(
                     State.Failed.class,
                     Set.of(
@@ -555,11 +577,13 @@ public class SplitTargetService {
             State.StartSplitRpcComplete, State.Handoff, State.SearchShardsOnline, State.Split, State.SplitApplied, State.UnownedDataDeleted,
             State.Done, State.RecoveringInHandoff, State.RecoveringInSplit, State.StartSplitFailed, State.FailedInRecovery, State.Failed {
             // Corresponds to CLONE state of a target shard.
-            record Clone(ActionListener<Void> recoveryListener) implements State {}
+            record Clone(StartSplitRetries retryState, ActionListener<Void> recoveryListener) implements State {}
 
-            record ReadyForSplit(ActiveSourceShard activeSourceShard, ActionListener<Void> recoveryListener) implements State {}
+            record ReadyForSplit(StartSplitRetries retryState, ActiveSourceShard activeSourceShard, ActionListener<Void> recoveryListener)
+                implements
+                    State {}
 
-            record WaitingForHandoff(ActiveSourceShard activeSourceShard) implements State {}
+            record WaitingForHandoff(StartSplitRetries retryState, ActiveSourceShard activeSourceShard) implements State {}
 
             record HandoffReceived(ActionListener<Void> handoffRpcListener) implements State {}
 
@@ -593,14 +617,16 @@ public class SplitTargetService {
             // since it is required for delete unowned logic to work.
             record RecoveringInSplit() implements State {}
 
-            record StartSplitFailed(Exception exception, ActionListener<Void> recoveryListener) implements State {}
+            record StartSplitFailed(StartSplitRetries retryState, Exception exception, ActionListener<Void> recoveryListener)
+                implements
+                    State {}
 
             // We distinguish these failed states because the shard state is different
             // (it's not started during recovery) and failure handling is different as a result.
             record FailedInRecovery(Exception exception, ActionListener<Void> recoveryListener) implements State {}
 
-            /// @param fromState current state that we attempted to transition from but failed
-            record Failed(Exception exception, State fromState) implements State {}
+            /// @param destinationState next state that we attempted to transition to but failed
+            record Failed(Exception exception, State destinationState) implements State {}
         }
 
         void acceptHandoff(TransportReshardSplitAction.Request handoffRequest, ActionListener<Void> handoffRpcListener) {
@@ -648,8 +674,9 @@ public class SplitTargetService {
                     @Override
                     public void onNewClusterState(ClusterState state) {
                         if (isCancelled()) {
-                            // It's very important to now leak the recovery listener here.
+                            // It's very important to not simply stop here since that leaks recovery listener.
                             listener.onFailure(new CancellationException());
+                            return;
                         }
 
                         // Both of these have to be present, it's checked in the predicate.
@@ -665,8 +692,7 @@ public class SplitTargetService {
 
                     @Override
                     public void onClusterServiceClose() {
-                        // Nothing to do, shard will be closed when the node closes.
-                        var ff = 0;
+                        listener.onFailure(new NodeClosedException(clusterService.localNode()));
                     }
 
                     @Override
@@ -939,25 +965,79 @@ public class SplitTargetService {
             );
         }
 
-        // StartSplitRetryAwareListener ???
+        private static class SplitCancelledException extends CancellationException {
 
-        private class StateAdvancingListener<T, TState extends State> implements ActionListener<T> {
-            private final State currentState;
+        }
+
+        private static class StartSplitRetries {
+            private final long startedMillis;
+            private final TimeValue retryTimeout;
+
+            private final Iterator<TimeValue> backoffPolicyIterator;
+
+            StartSplitRetries(long startedMillis, TimeValue retryTimeout) {
+                this.startedMillis = startedMillis;
+                this.retryTimeout = retryTimeout;
+
+                this.backoffPolicyIterator = BackoffPolicy.linearBackoff(
+                    TimeValue.timeValueMillis(500),
+                    Integer.MAX_VALUE,
+                    TimeValue.timeValueSeconds(5)
+                ).iterator();
+            }
+
+            Optional<TimeValue> getRetryDelay(long currentTimeMillis) {
+                if (currentTimeMillis > startedMillis + retryTimeout.millis()) {
+                    return Optional.empty();
+                }
+
+                assert backoffPolicyIterator.hasNext(); // since we don't limit the number of retries
+                return Optional.of(backoffPolicyIterator.next());
+            }
+
+        }
+
+        /// Listener used by multi-state start split logic.
+        /// All states should transition to [State.StartSplitFailed] on failure
+        /// to implement retries and avoid leaking recovery listener.
+        private class StartSplitListener<T> implements ActionListener<T> {
+            private final ActionListener<Void> recoveryListener;
+            private final StartSplitRetries retryState;
             private final Function<T, State> nextStateTransition;
 
-            private StateAdvancingListener(State currentState, Function<T, State> nextStateTransition) {
-                this.currentState = currentState;
+            private StartSplitListener(
+                ActionListener<Void> recoveryListener,
+                StartSplitRetries retryState,
+                Function<T, State> nextStateTransition
+            ) {
+                this.recoveryListener = recoveryListener;
+                this.retryState = retryState;
                 this.nextStateTransition = nextStateTransition;
             }
 
+            @Override
+            public void onResponse(T result) {
+                advance(nextStateTransition.apply(result));
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                advance(new State.StartSplitFailed(retryState, e, recoveryListener));
+            }
+        }
+
+        private class StateAdvancingListener<T> implements ActionListener<T> {
+            private final State currentState;
+            private final State nextState;
+
             private StateAdvancingListener(State currentState, State nextState) {
                 this.currentState = currentState;
-                this.nextStateTransition = (ignored) -> nextState;
+                this.nextState = nextState;
             }
 
             @Override
             public void onResponse(T t) {
-                advance(nextStateTransition.apply(t));
+                advance(nextState);
             }
 
             @Override

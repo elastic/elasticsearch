@@ -353,6 +353,35 @@ public class IntoPageWriterTests extends ComputeTestCase {
         assertThat(sink.stats(), equalTo(new IntoStats(2, 2)));
     }
 
+    public void testCloseAfterFinishKeepsTheAsyncActionUntilBulksSettle() {
+        writer.consume(page("h1"));
+        writer.finish();
+        writer.close();
+        assertTrue(driverContext.hasPendingAsyncActions());
+        client.answer(Outcome.CREATED);
+        assertFalse(driverContext.hasPendingAsyncActions());
+    }
+
+    public void testCloseAfterFailureReleasesTheAsyncAction() {
+        Attribute column = new ReferenceAttribute(Source.EMPTY, "n", DataType.UNSIGNED_LONG);
+        IntoPageWriter exactWriter = IntoPageWriter.Factory.createFactory(
+            bulks(),
+            client,
+            driverContext.breaker(),
+            DESTINATION,
+            List.of(column)
+        ).create(driverContext);
+        expectThrows(EsqlIllegalArgumentException.class, () -> {
+            try (LongBlock.Builder values = blockFactory.newLongBlockBuilder(1)) {
+                values.appendLong(NumericUtils.asLongUnsigned(BigInteger.TWO.pow(63).add(BigInteger.ONE)));
+                exactWriter.consume(new Page(values.build()));
+            }
+        });
+        assertTrue(driverContext.hasPendingAsyncActions());
+        exactWriter.close();
+        assertFalse(driverContext.hasPendingAsyncActions());
+    }
+
     public void testRefusedRowFailsAndLaterPagesAreDropped() {
         writer.consume(page("ok", "bad"));
         client.answer(Outcome.CREATED, Outcome.REFUSED);

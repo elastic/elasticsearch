@@ -31,6 +31,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.escf.EscfBatch;
+import org.elasticsearch.escf.EscfBatchBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -135,6 +136,54 @@ public class PageToEscfBatchTests extends ComputeTestCase {
         }
     }
 
+    public void testPageSpanningKeywordsAreCopied() throws IOException {
+        byte[] first = filled((byte) 'a', 20_000);
+        byte[] second = filled((byte) 'b', 20_000);
+        try (
+            BytesRefBlock.Builder left = blockFactory().newBytesRefBlockBuilder(1);
+            BytesRefBlock.Builder right = blockFactory().newBytesRefBlockBuilder(1)
+        ) {
+            left.appendBytesRef(new BytesRef(first));
+            right.appendBytesRef(new BytesRef(second));
+            assertThat(
+                rows(List.of(DataType.KEYWORD, DataType.KEYWORD), left.build(), right.build()),
+                equalTo(
+                    List.of(
+                        Map.of(
+                            "c0",
+                            new String(first, java.nio.charset.StandardCharsets.UTF_8),
+                            "c1",
+                            new String(second, java.nio.charset.StandardCharsets.UTF_8)
+                        )
+                    )
+                )
+            );
+        }
+        try (BytesRefBlock.Builder values = blockFactory().newBytesRefBlockBuilder(1)) {
+            values.beginPositionEntry().appendBytesRef(new BytesRef(first)).appendBytesRef(new BytesRef(second)).endPositionEntry();
+            assertThat(
+                rows(List.of(DataType.KEYWORD), values.build()),
+                equalTo(
+                    List.of(
+                        Map.of(
+                            "c0",
+                            List.of(
+                                new String(first, java.nio.charset.StandardCharsets.UTF_8),
+                                new String(second, java.nio.charset.StandardCharsets.UTF_8)
+                            )
+                        )
+                    )
+                )
+            );
+        }
+    }
+
+    private static byte[] filled(byte value, int length) {
+        byte[] bytes = new byte[length];
+        java.util.Arrays.fill(bytes, value);
+        return bytes;
+    }
+
     public void testDatetimeUsesUtc() throws IOException {
         try (LongBlock.Builder b = blockFactory().newLongBlockBuilder(1)) {
             b.appendLong(1_750_000_000_000L);
@@ -236,17 +285,14 @@ public class PageToEscfBatchTests extends ComputeTestCase {
         assertSourceRejected("{\"a\":[{\"n\":" + big + "}]}");
     }
 
-    public void testSourceMultiValueBigIntegerIsRejected() {
+    public void testMultiValueSourceIsRejected() {
         try (BytesRefBlock.Builder b = blockFactory().newBytesRefBlockBuilder(1)) {
-            b.beginPositionEntry()
-                .appendBytesRef(new BytesRef("{\"n\":1}"))
-                .appendBytesRef(new BytesRef("{\"a\":{\"n\":" + oversizedInteger() + "}}"))
-                .endPositionEntry();
+            b.beginPositionEntry().appendBytesRef(new BytesRef("{\"n\":1}")).appendBytesRef(new BytesRef("{\"n\":2}")).endPositionEntry();
             EsqlIllegalArgumentException e = expectThrows(
                 EsqlIllegalArgumentException.class,
                 () -> rows(List.of(DataType.SOURCE), b.build())
             );
-            assertThat(e.getMessage(), containsString("SOURCE"));
+            assertThat(e.getMessage(), containsString("multi-value SOURCE"));
         }
     }
 
@@ -278,6 +324,13 @@ public class PageToEscfBatchTests extends ComputeTestCase {
             List<Map<String, Object>> maps = rows(List.of(DataType.DENSE_VECTOR), b.build());
             assertThat(maps, hasSize(1));
             assertThat(maps.getFirst().get("c0"), equalTo(1.1));
+        }
+    }
+
+    public void testMultiValuedDenseVectorIsNumeric() throws IOException {
+        try (FloatBlock.Builder b = blockFactory().newFloatBlockBuilder(1)) {
+            b.beginPositionEntry().appendFloat(1.5f).appendFloat(2.5f).endPositionEntry();
+            assertThat(rows(List.of(DataType.DENSE_VECTOR), b.build()), equalTo(List.of(Map.of("c0", List.of(1.5, 2.5)))));
         }
     }
 
@@ -334,8 +387,14 @@ public class PageToEscfBatchTests extends ComputeTestCase {
         for (int i = 0; i < types.size(); i++) {
             names.add("c" + i);
         }
-        try (EscfBatch batch = PageToEscfBatch.convert(page, names, types, bigArrays.bytesRefRecycler(), null).batch()) {
-            return toMaps(batch);
+        try (EscfBatchBuilder builder = new EscfBatchBuilder(bigArrays.bytesRefRecycler())) {
+            PageToEscfBatch.append(builder, page, names, types);
+            if (page.getPositionCount() == 0) {
+                return List.of();
+            }
+            try (EscfBatch batch = builder.buildPartition(0)) {
+                return toMaps(batch);
+            }
         } finally {
             page.releaseBlocks();
         }

@@ -63,6 +63,7 @@ public class OutputOperatorTests extends AnyOperatorTestCase {
         @Nullable
         SubscribableListener<Void> blocked;
         boolean finishCalled;
+        boolean closeCalled;
         int pendingOps;
 
         @Override
@@ -76,6 +77,11 @@ public class OutputOperatorTests extends AnyOperatorTestCase {
         @Override
         public void finish() {
             finishCalled = true;
+        }
+
+        @Override
+        public void close() {
+            closeCalled = true;
         }
 
         @Override
@@ -113,5 +119,13 @@ public class OutputOperatorTests extends AnyOperatorTestCase {
             consumer.pendingOps = 0;
             assertTrue(operator.isFinished());
         }
+    }
+
+    public void testCloseClosesTheConsumer() {
+        TrackingConsumer consumer = new TrackingConsumer();
+        try (OutputOperator operator = new OutputOperator(List.of("a"), p -> p, consumer)) {
+            assertThat(consumer.closeCalled, equalTo(false));
+        }
+        assertThat(consumer.closeCalled, equalTo(true));
     }
 }

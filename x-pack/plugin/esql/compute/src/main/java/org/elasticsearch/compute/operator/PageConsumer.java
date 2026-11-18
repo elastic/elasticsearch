@@ -52,5 +52,11 @@ public interface PageConsumer {
 
     void finish();
 
+    /**
+     * Called when the driver closes the sink. On failure this runs instead of {@link #finish()}, so a consumer
+     * that is holding the driver must release that hold here.
+     */
+    default void close() {}
+
     boolean isFinished();
 }

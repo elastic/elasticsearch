@@ -105,7 +105,7 @@ public class OutputOperator extends SinkOperator {
 
     @Override
     public void close() {
-
+        pageConsumer.close();
     }
 
     @Override

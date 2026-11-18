@@ -137,7 +137,7 @@ final class PageToEscfBatch {
             case UNSIGNED_LONG -> row.longField(name, unsignedLong(block, index));
             case KEYWORD, TEXT, FLATTENED -> {
                 BytesRef ref = ((BytesRefBlock) block).getBytesRef(index, scratch);
-                row.stringField(name, ref.bytes, ref.offset, ref.length);
+                row.stringField(name, copyUtf8(ref));
             }
             case SOURCE -> {
                 byte[] packed = keyValue(((BytesRefBlock) block).getBytesRef(index, scratch));
@@ -200,12 +200,19 @@ final class PageToEscfBatch {
                     numeric[i] = unsignedLong(longs, start + i);
                 }
             }
+            case DENSE_VECTOR -> {
+                elemType = SourceValueType.DOUBLE;
+                FloatBlock floats = (FloatBlock) block;
+                for (int i = 0; i < count; i++) {
+                    double value = Double.parseDouble(Float.toString(floats.getFloat(start + i)));
+                    numeric[i] = Double.doubleToRawLongBits(value);
+                }
+            }
             case KEYWORD, TEXT, FLATTENED -> {
                 elemType = SourceValueType.STRING;
                 BytesRefBlock refs = (BytesRefBlock) block;
                 for (int i = 0; i < count; i++) {
-                    BytesRef ref = refs.getBytesRef(start + i, scratch);
-                    vars[i] = new XContentString.UTF8Bytes(ref.bytes, ref.offset, ref.length);
+                    vars[i] = copyUtf8(refs.getBytesRef(start + i, scratch));
                 }
             }
             case SOURCE -> throw new EsqlIllegalArgumentException("INTO cannot write a multi-value SOURCE column");
@@ -219,6 +226,12 @@ final class PageToEscfBatch {
             }
         }
         row.arrayField(name, SourceValueType.FIXED_ARRAY, SourceBatchEncodeHelper.packFixedArray(elemType, numeric, vars, count));
+    }
+
+    private static XContentString.UTF8Bytes copyUtf8(BytesRef ref) {
+        byte[] copy = new byte[ref.length];
+        System.arraycopy(ref.bytes, ref.offset, copy, 0, ref.length);
+        return new XContentString.UTF8Bytes(copy);
     }
 
     private static long unsignedLong(Block block, int index) {

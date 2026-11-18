@@ -208,6 +208,7 @@ public final class IntoPageWriter implements PageConsumer {
     private final DriverContext driverContext;
 
     private boolean finished;
+    private boolean producerClosed;
     private boolean asyncAction;
     // null whenever no driver is blocked on this writer; allocated in isBlocked() and cleared in wake().
     @Nullable
@@ -244,9 +245,28 @@ public final class IntoPageWriter implements PageConsumer {
 
     @Override
     public void finish() {
+        closeProducer();
+        wake(() -> finished = true);
+    }
+
+    @Override
+    public void close() {
+        // finish() keeps the async action until the bulks settle. A failure never calls finish().
+        if (producerClosed == false) {
+            closeProducer();
+            releaseAsyncAction();
+        }
+    }
+
+    private void closeProducer() {
+        synchronized (this) {
+            if (producerClosed) {
+                return;
+            }
+            producerClosed = true;
+        }
         producer.close();
         sink.producerClosed();
-        wake(() -> finished = true);
     }
 
     private void settled() {

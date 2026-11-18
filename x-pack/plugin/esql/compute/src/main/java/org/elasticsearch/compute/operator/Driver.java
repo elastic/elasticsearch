@@ -32,6 +32,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
+import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -117,6 +118,45 @@ public class Driver implements Releasable, Describable {
      * have passed.
      */
     private final AtomicReference<DriverStatus> status;
+
+    /**
+     * Plan-node ids for operators created from a physical plan. Identity map, touched on the driver thread.
+     * Empty when the driver was not built from a plan (tests, enrich lookup).
+     */
+    private Map<Operator, String> planNodeIds = Map.of();
+
+    /**
+     * Associates operators with the physical plan node that created them.
+     * The map must use identity equality. Operators missing from the map omit {@code plan_node_id}.
+     */
+    public void setPlanNodeIds(Map<Operator, String> planNodeIds) {
+        this.planNodeIds = planNodeIds == null ? Map.of() : planNodeIds;
+    }
+
+    /**
+     * Exchange names of the exchange sink and source operators. Same shape and rules as {@link #planNodeIds}.
+     */
+    private Map<Operator, String> exchangeIds = Map.of();
+
+    /**
+     * Associates the exchange sink and source operators with the exchange they are one side of.
+     * The map must use identity equality. Operators missing from the map omit {@code exchange_id}.
+     */
+    public void setExchangeIds(Map<Operator, String> exchangeIds) {
+        this.exchangeIds = exchangeIds == null ? Map.of() : exchangeIds;
+    }
+
+    private OperatorStatus operatorStatus(Operator op) {
+        return new OperatorStatus(op.toString(), op.status(), planNodeIds.get(op), exchangeIds.get(op));
+    }
+
+    /** Gives {@code promoted} the label {@code original} has in {@code labels}, if any, so its status still reports it. */
+    private static void carryLabel(Map<Operator, String> labels, Operator original, Operator promoted) {
+        String label = labels.get(original);
+        if (label != null) {
+            labels.put(promoted, label);
+        }
+    }
 
     /**
      * The time this driver finished. Only set once the driver is finished, defaults to 0
@@ -391,6 +431,8 @@ public class Driver implements Releasable, Describable {
                     movedPage = true;
                     Operator promoted = nextOp.tryPromote(driverContext);
                     if (promoted != nextOp) {
+                        carryLabel(planNodeIds, nextOp, promoted);
+                        carryLabel(exchangeIds, nextOp, promoted);
                         activeOperators.set(iterator.nextIndex(), promoted);
                     }
                 }
@@ -446,7 +488,7 @@ public class Driver implements Releasable, Describable {
                 while (finishedOperators.hasNext()) {
                     Operator op = finishedOperators.next();
                     int statusIndex = statusOfCompletedOperators.size();
-                    statusOfCompletedOperators.add(new OperatorStatus(op.toString(), op.status()));
+                    statusOfCompletedOperators.add(operatorStatus(op));
                     if (op instanceof SourceOperator sourceOperator) {
                         long now = currentTimeNanosSupplier.getAsLong();
                         // report one last time before closing
@@ -753,7 +795,7 @@ public class Driver implements Releasable, Describable {
     private void publishFinalStatus() {
         for (PendingFinalStatus pending : pendingFinalStatus) {
             Operator op = pending.operator;
-            statusOfCompletedOperators.set(pending.index, new OperatorStatus(op.toString(), op.status()));
+            statusOfCompletedOperators.set(pending.index, operatorStatus(op));
         }
         pendingFinalStatus.clear();
         updateStatus(0, 0, DriverStatus.Status.DONE, "driver done", System.nanoTime());
@@ -813,7 +855,7 @@ public class Driver implements Releasable, Describable {
                 prev.iterations() + extraIterations,
                 status,
                 List.copyOf(statusOfCompletedOperators),
-                activeOperators.stream().map(op -> new OperatorStatus(op.toString(), op.status())).toList(),
+                activeOperators.stream().map(this::operatorStatus).toList(),
                 sleeps
             );
         });

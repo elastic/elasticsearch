@@ -59,7 +59,7 @@ public final class MvLastDoubleEvaluator extends AbstractMultivalueFunction.Abst
   public Block evalNotNullable(Block fieldVal) {
     DoubleBlock v = (DoubleBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    try (DoubleVector.FixedBuilder builder = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
+    try (DoubleVector.FixedBuilder builder = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount, true)) {
       for (int p = 0; p < positionCount; p++) {
         int valueCount = v.getValueCount(p);
         int first = v.getFirstValueIndex(p);

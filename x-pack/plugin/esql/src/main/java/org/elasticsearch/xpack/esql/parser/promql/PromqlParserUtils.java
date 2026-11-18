@@ -113,6 +113,33 @@ public class PromqlParserUtils {
         return Duration.ofMillis(millis);
     }
 
+    /**
+     * Drops the underscores that, like in Prometheus, may separate the digits of a number, as in 1_000 or 0x_1F.
+     * An underscore must sit between two digits of the radix, or right after the 0x of a hexadecimal number;
+     * anything else, such as 1__000 or 1_000_, is rejected rather than silently dropped.
+     */
+    static String stripDigitSeparators(Source source, String number, int radix) {
+        int first = number.indexOf('_');
+        if (first < 0) {
+            return number;
+        }
+        StringBuilder digits = new StringBuilder(number.length() - 1).append(number, 0, first);
+        for (int i = first; i < number.length(); i++) {
+            char c = number.charAt(i);
+            if (c != '_') {
+                digits.append(c);
+                continue;
+            }
+            boolean afterPrefix = radix == 16 && i == 2 && (number.charAt(1) == 'x' || number.charAt(1) == 'X');
+            boolean afterDigit = i > 0 && (Character.digit(number.charAt(i - 1), radix) >= 0 || afterPrefix);
+            boolean beforeDigit = i + 1 < number.length() && Character.digit(number.charAt(i + 1), radix) >= 0;
+            if (afterDigit == false || beforeDigit == false) {
+                throw new ParsingException(source, "Invalid number [{}], an underscore must separate two digits", number);
+            }
+        }
+        return digits.toString();
+    }
+
     static String unquote(Source source) {
         // remove leading and trailing ' for strings and also eliminate escaped single quotes
         if (source == null) {

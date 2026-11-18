@@ -336,7 +336,7 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
     @Override
     public Literal visitDecimalLiteral(DecimalLiteralContext ctx) {
         Source source = source(ctx);
-        String text = digits(ctx.getText());
+        String text = PromqlParserUtils.stripDigitSeparators(source, ctx.getText(), 10);
 
         try {
             double value;
@@ -357,7 +357,7 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
     @Override
     public Literal visitIntegerLiteral(IntegerLiteralContext ctx) {
         Source source = source(ctx);
-        String text = digits(ctx.getText());
+        String text = PromqlParserUtils.stripDigitSeparators(source, ctx.getText(), 10);
 
         Number value;
 
@@ -380,7 +380,7 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
     @Override
     public Literal visitHexLiteral(HexLiteralContext ctx) {
         Source source = source(ctx);
-        String text = digits(ctx.getText());
+        String text = PromqlParserUtils.stripDigitSeparators(source, ctx.getText(), 16);
 
         DataType type = DataType.LONG;
         Object val;
@@ -450,11 +450,6 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
             );
         }
         return param.value().toString();
-    }
-
-    /** Drops the underscores that, like in Prometheus, may separate the digits of a number, as in 1_000. */
-    private static String digits(String number) {
-        return number.replace("_", "");
     }
 
     private static Duration parseTimeValue(Source source, String text) {

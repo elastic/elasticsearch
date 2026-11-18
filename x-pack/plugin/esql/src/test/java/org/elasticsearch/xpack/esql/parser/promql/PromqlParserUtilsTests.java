@@ -23,6 +23,7 @@ import static java.time.Duration.ofMinutes;
 import static java.time.Duration.ofSeconds;
 import static java.util.Arrays.asList;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class PromqlParserUtilsTests extends ESTestCase {
 
@@ -183,6 +184,31 @@ public class PromqlParserUtilsTests extends ESTestCase {
         List<String> values = asList("901", "0909");
         for (String value : values) {
             invalidString(quote("\\" + value), error);
+        }
+    }
+
+    public void testStripDigitSeparators() {
+        Source source = new Source(0, 0, "number");
+        String plain = "1000";
+        assertSame(plain, PromqlParserUtils.stripDigitSeparators(source, plain, 10));
+        for (List<String> valid : List.of(
+            List.of("1_000", "1000"),
+            List.of("1_0.5", "10.5"),
+            List.of("1.5_0", "1.50"),
+            List.of("1e1_0", "1e10")
+        )) {
+            assertThat(PromqlParserUtils.stripDigitSeparators(source, valid.get(0), 10), equalTo(valid.get(1)));
+        }
+        assertThat(PromqlParserUtils.stripDigitSeparators(source, "0x_1F", 16), equalTo("0x1F"));
+        assertThat(PromqlParserUtils.stripDigitSeparators(source, "0x1_F", 16), equalTo("0x1F"));
+
+        for (String invalid : List.of("1__000", "1_000_", "_1", "1_.5", "1._5", "1_e5", "1e_5")) {
+            ParsingException e = expectThrows(ParsingException.class, () -> PromqlParserUtils.stripDigitSeparators(source, invalid, 10));
+            assertThat(e.getMessage(), containsString("an underscore must separate two digits"));
+        }
+        for (String invalid : List.of("0x__1F", "0x1F_", "1_x1F")) {
+            ParsingException e = expectThrows(ParsingException.class, () -> PromqlParserUtils.stripDigitSeparators(source, invalid, 16));
+            assertThat(e.getMessage(), containsString("an underscore must separate two digits"));
         }
     }
 }

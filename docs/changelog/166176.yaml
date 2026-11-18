@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 166176
+summary: Query approximation of chained STATS
+type: feature

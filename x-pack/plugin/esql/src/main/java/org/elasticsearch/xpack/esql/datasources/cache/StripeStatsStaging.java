@@ -98,9 +98,7 @@ public final class StripeStatsStaging implements StripeStatsSink {
          * as pieces of different reads already do, and the coordinator covers them as it covers any other pair.
          */
         private boolean joins(StripeSpan other) {
-            return identity.equals(other.identity)
-                && Objects.equals(schema, other.schema)
-                && (end == other.start || other.end == start);
+            return identity.equals(other.identity) && Objects.equals(schema, other.schema) && (end == other.start || other.end == start);
         }
 
         /** Absorbs the byte-adjacent {@code other}, keeping each edge's own anchors. */

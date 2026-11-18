@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 166469
-summary: Emit one capped warning when `SET unmapped_fields` stops at views
-type: enhancement

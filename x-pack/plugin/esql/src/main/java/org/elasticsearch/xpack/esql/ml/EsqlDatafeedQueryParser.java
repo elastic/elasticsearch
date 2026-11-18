@@ -8,44 +8,82 @@
 package org.elasticsearch.xpack.esql.ml;
 
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.EsqlQueryParam;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
+import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.MultiColumnInSubquery;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
-import org.elasticsearch.xpack.esql.parser.EsqlConfig;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
-import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.QuerySetting;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
+import org.elasticsearch.xpack.esql.plan.logical.Dedup;
+import org.elasticsearch.xpack.esql.plan.logical.Describe;
+import org.elasticsearch.xpack.esql.plan.logical.Dissect;
+import org.elasticsearch.xpack.esql.plan.logical.Drop;
+import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Explain;
+import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
+import org.elasticsearch.xpack.esql.plan.logical.Grok;
+import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
+import org.elasticsearch.xpack.esql.plan.logical.Into;
+import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Lookup;
+import org.elasticsearch.xpack.esql.plan.logical.MMR;
+import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
+import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.esql.plan.logical.RegisteredDomain;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
+import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.Sample;
+import org.elasticsearch.xpack.esql.plan.logical.Subquery;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
+import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedEqlRelation;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedMetadata;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.UriParts;
+import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
+import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
+import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
+import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
-import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.session.EsqlSession;
+import org.elasticsearch.xpack.esql.view.ViewService;
 import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryParser;
 import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryWithParams;
 import org.elasticsearch.xpack.ml.datafeed.esql.spi.ParsedEsqlQuery;
@@ -54,7 +92,6 @@ import org.elasticsearch.xpack.ml.datafeed.esql.spi.TimeBucket;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -62,49 +99,141 @@ import java.util.OptionalInt;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.EsqlQueryParam.ParamClassification.IDENTIFIER;
 
 /**
  * {@link EsqlQueryParser} for ES|QL datafeeds, backed by {@link EsqlParser}. It parses only: nothing is resolved against mappings.
- * Settings and limits are resolved against the cluster the way {@code EsqlSession} does for a query it runs.
+ * Parsing and settings resolution are the steps {@code EsqlSession} runs first for a query ({@link EsqlQueryRequest#parse} and
+ * {@link EsqlSession#resolveSettings}); the parser uses the services of the {@link EsqlPlugin} that provides it.
  */
 public class EsqlDatafeedQueryParser implements EsqlQueryParser {
 
-    /** Built on first use, so loading this provider at node startup does not build a function registry. */
-    private static final class Holder {
-        static final EsqlParser PARSER = new EsqlParser(new EsqlConfig(new EsqlFunctionRegistry()));
-        static final PreAnalyzer PRE_ANALYZER = new PreAnalyzer();
+    /** What the parser needs from the {@link EsqlPlugin}; they exist only after the plugin created its components. */
+    public record Services(
+        EsqlParser parser,
+        ClusterService clusterService,
+        ProjectResolver projectResolver,
+        ViewService viewService,
+        CrossProjectModeDecider crossProjectModeDecider,
+        XPackLicenseState licenseState
+    ) {}
+
+    /**
+     * Commands that give the same rows for a time window whichever other rows are in it, so they may be anywhere in the query. A
+     * datafeed runs the query once per chunk of its time window, and the chunk can be made smaller and retried; a command whose
+     * output depends on the other rows of the window would give different results for each chunking. {@code SAMPLE} keeps each
+     * row independently, so the distribution stays the same; a retry or a preview can still sample other rows.
+     */
+    static final Set<Class<? extends LogicalPlan>> ANYWHERE = Set.of(
+        UnresolvedRelation.class,
+        Row.class,
+        UnresolvedMetadata.class,
+        Subquery.class,
+        Filter.class,
+        OrderBy.class,
+        Eval.class,
+        Keep.class,
+        Drop.class,
+        Dissect.class,
+        Grok.class,
+        Enrich.class,
+        UriParts.class,
+        RegisteredDomain.class,
+        UserAgent.class,
+        UnresolvedIpLocation.class,
+        Sample.class,
+        Highlight.class,
+        FillNull.class,
+        Aggregate.class,
+        TimeSeriesAggregate.class,
+        InlineStats.class
+    );
+
+    /**
+     * Commands whose output depends on the other rows of the time window, with their names. They are accepted only after the last
+     * {@code STATS} (or {@code INLINE STATS}), where they shape the output, and in a query without {@code STATS}.
+     */
+    static final Map<Class<? extends LogicalPlan>, String> AFTER_LAST_STATS = Map.of(
+        Limit.class,
+        "LIMIT",
+        LimitBy.class,
+        "LIMIT BY",
+        Dedup.class,
+        "DEDUP",
+        ChangePoint.class,
+        "CHANGE_POINT",
+        Fuse.class,
+        "FUSE",
+        MMR.class,
+        "MMR"
+    );
+
+    /**
+     * Commands datafeeds do not support, with their names: the ones whose result columns cannot be traced to the source, the ones
+     * that do not read index rows, and the ones that call an inference endpoint for every row.
+     */
+    static final Map<Class<? extends LogicalPlan>, String> REJECTED = Map.ofEntries(
+        Map.entry(Fork.class, "FORK"),
+        Map.entry(UnionAll.class, "FROM with several subqueries"),
+        Map.entry(Rename.class, "RENAME"),
+        Map.entry(MvExpand.class, "MV_EXPAND"),
+        Map.entry(LookupJoin.class, "LOOKUP JOIN"),
+        Map.entry(Lookup.class, "LOOKUP"),
+        Map.entry(PromqlCommand.class, "PROMQL"),
+        Map.entry(Explain.class, "EXPLAIN"),
+        Map.entry(Into.class, "INTO"),
+        Map.entry(Describe.class, "DESCRIBE"),
+        Map.entry(ShowInfo.class, "SHOW"),
+        Map.entry(MetricsInfo.class, "METRICS_INFO"),
+        Map.entry(TsInfo.class, "TS_INFO"),
+        Map.entry(TimeSeriesCollapse.class, "TS_COLLAPSE"),
+        Map.entry(UnresolvedExternalRelation.class, "EXTERNAL"),
+        Map.entry(UnresolvedEqlRelation.class, "EQL"),
+        Map.entry(Completion.class, "COMPLETION"),
+        Map.entry(Rerank.class, "RERANK"),
+        Map.entry(DenseVector.class, "DENSE_VECTOR")
+    );
+
+    private final Supplier<Services> services;
+    private final PreAnalyzer preAnalyzer = new PreAnalyzer();
+
+    /** Required by the service loader, which constructs the provider with the plugin. */
+    public EsqlDatafeedQueryParser() {
+        throw new IllegalStateException("Provider must be constructed using PluginsService");
+    }
+
+    public EsqlDatafeedQueryParser(EsqlPlugin plugin) {
+        this(plugin::datafeedParserServices);
+    }
+
+    EsqlDatafeedQueryParser(Supplier<Services> services) {
+        this.services = services;
     }
 
     /**
      * TODO(https://github.com/elastic/esql-planning/issues/2700): do not extend this method. Tech Preview only: it re-implements a
-     * subset of the analysis pipeline (cluster state, settings resolution, plan walk). It is to be replaced by the primitives behind
-     * {@code DESCRIBE}, or by a call to {@code DESCRIBE} and handling of its response.
+     * subset of the analysis pipeline (plan walk). It is to be replaced by the primitives behind {@code DESCRIBE}, or by a call to
+     * {@code DESCRIBE} and handling of its response.
      */
     @Override
-    public ParsedEsqlQuery parse(String query, ClusterService clusterService) {
-        Settings nodeSettings = clusterService.getSettings();
+    public ParsedEsqlQuery parse(String query) {
+        Services services = this.services.get();
+        ClusterService clusterService = services.clusterService();
         ClusterState clusterState = clusterService.state();
         // Dynamic cluster settings override node configuration, as they do for queries ES|QL runs.
-        Settings effectiveSettings = Settings.builder().put(nodeSettings).put(clusterState.metadata().settings()).build();
-        EsqlStatement statement = Holder.PARSER.parse(
-            query,
-            new QueryParams(),
+        Settings effectiveSettings = Settings.builder().put(clusterService.getSettings()).put(clusterState.metadata().settings()).build();
+        SettingsValidationContext validation = SettingsValidationContext.from(services.crossProjectModeDecider());
+        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest(query);
+        EsqlStatement statement = request.parse(
+            services.parser(),
+            validation,
             new InferenceSettings(effectiveSettings),
-            QueryPragmas.EMPTY,
             new EsqlFlags(clusterService.getClusterSettings())
         );
-        SettingsValidationContext validation = SettingsValidationContext.from(new CrossProjectModeDecider(nodeSettings));
-        QuerySettings.validate(statement, validation);
-        ResolvedSettings settings = QuerySettings.resolve(
-            clusterState.metadata().settings(),
-            nodeSettings,
-            Map.of(),
-            statement,
-            validation
-        );
+        ResolvedSettings settings = EsqlSession.resolveSettings(clusterService, request, statement, validation, services.licenseState());
         // The probe sets column_metadata itself, and the last SET of a setting wins.
         if (statement.settings().stream().anyMatch(setting -> QuerySettings.COLUMN_METADATA.name().equals(setting.name()))) {
             throw new ParsingException(
@@ -117,9 +246,13 @@ public class EsqlDatafeedQueryParser implements EsqlQueryParser {
             throw unsupported("LET", statement.plan());
         }
         statement.plan().forEachDown(node -> {
-            String command = unsupportedCommand(node);
+            String command = REJECTED.get(node.getClass());
             if (command != null) {
                 throw unsupported(command, node);
+            }
+            // A command nobody classified fails here rather than running with an unknown effect on the rows.
+            if (ANYWHERE.contains(node.getClass()) == false && AFTER_LAST_STATS.containsKey(node.getClass()) == false) {
+                throw unsupported(node.nodeName(), node);
             }
             // The relations inside an IN subquery would be missed by the single-pipeline reading.
             node.forEachExpression(InSubquery.class, in -> { throw unsupported("IN (subquery)", node); });
@@ -128,62 +261,39 @@ public class EsqlDatafeedQueryParser implements EsqlQueryParser {
         LogicalPlan plan = statement.plan();
         Pipeline pipeline = Pipeline.of(plan);
         Set<String> indexPatterns = new TreeSet<>();
-        Holder.PRE_ANALYZER.preAnalyze(plan)
+        preAnalyzer.preAnalyze(plan)
             .indexes()
             .keySet()
             .forEach(pattern -> indexPatterns.addAll(List.of(Strings.splitStringByCommaToArray(pattern.indexPattern()))));
+        rejectViews(indexPatterns, services, clusterState);
         return new Parsed(
             query,
             statement.settings().stream().map(setting -> setting.source().text()).collect(Collectors.joining("\n")),
-            pipeline.source instanceof UnresolvedRelation relation ? sourceCommand(relation) : "",
+            pipeline.source instanceof UnresolvedRelation relation ? relation.source().text() : "",
+            pipeline.source instanceof UnresolvedRelation relation && relation.isTimeSeriesMode(),
             indexPatterns,
             pipeline.aggregates > 0,
             pipeline.outputLimit(),
-            pipeline.filterFields,
             statement.settings().stream().map(QuerySetting::name).anyMatch(QuerySettings.PROJECT_ROUTING.name()::equals),
             QuerySettings.TIME_ZONE.get(settings)
         );
     }
 
-    /** The command that makes a query unsupported, or {@code null}. These are the constructs whose result columns cannot be traced. */
-    private static String unsupportedCommand(LogicalPlan node) {
-        if (node instanceof Fork) {
-            return "FORK";
-        }
-        if (node instanceof UnionAll) {
-            return "FROM with several subqueries";
-        }
-        if (node instanceof Rename) {
-            return "RENAME";
-        }
-        if (node instanceof MvExpand) {
-            return "MV_EXPAND";
-        }
-        if (node instanceof LookupJoin) {
-            return "LOOKUP JOIN";
-        }
-        if (node instanceof PromqlCommand) {
-            return "PROMQL";
-        }
-        return null;
-    }
-
     /**
-     * Source probes aggregate with {@code COUNT(*)}, which {@code TS} rejects, so a {@code TS} source is read with {@code FROM}.
-     * {@code TS} only reads time series indices, so the {@code FROM} keeps that scope with an {@code _index_mode} filter.
+     * A view is a query of its own, so its output rows cannot be traced to the source the datafeed reads. Only a view named exactly
+     * is found: a wildcard, a remote or an expression that resolves to a view is not, which is a Tech Preview limitation.
      */
-    private static String sourceCommand(UnresolvedRelation relation) {
-        String text = relation.source().text();
-        if (relation.isTimeSeriesMode() == false) {
-            return text;
+    private static void rejectViews(Set<String> indexPatterns, Services services, ClusterState clusterState) {
+        ProjectId projectId = services.projectResolver().getProjectMetadata(clusterState).id();
+        for (String pattern : indexPatterns) {
+            boolean exactName = pattern.contains("*") == false
+                && pattern.contains(":") == false
+                && pattern.startsWith("-") == false
+                && pattern.startsWith("<") == false;
+            if (exactName && services.viewService().get(projectId, pattern) != null) {
+                throw new ParsingException(Source.EMPTY, "[{}] is a view; views are not supported in ES|QL datafeeds", pattern);
+            }
         }
-        String from = "FROM" + text.substring(2);
-        if (relation.metadataFields().isEmpty()) {
-            from += " METADATA _index_mode";
-        } else if (relation.metadataFields().stream().noneMatch(field -> field.name().equals("_index_mode"))) {
-            from += ", _index_mode";
-        }
-        return from + " | WHERE _index_mode == \"time_series\"";
     }
 
     private static ParsingException unsupported(String command, LogicalPlan node) {
@@ -192,12 +302,12 @@ public class EsqlDatafeedQueryParser implements EsqlQueryParser {
 
     /** What datafeeds ask of the commands, collected in one walk from the last command to the source. */
     private static final class Pipeline {
-        private record LimitPosition(Limit limit, int value, int aggregatesAfter) {}
-
-        private final List<LimitPosition> limits = new ArrayList<>();
-        private final Set<String> filterFields = new LinkedHashSet<>();
+        private final List<Integer> limits = new ArrayList<>();
         private LogicalPlan source;
         private int aggregates;
+        /** The {@code STATS} and {@code INLINE STATS} commands after the node the walk is at; they make it a feed of an aggregation. */
+        private int boundaries;
+        private String lastBoundary = "STATS";
 
         static Pipeline of(LogicalPlan plan) {
             Pipeline pipeline = new Pipeline();
@@ -213,41 +323,43 @@ public class EsqlDatafeedQueryParser implements EsqlQueryParser {
                     : node.children().getFirst();
             }
             pipeline.source = node;
-            pipeline.rejectLimitBeforeAggregation();
             return pipeline;
         }
 
         private void visit(LogicalPlan node) {
+            String command = AFTER_LAST_STATS.get(node.getClass());
+            if (command != null && boundaries > 0) {
+                throw new ParsingException(
+                    node.source(),
+                    "[{}] before [{}] is not supported in ES|QL datafeeds: it feeds rows that depend on the other rows of the time "
+                        + "window into the aggregation. Move it after the last {} or remove it",
+                    command,
+                    lastBoundary,
+                    lastBoundary
+                );
+            }
             if (node instanceof Limit limit) {
-                limits.add(new LimitPosition(limit, limitValue(limit), aggregates));
+                limits.add(limitValue(limit));
             } else if (node instanceof Aggregate) {
                 aggregates++;
-            } else if (node instanceof Filter filter) {
-                filter.forEachExpression(UnresolvedAttribute.class, attribute -> filterFields.add(attribute.name()));
+                boundaries++;
+                lastBoundary = "STATS";
+            } else if (node instanceof InlineStats) {
+                boundaries++;
+                lastBoundary = "INLINE STATS";
             }
         }
 
         private static int limitValue(Limit limit) {
-            Expression value = limit.limit();
-            return value instanceof Literal literal && literal.value() instanceof Number number ? number.intValue() : Integer.MAX_VALUE;
-        }
-
-        /** A LIMIT below every STATS feeds an arbitrary subset of rows into the aggregation, in each window. */
-        private void rejectLimitBeforeAggregation() {
-            for (LimitPosition position : limits) {
-                if (aggregates > 0 && position.aggregatesAfter == aggregates) {
-                    throw new ParsingException(
-                        position.limit.source(),
-                        "[LIMIT] before [STATS] is not supported in ES|QL datafeeds: it feeds an arbitrary subset of rows into the "
-                            + "aggregation. Move the LIMIT after the STATS or remove it"
-                    );
-                }
+            if (limit.limit() instanceof Literal literal && literal.value() instanceof Number number) {
+                return number.intValue();
             }
+            throw new IllegalStateException("the parser keeps the value of a LIMIT as a literal: " + limit.limit());
         }
 
-        /** Limits after the last STATS of the query, or all limits when there is no STATS. */
+        /** Limits after the last STATS of the query, or all limits when there is no STATS; the others are rejected. */
         OptionalInt outputLimit() {
-            return limits.stream().filter(limit -> limit.aggregatesAfter() == 0).mapToInt(LimitPosition::value).min();
+            return limits.stream().mapToInt(Integer::intValue).min();
         }
     }
 
@@ -255,10 +367,10 @@ public class EsqlDatafeedQueryParser implements EsqlQueryParser {
         String query,
         String settingsText,
         String sourceCommand,
+        boolean timeSeriesSource,
         Set<String> indexPatterns,
         boolean isAggregating,
         OptionalInt outputLimit,
-        Set<String> filterFields,
         boolean setsProjectRoutingInQuery,
         ZoneId timeZone
     ) implements ParsedEsqlQuery {
@@ -267,12 +379,6 @@ public class EsqlDatafeedQueryParser implements EsqlQueryParser {
 
         Parsed {
             indexPatterns = Collections.unmodifiableSet(indexPatterns);
-            filterFields = Collections.unmodifiableSet(filterFields);
-        }
-
-        @Override
-        public boolean filtersOn(String field) {
-            return filterFields.contains(field);
         }
 
         @Override
@@ -311,23 +417,36 @@ public class EsqlDatafeedQueryParser implements EsqlQueryParser {
             return withPipeline("STATS " + OUTPUT_ROWS_COLUMN + " = COUNT(*)", List.of());
         }
 
+        /**
+         * {@code TS} rejects {@code COUNT(*)} and {@code MIN(field)}: it aggregates over time, so a {@code TS} source is read with
+         * the over-time functions, which also keeps it to the time series indices that {@code TS} reads. A document without the time
+         * field is not counted then, which does not matter for a range summary.
+         */
         @Override
         public EsqlQueryWithParams sourceRangeSummaryQuery(String sourceTimeField) {
-            return sourceWithPipeline(
-                "STATS "
+            String stats = timeSeriesSource
+                ? "STATS "
+                    + EARLIEST_TIME_COLUMN
+                    + " = MIN(MIN_OVER_TIME(??timeField)), "
+                    + LATEST_TIME_COLUMN
+                    + " = MAX(MAX_OVER_TIME(??timeField)), "
+                    + TOTAL_HITS_COLUMN
+                    + " = COALESCE(SUM(COUNT_OVER_TIME(??timeField)), 0)"
+                : "STATS "
                     + EARLIEST_TIME_COLUMN
                     + " = MIN(??timeField), "
                     + LATEST_TIME_COLUMN
                     + " = MAX(??timeField), "
                     + TOTAL_HITS_COLUMN
-                    + " = COUNT(*)",
-                timeFieldParams(sourceTimeField)
-            );
+                    + " = COUNT(*)";
+            return sourceWithPipeline(stats, timeFieldParams(sourceTimeField));
         }
 
         @Override
         public EsqlQueryWithParams sourceTimeFieldProbeQuery(String sourceTimeField) {
-            return sourceWithPipeline("KEEP ??timeField | LIMIT 0", timeFieldParams(sourceTimeField));
+            // TS has to be followed by STATS, so it is probed with the over-time function the range summary uses.
+            String pipeline = timeSeriesSource ? "STATS t = MAX(MAX_OVER_TIME(??timeField)) | LIMIT 0" : "KEEP ??timeField | LIMIT 0";
+            return sourceWithPipeline(pipeline, timeFieldParams(sourceTimeField));
         }
 
         private EsqlQueryWithParams withPipeline(String pipeline, List<EsqlQueryParam> params) {

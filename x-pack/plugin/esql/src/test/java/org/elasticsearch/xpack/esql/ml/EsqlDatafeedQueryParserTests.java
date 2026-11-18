@@ -10,22 +10,35 @@ package org.elasticsearch.xpack.esql.ml;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.project.DefaultProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.spi.SPIClassIterator;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.parser.EsqlConfig;
+import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
+import org.elasticsearch.xpack.esql.view.ViewService;
 import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryParser;
 import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryWithParams;
 import org.elasticsearch.xpack.ml.datafeed.esql.spi.ParsedEsqlQuery;
@@ -33,9 +46,14 @@ import org.elasticsearch.xpack.ml.datafeed.esql.spi.TimeBucket;
 import org.junit.After;
 import org.junit.Before;
 
+import java.net.URL;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -47,6 +65,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.EsqlQueryParam.ParamClassification.IDENTIFIER;
 import static org.hamcrest.Matchers.contains;
@@ -60,7 +79,6 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class EsqlDatafeedQueryParserTests extends ESTestCase {
 
-    private final EsqlDatafeedQueryParser parser = new EsqlDatafeedQueryParser();
     private ThreadPool threadPool;
     private ClusterService clusterService;
 
@@ -80,6 +98,8 @@ public class EsqlDatafeedQueryParserTests extends ESTestCase {
         Set<Setting<?>> registered = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         registered.addAll(EsqlFlags.ALL_ESQL_FLAGS_SETTINGS);
         registered.addAll(QuerySettings.clusterSettings());
+        registered.add(ViewService.MAX_VIEWS_COUNT_SETTING);
+        registered.add(ViewService.MAX_VIEW_LENGTH_SETTING);
         return ClusterServiceUtils.createClusterService(
             threadPool,
             DiscoveryNodeUtils.create("node", "node"),
@@ -88,8 +108,22 @@ public class EsqlDatafeedQueryParserTests extends ESTestCase {
         );
     }
 
+    private EsqlDatafeedQueryParser parserFor(ClusterService clusterService) {
+        EsqlParser esqlParser = new EsqlParser(new EsqlConfig(new EsqlFunctionRegistry()));
+        return new EsqlDatafeedQueryParser(
+            () -> new EsqlDatafeedQueryParser.Services(
+                esqlParser,
+                clusterService,
+                DefaultProjectResolver.INSTANCE,
+                new ViewService(clusterService, esqlParser, (statement, viewName, listener) -> listener.onResponse(null)),
+                new CrossProjectModeDecider(clusterService.getSettings()),
+                new XPackLicenseState(System::currentTimeMillis)
+            )
+        );
+    }
+
     private ParsedEsqlQuery parse(String query) {
-        return parser.parse(query, clusterService);
+        return parserFor(clusterService).parse(query);
     }
 
     public void testServicesFileShouldRegisterParser() {
@@ -113,15 +147,15 @@ public class EsqlDatafeedQueryParserTests extends ESTestCase {
 
     public void testTimeZoneSetInQueryShouldWinOverClusterDefault() {
         try (ClusterService berlin = clusterService(Settings.builder().put("esql.query.settings.time_zone", "Europe/Berlin").build())) {
-            assertThat(parser.parse("FROM idx", berlin).timeZone(), equalTo(ZoneId.of("Europe/Berlin")));
-            assertThat(parser.parse("SET time_zone=\"Asia/Tokyo\"; FROM idx", berlin).timeZone(), equalTo(ZoneId.of("Asia/Tokyo")));
+            assertThat(parserFor(berlin).parse("FROM idx").timeZone(), equalTo(ZoneId.of("Europe/Berlin")));
+            assertThat(parserFor(berlin).parse("SET time_zone=\"Asia/Tokyo\"; FROM idx").timeZone(), equalTo(ZoneId.of("Asia/Tokyo")));
         }
     }
 
     public void testProjectRoutingSetInQueryShouldBeReportedWhenCrossProjectIsEnabled() {
         try (ClusterService cps = clusterService(Settings.builder().put("serverless.cross_project.enabled", true).build())) {
-            assertThat(parser.parse("SET project_routing=\"_alias:*\"; FROM idx", cps).setsProjectRoutingInQuery(), is(true));
-            assertThat(parser.parse("FROM idx", cps).setsProjectRoutingInQuery(), is(false));
+            assertThat(parserFor(cps).parse("SET project_routing=\"_alias:*\"; FROM idx").setsProjectRoutingInQuery(), is(true));
+            assertThat(parserFor(cps).parse("FROM idx").setsProjectRoutingInQuery(), is(false));
         }
     }
 
@@ -141,7 +175,7 @@ public class EsqlDatafeedQueryParserTests extends ESTestCase {
         ParsingException tooMany = expectThrows(ParsingException.class, () -> parse(query));
         assertThat(tooMany.getMessage(), not(containsString("not supported in ES|QL datafeeds")));
         try (ClusterService raised = clusterService(Settings.builder().put("esql.query.max_command_count", 1000).build())) {
-            ParsingException unsupported = expectThrows(ParsingException.class, () -> parser.parse(query, raised));
+            ParsingException unsupported = expectThrows(ParsingException.class, () -> parserFor(raised).parse(query));
             assertThat(unsupported.getMessage(), containsString("[FROM with several subqueries] is not supported in ES|QL datafeeds"));
         }
     }
@@ -252,7 +286,6 @@ public class EsqlDatafeedQueryParserTests extends ESTestCase {
         ParsedEsqlQuery query = parse("FROM (FROM remote:logs | WHERE a > 1) | LIMIT 5");
         assertThat(query.indexPatterns(), contains("remote:logs"));
         assertThat(query.outputLimit(), equalTo(OptionalInt.of(5)));
-        assertThat(query.filtersOn("a"), is(true));
     }
 
     public void testForkShouldBeRejected() {
@@ -306,9 +339,12 @@ public class EsqlDatafeedQueryParserTests extends ESTestCase {
         assertThat(query.isAggregating(), is(true));
     }
 
-    public void testLimitBetweenTwoStatsShouldNotCapOutput() {
-        ParsedEsqlQuery query = parse("FROM x | STATS c = COUNT(*) BY h | LIMIT 5 | STATS m = MAX(c)");
-        assertThat(query.outputLimit(), equalTo(OptionalInt.empty()));
+    public void testLimitBetweenTwoStatsShouldBeRejected() {
+        ParsingException e = expectThrows(
+            ParsingException.class,
+            () -> parse("FROM x | STATS c = COUNT(*) BY h | LIMIT 5 | STATS m = MAX(c)")
+        );
+        assertThat(e.getMessage(), containsString("[LIMIT] before [STATS] is not supported in ES|QL datafeeds"));
     }
 
     public void testSmallestOfSeveralOutputLimitsShouldBeReported() {
@@ -333,54 +369,36 @@ public class EsqlDatafeedQueryParserTests extends ESTestCase {
         assertThat(query.indexPatterns(), contains("x"));
     }
 
-    public void testBacktickFieldShouldBeUnquoted() {
-        ParsedEsqlQuery query = parse("FROM x | WHERE `@timestamp` > NOW() - 1 day | SORT `@timestamp` DESC");
-        assertThat(query.filtersOn("@timestamp"), is(true));
-        assertThat(query.filtersOn("other"), is(false));
-    }
-
-    public void testFilterOnOtherFieldShouldNotReportTimeField() {
-        ParsedEsqlQuery query = parse(
-            "FROM x | WHERE k8s.event.reason IS NOT NULL | STATS c = COUNT(*) BY b = BUCKET(@timestamp, 1 minute)"
-        );
-        assertThat(query.filtersOn("k8s.event.reason"), is(true));
-        assertThat(query.filtersOn("@timestamp"), is(false));
-    }
-
     public void testIndexPatternsShouldBeSplitAndReportedAsWritten() {
         ParsedEsqlQuery query = parse("FROM logs-*, -logs-secret, remote:b, \"quoted:idx\"");
         assertThat(query.indexPatterns(), containsInAnyOrder("logs-*", "-logs-secret", "remote:b", "quoted:idx"));
     }
 
-    public void testTimeSeriesSourceShouldBeProbedWithFromScopedToTimeSeriesIndices() {
+    public void testTimeSeriesSourceShouldBeProbedWithTsAndOverTimeFunctions() {
         ParsedEsqlQuery query = parse("TS metrics METADATA _index | STATS max(cpu) BY TBUCKET(1 hour)");
-        String scoped = "FROM metrics METADATA _index, _index_mode | WHERE _index_mode == \"time_series\" | ";
-        assertThat(query.sourceRangeSummaryQuery("@timestamp").query(), containsString(scoped + "STATS"));
-        assertThat(query.sourceTimeFieldProbeQuery("@timestamp").query(), containsString(scoped + "KEEP"));
-    }
-
-    public void testTimeSeriesSourceWithoutMetadataShouldGetIndexModeMetadata() {
-        ParsedEsqlQuery query = parse("TS metrics | STATS max(cpu) BY TBUCKET(1 hour)");
+        assertThat(
+            query.sourceRangeSummaryQuery("@timestamp").query(),
+            equalTo(
+                "TS metrics METADATA _index | STATS "
+                    + ParsedEsqlQuery.EARLIEST_TIME_COLUMN
+                    + " = MIN(MIN_OVER_TIME(??timeField)), "
+                    + ParsedEsqlQuery.LATEST_TIME_COLUMN
+                    + " = MAX(MAX_OVER_TIME(??timeField)), "
+                    + ParsedEsqlQuery.TOTAL_HITS_COLUMN
+                    + " = COALESCE(SUM(COUNT_OVER_TIME(??timeField)), 0)"
+            )
+        );
         assertThat(
             query.sourceTimeFieldProbeQuery("@timestamp").query(),
-            containsString("FROM metrics METADATA _index_mode | WHERE _index_mode == \"time_series\" | KEEP")
+            equalTo("TS metrics METADATA _index | STATS t = MAX(MAX_OVER_TIME(??timeField)) | LIMIT 0")
         );
     }
 
-    public void testTimeSeriesSourceWithIndexModeMetadataShouldNotRepeatIt() {
-        ParsedEsqlQuery query = parse("TS metrics METADATA _index_mode | STATS max(cpu) BY TBUCKET(1 hour)");
-        assertThat(
-            query.sourceTimeFieldProbeQuery("@timestamp").query(),
-            containsString("FROM metrics METADATA _index_mode | WHERE _index_mode == \"time_series\" | KEEP")
-        );
-    }
-
-    public void testTimeSeriesSourceWithMetadataWordInPatternShouldGetMetadataClause() {
-        ParsedEsqlQuery query = parse("TS metrics-metadata* | STATS max(cpu) BY TBUCKET(1 hour)");
-        assertThat(
-            query.sourceTimeFieldProbeQuery("@timestamp").query(),
-            containsString("FROM metrics-metadata* METADATA _index_mode | WHERE _index_mode == \"time_series\" | KEEP")
-        );
+    public void testFromSourceShouldBeProbedWithPlainAggregates() {
+        ParsedEsqlQuery query = parse("FROM metrics | STATS max(cpu) BY TBUCKET(1 hour)");
+        assertThat(query.sourceRangeSummaryQuery("@timestamp").query(), containsString("MIN(??timeField)"));
+        assertThat(query.sourceRangeSummaryQuery("@timestamp").query(), containsString("COUNT(*)"));
+        assertThat(query.sourceTimeFieldProbeQuery("@timestamp").query(), equalTo("FROM metrics | KEEP ??timeField | LIMIT 0"));
     }
 
     public void testPromqlShouldBeRejected() {
@@ -401,7 +419,9 @@ public class EsqlDatafeedQueryParserTests extends ESTestCase {
     public void testDynamicInferenceSettingShouldOverrideNodeSetting() {
         String completion = "FROM t | COMPLETION prompt_field WITH { \"inference_id\" : \"id\" }";
         try (ClusterService disabled = clusterService(Settings.builder().put("esql.command.completion.enabled", false).build())) {
-            expectThrows(ParsingException.class, () -> parser.parse(completion, disabled));
+            // The command is disabled, so ES|QL itself refuses it before datafeeds classify it.
+            ParsingException disabledError = expectThrows(ParsingException.class, () -> parserFor(disabled).parse(completion));
+            assertThat(disabledError.getMessage(), not(containsString("ES|QL datafeeds")));
             ClusterServiceUtils.setState(
                 disabled,
                 ClusterState.builder(disabled.state())
@@ -411,7 +431,9 @@ public class EsqlDatafeedQueryParserTests extends ESTestCase {
                     )
                     .build()
             );
-            assertThat(parser.parse(completion, disabled).indexPatterns(), contains("t"));
+            // The dynamic setting enables it, so the parse gets as far as the datafeed's own rejection.
+            ParsingException enabledError = expectThrows(ParsingException.class, () -> parserFor(disabled).parse(completion));
+            assertThat(enabledError.getMessage(), containsString("[COMPLETION] is not supported in ES|QL datafeeds"));
         }
     }
 
@@ -464,6 +486,212 @@ public class EsqlDatafeedQueryParserTests extends ESTestCase {
             }
         } finally {
             terminate(executor);
+        }
+    }
+
+    public void testViewShouldBeRejected() {
+        ProjectId projectId = ProjectId.DEFAULT;
+        ClusterServiceUtils.setState(
+            clusterService,
+            ClusterState.builder(clusterService.state())
+                .putProjectMetadata(
+                    ProjectMetadata.builder(clusterService.state().metadata().getProject(projectId))
+                        .views(Map.of("my_view", new View("my_view", "FROM logs")))
+                )
+                .build()
+        );
+        ParsingException e = expectThrows(ParsingException.class, () -> parse("FROM my_view | STATS c = COUNT(*)"));
+        assertThat(e.getMessage(), containsString("[my_view] is a view; views are not supported in ES|QL datafeeds"));
+        // The view is named exactly even when it is listed with other sources.
+        expectThrows(ParsingException.class, () -> parse("FROM logs, my_view | STATS c = COUNT(*)"));
+        assertThat(parse("FROM logs | STATS c = COUNT(*)").indexPatterns(), contains("logs"));
+    }
+
+    public void testCommandsThatDependOnOtherRowsShouldBeRejectedBelowStats() {
+        Map<String, String> commands = Map.of(
+            "LIMIT 10",
+            "LIMIT",
+            "LIMIT 10 BY host",
+            "LIMIT BY",
+            "DEDUP",
+            "DEDUP",
+            "CHANGE_POINT v ON t",
+            "CHANGE_POINT"
+        );
+        for (Map.Entry<String, String> command : commands.entrySet()) {
+            for (String stats : List.of("STATS c = COUNT(*) BY h", "INLINE STATS c = COUNT(*) BY h")) {
+                ParsingException e = expectThrows(ParsingException.class, () -> parse("FROM a | " + command.getKey() + " | " + stats));
+                assertThat(e.getMessage(), containsString("[" + command.getValue() + "] before ["));
+            }
+        }
+    }
+
+    public void testCommandsThatDependOnOtherRowsShouldBeAcceptedAfterTheLastStats() {
+        parse("FROM a | STATS c = COUNT(*) BY h | LIMIT 10 BY h | DEDUP | CHANGE_POINT c ON h");
+        parse("FROM a | LIMIT 10 BY h | DEDUP");
+        // LIMIT BY and DEDUP do not cap the output; only a plain LIMIT does.
+        assertThat(parse("FROM a | STATS c = COUNT(*) BY h | LIMIT 10 BY h | DEDUP").outputLimit(), equalTo(OptionalInt.empty()));
+    }
+
+    public void testLimitBeforeInlineStatsShouldBeRejected() {
+        ParsingException e = expectThrows(ParsingException.class, () -> parse("FROM a | LIMIT 10 | INLINE STATS c = COUNT(*)"));
+        assertThat(e.getMessage(), containsString("[LIMIT] before [INLINE STATS] is not supported in ES|QL datafeeds"));
+    }
+
+    public void testSampleShouldBeAcceptedBelowStats() {
+        ParsedEsqlQuery query = parse("FROM a | SAMPLE 0.5 | STATS c = COUNT(*) BY b = BUCKET(@timestamp, 1 hour)");
+        assertThat(query.isAggregating(), is(true));
+    }
+
+    public void testRowLocalCommandsShouldBeAcceptedBelowStats() {
+        parse(
+            "FROM a | WHERE x > 1 | EVAL y = x + 1 | KEEP x, y | DROP z | SORT x | DISSECT s \"%{a} %{b}\" | GROK s \"%{WORD:w}\" "
+                + "| STATS c = COUNT(*) BY y"
+        );
+    }
+
+    public void testExplainShouldBeRejected() {
+        ParsingException e = expectThrows(ParsingException.class, () -> parse("EXPLAIN (FROM a | LIMIT 1)"));
+        assertThat(e.getMessage(), containsString("[EXPLAIN] is not supported in ES|QL datafeeds"));
+    }
+
+    public void testIntoShouldBeRejected() {
+        ParsingException e = expectThrows(ParsingException.class, () -> parse("ROW a = 1 | INTO dest"));
+        assertThat(e.getMessage(), containsString("[INTO] is not supported in ES|QL datafeeds"));
+    }
+
+    public void testRejectedCommandInsideSingleSubqueryShouldBeRejected() {
+        ParsingException e = expectThrows(ParsingException.class, () -> parse("FROM (FROM a | RENAME x AS y)"));
+        assertThat(e.getMessage(), containsString("[RENAME] is not supported in ES|QL datafeeds"));
+        expectThrows(ParsingException.class, () -> parse("FROM (FROM a | LIMIT 5) | STATS c = COUNT(*)"));
+    }
+
+    /**
+     * Every command is either accepted, accepted after the last STATS, rejected, or one the parser never builds: a new
+     * command makes this test fail until someone decides which.
+     */
+    public void testEveryLogicalPlanShouldBeClassified() throws Exception {
+        Set<Class<?>> accepted = new HashSet<>();
+        List<Set<? extends Class<?>>> sets = List.of(
+            EsqlDatafeedQueryParser.ANYWHERE,
+            EsqlDatafeedQueryParser.AFTER_LAST_STATS.keySet(),
+            EsqlDatafeedQueryParser.REJECTED.keySet(),
+            NEVER_PARSED.stream().map(EsqlDatafeedQueryParserTests::planClass).collect(Collectors.toSet())
+        );
+        for (Set<? extends Class<?>> set : sets) {
+            for (Class<?> c : set) {
+                assertTrue("[" + c.getName() + "] is classified twice", accepted.add(c));
+            }
+        }
+        Set<Class<?>> onClassPath = classesInPackage(LogicalPlan.class.getPackageName()).stream()
+            .filter(LogicalPlan.class::isAssignableFrom)
+            .filter(c -> c.isAnonymousClass() == false)
+            .collect(Collectors.toSet());
+        assertThat("unclassified: " + Sets.difference(onClassPath, accepted), onClassPath, equalTo(accepted));
+    }
+
+    private static final String PLAN_PACKAGE = LogicalPlan.class.getPackageName() + ".";
+
+    /** Plans the parser does not build, by name relative to the plan package. */
+    private static final Set<String> NEVER_PARSED = Set.of(
+        // Superclasses of other plans
+        "BinaryPlan",
+        "BranchPlan",
+        "CompoundOutputEval",
+        "LeafPlan",
+        "LogicalPlan",
+        "MergePlan",
+        "Project",
+        "RegexExtract",
+        "UnaryPlan",
+        "inference.InferencePlan",
+        "join.AbstractSubqueryJoin",
+        "join.Join",
+        // Built after parsing, by the analyzer, the optimizer or the mapper
+        "DatasetShadowRelation",
+        "EqlRelation",
+        "EsRelation",
+        "ExternalRelation",
+        "Fetch",
+        "InsertEmptyBuckets",
+        "IpLocation",
+        "NamedSubquery",
+        "PackDims",
+        "ParameterizedQuery",
+        "SampledAggregate",
+        "SparklineGenerateEmptyBuckets",
+        "TopN",
+        "TopNBy",
+        "TopNPreFilter",
+        "UnpackDims",
+        "ViewShadowRelation",
+        "fuse.FuseScoreEval",
+        "join.AntiJoin",
+        "join.HashJoin",
+        "join.InlineJoin",
+        "join.MarkJoin",
+        "join.SemiJoin",
+        "join.StubRelation",
+        "local.LocalRelation",
+        "local.ResolvingProject",
+        // Built inside a PROMQL command, which is rejected as a whole
+        "promql.AcrossSeriesAggregate",
+        "promql.AcrossSeriesReduction",
+        "promql.CountValuesAggregate",
+        "promql.HistogramFraction",
+        "promql.HistogramFunctionCall",
+        "promql.HistogramQuantile",
+        "promql.MetadataManipulationFunction",
+        "promql.PlaceholderRelation",
+        "promql.PromqlFunctionCall",
+        "promql.ScalarConversionFunction",
+        "promql.ScalarFunction",
+        "promql.SortByLabelFunction",
+        "promql.SortFunction",
+        "promql.UnresolvedPromqlFunction",
+        "promql.ValueTransformationFunction",
+        "promql.VectorConversionFunction",
+        "promql.WithinSeriesAggregate",
+        "promql.operator.VectorBinaryArithmetic",
+        "promql.operator.VectorBinaryComparison",
+        "promql.operator.VectorBinaryOperator",
+        "promql.operator.VectorBinarySet",
+        "promql.selector.InstantSelector",
+        "promql.selector.LiteralSelector",
+        "promql.selector.RangeSelector",
+        "promql.selector.Selector"
+    );
+
+    private static Class<?> planClass(String name) {
+        try {
+            return Class.forName(PLAN_PACKAGE + name);
+        } catch (ClassNotFoundException e) {
+            throw new AssertionError("no plan named [" + name + "]", e);
+        }
+    }
+
+    private static List<Class<?>> classesInPackage(String packageName) throws Exception {
+        List<Class<?>> classes = new ArrayList<>();
+        Enumeration<URL> resources = Thread.currentThread().getContextClassLoader().getResources(packageName.replace('.', '/'));
+        while (resources.hasMoreElements()) {
+            Path directory = PathUtils.get(resources.nextElement().toURI());
+            if (Files.isDirectory(directory)) {
+                scan(directory, packageName, classes);
+            }
+        }
+        return classes;
+    }
+
+    private static void scan(Path directory, String packageName, List<Class<?>> classes) throws Exception {
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(directory)) {
+            for (Path entry : stream) {
+                String name = entry.getFileName().toString();
+                if (Files.isDirectory(entry)) {
+                    scan(entry, packageName + "." + name, classes);
+                } else if (name.endsWith(".class")) {
+                    classes.add(Class.forName(packageName + "." + name.replace(".class", "")));
+                }
+            }
         }
     }
 }

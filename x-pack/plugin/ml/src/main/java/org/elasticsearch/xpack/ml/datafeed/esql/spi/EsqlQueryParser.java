@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.ml.datafeed.esql.spi;
 
-import org.elasticsearch.cluster.service.ClusterService;
-
 /**
  * Parses ES|QL datafeed queries. ML cannot depend on the ES|QL plugin (ES|QL extends ML), so the ES|QL plugin implements this
  * interface and registers it in {@code META-INF/services}; {@code MachineLearning.loadExtensions} loads it.
@@ -16,10 +14,10 @@ import org.elasticsearch.cluster.service.ClusterService;
 public interface EsqlQueryParser {
 
     /**
-     * Parses {@code query}, resolving its settings and limits against the cluster the way ES|QL does for a query it runs.
+     * Parses {@code query}, resolving its settings and limits the way ES|QL does for a query it runs.
      *
      * @throws org.elasticsearch.ElasticsearchException with status {@code BAD_REQUEST} when the query is not valid ES|QL or uses a
      *                                                  construct ES|QL datafeeds do not support
      */
-    ParsedEsqlQuery parse(String query, ClusterService clusterService);
+    ParsedEsqlQuery parse(String query);
 }

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.ml.datafeed.esql;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryParser;
 import org.elasticsearch.xpack.ml.datafeed.esql.spi.ParsedEsqlQuery;
@@ -17,7 +16,7 @@ import org.elasticsearch.xpack.ml.datafeed.esql.spi.ParsedEsqlQuery;
 public final class UnavailableEsqlQueryParser implements EsqlQueryParser {
 
     @Override
-    public ParsedEsqlQuery parse(String query, ClusterService clusterService) {
+    public ParsedEsqlQuery parse(String query) {
         throw new ElasticsearchStatusException(
             "ES|QL datafeeds require the ES|QL plugin. The ES|QL plugin is not available.",
             RestStatus.BAD_REQUEST

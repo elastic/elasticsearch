@@ -12,7 +12,6 @@ import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -389,7 +388,7 @@ public class MachineLearningTests extends ESTestCase {
 
     private static class FirstTestParser implements EsqlQueryParser {
         @Override
-        public ParsedEsqlQuery parse(String query, ClusterService clusterService) {
+        public ParsedEsqlQuery parse(String query) {
             throw new UnsupportedOperationException();
         }
     }

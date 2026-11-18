@@ -40,9 +40,6 @@ public interface ParsedEsqlQuery {
     /** The smallest {@code LIMIT} after the last {@code STATS}, or any without {@code STATS}: it caps the output rows. */
     OptionalInt outputLimit();
 
-    /** Whether a {@code WHERE} reads {@code field}. */
-    boolean filtersOn(String field);
-
     /** Whether the query itself sets {@code project_routing}, as opposed to a cluster default. */
     boolean setsProjectRoutingInQuery();
 

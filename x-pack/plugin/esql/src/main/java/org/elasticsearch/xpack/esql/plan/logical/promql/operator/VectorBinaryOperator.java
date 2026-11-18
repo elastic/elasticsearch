@@ -32,7 +32,7 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
     private final VectorMatch match;
     private final boolean dropMetricName;
     private final BinaryOp binaryOp;
-    private List<Attribute> output;
+    private volatile List<Attribute> output;
 
     /**
      * Underlying binary operation (e.g. +, -, *, /, etc.) being performed

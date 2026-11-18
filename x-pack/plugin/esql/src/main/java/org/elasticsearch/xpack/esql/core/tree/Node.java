@@ -34,6 +34,54 @@ import static java.util.Collections.emptyList;
  * the use of streams and iterators is not really useful and brings too much baggage which
  * might be used incorrectly.
  *
+ * <h2>Thread safety</h2>
+ * A node is shared by every thread that holds the plan it belongs to: on a data node, the drivers for all shards run the
+ * same physical plan, and some of them call back into its expressions while they run (for example to build a converter for
+ * each shard). Plans are also shared during planning, for example by concurrent lookup join requests, or by a data node's
+ * node-level reduction and its shard batches. Nodes are not otherwise synchronized, so they must be safe to read from
+ * several threads at once:
+ * <ul>
+ *     <li>Every instance field is {@code final}, unless it caches a value that is computed lazily.</li>
+ *     <li>Compute a lazily computed value in a local variable and assign the field once, when the value is complete:
+ *     never assign a partly built collection or array and fill it in afterwards, and never store an intermediate result
+ *     in the field. Two threads may both compute the value; that's fine as long as they compute the same one.</li>
+ *     <li>If the value is immutable through {@code final} fields (an enum, a record, a boxed primitive, a {@code String},
+ *     an {@link org.elasticsearch.xpack.esql.core.expression.AttributeSet}, another node, ...), the field can be plain,
+ *     but read it only once per method, into a local, like {@link String#hashCode()} does. A record only counts if
+ *     everything it holds is fully built before the record is created: its {@code final} fields don't make a list that is
+ *     filled in afterwards safe.
+ *     <pre>{@code
+ *     AttributeSet outputSet = lazyOutputSet;
+ *     if (outputSet == null) {
+ *         outputSet = AttributeSet.of(output());
+ *         lazyOutputSet = outputSet;
+ *     }
+ *     return outputSet;
+ *     }</pre>
+ *     Two plain reads of a field can be reordered, so a second read can return {@code null} after the first one didn't.
+ *     </li>
+ *     <li>Any other lazily computed field, like a {@code List} or an array, is {@code volatile}: otherwise another thread
+ *     can see the reference before the contents.</li>
+ *     <li>A helper object that memoizes something, such as a {@link java.util.function.Supplier}, must be thread-safe
+ *     itself; prefer {@code org.elasticsearch.common.util.CachedSupplier}.</li>
+ *     <li>Never mutate an object reachable from a node after the node is constructed, other than by such a lazy
+ *     assignment.</li>
+ * </ul>
+ * {@code PlanFieldSafePublicationTests} checks the shape of the code for all subclasses of {@link Node} and
+ * {@link org.elasticsearch.xpack.esql.core.type.EsField}, plus the inner and anonymous classes declared in them. It checks
+ * that every instance field is {@code final}, {@code volatile}, or of a type on its list of immutable types, that a method
+ * reads a plain lazy field at most once, and that a method doesn't read a lazily computed field again after assigning it,
+ * except to return it. Passing it doesn't make a node thread-safe; it can't see, for example:
+ * <ul>
+ *     <li>a value that is filled in through a local variable or a helper method after it was assigned to the field;</li>
+ *     <li>what a record holds: it is treated as safe, but it's only safe if its components are complete when it is created;</li>
+ *     <li>reads that happen more than once at runtime but only once in the code: a single read inside a loop, or a field
+ *     read once by each of two methods where a caller uses both. It counts reads in the bytecode of each method, so read
+ *     the field into a local before the loop, and have the caller pass the value on instead of reading it again;</li>
+ *     <li>objects a node holds that are neither nodes nor {@code EsField}s, or static state;</li>
+ *     <li>mutation of an object reachable from a node (the last rule).</li>
+ * </ul>
+ *
  * @param <T> node type
  */
 public abstract class Node<T extends Node<T>> implements NamedWriteable {

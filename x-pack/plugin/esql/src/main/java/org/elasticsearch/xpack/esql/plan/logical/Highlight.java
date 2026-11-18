@@ -94,7 +94,7 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
      */
     private final List<Attribute> generatedFields;
 
-    private List<Attribute> lazyOutput;
+    private volatile List<Attribute> lazyOutput;
 
     public Highlight(
         Source source,

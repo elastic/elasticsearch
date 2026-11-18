@@ -42,7 +42,7 @@ public class HighlightExec extends UnaryExec {
     private final MapExpression options;
     private final List<Attribute> generatedFields;
 
-    private List<Attribute> lazyOutput;
+    private volatile List<Attribute> lazyOutput;
 
     public HighlightExec(
         Source source,

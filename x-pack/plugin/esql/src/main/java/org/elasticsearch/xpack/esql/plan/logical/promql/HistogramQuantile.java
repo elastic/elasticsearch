@@ -30,7 +30,7 @@ public final class HistogramQuantile extends PromqlFunctionCall {
     public static final String LE_LABEL = "le";
 
     private final Expression quantile;
-    private List<Attribute> output;
+    private volatile List<Attribute> output;
 
     public HistogramQuantile(Source source, LogicalPlan child, PromqlFunctionDefinition definition, List<Expression> parameters) {
         super(source, child, definition, parameters);

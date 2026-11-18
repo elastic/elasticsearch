@@ -104,15 +104,15 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
         Map.entry(EXPONENTIAL_HISTOGRAM, ToStringFromExponentialHistogramEvaluator.Factory::new),
 
         // Evaluators dynamically created in #factories()
-        Map.entry(DATETIME, (source, fieldEval) -> null),
-        Map.entry(DATE_NANOS, (source, fieldEval) -> null),
-        Map.entry(DATE_RANGE, (source, fieldEval) -> null)
+        Map.entry(DATETIME, builtInFactories(DATETIME)),
+        Map.entry(DATE_NANOS, builtInFactories(DATE_NANOS)),
+        Map.entry(DATE_RANGE, builtInFactories(DATE_RANGE))
     );
 
     /**
      * Volatile because a plan's expressions are shared by the drivers of every shard on a node, which may call
      * {@link #factories()} concurrently. Without it, a reader can see the map before {@code putAll} replaces the
-     * {@code null}-returning placeholders from {@link #STATIC_EVALUATORS}.
+     * throwing placeholders from {@link #STATIC_EVALUATORS}.
      */
     private volatile Map<DataType, BuildFactory> lazyEvaluators = null;
 

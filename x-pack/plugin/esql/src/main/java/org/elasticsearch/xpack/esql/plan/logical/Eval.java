@@ -49,7 +49,7 @@ public class Eval extends UnaryPlan
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Eval", Eval::new);
 
     private final List<Alias> fields;
-    private List<Attribute> lazyOutput;
+    private volatile List<Attribute> lazyOutput;
 
     public Eval(Source source, LogicalPlan child, List<Alias> fields) {
         super(source, child);

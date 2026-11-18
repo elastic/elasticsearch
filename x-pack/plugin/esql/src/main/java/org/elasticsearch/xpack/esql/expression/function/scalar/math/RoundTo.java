@@ -158,17 +158,21 @@ public class RoundTo extends EsqlScalarFunction implements BlockLoaderExpression
 
     @Override
     public DataType dataType() {
-        if (resultType != null) {
-            return resultType;
+        DataType type = resultType;
+        if (type != null) {
+            return type;
         }
-        resultType = field.dataType();
+        // Compute in a local and publish only the final type: this field is shared by every thread that holds the plan, and an
+        // unsupported combination must keep returning null rather than whatever was computed before it was found.
+        type = field.dataType();
         for (Expression f : points) {
-            if (resultType == DataType.UNSIGNED_LONG || resultType == null || f.dataType() == UNSIGNED_LONG) {
+            if (type == DataType.UNSIGNED_LONG || type == null || f.dataType() == UNSIGNED_LONG) {
                 return null;
             }
-            resultType = commonType(resultType, f.dataType());
+            type = commonType(type, f.dataType());
         }
-        return resultType;
+        resultType = type;
+        return type;
     }
 
     @Override

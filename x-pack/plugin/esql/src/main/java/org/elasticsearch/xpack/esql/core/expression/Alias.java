@@ -129,12 +129,14 @@ public final class Alias extends NamedExpression {
 
     @Override
     public Attribute toAttribute() {
-        if (lazyAttribute == null) {
-            lazyAttribute = resolved()
+        Attribute attribute = lazyAttribute;
+        if (attribute == null) {
+            attribute = resolved()
                 ? new ReferenceAttribute(source(), null, name(), dataType(), nullable(), id(), synthetic())
                 : new UnresolvedAttribute(source(), name());
+            lazyAttribute = attribute;
         }
-        return lazyAttribute;
+        return attribute;
     }
 
     @Override

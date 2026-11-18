@@ -1729,8 +1729,7 @@ public class LocalExecutionPlanner {
         int positionsChannel = source.layout.numberOfChannels();
         LocalSourceExec localSourceExec = (LocalSourceExec) join.joinData();
         // The lookup operators never take ownership of these blocks: RowInTableLookupOperator builds its table from
-        // views or temporary copies of them, and ColumnLoadOperator copies the values it keeps into each driver's
-        // block factory
+        // them without keeping them, and ColumnLoadOperator copies the values it keeps into each driver's block factory
         Page localData = localSourceExec.supplier().peek();
 
         // see {@link Mapper#JOIN_MARKER_PREFIX}

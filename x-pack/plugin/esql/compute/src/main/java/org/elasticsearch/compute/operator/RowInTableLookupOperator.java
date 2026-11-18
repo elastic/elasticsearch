@@ -13,9 +13,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.core.AbstractRefCounted;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
@@ -75,8 +73,8 @@ import java.util.List;
  * }
  * <p>
  *     The {@link Factory} holds the key {@link Block}s and is shared across
- *     all drivers. The table is built from views or temporary copies of those
- *     blocks, so this operator never releases them. Every operator the factory
+ *     all drivers. The table is built directly from those blocks, and this
+ *     operator never releases them. Every operator the factory
  *     creates probes one shared table. The first {@link Factory#get} builds it,
  *     and a later one builds a fresh table once every operator using the old
  *     one has closed.
@@ -167,54 +165,34 @@ public class RowInTableLookupOperator extends AbstractPageMappingToIteratorOpera
     private static final class SharedLookup extends AbstractRefCounted {
         private final RowInTableLookup table;
         /**
-         * The factory that hands out this table, or {@code null} if a single operator owns it. Drivers keep their
-         * factories reachable after closing their operators, so a released table must be cleared from the factory
-         * to become unreachable.
+         * The factory that hands out this table. Drivers keep their factories reachable after closing their
+         * operators, so a released table must be cleared from the factory to become unreachable.
          */
-        @Nullable
         private final Factory factory;
 
-        private SharedLookup(RowInTableLookup table, @Nullable Factory factory) {
+        private SharedLookup(RowInTableLookup table, Factory factory) {
             this.table = table;
             this.factory = factory;
         }
 
         @Override
         protected void closeInternal() {
-            if (factory != null) {
-                factory.forget(this);
-            }
+            factory.forget(this);
             table.close();
         }
     }
 
+    /**
+     * Builds the table straight from the key blocks, which belong to the plan. Building may incRef and decRef them
+     * (see BatchEncoder.DirectEncoder), and those ref counts are not thread-safe. That is safe because
+     * {@link Factory#get} runs while the drivers are created, all on one thread and before any of them starts.
+     */
     static RowInTableLookup buildLookup(BlockFactory blockFactory, Key[] keys) {
-        if (keys.length < 1) {
-            throw new IllegalArgumentException("expected [keys] to be non-empty");
+        Block[] blocks = new Block[keys.length];
+        for (int k = 0; k < keys.length; k++) {
+            blocks[k] = keys[k].block;
         }
-        /*
-         * The key blocks belong to the plan, which other threads may be using too, and building may incRef and decRef
-         * its input (see BatchEncoder.DirectEncoder). Those ref counts are not thread-safe, so build from a view that
-         * owns its own ref count instead of the plan's block. A vector-backed key gets a fresh wrapper over the same
-         * values, which is free. Any other key is copied; the copy is only needed while building.
-         */
-        Block[] views = new Block[keys.length];
-        Block[] copies = new Block[keys.length];
-        try {
-            for (int k = 0; k < keys.length; k++) {
-                Vector vector = keys[k].block.asVector();
-                if (vector != null) {
-                    views[k] = vector.asBlock();
-                } else {
-                    copies[k] = keys[k].block.deepCopy(blockFactory);
-                    views[k] = copies[k];
-                }
-            }
-            return RowInTableLookup.build(blockFactory, views);
-        } finally {
-            // Only the copies are released. Closing a wrapper would release the shared vector it wraps.
-            Releasables.closeExpectNoException(copies);
-        }
+        return RowInTableLookup.build(blockFactory, blocks);
     }
 
     private static List<String> keyNames(Key[] keys) {
@@ -233,13 +211,6 @@ public class RowInTableLookupOperator extends AbstractPageMappingToIteratorOpera
     private final SharedLookup shared;
     private final Releasable releaseShared;
     private final int[] blockMapping;
-
-    /**
-     * Builds a table used by this operator alone.
-     */
-    public RowInTableLookupOperator(BlockFactory blockFactory, Key[] keys, int[] blockMapping) {
-        this(blockFactory, keyNames(keys), new SharedLookup(buildLookup(blockFactory, keys), null), blockMapping);
-    }
 
     /**
      * Takes ownership of one reference to {@code shared}.

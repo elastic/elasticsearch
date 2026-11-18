@@ -212,10 +212,10 @@ public class RowInTableLookupOperatorTests extends OperatorTestCase {
     }
 
     /**
-     * A vector-backed key is hashed in place. Copying it first would hold the copy for the whole build, so building
-     * through the operator would peak higher than building straight from the key.
+     * Keys are hashed in place. Copying them first would hold the copy for the whole build, so building through the
+     * operator would peak higher than building straight from the key.
      */
-    public void testBuildDoesNotCopyVectorKeys() {
+    public void testBuildDoesNotCopyKeys() {
         int size = between(1_000, 10_000);
         LongBlock key = TestBlockFactory.getNonBreakingInstance()
             .newLongArrayVector(LongStream.range(0, size).map(i -> i * 3).toArray(), size)

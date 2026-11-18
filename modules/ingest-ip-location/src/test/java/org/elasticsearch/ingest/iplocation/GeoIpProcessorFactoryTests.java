@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.RandomDocumentPicks;
+import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.ingest.geoip.DatabaseNodeService;
 import org.elasticsearch.iplocation.api.IpDataLookup;
 import org.elasticsearch.iplocation.api.IpDataLookupInfo;
@@ -360,5 +361,21 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         when(lookup.isValid()).thenReturn(true);
         when(lookup.getInfo()).thenReturn(info);
         return lookup;
+    }
+
+    /**
+     * Pipelines are stored, so a malformed path in one has to be accepted when the processor is created, with the failure only coming
+     * when a document is run through it. This goes through the factory, as creating a processor from a stored pipeline does.
+     */
+    public void testBuildWithMalformedField() throws Exception {
+        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(GEOIP_TYPE, databaseNodeService);
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "a..b");
+        GeoIpProcessor processor = (GeoIpProcessor) factory.create(null, randomAlphaOfLength(10), null, config, projectId);
+        assertThat(processor.getField(), hasToString("a..b"));
+
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
+        assertThat(e.getMessage(), equalTo("path [a..b] is not valid"));
     }
 }

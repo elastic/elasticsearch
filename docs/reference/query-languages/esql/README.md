@@ -438,6 +438,16 @@ Inside `TS ... | STATS ...`, a bare field is implicitly wrapped in `last_over_ti
 ./gradlew :x-pack:plugin:esql:test --tests org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateKibanaDefinitionTests
 ```
 
+### Profile response schema
+
+The generated draft-7 schema for the ES|QL profile response is published for Kibana in
+[`kibana/generated/x-pack-esql/definition/profile/esql_profile.schema.json`](https://github.com/elastic/elasticsearch/blob/main/docs/reference/query-languages/esql/kibana/generated/x-pack-esql/definition/profile/esql_profile.schema.json).
+To regenerate it after you change a `PROFILE_SCHEMA` definition or add an operator status (see `EsqlProfileSchemaRegistry`), run:
+
+```
+./gradlew :x-pack:plugin:esql:profile-schema:updateProfileSchema
+```
+
 ### Reserved keywords
 
 The reserved-keyword list is generated from identifier-shaped literals in `EsqlBaseLexer.VOCABULARY` by `ReservedKeywordsDocsTests`. Tokens whose ANTLR literal is missing (for example `STATS`) are recovered by lexing the symbolic name. To regenerate:
@@ -478,11 +488,11 @@ To help differentiate between the static and generated content, the generated co
 
 PromQL reference documentation is auto-generated and stored in:
 ```
-docs/reference/query-languages/promql/_snippets/generated/x-pack-esql/functions/    # function markdown snippets: per-function pages, per-category lists, and the "Not yet supported" list
-docs/reference/query-languages/promql/_snippets/generated/x-pack-esql/operators/    # operator markdown snippets: per-operator pages, per-category lists, and the "Not yet supported" list
+docs/reference/query-languages/promql/_snippets/generated/x-pack-esql/functions/    # function markdown snippets: per-function pages, per-category lists, and the "Not supported yet" list
+docs/reference/query-languages/promql/_snippets/generated/x-pack-esql/operators/    # operator markdown snippets: per-operator pages, per-category lists, and the "Not supported yet" list
 docs/reference/query-languages/promql/kibana/generated/x-pack-esql/                 # Kibana definition JSON files for functions and operators
 ```
-For functions, the descriptions, examples, and "Differences from Prometheus" notes come from each function's `PromqlFunctionDefinition` (see `PromqlBuiltinFunctionDefinitions` and the `PROMQL_DEFINITION` fields on the individual function classes). For operators, the same metadata (plus the documentation category and per-operator stack availability) comes from `OPERATOR_DEFS` in `PromqlDocsSupport`, because operators have no runtime registry. Edit those sources rather than the generated files.
+For functions, the descriptions, examples, and "Differences from Prometheus" notes (`stdDivergence`) come from each function's `PromqlFunctionDefinition` (see `PromqlBuiltinFunctionDefinitions` and the `PROMQL_DEFINITION` fields on the individual function classes). For operators, the same metadata (plus the documentation category and per-operator stack availability) comes from `OPERATOR_DEFS` in `PromqlDocsSupport`, because operators have no runtime registry. Edit those sources rather than the generated files.
 
 The hand-written hub pages (`promql/functions.md`, `promql/operators.md`) and the per-category wrapper pages (`promql/functions/<category>.md`, `promql/operators/<category>.md`) include the generated snippets; update them by hand when adding a category.
 

@@ -43,6 +43,9 @@ import java.util.Set;
  * In UNION_BY_NAME scenarios, different files may have different columns. When a pushed filter
  * references a column absent from a file, the predicate must be simplified before re-translation
  * to the format-specific filter (Parquet {@code FilterPredicate}, ORC {@code SearchArgument}).
+ * A present column whose unified type cannot be safely mapped back to the file's type is different:
+ * any conjunct containing such a column must remain entirely unpushed so the retained engine filter
+ * evaluates it after the file value has been widened.
  * <p>
  * Adaptation rules for missing columns (SQL three-valued logic):
  * <ul>
@@ -72,7 +75,7 @@ public final class FilterAdaptation {
      * @return adapted conjuncts; empty list means no pushdown for this file
      */
     public static List<Expression> adaptFilterForFile(List<Expression> filterConjuncts, Set<String> fileColumnNames) {
-        return adaptFilterForFile(filterConjuncts, fileColumnNames, Map.of());
+        return adaptFilterForFile(filterConjuncts, fileColumnNames, Map.of(), Set.of());
     }
 
     /**
@@ -95,9 +98,31 @@ public final class FilterAdaptation {
         Set<String> fileColumnNames,
         Map<String, DataType> fileColumnTypes
     ) {
+        return adaptFilterForFile(filterConjuncts, fileColumnNames, fileColumnTypes, Set.of());
+    }
+
+    /**
+     * Adapts pushed filter conjuncts while distinguishing absent columns from present columns whose
+     * widening cannot be safely inverted. Any predicate referencing the latter, recognized or not, is
+     * unknown at the file's type and therefore leaves its whole conjunct unpushed.
+     *
+     * @param filterConjuncts AND-separated pushed expressions
+     * @param fileColumnNames names of columns present in this file's schema
+     * @param fileColumnTypes file-local types for columns whose widening can be inverted
+     * @param unpushableColumnNames present columns whose widening cannot be inverted
+     * @return adapted conjuncts; empty list means no pushdown for this file
+     */
+    static List<Expression> adaptFilterForFile(
+        List<Expression> filterConjuncts,
+        Set<String> fileColumnNames,
+        Map<String, DataType> fileColumnTypes,
+        Set<String> unpushableColumnNames
+    ) {
         List<Expression> adapted = new ArrayList<>(filterConjuncts.size());
         for (Expression conjunct : filterConjuncts) {
-            Expression result = adaptExpression(conjunct, fileColumnNames, fileColumnTypes);
+            Expression result = referencesAny(conjunct, unpushableColumnNames)
+                ? UNKNOWN_SENTINEL
+                : adaptExpression(conjunct, fileColumnNames, fileColumnTypes);
             if (result == UNKNOWN_SENTINEL) {
                 continue; // nothing can be assumed about this conjunct for this file, so push none of it
             }
@@ -138,7 +163,8 @@ public final class FilterAdaptation {
      * This is safe because {@code pushFilters} will reject or ignore any sub-expression
      * it cannot translate, and RECHECK ensures row-level correctness regardless.
      *
-     * @return the adapted expression, {@link #TRUE_SENTINEL} if always true, or {@code null} if always false/unknown
+     * @return the adapted expression, {@link #TRUE_SENTINEL} if always true, {@link #UNKNOWN_SENTINEL}
+     *         if it cannot safely be pushed, or {@code null} if always false/unknown for a missing column
      */
     private static Expression adaptExpression(Expression expr, Set<String> fileColumnNames, Map<String, DataType> fileColumnTypes) {
         if (expr instanceof BinaryComparison bc) {
@@ -360,6 +386,10 @@ public final class FilterAdaptation {
             case LessThanOrEqual ignored -> overflowHigh ? TRUE_SENTINEL : null;
             default -> bc;
         };
+    }
+
+    private static boolean referencesAny(Expression expr, Set<String> columnNames) {
+        return columnNames.isEmpty() == false && expr.anyMatch(e -> e instanceof NamedExpression ne && columnNames.contains(ne.name()));
     }
 
     private static String extractColumnName(Expression expr) {

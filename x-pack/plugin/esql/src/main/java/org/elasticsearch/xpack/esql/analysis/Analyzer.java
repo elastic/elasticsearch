@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
@@ -30,6 +31,7 @@ import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.AnalyzerRule;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.ParameterizedAnalyzerRule;
 import org.elasticsearch.xpack.esql.analysis.rules.DetermineUnmappedFieldsToKeep;
 import org.elasticsearch.xpack.esql.analysis.rules.ResolveFunctions;
@@ -68,6 +70,7 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedMetadataAttributeExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedPattern;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.VirtualAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
@@ -79,17 +82,19 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedTsField;
 import org.elasticsearch.xpack.esql.core.type.MissingEsField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
+import org.elasticsearch.xpack.esql.core.type.NestedScopeField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedSingleTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
-import org.elasticsearch.xpack.esql.core.type.UnmappedEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.datasources.ExternalMetadataColumns;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSpec;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
+import org.elasticsearch.xpack.esql.eql.EqlPageConverter;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
@@ -153,6 +158,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Esq
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.FieldSemantics;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.ResolvedInference;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ApplyWindowFilter;
@@ -165,12 +171,15 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslateTime
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.BranchIdentity;
 import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.DatasetShadowRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Describe;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
@@ -178,15 +187,18 @@ import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
+import org.elasticsearch.xpack.esql.plan.logical.Into;
 import org.elasticsearch.xpack.esql.plan.logical.IpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MMR;
+import org.elasticsearch.xpack.esql.plan.logical.MergeBranchAlignment;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
+import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
@@ -196,6 +208,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedEqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedMetadata;
@@ -219,6 +232,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
+import org.elasticsearch.xpack.esql.plan.logical.promql.CountValuesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.MetadataManipulationFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels;
@@ -259,7 +273,6 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.GEO_MATCH_TYPE;
 import static org.elasticsearch.xpack.esql.capabilities.TranslationAware.translatable;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.keepExistingUnsupportedAttributes;
-import static org.elasticsearch.xpack.esql.core.expression.Expressions.toReferenceAttributesPreservingIds;
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
@@ -312,6 +325,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 new ViewCompactionPostIndexResolution(),
                 new UnwrapNamedSubqueries(),
                 new ResolveExternalRelations(),
+                new ResolveEqlRelation(),
                 new PruneEmptyUnionAllBranch(),
                 new ResolveEnrich(),
                 new ResolveIpLocation(),
@@ -353,6 +367,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new Batch<>(
                 "Finish Analysis",
                 Limiter.ONCE,
+                new HideNestedScopeFields(),
+                // Before ResolveDescribe replaces a ROW producer with a LocalRelation.
+                new RejectUnsupportedIntoSource(),
+                new ResolveDescribe(),
                 new DetermineUnmappedFieldsToKeep(),
                 new ResolveImplicitTimeSeriesIdentityGrouping(),
                 new ResolvedProjects(),
@@ -366,6 +384,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // translate metric aggregates early before they are converted to nested expressions
                 new TranslateTimeSeriesAggregate(),
                 new ApplyWindowFilter(),
+                // Must run after TranslateTimeSeriesAggregate, which can give a union's branches a new column (_timeseries).
+                new AddLateUnionAllColumns(),
                 // Must run before ResolveHighlightIndexKey, which reads the mappings it sets.
                 new ResolveHighlightFieldMappings(),
                 // Must run before UnionTypesCleanup, which drops the synthetic key from the output.
@@ -384,6 +404,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     public Analyzer(AnalyzerContext context, Verifier verifier) {
         super(context);
         this.verifier = verifier;
+    }
+
+    /**
+     * Runs the analysis rules and returns the plan without verification, so a test can record that plan.
+     */
+    public LogicalPlan analyzeWithoutVerification(LogicalPlan plan) {
+        return execute(plan);
     }
 
     public LogicalPlan analyze(LogicalPlan plan) {
@@ -434,6 +461,55 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             throw new VerificationException(failures);
         }
         return plan;
+    }
+
+    /**
+     * Rejects an INTO whose producer is not ROW when {@code DESCRIBE} is about to replace that producer.
+     * A producer that verification can still see fails in {@link Into#postAnalysisVerification}, which
+     * {@code analyzeWithoutVerification} skips.
+     */
+    private static class RejectUnsupportedIntoSource extends AnalyzerRule<Into> {
+        @Override
+        protected boolean skipResolved() {
+            // Into is resolved by this batch, and the check still has to see it.
+            return false;
+        }
+
+        @Override
+        protected LogicalPlan rule(Into into) {
+            if (into.child().anyMatch(Describe.class::isInstance) && Into.unsupportedSource(into.child(), false)) {
+                throw new VerificationException(List.of(Failure.fail(into, "INTO currently only supports ROW as a source, without FORK")));
+            }
+            return into;
+        }
+    }
+
+    /**
+     * Replaces {@code DESCRIBE} with a table describing its resolved child. Runs once resolution is done,
+     * so the child's columns, renames and computed fields are final.
+     */
+    private static class ResolveDescribe extends ParameterizedAnalyzerRule<Describe, AnalyzerContext> {
+        @Override
+        protected LogicalPlan rule(Describe describe, AnalyzerContext context) {
+            if (describe.child().resolved() == false || describe.child().anyMatch(Into.class::isInstance)) {
+                return describe;
+            }
+            List<IndexResolution> resolutions = new ArrayList<>(context.indexResolution().values());
+            resolutions.addAll(context.lookupResolution().values());
+            Map<NameId, FieldSemantics> semantics = ColumnSemantics.collect(describe.child(), resolutions);
+            Map<NameId, Attribute> datasetColumns = ColumnSemantics.datasetColumns(describe.child());
+            return describe.describe(
+                semantics,
+                datasetColumns,
+                ColumnUnits.collect(describe.child(), semantics),
+                ColumnSemantics.timeColumns(describe.child(), semantics, datasetColumns)
+            );
+        }
+
+        @Override
+        protected boolean skipResolved() {
+            return false;
+        }
     }
 
     private static class ResolveTable extends ParameterizedAnalyzerRule<UnresolvedRelation, AnalyzerContext> {
@@ -586,7 +662,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     var carrier = new UnsupportedEsField(imtf.getName(), List.of(), null, imtf.getProperties());
                     attribute = new UnsupportedAttribute(source, name, carrier, imtf.errorMessage());
                 } else {
-                    attribute = new FieldAttribute(source, parentName, null, name, t);
+                    // Nested-scope fields exist only for NESTED_EXPAND. Marking them synthetic keeps them out of name
+                    // resolution and out of the query output.
+                    attribute = new FieldAttribute(source, parentName, null, name, t, t instanceof NestedScopeField);
                 }
                 // primitive branch
                 if (DataType.isPrimitive(type)) {
@@ -664,7 +742,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * Answers {@code _class} and {@code _name} for every view and subquery branch of a {@code FROM}, freezing them into
      * literal {@link Eval}s. It runs before {@link ViewCompactionPostIndexResolution}, while the branch wrappers are
      * still exactly as the parser and {@code ViewResolver} left them, so the answers never depend on what compaction
-     * later lifts, merges, or unwraps ({@link UnwrapNamedSubqueries} strips the view wrappers right after).
+     * later lifts, merges, or unwraps ({@link UnwrapNamedSubqueries} strips the view and LET wrappers right after).
      */
     private static class ResolveSubqueryRelationColumns extends ParameterizedAnalyzerRule<UnresolvedMetadata, AnalyzerContext> {
 
@@ -712,7 +790,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             for (Map.Entry<String, LogicalPlan> entry : vua.namedSubqueries().entrySet()) {
                 LogicalPlan branch = entry.getValue();
                 LogicalPlan answered = switch (branch) {
-                    case NamedSubquery view -> withRelationColumns(view, relationColumns, src, RelationClass.VIEW, view.name());
+                    case NamedSubquery named -> withRelationColumns(named, relationColumns, src, named.relationClass(), named.name());
                     case Subquery subquery -> withRelationColumns(subquery, relationColumns, src, RelationClass.SUBQUERY, null);
                     default -> {
                         BranchIdentity identity = vua.branchIdentity(entry.getKey());
@@ -730,7 +808,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         /** Answers a lone (non-union) {@code FROM} target. A lone subquery's wrapper is consumed here, not left for compaction. */
         private static LogicalPlan answerLone(LogicalPlan child, List<NamedExpression> relationColumns, Source src) {
             return switch (child) {
-                case NamedSubquery view -> withRelationColumns(view, relationColumns, src, RelationClass.VIEW, view.name());
+                case NamedSubquery named -> withRelationColumns(named, relationColumns, src, named.relationClass(), named.name());
                 case Subquery subquery -> withRelationColumns(subquery.child(), relationColumns, src, RelationClass.SUBQUERY, null);
                 case LogicalPlan relation -> relation;
             };
@@ -810,6 +888,27 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     /**
+     * Drops the private nested schema from the relation once {@code NESTED_EXPAND} has bound its columns. The attributes
+     * are synthetic, so name resolution already ignores them; removing them keeps them from being extracted as parent columns.
+     */
+    private static class HideNestedScopeFields extends Rule<LogicalPlan, LogicalPlan> {
+        @Override
+        public LogicalPlan apply(LogicalPlan plan) {
+            if (plan.anyMatch(NestedExpand.class::isInstance) == false) {
+                return plan;
+            }
+            return plan.transformUp(EsRelation.class, relation -> {
+                List<Attribute> visible = relation.output().stream().filter(a -> isNestedScope(a) == false).toList();
+                return visible.size() == relation.output().size() ? relation : relation.withAttributes(visible);
+            });
+        }
+
+        private static boolean isNestedScope(Attribute attribute) {
+            return attribute instanceof FieldAttribute field && field.field() instanceof NestedScopeField;
+        }
+    }
+
+    /**
      * Strips any {@link DatasetShadowRelation} that {@link ResolveDatasetShadow} did not fold into a
      * sibling {@code EsRelation}. The dataset analog of {@code ViewCompaction.stripViewShadowRelations},
      * over the {@link BranchPlan} the {@code DatasetRewriter} builds. Runs right after
@@ -867,8 +966,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return plan;
             }
 
-            // Get pre-resolved source (metadata + file set) from context
-            var resolvedSource = context.externalSourceResolution().resolvedSource(tablePath);
+            // Rebuilt through ExternalSourceSpec.of, the same factory EsqlSession collected the specs with, so the
+            // session and the analyzer cannot derive a key differently for one relation.
+            var resolvedSource = context.externalSourceResolution().resolvedSource(ExternalSourceSpec.of(plan));
             if (resolvedSource == null) {
                 // Still unresolved - return as-is to keep the error message
                 return plan;
@@ -978,12 +1078,166 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private String extractTablePath(Expression tablePath) {
             if (tablePath instanceof Literal literal && literal.value() != null) {
                 Object value = literal.value();
-                if (value instanceof org.apache.lucene.util.BytesRef) {
-                    return BytesRefs.toString((org.apache.lucene.util.BytesRef) value);
+                if (value instanceof BytesRef) {
+                    return BytesRefs.toString((BytesRef) value);
                 }
                 return value.toString();
             }
             return null;
+        }
+    }
+
+    /**
+     * Resolves the {@link UnresolvedEqlRelation} produced by the {@code EQL <indexPattern> "<query>"} source command into a
+     * fully-typed {@link EqlRelation}. Two independent facts fix the output schema:
+     * <ul>
+     *   <li>The result mode (event / sequence / sample) the parser derived from the EQL query string. Sequence and sample
+     *       queries prepend the synthetics {@code _sequence}, {@code _sequence_stage} and {@code join_keys}.</li>
+     *   <li>The index pattern's field-caps mapping — resolved through the SAME shared path {@code FROM} uses
+     *       ({@code IndexResolver} / {@link Analyzer#mappingAsAttributes}), carried in {@link AnalyzerContext#indexResolution()}
+     *       keyed by the pattern — becomes one typed column per mapped field. Mapped types the converter cannot extract
+     *       (anything outside {@link EqlPageConverter#CONVERTIBLE_TYPES}) surface as {@code unsupported}, same UX as
+     *       {@code FROM}.</li>
+     * </ul>
+     * If the index pattern did not resolve, the node is rewritten unresolved with the resolution message (the verifier turns
+     * it into the standard "Unknown index" failure).
+     *
+     * <p>A {@code METADATA} clause appends provenance columns (last, after the mapped fields). Only the fields the EQL
+     * response envelope carries — {@code _index}, {@code _id}, {@code _source} — are supported; anything else is rejected.
+     */
+    private static class ResolveEqlRelation extends ParameterizedAnalyzerRule<UnresolvedEqlRelation, AnalyzerContext> {
+
+        @Override
+        protected LogicalPlan rule(UnresolvedEqlRelation plan, AnalyzerContext context) {
+            IndexResolution resolution = context.indexResolution().get(plan.indexPattern());
+            if (resolution == null || resolution.isValid() == false) {
+                // Mirror ResolveTable's invalid branch, including the equal-message short-circuit that avoids a rule loop.
+                String message = resolution == null ? "[none specified]" : resolution.toString();
+                return unresolvedWith(plan, message);
+            }
+
+            // Validate METADATA against the fields the EQL response envelope can populate. "Unknown index" above keeps
+            // precedence; metadata errors fail the query through the verifier, like FROM's unresolved-metadata path.
+            String metadataError = validateEqlMetadata(plan.metadataFields());
+            if (metadataError != null) {
+                return unresolvedWith(plan, metadataError);
+            }
+
+            List<Attribute> mapped = mappingAsAttributes(plan.source(), resolution.get().mapping());
+            List<Attribute> synthetics = EqlRelation.syntheticColumns(plan.source(), plan.mode());
+            // A mapped field whose name collides with a synthetic (_sequence/_sequence_stage/join_keys) or a declared
+            // metadata column would produce two output columns of the same name. Values stay correct (the converter
+            // dispatches by attribute class, not name), but a downstream KEEP/SORT on that name is ambiguous, so fail
+            // loud here instead of emitting an ambiguous schema.
+            Set<String> reserved = new HashSet<>();
+            for (Attribute synthetic : synthetics) {
+                reserved.add(synthetic.name());
+            }
+            for (NamedExpression metadata : plan.metadataFields()) {
+                reserved.add(metadata.name());
+            }
+            for (Attribute attr : mapped) {
+                if (reserved.contains(attr.name())) {
+                    return unresolvedWith(
+                        plan,
+                        "mapped field [" + attr.name() + "] collides with the EQL command's reserved column of the same name"
+                    );
+                }
+            }
+            List<Attribute> output = new ArrayList<>(mapped.size() + synthetics.size() + plan.metadataFields().size());
+            output.addAll(synthetics);
+            for (Attribute attr : mapped) {
+                output.add(gateUnconvertibleType(plan.source(), attr));
+            }
+            // Metadata columns come last (matching FROM) and must NOT pass through gateUnconvertibleType — _source is
+            // DataType.SOURCE, which is not convertible, so gating would wrongly turn it into an unsupported column.
+            for (NamedExpression metadata : plan.metadataFields()) {
+                output.add(metadata.toAttribute());
+            }
+            // Only now, after metadata is appended, fall back to NO_FIELDS: an empty mapping with a METADATA clause
+            // still yields real metadata columns (mirror FROM, which always has at least one column).
+            List<Attribute> finalOutput = output.isEmpty() ? NO_FIELDS : output;
+            // Attach the coordinator-resolved field-caps (if any was retained for this pattern) so the EQL delegate
+            // reuses it; a null entry means none was retained and the EQL engine self-resolves.
+            return new EqlRelation(
+                plan.source(),
+                plan.indexPattern(),
+                plan.query(),
+                plan.options(),
+                plan.mode(),
+                plan.hasExplicitLimit(),
+                finalOutput,
+                null,
+                context.eqlFieldCaps().get(plan.indexPattern())
+            );
+        }
+
+        /** Rebuilds the unresolved node with a message, short-circuiting to avoid a rule loop (mirrors ResolveTable). */
+        private static LogicalPlan unresolvedWith(UnresolvedEqlRelation plan, String message) {
+            return plan.unresolvedMessage().equals(message)
+                ? plan
+                : new UnresolvedEqlRelation(
+                    plan.source(),
+                    plan.indexPattern(),
+                    plan.query(),
+                    plan.options(),
+                    plan.mode(),
+                    plan.hasExplicitLimit(),
+                    plan.metadataFields(),
+                    message
+                );
+        }
+
+        /**
+         * Returns an error message if any declared METADATA field cannot be populated by the EQL delegate, else null.
+         * The EQL response envelope carries only {@code _index}, {@code _id} and {@code _source} per event; FROM-known
+         * fields outside that set (e.g. {@code _score}, {@code _version}) and unknown names/wildcards are rejected.
+         */
+        private static String validateEqlMetadata(List<NamedExpression> metadataFields) {
+            // Not a static constant: EqlPageConverter must only initialize (and load EQL classes) for EQL queries.
+            Set<String> supported = EqlPageConverter.SUPPORTED_METADATA;
+            String hint = "supported metadata fields are " + supported.stream().sorted().toList();
+            List<String> errors = new ArrayList<>();
+            for (NamedExpression metadata : metadataFields) {
+                switch (metadata) {
+                    case MetadataAttribute ma -> {
+                        if (supported.contains(ma.name()) == false) {
+                            errors.add("metadata field [" + ma.name() + "] is not supported by the EQL command; " + hint);
+                        }
+                    }
+                    // MetadataAttribute.create returned an unresolved expression: unknown name or a wildcard (the EQL
+                    // delegate resolves no custom tags). Read pattern(), not name() — name() throws on an unresolved node.
+                    case UnresolvedMetadataAttributeExpression um -> errors.add("unknown metadata field [" + um.pattern() + "]; " + hint);
+                    default -> throw new IllegalStateException("Unexpected metadata type: " + metadata.getClass().getName());
+                }
+            }
+            return errors.isEmpty() ? null : String.join("; ", errors);
+        }
+
+        /**
+         * Replaces a mapped column whose type the converter cannot extract with an {@link UnsupportedAttribute} (same UX as
+         * {@code FROM}). Columns field-caps already turned unsupported ({@link UnsupportedAttribute} — itself a
+         * {@link FieldAttribute} subtype) pass through untouched, preserving their original type info. Union-type conflicts
+         * are diagnosed through the blessed {@link FieldAttribute#flagTypeConflicts()} path (the message names the ambiguity,
+         * matching {@code FROM}). The remaining gate is on {@link DataType}: anything outside {@code CONVERTIBLE_TYPES} becomes
+         * unsupported.
+         */
+        private static Attribute gateUnconvertibleType(Source source, Attribute attr) {
+            // UnsupportedAttribute extends FieldAttribute; leave field-caps' own unsupported columns untouched.
+            if (attr instanceof UnsupportedAttribute) {
+                return attr;
+            }
+            // A union-type field (ambiguous type across indices) surfaces as a FieldAttribute with dataType
+            // UNSUPPORTED; use the blessed FROM mechanism so the error names the conflict, not a generic EQL limit.
+            if (attr instanceof FieldAttribute fa && fa.hasTypeConflicts()) {
+                return fa.flagTypeConflicts();
+            }
+            if (attr instanceof FieldAttribute fa && EqlPageConverter.CONVERTIBLE_TYPES.contains(fa.dataType()) == false) {
+                String typeName = fa.dataType().typeName();
+                UnsupportedEsField field = new UnsupportedEsField(fa.name(), List.of(typeName), null, Map.of());
+                return new UnsupportedAttribute(source, fa.name(), field, "EQL command does not yet support [" + typeName + "] fields");
+            }
+            return attr;
         }
     }
 
@@ -1272,71 +1526,84 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private LogicalPlan resolvePromql(PromqlCommand promql, List<Attribute> childrenOutput) {
             LogicalPlan promqlPlan = promql.promqlPlan();
-            List<MetadataManipulationFunction> relabels = promqlPlan.collect(MetadataManipulationFunction.class);
+            List<Attribute> derived = derivedLabels(promqlPlan);
 
             // References against the stored labels (childrenOutput): a vector selector always matches on the labels as they
             // are stored, regardless of any relabeling applied downstream.
             Function<UnresolvedAttribute, Expression> storedScope = ua -> ResolveRefs.maybeResolveAttribute(ua, childrenOutput, log);
 
-            if (relabels.isEmpty()) {
+            if (derived.isEmpty()) {
                 return promql.withPromqlPlan(promqlPlan.transformExpressionsDown(UnresolvedAttribute.class, storedScope))
                     .transformExpressionsOnly(UnresolvedAttribute.class, storedScope);
             }
 
-            // A label_replace/label_join derives a destination label that overwrites (shadows) any stored label of the same
-            // name (a dimension or __name__). Shadowing is positional: a reference sees a derived destination only when the
-            // relabel deriving it lies within the vector the reference consumes - i.e. strictly below the reference's node.
-            // So each node resolves against the stored labels shadowed by the destinations of the relabels in its own child
-            // subtree(s): a selector's matchers, and any reference below a relabel, bind to the stored label, while an
-            // enclosing by(dst) binds to the derived destination. When several relabels on one path derive the same label the
-            // outermost (last-applied) one wins, so same-named destinations are collapsed keeping the shallowest - which also
-            // keeps an enclosing by(dst) from seeing two same-named attributes. childrenOutput is a fresh per-call list, so
-            // this is local to this command.
+            // A label_replace/label_join destination or a count_values value label is a derived label that overwrites
+            // (shadows) any stored label of the same name (a dimension or __name__). Shadowing is positional: a reference sees
+            // a derived label only when the node deriving it lies within the vector the reference consumes - i.e. strictly
+            // below the reference's node. So each node resolves against the stored labels shadowed by the labels derived in
+            // its own child subtree(s): a selector's matchers, and any reference below a deriving node, bind to the stored
+            // label, while an enclosing by(dst) binds to the derived label. When several nodes on one path derive the same
+            // label the outermost (last-applied) one wins, so same-named derived labels are collapsed keeping the shallowest -
+            // which also keeps an enclosing by(dst) from seeing two same-named attributes. childrenOutput is a fresh per-call
+            // list, so this is local to this command.
             LogicalPlan resolvedPlan = promqlPlan.transformDown(node -> {
                 if (node instanceof Selector) {
                     return node.transformExpressionsOnly(UnresolvedAttribute.class, storedScope);
                 }
-                List<Attribute> scope = shadowedResolutionScope(childrenOutput, activeDestinations(node));
+                List<Attribute> scope = shadowedResolutionScope(childrenOutput, activeDerivedLabels(node));
                 return node.transformExpressionsOnly(UnresolvedAttribute.class, ua -> ResolveRefs.maybeResolveAttribute(ua, scope, log));
             });
 
-            // The command's own output contract sees the full derived label set: every destination, same nearest-wins collapse.
-            List<Attribute> outputScope = shadowedResolutionScope(childrenOutput, collapseByName(relabels));
+            // The command's own output contract sees the full derived label set: every derived label, same nearest-wins collapse.
+            List<Attribute> outputScope = shadowedResolutionScope(childrenOutput, collapseByName(derived));
             return promql.withPromqlPlan(resolvedPlan)
                 .transformExpressionsOnly(UnresolvedAttribute.class, ua -> ResolveRefs.maybeResolveAttribute(ua, outputScope, log));
         }
 
         /**
-         * The relabel destinations visible to {@code node}'s own expressions: the destinations derived within the vector the
-         * node consumes - the {@link MetadataManipulationFunction}s in its child subtree(s) - collapsed by label name keeping
-         * the shallowest (outermost, last-applied) match, so a destination derived more than once on a path resolves to the
-         * one that wins in PromQL.
+         * The derived labels visible to {@code node}'s own expressions: the labels derived within the vector the node
+         * consumes - in its child subtree(s) - collapsed by label name keeping the shallowest (outermost, last-applied)
+         * match, so a label derived more than once on a path resolves to the one that wins in PromQL.
          */
-        private static List<Attribute> activeDestinations(LogicalPlan node) {
-            List<MetadataManipulationFunction> relabels = new ArrayList<>();
+        private static List<Attribute> activeDerivedLabels(LogicalPlan node) {
+            List<Attribute> derived = new ArrayList<>();
             for (LogicalPlan child : node.children()) {
-                relabels.addAll(child.collect(MetadataManipulationFunction.class));
+                derived.addAll(derivedLabels(child));
             }
-            return collapseByName(relabels);
+            return collapseByName(derived);
         }
 
         /**
-         * The relabels' destination attributes, collapsed to one per label name keeping the first. The input is in pre-order
-         * (ancestors before descendants), so "first" is the shallowest/outermost relabel - PromQL's "last relabel wins" when a
-         * destination is derived more than once on a path.
+         * The labels derived in {@code plan} - relabel destinations and {@code count_values} value labels - in pre-order
+         * (ancestors before descendants).
          */
-        private static List<Attribute> collapseByName(List<MetadataManipulationFunction> relabels) {
-            List<Attribute> destinations = new ArrayList<>(relabels.size());
+        private static List<Attribute> derivedLabels(LogicalPlan plan) {
+            List<Attribute> derived = new ArrayList<>();
+            plan.forEachDown(node -> {
+                if (node instanceof MetadataManipulationFunction relabel) {
+                    derived.add(relabel.destination());
+                } else if (node instanceof CountValuesAggregate countValues) {
+                    derived.add(countValues.valueLabel());
+                }
+            });
+            return derived;
+        }
+
+        /**
+         * The derived labels collapsed to one per label name keeping the first. The input is in pre-order (ancestors before
+         * descendants), so "first" is the shallowest/outermost one - in PromQL the last-applied derivation wins when a label
+         * is derived more than once on a path.
+         */
+        private static List<Attribute> collapseByName(List<Attribute> derived) {
+            List<Attribute> collapsed = new ArrayList<>(derived.size());
             Set<String> seen = new HashSet<>();
-            for (MetadataManipulationFunction relabel : relabels) {
-                Attribute destination = relabel.destination();
-                // A destination is minted as a bare ReferenceAttribute named after the label (no passthrough prefix), so its
-                // attribute name is already the canonical label name used for shadowing.
-                if (seen.add(destination.name())) {
-                    destinations.add(destination);
+            for (Attribute label : derived) {
+                // Keyed like shadowedResolutionScope, so `labels.x` and a bare `x` name the same label.
+                if (seen.add(PromqlLabels.labelName(label))) {
+                    collapsed.add(label);
                 }
             }
-            return destinations;
+            return collapsed;
         }
 
         /**
@@ -1511,6 +1778,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case Eval p -> resolveEval(p, childrenOutput);
                 case Enrich p -> resolveEnrich(p, childrenOutput);
                 case MvExpand p -> resolveMvExpand(p, childrenOutput);
+                case NestedExpand p -> resolveNestedExpand(p, childrenOutput);
                 case Lookup l -> resolveLookup(l, childrenOutput);
                 case LookupJoin j -> resolveLookupJoin(j, context);
                 case AbstractSubqueryJoin sj -> resolveSubqueryJoin(sj);
@@ -1524,6 +1792,140 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             };
 
             return resolved;
+        }
+
+        /**
+         * Binds {@code NESTED_EXPAND} to a mapped nested collection. An unknown name stays unresolved, so the verifier
+         * reports it like any other unknown column. A name that exists but is not nested fails here.
+         */
+        private LogicalPlan resolveNestedExpand(NestedExpand expand, List<Attribute> childrenOutput) {
+            if (expand.bound()) {
+                return expand;
+            }
+            NamedExpression target = expand.target();
+            String name = target.name();
+            String rootName = NestedScopeField.PREFIX + name;
+            FieldAttribute root = null;
+            Set<String> collections = new HashSet<>();
+            for (Attribute attribute : childrenOutput) {
+                if (attribute instanceof FieldAttribute field
+                    && field.field() instanceof NestedScopeField scope
+                    && scope.kind() == NestedScopeField.Kind.COLLECTION) {
+                    collections.add(scope.path());
+                    if (field.name().equals(rootName)) {
+                        root = field;
+                    }
+                }
+            }
+            if (root == null) {
+                if (childrenOutput.stream().anyMatch(a -> inNestedPath(a.name(), name) || inNestedPath(a.name(), rootName))) {
+                    throw nestedExpandError(target, "NESTED_EXPAND requires a mapped nested field, not [" + name + "]");
+                }
+                return resolveExpressions(expand, childrenOutput);
+            }
+            NestedScopeField scope = (NestedScopeField) root.field();
+            if (scope.conflict() != null) {
+                throw nestedExpandError(target, "NESTED_EXPAND cannot read [" + name + "]: " + scope.conflict());
+            }
+            String path = scope.path();
+            if (lookupSourced(expand.child(), root.id())) {
+                throw nestedExpandError(
+                    target,
+                    "NESTED_EXPAND cannot read [" + name + "] from a LOOKUP JOIN index; that index's documents are not the rows being read"
+                );
+            }
+            if (childrenOutput.stream().anyMatch(a -> a.synthetic() == false && a.name().equals(path))) {
+                throw nestedExpandError(target, "NESTED_EXPAND cannot use [" + path + "]: a column of that name replaces it here");
+            }
+            if (collections.stream().anyMatch(parent -> path.startsWith(parent + "."))) {
+                throw nestedExpandError(target, "NESTED_EXPAND supports one nesting level");
+            }
+            checkNestedExpandReadsIndexRows(expand.child(), target);
+            List<FieldAttribute> children = new ArrayList<>();
+            for (Attribute attribute : childrenOutput) {
+                if (attribute instanceof FieldAttribute field
+                    && field.field() instanceof NestedScopeField child
+                    && inNestedPath(field.name(), rootName)) {
+                    // A child that another index nests under a different path carries a conflict: one path is read for all indices
+                    if (child.conflict() != null) {
+                        String publicName = field.name().substring(NestedScopeField.PREFIX.length());
+                        throw nestedExpandError(target, "NESTED_EXPAND cannot read [" + publicName + "]: " + child.conflict());
+                    }
+                    if (child.kind() == NestedScopeField.Kind.VALUE && child.path().equals(path)) {
+                        children.add(field);
+                    }
+                }
+            }
+            children.sort(Comparator.comparing(FieldAttribute::name));
+            List<Attribute> expanded = new ArrayList<>();
+            List<String> paths = new ArrayList<>();
+            for (FieldAttribute child : children) {
+                String relative = child.name().substring(NestedScopeField.PREFIX.length() + path.length() + 1);
+                // TODO: A child keeps only its type here. Binding it as a FieldAttribute that holds NestedScopeField#leaf would let
+                // cast resolution see a type conflict, but that needs the conversion to belong to this NestedExpand rather than to the
+                // parent relation, the same conversion applied when the child is read, and ReplaceFieldWithConstantOrNull keeping the
+                // child (SearchContextStats#exists is false for nested subfields). To be done with the execution of NESTED_EXPAND.
+                expanded.add(new ReferenceAttribute(expand.source(), path + "." + relative, child.dataType()));
+                paths.add(relative);
+            }
+            return new NestedExpand(expand.source(), expand.child(), null, path, expanded, paths);
+        }
+
+        private static boolean inNestedPath(String attributeName, String path) {
+            return attributeName.equals(path) || attributeName.startsWith(path + ".");
+        }
+
+        /** The collection attribute comes from the right side of a LOOKUP JOIN, whose documents are not the input rows. */
+        private static boolean lookupSourced(LogicalPlan plan, NameId id) {
+            if (plan instanceof LookupJoin join) {
+                if (containsAttribute(join.right(), id)) {
+                    return true;
+                }
+                return containsAttribute(join.left(), id) && lookupSourced(join.left(), id);
+            }
+            if (plan instanceof EsRelation) {
+                return false;
+            }
+            for (LogicalPlan child : plan.children()) {
+                if (containsAttribute(child, id)) {
+                    return lookupSourced(child, id);
+                }
+            }
+            return false;
+        }
+
+        private static boolean containsAttribute(LogicalPlan plan, NameId id) {
+            if (plan instanceof EsRelation relation) {
+                for (Attribute attribute : relation.output()) {
+                    if (attribute.id().equals(id)) {
+                        return true;
+                    }
+                }
+            }
+            for (LogicalPlan child : plan.children()) {
+                if (containsAttribute(child, id)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /** Child documents belong to a parent row. A STATS replaces those rows with groups, which have none. */
+        private static void checkNestedExpandReadsIndexRows(LogicalPlan input, Expression at) {
+            LogicalPlan plan = input;
+            while (plan instanceof EsRelation == false && plan.children().isEmpty() == false) {
+                if (plan instanceof Aggregate) {
+                    throw nestedExpandError(
+                        at,
+                        "NESTED_EXPAND reads each row's nested documents, so it cannot follow [" + plan.sourceText() + "]"
+                    );
+                }
+                plan = plan instanceof Join join ? join.left() : plan.children().getFirst();
+            }
+        }
+
+        private static VerificationException nestedExpandError(Expression expression, String message) {
+            return new VerificationException(List.of(Failure.fail(expression, message)));
         }
 
         private LogicalPlan resolveAggregate(Aggregate aggregate, List<Attribute> childrenOutput) {
@@ -1674,7 +2076,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     if (i < aggsIndexLimit) { // Skip resolving references to groupings in the aggs if no groupings are resolved yet.
                         maybeResolvedAgg = (NamedExpression) maybeResolvedAgg.transformUp(UnresolvedAttribute.class, ua -> {
                             Expression ne = ua;
-                            Attribute maybeResolved = maybeResolveAttribute(ua, resolvedList);
+                            // The implicit @timestamp of an aggregation is the @timestamp of the rows it aggregates. A grouping
+                            // named @timestamp must not shadow it, unlike an explicit reference to @timestamp.
+                            Attribute maybeResolved = ua instanceof UnresolvedTimestamp
+                                ? maybeResolveAttribute(ua, childrenOutput)
+                                : maybeResolveAttribute(ua, resolvedList);
                             // An item in aggregations can reference to groupings explicitly, if groupings are not resolved yet and
                             // maybeResolved is not resolved, return the original UnresolvedAttribute, so that it has another chance
                             // to get resolved in the next iteration.
@@ -2143,9 +2549,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return translatable(expression, LucenePushdownPredicates.DEFAULT) != TranslationAware.Translatable.NO;
         }
 
+        /**
+         * Determines a merge's output from its branches: every column some branch produces, typed after the first branch that
+         * produces it with a supported type. The branches are not aligned with it here; a branch that lacks a column contributes
+         * nulls to it, and the optimizer materializes that (see {@link MergeBranchAlignment}). What this does to the branches is
+         * semantic only: under {@code unmapped_fields} it may load a column a branch lacks from that branch's own {@code _source}
+         * (see {@link #loadMissingFromSource}).
+         * <p>
+         * Columns the merge already has keep their position, so that later changes to the branches never reorder the columns
+         * the query returns; see {@link MergePlan#inOrderOf}.
+         */
         private LogicalPlan resolveMergePlan(MergePlan mergePlan, AnalyzerContext context) {
             UnmappedResolution unmappedResolution = context.unmappedResolution();
-            // we align the outputs of the sub plans such that they have the same columns
             boolean changed = false;
             List<LogicalPlan> newSubPlans = new ArrayList<>();
             // FORK branches share one source index, so align across them; subqueries/views (UnionAll) read independent
@@ -2155,15 +2570,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case LOAD, NULLIFY, LOAD_ALL -> fork != null;
                 case DEFAULT -> false;
             };
-            List<Attribute> outputUnion = MergePlan.outputUnion(mergePlan.children());
+            List<Attribute> outputUnion = new ArrayList<>(MergePlan.mergeColumns(mergePlan.children(), mergePlan.output()));
             // DROP of an unmapped field in a branch is a mention: the field is materialized in that branch's source but dropped from its
             // output, so MergePlan.outputUnion misses it. Surface it as a FORK column when a sibling branch can surface it (the dropping
-            // branch then null-fills it). Skip it when no branch can surface it (e.g. dropped in every branch), else it would be null
+            // branch then contributes nulls). Skip it when no branch can surface it (e.g. dropped in every branch), else it would be null
             // everywhere and isn't a real column.
             if (alignUnmappedAcrossBranches && fork.children().stream().anyMatch(plan -> canSurfaceFromSource(plan, null, false, null))) {
                 addDroppedUnmappedFieldsMissingFromMerge(outputUnion, unmappedFieldsDroppedByProjection(fork));
             }
-            List<String> mergeColumns = outputUnion.stream().map(Attribute::name).toList();
             // FORK always copies a mention to siblings. LOAD_ALL subqueries do too. LOAD does not: a mention in one
             // independent-source branch loads that branch and Eval-nulls siblings.
             boolean alignMentionedUnmapped = alignUnmappedAcrossBranches
@@ -2184,10 +2598,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     }
                 }
 
+                // A column the branch can't load from its own source contributes nulls, without anything to do here.
                 List<Alias> aliases = new ArrayList<>(missing.size());
                 List<FieldAttribute> toLoad = new ArrayList<>();
                 for (Attribute attr : missing) {
-                    if (loadMissingFromSource(
+                    loadMissingFromSource(
                         mergePlan,
                         i,
                         attr,
@@ -2196,21 +2611,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         aliases,
                         toLoad,
                         context
-                    )) {
-                        continue;
-                    }
-                    // We cannot assign an alias with an UNSUPPORTED data type, so we use another type that is
-                    // supported. This way we can add this missing column containing only null values to the union branch output.
-                    var attrType = alignmentDataType(attr);
-                    attrType = attrType == UNSUPPORTED ? KEYWORD : attrType;
-                    if (attrType.isCounter()) {
-                        attrType = attrType.noCounter();
-                    }
-                    // use the current union branch's source as the source of the alias, instead of the original FieldAttribute's source.
-                    // Preserve synthetic so a sibling null-fill of a synthetic merge column (e.g. a union-type
-                    // $$field$converted_to$type cast) stays invisible to planWithoutSyntheticAttributes. IN-subquery
-                    // marks are not merge columns (MergePlan.outputUnion skips them) and do not reach this path.
-                    aliases.add(new Alias(source, attr.name(), new Literal(source, null, attrType), null, attr.synthetic()));
+                    );
                 }
 
                 // materialize the unmapped fields in this branch's own source relation so they surface in its output
@@ -2227,116 +2628,39 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     }
                 }
 
-                // add the missing columns
+                // the columns converted from what was loaded
                 if (aliases.size() > 0) {
                     logicalPlan = new Eval(source, logicalPlan, aliases);
                     changed = true;
                 }
 
-                List<String> subPlanColumns = logicalPlan.output().stream().map(Attribute::name).toList();
-                // We need to add an explicit projection to align the outputs.
-                // If the branch already has a Project on top, and the output of the branch is empty,
-                // don't add another Project with only NO_FIELDS on top of it,
-                // otherwise it will cause an infinite loop in the analyzer, this happens to subquery so far.
-                // mergeColumns do not contain NO_FIELD because MergePlan.outputUnion removes it.
-                if (logicalPlan instanceof Project == false
-                    || (subPlanColumns.equals(mergeColumns) == false
-                        && subqueryReferencingIndexWithEmptyMapping(mergePlan, logicalPlan, mergeColumns) == false)) {
-                    changed = true;
-                    List<Attribute> newOutput = new ArrayList<>();
-                    for (String attrName : mergeColumns) {
-                        for (Attribute subAttr : logicalPlan.output()) {
-                            if (attrName.equals(subAttr.name())) {
-                                newOutput.add(subAttr);
-                            }
-                        }
-                    }
-                    if (mergeColumns.isEmpty()) {
-                        // When mergeColumns is empty (all branches only have no-fields), resolveKeep with empty
-                        // projections would resolve to all child output including no-fields. Create a Project with
-                        // empty output directly so the no-fields marker doesn't leak into the union branch output.
-                        logicalPlan = new Project(logicalPlan.source(), logicalPlan, List.of());
-                    } else {
-                        // Union alignment is structural, not user-named: emit a Project directly rather than
-                        // routing through resolveKeep. A Keep on this path would falsely register every
-                        // virtual attribute in the alignment projection (e.g. EXTERNAL's shim-injected
-                        // _file.* family) as "the user explicitly KEEP'd it", which planWithoutSyntheticAttributes
-                        // then refuses to strip — leaking the columns to the output. The projections here are
-                        // already pre-resolved Attributes drawn from MergePlan.outputUnion, so keepResolver would
-                        // be a no-op anyway (no wildcards, no UnresolvedNamePattern). A user-named KEEP _file.path
-                        // upstream of the union still survives via its own Keep node in the branch's plan tree.
-                        logicalPlan = new Project(logicalPlan.source(), logicalPlan, new ArrayList<>(newOutput));
-                    }
-                }
-
                 newSubPlans.add(logicalPlan);
             }
 
-            // A merge whose branches already line up still needs its own output populated. View resolution builds a BranchPlan
-            // with an empty output and relies on this rule to fill it in; when every branch is already a Project over exactly the
-            // merge columns (a view body ending in KEEP is the common case) no branch is rewritten, and returning early here would
-            // leave that empty output in place. MergePlan.expressionsResolved then fails on the size mismatch and everything above
-            // the merge stays unresolved — surfacing later as an UnresolvedException during optimization, because the request-filter
-            // rewriter marks the tree analyzed. Only return early once the output really is aligned with the branches.
-            if (changed == false && mergePlan.output().size() == outputUnion.size()) {
-                return mergePlan;
+            // The output has to be populated even when no branch changes: view resolution builds a BranchPlan with an empty
+            // output and relies on this rule to fill it in.
+            newSubPlans = changed ? newSubPlans : mergePlan.children();
+            List<Attribute> newOutput = mergePlan.mergesScoreAsMetadata()
+                ? MergePlan.toReferenceAttributesPreservingIds(newSubPlans, outputUnion, mergePlan.output())
+                : Expressions.toReferenceAttributesPreservingIds(outputUnion, mergePlan.output());
+            if (unmappedResolution.loadsAllUnmappedFields()) {
+                newOutput = keepExistingUnsupportedAttributes(newOutput, mergePlan.output());
             }
-
-            return mergePlan.replaceSubPlansAndOutput(
-                newSubPlans,
-                unmappedResolution.loadsAllUnmappedFields()
-                    ? keepExistingUnsupportedAttributes(
-                        toReferenceAttributesPreservingIds(outputUnion, mergePlan.output()),
-                        mergePlan.output()
-                    )
-                    : toReferenceAttributesPreservingIds(outputUnion, mergePlan.output())
-            );
-        }
-
-        /*
-         * Returns true if a subquery references an index with empty mapping.
-         */
-        private static boolean subqueryReferencingIndexWithEmptyMapping(
-            LogicalPlan unionAll,
-            LogicalPlan subquery,
-            List<String> outputColumns
-        ) {
-            return unionAll instanceof UnionAll && outputColumns.isEmpty() && subquery.output().equals(NO_FIELDS);
-        }
-
-        private static Alias nullFillNonLoadable(Source source, FieldAttribute mapped, AnalyzerContext context) {
-            DataType type = mapped.dataType();
-            context.subqueryNonLoadableNullFills().add(mapped.name());
-            return new Alias(source, mapped.name(), new Literal(source, null, type.noCounter()));
-        }
-
-        private static @Nullable FieldAttribute mappedSiblingField(Attribute attr) {
-            return attr instanceof FieldAttribute fa
-                && fa instanceof UnsupportedAttribute == false
-                && fa.field() instanceof UnmappedEsField == false ? fa : null;
+            return mergePlan.replaceSubPlansAndOutput(newSubPlans, newOutput);
         }
 
         /**
-         * The implicit cast that surfaces {@code loaded}, an unmapped field read from {@code _source} and therefore always keyword, as
-         * {@code targetType}. Returns {@code null} when no such cast exists (e.g., {@code text}, {@code aggregate_metric_double}); a
-         * keyword target needs no cast, so the returned function is a {@link ConvertFunction#isNoop() no-op} there.
+         * Whether the column {@code attr} of a merge, which some branch has and another lacks, can be one that the other branch has in
+         * its own {@code _source}: it has a type, which is the one that every branch that has it agrees on, and it is not metadata or
+         * something the analyzer made, neither of which is in {@code _source}.
          */
-        private static @Nullable AbstractConvertFunction implicitCastFromKeyword(
-            DataType targetType,
-            FieldAttribute loaded,
-            Configuration configuration
-        ) {
-            // ToDenseVector reads hexadecimal strings, but an unmapped dense_vector arrives from _source as an array of numbers
-            // (#152184), so the implicit cast would yield garbage. Same carve-out as ResolveTwoLeggedPunksInEsRelation.
-            if (targetType == DENSE_VECTOR) {
-                return null;
-            }
-            var convertFactory = EsqlDataTypeConverter.converterFunctionFactory(targetType);
-            if (convertFactory == null) {
-                return null;
-            }
-            AbstractConvertFunction convert = convertFactory.apply(loaded.source(), loaded, configuration);
-            return convert.supportedTypes().contains(KEYWORD) ? convert : null;
+        private static boolean siblingColumnMayBeInSource(Attribute attr) {
+            return attr instanceof UnsupportedAttribute == false
+                && attr instanceof MetadataAttribute == false
+                && MetadataAttribute.isSupported(attr.name()) == false
+                && attr.synthetic() == false
+                && attr.dataType() != NULL
+                && attr.dataType() != UNSUPPORTED;
         }
 
         /**
@@ -2423,13 +2747,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         /**
          * The ways of {@code LOAD} and {@code LOAD_ALL} to give branch {@code branchIndex} of a merge a column {@code attr} that it
-         * lacks, by reading it from the branch's own {@code _source} where every other merge null-fills it. Either adds what the
-         * relation needs to {@code toLoad} (and, to convert it, an alias to {@code aliases}) and returns {@code true}, or leaves
-         * the null-fill to the caller and returns {@code false}.
+         * lacks, by reading it from the branch's own {@code _source} where in every other merge the branch contributes nulls to it.
+         * Either adds what the relation needs to {@code toLoad} (and, to convert it, an alias to {@code aliases}) and returns
+         * {@code true}, or leaves the branch contributing nulls and returns {@code false}.
          * <ul>
-         *   <li>A {@code LOAD_ALL} extra: a sibling mapped the column and this branch never named it, so the keyword read from
-         *   {@code _source} is cast to the sibling's type when a cast exists, and otherwise null-filled with a warning. A field this
-         *   branch already named stays a keyword and conflicts further down, same as load.</li>
+         *   <li>A {@code LOAD_ALL} sibling column: a sibling branch of a union or a {@code FORK} has the column, with the same type in
+         *   every branch that has it, and this branch does not, so the keyword read from {@code _source} is cast to that type when a
+         *   cast exists, and otherwise null-filled with a warning. How the sibling got the column (a mapping, an {@code EVAL}, a
+         *   {@code RENAME}, a union or {@code FORK} nested in it) makes no difference, and neither does the order of the branches. A
+         *   column with no single type, such as one that the siblings disagree on, is not loaded. A field this branch already named
+         *   stays a keyword and conflicts further down, same as load.</li>
          *   <li>A field materialized in a sibling branch is materialized here too (rather than null-filled), unless this branch
          *   cannot surface it: loaded from {@code _source} under {@code LOAD}/{@code LOAD_ALL}, null-typed under nullify. This keeps
          *   the branches' source relations symmetric. Matched by name so a sibling's generating command (EVAL/MV_EXPAND/...)
@@ -2455,20 +2782,26 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             UnmappedResolution unmappedResolution = context.unmappedResolution();
             LogicalPlan branch = mergePlan.children().get(branchIndex);
-            FieldAttribute mapped = mappedSiblingField(attr);
-            if (mapped != null
-                && mergePlan instanceof UnionAll
+            if ((mergePlan instanceof UnionAll || mergePlan instanceof Fork)
                 && unmappedResolution.loadsAllUnmappedFields()
+                && siblingColumnMayBeInSource(attr)
+                && context.fieldCapsAsksFor(attr.name())
                 && branchCanSurfaceLoadedField(branch, attr.name())) {
+                // A sibling has the column, and has it with one type in every branch that does (otherwise the merged column is
+                // unsupported). The branch does not, so read it from its own _source and cast it to that type. What the sibling does
+                // to get the column (a mapping, an EVAL, a RENAME, a nested union or FORK) makes no difference. Only a column the field
+                // caps requests ask for: a branch that lacks one that was not asked for may well map it, with another type, and the
+                // query does not read the column then (see AnalyzerContext#fieldCapsAsksFor).
                 FieldAttribute loaded = unmappedKeyword(attr);
-                AbstractConvertFunction cast = implicitCastFromKeyword(mapped.dataType(), loaded, context.configuration());
+                AbstractConvertFunction cast = EsqlDataTypeConverter.castFromKeyword(attr.dataType(), loaded, context.configuration());
                 if (cast != null) {
                     toLoad.add(loaded);
                     if (cast.isNoop() == false) {
                         aliases.add(new Alias(branch.source(), attr.name(), cast));
                     }
                 } else {
-                    aliases.add(nullFillNonLoadable(branch.source(), mapped, context));
+                    // The branch contributes nulls to the column, as for any column it lacks; warn that it could not be loaded.
+                    context.subqueryNonLoadableNullFills().add(attr.name());
                 }
                 return true;
             }
@@ -2662,10 +2995,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         /**
          * Adds {@code fields} to the output of {@code esr}, which is how a field is loaded from {@code _source} (or nullified) at the
-         * relation: {@code ResolveUnmapped} and the alignment of union branches both do it, so both use this. Not for a lookup index,
-         * which has no unmapped fields to load; and a field that the relation already has is not added again. With
-         * {@code replaceNoFieldsMarker}, the no-fields marker of an empty-mapping relation does not remain in its output once real
-         * fields are added; the merge alignment keeps it, as the marker is part of the branch output it aligns.
+         * relation: {@code ResolveUnmapped} and {@link #resolveMergePlan}, loading a column a merge branch lacks, both do it, so both
+         * use this. Not for a lookup index, which has no unmapped fields to load; and a field that the relation already has is not
+         * added again. With {@code replaceNoFieldsMarker}, the no-fields marker of an empty-mapping relation does not remain in its
+         * output once real fields are added; {@link #resolveMergePlan} keeps it, as it is never a merge column anyway.
          */
         public static EsRelation withAdditionalAttributesUnlessLookup(
             EsRelation esr,
@@ -3672,6 +4005,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     private static class AddImplicitLimit extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
         @Override
         public LogicalPlan apply(LogicalPlan logicalPlan, AnalyzerContext context) {
+            if (logicalPlan instanceof Into) {
+                // INTO returns one stats row, so the default 1000 cap must not truncate the rows it writes.
+                return logicalPlan;
+            }
             List<LogicalPlan> limits = logicalPlan.collectFirstChildren(Limit.class::isInstance);
             // We check whether the query contains a TimeSeriesAggregate to determine if we should apply
             // the default limit for TS queries or for non-TS queries.
@@ -3686,7 +4023,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (limits.isEmpty()) {
                 limit = context.configuration().resultTruncationDefaultSize(isTsAggregate); // user provided no limit: cap to a
                 // default
-                if (isTsAggregate == false) {
+                // With a limit in the exemplars setting, the result of the metrics query is replaced by at most that many exemplars,
+                // so the default limit doesn't apply to what the query returns.
+                boolean exemplarsLimited = QuerySettings.EXEMPLARS.get(context.configuration().resolvedSettings()).limit() != null;
+                if (isTsAggregate == false && exemplarsLimited == false) {
                     HeaderWarning.addWarning("No limit defined, adding default limit of [{}]", limit);
                 }
             } else {
@@ -3705,6 +4045,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     private static class AddImplicitTimestampSort extends Rule<LogicalPlan, LogicalPlan> {
         @Override
         public LogicalPlan apply(LogicalPlan plan) {
+            if (plan instanceof Into) {
+                // INTO writes the rows as produced, so the implicit @timestamp sort must not be injected under it.
+                return plan;
+            }
             if (plan instanceof Limit limit) {
                 return injectTimestampSort(limit);
             }
@@ -4599,6 +4943,17 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             AttributeSet.Builder observed = AttributeSet.builder();
             plan.output().forEach(observed::add);
             plan.forEachDown(p -> observed.addAll(p.references()));
+            // A merge reads every branch column that is one of its own columns, once the optimizer aligns its branches with it.
+            plan.forEachDown(MergePlan.class, merge -> {
+                Set<String> mergeColumns = merge.outputSet().names();
+                for (LogicalPlan branch : merge.children()) {
+                    for (Attribute attr : branch.output()) {
+                        if (mergeColumns.contains(attr.name())) {
+                            observed.add(attr);
+                        }
+                    }
+                }
+            });
             AttributeSet observedFields = observed.build();
 
             // A single warning listing all affected fields: one warning per field can exceed the clients' maximum header size.
@@ -4667,6 +5022,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private static LogicalPlan planWithoutSyntheticAttributes(LogicalPlan plan) {
+            if (plan instanceof Into into) {
+                // An IN-subquery mark ($$...) must not be written as a document field.
+                LogicalPlan newChild = planWithoutSyntheticAttributes(into.child());
+                return newChild == into.child() ? into : into.replaceChild(newChild);
+            }
             // Virtual columns on the EXTERNAL command path stay out of default output unless a Keep
             // projection lists them. A DROP also resolves to a Project that carries surviving virtual
             // columns forward via childOutput, but that is not the user keeping them, so we scan only
@@ -4925,16 +5285,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return fa;
             });
         }
-    }
-
-    /**
-     * The effective data type of a branch/output attribute when aligning the branches of a {@link MergePlan}.
-     */
-    private static DataType alignmentDataType(Attribute attr) {
-        if (attr instanceof FieldAttribute fa && fa.field() instanceof TypeConflictedField tcf && tcf.isSingleTypePotentiallyUnmapped()) {
-            return tcf.singleMappedTypeWidened();
-        }
-        return attr.dataType();
     }
 
     private static void typeResolutions(
@@ -5326,12 +5676,28 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 convertFunctionsToAttributes
             );
 
+            // TODO: remove together with the KEYWORD null fill of UNSUPPORTED merge columns (MergeBranchAlignment#nullFillType);
+            // tracked in https://github.com/elastic/elasticsearch/issues/150207.
+            // A union decides its common types from its branches as they were before this pass, not as a nested union in them was
+            // just rebuilt by this pass. This keeps the outcome of a type conflict in a nested union the same as when the analyzer
+            // still aligned branches with Projects, which held on to the nested union's output from before the pass. A nested union's
+            // conflict then only reaches the outer union after a later pass, which under unmapped_fields may first have re-derived
+            // the nested union's output from its branches' KEYWORD null fills.
+            Map<Set<NameId>, UnionAll> unionAllsBeforeImplicitCasting = new HashMap<>();
+            planWithConvertFunctionsReplaced.forEachDown(
+                UnionAll.class,
+                ua -> unionAllsBeforeImplicitCasting.put(ua.output().stream().map(Attribute::id).collect(Collectors.toSet()), ua)
+            );
             // Next implicitly cast the outputs of the UnionAll branches to the common type, this applies to date and date_nanos types only
             LogicalPlan planWithImplicitCasting = planWithConvertFunctionsReplaced.transformUp(
                 UnionAll.class,
                 unionAll -> unionAll.resolved()
                     ? implicitCastingUnionAllOutput(
                         unionAll,
+                        unionAllsBeforeImplicitCasting.getOrDefault(
+                            unionAll.output().stream().map(Attribute::id).collect(Collectors.toSet()),
+                            unionAll
+                        ),
                         planWithConvertFunctionsReplaced,
                         updatedUnionAllOutput,
                         context.configuration()
@@ -5384,10 +5750,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 List<Alias> newAliases = new ArrayList<>();
                 List<FieldAttribute> resolvedUnionFields = new ArrayList<>();
                 List<Attribute.IdIgnoringWrapper> branchUnionFieldAttributes = new ArrayList<>();
-                List<Attribute> newChildOutput = new ArrayList<>(childOutput.size());
-
                 for (Attribute oldAttr : childOutput) {
-                    newChildOutput.add(oldAttr);
                     Set<AbstractConvertFunction> converts = oldOutputToConvertFunctions.get(oldAttr.name());
                     if (converts != null) {
                         for (AbstractConvertFunction convert : converts) {
@@ -5409,7 +5772,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             Expression pushedDownConvert = convert.replaceChildren(Collections.singletonList(oldAttr));
                             // If this branch's input to the convert is itself a multi-typed field, ResolveUnionTypes would resolve the
                             // pushed-down convert into a synthetic field named exactly like the alias we would create here. Having both
-                            // in the same branch scope makes the alignment Project's by-name reference ambiguous and it never resolves.
+                            // in the same branch scope makes the merge's by-name reference ambiguous and it never resolves.
                             // Resolve it once, up front, and expose that field directly so there is no double conversion / name clash.
                             Expression resolved = ResolveUnionTypes.resolveConvertFunction(
                                 (ConvertFunction) pushedDownConvert,
@@ -5417,7 +5780,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                                 context
                             );
                             if (resolved instanceof FieldAttribute resolvedField && resolvedField.synthetic()) {
-                                newChildOutput.add(resolvedField);
                                 resolvedUnionFields.add(resolvedField);
                                 newOutputToConvertFunctions.putIfAbsent(resolvedField.name(), convert);
                             } else {
@@ -5429,14 +5791,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                                     true // this'll be used to Project the synthetic attributes out when finishing analysis
                                 );
                                 newAliases.add(newAlias);
-                                newChildOutput.add(newAlias.toAttribute());
                                 newOutputToConvertFunctions.putIfAbsent(convertedName, convert);
                             }
                             outputChanged = true;
                         }
                     }
                 }
-                newChildren.add(maybePushDownConvertFunctionsToChild(child, newAliases, resolvedUnionFields, newChildOutput));
+                newChildren.add(maybePushDownConvertFunctionsToChild(child, newAliases, resolvedUnionFields));
             }
 
             alreadyPushedDown.forEach((convert, attr) -> {
@@ -5533,80 +5894,20 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         /**
          * Push down the conversion functions into the child plan. Single-type inputs are converted by adding an Eval with the new
-         * aliases on top of the child plan; multi-typed inputs were already resolved to synthetic union-type fields (see
-         * {@link #maybePushDownConvertFunctions}) which are instead injected into the branch's {@link EsRelation}.
+         * aliases on top of the child plan, where every conversion input is available: they are all drawn from the branch's output.
+         * Multi-typed inputs were already resolved to synthetic union-type fields (see {@link #maybePushDownConvertFunctions}) which
+         * are instead injected into the branch's {@link EsRelation}, and carried through the branch's projections by
+         * {@link #carryOverSyntheticAttributesThroughProjects}.
          */
         private static LogicalPlan maybePushDownConvertFunctionsToChild(
             LogicalPlan child,
             List<Alias> aliases,
-            List<FieldAttribute> resolvedUnionFields,
-            List<Attribute> output
+            List<FieldAttribute> resolvedUnionFields
         ) {
-            // MergePlan adds a projection on top of each child plan during resolveMergePlan, check this pattern before pushing down
-            // If the pattern doesn't match, something unexpected happened, just return the child as is
-            if ((aliases.isEmpty() == false || resolvedUnionFields.isEmpty() == false) && child instanceof Project project) {
-                LogicalPlan childOfProject = project.child();
-                // The conversion Evals are normally inserted below the Project, so their inputs must be produced below it
-                // too. The top Project is not always the purely structural alignment projection added by resolveMergePlan:
-                // when a branch already ends in a Project with the merge's column names (e.g. a trailing RENAME, now that
-                // subquery branches are no longer wrapped in a Subquery node), that Project is the merge child itself and
-                // can mint the converted column via one of its own aliases. Referencing such a column from below would
-                // dangle, so the conversion goes *above* the user's Project instead — every conversion input is drawn from
-                // the branch's output, so it is always available there — with the alignment Project added on top.
-                AttributeSet availableBelowProject = childOfProject.outputSet();
-                for (Alias alias : aliases) {
-                    if (alias.child().references().subsetOf(availableBelowProject) == false) {
-                        return convertAboveUserProject(project, aliases, resolvedUnionFields, output);
-                    }
-                }
-                if (aliases.isEmpty() == false) {
-                    childOfProject = new Eval(childOfProject.source(), childOfProject, aliases);
-                }
-                if (resolvedUnionFields.isEmpty() == false) {
-                    childOfProject = ResolveUnionTypes.addGeneratedFieldsToEsRelations(childOfProject, resolvedUnionFields);
-                }
-                // Rebuild the Project from the original projections rather than from plain output attributes: a user alias in
-                // the top Project (e.g. `renamed AS label` from a trailing RENAME) names an output column that exists nowhere
-                // else, so projecting its bare attribute would leave a reference without a producer, which the
-                // post-optimization verifier rejects once column pruning removes the orphaned rename chain below.
-                Map<NameId, NamedExpression> originalProjections = new HashMap<>(project.projections().size());
-                for (NamedExpression projection : project.projections()) {
-                    originalProjections.put(projection.id(), projection);
-                }
-                List<NamedExpression> newProjections = new ArrayList<>(output.size());
-                for (Attribute attr : output) {
-                    newProjections.add(originalProjections.getOrDefault(attr.id(), attr));
-                }
-                return new Project(project.source(), childOfProject, newProjections);
-            }
-            return child;
-        }
-
-        /**
-         * Places the pushed-down conversions <em>above</em> a user-written top {@code Project} that mints one of their
-         * inputs (e.g. a trailing RENAME), where every input is available by construction, and re-aligns with a plain
-         * {@code Project} over {@code output} on top. Synthetic multi-typed union fields still have to live in the
-         * branch's {@link EsRelation}s, so they are injected below the user Project, which is widened to pass them
-         * through.
-         */
-        private static LogicalPlan convertAboveUserProject(
-            Project project,
-            List<Alias> aliases,
-            List<FieldAttribute> resolvedUnionFields,
-            List<Attribute> output
-        ) {
-            LogicalPlan branch = project;
-            if (resolvedUnionFields.isEmpty() == false) {
-                LogicalPlan injected = ResolveUnionTypes.addGeneratedFieldsToEsRelations(project.child(), resolvedUnionFields);
-                List<NamedExpression> widened = new ArrayList<>(project.projections());
-                widened.addAll(resolvedUnionFields);
-                branch = new Project(project.source(), injected, widened);
-            }
-            if (aliases.isEmpty() == false) {
-                branch = new Eval(branch.source(), branch, aliases);
-            }
-            // The user's Project stays intact below, so every output column has a producer and can be projected bare.
-            return new Project(project.source(), branch, new ArrayList<>(output));
+            LogicalPlan branch = resolvedUnionFields.isEmpty()
+                ? child
+                : ResolveUnionTypes.addGeneratedFieldsToEsRelations(child, resolvedUnionFields);
+            return aliases.isEmpty() ? branch : new Eval(child.source(), branch, aliases);
         }
 
         /**
@@ -5620,55 +5921,36 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Map<String, AbstractConvertFunction> newOutputToConvertFunctions,
             Map<AbstractConvertFunction, Attribute> convertFunctionsToAttributes
         ) {
-            // check if the new children has the same number of outputs, it could be different from the original unionAll output
-            // if there are multiple explicit conversion functions on the same unionAll output attribute
-            List<String> newChildrenOutputNames = newChildren.getFirst().output().stream().map(Attribute::name).toList();
-            Holder<Boolean> childrenMatch = new Holder<>(true);
-            newChildren.stream().skip(1).forEach(childPlan -> {
-                List<String> names = childPlan.output().stream().map(Attribute::name).toList();
-                if (names.equals(newChildrenOutputNames) == false) {
-                    childrenMatch.set(false);
+            // Each converted column follows the column it was converted from, in the order the conversions were pushed down. A
+            // branch that lacks the converted-from column lacks the converted columns too, and contributes nulls to them.
+            Map<String, List<String>> convertedNamesBySource = new HashMap<>();
+            for (LogicalPlan child : newChildren) {
+                for (Attribute attr : child.output()) {
+                    AbstractConvertFunction convert = newOutputToConvertFunctions.get(attr.name());
+                    if (convert != null && convert.field() instanceof Attribute converted) {
+                        List<String> names = convertedNamesBySource.computeIfAbsent(converted.name(), k -> new ArrayList<>());
+                        if (names.contains(attr.name()) == false) {
+                            names.add(attr.name());
+                        }
+                    }
                 }
-            });
-            if (childrenMatch.get() == false) {
-                // new UnionAll children outputs do not match after pushing down convert functions,
-                // cannot move on, return the original UnionAll
-                return unionAll;
             }
-
-            // rebuild the unionAll output according to its new children's output, and populate convertFunctionsToAttributes
-            List<Attribute> newOutput = new ArrayList<>(newChildrenOutputNames.size());
-            List<Attribute> oldOutput = unionAll.output();
-            for (String attrName : newChildrenOutputNames) {
-                // find the old attribute by name
-                Attribute oldAttr = null;
-                for (Attribute attr : oldOutput) {
-                    if (attr.name().equals(attrName)) {
-                        oldAttr = attr;
-                        break;
-                    }
-                }
-                if (oldAttr != null) { // keep the old UnionAll output unchanged
-                    newOutput.add(oldAttr);
-                } else { // this is a new attribute created by pushing down convert functions find the corresponding convert function
-                    AbstractConvertFunction convert = newOutputToConvertFunctions.get(attrName);
-                    if (convert != null) {
-                        ReferenceAttribute newAttr = new ReferenceAttribute(
-                            convert.source(),
-                            null,
-                            attrName,
-                            convert.dataType(),
-                            convert.nullable(),
-                            null,
-                            true
-                        );
-                        newOutput.add(newAttr);
-                        convertFunctionsToAttributes.putIfAbsent(convert, newAttr);
-                    } else {
-                        // something unexpected happened, the attribute is neither the old attribute nor created by a convert function,
-                        // return the original UnionAll
-                        return unionAll;
-                    }
+            List<Attribute> newOutput = new ArrayList<>(unionAll.output().size() + newOutputToConvertFunctions.size());
+            for (Attribute oldAttr : unionAll.output()) {
+                newOutput.add(oldAttr); // keep the old UnionAll output unchanged
+                for (String convertedName : convertedNamesBySource.getOrDefault(oldAttr.name(), List.of())) {
+                    AbstractConvertFunction convert = newOutputToConvertFunctions.get(convertedName);
+                    ReferenceAttribute newAttr = new ReferenceAttribute(
+                        convert.source(),
+                        null,
+                        convertedName,
+                        convert.dataType(),
+                        convert.nullable(),
+                        null,
+                        true
+                    );
+                    newOutput.add(newAttr);
+                    convertFunctionsToAttributes.putIfAbsent(convert, newAttr);
                 }
             }
             return unionAll.replaceSubPlansAndOutput(newChildren, newOutput);
@@ -5689,8 +5971,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          *    | EVAL client_ip = client_ip::ip),
          *   (ROW client_ip = TO_IP("172.21.2.162"))
          * }</pre>
-         * The inner {@code ::ip} produces {@code $$client_ip$converted_to$ip} on the inner {@link UnionAll}. The outer merge's alignment
-         * {@link Project} must not append that column: the outer output is only {@code client_ip}.
+         * The inner {@code ::ip} produces {@code $$client_ip$converted_to$ip} on the inner {@link UnionAll}. A {@link Project} that is a
+         * direct child of the outer merge must not append that column: the outer output is only {@code client_ip}.
          * <p>
          * Conversion above nested unions must still pass through {@code KEEP}:
          * <pre>{@code
@@ -5700,8 +5982,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * | EVAL client_ip = client_ip::ip
          * }</pre>
          * {@link #rebuildUnionAll} adds {@code $$client_ip$converted_to$ip} to the outer {@link UnionAll}. The {@code KEEP}
-         * {@link Project} is not a direct merge child, so the synthetic is appended there. The outer alignment {@link Project} is a
-         * direct merge child, but the name is already in the merge output, so it is allowed through.
+         * {@link Project} is a direct child of the outer merge, but the name is already in that merge's output, so it is allowed
+         * through.
          * <p>
          * When {@code preserveResolvingProject} is true ({@code LOAD_ALL}), appended synthetics use {@link Project#withProjections} so a
          * {@link ResolvingProject} keeps its original KEEP/DROP/RENAME command.
@@ -5792,10 +6074,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         /**
-         * Implicitly cast the outputs of the UnionAll branches to the common type, this applies to date and date_nanos types only
+         * Implicitly cast the outputs of the UnionAll branches to the common type, this applies to date and date_nanos types only.
+         * The common types are decided from {@code typesFrom}, {@code unionAll} as it was before this pass; see the caller.
          */
         private static LogicalPlan implicitCastingUnionAllOutput(
             UnionAll unionAll,
+            UnionAll typesFrom,
             LogicalPlan plan,
             List<Attribute> updatedUnionAllOutput,
             Configuration configuration
@@ -5803,7 +6087,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // build a map of UnionAll output to a list of LogicalPlan that reference this output
             Map<Attribute, List<LogicalPlan>> outputToPlans = outputToPlans(unionAll, plan);
 
-            List<List<Attribute>> outputs = unionAll.children().stream().map(LogicalPlan::output).toList();
+            // Each branch's columns, by position in the UnionAll output, matched by name.
+            List<List<Attribute>> outputs = typesFrom.children()
+                .stream()
+                .map(child -> MergeBranchAlignment.alignedColumns(typesFrom.output(), child))
+                .toList();
             // only do implicit casting for date and date_nanos types for now, to be consistent with queries without subqueries
             List<DataType> commonTypes = commonTypes(outputs);
 
@@ -5815,31 +6103,34 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // Cast each branch's output to the common type
             List<LogicalPlan> newChildren = new ArrayList<>(unionAll.children().size());
             boolean outputChanged = false;
-            for (LogicalPlan child : unionAll.children()) {
+            for (int childIndex = 0; childIndex < unionAll.children().size(); childIndex++) {
+                LogicalPlan child = unionAll.children().get(childIndex);
+                List<Attribute> columns = outputs.get(childIndex);
+                Set<Attribute> produced = new HashSet<>(typesFrom.children().get(childIndex).output());
                 List<Alias> newAliases = new ArrayList<>();
-                List<Attribute> oldChildOutput = child.output();
-                List<Attribute> newChildOutput = new ArrayList<>(oldChildOutput.size());
-                for (int i = 0; i < oldChildOutput.size(); i++) {
-                    Attribute oldOutput = oldChildOutput.get(i);
-                    DataType targetType = commonTypes.get(i);
+                for (int i = 0; i < columns.size(); i++) {
+                    Attribute oldOutput = columns.get(i);
+                    // A column the branch lacks is aligned as a null fill typed like the UnionAll output column, which follows
+                    // whatever this rule makes of the output. It takes part in deciding the common type, as the fill does once
+                    // materialized, but there is nothing in the branch to cast.
+                    boolean isProduced = produced.contains(oldOutput);
                     Attribute resolved = resolveAttribute(
                         oldOutput,
-                        targetType,
+                        commonTypes.get(i),
                         i,
                         outputs,
                         unionAll,
                         outputToPlans,
-                        newAliases,
+                        isProduced ? newAliases : new ArrayList<>(),
                         unsupportedAttributes,
                         configuration
                     );
-                    newChildOutput.add(resolved);
                     if (resolved != oldOutput) {
                         outputChanged = true;
                     }
                 }
-                // create a new eval for the casting expressions, and push it down under the projection
-                newChildren.add(maybePushDownConvertFunctionsToChild(child, newAliases, List.of(), newChildOutput));
+                // create a new eval for the casting expressions on top of the branch
+                newChildren.add(maybePushDownConvertFunctionsToChild(child, newAliases, List.of()));
             }
 
             // Update common types: any column with unsupported attributes gets UNSUPPORTED
@@ -5872,9 +6163,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             int columnCount = outputs.get(0).size();
             List<DataType> commonTypes = new ArrayList<>(columnCount);
             for (int i = 0; i < columnCount; i++) {
-                DataType type = alignmentDataType(outputs.get(0).get(i));
+                DataType type = MergeBranchAlignment.alignmentDataType(outputs.get(0).get(i));
                 for (List<Attribute> out : outputs) {
-                    type = commonType(type, alignmentDataType(out.get(i)));
+                    type = commonType(type, MergeBranchAlignment.alignmentDataType(out.get(i)));
                 }
                 commonTypes.add(type);
             }
@@ -5917,7 +6208,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return createUnsupportedOrNull(oldAttr, columnIndex, outputs, unionAll, outputToPlans, newAliases, unsupportedAttributes);
             }
 
-            if (alignmentDataType(oldAttr) != oldAttr.dataType()) {
+            if (MergeBranchAlignment.alignmentDataType(oldAttr) != oldAttr.dataType()) {
                 return oldAttr;
             }
 
@@ -6056,9 +6347,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * <p>
          * A {@link MergePlan} caches its output outside its branch expressions and assigns that output its own {@link NameId NameIds}.
          * Consequently, neither the inner union output map nor the first expression walk can update it directly.
-         * {@link #alignMergeOutputTypes} first rewrites FORK {@code datetime} null-fillers whose sibling was widened to {@code date_nanos},
-         * then installs a reconciled type on the merge output only when every child already has that type for the name, preserving the
-         * merge output id.
+         * {@link #alignMergeOutputTypes} installs a reconciled type on the merge output only when every child that has the name already
+         * has that type for it, preserving the merge output id. A child without it contributes nulls of the merge output's type.
          * <p>
          * Finally, cascade the newly registered output ids through aliases above the merge and run a second expression walk. This updates
          * downstream consumers, including the final projection and response metadata, to the same reconciled types seen by the branches.
@@ -6080,9 +6370,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         /**
-         * Walks the plan and, for each resolved {@link MergePlan}, aligns cached output types with the children. On a {@link Fork},
-         * datetime null-fillers are rewritten to {@code date_nanos} first when a sibling id in {@code idToUpdatedAttr} was widened by
-         * UnionAll implicit casting.
+         * Walks the plan and, for each resolved {@link MergePlan}, aligns cached output types with the children.
          */
         private static LogicalPlan alignMergeOutputTypes(LogicalPlan plan, Map<NameId, Attribute> idToUpdatedAttr) {
             List<LogicalPlan> children = plan.children();
@@ -6097,111 +6385,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
             }
             LogicalPlan current = newChildren == null ? plan : plan.replaceChildren(newChildren);
-            if (current instanceof Fork fork && fork.resolved()) {
-                return alignMergeOutputToChildren(rewriteForkDatetimeNullFillers(fork, idToUpdatedAttr), idToUpdatedAttr);
-            }
             if (current instanceof MergePlan merge && merge.resolved()) {
                 return alignMergeOutputToChildren(merge, idToUpdatedAttr);
             }
             return current;
-        }
-
-        /**
-         * Retarget FORK {@code datetime} null-fillers to {@code date_nanos} when a sibling was widened by UnionAll implicit casting. A
-         * sibling that is {@code date_nanos} only from an explicit {@code ::date_nanos} is not a target (those ids are not in the map).
-         * FORK-only queries never reach this method because {@code updatedUnionAllOutput} is empty.
-         * <p>
-         * Columns to promote are chosen by name from sibling output ids in {@code idToUpdatedAttr}. Nodes to edit are this child's
-         * output {@link NameId NameIds} (the FORK alignment aliases). Same-named {@code Eval}s deeper in the cloned branch are left
-         * alone; nested FORKs are handled by the bottom-up {@link #alignMergeOutputTypes} walk.
-         */
-        private static Fork rewriteForkDatetimeNullFillers(Fork fork, Map<NameId, Attribute> idToUpdatedAttr) {
-            Set<String> targetNames = dateNanosTargetNames(fork, idToUpdatedAttr);
-            if (targetNames.isEmpty()) {
-                return fork;
-            }
-            boolean changed = false;
-            List<LogicalPlan> newChildren = new ArrayList<>(fork.children().size());
-            for (LogicalPlan child : fork.children()) {
-                Set<NameId> fillerIds = datetimeNullFillerOutputIds(child, targetNames, idToUpdatedAttr);
-                LogicalPlan rewritten = fillerIds.isEmpty() ? child : rewriteDatetimeNullFillers(child, fillerIds, idToUpdatedAttr);
-                if (rewritten != child) {
-                    changed = true;
-                }
-                newChildren.add(rewritten);
-            }
-            return changed ? fork.replaceSubPlans(newChildren) : fork;
-        }
-
-        /**
-         * Column names whose sibling is {@code date_nanos} because that attribute's id was recorded by UnionAll implicit casting or a
-         * cascade from it.
-         */
-        private static Set<String> dateNanosTargetNames(Fork fork, Map<NameId, Attribute> idToUpdatedAttr) {
-            Set<String> names = new HashSet<>();
-            for (LogicalPlan child : fork.children()) {
-                for (Attribute attr : child.output()) {
-                    Attribute updated = idToUpdatedAttr.get(attr.id());
-                    if (updated != null && updated.dataType() == DATE_NANOS) {
-                        names.add(attr.name());
-                    }
-                }
-            }
-            return names;
-        }
-
-        /**
-         * This branch's output ids for {@code targetNames} that are still {@code datetime}. Those are the FORK alignment fillers;
-         * the widened sibling is already {@code date_nanos} in {@code idToUpdatedAttr} and is excluded.
-         */
-        private static Set<NameId> datetimeNullFillerOutputIds(
-            LogicalPlan child,
-            Set<String> targetNames,
-            Map<NameId, Attribute> idToUpdatedAttr
-        ) {
-            Set<NameId> fillerIds = new HashSet<>();
-            for (Attribute attr : child.output()) {
-                if (targetNames.contains(attr.name()) == false) {
-                    continue;
-                }
-                Attribute effective = idToUpdatedAttr.getOrDefault(attr.id(), attr);
-                if (effective.dataType() == DATETIME) {
-                    fillerIds.add(attr.id());
-                }
-            }
-            return fillerIds;
-        }
-
-        /**
-         * Rewrite this branch's alignment {@code null[datetime]} aliases whose {@link NameId} is in {@code fillerIds} to
-         * {@code null[date_nanos]}, preserving the alias id. Does not rewrite other same-named {@code Eval}s in the subtree.
-         */
-        private static LogicalPlan rewriteDatetimeNullFillers(
-            LogicalPlan branch,
-            Set<NameId> fillerIds,
-            Map<NameId, Attribute> idToUpdatedAttr
-        ) {
-            return branch.transformUp(Eval.class, eval -> {
-                boolean changed = false;
-                List<Alias> newFields = new ArrayList<>(eval.fields().size());
-                for (Alias alias : eval.fields()) {
-                    if (fillerIds.contains(alias.id()) && alias.dataType() == DATETIME && Expressions.isGuaranteedNull(alias.child())) {
-                        Alias rewritten = new Alias(
-                            alias.source(),
-                            alias.name(),
-                            new Literal(alias.source(), null, DATE_NANOS),
-                            alias.id(),
-                            alias.synthetic()
-                        );
-                        idToUpdatedAttr.put(rewritten.id(), rewritten.toAttribute());
-                        newFields.add(rewritten);
-                        changed = true;
-                    } else {
-                        newFields.add(alias);
-                    }
-                }
-                return changed ? new Eval(eval.source(), eval.child(), newFields) : eval;
-            });
         }
 
         /**
@@ -6281,7 +6468,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         /**
-         * {@code true} if a child is missing {@code name}, unresolved, or the children's effective types for that name differ.
+         * {@code true} if a child's attribute named {@code name} is unresolved, or the children's effective types for that name
+         * differ. A child without the column is aligned with a null fill typed like the merge's column, so it never disagrees.
          */
         private static boolean childrenDisagreeOnType(MergePlan merge, String name, Map<NameId, Attribute> idToUpdatedAttr) {
             DataType common = null;
@@ -6293,7 +6481,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         break;
                     }
                 }
-                if (childAttr == null || childAttr.resolved() == false) {
+                if (childAttr == null) {
+                    continue;
+                }
+                if (childAttr.resolved() == false) {
                     return true;
                 }
                 Attribute effective = idToUpdatedAttr.getOrDefault(childAttr.id(), childAttr);

@@ -11,6 +11,7 @@ import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -65,8 +66,8 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
     private final Literal start, end;
     private final QueryParams params;
 
-    PromqlExpressionBuilder(Literal start, Literal end, int startLine, int startColumn, QueryParams params) {
-        super(startLine, startColumn);
+    PromqlExpressionBuilder(Literal start, Literal end, QueryParams params, @Nullable String viewName) {
+        super(viewName);
         this.start = start;
         this.end = end;
         this.params = params;
@@ -189,7 +190,13 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
         OffsetContext offsetContext = ctx.offset();
         if (offsetContext != null) {
             // an offset may be zero or negative (`offset (5s - 8)`); a range may not
-            offset = duration(offsetContext.duration(), false);
+            TimeValueContext timeValue = offsetContext.timeValue();
+            if (timeValue == null) {
+                offset = duration(offsetContext.duration().expression(), false);
+            } else {
+                // like Prometheus, a number of seconds truncates to the millisecond, where visitTimeValue rounds
+                offset = duration(timeValue.number() != null ? timeValue.number() : timeValue, false);
+            }
             // PromQL durations are unsigned magnitudes; the optional leading `-` (look ahead) is a separate token.
             // Fold the sign into a single signed duration literal, mirroring how the `@` modifier is handled above.
             if (offsetContext.MINUS() != null && offset.value() instanceof Duration d) {
@@ -202,14 +209,11 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
     /** A range or resolution: a duration greater than zero. */
     @Override
     public Literal visitDuration(DurationContext ctx) {
-        return duration(ctx, true);
+        return ctx == null ? Literal.NULL : duration(ctx.expression(), true);
     }
 
-    private Literal duration(DurationContext ctx, boolean positive) {
-        if (ctx == null) {
-            return Literal.NULL;
-        }
-        Object o = visit(ctx.expression());
+    private Literal duration(ParserRuleContext ctx, boolean positive) {
+        Object o = visit(ctx);
 
         // unwrap expressions to get the underlying value
         o = switch (o) {

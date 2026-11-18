@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.CountingInputStream;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.cache.StatsCapturingIterator;
+import org.elasticsearch.xpack.esql.datasources.cache.StripeStatsHarvester;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
@@ -788,6 +789,194 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
+     * The guard on the {@code stripeStaging.flush()} that {@code close()} runs. A read whose byte range both
+     * begins and ends inside one stripe's grid cell — a mid-file macro-split over a decompressed stream, which
+     * is the shape a file-global stripe grid exists to tile — covers neither of that stripe's grid lines, so
+     * the staging area can never decide the stripe is whole and nothing it holds reaches the capture sink on
+     * its own. Only the flush publishes it, and without the flush the bytes this read genuinely covered never
+     * reach the coordinator's interval cover: the stripe stays uncommitted however many sibling reads tile the
+     * rest of it.
+     * <p>
+     * The control is the assertion inside the drain. Every chunk has handed its piece over by then and the sink
+     * is still empty, so the record below can only have come from the close path.
+     */
+    public void testClosingTheReadStagesTheStripeNoChunkCouldAnchor() throws Exception {
+        int lineCount = 1000;
+        String content = buildContent(lineCount);
+        InputStream stream = new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));
+        // A grid cell wider than the whole read, entered one byte past its left grid line: no chunk covers
+        // either grid line, so no piece the staging area holds ever completes its cell.
+        long stripeSize = 1L << 30;
+        long baseFileOffset = 1L;
+
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        ExecutorService executor = Executors.newFixedThreadPool(8);
+        String path = "memory://staging-flush.txt";
+        // A small chunk size forces several chunks, so the pieces have to be joined before anything is left
+        // partly covered.
+        StripePieceLineReader reader = new StripePieceLineReader(1024, path);
+        try {
+            CloseableIterator<Page> outer = StreamingParallelParsingCoordinator.parallelRead(
+                reader,
+                stream,
+                null,
+                List.of("line"),
+                100,
+                4,
+                executor,
+                ErrorPolicy.STRICT,
+                null,
+                baseFileOffset,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                sink,
+                stripeSize,
+                StripeColumnScope.PROJECTED,
+                StreamingParallelParsingCoordinator.WarningSinks.NONE
+            );
+            try (outer) {
+                while (outer.hasNext()) {
+                    outer.next().releaseBlocks();
+                }
+                assertEquals(
+                    "a stripe no chunk could anchor must be held, not published, while the read is still open",
+                    0,
+                    sink.getOrDefault(path, List.of()).size()
+                );
+            }
+        } finally {
+            executor.shutdownNow();
+        }
+
+        assertThat(
+            "the read must be cut into several chunks, so their pieces have to be joined",
+            reader.chunksRead(),
+            Matchers.greaterThanOrEqualTo(2)
+        );
+        List<Map<String, Object>> staged = stagedFor(sink, path);
+        assertEquals("closing the read must stage the stripe it left without a cover: " + staged, 1, staged.size());
+        Map<String, Object> record = staged.get(0);
+        assertEquals("over every row the read did cover", (Long) (long) lineCount, SourceStatisticsSerializer.extractRowCount(record));
+        assertEquals(0L, record.get(ExternalStats.STRIPE_ORDINAL_KEY));
+        assertNotEquals(
+            "the read began inside the cell, so it anchors no left grid line",
+            Boolean.TRUE,
+            record.get(ExternalStats.STRIPE_AT_START_KEY)
+        );
+    }
+
+    /** A snapshot of the contributions staged for {@code path}, copied under the sink list's own monitor. */
+    private static List<Map<String, Object>> stagedFor(ConcurrentMap<String, List<Map<String, Object>>> sink, String path) {
+        List<Map<String, Object>> staged = sink.get(path);
+        if (staged == null) {
+            return List.of();
+        }
+        synchronized (staged) {
+            return List.copyOf(staged);
+        }
+    }
+
+    /**
+     * Wraps {@link LineFormatReader} so each chunk harvests its piece of every stripe its byte range overlapped
+     * through the production {@link StripeStatsHarvester}, handing it to the stripe sink the read context
+     * carries — the same close-hook shape as the production {@code CsvFormatReader} / {@code NdJsonPageIterator},
+     * without their per-format column extraction. The geometry is the chunk's own: its file-global stats base
+     * and the byte length of its buffer, so sibling chunks' pieces tile contiguously exactly as production's do.
+     */
+    private static class StripePieceLineReader implements SegmentableFormatReader, NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
+
+        private static final long MTIME = 1_700_000_000_000L;
+
+        private static final List<Attribute> SCHEMA = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "line", DataType.KEYWORD, Nullability.TRUE, null, false)
+        );
+
+        private final LineFormatReader delegate;
+        private final String path;
+
+        StripePieceLineReader(long minSegment, String path) {
+            this.delegate = new LineFormatReader(minSegment);
+            this.path = path;
+        }
+
+        /** How many chunks the coordinator handed this reader. */
+        int chunksRead() {
+            synchronized (delegate.seenContexts) {
+                return delegate.seenContexts.size();
+            }
+        }
+
+        @Override
+        public RecordSplitter recordSplitter(int maxRecordBytes) {
+            return delegate.recordSplitter(maxRecordBytes);
+        }
+
+        @Override
+        public long minimumSegmentSize() {
+            return delegate.minimumSegmentSize();
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            return delegate.metadata(object);
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
+            long chunkBytes = object.length();
+            CloseableIterator<Page> inner = delegate.read(object, context);
+            return new CloseableIterator<>() {
+                private long rows = 0;
+
+                @Override
+                public boolean hasNext() {
+                    return inner.hasNext();
+                }
+
+                @Override
+                public Page next() {
+                    Page page = inner.next();
+                    rows += page.getPositionCount();
+                    return page;
+                }
+
+                @Override
+                public void close() throws IOException {
+                    try {
+                        inner.close();
+                    } finally {
+                        StripeStatsHarvester harvester = new StripeStatsHarvester(
+                            context.statsStripeSize(),
+                            context.statsFileFinal(),
+                            context.statsStripeSink()
+                        );
+                        harvester.getOrCreate(harvester.ordinalOf(context.statsBaseOffset())).rows = rows;
+                        harvester.emit(path, context.statsBaseOffset(), chunkBytes, MTIME, "cfg", "read", true, SCHEMA);
+                    }
+                }
+            };
+        }
+
+        @Override
+        public String formatName() {
+            return "test-stripe-piece-line";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return delegate.fileExtensions();
+        }
+
+        @Override
+        public void close() {
+            delegate.close();
+        }
+    }
+
+    /**
      * Guards against reuse of {@code chunk.index % pageQueueRingSize} slots ahead of the consumer:
      * without {@code dispatchPermits} a fast parser could recycle buffers and interleave pages from
      * different chunk generations into the same queue while the consumer is still draining an earlier chunk.
@@ -939,6 +1128,76 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             // Interrupting first could leave parsers retrying the POISON put on a full queue.
             executor.shutdownNow();
             executor.awaitTermination(10, TimeUnit.SECONDS);
+        }
+    }
+
+    /**
+     * An interrupt of the segmentator in {@code waitForRecycledBuffer} must fail the read.
+     * Parallelism 2 uses a 3-buffer pool. Every parser is gated so those buffers stay in flight;
+     * {@code execute} waits until the parser has entered the gate so the segmentator cannot inline
+     * the chunk and park on {@code putPage} instead. Production drain ({@code tryAdvanceOrPark} /
+     * {@code isExhausted}) must throw, not treat the exit as EOF.
+     */
+    public void testSegmentatorInterruptedWaitingForBufferFailsTheRead() throws Exception {
+        int lineCount = 2000;
+        int chunkSize = 64;
+        int parallelism = 2;
+        CountDownLatch gate = new CountDownLatch(1);
+        AtomicInteger parsersAtGate = new AtomicInteger();
+        List<Thread> poolThreads = new CopyOnWriteArrayList<>();
+        ExecutorService pool = Executors.newFixedThreadPool(6, runnable -> {
+            Thread thread = new Thread(runnable);
+            poolThreads.add(thread);
+            return thread;
+        });
+        AtomicBoolean segmentatorSubmitted = new AtomicBoolean();
+        Executor executor = command -> {
+            if (segmentatorSubmitted.compareAndSet(false, true)) {
+                pool.execute(command);
+                return;
+            }
+            int before = parsersAtGate.get();
+            pool.execute(command);
+            try {
+                assertBusy(() -> assertThat(parsersAtGate.get(), Matchers.greaterThan(before)), 5, TimeUnit.SECONDS);
+            } catch (Exception e) {
+                throw new RuntimeException("parser never entered the read gate", e);
+            }
+        };
+        CloseableIterator<Page> iterator = null;
+        try {
+            CloseableIterator<Page> it = StreamingParallelParsingCoordinator.parallelRead(
+                new AllChunksGatedLineFormatReader(chunkSize, gate, parsersAtGate),
+                new ByteArrayInputStream(buildContent(lineCount).getBytes(StandardCharsets.UTF_8)),
+                List.of("line"),
+                8,
+                parallelism,
+                executor,
+                ErrorPolicy.STRICT
+            );
+            iterator = it;
+            AtomicReference<Thread> segmentator = new AtomicReference<>();
+            assertBusy(() -> {
+                Thread found = findParkedWaitForRecycledBufferThread(poolThreads);
+                assertNotNull("segmentator never parked in waitForRecycledBuffer", found);
+                segmentator.set(found);
+            }, 10, TimeUnit.SECONDS);
+
+            segmentator.get().interrupt();
+            gate.countDown();
+
+            RuntimeException ex = expectThrows(RuntimeException.class, () -> drainLinesViaTryAdvanceOrPark(it));
+            String chain = ex.toString() + (ex.getCause() != null ? " | cause: " + ex.getCause() : "");
+            assertThat(chain, Matchers.containsString("InterruptedException"));
+        } finally {
+            gate.countDown();
+            if (iterator != null) {
+                try {
+                    iterator.close();
+                } catch (IOException ignored) {}
+            }
+            pool.shutdownNow();
+            pool.awaitTermination(10, TimeUnit.SECONDS);
         }
     }
 
@@ -3030,6 +3289,24 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
     }
 
+    private static Thread findParkedWaitForRecycledBufferThread(List<Thread> threads) {
+        String iteratorClass = StreamingParallelParsingCoordinator.StreamingParallelIterator.class.getName();
+        for (Thread thread : threads) {
+            if (thread.getState() != Thread.State.TIMED_WAITING) {
+                continue;
+            }
+            StackTraceElement[] stack = thread.getStackTrace();
+            boolean bufferWait = Arrays.stream(stack)
+                .anyMatch(frame -> iteratorClass.equals(frame.getClassName()) && "waitForRecycledBuffer".equals(frame.getMethodName()));
+            boolean poll = Arrays.stream(stack)
+                .anyMatch(frame -> ArrayBlockingQueue.class.getName().equals(frame.getClassName()) && "poll".equals(frame.getMethodName()));
+            if (bufferWait && poll) {
+                return thread;
+            }
+        }
+        return null;
+    }
+
     private static Thread findParkedPoisonPutThread(List<Thread> threads) {
         String iteratorClass = StreamingParallelParsingCoordinator.StreamingParallelIterator.class.getName();
         for (Thread thread : threads) {
@@ -3858,11 +4135,12 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
 
         // Non-strict: truncate at the cap-hit and return the prefix records parsed so far.
+        // Drain through production tryAdvance/isExhausted so a reachedEof gate cannot
+        // mis-classify this opted-into truncation as a failure.
         ExecutorService lenientExecutor = Executors.newFixedThreadPool(6);
-        try {
-            QuoteAwareLineFormatReader reader = new QuoteAwareLineFormatReader(512);
+        try (
             var lenientIterator = new StreamingParallelParsingCoordinator.StreamingParallelIterator(
-                reader,
+                new QuoteAwareLineFormatReader(512),
                 new ByteArrayInputStream(bytes),
                 null,
                 List.of("line"),
@@ -3877,8 +4155,9 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 -1L,
                 StripeColumnScope.PROJECTED,
                 StreamingParallelParsingCoordinator.WarningSinks.NONE
-            );
-            List<String> got = collectLines(lenientIterator);
+            )
+        ) {
+            List<String> got = drainLinesViaTryAdvanceOrPark(lenientIterator);
             assertEquals("non-strict policy must return the records parsed before the cap-hit", leadingRecords, got.size());
             for (int i = 0; i < leadingRecords; i++) {
                 assertEquals("rec-" + String.format(Locale.ROOT, "%04d", i), got.get(i));
@@ -4642,6 +4921,78 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         @Override
         public FormatReader withSchema(List<Attribute> schema) {
             return new GatedLineFormatReader((LineFormatReader) delegate.withSchema(schema), gatedChunkIndex, gate, gatedReached);
+        }
+
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return delegate.rowPositionStrategy();
+        }
+
+        @Override
+        public RecordSplitter recordSplitter(int maxRecordBytes) {
+            return delegate.recordSplitter(maxRecordBytes);
+        }
+
+        @Override
+        public long minimumSegmentSize() {
+            return delegate.minimumSegmentSize();
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            return delegate.metadata(object);
+        }
+
+        @Override
+        public String formatName() {
+            return delegate.formatName();
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return delegate.fileExtensions();
+        }
+
+        @Override
+        public void close() {
+            delegate.close();
+        }
+    }
+
+    /**
+     * Like {@link GatedLineFormatReader} but every chunk's parse waits on {@code gate}, so a test can
+     * pin all pool buffers in flight and park the segmentator in {@code waitForRecycledBuffer}.
+     */
+    private static final class AllChunksGatedLineFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
+        private final LineFormatReader delegate;
+        private final CountDownLatch gate;
+        private final AtomicInteger parsersAtGate;
+
+        AllChunksGatedLineFormatReader(long minSegment, CountDownLatch gate, AtomicInteger parsersAtGate) {
+            this(new LineFormatReader(minSegment), gate, parsersAtGate);
+        }
+
+        private AllChunksGatedLineFormatReader(LineFormatReader delegate, CountDownLatch gate, AtomicInteger parsersAtGate) {
+            this.delegate = delegate;
+            this.gate = gate;
+            this.parsersAtGate = parsersAtGate;
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
+            parsersAtGate.incrementAndGet();
+            try {
+                gate.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IOException("interrupted waiting on gate", e);
+            }
+            return delegate.read(object, context);
+        }
+
+        @Override
+        public FormatReader withSchema(List<Attribute> schema) {
+            return new AllChunksGatedLineFormatReader((LineFormatReader) delegate.withSchema(schema), gate, parsersAtGate);
         }
 
         @Override

@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.MockBytesRefRecycler;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.test.ESTestCase;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -42,7 +43,7 @@ public class TransportSearchScrollActionTests extends ESTestCase {
             assertThat(response.getSuccessfulShards(), equalTo(0));
             assertThat(response.getSkippedShards(), equalTo(0));
             assertThat(response.getFailedShards(), equalTo(0));
-            assertThat(response.getShardFailures().length, equalTo(0));
+            assertThat(response.getShardFailures(), empty());
             assertThat(response.getHits().getHits().length, equalTo(0));
             assertThat(response.getTookInMillis(), equalTo(0L));
             assertThat(response.getClusters(), equalTo(SearchResponse.Clusters.EMPTY));

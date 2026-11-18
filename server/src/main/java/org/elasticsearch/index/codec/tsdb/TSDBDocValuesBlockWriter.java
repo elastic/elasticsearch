@@ -10,7 +10,9 @@
 package org.elasticsearch.index.codec.tsdb;
 
 import org.apache.lucene.codecs.lucene90.IndexedDISI;
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.ByteBuffersDataOutput;
@@ -129,9 +131,17 @@ public final class TSDBDocValuesBlockWriter {
             numValues = valuesSource.mergeStats.sumNumValues();
         } else {
             values = valuesSource.getSortedNumeric(field);
-            for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
-                numDocsWithValue++;
-                numValues += values.docValueCount();
+            final NumericDocValues singleton = DocValues.unwrapSingleton(values);
+            if (singleton != null) {
+                for (int doc = singleton.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = singleton.nextDoc()) {
+                    numDocsWithValue++;
+                }
+                numValues = numDocsWithValue;
+            } else {
+                for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
+                    numDocsWithValue++;
+                    numValues += values.docValueCount();
+                }
             }
         }
 
@@ -206,16 +216,18 @@ public final class TSDBDocValuesBlockWriter {
                     if (valuesSource.mergeStats.supported() && numDocsWithValue < maxDoc) {
                         disiAccumulator = new DISIAccumulator(ctx.dir(), ctx.ioContext(), data, IndexedDISI.DEFAULT_DENSE_RANK_POWER);
                     }
-                    for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
-                        if (disiAccumulator != null) {
-                            disiAccumulator.addDocId(doc);
-                        }
-                        final int count = values.docValueCount();
-                        if (docValueCountConsumer != null) {
-                            docValueCountConsumer.accept(count);
-                        }
-                        for (int i = 0; i < count; ++i) {
-                            final long v = values.nextValue();
+                    // Iterate a single-valued field directly: through the wrapper, the call to the underlying iterator is
+                    // shared with every other user of the wrapper in the JVM and ends up megamorphic.
+                    final NumericDocValues singleton = DocValues.unwrapSingleton(values);
+                    if (singleton != null) {
+                        for (int doc = singleton.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = singleton.nextDoc()) {
+                            if (disiAccumulator != null) {
+                                disiAccumulator.addDocId(doc);
+                            }
+                            if (docValueCountConsumer != null) {
+                                docValueCountConsumer.accept(1);
+                            }
+                            final long v = singleton.longValue();
                             if (sortedFieldObserver != null) {
                                 sortedFieldObserver.onDoc(doc, v);
                             }
@@ -224,6 +236,28 @@ public final class TSDBDocValuesBlockWriter {
                                 indexWriter.add(data.getFilePointer() - valuesDataOffset);
                                 blockEncoder.encode(buffer, data);
                                 bufferSize = 0;
+                            }
+                        }
+                    } else {
+                        for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
+                            if (disiAccumulator != null) {
+                                disiAccumulator.addDocId(doc);
+                            }
+                            final int count = values.docValueCount();
+                            if (docValueCountConsumer != null) {
+                                docValueCountConsumer.accept(count);
+                            }
+                            for (int i = 0; i < count; ++i) {
+                                final long v = values.nextValue();
+                                if (sortedFieldObserver != null) {
+                                    sortedFieldObserver.onDoc(doc, v);
+                                }
+                                buffer[bufferSize++] = v;
+                                if (bufferSize == blockSize) {
+                                    indexWriter.add(data.getFilePointer() - valuesDataOffset);
+                                    blockEncoder.encode(buffer, data);
+                                    bufferSize = 0;
+                                }
                             }
                         }
                     }

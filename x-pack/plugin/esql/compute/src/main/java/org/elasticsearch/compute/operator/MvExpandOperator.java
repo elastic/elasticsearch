@@ -287,6 +287,16 @@ public class MvExpandOperator implements Operator {
             "mv_expand",
             Status::new
         );
+        public static final ProfileSchema<Status> PROFILE_SCHEMA = ProfileSchema.of(
+            Status.class,
+            (builder, status, params) -> status.writeProfile(builder)
+        )
+            .required("pages_received", ProfileSchema.integer())
+            .required("pages_emitted", ProfileSchema.integer())
+            .required("noops", ProfileSchema.integer())
+            .required("rows_received", ProfileSchema.integer())
+            .required("rows_emitted", ProfileSchema.integer())
+            .build();
 
         Status(int pagesReceived, int pagesEmitted, int noops, long rowsReceived, long rowsEmitted) {
             this.pagesReceived = pagesReceived;
@@ -313,8 +323,7 @@ public class MvExpandOperator implements Operator {
             out.writeVLong(rowsEmitted);
         }
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        private XContentBuilder writeProfile(XContentBuilder builder) throws IOException {
             builder.startObject();
             builder.field("pages_received", pagesReceived);
             builder.field("pages_emitted", pagesEmitted);
@@ -322,6 +331,11 @@ public class MvExpandOperator implements Operator {
             builder.field("rows_received", rowsReceived);
             builder.field("rows_emitted", rowsEmitted);
             return builder.endObject();
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return PROFILE_SCHEMA.write(builder, this, params);
         }
 
         @Override

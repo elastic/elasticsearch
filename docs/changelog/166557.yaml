@@ -1,8 +1,5 @@
 area: TSDB
-issues:
- - 166160
- - 154299
- - 157757
+issues: []
 pr: 166557
 summary: Fix EARLIEST in TS queries
 type: bug

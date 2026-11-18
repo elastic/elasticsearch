@@ -44,9 +44,10 @@
  * for {@code label_replace}, see {@link org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.Pattern}.
  * <p>
  * It is a fork of <a href="https://github.com/google/re2j/tree/re2j-1.8/java/com/google/re2j">RE2/J 1.8</a>, under
- * the license above. RE2/J keeps its parser package private and only matches strings, while Lucene needs an
- * automaton, so both build on the one parser here. The fork changes RE2/J so that it parses as Go 1.26's
- * {@code regexp/syntax} does, which Prometheus 3.13 is built with; the changes are marked {@code ES:}.
+ * the license above, which {@code licenses/re2j-LICENSE.txt} ships. RE2/J keeps its parser package
+ * private and only matches strings, while Lucene needs an automaton, so both build on the one parser here.
+ * The fork changes RE2/J so that it parses as Go 1.26's {@code regexp/syntax} does, which Prometheus 3.13 is
+ * built with; the changes are marked {@code ES:}.
  * <ul>
  *     <li>Unicode classes and case folding come from the JDK ({@code Unicode}), not RE2/J's tables of Unicode 6.0,
  *     and {@code \p} names are looked up as Go 1.26 does, with {@code Any}, {@code ASCII}, {@code Assigned},

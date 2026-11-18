@@ -194,6 +194,9 @@ tasks.named('splitPackagesAudit').configure {
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /lucene-.*/, to: 'lucene'
+  // Vendored RE2/J sources notices (not tied to a jar dependency).
+  ignoreFile 're2j-LICENSE.txt'
+  ignoreFile 're2j-NOTICE.txt'
 }
 
 tasks.named("forbiddenPatterns").configure {

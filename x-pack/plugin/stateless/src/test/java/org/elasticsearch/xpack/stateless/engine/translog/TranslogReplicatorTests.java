@@ -1158,6 +1158,43 @@ public class TranslogReplicatorTests extends ESTestCase {
         translogReplicator.unregister(shardId);
     }
 
+    /**
+     * If the index is deleted before an upload is validated, the primary term lookup returns {@link Long#MIN_VALUE}. The shard's pending
+     * sync listeners must then be failed rather than left waiting for the shard to close.
+     */
+    public void testListenerCompletionWithDeletedIndex() throws IOException {
+        ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
+        long primaryTerm = randomLongBetween(0, 10);
+
+        ArrayList<BytesReference> compoundFiles = new ArrayList<>();
+        ObjectStoreService objectStoreService = mockObjectStoreService(compoundFiles);
+        StatelessClusterConsistencyService consistencyService = mockConsistencyService();
+
+        TranslogReplicator translogReplicator = new TranslogReplicator(
+            threadPool,
+            getSettings(),
+            objectStoreService,
+            consistencyService,
+            false,
+            (sId) -> Long.MIN_VALUE
+        );
+        translogReplicator.doStart();
+        translogReplicator.register(shardId, primaryTerm, seqNo -> {});
+
+        Translog.Operation[] operations = generateRandomOperations(1);
+        Translog.Serialized[] serialized = serializeOperations(operations);
+        translogReplicator.add(shardId, serialized[0], 0, new Translog.Location(0, 0, serialized[0].length()));
+
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
+        translogReplicator.syncAll(shardId, future);
+
+        assertThat(
+            expectThrows(AlreadyClosedException.class, () -> future.actionGet(SAFE_AWAIT_TIMEOUT)).getMessage(),
+            containsString("primary term is stale")
+        );
+        translogReplicator.unregister(shardId);
+    }
+
     public void testTranslogReplicatorReaderCanCancel() throws Exception {
         ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
         long primaryTerm = randomLongBetween(0, 10);

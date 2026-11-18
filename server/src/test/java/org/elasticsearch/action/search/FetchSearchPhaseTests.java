@@ -113,6 +113,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class FetchSearchPhaseTests extends ESTestCase {
     private static final long FETCH_PROFILE_TIME = 555;
@@ -343,6 +344,58 @@ public class FetchSearchPhaseTests extends ESTestCase {
             // The shard that did fit is given back when the failure releases the collection.
             assertThat(breaker.getUsed(), equalTo(0L));
             // Both shards did the IO, so the dropped one still reports what it read.
+            DirectoryMetrics merged = mockSearchPhaseContext.getMergedDirectoryMetrics();
+            assertThat(merged.metrics(StoreMetrics.NAME).cast(StoreMetrics.class).getBytesRead(), equalTo(2 * SHARD_BYTES_READ));
+        } finally {
+            mockSearchPhaseContext.results.close();
+            var resp = mockSearchPhaseContext.searchResponse.get();
+            if (resp != null) {
+                resp.decRef();
+            }
+        }
+    }
+
+    public void testHitsRejectedByTheTaskFailTheSearchLikeATrip() throws Exception {
+        CircuitBreaker breaker = requestBreaker("1gb");
+        MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2, breaker);
+        // Rejects the second shard's large hit, as async search does with hits too large to store.
+        IllegalArgumentException rejection = new IllegalArgumentException("too large to store");
+        mockSearchPhaseContext.getTask().setFetchedHitsCheck((hits, bytes) -> {
+            if (bytes > 2048) {
+                throw rejection;
+            }
+        });
+        SearchPhaseController controller = new SearchPhaseController((t, s) -> InternalAggregationTestCase.emptyReduceContextBuilder());
+        try (
+            SearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                NoopCircuitBreaker.INSTANCE,
+                () -> false,
+                SearchProgressListener.NOOP,
+                mockSearchPhaseContext.getRequest(),
+                2,
+                exc -> {}
+            )
+        ) {
+            ShardSearchContextId ctx1 = new ShardSearchContextId(UUIDs.base64UUID(), 123);
+            ShardSearchContextId ctx2 = new ShardSearchContextId(UUIDs.base64UUID(), 321);
+            SearchShardTarget shard1Target = new SearchShardTarget("node1", new ShardId("test", "na", 0), null);
+            SearchShardTarget shard2Target = new SearchShardTarget("node2", new ShardId("test", "na", 1), null);
+            consumeQueryResult(results, ctx1, shard1Target, 0, 42, 1.0F);
+            consumeQueryResult(results, ctx2, shard2Target, 1, 84, 2.0F);
+            mockSearchPhaseContext.searchTransport = fetchTransport(ctx2, shard1Target, shard2Target, 64, 4096, new AtomicLong());
+
+            SearchPhaseController.ReducedQueryPhase reducedQueryPhase = results.reduce();
+            getFetchSearchPhase(results, mockSearchPhaseContext, reducedQueryPhase).run();
+
+            // Failing through the trip rather than a plain phase failure keeps the deferral that lets in-flight requests send
+            // cancel_child.
+            assertTrue(mockSearchPhaseContext.failedOnCoordinatorTrip());
+            assertThat(mockSearchPhaseContext.phaseFailures.get(), equalTo(1));
+            assertThat(mockSearchPhaseContext.phaseFailure.get(), sameInstance(rejection));
+            assertNull(mockSearchPhaseContext.searchResponse.get());
+            // The rejected hits were charged, and the failure gives them back with the collection.
+            assertThat(breaker.getUsed(), equalTo(0L));
             DirectoryMetrics merged = mockSearchPhaseContext.getMergedDirectoryMetrics();
             assertThat(merged.metrics(StoreMetrics.NAME).cast(StoreMetrics.class).getBytesRead(), equalTo(2 * SHARD_BYTES_READ));
         } finally {

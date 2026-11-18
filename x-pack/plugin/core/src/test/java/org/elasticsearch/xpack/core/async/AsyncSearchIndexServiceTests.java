@@ -32,6 +32,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.search.SearchService.ASYNC_SEARCH_DEFAULT_KEEP_ALIVE_SETTING;
 import static org.elasticsearch.search.SearchService.ASYNC_SEARCH_MAX_KEEP_ALIVE_SETTING;
@@ -417,6 +418,72 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
             );
             updateSettingsRequest.transientSettings(Settings.builder().put("search.max_async_search_response_size", (String) null));
             assertAcked(clusterAdmin().updateSettings(updateSettingsRequest).actionGet());
+        }
+    }
+
+    public void testFailureStoredInPlaceOfARejectedResponseIsReleased() throws Exception {
+        try {
+            AsyncExecutionId executionId = new AsyncExecutionId(
+                Long.toString(randomNonNegativeLong()),
+                new TaskId(randomAlphaOfLength(10), randomNonNegativeLong())
+            );
+            PlainActionFuture<DocWriteResponse> createFuture = new PlainActionFuture<>();
+            indexService.createResponse(executionId.getDocId(), Map.of(), new TestAsyncResponse("initial", randomLong()), createFuture);
+            createFuture.actionGet();
+            updateClusterSettings(Settings.builder().put(MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING.getKey(), "100b").build());
+
+            // convertToFailure hands over a new reference, which the store must release once it has serialized the failure. That
+            // happens before the failure is indexed, on a thread that nothing orders with the one that completes updateFuture.
+            AtomicInteger failureDecRefs = new AtomicInteger();
+            TestAsyncResponse tooLarge = new TestAsyncResponse(randomAlphaOfLength(130), randomLong()) {
+                @Override
+                public TestAsyncResponse convertToFailure(Exception exc) {
+                    return new TestAsyncResponse(test, expirationTimeMillis, exc.getMessage()) {
+                        @Override
+                        public boolean decRef() {
+                            failureDecRefs.incrementAndGet();
+                            return true;
+                        }
+                    };
+                }
+            };
+            PlainActionFuture<UpdateResponse> updateFuture = new PlainActionFuture<>();
+            indexService.updateResponse(executionId.getDocId(), Map.of(), tooLarge, updateFuture);
+            expectThrows(IllegalArgumentException.class, updateFuture::actionGet);
+            assertBusy(() -> assertThat(failureDecRefs.get(), equalTo(1)));
+
+            PlainActionFuture<TestAsyncResponse> getFuture = new PlainActionFuture<>();
+            indexService.getResponse(executionId, randomBoolean(), getFuture);
+            assertThat(getFuture.actionGet().failure, containsString("Can't store an async search response larger than [100] bytes."));
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING.getKey()).build());
+        }
+    }
+
+    public void testRejectedResponseWithoutAFailureFormStillFailsTheUpdate() throws Exception {
+        try {
+            AsyncExecutionId executionId = new AsyncExecutionId(
+                Long.toString(randomNonNegativeLong()),
+                new TaskId(randomAlphaOfLength(10), randomNonNegativeLong())
+            );
+            PlainActionFuture<DocWriteResponse> createFuture = new PlainActionFuture<>();
+            indexService.createResponse(executionId.getDocId(), Map.of(), new TestAsyncResponse("initial", randomLong()), createFuture);
+            createFuture.actionGet();
+            updateClusterSettings(Settings.builder().put(MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING.getKey(), "100b").build());
+
+            // Like a response that keeps the default of AsyncResponse, which has no failure form.
+            TestAsyncResponse tooLarge = new TestAsyncResponse(randomAlphaOfLength(130), randomLong()) {
+                @Override
+                public TestAsyncResponse convertToFailure(Exception exc) {
+                    return null;
+                }
+            };
+            PlainActionFuture<UpdateResponse> updateFuture = new PlainActionFuture<>();
+            indexService.updateResponse(executionId.getDocId(), Map.of(), tooLarge, updateFuture);
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, updateFuture::actionGet);
+            assertThat(e.getMessage(), containsString("Can't store an async search response larger than [100] bytes."));
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING.getKey()).build());
         }
     }
 

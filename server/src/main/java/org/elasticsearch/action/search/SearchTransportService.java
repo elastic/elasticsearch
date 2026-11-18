@@ -447,7 +447,8 @@ public class SearchTransportService {
                 headers,
                 requestBytesConsumer,
                 resultBytesConsumer,
-                e -> context.failOnCoordinatorTrip(FetchSearchPhase.NAME, e)
+                e -> context.failOnCoordinatorTrip(FetchSearchPhase.NAME, e),
+                task.getFetchedHitsCheck()
             );
             transportService.sendChildRequest(
                 localConnection,

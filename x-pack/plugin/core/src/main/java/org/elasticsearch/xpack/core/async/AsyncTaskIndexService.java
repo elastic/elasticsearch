@@ -42,6 +42,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.TimeValue;
@@ -352,19 +353,24 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                 Throwable cause = ExceptionsHelper.unwrapCause(e);
                 if (cause instanceof DocumentMissingException == false && cause instanceof VersionConflictEngineException == false) {
                     logger.warn(() -> "failed to store async-search [" + docId + "]", e);
-                    // at end, we should report a failure to the listener
-                    updateResponse(
-                        docId,
-                        responseHeaders,
-                        response.convertToFailure(e),
-                        ActionListener.running(() -> listener.onFailure(e)),
-                        true
-                    );
+                    R failure = response.convertToFailure(e);
+                    // updateResponse serializes the failure before it returns
+                    try (Releasable ignored = failure == null ? null : failure::decRef) {
+                        // at end, we should report a failure to the listener
+                        updateResponse(docId, responseHeaders, failure, ActionListener.running(() -> listener.onFailure(e)), true);
+                    }
                 } else {
                     listener.onFailure(e);
                 }
             }
         }
+    }
+
+    /**
+     * The size limit of stored responses, set by {@code search.max_async_search_response_size}.
+     */
+    public long getMaxResponseSize() {
+        return maxResponseSize;
     }
 
     private ReleasableBytesStreamOutput allocateBuffer(boolean limitToMaxResponseSize) {

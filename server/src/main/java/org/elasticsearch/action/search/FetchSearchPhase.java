@@ -10,7 +10,6 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.ScoreDoc;
-import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Nullable;
@@ -133,7 +132,11 @@ class FetchSearchPhase extends SearchPhase {
         SearchPhaseController.ReducedQueryPhase reducedQueryPhase,
         long phaseStartTimeInNanos
     ) {
-        FetchSearchPhaseResults fetchResults = new FetchSearchPhaseResults(numShards, context.circuitBreaker());
+        FetchSearchPhaseResults fetchResults = new FetchSearchPhaseResults(
+            numShards,
+            context.circuitBreaker(),
+            context.getTask().getFetchedHitsCheck()
+        );
         final List<Map<Integer, RankDoc>> rankDocsPerShard = false == shouldExplainRankScores(context.getRequest())
             ? null
             : splitRankDocsPerShard(scoreDocs, numShards);
@@ -224,7 +227,9 @@ class FetchSearchPhase extends SearchPhase {
                 try {
                     try {
                         fetchResults.reserve(result);
-                    } catch (CircuitBreakingException e) {
+                    } catch (Exception e) {
+                        // A breaker trip, a rejection by the task's FetchedHitsCheck, or anything else that stops us holding these hits.
+                        // Failing through the trip keeps its deferral.
                         // The shard did the IO even though we cannot hold what it sent back.
                         context.accumulateDirectoryMetrics(result.getDirectoryMetrics());
                         context.failOnCoordinatorTrip(NAME, e);

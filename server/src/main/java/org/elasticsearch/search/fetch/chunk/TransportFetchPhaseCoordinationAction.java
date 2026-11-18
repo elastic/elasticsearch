@@ -16,6 +16,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.search.FetchedHitsCheck;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.search.ShardResponseReservation;
 import org.elasticsearch.action.support.ActionFilters;
@@ -47,6 +48,8 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
@@ -117,6 +120,7 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
         private final LongConsumer requestBytesConsumer;
         private final LongConsumer resultBytesConsumer;
         private final Consumer<Exception> onCoordinatorTrip;
+        private final FetchedHitsCheck fetchedHitsCheck;
 
         public Request(
             ShardFetchSearchRequest shardFetchRequest,
@@ -124,7 +128,8 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
             Map<String, String> headers,
             LongConsumer requestBytesConsumer,
             LongConsumer resultBytesConsumer,
-            Consumer<Exception> onCoordinatorTrip
+            Consumer<Exception> onCoordinatorTrip,
+            FetchedHitsCheck fetchedHitsCheck
         ) {
             this.shardFetchRequest = shardFetchRequest;
             this.dataNode = dataNode;
@@ -132,6 +137,7 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
             this.requestBytesConsumer = requestBytesConsumer;
             this.resultBytesConsumer = resultBytesConsumer;
             this.onCoordinatorTrip = onCoordinatorTrip;
+            this.fetchedHitsCheck = fetchedHitsCheck;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -142,6 +148,7 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
             this.requestBytesConsumer = l -> {};
             this.resultBytesConsumer = l -> {};
             this.onCoordinatorTrip = e -> {};
+            this.fetchedHitsCheck = FetchedHitsCheck.NOOP;
         }
 
         @Override
@@ -224,6 +231,7 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
         CircuitBreaker circuitBreaker = circuitBreakerService.getBreaker(CircuitBreaker.REQUEST);
         FetchPhaseResponseStream responseStream = new FetchPhaseResponseStream(shardId.getId(), expectedTotalDocs, circuitBreaker);
         responseStream.setCoordinatorTripListener(request.onCoordinatorTrip);
+        responseStream.setFetchedHitsCheck(request.fetchedHitsCheck);
         Releasable registration = activeFetchPhaseTasks.registerResponseBuilder(coordinatingTaskId, shardId, responseStream);
 
         // Listener that answers with the data node's classic hits, or with the hits it streamed
@@ -319,15 +327,22 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
             }
 
             long estimatedRetainedBytes = 0L;
+            List<SearchHit> hits = responseStream.checksHits() ? new ArrayList<>(hitCount) : null;
             try (StreamInput in = new NamedWriteableAwareStreamInput(lastChunkBytes.streamInput(), namedWriteableRegistry)) {
                 for (int i = 0; i < hitCount; i++) {
                     int position = in.readVInt();
                     SearchHit hit = SearchHit.readFrom(in);
                     estimatedRetainedBytes += hit.ramBytesUsed();
                     responseStream.addHitWithSequence(hit, position);
+                    if (hits != null) {
+                        hits.add(hit);
+                    }
                 }
             }
             responseStream.chargeRetainedBytes(estimatedRetainedBytes);
+            if (hits != null) {
+                responseStream.checkHits(hits, estimatedRetainedBytes);
+            }
         }
 
         // Build final result from all accumulated hits

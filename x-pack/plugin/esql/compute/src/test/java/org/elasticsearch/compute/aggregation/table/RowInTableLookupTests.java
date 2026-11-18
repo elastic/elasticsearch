@@ -23,6 +23,10 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 
+import java.util.List;
+import java.util.stream.IntStream;
+
+import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -80,6 +84,65 @@ public class RowInTableLookupTests extends ESTestCase {
                 Exception e = expectThrows(IllegalArgumentException.class, () -> RowInTableLookup.build(blockFactory, new Block[] { b }));
                 assertThat(e.getMessage(), equalTo("only single valued keys are supported"));
             }
+        }
+    }
+
+    public void testRepeatedCompositeKeysReturnEveryMatchingRow() {
+        try (
+            IntBlock firstKey = blockFactory.newIntArrayVector(new int[] { 1, 1, 2, 1, 2 }, 5).asBlock();
+            BytesRefBlock secondKey = bytes("a", "b", "a", "a", "a");
+            RowInTableLookup lookup = RowInTableLookup.build(blockFactory, new Block[] { firstKey, secondKey }, true);
+            Page probe = new Page(blockFactory.newIntArrayVector(new int[] { 1, 1, 2, 2, 1 }, 5).asBlock(), bytes("a", "b", "a", "b", "a"));
+            ReleasableIterator<IntBlock> blocks = lookup.lookup(probe, blockFactory, ByteSizeValue.ofKb(1));
+            IntBlock matches = blocks.next()
+        ) {
+            assertThat(matches.getPositionCount(), equalTo(5));
+            assertThat(toJavaObject(matches, 0), equalTo(List.of(0, 3)));
+            assertThat(toJavaObject(matches, 1), equalTo(1));
+            assertThat(toJavaObject(matches, 2), equalTo(List.of(2, 4)));
+            assertNull(toJavaObject(matches, 3));
+            assertThat(toJavaObject(matches, 4), equalTo(List.of(0, 3)));
+            assertFalse(blocks.hasNext());
+        }
+    }
+
+    public void testRepeatedLookupSplitsResultsBetweenProbeRows() {
+        int buildRows = 300;
+        int probeRows = 4;
+        List<Integer> expectedMatches = IntStream.range(0, buildRows).boxed().toList();
+        try (
+            IntBlock key = blockFactory.newConstantIntBlockWith(7, buildRows);
+            RowInTableLookup lookup = RowInTableLookup.build(blockFactory, new Block[] { key }, true);
+            Page probe = new Page(blockFactory.newConstantIntBlockWith(7, probeRows));
+            ReleasableIterator<IntBlock> blocks = lookup.lookup(probe, blockFactory, ByteSizeValue.ofKb(1))
+        ) {
+            for (int p = 0; p < probeRows; p++) {
+                assertTrue(blocks.hasNext());
+                try (IntBlock matches = blocks.next()) {
+                    assertThat(matches.getPositionCount(), equalTo(1));
+                    assertThat(toJavaObject(matches, 0), equalTo(expectedMatches));
+                }
+            }
+            assertFalse(blocks.hasNext());
+        }
+    }
+
+    public void testRepeatedLookupRejectsNullBuildKeys() {
+        try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(2)) {
+            builder.appendInt(1).appendNull();
+            try (IntBlock key = builder.build()) {
+                var e = expectThrows(IllegalArgumentException.class, () -> RowInTableLookup.build(blockFactory, new Block[] { key }, true));
+                assertThat(e.getMessage(), equalTo("repeated-key lookup requires non-null build keys"));
+            }
+        }
+    }
+
+    private BytesRefBlock bytes(String... keys) {
+        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(keys.length)) {
+            for (String key : keys) {
+                builder.appendBytesRef(new BytesRef(key));
+            }
+            return builder.build();
         }
     }
 

@@ -14,6 +14,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
@@ -24,7 +25,7 @@ import java.util.List;
 
 /**
  * Looks up each row of an input {@link Page} in a pre-built table and appends
- * the matching row index as a new {@link IntBlock}.
+ * the matching row indices as a new {@link IntBlock}.
  * <p>
  *     The table is supplied at construction time as an array of {@link Key}s,
  *     each holding one key column. Input pages may have more columns than just
@@ -111,6 +112,8 @@ public class RowInTableLookupOperator extends AbstractPageMappingToIteratorOpera
     public static final class Factory implements Operator.OperatorFactory {
         private final Key[] keys;
         private final int[] blockMapping;
+        private final boolean repeatedKeys;
+        private final WarningSourceLocation warningSource;
         /**
          * The table shared by the operators this factory created, or {@code null} when no operator holds one.
          * Guarded by {@code this}.
@@ -118,22 +121,35 @@ public class RowInTableLookupOperator extends AbstractPageMappingToIteratorOpera
         private SharedLookup shared;
 
         public Factory(Key[] keys, int[] blockMapping) {
+            this(keys, blockMapping, false, null);
+        }
+
+        /**
+         * Opt in to returning all build-side matches and reporting invalid probe keys at the join's source.
+         */
+        public Factory(Key[] keys, int[] blockMapping, boolean repeatedKeys, @Nullable WarningSourceLocation warningSource) {
             if (keys.length < 1) {
                 throw new IllegalArgumentException("expected [keys] to be non-empty");
             }
+            if (repeatedKeys && warningSource == null) {
+                throw new IllegalArgumentException("expected [warningSource] when [repeatedKeys] is true");
+            }
             this.keys = keys;
             this.blockMapping = blockMapping;
+            this.repeatedKeys = repeatedKeys;
+            this.warningSource = warningSource;
         }
 
         @Override
         public Operator get(DriverContext driverContext) {
+            Warnings warnings = repeatedKeys ? driverContext.createWarnings(warningSource) : Warnings.NOOP_WARNINGS;
             /*
              * Build with the node-wide parent factory, which charges the request breaker, rather than this driver's:
              * the table outlives any single driver and is released from whichever driver closes last, so it must not
              * be charged to a driver-local breaker.
              */
             SharedLookup lookup = acquire(driverContext.blockFactory().parent());
-            return new RowInTableLookupOperator(driverContext.blockFactory(), keyNames(keys), lookup, blockMapping);
+            return new RowInTableLookupOperator(driverContext.blockFactory(), keyNames(keys), lookup, blockMapping, warnings);
         }
 
         /**
@@ -142,7 +158,7 @@ public class RowInTableLookupOperator extends AbstractPageMappingToIteratorOpera
         private synchronized SharedLookup acquire(BlockFactory blockFactory) {
             // A released table stays here until its forget call gets the lock, so check it is still live.
             if (shared == null || shared.tryIncRef() == false) {
-                shared = new SharedLookup(buildLookup(blockFactory, keys), this);
+                shared = new SharedLookup(buildLookup(blockFactory, keys, repeatedKeys), this);
             }
             return shared;
         }
@@ -188,12 +204,12 @@ public class RowInTableLookupOperator extends AbstractPageMappingToIteratorOpera
      * concurrently planned plans can share these blocks. Whoever publishes a key page into a plan must call
      * {@link Block#allowPassingToDifferentDriver} on it first so those ref counts are thread-safe.
      */
-    static RowInTableLookup buildLookup(BlockFactory blockFactory, Key[] keys) {
+    static RowInTableLookup buildLookup(BlockFactory blockFactory, Key[] keys, boolean repeatedKeys) {
         Block[] blocks = new Block[keys.length];
         for (int k = 0; k < keys.length; k++) {
             blocks[k] = keys[k].block;
         }
-        return RowInTableLookup.build(blockFactory, blocks);
+        return RowInTableLookup.build(blockFactory, blocks, repeatedKeys);
     }
 
     private static List<String> keyNames(Key[] keys) {
@@ -212,16 +228,24 @@ public class RowInTableLookupOperator extends AbstractPageMappingToIteratorOpera
     private final SharedLookup shared;
     private final Releasable releaseShared;
     private final int[] blockMapping;
+    private final Warnings warnings;
 
     /**
      * Takes ownership of one reference to {@code shared}.
      */
-    private RowInTableLookupOperator(BlockFactory blockFactory, List<String> keys, SharedLookup shared, int[] blockMapping) {
+    private RowInTableLookupOperator(
+        BlockFactory blockFactory,
+        List<String> keys,
+        SharedLookup shared,
+        int[] blockMapping,
+        Warnings warnings
+    ) {
         this.blockFactory = blockFactory;
         this.keys = keys;
         this.shared = shared;
         this.releaseShared = Releasables.releaseOnce(shared::decRef);
         this.blockMapping = blockMapping;
+        this.warnings = warnings;
     }
 
     @Override
@@ -229,7 +253,10 @@ public class RowInTableLookupOperator extends AbstractPageMappingToIteratorOpera
         Page mapped = page.projectBlocks(blockMapping);
         try {
             // lookup increments any references we need to keep for the iterator
-            return appendBlocks(page, shared.table.lookup(mapped, blockFactory, BlockFactory.DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE));
+            return appendBlocks(
+                page,
+                shared.table.lookup(mapped, blockFactory, BlockFactory.DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE, warnings)
+            );
         } finally {
             mapped.releaseBlocks();
         }

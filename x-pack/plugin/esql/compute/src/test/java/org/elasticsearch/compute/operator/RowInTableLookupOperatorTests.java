@@ -20,6 +20,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.compute.test.TestDriverRunner;
+import org.elasticsearch.compute.test.TestWarningsSource;
 import org.elasticsearch.compute.test.operator.blocksource.SequenceLongBlockSourceOperator;
 import org.elasticsearch.compute.test.operator.blocksource.TupleLongLongBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
@@ -33,6 +34,8 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.LongStream;
 
+import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.matchesRegex;
@@ -188,6 +191,68 @@ public class RowInTableLookupOperatorTests extends OperatorTestCase {
         assertThat(breaker.getUsed(), equalTo(before));
     }
 
+    public void testRepeatedKeysShareTableAndKeepWarningsLocal() {
+        BlockFactory parent = blockFactory();
+        CircuitBreaker breaker = parent.breaker();
+        try (
+            LongBlock key = parent.newLongArrayVector(new long[] { 7, 9, 7 }, 3).asBlock();
+            LocalCircuitBreaker firstBreaker = new LocalCircuitBreaker(breaker, 0, 0);
+            LocalCircuitBreaker secondBreaker = new LocalCircuitBreaker(breaker, 0, 0)
+        ) {
+            BlockFactory firstFactory = parent.newChildFactory(firstBreaker);
+            BlockFactory secondFactory = parent.newChildFactory(secondBreaker);
+            DriverContext firstContext = new DriverContext(firstFactory.bigArrays(), firstFactory, null);
+            DriverContext secondContext = new DriverContext(secondFactory.bigArrays(), secondFactory, null);
+            var factory = new RowInTableLookupOperator.Factory(
+                new RowInTableLookupOperator.Key[] { new RowInTableLookupOperator.Key("foo", key) },
+                new int[] { 0 },
+                true,
+                new TestWarningsSource("join")
+            );
+            long before = breaker.getUsed();
+            try (Operator first = factory.get(firstContext)) {
+                long withTable = breaker.getUsed();
+                assertThat(withTable, greaterThan(before));
+                try (Operator second = factory.get(secondContext)) {
+                    assertThat(breaker.getUsed(), equalTo(withTable));
+
+                    try (LongBlock.Builder builder = firstFactory.newLongBlockBuilder(4)) {
+                        builder.appendLong(7).appendNull();
+                        builder.beginPositionEntry().appendLong(7).appendLong(9).endPositionEntry();
+                        builder.appendLong(9);
+                        first.addInput(new Page(builder.build()));
+                    }
+                    try (Page output = first.getOutput()) {
+                        IntBlock matches = output.getBlock(1);
+                        assertThat(matches.blockFactory(), sameInstance(firstFactory));
+                        assertThat(toJavaObject(matches, 0), equalTo(List.of(0, 2)));
+                        assertNull(toJavaObject(matches, 1));
+                        assertNull(toJavaObject(matches, 2));
+                        assertThat(toJavaObject(matches, 3), equalTo(1));
+                    }
+
+                    second.addInput(new Page(secondFactory.newConstantLongBlockWith(7, 1)));
+                    try (Page output = second.getOutput()) {
+                        IntBlock matches = output.getBlock(1);
+                        assertThat(matches.blockFactory(), sameInstance(secondFactory));
+                        assertThat(toJavaObject(matches, 0), equalTo(List.of(0, 2)));
+                    }
+                }
+            }
+            assertThat(breaker.getUsed(), equalTo(before));
+            firstContext.finish();
+            secondContext.finish();
+            assertThat(
+                firstContext.warnings(),
+                contains(
+                    "Line 1:1: evaluation of [join] failed, treating result as null. Only first 20 failures recorded.",
+                    "Line 1:1: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value"
+                )
+            );
+            assertTrue(secondContext.warnings().isEmpty());
+        }
+    }
+
     /**
      * The driver that built the table can finish, closing its local breaker, while another driver still uses the
      * table. A closed local breaker keeps up to its maximum over-reservation of the bytes released to it, so the
@@ -230,7 +295,8 @@ public class RowInTableLookupOperatorTests extends OperatorTestCase {
         TrackingCircuitBreaker viaOperator = new TrackingCircuitBreaker();
         RowInTableLookupOperator.buildLookup(
             trackingBlockFactory(viaOperator),
-            new RowInTableLookupOperator.Key[] { new RowInTableLookupOperator.Key("foo", key) }
+            new RowInTableLookupOperator.Key[] { new RowInTableLookupOperator.Key("foo", key) },
+            false
         ).close();
         assertThat(viaOperator.peak(), equalTo(direct.peak()));
         assertThat(viaOperator.getUsed(), equalTo(0L));
@@ -259,7 +325,7 @@ public class RowInTableLookupOperatorTests extends OperatorTestCase {
                 try {
                     barrier.await();
                     for (int i = 0; i < 100; i++) {
-                        RowInTableLookupOperator.buildLookup(parent, keys).close();
+                        RowInTableLookupOperator.buildLookup(parent, keys, false).close();
                     }
                 } catch (Exception e) {
                     failure.compareAndSet(null, e);

@@ -4980,6 +4980,12 @@ public class EsqlCapabilities {
          */
         FROM_SUBQUERY_MERGE_KEEPS_METADATA_SCORE,
 
+        /**
+         * Fixes {@code EARLIEST} in {@code TS} queries. It returned the last value of the time series whose last sample was the
+         * earliest, instead of the earliest value like {@code FIRST(field, @timestamp)}.
+         */
+        FIX_TS_EARLIEST,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

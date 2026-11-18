@@ -1727,3 +1727,57 @@ TS k8s
 avg:double
 616.5983606557377
 ;
+
+// LATEST reads the implicit @timestamp, see https://github.com/elastic/elasticsearch/issues/154299
+tsLatestByDimension
+required_capability: ts_command_v0
+required_capability: fix_aggs_multiple_input_fields
+
+TS k8s
+| WHERE cluster IS NOT NULL AND cluster != "" AND network.eth0.tx IS NOT NULL
+| STATS tx = LATEST(network.eth0.tx) BY pod
+| SORT pod
+;
+
+tx:integer | pod:keyword
+1380       | one
+1241       | three
+967        | two
+;
+
+// EARLIEST and LATEST must match FIRST and LAST sorted by @timestamp
+tsEarliestAndLatestMatchFirstAndLast
+required_capability: ts_command_v0
+required_capability: fix_ts_earliest
+
+TS k8s
+| STATS earliest_cost = EARLIEST(network.cost), first_cost = FIRST(network.cost, @timestamp),
+        latest_cost = LATEST(network.cost), last_cost = LAST(network.cost, @timestamp)
+  BY cluster
+| SORT cluster
+;
+
+earliest_cost:double | first_cost:double | latest_cost:double | last_cost:double | cluster:keyword
+9.25                 | 9.25              | 10.75              | 10.75            | prod
+5.375                | 5.375             | 6.25               | 6.25             | qa
+9.375                | 9.375             | 4.625              | 4.625            | staging
+;
+
+// Filtered and unfiltered aggregates inside scalar expressions, see https://github.com/elastic/elasticsearch/issues/166160
+tsMixedInlineFiltersOnWrappedAggregates
+required_capability: ts_command_v0
+required_capability: tbucket
+required_capability: fix_ts_filter_on_expression_of_aggregates
+
+TS k8s
+| STATS by_bytes = MAX(MAX_OVER_TIME(network.cost)) * 8 WHERE network.bytes_in < 500,
+        by_pod = MAX(MAX_OVER_TIME(network.cost)) * 8 WHERE pod == "one",
+        all = MAX(MAX_OVER_TIME(network.cost)) * 8,
+        avg_kb = ROUND(AVG(MAX_OVER_TIME(network.bytes_in)) / 1024, 3) WHERE network.cost > 5,
+        avg_kb_all = ROUND(AVG(MAX_OVER_TIME(network.bytes_in)) / 1024, 3)
+  BY tbucket = TBUCKET(1 hour)
+;
+
+by_bytes:double | by_pod:double | all:double | avg_kb:double | avg_kb_all:double | tbucket:datetime
+98.0            | 99.0          | 100.0      | 0.934         | 0.972             | 2024-05-10T00:00:00.000Z
+;

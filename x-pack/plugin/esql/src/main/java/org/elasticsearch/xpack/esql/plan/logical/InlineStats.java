@@ -50,7 +50,8 @@ public class InlineStats extends UnaryPlan
         TelemetryAware,
         SortAgnostic,
         SortPreserving,
-        PostAnalysisPlanVerificationAware {
+        PostAnalysisPlanVerificationAware,
+        DocPreserving {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
         "InlineStats",
@@ -92,6 +93,11 @@ public class InlineStats extends UnaryPlan
 
     public Aggregate aggregate() {
         return aggregate;
+    }
+
+    @Override
+    public LogicalPlan preservingInput() {
+        return aggregate.child();
     }
 
     @Override

@@ -16,15 +16,15 @@ import io.opentelemetry.context.ImplicitContextKeyed;
 import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings;
 
 /** Tracks per-span local depth in Context to enforce {@link OtelSdkSettings#TELEMETRY_TRACING_MAX_DEPTH}. */
-public record LocalTraceDepth(int depth) implements ImplicitContextKeyed {
+record LocalTraceDepth(int depth) implements ImplicitContextKeyed {
 
     private static final ContextKey<LocalTraceDepth> SPAN_LOCAL_DEPTH_KEY = ContextKey.named("es.apm.span.local_depth");
 
-    public LocalTraceDepth increment() {
+    LocalTraceDepth increment() {
         return new LocalTraceDepth(depth + 1);
     }
 
-    public static LocalTraceDepth get(Context context) {
+    static LocalTraceDepth get(Context context) {
         var result = context.get(SPAN_LOCAL_DEPTH_KEY);
         return result == null ? new LocalTraceDepth(0) : result;
     }

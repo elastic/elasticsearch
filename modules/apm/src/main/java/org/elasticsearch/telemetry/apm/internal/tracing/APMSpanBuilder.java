@@ -122,46 +122,10 @@ public class APMSpanBuilder implements SpanBuilder {
 
     @Override
     public AbstractSpan startSpan() {
-        Context parentOtelContext;
-        if (noParent) {
-            parentOtelContext = emptyContext();
-        } else if (parentContext != null) {
-            parentOtelContext = parentContext;
-        } else if (tracer.currentSpan() instanceof AbstractSpan currentSpan) {
-            parentOtelContext = currentSpan.context();
-        } else {
-            parentOtelContext = getRemoteParentContext();
-        }
+        final Context parentOtelContext = findParentOtelContext();
+        final var parentOtelSpan = io.opentelemetry.api.trace.Span.fromContextOrNull(parentOtelContext);
 
-        var parentOtelSpan = io.opentelemetry.api.trace.Span.fromContextOrNull(parentOtelContext);
-
-        // local parent span is not sampled, propagate its context to disable any further child spans
-        if (parentOtelSpan != null && parentOtelSpan.getSpanContext().isSampled() == false) {
-            logger.trace("Skipping span [{}] as its local trace was dropped", name);
-            return readOnlySpan(parentOtelContext);
-        }
-
-        if (tracer.isFilteredOut(name)) {
-            logger.trace("Skipping tracing [{}] as it has been filtered out", name);
-            return readOnlySpan(parentOtelContext);
-        }
-
-        final var localDepth = LocalTraceDepth.get(parentOtelContext);
-        final var localSpanCount = LocalSpanCount.getOrNull(parentOtelContext);
-        if (localSpanCount == null) {
-            assert false : "LocalSpanCount should always be populated, even in empty context";
-            return readOnlySpan(parentOtelContext);
-        }
-
-        final int maxTraceDepth = tracer.maxTraceDepth();
-        if (localDepth.depth() > maxTraceDepth) {
-            logger.trace("Skipping span [{}] at local trace depth {} (maxTraceDepth={})", name, localDepth, maxTraceDepth);
-            return readOnlySpan(parentOtelContext);
-        }
-
-        final int maxSpans = tracer.maxSpans();
-        if (localSpanCount.incrementAndGet() > maxSpans) {
-            logger.trace("Skipping span [{}] as the local trace reached maxSpans={}", name, maxSpans);
+        if (filterOutSpan(parentOtelContext, parentOtelSpan)) {
             return readOnlySpan(parentOtelContext);
         }
 
@@ -176,18 +140,72 @@ public class APMSpanBuilder implements SpanBuilder {
 
         setCommonAttributes(otelSpanBuilder);
 
-        if (parentOtelSpan != null == false) {
-            Instant startTime = tracer.threadContext().removeTransient(Task.LOCAL_TRACE_START_TIME);
+        // only set the local start time on the local root HTTP server span: it either has a remote parent span, or does not have a parent
+        if (parentOtelSpan == null || parentOtelSpan.getSpanContext().isRemote()) {
+            // TODO: move somewhere else, preferably into the HTTP instrumentation
+            final Instant startTime = tracer.threadContext().removeTransient(Task.LOCAL_TRACE_START_TIME);
             if (startTime != null) {
                 otelSpanBuilder.setStartTimestamp(startTime);
             }
         }
 
         final io.opentelemetry.api.trace.Span otelSpan = otelSpanBuilder.startSpan();
-        final Context contextForNewSpan = parentOtelContext.with(otelSpan).with(localDepth.increment());
+        final Context contextForNewSpan = parentOtelContext.with(otelSpan).with(LocalTraceDepth.get(parentOtelContext).increment());
 
         logger.trace("Starting span [{}]", name);
         return isSpanRecording(contextForNewSpan) ? new APMSpan(tracer, contextForNewSpan) : readOnlySpan(contextForNewSpan);
+    }
+
+    private Context findParentOtelContext() {
+        Context parentOtelContext;
+        if (noParent) {
+            parentOtelContext = emptyContext();
+        } else if (parentContext != null) {
+            parentOtelContext = parentContext;
+        } else if (tracer.currentSpan() instanceof AbstractSpan currentSpan) {
+            parentOtelContext = currentSpan.context();
+        } else {
+            parentOtelContext = getRemoteParentContext();
+        }
+        return parentOtelContext;
+    }
+
+    private boolean filterOutSpan(Context parentOtelContext, io.opentelemetry.api.trace.Span parentOtelSpan) {
+        if (tracer.isEnabled() == false) {
+            return true;
+        }
+
+        // local parent span is not sampled, propagate its context to disable any further child spans
+        if (parentOtelSpan != null && parentOtelSpan.getSpanContext().isSampled() == false) {
+            logger.trace("Skipping span [{}] as its local trace was dropped", name);
+            return true;
+        }
+
+        if (tracer.isFilteredOut(name)) {
+            logger.trace("Skipping tracing [{}] as it has been filtered out", name);
+            return true;
+        }
+
+        final var localDepth = LocalTraceDepth.get(parentOtelContext);
+        final var localSpanCount = LocalSpanCount.getOrNull(parentOtelContext);
+        if (localSpanCount == null) {
+            assert false : "LocalSpanCount should always be populated, even in empty context";
+            return true;
+        }
+
+        final int maxTraceDepth = tracer.maxTraceDepth();
+        if (localDepth.depth() > maxTraceDepth) {
+            logger.trace("Skipping span [{}] at local trace depth {} (maxTraceDepth={})", name, localDepth, maxTraceDepth);
+            return true;
+        }
+
+        final int maxSpans = tracer.maxSpans();
+        if (localSpanCount.incrementAndGet() > maxSpans) {
+            logger.trace("Skipping span [{}] as the local trace reached maxSpans={}", name, maxSpans);
+            return true;
+        }
+
+        return false;
     }
 
     private void setCommonAttributes(io.opentelemetry.api.trace.SpanBuilder spanBuilder) {
@@ -215,10 +233,7 @@ public class APMSpanBuilder implements SpanBuilder {
      * {@link #emptyContext()} if there is none.
      */
     private Context getRemoteParentContext() {
-        return tracer.openTelemetry()
-            .getPropagators()
-            .getTextMapPropagator()
-            .extract(emptyContext(), tracer.threadContext(), (tc, key) -> requireNonNull(tc).getHeader(key));
+        return tracer.propagator().extract(emptyContext(), tracer.threadContext(), (tc, key) -> requireNonNull(tc).getHeader(key));
     }
 
     /**

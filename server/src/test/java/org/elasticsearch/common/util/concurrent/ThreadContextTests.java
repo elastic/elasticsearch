@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.telemetry.tracing.Span;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.hamcrest.Matcher;
@@ -29,6 +30,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -49,6 +51,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.Mockito.mock;
 
 public class ThreadContextTests extends ESTestCase {
 
@@ -1360,20 +1363,94 @@ public class ThreadContextTests extends ESTestCase {
         assertThat(threadContext.getTransient("key"), sameInstance(value));
     }
 
+    public void testSpanIsNoopUnlessSet() {
+        final var threadContext = new ThreadContext(Settings.EMPTY);
+
+        assertThat(threadContext.getSpan(), sameInstance(Span.noop()));
+    }
+
+    public void testSetSpanReplacesTheSpan() {
+        final var threadContext = new ThreadContext(Settings.EMPTY);
+        final Span first = mock(Span.class);
+        final Span second = mock(Span.class);
+
+        threadContext.setSpan(first);
+        assertThat(threadContext.getSpan(), sameInstance(first));
+
+        threadContext.setSpan(second);
+        assertThat(threadContext.getSpan(), sameInstance(second));
+    }
+
+    public void testSpanIsRestoredWithTheStoredContext() {
+        final var threadContext = new ThreadContext(Settings.EMPTY);
+        final Span outer = mock(Span.class);
+        final Span inner = mock(Span.class);
+        threadContext.setSpan(outer);
+
+        try (var ignored = threadContext.newStoredContext()) {
+            threadContext.setSpan(inner);
+            assertThat(threadContext.getSpan(), sameInstance(inner));
+        }
+
+        assertThat(threadContext.getSpan(), sameInstance(outer));
+    }
+
+    public void testSpanIsNotVisibleInAnEmptyContext() {
+        final var threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext.setSpan(mock(Span.class));
+
+        try (var ignored = threadContext.newEmptyContext()) {
+            assertThat(threadContext.getSpan(), sameInstance(Span.noop()));
+        }
+    }
+
+    public void testSpanIsPropagatedToTheThreadThatRunsAPreservedContext() throws Exception {
+        final var threadContext = new ThreadContext(Settings.EMPTY);
+        final Span span = mock(Span.class);
+        threadContext.setSpan(span);
+        final var seen = new AtomicReference<Span>();
+
+        final Runnable preserved = threadContext.preserveContext(() -> seen.set(threadContext.getSpan()));
+        final Thread thread = new Thread(preserved);
+        thread.start();
+        thread.join();
+
+        assertThat(seen.get(), sameInstance(span));
+        // the span of the thread that ran it is its own
+        assertThat(threadContext.getSpan(), sameInstance(span));
+    }
+
+    /** Transient headers are never sent over the wire; trace context is propagated through ThreadContext headers by the APM module. */
+    public void testSpanIsNotSerialized() throws IOException {
+        final var threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext.putHeader("header", "value");
+        threadContext.setSpan(mock(Span.class));
+
+        final var otherThreadContext = new ThreadContext(Settings.EMPTY);
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            threadContext.writeTo(out);
+            otherThreadContext.readHeaders(out.bytes().streamInput());
+        }
+
+        assertThat(otherThreadContext.getHeader("header"), equalTo("value"));
+        assertThat(otherThreadContext.getSpan(), sameInstance(Span.noop()));
+    }
+
     public void testStashContextPreservesTraceContext() {
         final var threadContext = new ThreadContext(Settings.EMPTY);
 
         var traceHeaders = Map.of(Task.TRACE_PARENT_HTTP_HEADER, randomIdentifier(), Task.TRACE_STATE, randomIdentifier());
-        var apmTraceContext = new Object();
+        var span = mock(Span.class);
 
         threadContext.putHeader(traceHeaders);
         threadContext.putTransient(Task.LOCAL_TRACE_START_TIME, Instant.now());
-        threadContext.putTransient(Task.APM_TRACE_CONTEXT, apmTraceContext);
+        threadContext.setSpan(span);
 
         try (var ignored = threadContext.stashContext()) {
             assertThat(threadContext.getHeaders(), equalTo(traceHeaders));
+            assertThat(threadContext.getSpan(), sameInstance(span));
             // the trace start time only applies to the local root span, and so it is not propagated
-            assertThat(threadContext.getTransientHeaders(), equalTo(Map.of(Task.APM_TRACE_CONTEXT, apmTraceContext)));
+            assertThat(threadContext.hasTransient(List.of(Task.LOCAL_TRACE_START_TIME)), is(false));
         }
     }
 
@@ -1386,23 +1463,24 @@ public class ThreadContextTests extends ESTestCase {
         var responseKey = randomIdentifier();
         var responseValue = randomAlphaOfLength(10);
         var traceHeaders = Map.of(Task.TRACE_PARENT_HTTP_HEADER, randomIdentifier(), Task.TRACE_STATE, randomIdentifier());
-        var apmTraceContext = new Object();
+        var span = mock(Span.class);
 
         threadContext.putHeader(traceHeaders);
         threadContext.putHeader(otherHeader, otherValue);
         threadContext.putTransient(Task.LOCAL_TRACE_START_TIME, startTime);
-        threadContext.putTransient(Task.APM_TRACE_CONTEXT, apmTraceContext);
+        threadContext.setSpan(span);
 
         try (var ignored = threadContext.clearTraceContext()) {
             assertThat(threadContext.getHeaders(), equalTo(Map.of(otherHeader, otherValue)));
             assertThat(threadContext.getTransientHeaders(), equalTo(Map.of(Task.LOCAL_TRACE_START_TIME, startTime)));
+            assertThat(threadContext.getSpan(), sameInstance(Span.noop()));
             threadContext.addResponseHeader(responseKey, responseValue);
         }
 
         // the original context is restored
         assertThat(threadContext.getHeader(Task.TRACE_PARENT_HTTP_HEADER), equalTo(traceHeaders.get(Task.TRACE_PARENT_HTTP_HEADER)));
         assertThat(threadContext.getHeader(Task.TRACE_STATE), equalTo(traceHeaders.get(Task.TRACE_STATE)));
-        assertThat(threadContext.getTransient(Task.APM_TRACE_CONTEXT), sameInstance(apmTraceContext));
+        assertThat(threadContext.getSpan(), sameInstance(span));
         assertThat(threadContext.getResponseHeaders(), is(anEmptyMap()));
     }
 

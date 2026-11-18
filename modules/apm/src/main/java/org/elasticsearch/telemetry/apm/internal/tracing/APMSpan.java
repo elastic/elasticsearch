@@ -17,7 +17,7 @@ import io.opentelemetry.context.Context;
 
 import org.elasticsearch.telemetry.tracing.Span;
 
-public class APMSpan extends AbstractSpan {
+class APMSpan extends AbstractSpan {
 
     private static final AttributeKey<String> EXCEPTION_TYPE = AttributeKey.stringKey("exception.type");
     private static final AttributeKey<String> EXCEPTION_MESSAGE = AttributeKey.stringKey("exception.message");

@@ -9,18 +9,14 @@
 
 package org.elasticsearch.telemetry.apm.internal.export.otelsdk;
 
-import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.metrics.MeterProvider;
-import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
-import io.opentelemetry.context.propagation.ContextPropagators;
+import io.opentelemetry.api.trace.TracerProvider;
 import io.opentelemetry.exporter.otlp.trace.OtlpGrpcSpanExporter;
 import io.opentelemetry.exporter.otlp.trace.OtlpGrpcSpanExporterBuilder;
-import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.common.CompletableResultCode;
 import io.opentelemetry.sdk.common.InternalTelemetryVersion;
 import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import io.opentelemetry.sdk.trace.export.BatchSpanProcessor;
-import io.opentelemetry.sdk.trace.samplers.Sampler;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
@@ -41,64 +37,62 @@ public class OtelSdkExportTracerSupplier implements TraceSupplier {
 
     private final Settings settings;
     private final Supplier<MeterProvider> meterProvider;
-    private final Sampler sampler;
     final String authHeader;
     private final Object mutex = new Object();
     @Nullable
-    private OpenTelemetrySdk openTelemetrySdk; // guarded by mutex
+    private SdkTracerProvider sdkTracerProvider; // guarded by mutex
     @Nullable
-    private volatile OpenTelemetry openTelemetry;
+    private volatile TracerProvider tracerProvider;
 
-    public OtelSdkExportTracerSupplier(Settings settings, Supplier<MeterProvider> meterProvider, Sampler sampler) {
+    public OtelSdkExportTracerSupplier(Settings settings, Supplier<MeterProvider> meterProvider) {
         this.settings = settings;
         this.meterProvider = meterProvider;
-        this.sampler = sampler;
         this.authHeader = OtelSdkExportMeterSupplier.buildOtlpAuthorizationHeader(settings);
     }
 
     @Override
-    public OpenTelemetry get() {
-        var openTelemetry = this.openTelemetry;
-        if (openTelemetry != null) {
-            return openTelemetry;
+    public TracerProvider get() {
+        var tracerProvider = this.tracerProvider;
+        if (tracerProvider != null) {
+            return tracerProvider;
         }
         synchronized (mutex) {
-            openTelemetry = this.openTelemetry;
-            if (openTelemetry != null) {
-                return openTelemetry;
+            tracerProvider = this.tracerProvider;
+            if (tracerProvider != null) {
+                return tracerProvider;
             }
 
-            if (openTelemetrySdk == null) {
-                openTelemetrySdk = createOpenTelemetrySdk();
+            if (sdkTracerProvider == null) {
+                sdkTracerProvider = createSdkTracerProvider();
             }
-            openTelemetry = openTelemetrySdk == null ? OpenTelemetry.noop() : openTelemetrySdk;
-            this.openTelemetry = openTelemetry;
+            tracerProvider = sdkTracerProvider == null ? TracerProvider.noop() : sdkTracerProvider;
+            this.tracerProvider = tracerProvider;
         }
-        return openTelemetry;
+        return tracerProvider;
     }
 
     @Override
     public CompletableResultCode attemptFlushTraces() {
-        OpenTelemetrySdk openTelemetrySdk;
+        SdkTracerProvider sdkTracerProvider;
         synchronized (mutex) {
-            openTelemetrySdk = this.openTelemetrySdk;
+            sdkTracerProvider = this.sdkTracerProvider;
         }
-        return openTelemetrySdk == null ? CompletableResultCode.ofSuccess() : openTelemetrySdk.getSdkTracerProvider().forceFlush();
+        return sdkTracerProvider == null ? CompletableResultCode.ofSuccess() : sdkTracerProvider.forceFlush();
     }
 
     @Override
     public void close() {
         synchronized (mutex) {
-            openTelemetry = OpenTelemetry.noop();
-            if (openTelemetrySdk != null) {
-                openTelemetrySdk.getSdkTracerProvider().close();
-                openTelemetrySdk = null;
+            tracerProvider = TracerProvider.noop();
+            if (sdkTracerProvider != null) {
+                sdkTracerProvider.close();
+                sdkTracerProvider = null;
             }
         }
     }
 
     @Nullable
-    private OpenTelemetrySdk createOpenTelemetrySdk() {
+    private SdkTracerProvider createSdkTracerProvider() {
         String endpoint = OtelSdkSettings.TELEMETRY_EXPORT_ENDPOINT.get(settings);
         if (endpoint == null || endpoint.isEmpty()) {
             logger.warn("[telemetry.export.endpoint] is not configured; trace export is disabled");
@@ -131,15 +125,10 @@ public class OtelSdkExportTracerSupplier implements TraceSupplier {
             .setMaxExportBatchSize(maxExportBatchSize)
             .build();
 
-        SdkTracerProvider tracerProvider = SdkTracerProvider.builder()
+        return SdkTracerProvider.builder()
             .setResource(OtelSdkResource.get(settings))
-            .setSampler(sampler)
+            .setSampler(new ElasticTracestateSampler(settings))
             .addSpanProcessor(processor)
-            .build();
-
-        return OpenTelemetrySdk.builder()
-            .setTracerProvider(tracerProvider)
-            .setPropagators(ContextPropagators.create(W3CTraceContextPropagator.getInstance()))
             .build();
     }
 }

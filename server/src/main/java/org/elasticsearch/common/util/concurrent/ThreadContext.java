@@ -211,7 +211,6 @@ public final class ThreadContext implements Writeable {
         threadLocal.set(context.putTransientAllowOverwrite(APM_SPAN_TRANSIENT, span));
     }
 
-    @Nullable
     public Span getSpan() {
         return (Span) threadLocal.get().transientHeaders.getOrDefault(APM_SPAN_TRANSIENT, Span.noop());
     }

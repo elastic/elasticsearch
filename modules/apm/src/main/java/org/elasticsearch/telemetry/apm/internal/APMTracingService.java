@@ -20,7 +20,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.telemetry.apm.internal.export.TraceSupplier;
-import org.elasticsearch.telemetry.apm.internal.export.otelsdk.ElasticTracestateSampler;
 import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkExportTracerSupplier;
 import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings;
 import org.elasticsearch.telemetry.apm.internal.tracing.APMTracer;
@@ -37,22 +36,20 @@ public class APMTracingService extends AbstractLifecycleComponent {
 
     private static final Logger logger = LogManager.getLogger(APMTracingService.class);
 
-    private final AtomicBoolean enabled = new AtomicBoolean(); // instance shared with sampler and tracer
+    private final AtomicBoolean enabled = new AtomicBoolean(); // instance shared with tracer
     private final AtomicBoolean recordExceptionStacks = new AtomicBoolean();
-    private final ElasticTracestateSampler sampler;
     private final TraceSupplier traceSupplier;
     private final APMTracer tracer;
 
     public APMTracingService(ThreadContext threadContext, Settings settings, Supplier<MeterProvider> meterProvider) {
-        this(threadContext, settings, sampler -> new OtelSdkExportTracerSupplier(settings, meterProvider, sampler));
+        this(threadContext, settings, new OtelSdkExportTracerSupplier(settings, meterProvider));
     }
 
     // visible for testing: a trace supplier that does not take part in the redaction of the exported spans
-    public APMTracingService(ThreadContext threadContext, Settings settings, TraceSupplier.Factory traceSupplierFactory) {
+    public APMTracingService(ThreadContext threadContext, Settings settings, TraceSupplier traceSupplier) {
         this.enabled.set(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.get(settings));
         this.recordExceptionStacks.set(OtelSdkSettings.TELEMETRY_TRACING_RECORD_EXCEPTION_STACKS.get(settings));
-        this.sampler = new ElasticTracestateSampler(enabled, settings);
-        this.traceSupplier = traceSupplierFactory.create(sampler);
+        this.traceSupplier = traceSupplier;
         this.tracer = new APMTracer(threadContext, traceSupplier, enabled, recordExceptionStacks);
         this.tracer.setIncludeNames(APMAgentSettings.TELEMETRY_TRACING_NAMES_INCLUDE_SETTING.get(settings));
         this.tracer.setExcludeNames(APMAgentSettings.TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING.get(settings));

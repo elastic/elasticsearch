@@ -9,11 +9,14 @@
 
 package org.elasticsearch.telemetry.apm.internal.tracing;
 
-import io.opentelemetry.api.OpenTelemetry;
+import io.opentelemetry.api.trace.TracerProvider;
+import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
+import io.opentelemetry.context.propagation.TextMapPropagator;
 
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.Build;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.telemetry.apm.internal.util.PatternAutomata;
 import org.elasticsearch.telemetry.tracing.Span;
 import org.elasticsearch.telemetry.tracing.Tracer;
@@ -31,9 +34,14 @@ import static java.util.Objects.requireNonNull;
 public class APMTracer implements Tracer {
 
     private final ThreadContext threadContext;
-    private final Supplier<OpenTelemetry> openTelemetry;
-    private final AtomicBoolean enabled; // instance shared with sampler
+    private final Supplier<TracerProvider> tracerProvider;
+    private final AtomicBoolean enabled;
     private final AtomicBoolean recordExceptionStacks;
+
+    private final TextMapPropagator propagator = W3CTraceContextPropagator.getInstance();
+
+    @Nullable
+    private volatile io.opentelemetry.api.trace.Tracer otelTracer;
 
     private List<String> includeNames = List.of();
     private List<String> excludeNames = List.of();
@@ -47,12 +55,12 @@ public class APMTracer implements Tracer {
 
     public APMTracer(
         ThreadContext threadContext,
-        Supplier<OpenTelemetry> openTelemetry,
+        Supplier<TracerProvider> tracerProvider,
         AtomicBoolean enabled,
         AtomicBoolean recordExceptionStacks
     ) {
         this.threadContext = threadContext;
-        this.openTelemetry = openTelemetry;
+        this.tracerProvider = tracerProvider;
         this.enabled = enabled;
         this.recordExceptionStacks = recordExceptionStacks;
     }
@@ -109,11 +117,12 @@ public class APMTracer implements Tracer {
     }
 
     io.opentelemetry.api.trace.Tracer otelTracer() {
-        return openTelemetry.get().getTracer("elasticsearch", Build.current().version());
-    }
-
-    OpenTelemetry openTelemetry() {
-        return openTelemetry.get();
+        var otelTracer = this.otelTracer;
+        if (otelTracer == null) {
+            // no need for double-checked locking, the SDK will always return the same tracer instance for given scope
+            this.otelTracer = otelTracer = tracerProvider.get().get("elasticsearch", Build.current().version());
+        }
+        return otelTracer;
     }
 
     boolean isEnabled() {
@@ -148,5 +157,9 @@ public class APMTracer implements Tracer {
 
     boolean recordExceptionStacks() {
         return recordExceptionStacks.get();
+    }
+
+    TextMapPropagator propagator() {
+        return propagator;
     }
 }

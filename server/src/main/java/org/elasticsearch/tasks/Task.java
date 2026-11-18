@@ -69,12 +69,6 @@ public class Task {
      */
     public static final String LOCAL_TRACE_START_TIME = "trace.starttime";
 
-    /**
-     * Transient header holding the tracing context of the current span, used to parent local spans. Unlike other transient headers it
-     * can be overwritten, see {@link org.elasticsearch.common.util.concurrent.ThreadContext#putTransientAllowOverwrite}.
-     */
-    public static final String APM_TRACE_CONTEXT = "apm.local.context";
-
     public static final Set<String> HEADERS_TO_COPY = Set.of(
         X_OPAQUE_ID_HTTP_HEADER,
         TRACE_PARENT_HTTP_HEADER,

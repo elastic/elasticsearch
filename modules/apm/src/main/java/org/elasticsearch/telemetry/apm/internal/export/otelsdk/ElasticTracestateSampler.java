@@ -25,7 +25,6 @@ import org.elasticsearch.core.Nullable;
 
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Parent-based ratio sampler that sets {@code ot=p:<n>} so APM Server can derive
@@ -35,19 +34,16 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public final class ElasticTracestateSampler implements Sampler {
 
-    private final AtomicBoolean enabled; // instance shared with tracer
-
     // TODO: emit the modern th: tracestate instead of ot=p: once exporting to EDOT gateway
     private final Sampler root;
     private final String localRootOt;
 
-    public ElasticTracestateSampler(AtomicBoolean enabled, Settings settings) {
-        this(enabled, OtelSdkSettings.TELEMETRY_TRACING_SAMPLE_RATE.get(settings));
+    public ElasticTracestateSampler(Settings settings) {
+        this(OtelSdkSettings.TELEMETRY_TRACING_SAMPLE_RATE.get(settings));
     }
 
     // visible for tests
-    ElasticTracestateSampler(AtomicBoolean enabled, double sampleRate) {
-        this.enabled = enabled;
+    ElasticTracestateSampler(double sampleRate) {
         this.root = Sampler.parentBased(Sampler.traceIdRatioBased(sampleRate));
         this.localRootOt = sampleRate > 0 ? pValueForRate(sampleRate) : null;
     }
@@ -61,10 +57,6 @@ public final class ElasticTracestateSampler implements Sampler {
         Attributes attributes,
         List<LinkData> parentLinks
     ) {
-        if (enabled.get() == false) {
-            return SamplingResult.drop();
-        }
-
         SamplingResult result = root.shouldSample(parentContext, traceId, name, spanKind, attributes, parentLinks);
         if (result.getDecision() == SamplingDecision.DROP) {
             return result;

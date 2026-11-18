@@ -11,7 +11,10 @@ package org.elasticsearch.telemetry.apm.internal.tracing;
 
 import io.opentelemetry.context.Context;
 
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.test.ESTestCase;
+
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -37,5 +40,37 @@ public class LocalSpanCountTests extends ESTestCase {
         assertThat(count.incrementAndGet(), equalTo(1));
         assertThat(count.incrementAndGet(), equalTo(2));
         assertThat(count.incrementAndGet(), equalTo(3));
+    }
+
+    public void testCountStartsFromTheGivenValue() {
+        final LocalSpanCount count = new LocalSpanCount(41);
+
+        assertThat(count.incrementAndGet(), equalTo(42));
+    }
+
+    /** Every attempt to start a span is counted, also the ones past the limit, so the count must not wrap around to a negative value. */
+    public void testCountSaturatesInsteadOfOverflowing() {
+        final LocalSpanCount count = new LocalSpanCount(Integer.MAX_VALUE - 2);
+
+        assertThat(count.incrementAndGet(), equalTo(Integer.MAX_VALUE - 1));
+        assertThat(count.incrementAndGet(), equalTo(Integer.MAX_VALUE));
+        assertThat(count.incrementAndGet(), equalTo(Integer.MAX_VALUE));
+        assertThat(count.incrementAndGet(), equalTo(Integer.MAX_VALUE));
+    }
+
+    public void testConcurrentIncrementsHandOutEachValueOnce() {
+        final LocalSpanCount count = new LocalSpanCount();
+        final int threads = between(2, 8);
+        final int incrementsPerThread = between(100, 500);
+        final Set<Integer> values = ConcurrentCollections.newConcurrentSet();
+
+        startInParallel(threads, i -> {
+            for (int j = 0; j < incrementsPerThread; j++) {
+                assertTrue("a value was handed out twice", values.add(count.incrementAndGet()));
+            }
+        });
+
+        assertThat(values.size(), equalTo(threads * incrementsPerThread));
+        assertThat(count.incrementAndGet(), equalTo(threads * incrementsPerThread + 1));
     }
 }

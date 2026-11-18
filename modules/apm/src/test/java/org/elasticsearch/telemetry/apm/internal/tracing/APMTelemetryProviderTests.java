@@ -12,6 +12,7 @@ package org.elasticsearch.telemetry.apm.internal.tracing;
 import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.metrics.Meter;
 import io.opentelemetry.api.metrics.MeterProvider;
+import io.opentelemetry.api.trace.TracerProvider;
 import io.opentelemetry.sdk.common.CompletableResultCode;
 
 import org.elasticsearch.common.settings.Settings;
@@ -53,8 +54,8 @@ public class APMTelemetryProviderTests extends ESTestCase {
 
         TraceSupplier traceSupplier = new TraceSupplier() {
             @Override
-            public OpenTelemetry get() {
-                return OpenTelemetry.noop();
+            public TracerProvider get() {
+                return TracerProvider.noop();
             }
 
             @Override
@@ -88,8 +89,8 @@ public class APMTelemetryProviderTests extends ESTestCase {
 
         TraceSupplier traceSupplier = new TraceSupplier() {
             @Override
-            public OpenTelemetry get() {
-                return OpenTelemetry.noop();
+            public TracerProvider get() {
+                return TracerProvider.noop();
             }
 
             @Override
@@ -137,8 +138,8 @@ public class APMTelemetryProviderTests extends ESTestCase {
 
         TraceSupplier traceSupplier = new TraceSupplier() {
             @Override
-            public OpenTelemetry get() {
-                return OpenTelemetry.noop();
+            public TracerProvider get() {
+                return TracerProvider.noop();
             }
 
             @Override
@@ -165,7 +166,7 @@ public class APMTelemetryProviderTests extends ESTestCase {
             .put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), tracingEnabled)
             .build();
         APMMeterService meterService = new APMMeterService(settings, meterSupplier, () -> OpenTelemetry.noop().getMeter("noop"));
-        APMTracingService tracer = new APMTracingService(new ThreadContext(settings), settings, s -> traceSupplier);
+        APMTracingService tracer = new APMTracingService(new ThreadContext(settings), settings, traceSupplier);
         return new APMTelemetryProvider(
             meterService,
             tracer,

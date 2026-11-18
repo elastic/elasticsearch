@@ -17,7 +17,7 @@ import io.opentelemetry.instrumentation.api.instrumenter.SpanStatusBuilder;
 import org.elasticsearch.telemetry.tracing.Span;
 
 /** A span that does not record anything, but has a context that is propagated like the one of any other span. */
-public class PropagatedSpan extends AbstractSpan {
+class PropagatedSpan extends AbstractSpan {
 
     PropagatedSpan(APMTracer tracer, Context otelContext) {
         super(tracer, otelContext);

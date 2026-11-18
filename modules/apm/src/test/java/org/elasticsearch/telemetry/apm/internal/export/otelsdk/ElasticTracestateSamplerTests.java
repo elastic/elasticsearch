@@ -18,17 +18,17 @@ import io.opentelemetry.api.trace.TraceState;
 import io.opentelemetry.context.Context;
 import io.opentelemetry.sdk.trace.samplers.SamplingDecision;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ElasticTracestateSamplerTests extends ESTestCase {
 
-    private final ElasticTracestateSampler sampler = sampler(0.001);
+    private final ElasticTracestateSampler sampler = new ElasticTracestateSampler(0.001);
 
     public void testElasticSampleRateTranslatedToOt() {
         assertThat(sample(TraceState.builder().put("es", "s:0.125").build()).get("ot"), equalTo("p:3"));
@@ -50,23 +50,55 @@ public class ElasticTracestateSamplerTests extends ESTestCase {
         assertThat(sample(TraceState.builder().put("es", "s:1.5").build()).get("ot"), nullValue());
     }
 
-    public void testTracingCanBeEnabledAndDisabledWhileTheSamplerIsInUse() {
-        final var enabled = new AtomicBoolean(true);
-        final var sampler = new ElasticTracestateSampler(enabled, 1.0);
-        assertThat(decision(sampler, Context.root()), equalTo(SamplingDecision.RECORD_AND_SAMPLE));
-
-        enabled.set(false);
-        assertThat(decision(sampler, Context.root()), equalTo(SamplingDecision.DROP));
-
-        enabled.set(true);
-        assertThat(decision(sampler, Context.root()), equalTo(SamplingDecision.RECORD_AND_SAMPLE));
+    public void testRootSpanIsSampledByTheRate() {
+        assertThat(decision(new ElasticTracestateSampler(1.0), Context.root()), equalTo(SamplingDecision.RECORD_AND_SAMPLE));
+        assertThat(decision(new ElasticTracestateSampler(0.0), Context.root()), equalTo(SamplingDecision.DROP));
     }
 
-    private static ElasticTracestateSampler sampler(double sampleRate) {
-        return new ElasticTracestateSampler(new AtomicBoolean(true), sampleRate);
+    /** The parent decides, the rate is only for the spans that start a trace. */
+    public void testSpanFollowsTheDecisionOfItsParent() {
+        final var neverSampled = new ElasticTracestateSampler(0.0);
+        final var alwaysSampled = new ElasticTracestateSampler(1.0);
+
+        assertThat(decision(neverSampled, parent(TraceFlags.getSampled(), true)), equalTo(SamplingDecision.RECORD_AND_SAMPLE));
+        assertThat(decision(neverSampled, parent(TraceFlags.getSampled(), false)), equalTo(SamplingDecision.RECORD_AND_SAMPLE));
+        assertThat(decision(alwaysSampled, parent(TraceFlags.getDefault(), true)), equalTo(SamplingDecision.DROP));
+        assertThat(decision(alwaysSampled, parent(TraceFlags.getDefault(), false)), equalTo(SamplingDecision.DROP));
+    }
+
+    public void testRootSpanGetsTheOtTracestateOfTheRate() {
+        final var sampler = new ElasticTracestateSampler(0.25);
+
+        final var result = sampler.shouldSample(Context.root(), TRACE_ID, "test", SpanKind.SERVER, Attributes.empty(), List.of());
+
+        assertThat(result.getDecision(), equalTo(SamplingDecision.RECORD_AND_SAMPLE));
+        assertThat(result.getUpdatedTraceState(TraceState.getDefault()).get("ot"), equalTo("p:2"));
+    }
+
+    public void testSpanThatIsNotSampledGetsNoOtTracestate() {
+        final var sampler = new ElasticTracestateSampler(0.0);
+
+        final var result = sampler.shouldSample(Context.root(), TRACE_ID, "test", SpanKind.SERVER, Attributes.empty(), List.of());
+
+        assertThat(result.getDecision(), equalTo(SamplingDecision.DROP));
+        assertThat(result.getUpdatedTraceState(TraceState.getDefault()).get("ot"), nullValue());
+    }
+
+    public void testSettingsDefineTheRate() {
+        final var settings = Settings.builder().put(OtelSdkSettings.TELEMETRY_TRACING_SAMPLE_RATE.getKey(), 0.0).build();
+
+        assertThat(decision(new ElasticTracestateSampler(settings), Context.root()), equalTo(SamplingDecision.DROP));
     }
 
     private static final String TRACE_ID = "00000000000000000000000000000001";
+
+    private static Context parent(TraceFlags traceFlags, boolean remote) {
+        final TraceState traceState = TraceState.getDefault();
+        final SpanContext parent = remote
+            ? SpanContext.createFromRemoteParent(TRACE_ID, "0000000000000001", traceFlags, traceState)
+            : SpanContext.create(TRACE_ID, "0000000000000001", traceFlags, traceState);
+        return Context.root().with(Span.wrap(parent));
+    }
 
     private static SamplingDecision decision(ElasticTracestateSampler sampler, Context parentContext) {
         return sampler.shouldSample(parentContext, TRACE_ID, "test", SpanKind.INTERNAL, Attributes.empty(), List.of()).getDecision();

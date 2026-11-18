@@ -19,7 +19,7 @@ import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
 /** Counter shared by all spans under the same local root to enforce {@link OtelSdkSettings#TELEMETRY_TRACING_MAX_SPANS}. */
-public final class LocalSpanCount implements ImplicitContextKeyed {
+final class LocalSpanCount implements ImplicitContextKeyed {
 
     private static final ContextKey<LocalSpanCount> SPAN_LOCAL_COUNT_KEY = ContextKey.named("es.apm.span.local_count");
 
@@ -31,12 +31,30 @@ public final class LocalSpanCount implements ImplicitContextKeyed {
     @SuppressWarnings("unused")
     private volatile int count;
 
-    public int incrementAndGet() {
-        return COUNT.incrementAndGet(this);
+    LocalSpanCount() {
+        this(0);
+    }
+
+    // visible for tests
+    LocalSpanCount(int count) {
+        this.count = count;
+    }
+
+    int incrementAndGet() {
+        while (true) {
+            int current = COUNT.get(this);
+            if (current == Integer.MAX_VALUE) {
+                return current;
+            }
+            int next = current + 1;
+            if (COUNT.compareAndSet(this, current, next)) {
+                return next;
+            }
+        }
     }
 
     @Nullable
-    public static LocalSpanCount getOrNull(Context context) {
+    static LocalSpanCount getOrNull(Context context) {
         return context.get(SPAN_LOCAL_COUNT_KEY);
     }
 

@@ -54,11 +54,9 @@ public abstract class AbstractSpan implements Span, SpanStatusBuilder {
         // the propagator does not write an empty tracestate, so make sure that no stale value is left behind
         threadContext.removeHeaders(Task.TRACE_PARENT_HTTP_HEADER, Task.TRACE_STATE);
 
-        // propagate current trace headers into thread context
+        // propagate current trace headers into thread context only if tracing is enabled
         if (tracer.isEnabled()) {
-            tracer.openTelemetry()
-                .getPropagators()
-                .getTextMapPropagator()
+            tracer.propagator()
                 .inject(otelContext, threadContext, (tc, key, value) -> requireNonNull(tc).putHeaderAllowOverwrite(key, value));
         }
     }

@@ -40,7 +40,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
-import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.gateway.GatewayService;
@@ -727,20 +726,22 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
         assertTrue(isFailureReported(shardRouting));
     }
 
-    public void testUpdateRetryContextAssertsWhenNotInitializing() {
-        assumeTrue("assertions must be enabled for this test to make sense", Assertions.ENABLED);
+    public void testUpdateRetryContextClearsWhenNotInitializing() {
         ShardRouting shardRouting = applyInitializingPrimary();
         handleRecoveryFailureWithRetry(shardRouting);
         assertTrue(isAwaitingRecoveryRetry(shardRouting));
 
-        // Unreachable in production but used here to exercise assert
         ShardRouting started = TestShardRouting.shardRoutingBuilder(
             shardRouting.shardId(),
             shardRouting.currentNodeId(),
             true,
             ShardRoutingState.STARTED
         ).withAllocationId(shardRouting.allocationId()).build();
-        expectThrows(AssertionError.class, () -> applyState(stateWithShardRouting(started)));
+        applyState(stateWithShardRouting(started));
+        assertFalse(isAwaitingRecoveryRetry(shardRouting));
+        // Master thinks this allocation is active but we have no shard for it (it was removed by the
+        // earlier recovery failure) -- createIndicesAndUpdateShards reports it as failed separately.
+        assertTrue(isFailureReported(shardRouting));
     }
 
     public void testRetryContextClearedWhenCreateFails() {

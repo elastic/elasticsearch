@@ -83,6 +83,17 @@ final class EscfArrayColumn extends EscfColumn {
     }
 
     @Override
+    public float[] numericArrayAsFloats(int row) {
+        if (child instanceof AbstractFixed64Column numbers) {
+            int elemFrom = intAt(rowOffsets, row);
+            float[] values = new float[intAt(rowOffsets, row + 1) - elemFrom];
+            numbers.readFloats(elemFrom, values);
+            return values;
+        }
+        return null;
+    }
+
+    @Override
     public int sizeInBytes(int row) {
         return isAbsent(row) ? 0 : elementsSizeInBytes(child.kind(), intAt(rowOffsets, row), intAt(rowOffsets, row + 1));
     }

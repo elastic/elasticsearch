@@ -37,7 +37,42 @@ public final class SourceBatchEncodeHelper {
      * array bytes. Returns a {@link PackedArray} describing the wire type and packed bytes.
      */
     public static PackedArray packArray(XContentParser parser) throws IOException {
-        return parseArray(parser);
+        return parseArray(parser, new ArrayScratch(), false);
+    }
+
+    /**
+     * Like {@link #packArray(XContentParser)}, accumulating the elements in {@code scratch}, which an encoder reuses across arrays
+     * so that each array does not grow fresh buffers. With {@code floatElements}, every number element is parsed straight to a
+     * {@link SourceValueType#FLOAT}, as the row path parses the elements of a {@code float} vector, instead of being typed by
+     * {@link XContentParser#numberType}: this rounds the value once, to the float the row path indexes, and parses it once,
+     * where typing it first and reading it as a double would parse it twice. Non-number elements are packed as without it.
+     */
+    public static PackedArray packArray(XContentParser parser, ArrayScratch scratch, boolean floatElements) throws IOException {
+        return parseArray(parser, scratch, floatElements);
+    }
+
+    /**
+     * Reusable element buffers for {@link #packArray(XContentParser, ArrayScratch, boolean)}. Not thread-safe; nested arrays use
+     * their own buffers, so one scratch serves one top-level array at a time.
+     */
+    public static final class ArrayScratch {
+        private static final int INITIAL_CAPACITY = 16;
+
+        private byte[] types = new byte[INITIAL_CAPACITY];
+        private long[] numerics = new long[INITIAL_CAPACITY];
+        private Object[] vars = new Object[INITIAL_CAPACITY];
+
+        private void grow() {
+            int newCap = types.length * 2;
+            types = Arrays.copyOf(types, newCap);
+            numerics = Arrays.copyOf(numerics, newCap);
+            vars = Arrays.copyOf(vars, newCap);
+        }
+
+        /** Drops the references to the variable-length elements of the last array, so the scratch does not retain them. */
+        private void clear(int count) {
+            Arrays.fill(vars, 0, count, null);
+        }
     }
 
     /**
@@ -146,70 +181,85 @@ public final class SourceBatchEncodeHelper {
         return writer.toBytes();
     }
 
-    private static PackedArray parseArray(XContentParser parser) throws IOException {
-        byte[] elemTypes = new byte[16];
-        long[] elemNumeric = new long[16];
-        Object[] elemVar = new Object[16];
+    private static PackedArray parseArray(XContentParser parser, ArrayScratch scratch, boolean floatElements) throws IOException {
         int count = 0;
-        boolean forceUnion = false;
-
-        XContentParser.Token token;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-            if (count >= elemTypes.length) {
-                int newCap = elemTypes.length * 2;
-                elemTypes = Arrays.copyOf(elemTypes, newCap);
-                elemNumeric = Arrays.copyOf(elemNumeric, newCap);
-                elemVar = Arrays.copyOf(elemVar, newCap);
+        try {
+            boolean forceUnion = false;
+            XContentParser.Token token;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                if (count >= scratch.types.length) {
+                    scratch.grow();
+                }
+                parseElement(parser, token, scratch.types, scratch.numerics, scratch.vars, count, floatElements);
+                if (token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.START_ARRAY) {
+                    forceUnion = true;
+                }
+                count++;
             }
-            switch (token) {
-                case START_OBJECT -> {
-                    elemTypes[count] = SourceValueType.KEY_VALUE;
-                    elemVar[count] = serializeKeyValue(parser);
-                    forceUnion = true;
+            return packAccumulatedElements(scratch.types, scratch.numerics, scratch.vars, count, forceUnion);
+        } finally {
+            scratch.clear(count);
+        }
+    }
+
+    /** Parses the array element at {@code token} into slot {@code i} of the element buffers. */
+    private static void parseElement(
+        XContentParser parser,
+        XContentParser.Token token,
+        byte[] elemTypes,
+        long[] elemNumeric,
+        Object[] elemVar,
+        int i,
+        boolean floatElements
+    ) throws IOException {
+        switch (token) {
+            case START_OBJECT -> {
+                elemTypes[i] = SourceValueType.KEY_VALUE;
+                elemVar[i] = serializeKeyValue(parser);
+            }
+            case START_ARRAY -> {
+                PackedArray nested = parseArray(parser, new ArrayScratch(), false);
+                elemTypes[i] = nested.arrayType();
+                elemVar[i] = nested.packed();
+            }
+            case VALUE_STRING -> {
+                elemTypes[i] = SourceValueType.STRING;
+                elemVar[i] = parser.optimizedText().bytes();
+            }
+            case VALUE_NUMBER -> {
+                if (floatElements) {
+                    elemTypes[i] = SourceValueType.FLOAT;
+                    elemNumeric[i] = Float.floatToRawIntBits(parser.floatValue());
+                    return;
                 }
-                case START_ARRAY -> {
-                    PackedArray nested = parseArray(parser);
-                    elemTypes[count] = nested.arrayType();
-                    elemVar[count] = nested.packed();
-                    forceUnion = true;
-                }
-                case VALUE_STRING -> {
-                    elemTypes[count] = SourceValueType.STRING;
-                    elemVar[count] = parser.optimizedText().bytes();
-                }
-                case VALUE_NUMBER -> {
-                    XContentParser.NumberType numType = parser.numberType();
-                    switch (numType) {
-                        case INT -> {
-                            elemTypes[count] = SourceValueType.INT;
-                            elemNumeric[count] = parser.intValue();
-                        }
-                        case LONG -> {
-                            elemTypes[count] = SourceValueType.LONG;
-                            elemNumeric[count] = parser.longValue();
-                        }
-                        case FLOAT -> {
-                            elemTypes[count] = SourceValueType.FLOAT;
-                            elemNumeric[count] = Float.floatToRawIntBits(parser.floatValue());
-                        }
-                        case DOUBLE -> {
-                            elemTypes[count] = SourceValueType.DOUBLE;
-                            elemNumeric[count] = Double.doubleToRawLongBits(parser.doubleValue());
-                        }
-                        default -> {
-                            elemTypes[count] = SourceValueType.STRING;
-                            elemVar[count] = parser.optimizedText().bytes();
-                        }
+                XContentParser.NumberType numType = parser.numberType();
+                switch (numType) {
+                    case INT -> {
+                        elemTypes[i] = SourceValueType.INT;
+                        elemNumeric[i] = parser.intValue();
+                    }
+                    case LONG -> {
+                        elemTypes[i] = SourceValueType.LONG;
+                        elemNumeric[i] = parser.longValue();
+                    }
+                    case FLOAT -> {
+                        elemTypes[i] = SourceValueType.FLOAT;
+                        elemNumeric[i] = Float.floatToRawIntBits(parser.floatValue());
+                    }
+                    case DOUBLE -> {
+                        elemTypes[i] = SourceValueType.DOUBLE;
+                        elemNumeric[i] = Double.doubleToRawLongBits(parser.doubleValue());
+                    }
+                    default -> {
+                        elemTypes[i] = SourceValueType.STRING;
+                        elemVar[i] = parser.optimizedText().bytes();
                     }
                 }
-                case VALUE_BOOLEAN -> elemTypes[count] = parser.booleanValue() ? SourceValueType.TRUE : SourceValueType.FALSE;
-                case VALUE_NULL -> elemTypes[count] = SourceValueType.NULL;
-                default -> throw new IllegalStateException("Unexpected token in array: " + token);
             }
-            count++;
+            case VALUE_BOOLEAN -> elemTypes[i] = parser.booleanValue() ? SourceValueType.TRUE : SourceValueType.FALSE;
+            case VALUE_NULL -> elemTypes[i] = SourceValueType.NULL;
+            default -> throw new IllegalStateException("Unexpected token in array: " + token);
         }
-
-        return packAccumulatedElements(elemTypes, elemNumeric, elemVar, count, forceUnion);
     }
 
     private static void writeElementValue(KeyValueWriter writer, String fieldName, XContentParser parser, XContentParser.Token token)
@@ -247,7 +297,7 @@ public final class SourceBatchEncodeHelper {
                 }
                 writer.endObjectField();
             }
-            case START_ARRAY -> writer.writeArrayField(fieldName, parseArray(parser));
+            case START_ARRAY -> writer.writeArrayField(fieldName, parseArray(parser, new ArrayScratch(), false));
             default -> throw new IllegalStateException("Unexpected token: " + token);
         }
     }

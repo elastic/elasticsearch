@@ -741,7 +741,11 @@ public final class SourceRowXContentParser extends AbstractXContentParser {
     protected float doFloatValue() {
         return switch (numericType()) {
             case SourceValueType.FLOAT -> cachedFloat;
-            case SourceValueType.DOUBLE -> (float) cachedDouble;
+            // A scalar's text is the client's (see doubleText), so the float matches the JSON parser's; an array element's is
+            // only the canonical rendering, which can differ on the rare doubles where narrowing needs the text.
+            case SourceValueType.DOUBLE -> FloatNarrowing.isFloatMidpoint(cachedDouble)
+                ? Float.parseFloat(doubleText())
+                : (float) cachedDouble;
             case SourceValueType.INT -> (float) cachedInt;
             case SourceValueType.LONG -> (float) cachedLong;
             default -> throw unexpectedNumberType();

@@ -11,6 +11,8 @@ package org.elasticsearch.escf;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.simdjson.JsonDocumentHandler;
+import org.elasticsearch.simdjson.JsonParsingException;
+import org.elasticsearch.sourcebatch.FloatNarrowing;
 import org.elasticsearch.sourcebatch.KeyValueWriter;
 import org.elasticsearch.sourcebatch.LeafSink;
 import org.elasticsearch.sourcebatch.SourceBatchEncodeHelper;
@@ -19,7 +21,9 @@ import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.xcontent.XContentString;
 
 import java.math.BigInteger;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Set;
 
 /**
  * Implements {@link JsonDocumentHandler} by delegating to {@link EscfRowBuffer}
@@ -40,6 +44,13 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
     private final LeafSink sink;
     private final boolean rawTextMode;
     private final boolean firePathSink;
+
+    /** See {@link EscfEncoder#EscfEncoder(org.elasticsearch.common.recycler.Recycler, Set)}. */
+    private final Set<String> floatElementPaths;
+    /** The full paths of the objects entered at the row level, innermost last; empty for the root. Only when paths are tracked. */
+    private final ArrayList<String> objectPaths = new ArrayList<>();
+    /** Whether the top-level array being accumulated is one whose number elements are parsed as floats. */
+    private boolean floatElements;
 
     // ---- Array accumulation state ----
     private byte[] elemTypes;
@@ -79,11 +90,25 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
     private int kvInlineArrayStackDepth;
 
     EscfDocumentHandler(EscfRowBuffer row, EscfBatchBuilder backend, LeafSink sink, boolean rawTextMode) {
+        this(row, backend, sink, rawTextMode, Set.of());
+    }
+
+    EscfDocumentHandler(EscfRowBuffer row, EscfBatchBuilder backend, LeafSink sink, boolean rawTextMode, Set<String> floatElementPaths) {
         this.row = row;
         this.backend = backend;
         this.sink = sink;
         this.rawTextMode = rawTextMode;
         this.firePathSink = sink != LeafSink.NO_OP;
+        this.floatElementPaths = floatElementPaths;
+    }
+
+    /** The full path of {@code fieldName} in the current row-level object, or {@code null} when paths are not tracked. */
+    @Nullable
+    private String rowLevelPath(String fieldName) {
+        if (floatElementPaths.isEmpty()) {
+            return null;
+        }
+        return EscfEncoder.childPath(objectPaths.isEmpty() ? "" : objectPaths.getLast(), fieldName);
     }
 
     // ---- Object field events ----
@@ -96,6 +121,9 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
             return;
         }
         row.startObject(fieldName);
+        if (floatElementPaths.isEmpty() == false) {
+            objectPaths.add(rowLevelPath(fieldName));
+        }
     }
 
     @Override
@@ -106,6 +134,9 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
             return;
         }
         row.endObject();
+        if (floatElementPaths.isEmpty() == false) {
+            objectPaths.removeLast();
+        }
     }
 
     @Override
@@ -215,6 +246,8 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
         }
         if (arrayDepth > 0) {
             pushArrayState();
+        } else {
+            floatElements = floatElementPaths.isEmpty() == false && floatElementPaths.contains(rowLevelPath(fieldName));
         }
         arrayFieldName = fieldName;
         initArrayAccumulators();
@@ -238,9 +271,25 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
         elemCount++;
     }
 
+    /** Whether the elements being accumulated are those of a top-level array parsed as floats, rather than of an array in it. */
+    private boolean inFloatElementsArray() {
+        return floatElements && arrayDepth == 1;
+    }
+
+    private void addFloatElement(float value) {
+        elemTypes[elemCount] = SourceValueType.FLOAT;
+        elemNumeric[elemCount] = Float.floatToRawIntBits(value);
+        elemCount++;
+    }
+
     @Override
     public void arrayElemLong(long value, boolean fitsInt) {
         ensureArrayCapacity();
+        if (inFloatElementsArray()) {
+            // as the JSON parser converts an integer token to float
+            addFloatElement((float) value);
+            return;
+        }
         if (fitsInt) {
             elemTypes[elemCount] = SourceValueType.INT;
             elemNumeric[elemCount] = value;
@@ -254,6 +303,10 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
     @Override
     public void arrayElemBigInteger(BigInteger value, byte[] srcBuf, int srcOff, int srcLen) {
         ensureArrayCapacity();
+        if (inFloatElementsArray()) {
+            addFloatElement(value.floatValue());
+            return;
+        }
         elemTypes[elemCount] = SourceValueType.STRING;
         elemVar[elemCount] = new XContentString.UTF8Bytes(srcBuf, srcOff, srcLen);
         elemCount++;
@@ -262,6 +315,17 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
     @Override
     public void arrayElemDouble(double value, boolean fitsFloat) {
         ensureArrayCapacity();
+        if (inFloatElementsArray()) {
+            if (FloatNarrowing.isFloatMidpoint(value)) {
+                // The walker hands over the double, not the text, and rounding this double to float may not give the float the
+                // text rounds to. Parse the document with the JSON parser instead, which parses the text straight to float.
+                throw new JsonParsingException(
+                    "array element [" + value + "] of [" + arrayFieldName + "] needs its text to round to float"
+                );
+            }
+            addFloatElement((float) value);
+            return;
+        }
         if (fitsFloat) {
             elemTypes[elemCount] = SourceValueType.FLOAT;
             elemNumeric[elemCount] = Float.floatToRawIntBits((float) value);
@@ -426,6 +490,7 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
             forceUnion = true;
             elemCount++;
         } else {
+            floatElements = false;
             int colIdx = row.arrayField(arrayFieldName, packed.arrayType(), packed.packed());
             if (firePathSink) {
                 sink.onArrayLeaf(colIdx, backend.columnPath(colIdx));

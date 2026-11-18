@@ -31,6 +31,11 @@ public final class EscfLongColumn extends AbstractFixed64Column {
     }
 
     @Override
+    float toFloat(long raw) {
+        return (float) raw;
+    }
+
+    @Override
     public long getLongValue(int row) {
         return rawLong(row);
     }

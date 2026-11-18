@@ -50,6 +50,11 @@ final class EscfDoubleColumn extends AbstractFixed64Column {
     }
 
     @Override
+    float toFloat(long raw) {
+        return (float) Double.longBitsToDouble(raw);
+    }
+
+    @Override
     public double getDoubleValue(int row) {
         return Double.longBitsToDouble(rawLong(row));
     }

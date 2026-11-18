@@ -27,6 +27,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -39,6 +40,7 @@ import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.EngineTestCase;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.sourcebatch.MappedColumns;
 import org.elasticsearch.sourcebatch.SourceSchema;
@@ -54,6 +56,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Abstract base for compatibility tests that verify the columnar batch-mapping path produces the
@@ -132,15 +135,31 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
         SourceEncoder encoder,
         Batch... scenarios
     ) throws IOException {
+        assertColumnarMatchesXContent(mapping, indexSettings, encoder, randomBoolean(), scenarios);
+    }
+
+    /**
+     * Runs the parity check with {@code encoder} producing the source columns. With {@code floatElementsFromMapping}, the encoder
+     * parses the elements of the mapping's float vectors as floats, as the coordinating node does for the fields an index already
+     * maps; without it, it parses them as it does for fields the coordinating node does not know yet. The other entry points pick
+     * one at random, as both must match the row path; tests that depend on one pin it here.
+     */
+    protected final void assertColumnarMatchesXContent(
+        XContentBuilder mapping,
+        Settings indexSettings,
+        SourceEncoder encoder,
+        boolean floatElementsFromMapping,
+        Batch... scenarios
+    ) throws IOException {
         final MapperService mapperService = createMapperService(indexSettings, mapping);
         for (Batch scenario : scenarios) {
-            assertScenario(mapperService, scenario, encoder);
+            assertScenario(mapperService, scenario, encoder, floatElementsFromMapping);
         }
         final Settings columnarStored = withColumnarStoredSource(indexSettings);
         if (columnarStored != null) {
             final MapperService columnarStoredService = createMapperService(columnarStored, mapping);
             for (Batch scenario : scenarios) {
-                assertScenario(columnarStoredService, scenario, encoder);
+                assertScenario(columnarStoredService, scenario, encoder, floatElementsFromMapping);
             }
         }
     }
@@ -155,15 +174,16 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
         Settings indexSettings,
         Batch... scenarios
     ) throws IOException {
+        final boolean floatElementsFromMapping = randomBoolean();
         final MapperService mapperService = createMapperService(indexVersion, indexSettings, mapping);
         for (Batch scenario : scenarios) {
-            assertScenario(mapperService, scenario, SourceEncoder.SIMD);
+            assertScenario(mapperService, scenario, SourceEncoder.SIMD, floatElementsFromMapping);
         }
         final Settings columnarStored = withColumnarStoredSource(indexSettings);
         if (columnarStored != null) {
             final MapperService columnarStoredService = createMapperService(indexVersion, columnarStored, mapping);
             for (Batch scenario : scenarios) {
-                assertScenario(columnarStoredService, scenario, SourceEncoder.SIMD);
+                assertScenario(columnarStoredService, scenario, SourceEncoder.SIMD, floatElementsFromMapping);
             }
         }
     }
@@ -232,7 +252,7 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
                 indexSettings,
                 new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY))
             );
-            EscfBatch escfBatch = encode(Arrays.asList(sourceBytesArray), encoder)
+            EscfBatch escfBatch = encode(Arrays.asList(sourceBytesArray), encoder, floatElementPaths(mapperService))
         ) {
             final SourceSchema schema = escfBatch.schema();
             for (int c = 0; c < schema.leafCount(); c++) {
@@ -280,7 +300,8 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
      * {@code (seqNo, primaryTerm, version)} values to both paths after parsing, exactly as
      * {@code InternalEngine} does at indexing time.
      */
-    private void assertScenario(MapperService mapperService, Batch scenario, SourceEncoder encoder) throws IOException {
+    private void assertScenario(MapperService mapperService, Batch scenario, SourceEncoder encoder, boolean floatElementsFromMapping)
+        throws IOException {
         final List<Doc> docs = scenario.docs();
         final int docCount = docs.size();
 
@@ -301,7 +322,13 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
                 new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY))
             )
         ) {
-            try (EscfBatch escfBatch = encode(Arrays.asList(sourceBytesArray), encoder)) {
+            try (
+                EscfBatch escfBatch = encode(
+                    Arrays.asList(sourceBytesArray),
+                    encoder,
+                    floatElementsFromMapping ? floatElementPaths(mapperService) : Set.of()
+                )
+            ) {
                 // Resolve the schema leaves exactly as production does, so the harness exercises every fallback decision that
                 // ShardBatchMapper makes before it calls a mapper, not just the mapper's own behaviour.
                 final ShardBatchMapper.BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(
@@ -419,8 +446,19 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
         }
     }
 
-    private static EscfBatch encode(List<BytesReference> sources, SourceEncoder encoder) throws IOException {
-        try (EscfEncoder escfEncoder = new EscfEncoder(BytesRefRecycler.NON_RECYCLING_INSTANCE, encoder.allowSimd)) {
+    /**
+     * The paths whose array elements the coordinating node encodes as floats for this mapping, read from the mapping as
+     * {@code BulkBatchEncoders} reads them, so that the harness encodes the batch as production does.
+     */
+    private static Set<String> floatElementPaths(MapperService mapperService) {
+        final DocumentMapper documentMapper = mapperService.documentMapper();
+        return documentMapper == null || DenseVectorFieldMapper.sourceMayKeepVectorText(mapperService.getIndexSettings().getSettings())
+            ? Set.of()
+            : DenseVectorFieldMapper.floatElementPaths(new MappingMetadata(documentMapper).sourceAsMap());
+    }
+
+    private static EscfBatch encode(List<BytesReference> sources, SourceEncoder encoder, Set<String> floatElementPaths) throws IOException {
+        try (EscfEncoder escfEncoder = new EscfEncoder(BytesRefRecycler.NON_RECYCLING_INSTANCE, encoder.allowSimd, floatElementPaths)) {
             for (BytesReference source : sources) {
                 escfEncoder.addDocument(source, XContentType.JSON, 0);
             }

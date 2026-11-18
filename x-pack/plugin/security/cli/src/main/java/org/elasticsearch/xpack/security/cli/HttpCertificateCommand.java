@@ -394,14 +394,14 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
                     Set.of(KeyPurpose.SERVER_AUTH)
                 );
 
-                final String p12Name = "http.p12";
+                final String keyStoreName = "http.p12";
                 final String ymlFile = "sample-elasticsearch.yml";
                 final Map<String, String> substitutions = buildSubstitutions(
                     env,
-                    Map.ofEntries(Map.entry("P12", p12Name), Map.entry("YML", ymlFile), Map.entry("PASSWORD", hasPassword ? "*" : ""))
+                    Map.ofEntries(Map.entry("P12", keyStoreName), Map.entry("YML", ymlFile), Map.entry("PASSWORD", hasPassword ? "*" : ""))
                 );
                 writeTextFile(zip, dirName + "/README.txt", ES_README_P12, substitutions);
-                writeKeyStore(zip, dirName + "/" + p12Name, certificate, keyPair.getPrivate(), password, ca.certAndKey.cert);
+                writeKeyStore(zip, dirName + "/" + keyStoreName, certificate, keyPair.getPrivate(), password, ca.certAndKey.cert);
                 writeTextFile(zip, dirName + "/" + ymlFile, ES_YML_P12, substitutions);
             }
         } catch (IOException | GeneralSecurityException e) {
@@ -430,11 +430,11 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
                     )
                 )
             );
-            final KeyStore pkcs12 = KeyStore.getInstance("PKCS12");
-            pkcs12.load(null);
-            pkcs12.setKeyEntry("ca", ca.certAndKey.key, ca.password, new Certificate[] { ca.certAndKey.cert });
+            final KeyStore keyStore = KeyStore.getInstance("PKCS12");
+            keyStore.load(null);
+            keyStore.setKeyEntry("ca", ca.certAndKey.key, ca.password, new Certificate[] { ca.certAndKey.cert });
             try (ZipEntryStream entry = new ZipEntryStream(zip, dirName + "/ca.p12")) {
-                pkcs12.store(entry, ca.password);
+                keyStore.store(entry, ca.password);
             }
         } catch (KeyStoreException | IOException | CertificateException | NoSuchAlgorithmException e) {
             throw new ElasticsearchException("Failed to write CA to ZIP file", e);
@@ -540,14 +540,14 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
         char[] password,
         X509Certificate caCert
     ) throws IOException, GeneralSecurityException {
-        final KeyStore pkcs12 = KeyStore.getInstance("PKCS12");
-        pkcs12.load(null);
-        pkcs12.setKeyEntry("http", key, password, new Certificate[] { certificate });
+        final KeyStore keyStore = KeyStore.getInstance("PKCS12");
+        keyStore.load(null);
+        keyStore.setKeyEntry("http", key, password, new Certificate[] { certificate });
         if (caCert != null) {
-            pkcs12.setCertificateEntry("ca", caCert);
+            keyStore.setCertificateEntry("ca", caCert);
         }
         try (ZipEntryStream entry = new ZipEntryStream(zip, name)) {
-            pkcs12.store(entry, password);
+            keyStore.store(entry, password);
         }
     }
 

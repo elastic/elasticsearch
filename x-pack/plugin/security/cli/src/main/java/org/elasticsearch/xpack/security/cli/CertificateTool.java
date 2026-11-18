@@ -204,7 +204,7 @@ class CertificateTool extends MultiCommand {
         OptionSpec<Void> pemFormatSpec;
         OptionSpec<Integer> daysSpec;
 
-        OptionSpec<String> caPkcs12PathSpec;
+        OptionSpec<String> caKeyStorePathSpec;
         OptionSpec<String> caCertPathSpec;
         OptionSpec<String> caKeyPathSpec;
         OptionSpec<String> caPasswordSpec;
@@ -232,9 +232,9 @@ class CertificateTool extends MultiCommand {
         }
 
         final void acceptsCertificateAuthority() {
-            caPkcs12PathSpec = parser.accepts("ca", "path to an existing ca key pair (in PKCS#12 format)").withRequiredArg();
+            caKeyStorePathSpec = parser.accepts("ca", "path to an existing ca key pair (in PKCS#12 format)").withRequiredArg();
             caCertPathSpec = parser.accepts("ca-cert", "path to an existing ca certificate")
-                .availableUnless(caPkcs12PathSpec)
+                .availableUnless(caKeyStorePathSpec)
                 .withRequiredArg();
             caKeyPathSpec = parser.accepts("ca-key", "path to an existing ca private key")
                 .availableIf(caCertPathSpec)
@@ -252,8 +252,8 @@ class CertificateTool extends MultiCommand {
                 "ca-dn",
                 "distinguished name to use for the generated ca. defaults to " + AUTO_GEN_CA_DN
             );
-            if (caPkcs12PathSpec != null) {
-                builder = builder.availableUnless(caPkcs12PathSpec);
+            if (caKeyStorePathSpec != null) {
+                builder = builder.availableUnless(caKeyStorePathSpec);
             }
             if (caCertPathSpec != null) {
                 builder = builder.availableUnless(caCertPathSpec);
@@ -369,8 +369,8 @@ class CertificateTool extends MultiCommand {
          * @return CA cert and private key
          */
         CAInfo getCAInfo(Terminal terminal, OptionSet options, Environment env) throws Exception {
-            if (options.has(caPkcs12PathSpec)) {
-                return loadPkcs12CA(terminal, options, env);
+            if (options.has(caKeyStorePathSpec)) {
+                return loadKeyStoreCA(terminal, options, env);
             } else if (options.has(caCertPathSpec)) {
                 return loadPemCA(terminal, options, env);
             } else {
@@ -381,8 +381,8 @@ class CertificateTool extends MultiCommand {
             }
         }
 
-        private CAInfo loadPkcs12CA(Terminal terminal, OptionSet options, Environment env) throws Exception {
-            Path path = resolvePath(options, caPkcs12PathSpec);
+        private CAInfo loadKeyStoreCA(Terminal terminal, OptionSet options, Environment env) throws Exception {
+            Path path = resolvePath(options, caKeyStorePathSpec);
             char[] passwordOption = getChars(caPasswordSpec.value(options));
             Map<Certificate, Key> keys = withPassword(
                 "CA (" + path + ")",
@@ -573,7 +573,7 @@ class CertificateTool extends MultiCommand {
             return caDirName;
         }
 
-        static void writePkcs12(
+        static void writeKeyStore(
             String fileName,
             OutputStream output,
             String alias,
@@ -582,15 +582,15 @@ class CertificateTool extends MultiCommand {
             char[] password,
             Terminal terminal
         ) throws Exception {
-            final KeyStore pkcs12 = KeyStore.getInstance("PKCS12");
-            pkcs12.load(null);
-            withPassword(fileName, password, terminal, true, p12Password -> {
-                if (isAscii(p12Password)) {
-                    pkcs12.setKeyEntry(alias, pair.key, p12Password, new Certificate[] { pair.cert });
+            final KeyStore keyStore = KeyStore.getInstance("PKCS12");
+            keyStore.load(null);
+            withPassword(fileName, password, terminal, true, keyStorePassword -> {
+                if (isAscii(keyStorePassword)) {
+                    keyStore.setKeyEntry(alias, pair.key, keyStorePassword, new Certificate[] { pair.cert });
                     if (caCert != null) {
-                        pkcs12.setCertificateEntry("ca", caCert);
+                        keyStore.setCertificateEntry("ca", caCert);
                     }
-                    pkcs12.store(output, p12Password);
+                    keyStore.store(output, keyStorePassword);
                     return null;
                 } else {
                     throw new UserException(ExitCodes.CONFIG, "PKCS#12 passwords must be plain ASCII");
@@ -751,7 +751,7 @@ class CertificateTool extends MultiCommand {
             acceptsCertificateAuthority();
             acceptInputFile();
             selfSigned = parser.accepts("self-signed", "generate self signed certificates")
-                .availableUnless(caPkcs12PathSpec, caCertPathSpec);
+                .availableUnless(caKeyStorePathSpec, caCertPathSpec);
         }
 
         @Override
@@ -837,7 +837,7 @@ class CertificateTool extends MultiCommand {
 
         @Override
         CAInfo getCAInfo(Terminal terminal, OptionSet options, Environment env) throws Exception {
-            if (false == options.has(selfSigned) && false == options.has(caPkcs12PathSpec) && false == options.has(caCertPathSpec)) {
+            if (false == options.has(selfSigned) && false == options.has(caKeyStorePathSpec) && false == options.has(caCertPathSpec)) {
                 throw new UserException(ExitCodes.USAGE, "Must specify either --ca or --ca-cert/--ca-key or --self-signed");
             }
             return options.has(selfSigned) ? null : super.getCAInfo(terminal, options, env);
@@ -892,7 +892,7 @@ class CertificateTool extends MultiCommand {
                             final String fileName = entryBase + ".p12";
                             final char[] outputPassword = super.getOutputPassword(options);
                             outputStream.putNextEntry(new ZipEntry(fileName));
-                            writePkcs12(
+                            writeKeyStore(
                                 fileName,
                                 outputStream,
                                 certificateInformation.name.originalName,
@@ -912,7 +912,7 @@ class CertificateTool extends MultiCommand {
                 CertificateAndKey pair = generateCertificateAndKey(certificateInformation, caInfo, keySize, days, terminal);
                 fullyWriteFile(
                     output,
-                    stream -> writePkcs12(
+                    stream -> writeKeyStore(
                         output.getFileName().toString(),
                         stream,
                         certificateInformation.name.originalName,
@@ -1010,7 +1010,7 @@ class CertificateTool extends MultiCommand {
                 final String fileName = output.getFileName().toString();
                 fullyWriteFile(
                     output,
-                    outputStream -> writePkcs12(fileName, outputStream, "ca", caInfo.certAndKey, null, caInfo.password, terminal)
+                    outputStream -> writeKeyStore(fileName, outputStream, "ca", caInfo.certAndKey, null, caInfo.password, terminal)
                 );
             }
         }

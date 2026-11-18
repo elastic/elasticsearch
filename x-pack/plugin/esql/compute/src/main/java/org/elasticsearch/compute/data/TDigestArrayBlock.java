@@ -13,6 +13,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.core.analytics.mapper.EncodedTDigest;
 
 import java.io.IOException;
 import java.util.List;
@@ -281,6 +282,10 @@ public final class TDigestArrayBlock extends AbstractDelegatingCompoundBlock<TDi
         long valueCount = valueCounts.getLong(valueCounts.getFirstValueIndex(valueIndex));
         scratch.reset(encoded, min, max, sum, valueCount);
         return scratch;
+    }
+
+    public EncodedTDigest getEncodedTDigest(int valueIndex, TDigestHolder scratch) {
+        return new EncodedTDigest(encodedDigests.getBytesRef(encodedDigests.getFirstValueIndex(valueIndex), scratch.scratchBytesRef()));
     }
 
     public static TDigestBlock createConstant(TDigestHolder histogram, int positionCount, BlockFactory blockFactory) {

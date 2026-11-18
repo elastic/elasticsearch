@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.xpack.core.analytics.mapper.EncodedTDigest;
 
 import java.io.IOException;
 
@@ -357,6 +358,12 @@ public final class ConstantNullBlock extends AbstractBlockRefCounted
 
     @Override
     public TDigestHolder getTDigestHolder(int valueIndex, TDigestHolder scratch) {
+        assert false : "null block";
+        throw new UnsupportedOperationException("null block");
+    }
+
+    @Override
+    public EncodedTDigest getEncodedTDigest(int valueIndex, TDigestHolder scratch) {
         assert false : "null block";
         throw new UnsupportedOperationException("null block");
     }

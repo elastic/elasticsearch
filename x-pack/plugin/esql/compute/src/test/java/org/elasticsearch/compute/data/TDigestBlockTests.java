@@ -17,6 +17,7 @@ import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.xpack.core.analytics.mapper.EncodedTDigest;
 
 import java.io.IOException;
 import java.util.List;
@@ -146,6 +147,31 @@ public class TDigestBlockTests extends ComputeTestCase {
             Releasables.close(componentBlock);
         }
         Releasables.close(block);
+    }
+
+    public void testEncodedTDigest() {
+        TDigestBlock block = randomBlockWithNulls(true);
+        try {
+            TDigestHolder scratch = new TDigestHolder();
+            TDigestHolder expectedScratch = new TDigestHolder();
+            for (int p = 0; p < block.getPositionCount(); p++) {
+                int first = block.getFirstValueIndex(p);
+                for (int v = 0; v < block.getValueCount(p); v++) {
+                    EncodedTDigest encoded = ((TDigestArrayBlock) block).getEncodedTDigest(first + v, scratch);
+                    TDigestHolder expected = block.getTDigestHolder(first + v, expectedScratch);
+                    assertThat(encoded.size(), equalTo(expected.size()));
+                    assertThat(encoded.centroidCount(), equalTo(expected.centroidCount()));
+                    // Centroid has no equals(), so compare the decoded values
+                    assertThat(
+                        encoded.centroids().stream().map(c -> List.of(c.mean(), c.count())).toList(),
+                        equalTo(expected.centroids().stream().map(c -> List.of(c.mean(), c.count())).toList())
+                    );
+                    assertThat(encoded.encodedDigest(), equalTo(expected.getEncodedDigest()));
+                }
+            }
+        } finally {
+            Releasables.close(block);
+        }
     }
 
     public void testEmptyBlockEquality() {

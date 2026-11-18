@@ -690,7 +690,9 @@ public class SnapshotsWithReshardingIT extends AbstractStatelessPluginIntegTestC
         // The master must be a different node from the one holding the shards. A state change request sent to the local master is
         // executed directly instead of being sent over the transport, which would bypass the send behavior used below to hold it.
         startMasterOnlyNode();
-        var indexNode = startIndexNode();
+        // Split targets recover as non-critical shards, and this test holds the state update request of every target at once,
+        // releasing them only once all of them are held. They must therefore all be able to recover at the same time.
+        var indexNode = startIndexNode(unthrottledIncomingRecoveryNodeSettings());
         // Disable the handoff throttle
         updateClusterSettings(Settings.builder().put(SplitSourceService.RESHARD_SPLIT_MAX_CONCURRENT_HANDOFF_PERCENTAGE.getKey(), 100.0));
         // The node the target shard is on, which is where its state change requests are sent from and so where they are held
@@ -714,7 +716,7 @@ public class SnapshotsWithReshardingIT extends AbstractStatelessPluginIntegTestC
                 Settings.builder()
                     .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
             );
-            targetNode = startIndexNode();
+            targetNode = startIndexNode(unthrottledIncomingRecoveryNodeSettings());
             ensureStableCluster(5);
         } else {
             startSearchNode();

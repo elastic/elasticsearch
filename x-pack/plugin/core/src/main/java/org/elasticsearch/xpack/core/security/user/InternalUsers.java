@@ -197,6 +197,8 @@ public class InternalUsers {
                         ".kibana-notifications*",
                         // System data stream for Context Engine session event transcripts
                         ".context-engine-session-events*",
+                        // System data stream for Context Engine session memories
+                        ".context-engine-session-memory*",
                         // System data stream for serverless shard recovery history
                         ".serverless-recovery-history"
                     )

@@ -2956,6 +2956,77 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 )
             );
         }
+
+        // Test include failure indices flag with selectors allowed and no selector in the expression: the flag applies,
+        // so resolving the data stream by exact name returns its failure store indices as well (used by `_cat/indices`
+        // when hidden indices are expanded, see https://github.com/elastic/elasticsearch/issues/166490)
+        {
+            IndicesOptions indicesOptions = IndicesOptions.builder(IndicesOptions.STRICT_EXPAND_OPEN_CLOSED_HIDDEN)
+                .gatekeeperOptions(
+                    IndicesOptions.GatekeeperOptions.builder(IndicesOptions.STRICT_EXPAND_OPEN_CLOSED_HIDDEN.gatekeeperOptions())
+                        .includeFailureIndices(true)
+                        .build()
+                )
+                .build();
+            Index[] result = indexNameExpressionResolver.concreteIndices(project, indicesOptions, true, "my-data-stream");
+            assertThat(result.length, equalTo(4));
+            List<String> indexNames = Arrays.stream(result).map(Index::getName).toList();
+            assertThat(
+                indexNames,
+                containsInAnyOrder(
+                    DataStream.getDefaultBackingIndexName(dataStreamName, 2, epochMillis),
+                    DataStream.getDefaultBackingIndexName(dataStreamName, 1, epochMillis),
+                    DataStream.getDefaultFailureStoreName(dataStreamName, 2, epochMillis),
+                    DataStream.getDefaultFailureStoreName(dataStreamName, 1, epochMillis)
+                )
+            );
+        }
+
+        // Test include failure indices flag with selectors allowed and a wildcard expression
+        {
+            IndicesOptions indicesOptions = IndicesOptions.builder(IndicesOptions.STRICT_EXPAND_OPEN_CLOSED_HIDDEN)
+                .gatekeeperOptions(
+                    IndicesOptions.GatekeeperOptions.builder(IndicesOptions.STRICT_EXPAND_OPEN_CLOSED_HIDDEN.gatekeeperOptions())
+                        .includeFailureIndices(true)
+                        .build()
+                )
+                .build();
+            Index[] result = indexNameExpressionResolver.concreteIndices(project, indicesOptions, true, "my-*");
+            assertThat(result.length, equalTo(5));
+            List<String> indexNames = Arrays.stream(result).map(Index::getName).toList();
+            assertThat(
+                indexNames,
+                containsInAnyOrder(
+                    DataStream.getDefaultBackingIndexName(dataStreamName, 2, epochMillis),
+                    DataStream.getDefaultBackingIndexName(dataStreamName, 1, epochMillis),
+                    DataStream.getDefaultFailureStoreName(dataStreamName, 2, epochMillis),
+                    DataStream.getDefaultFailureStoreName(dataStreamName, 1, epochMillis),
+                    otherIndex.getIndex().getName()
+                )
+            );
+        }
+
+        // Test include failure indices flag with selectors allowed but an explicit `::data` selector: the selector wins
+        // and the failure store indices are still excluded
+        {
+            IndicesOptions indicesOptions = IndicesOptions.builder(IndicesOptions.STRICT_EXPAND_OPEN_CLOSED_HIDDEN)
+                .gatekeeperOptions(
+                    IndicesOptions.GatekeeperOptions.builder(IndicesOptions.STRICT_EXPAND_OPEN_CLOSED_HIDDEN.gatekeeperOptions())
+                        .includeFailureIndices(true)
+                        .build()
+                )
+                .build();
+            Index[] result = indexNameExpressionResolver.concreteIndices(project, indicesOptions, true, "my-data-stream::data");
+            assertThat(result.length, equalTo(2));
+            List<String> indexNames = Arrays.stream(result).map(Index::getName).toList();
+            assertThat(
+                indexNames,
+                containsInAnyOrder(
+                    DataStream.getDefaultBackingIndexName(dataStreamName, 2, epochMillis),
+                    DataStream.getDefaultBackingIndexName(dataStreamName, 1, epochMillis)
+                )
+            );
+        }
     }
 
     public void testDataStreamAliases() {

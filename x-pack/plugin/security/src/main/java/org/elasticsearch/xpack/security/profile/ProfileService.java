@@ -407,12 +407,18 @@ public class ProfileService {
             } else {
                 final ElasticsearchStatusException exception = new ElasticsearchStatusException(
                     "failed to retrieve profile for users. please retry without fetching profile uid (with_profile_uid=false)",
-                    RestStatus.INTERNAL_SERVER_ERROR
+                    statusOfProfileLookupFailures(resultsAndErrors.errors().values())
                 );
                 resultsAndErrors.errors().values().forEach(exception::addSuppressed);
                 listener.onFailure(exception);
             }
         }, listener::onFailure));
+    }
+
+    /** The status all failures share, so clients can tell for example a retryable failure apart; otherwise a 500. */
+    private static RestStatus statusOfProfileLookupFailures(Collection<Exception> failures) {
+        final Set<RestStatus> statuses = failures.stream().map(ExceptionsHelper::status).collect(Collectors.toSet());
+        return statuses.size() == 1 ? statuses.iterator().next() : RestStatus.INTERNAL_SERVER_ERROR;
     }
 
     public void searchProfilesForSubjects(List<Subject> subjects, ActionListener<SubjectSearchResultsAndErrors<Profile>> listener) {

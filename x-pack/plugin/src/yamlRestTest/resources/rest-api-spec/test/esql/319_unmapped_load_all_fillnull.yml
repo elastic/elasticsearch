@@ -210,7 +210,7 @@ teardown:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ views_with_branching, optional_fields_load_all_views, fillnull_late_loaded_columns, optional_fields_load_all_unmapped_fields_last ]
+          capabilities: [ views_with_branching, optional_fields_load_all_views, fillnull_late_loaded_columns, optional_fields_load_all_unmapped_fields_last, warn_unmapped_fields_stopped_at_view_combined ]
       reason: "LOAD_ALL over views is only available with this capability"
   - do:
       esql.put_view:
@@ -219,7 +219,7 @@ teardown:
           query: 'FROM la_fill_source'
   - do:
       warnings:
-        - "SET unmapped_fields=\"load_all\" does not affect the contents of view [la_fill_src_view], so field [other] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself"
+        - "SET unmapped_fields does not affect the contents of a view, so this field is null in its rows; to load it, the view definition must reference it under SET unmapped_fields=\"load\": [other] in view [la_fill_src_view]"
         - "Line 1:191: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [id]"
       esql.query:
         body:

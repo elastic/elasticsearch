@@ -140,11 +140,9 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
             return applyScoped(branch, viewResolution, viewName, context);
         });
         BiConsumer<BranchIdentity, String> onViewNullFill = (identity, fieldName) -> {
-            String viewName = identity.settingsViewName();
-            boolean viewLoads = ViewQuerySettings.forView(viewName, context.viewSettings()).unmappedFields().loadsUnmappedFields();
             List<String> lineage = identity.lineage();
             String enclosingView = lineage.size() < 2 ? null : lineage.get(lineage.size() - 2);
-            var boundary = new AnalyzerContext.ViewBoundary(resolution, settingView, viewName, enclosingView, viewLoads);
+            var boundary = new AnalyzerContext.ViewBoundary(settingView, identity.settingsViewName(), enclosingView);
             context.viewBoundaryNullFills().add(new AnalyzerContext.ViewBoundaryNullFill(boundary, fieldName));
         };
         return switch (resolution) {

@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.stats.SearchStats;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Golden tests for analyzer behavior with unmapped fields using SET unmapped_fields="nullify" and "load".
@@ -1469,16 +1470,11 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
         assertViewBoundaryWarnings("emp_lang_view", "does_not_exist");
     }
 
-    /** Under LOAD and LOAD_ALL, but not NULLIFY, the caller is told its mode stopped at the view. */
+    /** Under LOAD and LOAD_ALL, but not NULLIFY, the caller is told its mode stopped at the view, in the same words for both. */
     private void assertViewBoundaryWarnings(String viewName, String field) {
         assertWarnings(
             Analyzer.viewBoundaryNullFillWarning(
-                new AnalyzerContext.ViewBoundary(UnmappedResolution.LOAD, null, viewName, null, false),
-                List.of(field)
-            ),
-            Analyzer.viewBoundaryNullFillWarning(
-                new AnalyzerContext.ViewBoundary(UnmappedResolution.LOAD_ALL, null, viewName, null, false),
-                List.of(field)
+                Set.of(new AnalyzerContext.ViewBoundaryNullFill(new AnalyzerContext.ViewBoundary(null, viewName, null), field))
             )
         );
     }

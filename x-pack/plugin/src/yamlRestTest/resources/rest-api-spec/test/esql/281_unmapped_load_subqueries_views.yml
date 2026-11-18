@@ -95,7 +95,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ settings_scoped_at_view_boundaries ]
+          capabilities: [ settings_scoped_at_view_boundaries, warn_unmapped_fields_stopped_at_view_combined ]
       reason: "the caller's query settings no longer reach inside view bodies"
   - do:
       esql.put_view:
@@ -104,7 +104,7 @@ setup:
           query: 'FROM idx1, (FROM idx2)'
   - do:
       allowed_warnings:
-        - 'SET unmapped_fields="load" does not affect the contents of view [v_union], so field [note] is null in its rows; to load such fields, the view definition must SET unmapped_fields="load" and reference them itself'
+        - 'SET unmapped_fields does not affect the contents of a view, so this field is null in its rows; to load it, the view definition must reference it under SET unmapped_fields="load": [note] in view [v_union]'
       esql.query:
         body:
           query: 'SET unmapped_fields="load"; FROM v_union | KEEP id, color, note | SORT id | LIMIT 10'
@@ -128,7 +128,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ warn_unmapped_fields_stopped_at_view ]
+          capabilities: [ warn_unmapped_fields_stopped_at_view, warn_unmapped_fields_stopped_at_view_combined ]
       reason: "warns when the caller's unmapped_fields stops at a view boundary"
   - do:
       esql.put_view:
@@ -137,7 +137,7 @@ setup:
           query: 'FROM idx1'
   - do:
       warnings:
-        - 'SET unmapped_fields="load" does not affect the contents of view [v_pass_through], so field [note] is null in its rows; to load such fields, the view definition must SET unmapped_fields="load" and reference them itself'
+        - 'SET unmapped_fields does not affect the contents of a view, so this field is null in its rows; to load it, the view definition must reference it under SET unmapped_fields="load": [note] in view [v_pass_through]'
       esql.query:
         body:
           query: 'SET unmapped_fields="load"; FROM v_pass_through | KEEP id, note | SORT id | LIMIT 10'
@@ -246,7 +246,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ optional_fields_load_all_fillnull, settings_scoped_at_view_boundaries ]
+          capabilities: [ optional_fields_load_all_fillnull, settings_scoped_at_view_boundaries, warn_unmapped_fields_stopped_at_view_combined ]
       reason: "FILLNULL under unmapped_fields load and view-scoped settings require these capabilities"
   - do:
       esql.put_view:
@@ -255,7 +255,7 @@ setup:
           query: 'FROM idx1 | EVAL color = CASE(id == 1, null, color) | KEEP id, color | FILLNULL "filled" ON color'
   - do:
       allowed_warnings:
-        - 'SET unmapped_fields="load" does not affect the contents of view [v_fill_color], so field [note] is null in its rows; to load such fields, the view definition must SET unmapped_fields="load" and reference them itself'
+        - 'SET unmapped_fields does not affect the contents of a view, so this field is null in its rows; to load it, the view definition must reference it under SET unmapped_fields="load": [note] in view [v_fill_color]'
       esql.query:
         body:
           query: 'SET unmapped_fields="load"; FROM v_fill_color | KEEP id, color, note | SORT id | LIMIT 10'
@@ -273,7 +273,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ optional_fields_load_all_fillnull, settings_scoped_at_view_boundaries ]
+          capabilities: [ optional_fields_load_all_fillnull, settings_scoped_at_view_boundaries, warn_unmapped_fields_stopped_at_view_combined ]
       reason: "FILLNULL under unmapped_fields load and view-scoped settings require these capabilities"
   - do:
       esql.put_view:
@@ -282,7 +282,7 @@ setup:
           query: 'FROM idx1 | EVAL color = CASE(id == 1, null, color) | KEEP color | FILLNULL "filled" ON *'
   - do:
       allowed_warnings:
-        - 'SET unmapped_fields="load" does not affect the contents of view [v_fill_all], so field [note] is null in its rows; to load such fields, the view definition must SET unmapped_fields="load" and reference them itself'
+        - 'SET unmapped_fields does not affect the contents of a view, so this field is null in its rows; to load it, the view definition must reference it under SET unmapped_fields="load": [note] in view [v_fill_all]'
       esql.query:
         body:
           query: 'SET unmapped_fields="load"; FROM v_fill_all | KEEP color, note | SORT color | LIMIT 10'

@@ -21,7 +21,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Shared helpers for integration tests that exercise streaming ES|QL execution
- * ({@code POST /_query?streaming=true}).
+ * ({@code POST /_query/stream}).
  */
 public final class StreamQueryTestUtils {
 

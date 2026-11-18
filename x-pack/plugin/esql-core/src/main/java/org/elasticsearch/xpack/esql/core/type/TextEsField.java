@@ -85,7 +85,7 @@ public class TextEsField extends EsField {
         return new Tuple<>(field, null);
     }
 
-    private Function<Tuple<EsField, String>, Exact> PROCESS_EXACT_FIELD = tuple -> {
+    private static final Function<Tuple<EsField, String>, Exact> PROCESS_EXACT_FIELD = tuple -> {
         if (tuple.v1() == null) {
             return new Exact(false, tuple.v2());
         } else {

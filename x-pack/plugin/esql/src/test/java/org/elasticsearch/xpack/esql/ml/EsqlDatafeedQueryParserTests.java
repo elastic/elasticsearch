@@ -462,9 +462,11 @@ public class EsqlDatafeedQueryParserTests extends ESTestCase {
             "FROM a | STATS c = COUNT(*) BY b = BUCKET(@timestamp, 1 hour) | LIMIT 500",
             "SET unmapped_fields=\"nullify\"; FROM (FROM r:a | WHERE x > 1) | SORT @timestamp",
             "FROM t | WHERE a > 1 | LIMIT 3" };
+        // Production shares one provider and its parser across threads, so the workers must too.
+        EsqlDatafeedQueryParser shared = parserFor(clusterService);
         List<ParsedEsqlQuery> expected = new ArrayList<>();
         for (String query : queries) {
-            expected.add(parse(query));
+            expected.add(shared.parse(query));
         }
         ExecutorService executor = Executors.newFixedThreadPool(4);
         try {
@@ -474,7 +476,7 @@ public class EsqlDatafeedQueryParserTests extends ESTestCase {
                     int mismatches = 0;
                     for (int i = 0; i < 100; i++) {
                         int k = i % queries.length;
-                        if (parse(queries[k]).equals(expected.get(k)) == false) {
+                        if (shared.parse(queries[k]).equals(expected.get(k)) == false) {
                             mismatches++;
                         }
                     }

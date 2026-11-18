@@ -132,6 +132,164 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
         assertThat(drained.footer().get("complete"), equalTo(true));
     }
 
+    /** The bytes of the columns line for {@link #simpleColumns()}, measured rather than hard-coded. */
+    private int columnsLineBytes() throws IOException {
+        Subscribed probe = subscribe(StreamOptions.NONE);
+        probe.producer().addPage(buildSimplePage(0, "x"));
+        int bytes = encodeBodyPart(probe.response().chunkedContent()).length();
+        probe.response().close();
+        return bytes;
+    }
+
+    /** A row of {@link #buildLargePage} with a one-character value and a one-digit id, as a line: {@code [0,"x"]} and a newline. */
+    private static final int ROW_LINE_BYTES = 8;
+
+    /**
+     * Sends one page of {@code pageRows} rows to a response with the given limits, where the limit falls inside the page,
+     * and returns the rows that were written and the last line. Checks that releasing the response cancels the subscription,
+     * which is what stops the query.
+     */
+    private Drained sendOnePageEndingAtLimit(StreamOptions options, int pageRows) throws IOException {
+        Subscribed s = subscribe(options);
+        ChunkedRestResponseBodyPart pagePart = sendFirstPage(s, buildLargePage(pageRows, 1));
+        List<List<Object>> rows = decodeRows(pagePart);
+        ChunkedRestResponseBodyPart footerPart = nextPart(pagePart, () -> {});
+        assertTrue("a response that ends at a limit ends with the last line", footerPart.isLastPart());
+        Map<String, Object> footer = decodeLine(footerPart);
+        assertFalse("the subscription stays open until the response is released", s.publisher().isClosed());
+        s.response().close();
+        assertTrue("releasing the response cancels the subscription, which stops the query", s.publisher().isClosed());
+        return new Drained(Map.of(), rows, footer);
+    }
+
+    private static void assertLimitFooter(Map<String, Object> footer, int nextOffset) {
+        assertThat(footer.get("status"), equalTo(200));
+        assertThat(footer.get("is_partial"), equalTo(false));
+        assertThat("a response that ended at a limit is not complete", footer.get("complete"), equalTo(false));
+        assertThat(footer.get("next_offset"), equalTo(nextOffset));
+        assertThat(footer, hasKey("took"));
+        assertThat(footer, not(hasKey("error")));
+        assertThat("the query did not finish, so there are no statistics", footer, not(hasKey("documents_found")));
+    }
+
+    public void testMaxRowsInsideAPage() throws IOException {
+        Drained drained = sendOnePageEndingAtLimit(new StreamOptions(3, StreamOptions.NO_LIMIT), 5);
+        assertThat(drained.rows(), equalTo(List.of(List.of(0, "x"), List.of(1, "x"), List.of(2, "x"))));
+        assertLimitFooter(drained.footer(), 3);
+    }
+
+    public void testMaxRowsOnAPageBoundaryFollowedByAnotherPage() throws IOException {
+        Subscribed s = subscribe(new StreamOptions(2, StreamOptions.NO_LIMIT));
+        ChunkedRestResponseBodyPart pagePart = sendFirstPage(s, buildLargePage(2, 1));
+        assertThat(decodeRows(pagePart).size(), equalTo(2));
+        // The limit is filled exactly, so whether the result goes on is only known when the next signal arrives.
+        ChunkedRestResponseBodyPart footerPart = nextPart(pagePart, () -> s.producer().addPage(buildLargePage(2, 1)));
+        assertTrue(footerPart.isLastPart());
+        assertLimitFooter(decodeLine(footerPart), 2);
+        s.response().close();
+        assertTrue(s.publisher().isClosed());
+    }
+
+    /** A result exactly as large as {@code max_rows} is complete: nothing was left unsent. */
+    public void testMaxRowsEqualToTheResultSizeIsComplete() throws IOException {
+        Subscribed s = subscribe(new StreamOptions(3, StreamOptions.NO_LIMIT));
+        Drained drained = drainStream(s, List.of(buildLargePage(3, 1)), 5L, List.of());
+
+        assertThat(drained.rows().size(), equalTo(3));
+        assertThat(drained.footer().get("complete"), equalTo(true));
+        assertThat(drained.footer().get("next_offset"), equalTo(3));
+    }
+
+    public void testMaxRowsLargerThanTheResultIsComplete() throws IOException {
+        Subscribed s = subscribe(new StreamOptions(100, StreamOptions.NO_LIMIT));
+        Drained drained = drainStream(s, List.of(buildLargePage(3, 1), buildLargePage(2, 1)), 5L, List.of());
+
+        assertThat(drained.rows().size(), equalTo(5));
+        assertThat(drained.footer().get("complete"), equalTo(true));
+        assertThat(drained.footer().get("next_offset"), equalTo(5));
+    }
+
+    /** With {@code max_rows: 0} the response is the columns line and the last line, and no row is written. */
+    public void testMaxRowsZeroWritesNoRows() throws IOException {
+        Subscribed s = subscribe(new StreamOptions(0, StreamOptions.NO_LIMIT));
+        s.producer().addPage(buildLargePage(2, 1));
+
+        RestResponse response = s.response();
+        assertNotNull("the first page proves the result is not empty, so the response is sent", response);
+        assertThat(response.status(), equalTo(RestStatus.OK));
+        ChunkedRestResponseBodyPart columnsPart = response.chunkedContent();
+        assertThat(decodeLine(columnsPart), hasKey("columns"));
+        ChunkedRestResponseBodyPart footerPart = nextPart(columnsPart, () -> {});
+        assertTrue(footerPart.isLastPart());
+        assertLimitFooter(decodeLine(footerPart), 0);
+        response.close();
+        assertTrue(s.publisher().isClosed());
+    }
+
+    /** An empty result is complete whatever {@code max_rows} is, because no page ever shows that more rows exist. */
+    public void testMaxRowsZeroOnAnEmptyResultIsComplete() throws IOException {
+        Subscribed s = subscribe(new StreamOptions(0, StreamOptions.NO_LIMIT));
+        Drained drained = drainStream(s, List.of(), 5L, List.of());
+
+        assertThat(drained.rows(), equalTo(List.of()));
+        assertThat(drained.footer().get("complete"), equalTo(true));
+        assertThat(drained.footer().get("next_offset"), equalTo(0));
+    }
+
+    public void testMaxBytesStopsBetweenRows() throws IOException {
+        // The columns line and exactly two row lines fill the limit, so a third row is not written.
+        StreamOptions options = new StreamOptions(StreamOptions.NO_LIMIT, columnsLineBytes() + 2 * ROW_LINE_BYTES);
+        Drained drained = sendOnePageEndingAtLimit(options, 5);
+
+        assertThat(drained.rows(), equalTo(List.of(List.of(0, "x"), List.of(1, "x"))));
+        assertLimitFooter(drained.footer(), 2);
+    }
+
+    public void testMaxBytesAlwaysWritesTheFirstRow() throws IOException {
+        // The columns line alone is larger than the limit, but a response with a limit still makes progress.
+        Drained drained = sendOnePageEndingAtLimit(new StreamOptions(StreamOptions.NO_LIMIT, 1), 5);
+
+        assertThat(drained.rows(), equalTo(List.of(List.of(0, "x"))));
+        assertLimitFooter(drained.footer(), 1);
+    }
+
+    public void testMaxBytesAcrossPages() throws IOException {
+        StreamOptions options = new StreamOptions(StreamOptions.NO_LIMIT, columnsLineBytes() + 3 * ROW_LINE_BYTES);
+        Subscribed s = subscribe(options);
+        ChunkedRestResponseBodyPart pagePart = sendFirstPage(s, buildLargePage(2, 1));
+        assertThat(decodeRows(pagePart).size(), equalTo(2));
+        // One more row still fits, so the second page starts to be written, and its second row would pass the limit.
+        pagePart = nextPart(pagePart, () -> s.producer().addPage(buildLargePage(2, 1)));
+        assertThat("the third row fits; the fourth does not and is not written", decodeRows(pagePart).size(), equalTo(1));
+        ChunkedRestResponseBodyPart footerPart = nextPart(pagePart, () -> {});
+        assertTrue(footerPart.isLastPart());
+        assertLimitFooter(decodeLine(footerPart), 3);
+        s.response().close();
+    }
+
+    public void testTheFirstLimitReachedWins() throws IOException {
+        Drained byRows = sendOnePageEndingAtLimit(new StreamOptions(1, ByteSizeValue.ofGb(1).getBytes()), 5);
+        assertThat(byRows.rows().size(), equalTo(1));
+        assertLimitFooter(byRows.footer(), 1);
+
+        Drained byBytes = sendOnePageEndingAtLimit(new StreamOptions(4, columnsLineBytes() + 2 * ROW_LINE_BYTES), 5);
+        assertThat(byBytes.rows().size(), equalTo(2));
+        assertLimitFooter(byBytes.footer(), 2);
+    }
+
+    /** Only one last line is ever written: a failure that arrives after the response ended at a limit is dropped. */
+    public void testFailureAfterTheLimitWasReachedIsIgnored() throws IOException {
+        Subscribed s = subscribe(new StreamOptions(2, StreamOptions.NO_LIMIT));
+        ChunkedRestResponseBodyPart pagePart = sendFirstPage(s, buildLargePage(5, 1));
+        assertThat(decodeRows(pagePart).size(), equalTo(2));
+        s.publisher().failStream(new RuntimeException("late failure"));
+
+        ChunkedRestResponseBodyPart footerPart = nextPart(pagePart, () -> {});
+        assertTrue(footerPart.isLastPart());
+        assertLimitFooter(decodeLine(footerPart), 2);
+        s.response().close();
+    }
+
     public void testFooterWithWarnings() throws IOException {
         Subscribed s = subscribe(simpleColumns(), null);
         Drained drained = drainStream(s, List.of(), 42L, List.of("warning1", "warning2"));
@@ -599,10 +757,18 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
     }
 
     private Subscribed subscribe(List<ColumnInfoImpl> columns, boolean[] nullColumns, ZoneId zoneId) {
+        return subscribe(columns, nullColumns, zoneId, StreamOptions.NONE);
+    }
+
+    private Subscribed subscribe(StreamOptions options) {
+        return subscribe(simpleColumns(), null, ZoneOffset.UTC, options);
+    }
+
+    private Subscribed subscribe(List<ColumnInfoImpl> columns, boolean[] nullColumns, ZoneId zoneId, StreamOptions options) {
         PageStreamPublisher publisher = new PageStreamPublisher();
         PageStreamPublisher.Producer producer = publisher.registerProducer();
         FakeRestChannel channel = new FakeRestChannel(new FakeRestRequest(), true);
-        EsqlStreamResponseListener listener = new EsqlStreamResponseListener(channel, new ThreadContext(Settings.EMPTY));
+        EsqlStreamResponseListener listener = new EsqlStreamResponseListener(channel, new ThreadContext(Settings.EMPTY), options);
         listener.resultStreamListener().onResponse(new EsqlStreamQueryAction.ResultStream(columns, publisher, nullColumns, zoneId));
         return new Subscribed(publisher, producer, channel, listener);
     }

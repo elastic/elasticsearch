@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -91,9 +92,17 @@ final class RequestXContent {
     static final ParseField KEEP_ALIVE = new ParseField("keep_alive");
     static final ParseField KEEP_ON_COMPLETION = new ParseField("keep_on_completion");
     static final ParseField SETTINGS_FIELD = new ParseField("settings");
+    // Body fields of POST /_query/stream only. They are not part of EsqlQueryRequest.
+    static final ParseField STORE_FIELD = new ParseField("store");
+    static final ParseField MAX_ROWS_FIELD = new ParseField("max_rows");
+    static final ParseField MAX_BYTES_FIELD = new ParseField("max_bytes");
 
     private static final ObjectParser<EsqlQueryRequest, Void> SYNC_PARSER = objectParserSync(() -> syncEsqlQueryRequest(null));
     private static final ObjectParser<EsqlQueryRequest, Void> ASYNC_PARSER = objectParserAsync(() -> asyncEsqlQueryRequest(null));
+    private static final ObjectParser<EsqlQueryRequest, StreamOptions.Builder> STREAM_PARSER = objectParserStream();
+
+    /** A parsed {@code POST /_query/stream} body: the query, and how its response is bounded. */
+    record ParsedStreamRequest(EsqlQueryRequest request, StreamOptions options) {}
 
     /** Parses a synchronous request. */
     static EsqlQueryRequest parseSync(XContentParser parser) {
@@ -107,6 +116,17 @@ final class RequestXContent {
         EsqlQueryRequest request = ASYNC_PARSER.apply(parser, null);
         request.applyCanonicalRequestSettings();
         return request;
+    }
+
+    /**
+     * Parses a {@code POST /_query/stream} request. The body is the synchronous one plus {@code store}, {@code max_rows}
+     * and {@code max_bytes}, which are validated together once the whole body has been read.
+     */
+    static ParsedStreamRequest parseStream(XContentParser parser) {
+        StreamOptions.Builder options = new StreamOptions.Builder();
+        EsqlQueryRequest request = STREAM_PARSER.apply(parser, options);
+        request.applyCanonicalRequestSettings();
+        return new ParsedStreamRequest(request, options.build());
     }
 
     private static void objectParserCommon(ObjectParser<EsqlQueryRequest, ?> parser) {
@@ -207,6 +227,27 @@ final class RequestXContent {
         ObjectParser<EsqlQueryRequest, Void> parser = new ObjectParser<>("esql/query", false, supplier);
         objectParserCommon(parser);
         return parser;
+    }
+
+    private static ObjectParser<EsqlQueryRequest, StreamOptions.Builder> objectParserStream() {
+        ObjectParser<EsqlQueryRequest, StreamOptions.Builder> parser = new ObjectParser<>(
+            "esql/stream_query",
+            false,
+            () -> syncEsqlQueryRequest(null)
+        );
+        objectParserCommon(parser);
+        parser.declareField((p, request, options) -> options.store(p.text()), STORE_FIELD, ObjectParser.ValueType.STRING);
+        parser.declareField((p, request, options) -> options.maxRows(p.longValue()), MAX_ROWS_FIELD, ObjectParser.ValueType.LONG);
+        parser.declareField((p, request, options) -> options.maxBytes(parseMaxBytes(p)), MAX_BYTES_FIELD, ObjectParser.ValueType.VALUE);
+        return parser;
+    }
+
+    /** A number is a count of bytes; a string is a size such as {@code 1mb}. */
+    private static long parseMaxBytes(XContentParser p) throws IOException {
+        if (p.currentToken() == XContentParser.Token.VALUE_NUMBER) {
+            return p.longValue();
+        }
+        return ByteSizeValue.parseBytesSizeValue(p.text(), MAX_BYTES_FIELD.getPreferredName()).getBytes();
     }
 
     private static ObjectParser<EsqlQueryRequest, Void> objectParserAsync(Supplier<EsqlQueryRequest> supplier) {

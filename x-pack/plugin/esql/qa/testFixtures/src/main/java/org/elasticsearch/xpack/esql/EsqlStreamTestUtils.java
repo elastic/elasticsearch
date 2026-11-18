@@ -289,11 +289,12 @@ public final class EsqlStreamTestUtils {
                 ((Number) terminalLine.get("next_offset")).longValue(),
                 equalTo(outcome.rowCount())
             );
-            assertThat(
-                "'complete' must be true exactly when the response ended without an error",
-                terminalLine.get("complete"),
-                equalTo(terminalLine.containsKey("error") == false)
-            );
+            assertThat("'complete' must be a boolean", terminalLine.get("complete"), instanceOf(Boolean.class));
+            if (terminalLine.containsKey("error")) {
+                assertThat("'complete' must be false when the response ended with an error", terminalLine.get("complete"), equalTo(false));
+            }
+            // Without an error, complete is false only for a response that ended at max_rows or max_bytes. This validator is
+            // not told which limits a request had, so it cannot check that; the tests that set a limit assert it themselves.
         }
 
         if (outcome.terminal() == Terminal.NONE) {

@@ -236,6 +236,21 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
         String sessionId = getOrCreateSessionID(task);
         AtomicBoolean streamStarted = new AtomicBoolean(false);
         AtomicBoolean outputRunSeen = new AtomicBoolean(false);
+        // Set just before this action hands the publisher its end (the footer or a failure), so the close listener below can
+        // tell a response that ended early (a limit, or a client that went away) from one that simply finished.
+        AtomicBoolean computeDone = new AtomicBoolean(false);
+        publisher.addCloseListener(ActionListener.running(() -> {
+            if (computeDone.get() == false) {
+                // The response was released while the query was still producing rows, for example because it ended at max_rows
+                // or max_bytes. The connection is still open, so nothing else would stop the query.
+                taskManager.cancelTaskAndDescendants(
+                    (CancellableTask) task,
+                    "the streaming response ended before the query finished",
+                    false,
+                    ActionListener.noop()
+                );
+            }
+        }));
         AtomicReference<Map<NameId, Map<String, Object>>> columnMetadataRef = new AtomicReference<>();
         DriverCompletionInfo.AtomicAccumulator completedWork = new DriverCompletionInfo.AtomicAccumulator();
 
@@ -408,6 +423,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                         executionInfo
                     )
                     : null;
+                computeDone.set(true);
                 publisher.completeWithFooter(
                     new PageStreamPublisher.StreamFooter(
                         200,
@@ -424,6 +440,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                 transportEsqlQueryAction.collectMetrics(result);
                 listener.onResponse(ActionResponse.Empty.INSTANCE);
             }, ex -> {
+                computeDone.set(true);
                 transportEsqlQueryAction.recordCCSTelemetry(task, executionInfo, request, ex);
                 PageStreamPublisher.StreamFooter footer = failureFooter(
                     ex,

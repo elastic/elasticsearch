@@ -1752,6 +1752,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         } else if (shardRouting.recoverySource().getType().equals(Type.RESHARD_SPLIT)) {
             // TODO: Remove RESHARD_SPLIT exclusion once local retries support it (elasticsearch-team/#5759)
             return false;
+        } else if (shardRouting.recoverySource().getType().equals(Type.PEER)) {
+            // TODO: Remove PEER exclusion once local retries support it
+            // (elasticsearch-team/#4347, elasticsearch-team/#4348, elasticsearch-team/#4334)
+            return false;
         }
         return true;
     }

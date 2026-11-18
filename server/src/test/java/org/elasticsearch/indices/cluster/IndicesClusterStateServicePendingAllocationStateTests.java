@@ -294,6 +294,35 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
         verify(shardStateAction).localShardFailed(eq(shardRouting), anyString(), any(), any(), any());
     }
 
+    public void testPeerRecoveryRetryBecomesFailSend() {
+        // PEER doesn't support local retry yet (elasticsearch-team/#4347, elasticsearch-team/#4348,
+        // elasticsearch-team/#4334), so a RETRY classification must still be downgraded to FAIL_SEND
+        // for it, even with local retry enabled. Built directly rather than through a real createShard,
+        // since PEER also requires a resolvable source node that this unit test has no need to model.
+        final var shardRouting = TestShardRouting.shardRoutingBuilder(
+            new ShardId(randomIndexName(), randomUUID(), 0),
+            "node1",
+            false,
+            ShardRoutingState.INITIALIZING
+        ).build();
+        assertThat(shardRouting.recoverySource().getType(), equalTo(RecoverySource.Type.PEER));
+        final var inFlightTicket = new IndicesClusterStateService.PendingAllocationState.InFlight(0, 0, 1);
+        indicesClusterStateService.pendingAllocationStates.put(allocationKey(shardRouting), inFlightTicket);
+
+        indicesClusterStateService.handleRecoveryFailure(
+            shardRouting,
+            RETRY,
+            1,
+            new Exception("simulated recovery failure"),
+            inFlightTicket
+        );
+
+        assertFalse(isAwaitingRecoveryRetry(shardRouting));
+        assertTrue(isFailureReported(shardRouting));
+        assertFalse(deterministicTaskQueue.hasRunnableTasks());
+        verify(shardStateAction).localShardFailed(eq(shardRouting), anyString(), any(), any(), any());
+    }
+
     public void testClusterStateCreateWhileContextAppliesLocalRetries() {
         ShardRouting shardRouting = applyInitializingPrimary();
         handleRecoveryFailureWithRetry(shardRouting);
@@ -712,50 +741,6 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
             ShardRoutingState.STARTED
         ).withAllocationId(shardRouting.allocationId()).build();
         expectThrows(AssertionError.class, () -> applyState(stateWithShardRouting(started)));
-    }
-
-    public void testRetryContextKeptWhenCreateGivesUpMissingPeerSource() {
-        String indexName = randomIndexName();
-        ClusterState base = ClusterStateCreationUtils.state(indexName, false, ShardRoutingState.STARTED, ShardRoutingState.INITIALIZING);
-        String localNodeId = base.nodes().getLocalNodeId();
-        Index index = base.metadata().getProject().index(indexName).getIndex();
-        ShardRouting primary = base.routingTable().index(index).shard(0).primaryShard();
-        assertTrue(primary.active());
-        assertNotEquals(primary.currentNodeId(), localNodeId);
-        ShardRouting replica = TestShardRouting.newShardRouting(primary.shardId(), localNodeId, false, ShardRoutingState.INITIALIZING);
-        assertThat(replica.recoverySource().getType(), equalTo(RecoverySource.Type.PEER));
-        applyState(
-            ClusterState.builder(base)
-                .routingTable(
-                    RoutingTable.builder().add(IndexRoutingTable.builder(index).addShard(primary).addShard(replica).build()).build()
-                )
-                .build()
-        );
-        assertNotNull(indicesService.getShardOrNull(replica.shardId()));
-
-        handleRecoveryFailureWithRetry(replica);
-        assertTrue(isAwaitingRecoveryRetry(replica));
-
-        // Remove node holding primary and make sure master is an existing node
-        applyState(
-            ClusterState.builder(state)
-                .nodes(
-                    DiscoveryNodes.builder(state.nodes())
-                        .remove(primary.currentNodeId())
-                        .masterNodeId(state.nodes().getLocalNodeId())
-                        .build()
-                )
-                .build()
-        );
-        // CS apply may attempt create; missing peer source → early return, keep marker for localRecoveryRetries.
-        assertTrue(isAwaitingRecoveryRetry(replica));
-
-        int createsBefore = indicesService.createShardCalls.get();
-        deterministicTaskQueue.runAllRunnableTasks();
-        assertTrue(isAwaitingRecoveryRetry(replica));
-        assertThat(awaitingRecoveryRetryCount(replica), equalTo(1));
-        assertThat(indicesService.createShardCalls.get(), equalTo(createsBefore));
-        assertNull(indicesService.getShardOrNull(replica.shardId()));
     }
 
     public void testRetryContextClearedWhenCreateFails() {

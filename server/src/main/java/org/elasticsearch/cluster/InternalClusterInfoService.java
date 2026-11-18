@@ -408,9 +408,9 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                             public void onResponse(IndicesStatsResponse indicesStatsResponse) {
                                 logger.trace("received indices stats response");
 
-                                if (indicesStatsResponse.shardFailuresList().isEmpty() == false) {
+                                if (indicesStatsResponse.getShardFailures().isEmpty() == false) {
                                     final Set<String> failedNodeIds = new HashSet<>();
-                                    for (final var shardFailure : indicesStatsResponse.shardFailuresList()) {
+                                    for (final var shardFailure : indicesStatsResponse.getShardFailures()) {
                                         if (shardFailure.getCause() instanceof final FailedNodeException failedNodeException) {
                                             if (failedNodeIds.add(failedNodeException.nodeId())) {
                                                 logger.warn(

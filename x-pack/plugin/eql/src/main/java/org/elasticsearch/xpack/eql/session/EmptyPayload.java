@@ -21,13 +21,13 @@ public class EmptyPayload implements Payload {
     private final ShardSearchFailure[] shardFailures;
 
     public EmptyPayload(Type type) {
-        this(type, TimeValue.ZERO, ShardSearchFailure.EMPTY_ARRAY);
+        this(type, TimeValue.ZERO, List.of());
     }
 
-    public EmptyPayload(Type type, TimeValue timeTook, ShardSearchFailure[] shardFailures) {
+    public EmptyPayload(Type type, TimeValue timeTook, List<ShardSearchFailure> shardFailures) {
         this.type = type;
         this.timeTook = timeTook;
-        this.shardFailures = shardFailures;
+        this.shardFailures = shardFailures.toArray(ShardSearchFailure.EMPTY_ARRAY);
     }
 
     @Override

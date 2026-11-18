@@ -56,6 +56,9 @@ import static org.hamcrest.Matchers.startsWith;
  *     <li>{@code ne_lookup}: a lookup index with {@code id} and nested {@code items}.</li>
  *     <li>{@code ne_conflict}: two indices, one maps {@code items.sub} as an object and the other as nested.</li>
  *     <li>{@code ne_ts}: a time-series index with nested {@code items}.</li>
+ *     <li>{@code ne_types}: two indices that disagree on the type of {@code v} and {@code items.v} ({@code integer} and
+ *     {@code keyword}), and of {@code n} and {@code items.n} ({@code short} and {@code integer}); {@code items.small} is a
+ *     {@code short} in both.</li>
  * </ul>
  */
 public class AnalyzerNestedExpandTests extends AnalyzerTestCase {
@@ -90,6 +93,11 @@ public class AnalyzerNestedExpandTests extends AnalyzerTestCase {
             EsRelation.class,
             relation -> assertThat(names(relation.output()), everyItem(not(startsWith(NestedScopeField.PREFIX))))
         );
+    }
+
+    public void testSmallNumericChildIsWidenedLikeAnOrdinaryColumn() {
+        LogicalPlan plan = nestedAnalyzer().query("FROM ne_types | NESTED_EXPAND items | KEEP items.small");
+        assertThat(plan.output().getFirst().dataType(), equalTo(DataType.INTEGER));
     }
 
     public void testWithoutNestedExpandChildrenAreUnknown() {
@@ -263,6 +271,10 @@ public class AnalyzerNestedExpandTests extends AnalyzerTestCase {
                     )
                 )
             )
+            .addIndex(
+                "ne_types",
+                resolution("ne_types", typesIndex("ne_types_a", "integer", "short"), typesIndex("ne_types_b", "keyword", "integer"))
+            )
             .addIndex("ne_ts", resolution("ne_ts", timeSeriesIndex()))
             .addLookupIndex(
                 "ne_lookup",
@@ -292,6 +304,20 @@ public class AnalyzerNestedExpandTests extends AnalyzerTestCase {
             field("items.parts.pn", "keyword"),
             field("events", "nested"),
             field("events.start", "long")
+        );
+    }
+
+    private static FieldCapabilitiesIndexResponse typesIndex(String name, String vType, String nType) {
+        return index(
+            name,
+            IndexMode.STANDARD,
+            field("id", "keyword"),
+            field("v", vType),
+            field("n", nType),
+            field("items", "nested"),
+            field("items.v", vType),
+            field("items.n", nType),
+            field("items.small", "short")
         );
     }
 

@@ -686,7 +686,7 @@ public class IndexResolver {
                 fieldSemantics.put(fullName, FieldSemantics.from(fullName, fcs));
             }
             EsField field = firstUnsupportedParent == null
-                ? createField(fieldsInfo, name, fullName, fcs, isAlias, indexDedupCache)
+                ? createField(fieldsInfo, name, fullName, fcs, isAlias, indexDedupCache, false)
                 : new UnsupportedEsField(
                     fullName,
                     firstUnsupportedParent.getOriginalTypes(),
@@ -701,7 +701,10 @@ public class IndexResolver {
         }
 
         EsField nestedNamespace = fieldsInfo.nestedScope()
-            ? NestedScopeField.namespace(indexResponses, fc -> resolvedType(fc, fieldsInfo))
+            ? NestedScopeField.namespace(
+                indexResponses,
+                (name, fullName, occurrences) -> createField(fieldsInfo, name, fullName, occurrences, false, indexDedupCache, true)
+            )
             : null;
         if (nestedNamespace != null) {
             if (rootFields.containsKey(NestedScopeField.NAMESPACE)) {
@@ -864,7 +867,9 @@ public class IndexResolver {
         List<IndexFieldCapabilities> fcs,
         boolean isAlias,
         // If this isn't null, it also means we need to create CompactInvalidMappedField instead of InvalidMappedField.
-        @Nullable Map<Set<String>, Set<String>> indexDedupCache
+        @Nullable Map<Set<String>, Set<String>> indexDedupCache,
+        // Whether the occurrences are those under a nested object, which are merged apart from the ordinary ones of the same name.
+        boolean inNestedScope
     ) {
         IndexFieldCapabilities first = fcs.get(0);
         List<IndexFieldCapabilities> rest = fcs.subList(1, fcs.size());
@@ -891,7 +896,7 @@ public class IndexResolver {
             }
             for (IndexFieldCapabilities fc : rest) {
                 if (type != EsqlDataTypeRegistry.INSTANCE.fromEs(fc.type(), fc.metricType())) {
-                    return conflictingTypes(name, fullName, fieldsInfo, indexDedupCache, timeSeriesFieldType);
+                    return conflictingTypes(name, fullName, fieldsInfo, indexDedupCache, timeSeriesFieldType, inNestedScope);
                 }
             }
             for (IndexFieldCapabilities fc : rest) {
@@ -905,7 +910,7 @@ public class IndexResolver {
         // TODO I think we only care about unmapped fields if we're aggregating on them. do we even then?
 
         if (type == TEXT) {
-            return textField(name, fullName, isAlias, timeSeriesFieldType, fcs, fieldsInfo);
+            return textField(name, fullName, isAlias, timeSeriesFieldType, fcs, fieldsInfo, inNestedScope);
         }
         if (type == KEYWORD) {
             int length = Short.MAX_VALUE;
@@ -951,7 +956,8 @@ public class IndexResolver {
         boolean isAlias,
         EsField.TimeSeriesFieldType timeSeriesFieldType,
         List<IndexFieldCapabilities> fcs,
-        FieldsInfo fieldsInfo
+        FieldsInfo fieldsInfo,
+        boolean inNestedScope
     ) {
         String analyzer = fcs.getFirst().indexAnalyzer();
         int gap = fcs.getFirst().indexAnalyzerPositionIncrementGap();
@@ -964,7 +970,7 @@ public class IndexResolver {
         } else if (analyzer != null || fcs.stream().anyMatch(fc -> fc.indexAnalyzer() != null)) {
             // A non-null first analyzer that is not shared is already a conflict; otherwise look for any named peer.
             unknown = TextEsField.UnknownAnalyzer.CONFLICT;
-            groups = fieldsInfo.needsAnalyzerGroups() ? analyzerGroups(fullName, fieldsInfo) : null;
+            groups = fieldsInfo.needsAnalyzerGroups() ? analyzerGroups(fullName, fieldsInfo, inNestedScope) : null;
         } else if (fcs.stream().anyMatch(IndexFieldCapabilities::indexLocalAnalyzer)) {
             unknown = TextEsField.UnknownAnalyzer.INDEX_LOCAL;
         } else {
@@ -974,11 +980,11 @@ public class IndexResolver {
     }
 
     /** Like {@link #conflictingTypes}, walks every index response since {@code fcs} is deduplicated by mapping hash. */
-    private static List<IndexAnalyzerGroup> analyzerGroups(String fullName, FieldsInfo fieldsInfo) {
+    private static List<IndexAnalyzerGroup> analyzerGroups(String fullName, FieldsInfo fieldsInfo, boolean inNestedScope) {
         Map<String, IndexAnalyzerGroup.Analyzer> analyzerByIndex = new LinkedHashMap<>();
         for (FieldCapabilitiesIndexResponse ir : fieldsInfo.caps().getIndexResponses()) {
             IndexFieldCapabilities fc = ir.get().get(fullName);
-            if (fc != null && isLeaf(fc, fieldsInfo) && fieldsInfo.inNestedScope(fc, ir.get()) == false) {
+            if (fc != null && isLeaf(fc, fieldsInfo) && fieldsInfo.inNestedScope(fc, ir.get()) == inNestedScope) {
                 // IndexFieldCapabilities already normalizes the gap to the default when the name is null.
                 analyzerByIndex.put(
                     ir.getIndexName(),
@@ -1073,12 +1079,13 @@ public class IndexResolver {
         FieldsInfo fieldsInfo,
         // If this isn't null, it also means we need to create CompactInvalidMappedField instead of InvalidMappedField.
         @Nullable Map<Set<String>, Set<String>> indexDedupCache,
-        EsField.TimeSeriesFieldType timeSeriesFieldType
+        EsField.TimeSeriesFieldType timeSeriesFieldType,
+        boolean inNestedScope
     ) {
         Map<DataType, Set<String>> typesToIndices = new TreeMap<>();
         for (FieldCapabilitiesIndexResponse ir : fieldsInfo.caps().getIndexResponses()) {
             IndexFieldCapabilities fc = ir.get().get(fullName);
-            if (fc != null && isLeaf(fc, fieldsInfo) && fieldsInfo.inNestedScope(fc, ir.get()) == false) {
+            if (fc != null && isLeaf(fc, fieldsInfo) && fieldsInfo.inNestedScope(fc, ir.get()) == inNestedScope) {
                 DataType type = EsqlDataTypeRegistry.INSTANCE.fromEs(fc.type(), fc.metricType());
                 if (type == UNSUPPORTED) {
                     return unsupported(name, fc);

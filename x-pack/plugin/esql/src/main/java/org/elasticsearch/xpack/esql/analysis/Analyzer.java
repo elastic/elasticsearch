@@ -1828,6 +1828,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<String> paths = new ArrayList<>();
             for (FieldAttribute child : children) {
                 String relative = child.name().substring(NestedScopeField.PREFIX.length() + path.length() + 1);
+                // TODO: A child keeps only its type here. Binding it as a FieldAttribute that holds NestedScopeField#leaf would let
+                // cast resolution see a type conflict, but that needs the conversion to belong to this NestedExpand rather than to the
+                // parent relation, the same conversion applied when the child is read, and ReplaceFieldWithConstantOrNull keeping the
+                // child (SearchContextStats#exists is false for nested subfields). To be done with the execution of NESTED_EXPAND.
                 expanded.add(new ReferenceAttribute(expand.source(), path + "." + relative, child.dataType()));
                 paths.add(relative);
             }

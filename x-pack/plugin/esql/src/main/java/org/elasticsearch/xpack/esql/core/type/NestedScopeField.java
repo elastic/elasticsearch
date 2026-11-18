@@ -22,7 +22,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.function.Function;
 
 /**
  * Analysis-only schema for fields under a mapped {@code nested} object. It is requested only by a query that uses
@@ -50,10 +49,14 @@ public final class NestedScopeField extends EsField {
     private final Kind kind;
     @Nullable
     private final String conflict;
+    @Nullable
+    private final EsField leaf;
 
     /**
      * @param conflict how the indices disagree on the nested mapping of this field, or {@code null} if they agree. Only a
      *                 {@code NESTED_EXPAND} that reads the field fails with it.
+     * @param leaf the field that ordinary resolution makes of the occurrences of a {@link Kind#VALUE}, or {@code null} for the
+     *             other kinds
      */
     public NestedScopeField(
         String name,
@@ -61,12 +64,14 @@ public final class NestedScopeField extends EsField {
         Map<String, EsField> properties,
         String path,
         Kind kind,
-        @Nullable String conflict
+        @Nullable String conflict,
+        @Nullable EsField leaf
     ) {
         super(name, type, properties, false, TimeSeriesFieldType.NONE);
         this.path = path;
         this.kind = kind;
         this.conflict = conflict;
+        this.leaf = leaf;
     }
 
     public String path() {
@@ -82,9 +87,30 @@ public final class NestedScopeField extends EsField {
         return conflict;
     }
 
+    /** The field ordinary resolution makes of this field's occurrences, or {@code null} unless this is a {@link Kind#VALUE}. */
+    @Nullable
+    public EsField leaf() {
+        return leaf;
+    }
+
     @Override
     public EsField withProperties(Map<String, EsField> properties) {
-        return new NestedScopeField(getName(), getDataType(), properties, path, kind, conflict);
+        return new NestedScopeField(getName(), getDataType(), properties, path, kind, conflict, leaf);
+    }
+
+    @Override
+    public EsField withDataType(DataType esDataType) {
+        return esDataType == getDataType()
+            ? this
+            : new NestedScopeField(
+                getName(),
+                esDataType,
+                getProperties(),
+                path,
+                kind,
+                conflict,
+                leaf == null ? null : leaf.withDataType(esDataType)
+            );
     }
 
     @Override
@@ -98,12 +124,15 @@ public final class NestedScopeField extends EsField {
             return false;
         }
         NestedScopeField other = (NestedScopeField) obj;
-        return path.equals(other.path) && kind == other.kind && Objects.equals(conflict, other.conflict);
+        return path.equals(other.path)
+            && kind == other.kind
+            && Objects.equals(conflict, other.conflict)
+            && Objects.equals(leaf, other.leaf);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), path, kind, conflict);
+        return Objects.hash(super.hashCode(), path, kind, conflict, leaf);
     }
 
     /**
@@ -132,6 +161,20 @@ public final class NestedScopeField extends EsField {
     }
 
     /**
+     * How the field of one name under a nested object is made from what the indices report for it. Ordinary resolution implements
+     * it, so a nested leaf gets the same type, conflict handling and specialization as a field outside the nested scope.
+     */
+    @FunctionalInterface
+    public interface LeafMerger {
+        /**
+         * @param name the last part of the field's name
+         * @param fullName the whole name
+         * @param occurrences what each distinct mapping reports for the field
+         */
+        EsField merge(String name, String fullName, List<IndexFieldCapabilities> occurrences);
+    }
+
+    /**
      * Builds a separate schema so nested fields cannot introduce conflicts into ordinary field resolution.
      * Returns {@code null} when no index maps a nested field.
      * <p>
@@ -139,17 +182,16 @@ public final class NestedScopeField extends EsField {
      * the number of fields of the distinct mappings, however many nested paths they hold.
      * <p>
      * The schema is built in three steps. {@link MappingFacts} records what the indices map, without judging it. {@code resolve}
-     * decides each field's type, kind and conflict from those facts. {@code tree} lays the decided fields out as the analyzer reads
-     * them. {@code typeOf} is how ordinary field resolution turns one index's capabilities into a type, so a nested leaf is typed
-     * the same way an ordinary one is.
+     * decides each field's kind and conflict from those facts, and leaves the leaf's own field to {@code merger}. {@code tree} lays
+     * the decided fields out as the analyzer reads them.
      */
     @Nullable
-    public static EsField namespace(List<FieldCapabilitiesIndexResponse> responses, Function<IndexFieldCapabilities, DataType> typeOf) {
+    public static EsField namespace(List<FieldCapabilitiesIndexResponse> responses, LeafMerger merger) {
         MappingFacts facts = MappingFacts.collect(distinctMappings(responses));
         if (facts.scoped.isEmpty()) {
             return null;
         }
-        return tree(resolve(facts, typeOf));
+        return tree(resolve(facts, merger));
     }
 
     /** The responses in index name order, leaving out each one whose mapping hash an earlier response already has. */
@@ -226,32 +268,42 @@ public final class NestedScopeField extends EsField {
         }
     }
 
-    private record ResolvedField(String fullName, DataType type, Kind kind, String path, @Nullable String conflict) {}
+    private record ResolvedField(
+        String fullName,
+        DataType type,
+        Kind kind,
+        String path,
+        @Nullable String conflict,
+        @Nullable EsField leaf
+    ) {}
 
-    private static List<ResolvedField> resolve(MappingFacts facts, Function<IndexFieldCapabilities, DataType> typeOf) {
+    private static List<ResolvedField> resolve(MappingFacts facts, LeafMerger merger) {
         List<ResolvedField> resolved = new ArrayList<>(facts.scoped.size());
         for (var entry : facts.scoped.entrySet()) {
+            String fullName = entry.getKey();
             ScopedMapping mapping = entry.getValue();
-            boolean collection = mapping.caps.stream().allMatch(fc -> fc.type().equals("nested"));
-            DataType type = collection ? DataType.SOURCE : leafType(mapping.caps, typeOf);
-            Kind kind = collection ? Kind.COLLECTION : type == DataType.OBJECT ? Kind.OBJECT : Kind.VALUE;
-            resolved.add(new ResolvedField(entry.getKey(), type, kind, mapping.firstPath, conflict(mapping, facts)));
-        }
-        return resolved;
-    }
-
-    /**
-     * Small numerics widen because a nested child is read as the wider column. Indices that disagree on the widened type leave
-     * the field {@link DataType#UNSUPPORTED}, as nothing here can cast it.
-     */
-    private static DataType leafType(List<IndexFieldCapabilities> caps, Function<IndexFieldCapabilities, DataType> typeOf) {
-        DataType first = typeOf.apply(caps.getFirst()).widenSmallNumeric();
-        for (IndexFieldCapabilities fc : caps) {
-            if (typeOf.apply(fc).widenSmallNumeric() != first) {
-                return DataType.UNSUPPORTED;
+            String conflict = conflict(mapping, facts);
+            boolean anyCollection = mapping.caps.stream().anyMatch(fc -> fc.type().equals("nested"));
+            if (anyCollection) {
+                boolean allCollection = mapping.caps.stream().allMatch(fc -> fc.type().equals("nested"));
+                if (allCollection) {
+                    resolved.add(new ResolvedField(fullName, DataType.SOURCE, Kind.COLLECTION, mapping.firstPath, conflict, null));
+                } else {
+                    EsField unsupported = new UnsupportedEsField(fullName.substring(fullName.lastIndexOf('.') + 1), List.of("nested"));
+                    resolved.add(new ResolvedField(fullName, DataType.UNSUPPORTED, Kind.VALUE, mapping.firstPath, conflict, unsupported));
+                }
+                continue;
+            }
+            String name = fullName.substring(fullName.lastIndexOf('.') + 1);
+            EsField leaf = merger.merge(name, fullName, mapping.caps);
+            DataType type = leaf.getDataType();
+            if (type == DataType.OBJECT) {
+                resolved.add(new ResolvedField(fullName, type, Kind.OBJECT, mapping.firstPath, conflict, null));
+            } else {
+                resolved.add(new ResolvedField(fullName, type, Kind.VALUE, mapping.firstPath, conflict, leaf));
             }
         }
-        return first;
+        return resolved;
     }
 
     /**
@@ -290,7 +342,10 @@ public final class NestedScopeField extends EsField {
             }
             String name = parts[parts.length - 1];
             Map<String, EsField> properties = parent.containsKey(name) ? parent.get(name).getProperties() : new TreeMap<>();
-            parent.put(name, new NestedScopeField(name, field.type(), properties, field.path(), field.kind(), field.conflict()));
+            parent.put(
+                name,
+                new NestedScopeField(name, field.type(), properties, field.path(), field.kind(), field.conflict(), field.leaf())
+            );
         }
         return new EsField(NAMESPACE, DataType.OBJECT, roots, false, TimeSeriesFieldType.NONE);
     }

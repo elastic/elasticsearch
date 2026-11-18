@@ -117,10 +117,12 @@ public class Div extends DenseVectorArithmeticOperation implements BinaryCompari
 
     @Override
     public DataType dataType() {
-        if (type == null) {
-            type = super.dataType();
+        DataType dataType = type;
+        if (dataType == null) {
+            dataType = super.dataType();
+            type = dataType;
         }
-        return type;
+        return dataType;
     }
 
     @Override

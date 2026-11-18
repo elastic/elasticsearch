@@ -8983,9 +8983,10 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertThat(whole.getMessage(), containsString("missing trailing fields: [1] columns, the header has [2]"));
         assertThat("nothing cut the file's first byte", whole.getMessage(), not(containsString("multiline_fields")));
 
-        // The same cut split, with a full-width row ahead of the short one. The cut can only have landed inside the
-        // value this split OPENS with, so by the time a record of the file's own width has parsed, the split is on a
-        // real record boundary and the short row after it is a short row -- which is most short rows of most splits.
+        // The same cut split, with a full-width row ahead of the short one. A record of the file's own width is taken
+        // as evidence the split is past whatever its start cut -- not proof, see cutQuotedValueClause, which weighs
+        // the coincidence that costs one hint against the alternative: the clause on every short row of every split
+        // after the first, which is most short rows of a large file.
         Exception past = expectThrows(
             Exception.class,
             () -> drainAllPages(

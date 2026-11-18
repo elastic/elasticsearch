@@ -4398,10 +4398,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
          */
         private boolean rowWidthLimitIsFileStated;
         /**
-         * Whether this split has reached a record of the width its file states, which puts it past anything the cut
-         * at its start could have landed inside -- see {@link #cutQuotedValueClause()}, the only reader of this.
-         * A quoted value cut by this split's start can only be in the records BEFORE that, so a short row after one
-         * is a short row and nothing else.
+         * Whether this split has reached a record of the width its file states. Taken as evidence that it is past
+         * the value a cut at its start could have landed inside -- evidence, not proof, since an inner line of such
+         * a value can carry that many delimiters itself. {@link #cutQuotedValueClause()} is the only reader, and
+         * weighs that against what the alternative costs.
          */
         private boolean pastCutTail;
         /** The binding's widest row, or {@link HeaderBinding#NO_FILE_WIDTH}; resolves {@link #rowWidthLimit}. Unused when no binding. */
@@ -5515,11 +5515,19 @@ public class CsvFormatReader implements SegmentableFormatReader {
          *
          * <p>Empty unless this split could STILL be holding one. Its start has to be a quote-blind cut, which is a
          * quoting dialect read under {@link #newlineSplitting()} from somewhere other than the file's first byte --
-         * an escaping dialect is excluded with it, no record of one spanning a raw newline. And the cut can only
-         * have landed inside the value whose tail this split opens with, so once a record of the file's own width
-         * has parsed ({@link #pastCutTail}) the split is standing on a real record boundary and every short row
-         * after it is just that. Most splits of a large file start after byte 0, so without the second half the
-         * clause would reach row 500 of a well-formed split and send its reader somewhere there is nothing to find.
+         * an escaping dialect is excluded with it, no record of one spanning a raw newline -- and it has to be
+         * before {@link #pastCutTail}, the first record of the file's own width.
+         *
+         * <p>That second half is a heuristic, and so is its absence: a split reading blind to quotes cannot know
+         * where a value ends, which is what {@code multiline_fields: false} means. Both directions of the error
+         * exist. Without it, EVERY short row of every non-first split carries the clause, so row 500 of a perfectly
+         * well-formed split is sent after a setting that will not help it -- and most splits of a large file start
+         * after byte 0, so that is the ordinary case rather than a corner. With it, a cut value whose inner lines
+         * happen to carry exactly the file's delimiter count ends the clause early, and a genuinely cut row after
+         * one loses it. The first costs every reader of a ragged file wrong advice; the second costs a coincidence
+         * one hint, while the row is still refused, still named, and the split that OWNS the value's start still
+         * reports the broken contract through {@link CsvLogicalRecordReader#failOnLineSpan()}, whose own javadoc
+         * concedes the same limit. So it errs toward silence, which is the cheaper way to be wrong here.
          */
         private String cutQuotedValueClause() {
             return pastCutTail == false && newlineSplitting() && options.quoting() && splitStartByte > 0

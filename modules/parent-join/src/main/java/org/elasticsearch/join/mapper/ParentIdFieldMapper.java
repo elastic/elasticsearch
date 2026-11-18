@@ -43,10 +43,19 @@ public final class ParentIdFieldMapper extends FieldMapper {
     public static final class ParentIdFieldType extends StringFieldType {
 
         private final boolean eagerGlobalOrdinals;
+        private final Joiner joiner;
 
-        public ParentIdFieldType(String name, boolean eagerGlobalOrdinals) {
+        public ParentIdFieldType(String name, boolean eagerGlobalOrdinals, Joiner joiner) {
             super(name, IndexType.terms(true, true), false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
             this.eagerGlobalOrdinals = eagerGlobalOrdinals;
+            this.joiner = joiner;
+        }
+
+        /**
+         * @return the {@link Joiner} of the join field this field belongs to
+         */
+        public Joiner getJoiner() {
+            return joiner;
         }
 
         @Override
@@ -89,8 +98,8 @@ public final class ParentIdFieldMapper extends FieldMapper {
         }
     }
 
-    protected ParentIdFieldMapper(String name, boolean eagerGlobalOrdinals) {
-        super(name, new ParentIdFieldType(name, eagerGlobalOrdinals), BuilderParams.empty());
+    protected ParentIdFieldMapper(String name, boolean eagerGlobalOrdinals, Joiner joiner) {
+        super(name, new ParentIdFieldType(name, eagerGlobalOrdinals, joiner), BuilderParams.empty());
     }
 
     @Override
@@ -115,8 +124,4 @@ public final class ParentIdFieldMapper extends FieldMapper {
         return CONTENT_TYPE;
     }
 
-    @Override
-    public Builder getMergeBuilder() {
-        return null;    // always constructed by ParentJoinFieldMapper, not through type parsers
-    }
 }

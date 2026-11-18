@@ -361,4 +361,8 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
         assertThat(src, containsString("\"field\":[" + v2 + "," + v1 + "," + v3 + "," + v2 + "]"));
     }
 
+    public void testScriptedFieldIsNotStaticallySingleValued() throws IOException {
+        assertScriptedFieldIsNotStaticallySingleValued("test");
+    }
+
 }

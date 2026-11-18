@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 166204
+summary: Bind format readers to producer factory
+type: enhancement

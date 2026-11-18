@@ -39,6 +39,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.SnapshotRestoreAllocationSettings;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
@@ -99,6 +100,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.IndexShardCacheWarmer;
 import org.elasticsearch.xpack.stateless.StatelessComponents;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
@@ -190,7 +192,6 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING;
 import static org.elasticsearch.cluster.ESAllocationTestCase.createShardsAllocator;
 import static org.elasticsearch.cluster.ESAllocationTestCase.randomAllocationDeciders;
-import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
 import static org.mockito.ArgumentMatchers.any;
@@ -207,13 +208,17 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
     private static class StatelessDeterministicTaskQueue extends DeterministicTaskQueue {
 
         private static final Set<String> EXECUTOR_NAMES_TO_USE_DIRECT_EXECUTOR = Set.of(
-            StatelessPlugin.CLUSTER_STATE_READ_WRITE_THREAD_POOL,
-            StatelessPlugin.SHARD_READ_THREAD_POOL,
-            StatelessPlugin.SHARD_WRITE_THREAD_POOL,
-            StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL,
-            StatelessPlugin.GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL,
+            StatelessThreadPools.CLUSTER_STATE_READ_WRITE_THREAD_POOL,
+            StatelessThreadPools.SHARD_READ_THREAD_POOL,
+            StatelessThreadPools.SHARD_WRITE_THREAD_POOL,
+            StatelessThreadPools.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL,
+            StatelessThreadPools.GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL,
             ThreadPool.Names.REFRESH
         );
+
+        StatelessDeterministicTaskQueue(TaskSelectionPolicy selectionPolicy) {
+            super(selectionPolicy);
+        }
 
         @Override
         public ThreadPool getThreadPool(Function<Runnable, Runnable> runnableWrapper) {
@@ -259,12 +264,12 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
     }
 
     @Override
-    protected DeterministicTaskQueue createDeterministicTaskQueue() {
-        return new StatelessDeterministicTaskQueue();
+    protected DeterministicTaskQueue createDeterministicTaskQueue(DeterministicTaskQueue.TaskSelectionPolicy selectionPolicy) {
+        return new StatelessDeterministicTaskQueue(selectionPolicy);
     }
 
     @Override
-    protected void disconnectOrRestartMasterNode() {
+    protected void disruptMasterNode() {
         testClusterNodes.randomMasterNode().ifPresent(masterNode -> {
             final String electedMasterId = masterNode.clusterService().state().nodes().getMasterNodeId();
             if (masterNode.node().getId().equals(electedMasterId)) {
@@ -441,6 +446,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             res.add(StatelessSharedBlobCacheService.STATELESS_CACHE_DEMOTE_CLOSED_SHARD_REGIONS_ENABLED_SETTING);
             res.add(StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_DELETED_INDEX_REGIONS_ENABLED_SETTING);
             res.add(StatelessPrimaryRelocationSourceService.PRE_FLUSH_SLOW_UPLOAD_QUEUE_THRESHOLD_SETTING);
+            res.add(StatelessPrimaryRelocationSourceService.PREWARM_WAIT_TIMEOUT_SETTING);
             res.add(StatelessPrimaryRelocationSourceService.TRANSFER_HOLLOW_COMMIT_METADATA_SETTING);
             res.add(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING);
             res.add(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING);
@@ -557,6 +563,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                     new StatelessCommitServiceProvider(testStatelessPlugin.statelessCommitService),
                     mock(IndexShardCacheWarmer.class),
                     HollowShardsMetrics.NOOP,
+                    primaryRelocationMetricsCollectorProvider,
                     client,
                     ByteSizeValue.ofBytes(Long.MAX_VALUE)
                 );
@@ -650,8 +657,15 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
 
             @Override
             protected AllocationService createAllocationService(Settings settings, SnapshotsInfoService snapshotsInfoService) {
+                final ClusterSettings clusterSettings = new ClusterSettings(
+                    settings,
+                    Sets.addToCopy(
+                        ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
+                        SnapshotRestoreAllocationSettings.SNAPSHOT_RESTORE_ALLOCATION_ENABLED
+                    )
+                );
                 final AllocationService allocationService = new AllocationService(
-                    randomAllocationDeciders(settings, createBuiltInClusterSettings(settings), List.of(new ClusterPlugin() {
+                    randomAllocationDeciders(settings, clusterSettings, List.of(new ClusterPlugin() {
                         @Override
                         public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
                             return List.of(new StatelessAllocationDecider());
@@ -662,9 +676,11 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                     snapshotsInfoService,
                     new StatelessShardRoutingRoleStrategy(),
                     MeterRegistry.NOOP,
-                    createBuiltInClusterSettings(settings)
+                    clusterSettings
                 );
-                allocationService.setExistingShardsAllocators(Map.of(StatelessPlugin.NAME, new StatelessExistingShardsAllocator()));
+                allocationService.setExistingShardsAllocators(
+                    Map.of(StatelessPlugin.NAME, new StatelessExistingShardsAllocator(clusterSettings))
+                );
                 return allocationService;
             }
 

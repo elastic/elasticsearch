@@ -141,3 +141,74 @@ teardown:
                         field: kw
 
   - match: { aggregations.kw_terms.buckets.0.key.kw: "kw-b" }
+
+---
+# The index sorts a document by its smallest value, but a composite terms source makes a bucket of each of its values, so
+# a multi-valued sort field must not let the aggregation skip or stop early on the index order: ["kw-a", "kw-z"] sorts
+# first and still holds the last bucket.
+"composite aggregation after on multi-valued keyword index sorted columnar field":
+  - do:
+      indices.create:
+        index: test-composite-columnar-multi
+        body:
+          settings:
+            index.mode: columnar
+            index.number_of_shards: 1
+            index.sort.field: kw
+            index.sort.order: asc
+          mappings:
+            properties:
+              kw:
+                type: keyword
+
+  - do:
+      bulk:
+        index: test-composite-columnar-multi
+        refresh: true
+        body:
+          - index: {}
+          - kw: [ "kw-a", "kw-z" ]
+          - index: {}
+          - kw: "kw-b"
+          - index: {}
+          - kw: "kw-c"
+
+  - do:
+      search:
+        index: test-composite-columnar-multi
+        body:
+          size: 0
+          aggregations:
+            kw_terms:
+              composite:
+                size: 2
+                sources:
+                  - kw:
+                      terms:
+                        field: kw
+
+  - length: { aggregations.kw_terms.buckets: 2 }
+  - match: { aggregations.kw_terms.buckets.0.key.kw: "kw-a" }
+  - match: { aggregations.kw_terms.buckets.1.key.kw: "kw-b" }
+
+  - do:
+      search:
+        index: test-composite-columnar-multi
+        body:
+          size: 0
+          aggregations:
+            kw_terms:
+              composite:
+                size: 2
+                after:
+                  kw: "kw-b"
+                sources:
+                  - kw:
+                      terms:
+                        field: kw
+
+  - length: { aggregations.kw_terms.buckets: 2 }
+  - match: { aggregations.kw_terms.buckets.0.key.kw: "kw-c" }
+  - match: { aggregations.kw_terms.buckets.0.doc_count: 1 }
+  - match: { aggregations.kw_terms.buckets.1.key.kw: "kw-z" }
+  - match: { aggregations.kw_terms.buckets.1.doc_count: 1 }

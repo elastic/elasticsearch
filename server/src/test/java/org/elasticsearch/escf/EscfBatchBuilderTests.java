@@ -9,12 +9,15 @@
 
 package org.elasticsearch.escf;
 
+import org.apache.lucene.document.column.ObjectTupleCursor;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.sourcebatch.SourceBatchEncodeHelper;
 import org.elasticsearch.sourcebatch.SourceRowToXContent;
@@ -34,6 +37,9 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class EscfBatchBuilderTests extends ESTestCase {
 
@@ -379,6 +385,203 @@ public class EscfBatchBuilderTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    public void testRamBytesUsed() {
+        int pageSize = PageCacheRecycler.BYTE_PAGE_SIZE;
+        try (EscfBatchBuilder builder = newBuilder()) {
+            assertEquals(0, builder.ramBytesUsed());
+            EscfRowBuffer row = builder.beginRow();
+            row.longField("l", 1);
+            row.stringField("s", utf8("a"));
+            row.finishRow();
+            builder.commit(0);
+            // every column holds a page from its first row
+            long oneRow = builder.ramBytesUsed();
+            assertThat(oneRow, greaterThanOrEqualTo(2L * pageSize));
+
+            int length = 100;
+            int rows = 4 * pageSize / length;
+            for (int i = 0; i < rows; i++) {
+                row = builder.beginRow();
+                row.longField("l", i);
+                row.stringField("s", utf8(randomAlphaOfLength(length)));
+                row.finishRow();
+                builder.commit(0);
+            }
+            // the string bytes, their offsets and the longs
+            assertThat(builder.ramBytesUsed(), greaterThanOrEqualTo((long) rows * (length + Integer.BYTES + Long.BYTES)));
+
+            builder.buildPartition(0).close();
+            assertEquals(0, builder.ramBytesUsed());
+        }
+    }
+
+    public void testRamBytesUsedOfALongColumn() {
+        int pageSize = PageCacheRecycler.BYTE_PAGE_SIZE;
+        int rows = between(1, 10_000);
+        try (EscfBatchBuilder builder = newBuilder()) {
+            for (int i = 0; i < rows; i++) {
+                EscfRowBuffer row = builder.beginRow();
+                row.longField("l", i);
+                row.finishRow();
+                builder.commit(0);
+            }
+            // eight bytes a row, in whole pages
+            long pages = Math.max(1, ((long) rows * Long.BYTES + pageSize - 1) / pageSize);
+            assertEquals(EscfBatch.BASE_RAM_BYTES_USED + pages * pageSize, builder.ramBytesUsed());
+        }
+    }
+
+    public void testRamBytesUsedOfABooleanColumn() {
+        int rows = between(1, 10_000);
+        try (EscfBatchBuilder builder = newBuilder()) {
+            for (int i = 0; i < rows; i++) {
+                EscfRowBuffer row = builder.beginRow();
+                // the bitset is allocated on the first true value, so the last row holds one
+                row.booleanField("b", i == rows - 1 || randomBoolean());
+                row.finishRow();
+                builder.commit(0);
+            }
+            // a bit a row, in a bitset that grows a little ahead
+            long values = builder.ramBytesUsed() - EscfBatch.BASE_RAM_BYTES_USED;
+            assertThat(values, greaterThanOrEqualTo((long) rows / Byte.SIZE));
+            assertThat(values, lessThanOrEqualTo((long) rows / Byte.SIZE * 2 + 128));
+        }
+    }
+
+    public void testRamBytesUsedOfAnArrayColumn() {
+        int pageSize = PageCacheRecycler.BYTE_PAGE_SIZE;
+        try (EscfBatchBuilder builder = newBuilder()) {
+            int rows = between(1, 100);
+            for (int i = 0; i < rows; i++) {
+                long[] longs = new long[] { i, i + 1, i + 2 };
+                byte[] packed = SourceBatchEncodeHelper.packFixedArray(SourceValueType.LONG, longs, new Object[3], 3);
+                EscfRowBuffer row = builder.beginRow();
+                row.arrayField("a", SourceValueType.FIXED_ARRAY, packed);
+                row.finishRow();
+                builder.commit(0);
+            }
+            // the elements take a page of their own
+            assertThat(builder.ramBytesUsed(), greaterThanOrEqualTo(EscfBatch.BASE_RAM_BYTES_USED + pageSize));
+        }
+    }
+
+    public void testRamBytesUsedOfAUnionColumn() {
+        int pageSize = PageCacheRecycler.BYTE_PAGE_SIZE;
+        try (EscfBatchBuilder builder = newBuilder()) {
+            int rows = between(2, 100);
+            for (int i = 0; i < rows; i++) {
+                EscfRowBuffer row = builder.beginRow();
+                // mixed kinds make a union
+                if (i % 2 == 0) {
+                    row.longField("u", i);
+                } else {
+                    row.stringField("u", utf8("v" + i));
+                }
+                row.finishRow();
+                builder.commit(0);
+            }
+            assertThat(builder.ramBytesUsed(), greaterThanOrEqualTo(EscfBatch.BASE_RAM_BYTES_USED + pageSize));
+        }
+    }
+
+    public void testRamBytesUsedCountsDoubleSpellings() {
+        int pageSize = PageCacheRecycler.BYTE_PAGE_SIZE;
+        try (EscfBatchBuilder builder = newBuilder()) {
+            EscfRowBuffer row = builder.beginRow();
+            row.doubleField("d", 1.0);
+            row.finishRow();
+            builder.commit(0);
+            long plain = builder.ramBytesUsed();
+
+            row = builder.beginRow();
+            row.doubleField("d", 1.0, utf8("1.00"));
+            row.finishRow();
+            builder.commit(0);
+            // the spellings take pages of their own
+            assertThat(builder.ramBytesUsed(), greaterThanOrEqualTo(plain + pageSize));
+        }
+    }
+
+    public void testRamBytesUsedCoversTheBuiltBatch() {
+        try (EscfBatchBuilder builder = newBuilder()) {
+            int rows = between(1, 2000);
+            for (int i = 0; i < rows; i++) {
+                EscfRowBuffer row = builder.beginRow();
+                if (randomBoolean()) {
+                    row.longField("long", i);
+                }
+                if (randomBoolean()) {
+                    row.stringField("string", utf8(randomAlphaOfLength(between(0, 20))));
+                }
+                row.booleanField("bool", randomBoolean());
+                // mixed kinds make a union
+                if (randomBoolean()) {
+                    row.longField("mixed", i);
+                } else {
+                    row.stringField("mixed", utf8("v" + i));
+                }
+                row.finishRow();
+                builder.commit(0);
+            }
+            long held = builder.ramBytesUsed();
+            try (EscfBatch batch = builder.buildPartition(0)) {
+                assertThat(held, greaterThanOrEqualTo(batch.ramBytesUsed()));
+            }
+        }
+    }
+
+    public void testStreamedBinaryMatchesCopiedBinary() throws IOException {
+        int rows = between(1, 50);
+        List<BytesRef> values = new ArrayList<>();
+        for (int i = 0; i < rows; i++) {
+            values.add(i > 0 && rarely() ? null : new BytesRef(randomByteArrayOfLength(between(0, 2048))));
+        }
+        try (EscfBatchBuilder streamed = newBuilder(); EscfBatchBuilder copied = newBuilder()) {
+            for (BytesRef value : values) {
+                EscfRowBuffer s = streamed.beginRow();
+                EscfRowBuffer c = copied.beginRow();
+                if (value != null) {
+                    s.binaryField("b", out -> out.writeBytes(value.bytes, value.offset, value.length));
+                    c.binaryField("b", value);
+                }
+                s.finishRow();
+                c.finishRow();
+                streamed.commit(0);
+                copied.commit(0);
+            }
+            try (EscfBatch s = streamed.buildPartition(0); EscfBatch c = copied.buildPartition(0)) {
+                assertEquals(EscfColumnKind.BINARY, s.column(0).kind());
+                assertEquals(binaryValues(c.column(0), rows), binaryValues(s.column(0), rows));
+            }
+        }
+    }
+
+    public void testStreamedBinaryOnUnionColumn() throws IOException {
+        try (EscfBatchBuilder builder = newBuilder()) {
+            EscfRowBuffer row = builder.beginRow();
+            row.longField("b", 1L);
+            row.finishRow();
+            builder.commit(0);
+            row = builder.beginRow();
+            row.binaryField("b", out -> out.writeBytes(new byte[] { 1, 2, 3 }, 0, 3));
+            row.finishRow();
+            builder.commit(0);
+            try (EscfBatch batch = builder.buildPartition(0)) {
+                assertEquals(2, batch.docCount());
+                assertEquals(EscfColumnKind.UNION, batch.column(0).kind());
+            }
+        }
+    }
+
+    private static List<BytesRef> binaryValues(EscfColumn column, int rows) {
+        List<BytesRef> values = new ArrayList<>(Collections.nCopies(rows, null));
+        ObjectTupleCursor<BytesRef> cursor = column.bytesRefCursor(true);
+        for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
+            values.set(doc, BytesRef.deepCopyOf(cursor.value()));
+        }
+        return values;
     }
 
     private static EscfBatchBuilder newBuilder() {

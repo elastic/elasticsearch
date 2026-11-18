@@ -16,6 +16,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -25,7 +26,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.index.query.SpanQueryBuilder.SpanQueryBuilderUtil.checkNoBoost;
 
-public class SpanFirstQueryBuilder extends LeafQueryBuilder<SpanFirstQueryBuilder> implements SpanQueryBuilder {
+public class SpanFirstQueryBuilder extends AbstractQueryBuilder<SpanFirstQueryBuilder> implements SpanQueryBuilder {
     public static final String NAME = "span_first";
 
     private static final ParseField MATCH_FIELD = new ParseField("match");
@@ -139,8 +140,8 @@ public class SpanFirstQueryBuilder extends LeafQueryBuilder<SpanFirstQueryBuilde
     }
 
     @Override
-    protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        Query innerSpanQuery = matchBuilder.toQuery(context);
+    protected Query doToQuery(SearchExecutionContext context, MaxClauseCountQueryVisitor queryVisitor) throws IOException {
+        Query innerSpanQuery = matchBuilder.toQuery(context, queryVisitor);
         assert innerSpanQuery instanceof SpanQuery;
         return new SpanFirstQuery((SpanQuery) innerSpanQuery, end);
     }

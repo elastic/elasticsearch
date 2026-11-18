@@ -178,6 +178,75 @@ name:keyword | origin:keyword | role:keyword
 t            | computed       | time
 ;
 
+describeIntervals
+required_capability: describe_command
+required_capability: describe_interval
+
+FROM k8s
+| EVAL day = DATE_TRUNC(1 day, @timestamp)
+| STATS c = COUNT(*) BY b = BUCKET(@timestamp, 1 hour), day
+| RENAME b AS hour
+| EVAL month = DATE_TRUNC(1 month, hour), bucketed_by_count = BUCKET(hour, 20, "2024-05-10T00:00:00Z", "2024-05-11T00:00:00Z")
+| DESCRIBE
+| KEEP name, role, interval, time_zone
+;
+
+name:keyword      | role:keyword | interval:keyword | time_zone:keyword
+c                 | null         | null             | null
+hour              | time         | 1 hour           | UTC
+day               | time         | 1 day            | UTC
+month             | time         | 1 month          | UTC
+bucketed_by_count | time         | null             | null
+;
+
+describeIntervalOfOtherDates
+required_capability: describe_command
+required_capability: describe_interval
+
+FROM employees
+| STATS c = COUNT(*) BY y = BUCKET(hire_date, 1 year)
+| DESCRIBE
+| KEEP name, role, interval, time_zone
+;
+
+name:keyword | role:keyword | interval:keyword | time_zone:keyword
+c            | null         | null             | null
+y            | null         | 1 year           | UTC
+;
+
+describeIntervalUnderTs
+required_capability: describe_command
+required_capability: describe_interval
+skip_flattened_rewrite: describe_sees_rewritten_field_as_computed
+
+TS k8s
+| STATS rate = SUM(RATE(network.total_bytes_in)) BY bucket = TBUCKET(5 minutes)
+| DESCRIBE
+| KEEP name, role, interval, time_zone
+;
+
+name:keyword | role:keyword | interval:keyword | time_zone:keyword
+rate         | null         | null             | null
+bucket       | time         | 5 minutes        | UTC
+;
+
+describeIntervalTimeZone
+required_capability: describe_command
+required_capability: describe_interval
+required_capability: date_trunc_timezone_support
+
+SET time_zone = "Europe/Paris"\;
+FROM k8s
+| STATS c = COUNT(*) BY week = BUCKET(@timestamp, 1 week)
+| DESCRIBE
+| KEEP name, role, interval, time_zone
+;
+
+name:keyword | role:keyword | interval:keyword | time_zone:keyword
+c            | null         | null             | null
+week         | time         | 1 week           | Europe/Paris
+;
+
 describeRolesAfterStats
 required_capability: describe_command
 skip_flattened_rewrite: describe_sees_rewritten_field_as_computed

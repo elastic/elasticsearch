@@ -9,6 +9,7 @@
 
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.internal.ElasticsearchTestBasePlugin
+import org.elasticsearch.gradle.internal.test.BwcSnapshotPins
 import org.elasticsearch.gradle.internal.test.rest.InternalJavaRestTestPlugin
 
 // Don't add default distro dependency for these projects, they're special
@@ -54,6 +55,11 @@ plugins.withType(ElasticsearchTestBasePlugin) {
     boolean bwcEnabled = project.bwc_tests_enabled
     onlyIf("BWC tests enabled") { bwcEnabled }
     nonInputProperties.systemProperty 'tests.bwc', 'true'
+    // so a failure's reproduce line runs against the snapshot this build resolved for the task's version
+    def unreleased = buildParams.bwcVersions.unreleasedInfo(Version.fromString((it.name =~ /^v([0-9\.]+)#/)[0][1]))
+    if (unreleased != null) {
+      BwcSnapshotPins.pin(it, unreleased.version().toString(), unreleased.branch())
+    }
   }
 }
 

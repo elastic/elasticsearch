@@ -174,6 +174,27 @@ if [[ "${USE_MAVEN_S3_CREDENTIALS:-}" == "true" ]]; then
   unset aws_creds
 fi
 
+# Known-good DRA snapshot builds for bwc tests (.buildkite/scripts/bwc-snapshots/known-good.ts), one object per
+# branch in a publicly readable GCS bucket, so reading needs no credentials. With BWC_KNOWN_GOOD_BUCKET unset, there is
+# no gating. Intake steps with USE_BWC_KNOWN_GOOD_CREDENTIALS=true (pipeline generation, promotion) write with gsutil
+# as the writer service account, activated in a gcloud config of their own. Restricted to intake, since pull request
+# builds control their own step env.
+export BWC_KNOWN_GOOD_BUCKET="${BWC_KNOWN_GOOD_BUCKET:-}"
+if [[ -n "$BWC_KNOWN_GOOD_BUCKET" && "${USE_BWC_KNOWN_GOOD_CREDENTIALS:-}" == "true" ]]; then
+  if [[ "${BUILDKITE_PIPELINE_SLUG:-}" != "elasticsearch-intake" ]]; then
+    echo "USE_BWC_KNOWN_GOOD_CREDENTIALS=true is only permitted on elasticsearch-intake (got '${BUILDKITE_PIPELINE_SLUG:-<unset>}')" >&2
+    exit 1
+  fi
+  bwc_known_good_key="$(mktemp)"
+  vault_with_retry read -field=private_key_data "${BWC_KNOWN_GOOD_WRITER_VAULT_PATH:-gcp-elastic-ci-prod/key/elasticsearch-ci-bwc-known-good}" \
+    | base64 --decode > "$bwc_known_good_key"
+  CLOUDSDK_CONFIG="$(mktemp -d)"
+  export CLOUDSDK_CONFIG
+  gcloud auth activate-service-account --key-file "$bwc_known_good_key" --quiet
+  rm -f "$bwc_known_good_key"
+  unset bwc_known_good_key
+fi
+
 source .buildkite/scripts/third-party-test-credentials.sh
 
 if [[ "${USE_SNYK_CREDENTIALS:-}" == "true" ]]; then

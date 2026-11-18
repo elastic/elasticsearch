@@ -206,40 +206,13 @@ steps:
         - exit_status: "1"
           limit: 1
 
-  - group: bwc-snapshots
-    steps:
-      - label: "{{matrix.BWC_VERSION}} / bwc-snapshots"
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints -Dtests.bwc.mode=auto v$$BWC_VERSION#bwcTest
-        timeout_in_minutes: 300
-        matrix:
-          setup:
-            BWC_VERSION: ["8.19.26", "9.4.10", "9.5.7", "9.6.0", "9.7.0"]
-        agents:
-          provider: gcp
-          image: family/elasticsearch-ubuntu-2404
-          machineType: n4-standard-16
-          preemptible: true
-          spotZones: "asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c"
-          diskType: hyperdisk-balanced
-          buildDirectory: /dev/shm/bk
-        env:
-          BWC_VERSION: "{{matrix.BWC_VERSION}}"
-        retry:
-          manual:
-            reason: Retry with smart test selection if desired
-            allowed: true
-            permit_on_passed: false
-          automatic:
-            - limit: 2
-              exit_status: "-1"
-              signal_reason: none
-            - limit: 3
-              exit_status: "47"
-              signal_reason: none
-            - limit: 2
-              signal_reason: agent_stop
-            - exit_status: "1"
-              limit: 1
+  # Generates the bwc-snapshots group: each version pinned to its known-good DRA build, plus candidate runs that
+  # promote newer builds. See .buildkite/scripts/bwc-snapshots/known-good.ts.
+  - label: bwc-snapshots pipeline
+    command: node .buildkite/scripts/bwc-snapshots/cli.ts intake-pipeline
+    timeout_in_minutes: 10
+    env:
+      USE_BWC_KNOWN_GOOD_CREDENTIALS: "true"
   - label: bc-upgrade
     command: ".buildkite/scripts/run-bc-upgrade-tests.sh"
   - group: lucene-compat

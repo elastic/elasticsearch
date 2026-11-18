@@ -1,13 +1,18 @@
 import { beforeEach, describe, expect, test } from "vitest";
 
 import { generatePipelines } from "./pipeline.ts";
-import { setBwcVersionsPath, setSnapshotBwcVersionsPath } from "./bwc-versions.ts";
+import {
+  setBwcVersionsPath,
+  setIncludedSnapshotBwcVersions,
+  setSnapshotBwcVersionsPath,
+} from "./bwc-versions.ts";
 import { setBranchesJson } from "./later-branches.ts";
 
 describe("generatePipelines", () => {
   beforeEach(() => {
     setBwcVersionsPath(`${import.meta.dirname}/mocks/bwcVersions`);
     setSnapshotBwcVersionsPath(`${import.meta.dirname}/mocks/snapshotBwcVersions`);
+    setIncludedSnapshotBwcVersions(undefined);
 
     setBranchesJson({
       branches: [
@@ -201,5 +206,31 @@ describe("generatePipelines", () => {
 
   test("should not include a pipeline when no changed file is in an included region", () => {
     expect(anyIncludedRegionPipeline(["build.gradle"])).toBeUndefined();
+  });
+
+  test("should run bwc snapshot jobs in dra mode, which reads the known-good builds itself", () => {
+    const pipelines = generatePipelines(`${import.meta.dirname}/mocks/pipelines`, ["build.gradle"]);
+    const bwc = pipelines.find((p) => p.name === "bwc-snapshots");
+
+    expect(bwc?.pipeline.steps?.[0]?.steps?.[0]?.command).toBe(
+      ".ci/scripts/run-gradle.sh -Dignore.tests.seed -Dtests.bwc.mode=dra v{{matrix.BWC_VERSION}}#bwcTest",
+    );
+  });
+
+  test("should leave bwc snapshot versions without a known-good build out of the matrix", () => {
+    setIncludedSnapshotBwcVersions(["7.17.14", "8.11.0"]);
+
+    const pipelines = generatePipelines(`${import.meta.dirname}/mocks/pipelines`, ["build.gradle"]);
+    const bwc = pipelines.find((p) => p.name === "bwc-snapshots");
+
+    expect(bwc?.pipeline.steps?.[0]?.steps?.[0]?.matrix).toEqual({ setup: { BWC_VERSION: ["7.17.14", "8.11.0"] } });
+  });
+
+  test("should drop the bwc snapshot pipeline when no version is included", () => {
+    setIncludedSnapshotBwcVersions([]);
+
+    const pipelines = generatePipelines(`${import.meta.dirname}/mocks/pipelines`, ["build.gradle"]);
+
+    expect(pipelines.map((p) => p.name)).not.toContain("bwc-snapshots");
   });
 });

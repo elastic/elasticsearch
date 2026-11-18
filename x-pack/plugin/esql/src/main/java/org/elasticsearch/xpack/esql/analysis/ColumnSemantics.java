@@ -32,6 +32,8 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
+import java.util.function.BinaryOperator;
 
 /**
  * Links the columns of a plan back to the {@link FieldSemantics} of the mapped fields they read.
@@ -71,7 +73,7 @@ public final class ColumnSemantics {
                 }
             }
         });
-        followAliases(plan, semantics);
+        followAliases(plan, semantics, FieldSemantics::merge);
         return semantics;
     }
 
@@ -86,16 +88,16 @@ public final class ColumnSemantics {
                 columns.put(attribute.id(), attribute);
             }
         });
-        followAliases(plan, columns);
+        followAliases(plan, columns, (a, b) -> a.equals(b) ? a : null);
         return columns;
     }
 
     /**
      * RENAME and pass-through aliases keep what is known about the column they point at, and so do the grouping keys
      * of a translated {@code TS} aggregation, which are read per series and may be packed into one column. The columns
-     * of a {@link MergePlan} keep what their branches agree on.
+     * of a {@link MergePlan} keep what {@code combine} makes of their branches.
      */
-    private static <T> void followAliases(LogicalPlan plan, Map<NameId, T> known) {
+    private static <T> void followAliases(LogicalPlan plan, Map<NameId, T> known, BinaryOperator<T> combine) {
         // Grouping keys read per series, and packed dimensions, by the attribute that holds them.
         Map<NameId, NameId> groupingValues = new HashMap<>();
         Map<NameId, List<NameId>> packed = new HashMap<>();
@@ -139,16 +141,37 @@ public final class ColumnSemantics {
                     }
                 }
             } else if (node instanceof MergePlan merge) {
-                mergeBranches(merge, known);
+                mergeBranches(merge, known, combine);
             }
         });
     }
 
     /**
      * A column of a {@link MergePlan} (views next to indices, {@code FORK}, subqueries) keeps what is known about
-     * the same-named column of its branches when every branch that has the column knows it and they agree.
+     * the same-named column of its branches when every branch that has the column knows it and {@code combine},
+     * applied pairwise, does not return null.
      */
-    static <T> void mergeBranches(MergePlan merge, Map<NameId, T> known) {
+    static <T> void mergeBranches(MergePlan merge, Map<NameId, T> known, BinaryOperator<T> combine) {
+        forEachMergedColumn(merge, (column, sources) -> {
+            T merged = null;
+            for (NameId source : sources) {
+                T value = known.get(source);
+                merged = value == null ? null : merged == null ? value : combine.apply(merged, value);
+                if (merged == null) {
+                    return;
+                }
+            }
+            if (merged != null) {
+                known.put(column.id(), merged);
+            }
+        });
+    }
+
+    /**
+     * Calls {@code consumer} with every column of {@code merge} and the ids of the same-named column of the branches
+     * that have it.
+     */
+    static void forEachMergedColumn(MergePlan merge, BiConsumer<Attribute, List<NameId>> consumer) {
         List<Map<String, Attribute>> branches = new ArrayList<>(merge.children().size());
         for (LogicalPlan branch : merge.children()) {
             Map<String, Attribute> byName = new HashMap<>();
@@ -158,22 +181,14 @@ public final class ColumnSemantics {
             branches.add(byName);
         }
         for (Attribute column : merge.output()) {
-            T agreed = null;
+            List<NameId> sources = new ArrayList<>(branches.size());
             for (Map<String, Attribute> branch : branches) {
                 Attribute source = branch.get(column.name());
-                if (source == null) {
-                    continue;
+                if (source != null) {
+                    sources.add(source.id());
                 }
-                T value = known.get(source.id());
-                if (value == null || (agreed != null && agreed.equals(value) == false)) {
-                    agreed = null;
-                    break;
-                }
-                agreed = value;
             }
-            if (agreed != null) {
-                known.put(column.id(), agreed);
-            }
+            consumer.accept(column, sources);
         }
     }
 

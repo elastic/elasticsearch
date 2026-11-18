@@ -375,6 +375,15 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
         this.memoryHeldMeter.add(bytes, heldAttributes(label));
     }
 
+    /**
+     * Moves the bytes in the held gauge only. The used bytes do not change, not even briefly.
+     */
+    @Override
+    public void moveHeld(long bytes, String fromLabel, String toLabel) {
+        recordHeldDelta(bytes, toLabel);
+        recordHeldDelta(-bytes, fromLabel);
+    }
+
     private void adjustUsedBytes(long bytes) {
         long u = used.addAndGet(bytes);
         if (logger.isTraceEnabled()) {

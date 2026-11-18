@@ -590,15 +590,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
 
         final var dataStreamName = randomIdentifier();
         final int numShards = randomIntBetween(1, 10);
-        putDataStreamTemplate(
-            dataStreamName,
-            numShards,
-            0,
-            // TODO: batch indexing writes the TSDB routing hash into translog operations, where doc-mode writes null routing
-            // Fix this so that we can use a random batch indexing setting here too
-            Settings.builder().put(IndexSettings.BATCH_INDEXING.getKey(), false).build(),
-            useNestedDocs
-        );
+        putDataStreamTemplate(dataStreamName, numShards, 0, randomBatchIndexing(Settings.builder()).build(), useNestedDocs);
 
         final var docsIndices = new HashSet<String>();
         final var docsIndicesById = new HashMap<String, String>();
@@ -837,13 +829,11 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             dataStreamName,
             1,
             0,
-            Settings.builder()
-                .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
-                .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.PB))
-                // TODO: batch indexing writes the TSDB routing hash into translog operations, where doc-mode writes null routing
-                // Fix this so that we can use a random batch indexing setting here too
-                .put(IndexSettings.BATCH_INDEXING.getKey(), false)
-                .build(),
+            randomBatchIndexing(
+                Settings.builder()
+                    .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
+                    .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.PB))
+            ).build(),
             useNestedDocs
         );
 

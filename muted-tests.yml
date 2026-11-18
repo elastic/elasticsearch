@@ -432,11 +432,6 @@ tests:
   tasks:
   - :qa:smoke-test-multinode:yamlRestTest
   issue: https://github.com/elastic/elasticsearch/issues/164771
-- class: org.elasticsearch.index.codec.vectors.ash.AsymmetricHashingQuantizerTests
-  tasks:
-  - :server:test
-  method: testReconstructedDotProductApproximatesTrueDotProduct
-  issue: https://github.com/elastic/elasticsearch/issues/164839
 - class: org.elasticsearch.xpack.esql.qa.single_node.PushQueriesStringIT
   tasks:
   - :x-pack:plugin:esql:qa:server:single-node:javaRestTest
@@ -648,3 +643,18 @@ tests:
   - :server:internalClusterTest
   method: testDirectoryMetricsLocalAndRemoteMinimizeRoundtripsTrue
   issue: https://github.com/elastic/elasticsearch/issues/166260
+- class: org.elasticsearch.action.search.QueryPhaseTopHitsLeakIT
+  tasks:
+  - :server:internalClusterTest
+  method: testTopHitsReleasedAfterSuccessfulHighlight
+  issue: https://github.com/elastic/elasticsearch/issues/166292
+- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
+  tasks:
+  - :x-pack:qa:multi-project:core-rest-tests-with-multiple-projects:yamlRestTest
+  method: test {yaml=data_stream/150_tsdb/dynamic templates with incremental indexing}
+  issue: https://github.com/elastic/elasticsearch/issues/166322
+- class: org.elasticsearch.xpack.esql.action.SubPlanResultLimitIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testOversizedInSubqueryFailsBeforeReadingAllInput
+  issue: https://github.com/elastic/elasticsearch/issues/166371

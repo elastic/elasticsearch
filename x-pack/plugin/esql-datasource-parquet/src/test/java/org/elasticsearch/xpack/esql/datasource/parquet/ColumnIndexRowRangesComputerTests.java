@@ -368,19 +368,55 @@ public class ColumnIndexRowRangesComputerTests extends ESTestCase {
         assertTrue("NaN-min page must be kept conservatively", result.overlaps(3L * PAGE_SIZE, 4L * PAGE_SIZE));
     }
 
-    public void testNotEqKeepsNaNStatsPagesConservatively() {
-        // NaN stats can never be proven equal to the value, so NotEq cannot prune NaN-stats pages.
-        // The constant value-50 page (min == max == 50) is the only one safely prunable.
-        double[] mins = { 50.0, -5.0, Double.NaN };
-        double[] maxes = { 50.0, Double.NaN, 60.0 };
+    public void testNotEqKeepsConstantDoublePageBecauseNanMayHide() {
+        // Parquet min/max omit NaN, so a min==max==50 page can still hold a NaN row that
+        // satisfies != 50. DOUBLE NotEq therefore keeps every page.
+        double[] mins = { 50.0, 5.0, Double.NaN };
+        double[] maxes = { 50.0, 5.0, 60.0 };
         PreloadedRowGroupMetadata metadata = buildDoubleMetadataExplicit("score", mins, maxes, PAGE_SIZE);
         FilterPredicate pred = FilterApi.notEq(FilterApi.doubleColumn("score"), 50.0);
 
         RowRanges result = ColumnIndexRowRangesComputer.compute(pred, metadata, 0, 3L * PAGE_SIZE);
 
-        assertFalse("Constant value-50 page must be pruned by NotEq(50)", result.overlaps(0, PAGE_SIZE));
-        assertTrue("NaN-max page must be kept conservatively", result.overlaps(PAGE_SIZE, 2L * PAGE_SIZE));
+        assertTrue("Constant value-50 page must be kept: it may hide NaN", result.overlaps(0, PAGE_SIZE));
+        assertTrue("Constant value-5 page must be kept by NotEq(50)", result.overlaps(PAGE_SIZE, 2L * PAGE_SIZE));
         assertTrue("NaN-min page must be kept conservatively", result.overlaps(2L * PAGE_SIZE, 3L * PAGE_SIZE));
+    }
+
+    public void testEqKeepsNegativeZeroPageForPositiveZeroLiteral() {
+        double[] mins = { -0.0, 1.0 };
+        double[] maxes = { -0.0, 1.0 };
+        PreloadedRowGroupMetadata metadata = buildDoubleMetadataExplicit("score", mins, maxes, PAGE_SIZE);
+        FilterPredicate pred = FilterApi.eq(FilterApi.doubleColumn("score"), 0.0);
+
+        RowRanges result = ColumnIndexRowRangesComputer.compute(pred, metadata, 0, 2L * PAGE_SIZE);
+
+        assertTrue("IEEE == treats -0.0 as 0.0, so the -0.0 page must be kept", result.overlaps(0, PAGE_SIZE));
+        assertFalse("Finite non-zero page must be excluded", result.overlaps(PAGE_SIZE, 2L * PAGE_SIZE));
+    }
+
+    public void testGtEqKeepsNegativeZeroPageForPositiveZeroLiteral() {
+        double[] mins = { -0.0, -1.0 };
+        double[] maxes = { -0.0, -1.0 };
+        PreloadedRowGroupMetadata metadata = buildDoubleMetadataExplicit("score", mins, maxes, PAGE_SIZE);
+        FilterPredicate pred = FilterApi.gtEq(FilterApi.doubleColumn("score"), 0.0);
+
+        RowRanges result = ColumnIndexRowRangesComputer.compute(pred, metadata, 0, 2L * PAGE_SIZE);
+
+        assertTrue("IEEE >= treats -0.0 as 0.0, so the -0.0 page must be kept", result.overlaps(0, PAGE_SIZE));
+        assertFalse("Page whose max is -1.0 must be excluded", result.overlaps(PAGE_SIZE, 2L * PAGE_SIZE));
+    }
+
+    public void testLtEqKeepsPositiveZeroPageForNegativeZeroLiteral() {
+        double[] mins = { 0.0, 1.0 };
+        double[] maxes = { 0.0, 1.0 };
+        PreloadedRowGroupMetadata metadata = buildDoubleMetadataExplicit("score", mins, maxes, PAGE_SIZE);
+        FilterPredicate pred = FilterApi.ltEq(FilterApi.doubleColumn("score"), -0.0);
+
+        RowRanges result = ColumnIndexRowRangesComputer.compute(pred, metadata, 0, 2L * PAGE_SIZE);
+
+        assertTrue("IEEE <= treats 0.0 as -0.0, so the +0.0 page must be kept", result.overlaps(0, PAGE_SIZE));
+        assertFalse("Page whose min is 1.0 must be excluded", result.overlaps(PAGE_SIZE, 2L * PAGE_SIZE));
     }
 
     // -----------------------------------------------------------------------------------

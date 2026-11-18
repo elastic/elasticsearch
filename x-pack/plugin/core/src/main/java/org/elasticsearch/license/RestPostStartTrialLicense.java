@@ -18,10 +18,13 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestPostStartTrialLicense extends BaseRestHandler {
+
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of(RestUtils.REST_MASTER_TIMEOUT_PARAM, "type", "acknowledge");
 
     public RestPostStartTrialLicense() {}
 
@@ -67,6 +70,11 @@ public class RestPostStartTrialLicense extends BaseRestHandler {
     @Override
     public String getName() {
         return "post_start_trial";
+    }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return SUPPORTED_QUERY_PARAMETERS;
     }
 
 }

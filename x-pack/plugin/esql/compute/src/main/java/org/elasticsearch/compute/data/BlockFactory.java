@@ -71,8 +71,13 @@ public class BlockFactory {
     private final BigArrays bigArrays;
     private final long maxPrimitiveArrayBytes;
     private final BlockFactory parent;
+    /**
+     * The factory whose Arrow allocator this root factory uses. Set on the factories of {@link #newQueryFactory}.
+     */
+    private final BlockFactory arrowAllocatorOwner;
     private final long bytesRefRamOverestimateThreshold;
     private final double bytesRefRamOverestimateFactor;
+    private final LocalArrayPool localPool;
     protected volatile BufferAllocator arrowAllocator;
     private static final Cleaner cleaner = Cleaner.create();
 
@@ -84,6 +89,11 @@ public class BlockFactory {
     }
 
     protected BlockFactory(BlockFactoryBuilder builder, BlockFactory parent) {
+        this(builder, parent, null);
+    }
+
+    protected BlockFactory(BlockFactoryBuilder builder, BlockFactory parent, BlockFactory arrowAllocatorOwner) {
+        this.arrowAllocatorOwner = arrowAllocatorOwner;
         this.bigArrays = builder.bigArrays;
         this.breaker = builder.breaker == null ? bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST) : builder.breaker;
         this.maxPrimitiveArrayBytes = builder.maxPrimitiveArraySize;
@@ -93,6 +103,7 @@ public class BlockFactory {
         assert breaker instanceof LocalCircuitBreaker == false
             || (parent != null && ((LocalCircuitBreaker) builder.breaker).parentBreaker() == parent.breaker)
             : "use local breaker without parent block factory";
+        this.localPool = breaker instanceof LocalCircuitBreaker localBreaker ? localBreaker.pool() : null;
     }
 
     public BlockFactory(CircuitBreaker breaker, BigArrays bigArrays) {
@@ -122,7 +133,7 @@ public class BlockFactory {
         if (arrowAllocator == null) {
             synchronized (this) {
                 if (arrowAllocator == null) {
-                    if (this.parent == null) {
+                    if (this.parent == null && arrowAllocatorOwner == null) {
                         // Root block factory
                         var listener = new CircuitBreakerAllocationListener(breaker);
                         var allocator = new RootAllocator(listener, Long.MAX_VALUE, EXACT_FIT_ROUNDING_POLICY);
@@ -146,7 +157,7 @@ public class BlockFactory {
     protected BufferAllocator childFactoryAllocator() {
         // Store it locally to avoid crawling the parent chain every time we need it.
         // Overridden in tests
-        return parent.arrowAllocator();
+        return parent != null ? parent.arrowAllocator() : arrowAllocatorOwner.arrowAllocator();
     }
 
     // For testing
@@ -175,6 +186,22 @@ public class BlockFactory {
 
     public double bytesRefRamOverestimateFactor() {
         return bytesRefRamOverestimateFactor;
+    }
+
+    /**
+     * A root factory for the blocks of one query. It allocates through {@code breaker} and {@code bigArrays}. Arrow
+     * buffers still come from this factory's allocator.
+     */
+    public BlockFactory newQueryFactory(CircuitBreaker breaker, BigArrays bigArrays) {
+        return new BlockFactory(
+            BlockFactory.builder(bigArrays)
+                .breaker(breaker)
+                .maxPrimitiveArraySize(maxPrimitiveArrayBytes)
+                .bytesRefRamOverestimateThreshold(bytesRefRamOverestimateThreshold)
+                .bytesRefRamOverestimateFactor(bytesRefRamOverestimateFactor),
+            null,
+            this
+        );
     }
 
     public BlockFactory newChildFactory(LocalCircuitBreaker childBreaker) {
@@ -285,8 +312,15 @@ public class BlockFactory {
         return v;
     }
 
-    public IntBlock.Builder newIntBlockBuilder(int estimatedSize) {
-        return new IntBlockBuilder(estimatedSize, this);
+    public final IntBlock.Builder newIntBlockBuilder(int estimatedSize) {
+        return newIntBlockBuilder(estimatedSize, false);
+    }
+
+    /**
+     * @param enablePooling Use this for short-lived blocks to let the driver reuse the backing arrays
+     */
+    public IntBlock.Builder newIntBlockBuilder(int estimatedSize, boolean enablePooling) {
+        return new IntBlockBuilder(estimatedSize, this, enablePooling && localPool != null);
     }
 
     public final IntBlock newIntArrayBlock(int[] values, int positionCount, int[] firstValueIndexes, BitSet nulls, MvOrdering mvOrdering) {
@@ -306,8 +340,15 @@ public class BlockFactory {
     /**
      * Build a {@link IntVector.FixedBuilder} that never grows.
      */
-    public IntVector.FixedBuilder newIntVectorFixedBuilder(int size) {
-        return new IntVectorFixedBuilder(size, this);
+    public final IntVector.FixedBuilder newIntVectorFixedBuilder(int size) {
+        return newIntVectorFixedBuilder(size, false);
+    }
+
+    /**
+     * @param enablePooling Use this for short-lived vectors to let the driver reuse the backing array
+     */
+    public IntVector.FixedBuilder newIntVectorFixedBuilder(int size, boolean enablePooling) {
+        return new IntVectorFixedBuilder(size, this, enablePooling && localPool != null);
     }
 
     /**
@@ -408,8 +449,15 @@ public class BlockFactory {
         return v;
     }
 
-    public LongBlock.Builder newLongBlockBuilder(int estimatedSize) {
-        return new LongBlockBuilder(estimatedSize, this);
+    public final LongBlock.Builder newLongBlockBuilder(int estimatedSize) {
+        return newLongBlockBuilder(estimatedSize, false);
+    }
+
+    /**
+     * @param enablePooling Use this for short-lived blocks to let the driver reuse the backing arrays
+     */
+    public LongBlock.Builder newLongBlockBuilder(int estimatedSize, boolean enablePooling) {
+        return new LongBlockBuilder(estimatedSize, this, enablePooling && localPool != null);
     }
 
     public final LongBlock newLongArrayBlock(long[] values, int pc, int[] firstValueIndexes, BitSet nulls, MvOrdering mvOrdering) {
@@ -429,8 +477,15 @@ public class BlockFactory {
     /**
      * Build a {@link LongVector.FixedBuilder} that never grows.
      */
-    public LongVector.FixedBuilder newLongVectorFixedBuilder(int size) {
-        return new LongVectorFixedBuilder(size, this);
+    public final LongVector.FixedBuilder newLongVectorFixedBuilder(int size) {
+        return newLongVectorFixedBuilder(size, false);
+    }
+
+    /**
+     * @param enablePooling Use this for short-lived vectors to let the driver reuse the backing array
+     */
+    public LongVector.FixedBuilder newLongVectorFixedBuilder(int size, boolean enablePooling) {
+        return new LongVectorFixedBuilder(size, this, enablePooling && localPool != null);
     }
 
     public final LongVector newLongArrayVector(long[] values, int positionCount) {
@@ -462,8 +517,15 @@ public class BlockFactory {
         return v;
     }
 
-    public DoubleBlock.Builder newDoubleBlockBuilder(int estimatedSize) {
-        return new DoubleBlockBuilder(estimatedSize, this);
+    public final DoubleBlock.Builder newDoubleBlockBuilder(int estimatedSize) {
+        return newDoubleBlockBuilder(estimatedSize, false);
+    }
+
+    /**
+     * @param enablePooling Use this for short-lived blocks to let the driver reuse the backing arrays
+     */
+    public DoubleBlock.Builder newDoubleBlockBuilder(int estimatedSize, boolean enablePooling) {
+        return new DoubleBlockBuilder(estimatedSize, this, enablePooling && localPool != null);
     }
 
     public final DoubleBlock newDoubleArrayBlock(double[] values, int pc, int[] firstValueIndexes, BitSet nulls, MvOrdering mvOrdering) {
@@ -484,8 +546,15 @@ public class BlockFactory {
     /**
      * Build a {@link DoubleVector.FixedBuilder} that never grows.
      */
-    public DoubleVector.FixedBuilder newDoubleVectorFixedBuilder(int size) {
-        return new DoubleVectorFixedBuilder(size, this);
+    public final DoubleVector.FixedBuilder newDoubleVectorFixedBuilder(int size) {
+        return newDoubleVectorFixedBuilder(size, false);
+    }
+
+    /**
+     * @param enablePooling Use this for short-lived vectors to let the driver reuse the backing array
+     */
+    public DoubleVector.FixedBuilder newDoubleVectorFixedBuilder(int size, boolean enablePooling) {
+        return new DoubleVectorFixedBuilder(size, this, enablePooling && localPool != null);
     }
 
     public final DoubleVector newDoubleArrayVector(double[] values, int positionCount) {
@@ -764,5 +833,60 @@ public class BlockFactory {
             return ByteSizeValue.ofMb(2);
         }
         return ByteSizeValue.ofMb(4);
+    }
+
+    public boolean hasLocalPool() {
+        return localPool != null;
+    }
+
+    public final long[] acquireLongs(int size) {
+        final long[] arr = localPool != null ? localPool.pollLongs(size) : null;
+        if (arr != null) {
+            return arr;
+        }
+        breaker.addEstimateBytesAndMaybeBreak(LocalArrayPool.usedBytesForLongs(size), "<esql_block_factory>");
+        return new long[size];
+    }
+
+    public final void recycleLongs(long[] values) {
+        if (localPool != null) {
+            localPool.recycleLongs(values);
+        } else {
+            breaker.addWithoutBreaking(-LocalArrayPool.usedBytesForLongs(values.length));
+        }
+    }
+
+    public final int[] acquireInts(int size) {
+        final int[] arr = localPool != null ? localPool.pollInts(size) : null;
+        if (arr != null) {
+            return arr;
+        }
+        breaker.addEstimateBytesAndMaybeBreak(LocalArrayPool.usedBytesForInts(size), "<esql_block_factory>");
+        return new int[size];
+    }
+
+    public final void recycleInts(int[] values) {
+        if (localPool != null) {
+            localPool.recycleInts(values);
+        } else {
+            breaker.addWithoutBreaking(-LocalArrayPool.usedBytesForInts(values.length));
+        }
+    }
+
+    public final double[] acquireDoubles(int size) {
+        final double[] arr = localPool != null ? localPool.pollDoubles(size) : null;
+        if (arr != null) {
+            return arr;
+        }
+        breaker.addEstimateBytesAndMaybeBreak(LocalArrayPool.usedBytesForDoubles(size), "<esql_block_factory>");
+        return new double[size];
+    }
+
+    public final void recycleDoubles(double[] values) {
+        if (localPool != null) {
+            localPool.recycleDoubles(values);
+        } else {
+            breaker.addWithoutBreaking(-LocalArrayPool.usedBytesForDoubles(values.length));
+        }
     }
 }

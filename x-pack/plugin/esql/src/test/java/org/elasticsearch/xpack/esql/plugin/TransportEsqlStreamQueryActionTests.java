@@ -788,7 +788,7 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
     }
 
     private static DriverCompletionInfo usageWithBytesRead(long bytesRead) {
-        return new DriverCompletionInfo(0, 0, 0, bytesRead, 0, 0, 0, 0, List.of(), List.of(), Map.of(), false, false, Set.of());
+        return new DriverCompletionInfo(0, 0, 0, bytesRead, 0, 0, 0, 0, 0, 0, 0, List.of(), List.of(), Map.of(), false, false, Set.of());
     }
 
     /**

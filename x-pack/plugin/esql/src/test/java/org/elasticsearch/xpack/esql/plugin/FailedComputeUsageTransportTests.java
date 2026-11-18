@@ -54,7 +54,7 @@ public class FailedComputeUsageTransportTests extends ESTestCase {
     }
 
     private static DriverCompletionInfo usage() {
-        return new DriverCompletionInfo(1, 2, 3, 4_000, 50, 6, 70, 80, List.of(), List.of(), Map.of(), false, false, Set.of());
+        return new DriverCompletionInfo(1, 2, 3, 4_000, 50, 6, 70, 80, 0, 0, 0, List.of(), List.of(), Map.of(), false, false, Set.of());
     }
 
     public void testUsageArrivesFromAnotherNode() throws Exception {

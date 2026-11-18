@@ -34,9 +34,9 @@ final class FailedComputeUsageHeader {
     private static final Logger logger = LogManager.getLogger(FailedComputeUsageHeader.class);
 
     static final String NAME = "X-Elasticsearch-Esql-Failed-Compute-Usage";
-    private static final String FORMAT = "1:";
+    private static final String FORMAT = "2:";
     /** The counters of {@link DriverCompletionInfo} that add up: see {@link #write} and {@link #take}. */
-    static final int FIELDS = 8;
+    static final int FIELDS = 11;
 
     private FailedComputeUsageHeader() {}
 
@@ -53,7 +53,10 @@ final class FailedComputeUsageHeader {
             usage.readNanos(),
             usage.readCpuNanos(),
             usage.cpuNanos(),
-            usage.driverNanos() };
+            usage.driverNanos(),
+            usage.searchLoadNanos(),
+            usage.searchCpuNanos(),
+            usage.searchWaitingNanos() };
         boolean empty = true;
         StringBuilder value = new StringBuilder(FORMAT);
         for (int i = 0; i < fields.length; i++) {
@@ -95,6 +98,9 @@ final class FailedComputeUsageHeader {
             sum[5],
             sum[6],
             sum[7],
+            sum[8],
+            sum[9],
+            sum[10],
             List.of(),
             List.of(),
             Map.of(),

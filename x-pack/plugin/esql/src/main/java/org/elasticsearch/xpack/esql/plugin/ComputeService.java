@@ -2408,7 +2408,7 @@ public class ComputeService {
         });
         return ActionListener.wrap(
             onDriversSucceeded::onResponse,
-            e -> failWithUsage(listener, e, drivers, planningBytesRead, approximated)
+            e -> failWithUsage(listener, e, drivers, planningBytesRead, context.queryLoad(), approximated)
         );
     }
 
@@ -2422,10 +2422,11 @@ public class ComputeService {
         Exception e,
         List<Driver> drivers,
         long planningBytesRead,
+        QueryLoad computeLoad,
         boolean approximated
     ) {
         if (listener instanceof ComputeCompletionListener completionListener) {
-            completionListener.onFailure(e, usageOfFailedDrivers(drivers, planningBytesRead, approximated));
+            completionListener.onFailure(e, usageOfFailedDrivers(drivers, planningBytesRead, computeLoad, approximated));
         } else {
             listener.onFailure(e);
         }
@@ -2437,9 +2438,14 @@ public class ComputeService {
      * {@link DriverCompletionInfo#excludingProfiles} asserts. If reading it throws, the failure of the compute is what matters, so
      * the usage of all the drivers is reported as nothing.
      */
-    private static DriverCompletionInfo usageOfFailedDrivers(List<Driver> drivers, long planningBytesRead, boolean approximated) {
+    private static DriverCompletionInfo usageOfFailedDrivers(
+        List<Driver> drivers,
+        long planningBytesRead,
+        QueryLoad computeLoad,
+        boolean approximated
+    ) {
         try {
-            return DriverCompletionInfo.excludingProfiles(drivers, planningBytesRead, approximated);
+            return DriverCompletionInfo.excludingProfiles(drivers, planningBytesRead, computeLoad, approximated);
         } catch (Exception e) {
             LOGGER.debug("failed to read the usage of the drivers of a failed compute", e);
             return DriverCompletionInfo.EMPTY;

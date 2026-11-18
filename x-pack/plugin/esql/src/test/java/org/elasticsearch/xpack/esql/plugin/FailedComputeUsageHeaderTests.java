@@ -32,6 +32,9 @@ public class FailedComputeUsageHeaderTests extends ESTestCase {
             base + 5,
             base + 6,
             base + 7,
+            base + 8,
+            base + 9,
+            base + 10,
             List.of(),
             List.of(),
             Map.of(),
@@ -50,6 +53,9 @@ public class FailedComputeUsageHeaderTests extends ESTestCase {
         assertThat(actual.readCpuNanos(), equalTo(expected.readCpuNanos()));
         assertThat(actual.cpuNanos(), equalTo(expected.cpuNanos()));
         assertThat(actual.driverNanos(), equalTo(expected.driverNanos()));
+        assertThat(actual.searchLoadNanos(), equalTo(expected.searchLoadNanos()));
+        assertThat(actual.searchCpuNanos(), equalTo(expected.searchCpuNanos()));
+        assertThat(actual.searchWaitingNanos(), equalTo(expected.searchWaitingNanos()));
     }
 
     public void testRoundTrip() {
@@ -84,9 +90,9 @@ public class FailedComputeUsageHeaderTests extends ESTestCase {
 
     public void testValuesThatCannotBeReadAreIgnoredAndStillRemoved() {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        threadContext.addResponseHeader(FailedComputeUsageHeader.NAME, "2:1,2,3,4,5,6,7,8");
-        threadContext.addResponseHeader(FailedComputeUsageHeader.NAME, "1:1,2,3");
-        threadContext.addResponseHeader(FailedComputeUsageHeader.NAME, "1:1,2,3,4,5,6,7,eight");
+        threadContext.addResponseHeader(FailedComputeUsageHeader.NAME, "3:1,2,3,4,5,6,7,8,9,10,11");
+        threadContext.addResponseHeader(FailedComputeUsageHeader.NAME, "2:1,2,3");
+        threadContext.addResponseHeader(FailedComputeUsageHeader.NAME, "2:1,2,3,4,5,6,7,8,9,10,eleven");
         FailedComputeUsageHeader.write(threadContext, usage(10));
         DriverCompletionInfo taken = FailedComputeUsageHeader.take(threadContext);
         // only the well formed value counts

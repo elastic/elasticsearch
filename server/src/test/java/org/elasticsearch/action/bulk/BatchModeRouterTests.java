@@ -279,6 +279,32 @@ public class BatchModeRouterTests extends ESTestCase {
         router.close();
     }
 
+    /**
+     * A direct write to a backing index of a data stream is a legal bulk item. Its batch is keyed by the name of the
+     * backing index, the name the items target, and routes to that index like any other.
+     */
+    public void testBatchKeyedByBackingIndexRoutesToIt() throws IOException {
+        IndexMetadata backing = tsdbBackingIndex(1, 1, GEN_1_START, GEN_1_END);
+        ProjectMetadata project = projectWithDataStream(backing);
+        String backingName = backing.getIndex().getName();
+        int numDocs = randomIntBetween(2, 10);
+        EscfBatch batch = buildBatch(numDocs);
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int row = 0; row < numDocs; row++) {
+            bulkRequest.add(tsdbRowRequest(backingName, batch, row, IN_GEN_1));
+        }
+        bulkRequest.setPreBuiltBatches(Map.of(backingName, batch));
+
+        BatchRouterSet router = BatchRouterSet.create(bulkRequest, true, recycler);
+        var requestsByShard = routeAll(router, bulkRequest, project);
+        Map<ShardId, SourceBatch> result = takeShardBatches(router);
+
+        assertThat(result.keySet(), equalTo(Set.of(new ShardId(backing.getIndex(), 0))));
+        assertThat(result.values().iterator().next().docCount(), equalTo(numDocs));
+        assertShardsAligned(requestsByShard, result);
+        router.close();
+    }
+
     /** An alias and the index it points to write to the same index, so a bulk cannot carry a batch for each. */
     public void testBatchesForAliasAndItsWriteIndexAreRejected() throws IOException {
         IndexMetadata index = IndexMetadata.builder(plainMetadata("myindex", 1))
@@ -1081,16 +1107,18 @@ public class BatchModeRouterTests extends ESTestCase {
      * With several batches, only the router of a TSDB data stream resolves timestamps, from the rows of its own
      * items. The batch of a plain index in the same bulk has overlapping row indices and no {@code @timestamp}
      * column, and its items must neither reach the other router nor get a timestamp. Items are matched to routers by
-     * the batch their row is in, not by the name they target, which can be date math.
+     * the batch their row is in, not by the name they target, which can be date math. The resolved timestamps put the
+     * two items in different backing indices.
      */
     public void testPreResolveTimestampsWithSeveralBatches() throws IOException {
-        IndexMetadata backing = tsdbBackingIndex(1, 1, GEN_1_START, GEN_1_END);
-        ProjectMetadata project = ProjectMetadata.builder(projectWithDataStream(backing))
+        IndexMetadata gen1 = tsdbBackingIndex(1, 1, GEN_1_START, GEN_1_END);
+        IndexMetadata gen2 = tsdbBackingIndex(2, 1, GEN_1_END, "2025-01-01T00:00:00Z");
+        ProjectMetadata project = ProjectMetadata.builder(projectWithDataStream(gen1, gen2))
             .put(plainMetadata("plain-index", 1), false)
             .build();
 
-        Instant ts0 = Instant.parse("2024-02-01T12:34:56.789Z");
-        Instant ts1 = IN_GEN_1;
+        Instant ts0 = Instant.parse("2024-02-01T12:34:56.789Z"); // in generation 1
+        Instant ts1 = Instant.parse("2024-09-01T00:00:00Z"); // in generation 2
         EscfBatch tsdbBatch;
         try (EscfEncoder encoder = new EscfEncoder()) {
             for (Instant ts : List.of(ts0, ts1)) {
@@ -1133,6 +1161,10 @@ public class BatchModeRouterTests extends ESTestCase {
         for (IndexRequest request : plainRequests) {
             assertThat(request.getTimeSeriesTimestamp(), nullValue());
         }
+        // The timestamps are what selects the backing index of each item.
+        IndexAbstraction dataStream = project.getIndicesLookup().get(DATA_STREAM);
+        assertThat(tsdbRequests.get(0).getConcreteWriteIndex(dataStream, project), equalTo(gen1.getIndex()));
+        assertThat(tsdbRequests.get(1).getConcreteWriteIndex(dataStream, project), equalTo(gen2.getIndex()));
         router.close();
     }
 

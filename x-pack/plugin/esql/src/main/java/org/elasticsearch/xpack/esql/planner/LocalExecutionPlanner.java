@@ -360,14 +360,6 @@ public class LocalExecutionPlanner {
     ) {
         /** Identity: no query id, registry executors unwrapped. */
         public static final ExternalComputeContext NONE = new ExternalComputeContext(null, null, null);
-
-        /**
-         * Charges only the CPU time of a task as both load and CPU. Wall time on {@code esql_external_io}
-         * includes blocking GETs and gate waits, which must not inflate {@code search_load_nanos}.
-         */
-        public static TaskLoadAttribution.Target cpuOnly(TaskLoadAttribution.Target inner) {
-            return (nanos, cpuNanos, finishNanos) -> inner.charge(cpuNanos, cpuNanos, finishNanos);
-        }
     }
 
     public LocalExecutionPlanner(

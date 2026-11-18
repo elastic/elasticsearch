@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.RemoteException;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -150,6 +151,7 @@ import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
@@ -213,14 +215,41 @@ import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.GROK_WATCHDOG_MAX_E
 public class ComputeService {
     public static final String DATA_DESCRIPTION = "data";
     public static final String REDUCE_DESCRIPTION = "node_reduce";
-    /**
-     * Inner load of an external data compute: no shard to charge. Time still reaches the query
-     * report through {@link QueryLoad.Charging}.
-     */
-    static final TaskLoadAttribution.Target NO_SHARD_LOAD = (nanos, cpuNanos, finishNanos) -> {};
     public static final String DATA_ACTION_NAME = EsqlQueryAction.NAME + "/data";
     public static final String CLUSTER_ACTION_NAME = EsqlQueryAction.NAME + "/cluster";
     static final String LOCAL_CLUSTER = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
+
+    /**
+     * Inner load of an external data compute, keyed by project and dataset like shards are keyed
+     * by shard. Charge is a no-op until datasets have their own stats; time still reaches the query
+     * report through {@link QueryLoad.Charging}.
+     */
+    record DatasetLoad(ProjectId projectId, Set<String> datasets) implements TaskLoadAttribution.Target {
+        DatasetLoad {
+            datasets = Set.copyOf(datasets);
+        }
+
+        @Override
+        public void charge(long nanos, long cpuNanos, long finishNanos) {}
+    }
+
+    /**
+     * Collects the named datasets of {@code plan} (physical sources and logical relations in fragments).
+     */
+    static DatasetLoad datasetLoad(ProjectId projectId, PhysicalPlan plan) {
+        Set<String> datasets = new HashSet<>();
+        plan.forEachDown(ExternalSourceExec.class, exec -> {
+            if (exec.datasetName() != null) {
+                datasets.add(exec.datasetName());
+            }
+        });
+        plan.forEachDown(FragmentExec.class, fragment -> fragment.fragment().forEachDown(ExternalRelation.class, rel -> {
+            if (rel.datasetName() != null) {
+                datasets.add(rel.datasetName());
+            }
+        }));
+        return new DatasetLoad(projectId, datasets);
+    }
 
     private static final Logger LOGGER = LogManager.getLogger(ComputeService.class);
     private final SearchService searchService;
@@ -2138,8 +2167,8 @@ public class ComputeService {
             // empty-shard DATA is the external path, which supplies a no-shard target
             computeLoad = context.load();
             // Stats pushdown can replace ExternalSourceExec with LocalSourceExec, so do not key
-            // this on plan shape. The external handler is the only caller that passes NO_SHARD_LOAD.
-            assert computeLoad == NO_SHARD_LOAD : "empty-shard DATA compute without an external source";
+            // this on plan shape. The external handler is the only caller that passes DatasetLoad.
+            assert computeLoad instanceof DatasetLoad : "empty-shard DATA compute without a dataset load";
         }
         assert context.description().equals(REDUCE_DESCRIPTION) == false || computeLoad != null : "node reduce without a load target";
         QueryLoad queryLoad = context.queryLoad();
@@ -2170,11 +2199,7 @@ public class ComputeService {
             // DF producer/I/O reach QueryLoad only through this target; passing raw computeLoad
             // would charge the shard/no-shard inner target and omit the time from the query report.
             TaskLoadAttribution.Target queryCharged = computeLoad == null ? null : queryLoad.charging(computeLoad);
-            var externalCompute = new LocalExecutionPlanner.ExternalComputeContext(
-                context.queryId(),
-                queryCharged,
-                queryCharged == null ? null : LocalExecutionPlanner.ExternalComputeContext.cpuOnly(queryCharged)
-            );
+            var externalCompute = new LocalExecutionPlanner.ExternalComputeContext(context.queryId(), queryCharged, queryCharged);
             LocalExecutionPlanner planner = new LocalExecutionPlanner(
                 context.sessionId(),
                 context.clusterAlias(),

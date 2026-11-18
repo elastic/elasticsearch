@@ -34,7 +34,6 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
-import org.elasticsearch.common.util.concurrent.TaskLoadAttribution;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -887,27 +886,6 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         } finally {
             terminate(threadPool);
         }
-    }
-
-    public void testCpuOnlyChargesCpuAsLoad() {
-        AtomicLong wall = new AtomicLong();
-        AtomicLong cpu = new AtomicLong();
-        AtomicLong finish = new AtomicLong();
-        TaskLoadAttribution.Target inner = (nanos, cpuNanos, finishNanos) -> {
-            wall.addAndGet(nanos);
-            cpu.addAndGet(cpuNanos);
-            finish.set(finishNanos);
-        };
-        var cpuOnly = LocalExecutionPlanner.ExternalComputeContext.cpuOnly(inner);
-        cpuOnly.charge(100, 40, 7);
-        assertThat(wall.get(), equalTo(40L));
-        assertThat(cpu.get(), equalTo(40L));
-        assertThat(finish.get(), equalTo(7L));
-        wall.set(0);
-        cpu.set(0);
-        cpuOnly.charge(100, 0, 0);
-        assertThat("blocked I/O (CPU=0) must not inflate load", wall.get(), equalTo(0L));
-        assertThat(cpu.get(), equalTo(0L));
     }
 
     /**

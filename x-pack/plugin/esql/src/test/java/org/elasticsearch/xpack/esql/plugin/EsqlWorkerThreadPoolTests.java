@@ -213,8 +213,10 @@ public class EsqlWorkerThreadPoolTests extends ESTestCase {
             AtomicLong charged = new AtomicLong();
             Executor charging = TaskLoadAttribution.charging(io, (nanos, cpuNanos, finishNanos) -> charged.addAndGet(nanos));
             charging.execute(() -> spinNanos(25_000));
-            assertBusy(() -> assertThat(charged.get(), greaterThan(0L)));
-            assertThat(io.getAttributedTaskExecutionTime(), greaterThan(0L));
+            assertBusy(() -> {
+                assertThat(charged.get(), greaterThan(0L));
+                assertThat(io.getAttributedTaskExecutionTime(), greaterThan(0L));
+            });
         } finally {
             terminate(threadPool);
         }

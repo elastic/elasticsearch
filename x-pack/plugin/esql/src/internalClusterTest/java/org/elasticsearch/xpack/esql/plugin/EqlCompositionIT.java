@@ -262,7 +262,7 @@ public class EqlCompositionIT extends AbstractEsqlIntegTestCase {
 
     public void testViewBodyIsEqlCommand() {
         // A stored view whose body is an EQL command, reached through FROM <view>. The body is not a bare relation,
-        // so it rides the NamedSubquery -> UnionAll -> mapFork machinery with a coordinator-only EQL leaf — no
+        // so it rides the ViewSubquery -> UnionAll -> mapFork machinery with a coordinator-only EQL leaf — no
         // production code beyond the view store itself.
         createEqlView();
         try (EsqlQueryResponse resp = run("FROM " + EQL_VIEW + " | STATS count = COUNT(*)")) {

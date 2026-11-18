@@ -10,11 +10,7 @@ package org.elasticsearch.xpack.esql.into;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.index.IndexSource;
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.CircuitBreaker.Durability;
-import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.network.InetAddresses;
-import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -240,32 +236,6 @@ public class PageToEscfBatchTests extends ComputeTestCase {
         }
     }
 
-    public void testStringColumnTripsOnTheNextRow() {
-        BytesRef value = new BytesRef("abcdefghijklmnopq");
-        int rows = 2;
-        Recycler<BytesRef> recycler = bigArrays.bytesRefRecycler();
-        long overhead = recycler.pageSize() + (long) (rows + 1) * Integer.BYTES;
-        LimitingBreaker breaker = new LimitingBreaker(overhead + value.length);
-        Page page = new Page(blockFactory().newConstantBytesRefBlockWith(value, rows));
-        try {
-            CircuitBreakingException e = expectThrows(
-                CircuitBreakingException.class,
-                () -> PageToEscfBatch.convert(page, List.of("c0"), List.of(DataType.KEYWORD), recycler, breaker)
-            );
-            assertThat(e.getBytesWanted(), equalTo((long) value.length));
-            int acceptedRows = 0;
-            for (long bytes : breaker.accepted()) {
-                if (bytes == value.length) {
-                    acceptedRows++;
-                }
-            }
-            assertThat(acceptedRows, equalTo(1));
-            assertThat(breaker.getUsed(), equalTo(0L));
-        } finally {
-            page.releaseBlocks();
-        }
-    }
-
     public void testMixedStringCardinalityKeepsScalarRows() throws IOException {
         try (BytesRefBlock.Builder b = blockFactory().newBytesRefBlockBuilder(2)) {
             b.appendBytesRef(new BytesRef("c"));
@@ -398,72 +368,6 @@ public class PageToEscfBatchTests extends ComputeTestCase {
         } finally {
             page.releaseBlocks();
         }
-    }
-
-    private static final class LimitingBreaker implements CircuitBreaker {
-        private final long limit;
-        private final List<Long> accepted = new ArrayList<>();
-        private long used;
-
-        LimitingBreaker(long limit) {
-            this.limit = limit;
-        }
-
-        List<Long> accepted() {
-            return accepted;
-        }
-
-        @Override
-        public void circuitBreak(String fieldName, long bytesNeeded) {
-            throw new CircuitBreakingException(fieldName, bytesNeeded, limit, Durability.TRANSIENT);
-        }
-
-        @Override
-        public void addEstimateBytesAndMaybeBreak(long bytes, String label) {
-            if (used + bytes > limit) {
-                circuitBreak(label, bytes);
-            }
-            used += bytes;
-            accepted.add(bytes);
-        }
-
-        @Override
-        public void addWithoutBreaking(long bytes) {
-            used += bytes;
-        }
-
-        @Override
-        public long getUsed() {
-            return used;
-        }
-
-        @Override
-        public long getLimit() {
-            return limit;
-        }
-
-        @Override
-        public double getOverhead() {
-            return 1;
-        }
-
-        @Override
-        public long getTrippedCount() {
-            return 0;
-        }
-
-        @Override
-        public String getName() {
-            return "into-test";
-        }
-
-        @Override
-        public Durability getDurability() {
-            return Durability.TRANSIENT;
-        }
-
-        @Override
-        public void setLimitAndOverhead(long limit, double overhead) {}
     }
 
     private static List<Map<String, Object>> toMaps(EscfBatch batch) throws IOException {

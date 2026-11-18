@@ -12,6 +12,7 @@ import org.elasticsearch.action.bulk.BatchIndexingEnabled;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.ingest.IngestPipelineTestUtils;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -50,21 +51,19 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
     @Before
     public void createDestination() {
         assumeTrue("INTO is only enabled in snapshot builds", EsqlCapabilities.Cap.INTO_COMMAND.isEnabled());
-        assertAcked(
-            indicesAdmin().prepareCreate(DESTINATION).setSettings(Settings.builder().put("index.batch_indexing", true)).setMapping("""
-                {
-                  "dynamic": "strict",
-                  "properties": {
-                    "k":  { "type": "keyword" },
-                    "l":  { "type": "long" },
-                    "d":  { "type": "double" },
-                    "b":  { "type": "boolean" },
-                    "dt": { "type": "date" },
-                    "ip": { "type": "ip" }
-                  }
-                }
-                """)
-        );
+        assertAcked(indicesAdmin().prepareCreate(DESTINATION).setSettings(batchIndexingSettings()).setMapping("""
+            {
+              "dynamic": "strict",
+              "properties": {
+                "k":  { "type": "keyword" },
+                "l":  { "type": "long" },
+                "d":  { "type": "double" },
+                "b":  { "type": "boolean" },
+                "dt": { "type": "date" },
+                "ip": { "type": "ip" }
+              }
+            }
+            """));
     }
 
     public void testTypes() {
@@ -98,7 +97,7 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
         String resolvedDest = IndexNameExpressionResolver.resolveDateMathExpression(dateMathDest);
         assertAcked(
             indicesAdmin().prepareCreate(resolvedDest)
-                .setSettings(Settings.builder().put("index.batch_indexing", true))
+                .setSettings(batchIndexingSettings())
                 .setMapping("{\"properties\":{\"k\":{\"type\":\"keyword\"}}}")
         );
         assertIntoTarget("ROW k = \"x\"", dateMathDest, 1);
@@ -129,7 +128,7 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
 
         assertAcked(
             indicesAdmin().prepareCreate(pipelineDest)
-                .setSettings(Settings.builder().put("index.default_pipeline", pipeline).put("index.batch_indexing", true))
+                .setSettings(batchIndexingSettings().put("index.default_pipeline", pipeline))
                 .setMapping("""
                     {
                       "dynamic": "strict",
@@ -154,6 +153,10 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
             prepareSearch(index),
             r -> assertThat(Arrays.stream(r.getHits().getHits()).map(SearchHit::getSourceAsMap).toList(), equalTo(expected))
         );
+    }
+
+    private static Settings.Builder batchIndexingSettings() {
+        return Settings.builder().put(IndexSettings.BATCH_INDEXING.getKey(), true);
     }
 
     private void assertInto(String producer, long rows) {

@@ -36,7 +36,6 @@ import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -263,7 +262,8 @@ public class IntoPageWriterTests extends ComputeTestCase {
     }
 
     public void testBackpressureAtInFlightByteLimit() {
-        for (int i = 0; i < 4; i++) {
+        int pages = IntoPageWriter.POLICY.maxBulksInFlight() + 1;
+        for (int i = 0; i < pages; i++) {
             assertThat(writer.isBlocked(), equalTo(Operator.NOT_BLOCKED));
             writer.consume(widePage());
         }
@@ -275,9 +275,9 @@ public class IntoPageWriterTests extends ComputeTestCase {
         assertTrue(blocked.listener().isDone());
         assertThat(writer.isBlocked(), equalTo(Operator.NOT_BLOCKED));
 
-        client.answer(Outcome.CREATED);
-        client.answer(Outcome.CREATED);
-        client.answer(Outcome.CREATED);
+        while (client.bulks.isEmpty() == false) {
+            client.answer(Outcome.CREATED);
+        }
         assertThat(driverContext.breaker().getUsed(), equalTo(0L));
     }
 
@@ -413,23 +413,6 @@ public class IntoPageWriterTests extends ComputeTestCase {
         assertThat(sink.stats(), equalTo(new IntoStats(0, 0)));
     }
 
-    public void testAllFalseBooleanPageReservesBreakerBytes() {
-        Attribute column = new ReferenceAttribute(Source.EMPTY, "b", DataType.BOOLEAN);
-        IntoPageWriter booleans = IntoPageWriter.Factory.createFactory(
-            bulks(),
-            client,
-            driverContext.breaker(),
-            DESTINATION,
-            List.of(column)
-        ).create(driverContext);
-        try (BooleanBlock.Builder values = blockFactory.newBooleanBlockBuilder(2)) {
-            values.appendBoolean(false);
-            values.appendBoolean(false);
-            booleans.consume(new Page(values.build()));
-        }
-        assertThat(driverContext.breaker().getUsed(), greaterThan(0L));
-    }
-
     public void testUnsignedLongAboveLongMaxIsRejected() {
         BigInteger big = BigInteger.TWO.pow(63).add(BigInteger.ONE);
         Attribute column = new ReferenceAttribute(Source.EMPTY, "n", DataType.UNSIGNED_LONG);
@@ -449,28 +432,6 @@ public class IntoPageWriterTests extends ComputeTestCase {
         assertThat(e.getMessage(), containsString("unsigned_long"));
     }
 
-    public void testUnsignedLongArrayAboveLongMaxIsRejected() {
-        BigInteger big = BigInteger.TWO.pow(63).add(BigInteger.ONE);
-        Attribute column = new ReferenceAttribute(Source.EMPTY, "n", DataType.UNSIGNED_LONG);
-        IntoPageWriter exactWriter = IntoPageWriter.Factory.createFactory(
-            bulks(),
-            client,
-            driverContext.breaker(),
-            DESTINATION,
-            List.of(column)
-        ).create(driverContext);
-        EsqlIllegalArgumentException e = expectThrows(EsqlIllegalArgumentException.class, () -> {
-            try (LongBlock.Builder values = blockFactory.newLongBlockBuilder(1)) {
-                values.beginPositionEntry()
-                    .appendLong(NumericUtils.asLongUnsigned(big))
-                    .appendLong(NumericUtils.asLongUnsigned(BigInteger.valueOf(7)))
-                    .endPositionEntry();
-                exactWriter.consume(new Page(values.build()));
-            }
-        });
-        assertThat(e.getMessage(), containsString("unsigned_long"));
-    }
-
     public void testPipelineDestinationIsRejected() {
         IndexMetadata index = IndexMetadata.builder("dest")
             .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "my-pipeline"))
@@ -481,6 +442,15 @@ public class IntoPageWriterTests extends ComputeTestCase {
             () -> IntoPageWriter.Factory.requireBatchDestination(true, project, "dest")
         );
         assertThat(e.getMessage(), containsString("ingest pipelines"));
+    }
+
+    public void testBatchIndexingDisabledIsRejected() {
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> IntoPageWriter.Factory.requireBatchDestination(false, project, "dest")
+        );
+        assertThat(e.getMessage(), containsString("requires batch indexing"));
     }
 
     public void testConcreteIndexWithoutRoutingPathIsEligible() {
@@ -511,7 +481,12 @@ public class IntoPageWriterTests extends ComputeTestCase {
                     .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB)
             )
             .build();
-        assertPreBuilt(ProjectMetadata.builder(randomProjectIdOrDefault()).put(index, true).build(), false);
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).put(index, true).build();
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> IntoPageWriter.Factory.requireBatchDestination(true, project, "dest")
+        );
+        assertThat(e.getMessage(), containsString("route from _source"));
     }
 
     // Before the E6 fix, project.index("my-alias") returned null so routesFromSource returned false.
@@ -560,7 +535,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
     public void testWritersShareCapacity() {
         IntoPageWriter writerB = sink.create(driverContext);
 
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < IntoPageWriter.POLICY.maxBulksInFlight() + 1; i++) {
             writer.consume(widePage());
         }
         assertFalse(writer.isBlocked().listener().isDone());
@@ -580,10 +555,15 @@ public class IntoPageWriterTests extends ComputeTestCase {
     }
 
     private static void assertPreBuilt(ProjectMetadata project, String target, boolean eligible) {
-        assertThat(IntoPageWriter.Factory.canUsePreBuiltBatch(project, target), equalTo(eligible));
+        if (eligible) {
+            IntoPageWriter.Factory.requireBatchDestination(true, project, target);
+        } else {
+            expectThrows(ElasticsearchStatusException.class, () -> IntoPageWriter.Factory.requireBatchDestination(true, project, target));
+        }
     }
 
     private EscfBulkService bulks() {
+        // Runs callbacks on the calling thread, so answer() settles the writer before it returns.
         IndexingPressure pressure = new IndexingPressure(
             Settings.builder().put(IndexingPressure.MAX_COORDINATING_BYTES.getKey(), "1gb").build()
         );

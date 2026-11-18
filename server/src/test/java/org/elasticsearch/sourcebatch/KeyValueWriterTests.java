@@ -428,12 +428,13 @@ public class KeyValueWriterTests extends ESTestCase {
 
     public void testSerializeKeyValueRejectsOversizedNumbers() throws IOException {
         String big = BigInteger.TWO.pow(63).add(BigInteger.ONE).toString();
-        for (String json : List.of(
-            "{\"n\":" + big + "}",
-            "{\"a\":{\"n\":" + big + "}}",
-            "{\"a\":[1," + big + "]}",
-            "{\"a\":[{\"n\":" + big + "}]}"
-        )) {
+        String top = "{\"n\":" + big + "}";
+        assertThat(serializeKeyValue(top, true), nullValue());
+        KeyValueReader reader = new KeyValueReader(serializeKeyValue(top, false));
+        assertThat(reader.next(), equalTo(true));
+        assertThat(reader.type(), equalTo(SourceValueType.STRING));
+        assertThat(reader.stringValue(), equalTo(big));
+        for (String json : List.of("{\"a\":{\"n\":" + big + "}}", "{\"a\":[1," + big + "]}", "{\"a\":[{\"n\":" + big + "}]}")) {
             assertThat(json, serializeKeyValue(json, true), nullValue());
             assertThat(json, serializeKeyValue(json, false), notNullValue());
         }

@@ -37,7 +37,7 @@ public final class SourceBatchEncodeHelper {
      * array bytes. Returns a {@link PackedArray} describing the wire type and packed bytes.
      */
     public static PackedArray packArray(XContentParser parser) throws IOException {
-        return parseArray(parser, false);
+        return parseArray(parser, false); // false never rejects, so the array is always packed
     }
 
     /**
@@ -137,8 +137,8 @@ public final class SourceBatchEncodeHelper {
     }
 
     /**
-     * Same as {@link #serializeKeyValue(XContentParser)}. Returns {@code null} instead of storing a
-     * {@code BIG_INTEGER} or {@code BIG_DECIMAL} token as a string when {@code rejectOversizedNumbers} is true.
+     * Serializes an object. Returns {@code null} when {@code rejectOversizedNumbers} is true and a big integer or big decimal
+     * appears anywhere in the object, including inside a nested object or array. Otherwise those tokens are stored as strings.
      */
     @Nullable
     public static byte[] serializeKeyValue(XContentParser parser, boolean rejectOversizedNumbers) throws IOException {
@@ -236,6 +236,7 @@ public final class SourceBatchEncodeHelper {
                         XContentString.UTF8Bytes str = parser.optimizedText().bytes();
                         writer.writeStringField(fieldName, str.bytes(), str.offset(), str.length());
                     }
+                    default -> throw new IllegalStateException("unexpected number type [" + parser.numberType() + "]");
                 }
             }
             case VALUE_BOOLEAN -> writer.writeBooleanField(fieldName, parser.booleanValue());
@@ -299,6 +300,7 @@ public final class SourceBatchEncodeHelper {
                 elemTypes[count] = SourceValueType.STRING;
                 elemVar[count] = parser.optimizedText().bytes();
             }
+            default -> throw new IllegalStateException("unexpected number type [" + parser.numberType() + "]");
         }
         return true;
     }

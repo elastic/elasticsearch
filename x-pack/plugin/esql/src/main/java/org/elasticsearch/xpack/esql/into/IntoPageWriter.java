@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.into;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -29,6 +30,7 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PageConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.escf.EscfBatchBuilder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.rest.RestStatus;
@@ -44,11 +46,11 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Streams an {@code INTO} query's pages through one {@link org.elasticsearch.action.bulk.EscfBulkWriter}. Each driver has
+ * Streams an {@code INTO} query's pages through one {@link EscfBulkWriter}. Each driver has
  * its own producer. The writer bounds the bulks in flight and charges the query breaker and coordinating indexing pressure.
  */
 public final class IntoPageWriter implements PageConsumer {
-    private static final EscfBulkWriter.Policy POLICY = new EscfBulkWriter.Policy(3, Operator.TARGET_PAGE_SIZE);
+    static final EscfBulkWriter.Policy POLICY = new EscfBulkWriter.Policy(3, Operator.TARGET_PAGE_SIZE);
 
     /** Holds the query-scoped configuration, counters, and failure state across drivers for one {@code INTO} run. */
     public static final class Factory implements PageConsumer.Factory {
@@ -103,7 +105,6 @@ public final class IntoPageWriter implements PageConsumer {
         }
 
         private Exception onResponse(BulkResponse response) {
-            int createdRows = 0;
             for (BulkItemResponse item : response) {
                 if (item.isFailed()) {
                     Exception cause = item.getFailure().getCause();
@@ -117,10 +118,10 @@ public final class IntoPageWriter implements PageConsumer {
                     failure.compareAndSet(null, failed);
                     return failed;
                 }
-                createdRows++;
             }
-            total.addAndGet(response.getItems().length);
-            created.addAndGet(createdRows);
+            long rows = response.getItems().length;
+            total.addAndGet(rows);
+            created.addAndGet(rows);
             return null;
         }
 
@@ -132,12 +133,11 @@ public final class IntoPageWriter implements PageConsumer {
 
         private void producerClosed() {
             if (openProducers.decrementAndGet() == 0) {
-                writer.finish(ActionListener.wrap(ignored -> settled(), e -> settled()));
+                writer.finish(ActionListener.wrap(ignored -> settled(null), this::settled));
             }
         }
 
-        private void settled() {
-            Exception failed = writer.failure();
+        private void settled(Exception failed) {
             if (failed != null) {
                 failure.compareAndSet(null, failed);
             }
@@ -163,30 +163,24 @@ public final class IntoPageWriter implements PageConsumer {
          */
         public static void requireBatchDestination(boolean batchIndexingSupported, ProjectMetadata project, String target) {
             if (batchIndexingSupported == false) {
-                throw rejection(Strings.format("INTO [%s] requires batch indexing", target));
+                throw rejection("INTO [%s] requires batch indexing", target);
             }
-            IndexRequest probe = new IndexRequest(target);
-            IngestService.setPipelineOnRequest(probe, IngestService.resolvePipelines(probe, probe, project, System.currentTimeMillis()));
-            if (IngestService.hasPipeline(probe)) {
-                throw rejection(Strings.format("INTO [%s] does not support ingest pipelines", target));
+            if (hasPipeline(project, target)) {
+                throw rejection("INTO [%s] does not support ingest pipelines", target);
             }
             if (routesFromSource(project, target)) {
-                throw rejection(Strings.format("INTO [%s] does not support indices that route from _source", target));
+                throw rejection("INTO [%s] does not support indices that route from _source", target);
             }
         }
 
-        private static ElasticsearchStatusException rejection(String message) {
-            return new ElasticsearchStatusException(message, RestStatus.BAD_REQUEST);
-        }
-
-        /**
-         * Returns {@code true} when the pre-built ESCF batch path may be used for the given target:
-         * the destination has no ingest pipeline and does not route by extracting fields from {@code _source}.
-         */
-        public static boolean canUsePreBuiltBatch(ProjectMetadata project, String target) {
+        private static boolean hasPipeline(ProjectMetadata project, String target) {
             IndexRequest probe = new IndexRequest(target);
             IngestService.setPipelineOnRequest(probe, IngestService.resolvePipelines(probe, probe, project, System.currentTimeMillis()));
-            return IngestService.hasPipeline(probe) == false && routesFromSource(project, target) == false;
+            return IngestService.hasPipeline(probe);
+        }
+
+        private static ElasticsearchStatusException rejection(String format, Object... args) {
+            return new ElasticsearchStatusException(Strings.format(format, args), RestStatus.BAD_REQUEST);
         }
 
         private static boolean routesFromSource(ProjectMetadata project, String target) {
@@ -232,10 +226,7 @@ public final class IntoPageWriter implements PageConsumer {
                 Exception failed = sink.writer.failure();
                 if (failed != null) {
                     sink.failure.compareAndSet(null, failed);
-                    if (failed instanceof RuntimeException runtime) {
-                        throw runtime;
-                    }
-                    throw new IllegalStateException(failed);
+                    throw ExceptionsHelper.convertToRuntime(failed);
                 }
             }
         } finally {
@@ -329,7 +320,7 @@ public final class IntoPageWriter implements PageConsumer {
         }
 
         @Override
-        public void append(org.elasticsearch.escf.EscfBatchBuilder batch) {
+        public void append(EscfBatchBuilder batch) {
             PageToEscfBatch.append(batch, page, columns, types);
         }
 

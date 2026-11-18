@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.InternalFilesReplicatedRanges;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.TimestampFieldValueRange;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.engine.StatelessReaderHeapBreaker;
 import org.elasticsearch.xpack.stateless.test.FakeStatelessNode;
@@ -749,7 +750,7 @@ public class SearchDirectoryTests extends ESTestCase {
             // Commit A: fileA and the generational file are internal with timeRangeA.
             final var locationA = createBlobLocation(1L, 1L, 0L, 100L);
             final var genLocationGen1 = createBlobLocation(1L, 1L, 100L, 100L);
-            final var timeRangeA = new StatelessCompoundCommit.TimestampFieldValueRange(1000L, 2000L);
+            final var timeRangeA = new TimestampFieldValueRange(1000L, 2000L);
             searchDirectory.updateCommit(
                 createCommitWithTimestamp(
                     node.shardId,
@@ -774,7 +775,7 @@ public class SearchDirectoryTests extends ESTestCase {
             // the generational file has been copied into the gen-2 BCC, so commit B lists it at a *new* blob location.
             final var locationB = createBlobLocation(1L, 2L, 0L, 100L);
             final var genLocationGen2 = createBlobLocation(1L, 2L, 100L, 100L);
-            final var timeRangeB = new StatelessCompoundCommit.TimestampFieldValueRange(5000L, 6000L);
+            final var timeRangeB = new TimestampFieldValueRange(5000L, 6000L);
             searchDirectory.updateCommit(
                 createCommitWithTimestamp(
                     node.shardId,
@@ -967,7 +968,7 @@ public class SearchDirectoryTests extends ESTestCase {
             }
         }) {
             final var searchDirectory = SearchDirectory.unwrapDirectory(node.searchStore.directory());
-            final var range = new StatelessCompoundCommit.TimestampFieldValueRange(1000L, 2000L);
+            final var range = new TimestampFieldValueRange(1000L, 2000L);
             final var locationWithTs = createBlobLocation(1L, 1L, 0L, regionSize.getBytes());
             final var locationWithoutTs = createBlobLocation(1L, 2L, 0L, regionSize.getBytes());
             final var withTimestamp = new BlobFileRanges(locationWithTs, range);
@@ -1027,7 +1028,7 @@ public class SearchDirectoryTests extends ESTestCase {
     }
 
     public void testResolveRegionTimestampMillisFallback() throws IOException {
-        final var range = new StatelessCompoundCommit.TimestampFieldValueRange(1000L, 2000L);
+        final var range = new TimestampFieldValueRange(1000L, 2000L);
         final long rangeMidpoint = BlobFileRanges.midpointMillisOrUnknownForCache(range);
         final var regionSize = ByteSizeValue.ofBytes(4096);
         final var cacheSize = ByteSizeValue.ofBytes(regionSize.getBytes() * 100L);
@@ -1113,7 +1114,7 @@ public class SearchDirectoryTests extends ESTestCase {
             IndexVersions.MINIMUM_COMPATIBLE.before(SearchDirectory.TIMESTAMP_FIELD_VALUE_RANGE_INTRODUCED_VERSION)
         );
 
-        final var range = new StatelessCompoundCommit.TimestampFieldValueRange(1000L, 2000L);
+        final var range = new TimestampFieldValueRange(1000L, 2000L);
         final long rangeMidpoint = BlobFileRanges.midpointMillisOrUnknownForCache(range);
         final var regionSize = ByteSizeValue.ofBytes(4096);
         final var cacheSize = ByteSizeValue.ofBytes(regionSize.getBytes() * 100L);
@@ -1350,7 +1351,7 @@ public class SearchDirectoryTests extends ESTestCase {
         long generation,
         Map<String, BlobLocation> commitFiles,
         Set<String> internalFiles,
-        @Nullable StatelessCompoundCommit.TimestampFieldValueRange timestampRange
+        @Nullable TimestampFieldValueRange timestampRange
     ) {
         return new StatelessCompoundCommit(
             shardId,

@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.stateless.cache;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.TimestampFieldValueRange;
 
 /**
  * SPI for computing the warming ratio for a compound commit.
@@ -25,9 +25,5 @@ public interface WarmingRatioProvider {
      *        {@link org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory#resolveRegionTimestampMillis}
      * @param nowMillis current time in epoch millis
      */
-    double getWarmingRatio(
-        @Nullable StatelessCompoundCommit.TimestampFieldValueRange timestampFieldValueRange,
-        long resolvedCCTimestampMillis,
-        long nowMillis
-    );
+    double getWarmingRatio(@Nullable TimestampFieldValueRange timestampFieldValueRange, long resolvedCCTimestampMillis, long nowMillis);
 }

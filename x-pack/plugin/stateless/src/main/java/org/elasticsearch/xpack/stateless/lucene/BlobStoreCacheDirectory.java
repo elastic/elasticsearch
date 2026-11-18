@@ -35,7 +35,7 @@ import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
-import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.TimestampFieldValueRange;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -279,7 +279,7 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
     /**
      * Resolves a raw compound-commit timestamp range into a stampable cache-region timestamp.
      */
-    public long resolveRegionTimestampMillis(@Nullable StatelessCompoundCommit.TimestampFieldValueRange range) {
+    public long resolveRegionTimestampMillis(@Nullable TimestampFieldValueRange range) {
         return resolveRegionTimestampMillis(BlobFileRanges.midpointMillisOrUnknownForCache(range));
     }
 

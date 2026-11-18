@@ -17,6 +17,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.OneMergeWrappingMergePolicy;
+import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.StandardDirectoryReader;
@@ -77,6 +78,7 @@ import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 import org.elasticsearch.xpack.stateless.commits.ShardLocalReadersTracker;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.TimestampFieldValueRange;
 import org.elasticsearch.xpack.stateless.engine.translog.TranslogRecoveryMetrics;
 import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator;
 import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicatorReader;
@@ -286,7 +288,7 @@ public class IndexEngine extends InternalEngine {
      * Note that soft deletes, which are persisted in generational files, are not considered (unless all docs in a particular
      * segment are deleted, which un-references the segment internally).
      */
-    public static @Nullable StatelessCompoundCommit.TimestampFieldValueRange readTimestampFieldValueRangeAcrossSegments(
+    public static @Nullable TimestampFieldValueRange readTimestampFieldValueRangeAcrossSegments(
         IndexCommit indexCommit,
         Set<String> subsetSegmentNames,
         @Nullable DateFieldMapper.DateFieldType timestampFieldMappedType
@@ -321,83 +323,123 @@ public class IndexEngine extends InternalEngine {
             if (subsetSegmentNames.contains(segmentCommitInfo.info.name) == false) {
                 continue;
             }
-            var codec = segmentCommitInfo.info.getCodec();
-            Directory cfsIndexDirectory = null;
-            try {
-                if (segmentCommitInfo.info.getUseCompoundFile()) {
-                    cfsIndexDirectory = codec.compoundFormat().getCompoundReader(indexCommit.getDirectory(), segmentCommitInfo.info);
-                } else {
-                    cfsIndexDirectory = indexCommit.getDirectory();
-                }
-                var fieldsInfo = codec.fieldInfosFormat().read(cfsIndexDirectory, segmentCommitInfo.info, "", IOContext.DEFAULT);
-                var timestampFieldInfo = fieldsInfo.fieldInfo(timestampFieldMappedType.name());
-                if (timestampFieldInfo != null) {
-                    var segmentReadState = new SegmentReadState(cfsIndexDirectory, segmentCommitInfo.info, fieldsInfo, IOContext.DEFAULT);
-                    long segmentMinValue = minTimestampValue;
-                    long segmentMaxValue = maxTimestampValue;
-                    // logsdb and time_series index mode store the @timestamp field values as "doc values" (with a doc values skip index)
-                    if (timestampFieldInfo.docValuesSkipIndexType() == DocValuesSkipIndexType.RANGE) {
-                        assert timestampFieldMappedType.indexType().hasDocValuesSkipper();
-                        try (var fieldsProducer = codec.docValuesFormat().fieldsProducer(segmentReadState)) {
-                            var docValuesSkipper = fieldsProducer.getSkipper(timestampFieldInfo);
-                            if (docValuesSkipper == null || docValuesSkipper.docCount() == 0) {
-                                continue;
-                            }
-                            segmentMinValue = docValuesSkipper.minValue();
-                            segmentMaxValue = docValuesSkipper.maxValue();
-                        }
-                        found = true;
-                    } else if (timestampFieldInfo.getPointDimensionCount() == 1) {
-                        // standard index mode stores the @timestamp field values as uni-dimensional points data
-                        assert timestampFieldMappedType.indexType().hasPoints();
-                        try (var fieldsReader = codec.pointsFormat().fieldsReader(segmentReadState)) {
-                            var pointsReader = fieldsReader.getValues(timestampFieldMappedType.name());
-                            // Sometimes it's possible to get ghost points, since we're using a low level API
-                            // so we should skip those. This can happen when all the docs containing points
-                            // are deleted and the segments get merged.
-                            // See https://github.com/apache/lucene/issues/11393 for more details.
-                            if (pointsReader == null) {
-                                continue;
-                            }
-                            segmentMinValue = LongPoint.decodeDimension(pointsReader.getMinPackedValue(), 0);
-                            segmentMaxValue = LongPoint.decodeDimension(pointsReader.getMaxPackedValue(), 0);
-                        }
-                        found = true;
-                    } else {
-                        assert false : "Could not parse field value for [" + timestampFieldMappedType.name() + "] field";
-                    }
-                    assert segmentMinValue <= segmentMaxValue
-                        : "Invalid timestamp values interval for commit ["
-                            + segmentCommitInfo
-                            + "], ["
-                            + segmentMinValue
-                            + ", "
-                            + segmentMaxValue
-                            + "]";
-                    minTimestampValue = Math.min(minTimestampValue, segmentMinValue);
-                    maxTimestampValue = Math.max(maxTimestampValue, segmentMaxValue);
-                }
-            } finally {
-                if (cfsIndexDirectory != null && segmentCommitInfo.info.getUseCompoundFile()) {
-                    assert cfsIndexDirectory != indexCommit.getDirectory();
-                    cfsIndexDirectory.close();
-                }
+            final var segmentValues = readTimestampFieldValuesOfSegment(
+                indexCommit.getDirectory(),
+                segmentCommitInfo,
+                timestampFieldMappedType
+            );
+            if (segmentValues != null) {
+                found = true;
+                minTimestampValue = Math.min(minTimestampValue, segmentValues.minValue());
+                maxTimestampValue = Math.max(maxTimestampValue, segmentValues.maxValue());
             }
         }
         // found already means min <= max today. The extra check keeps a future bug from failing the commit.
         if (found && minTimestampValue <= maxTimestampValue) {
-            if (timestampFieldMappedType.resolution() == DateFieldMapper.Resolution.MILLISECONDS) {
-                return new StatelessCompoundCommit.TimestampFieldValueRange(minTimestampValue, maxTimestampValue);
-            } else {
-                // Resolution#roundDownToMillis doesn't handle negative values
-                assert timestampFieldMappedType.resolution() == DateFieldMapper.Resolution.NANOSECONDS;
-                return new StatelessCompoundCommit.TimestampFieldValueRange(
-                    Math.floorDiv(minTimestampValue, 1_000_000L),
-                    Math.ceilDiv(maxTimestampValue, 1_000_000L)
-                );
-            }
+            return toTimestampFieldValueRange(minTimestampValue, maxTimestampValue, timestampFieldMappedType);
         } else {
             return null;
+        }
+    }
+
+    /**
+     * The smallest and the largest values of a date field in a segment, as they are stored in the segment: in the resolution of the field.
+     */
+    public record SegmentTimestampFieldValues(long minValue, long maxValue) {}
+
+    /**
+     * Reads the range of the values of a date field in a single segment, from the segment files and not from a commit, so that it can be
+     * computed for a segment that no commit references yet (a segment that was just merged for instance).
+     * Note that soft deletes, which are persisted in generational files, are not considered.
+     *
+     * @param directory                 the directory that holds the files of the segment
+     * @param segmentCommitInfo         the segment
+     * @param timestampFieldMappedType  the mapping type of the date field
+     * @return the range of the values of the field in the segment, or {@code null} if the segment does not contribute any value: it has no
+     * such field, or only a ghost field without values
+     */
+    public static @Nullable SegmentTimestampFieldValues readTimestampFieldValuesOfSegment(
+        Directory directory,
+        SegmentCommitInfo segmentCommitInfo,
+        DateFieldMapper.DateFieldType timestampFieldMappedType
+    ) throws IOException {
+        var codec = segmentCommitInfo.info.getCodec();
+        Directory cfsIndexDirectory = null;
+        try {
+            if (segmentCommitInfo.info.getUseCompoundFile()) {
+                cfsIndexDirectory = codec.compoundFormat().getCompoundReader(directory, segmentCommitInfo.info);
+            } else {
+                cfsIndexDirectory = directory;
+            }
+            var fieldsInfo = codec.fieldInfosFormat().read(cfsIndexDirectory, segmentCommitInfo.info, "", IOContext.DEFAULT);
+            var timestampFieldInfo = fieldsInfo.fieldInfo(timestampFieldMappedType.name());
+            if (timestampFieldInfo == null) {
+                return null;
+            }
+            var segmentReadState = new SegmentReadState(cfsIndexDirectory, segmentCommitInfo.info, fieldsInfo, IOContext.DEFAULT);
+            final long segmentMinValue;
+            final long segmentMaxValue;
+            // logsdb and time_series index mode store the @timestamp field values as "doc values" (with a doc values skip index)
+            if (timestampFieldInfo.docValuesSkipIndexType() == DocValuesSkipIndexType.RANGE) {
+                assert timestampFieldMappedType.indexType().hasDocValuesSkipper();
+                try (var fieldsProducer = codec.docValuesFormat().fieldsProducer(segmentReadState)) {
+                    var docValuesSkipper = fieldsProducer.getSkipper(timestampFieldInfo);
+                    if (docValuesSkipper == null || docValuesSkipper.docCount() == 0) {
+                        return null;
+                    }
+                    segmentMinValue = docValuesSkipper.minValue();
+                    segmentMaxValue = docValuesSkipper.maxValue();
+                }
+            } else if (timestampFieldInfo.getPointDimensionCount() == 1) {
+                // standard index mode stores the @timestamp field values as uni-dimensional points data
+                assert timestampFieldMappedType.indexType().hasPoints();
+                try (var fieldsReader = codec.pointsFormat().fieldsReader(segmentReadState)) {
+                    var pointsReader = fieldsReader.getValues(timestampFieldMappedType.name());
+                    // Sometimes it's possible to get ghost points, since we're using a low level API
+                    // so we should skip those. This can happen when all the docs containing points
+                    // are deleted and the segments get merged.
+                    // See https://github.com/apache/lucene/issues/11393 for more details.
+                    if (pointsReader == null) {
+                        return null;
+                    }
+                    segmentMinValue = LongPoint.decodeDimension(pointsReader.getMinPackedValue(), 0);
+                    segmentMaxValue = LongPoint.decodeDimension(pointsReader.getMaxPackedValue(), 0);
+                }
+            } else {
+                assert false : "Could not parse field value for [" + timestampFieldMappedType.name() + "] field";
+                return null;
+            }
+            assert segmentMinValue <= segmentMaxValue
+                : "Invalid timestamp values interval for commit ["
+                    + segmentCommitInfo
+                    + "], ["
+                    + segmentMinValue
+                    + ", "
+                    + segmentMaxValue
+                    + "]";
+            return new SegmentTimestampFieldValues(segmentMinValue, segmentMaxValue);
+        } finally {
+            if (cfsIndexDirectory != null && segmentCommitInfo.info.getUseCompoundFile()) {
+                assert cfsIndexDirectory != directory;
+                cfsIndexDirectory.close();
+            }
+        }
+    }
+
+    /**
+     * Converts values of a date field, in the resolution of the field, to the range in milliseconds that is stored in compound commits.
+     */
+    public static TimestampFieldValueRange toTimestampFieldValueRange(
+        long minValue,
+        long maxValue,
+        DateFieldMapper.DateFieldType timestampFieldMappedType
+    ) {
+        if (timestampFieldMappedType.resolution() == DateFieldMapper.Resolution.MILLISECONDS) {
+            return new TimestampFieldValueRange(minValue, maxValue);
+        } else {
+            // Resolution#roundDownToMillis doesn't handle negative values
+            assert timestampFieldMappedType.resolution() == DateFieldMapper.Resolution.NANOSECONDS;
+            return new TimestampFieldValueRange(Math.floorDiv(minValue, 1_000_000L), Math.ceilDiv(maxValue, 1_000_000L));
         }
     }
 

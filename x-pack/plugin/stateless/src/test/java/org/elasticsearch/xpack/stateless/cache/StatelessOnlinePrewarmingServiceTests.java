@@ -36,7 +36,7 @@ import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
 import org.elasticsearch.xpack.stateless.cache.reader.MutableObjectStoreUploadTracker;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
-import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.TimestampFieldValueRange;
 import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
@@ -266,7 +266,7 @@ public class StatelessOnlinePrewarmingServiceTests extends ESTestCase {
         final var capturingPolicy = new TimestampCapturingEvictionPolicy();
         try (FakeStatelessNode fakeNode = createCapturingFakeNode(primaryTerm, capturingPolicy)) {
             final int regionSize = fakeNode.sharedCacheService.getRegionSize();
-            final var range = new StatelessCompoundCommit.TimestampFieldValueRange(1000L, 2000L);
+            final var range = new TimestampFieldValueRange(1000L, 2000L);
             final var siLocation = createBlobLocation(primaryTerm, 1L, 0L, regionSize * 2L);
             BlobStoreCacheDirectoryTestUtils.mergeMetadata(
                 fakeNode.searchDirectory,
@@ -356,7 +356,7 @@ public class StatelessOnlinePrewarmingServiceTests extends ESTestCase {
      */
     private static IndexShard prepareTwoRegionBlobAndMockShard(FakeStatelessNode fakeNode, long primaryTerm) {
         final int regionSize = fakeNode.sharedCacheService.getRegionSize();
-        final var range = new StatelessCompoundCommit.TimestampFieldValueRange(1000L, 2000L);
+        final var range = new TimestampFieldValueRange(1000L, 2000L);
         final var siLocation = createBlobLocation(primaryTerm, 1L, 0L, regionSize * 2L);
         BlobStoreCacheDirectoryTestUtils.mergeMetadata(fakeNode.searchDirectory, Map.of("_0.si", new BlobFileRanges(siLocation, range)));
         fakeNode.searchDirectory.updateLatestUploadedBcc(new PrimaryTermAndGeneration(primaryTerm, 1L));

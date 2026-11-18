@@ -44,20 +44,20 @@ public class BlobFileRanges implements Writeable {
      * (e.g. no {@code @timestamp} field, or this instance was constructed without a commit context).
      */
     @Nullable
-    private final StatelessCompoundCommit.TimestampFieldValueRange timestampRange;
+    private final TimestampFieldValueRange timestampRange;
 
     public BlobFileRanges(BlobLocation blobLocation) {
         this(blobLocation, Collections.emptyNavigableMap(), null);
     }
 
-    public BlobFileRanges(BlobLocation blobLocation, @Nullable StatelessCompoundCommit.TimestampFieldValueRange timestampRange) {
+    public BlobFileRanges(BlobLocation blobLocation, @Nullable TimestampFieldValueRange timestampRange) {
         this(blobLocation, Collections.emptyNavigableMap(), timestampRange);
     }
 
     private BlobFileRanges(
         BlobLocation blobLocation,
         NavigableMap<Long, ReplicatedByteRange> replicatedRanges,
-        @Nullable StatelessCompoundCommit.TimestampFieldValueRange timestampRange
+        @Nullable TimestampFieldValueRange timestampRange
     ) {
         this.blobLocation = Objects.requireNonNull(blobLocation);
         this.replicatedRanges = Objects.requireNonNull(replicatedRanges);
@@ -73,7 +73,7 @@ public class BlobFileRanges implements Writeable {
                 ignored -> new TreeMap<>()
             )
         );
-        timestampRange = in.readOptionalWriteable(StatelessCompoundCommit.TimestampFieldValueRange::new);
+        timestampRange = in.readOptionalWriteable(TimestampFieldValueRange::new);
     }
 
     @Override
@@ -88,7 +88,7 @@ public class BlobFileRanges implements Writeable {
     }
 
     @Nullable
-    public StatelessCompoundCommit.TimestampFieldValueRange timestampRange() {
+    public TimestampFieldValueRange timestampRange() {
         return timestampRange;
     }
 
@@ -221,7 +221,7 @@ public class BlobFileRanges implements Writeable {
      * {@link SharedBlobCacheService#MINIMAL_CACHE_TIMESTAMP}, or {@link SharedBlobCacheService#UNKNOWN_TIMESTAMP} if
      * the range is null (no timestamp field / no range recorded).
      */
-    public static long midpointMillisOrUnknownForCache(@Nullable StatelessCompoundCommit.TimestampFieldValueRange range) {
+    public static long midpointMillisOrUnknownForCache(@Nullable TimestampFieldValueRange range) {
         if (range == null) {
             return SharedBlobCacheService.UNKNOWN_TIMESTAMP;
         }
@@ -268,14 +268,14 @@ public class BlobFileRanges implements Writeable {
             : "Cannot reconcile BlobFileRanges with different blob locations: " + blobLocation + " vs " + other.blobLocation;
 
         final NavigableMap<Long, ReplicatedByteRange> reconciledReplicatedRanges = reconcileReplicatedRanges(other);
-        final StatelessCompoundCommit.TimestampFieldValueRange reconcileTimestampRange = reconcileTimestampRange(other);
+        final TimestampFieldValueRange reconcileTimestampRange = reconcileTimestampRange(other);
         if (Objects.equals(replicatedRanges, reconciledReplicatedRanges) && Objects.equals(timestampRange, reconcileTimestampRange)) {
             return this;
         }
         return new BlobFileRanges(blobLocation, reconciledReplicatedRanges, reconcileTimestampRange);
     }
 
-    private StatelessCompoundCommit.TimestampFieldValueRange reconcileTimestampRange(final BlobFileRanges other) {
+    private TimestampFieldValueRange reconcileTimestampRange(final BlobFileRanges other) {
         final var midpoint = midpointMillisOrUnknownForCache(timestampRange);
         final var otherMidpoint = midpointMillisOrUnknownForCache(other.timestampRange);
         return mostRecentKnownTimestamp(midpoint, otherMidpoint) == midpoint ? timestampRange : other.timestampRange;

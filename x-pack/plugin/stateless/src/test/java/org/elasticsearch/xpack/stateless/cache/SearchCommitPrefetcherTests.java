@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.InternalFilesReplicatedRanges;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.TimestampFieldValueRange;
 import org.elasticsearch.xpack.stateless.engine.NewCommitNotification;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
@@ -198,7 +199,7 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
         // Somehow the directory is missing timestamp for this file
         commitFiles.put("referenced_c", new BlobLocation(referencedBlobC, 0, 10));
 
-        final var notificationRange = new StatelessCompoundCommit.TimestampFieldValueRange(1000L, 3000L); // midpoint 2000
+        final var notificationRange = new TimestampFieldValueRange(1000L, 3000L); // midpoint 2000
         final StatelessCompoundCommit commit = compoundCommit(4, commitFiles, Set.of("internal_1", "internal_2"), notificationRange);
 
         final Map<String, Long> resolvedTimestamps = Map.of("referenced_a", 500L, "referenced_b1", 1500L, "referenced_b2", 2500L);
@@ -266,7 +267,7 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
         final Map<String, BlobLocation> commitFiles = new HashMap<>();
         commitFiles.put("internal_1", new BlobLocation(internalBlob, 0, 10));
         commitFiles.put("internal_2", new BlobLocation(internalBlob, 10, 10));
-        final var notificationRange = new StatelessCompoundCommit.TimestampFieldValueRange(1000L, 3000L); // midpoint 2000
+        final var notificationRange = new TimestampFieldValueRange(1000L, 3000L); // midpoint 2000
         final StatelessCompoundCommit commit = compoundCommit(
             generation,
             commitFiles,
@@ -423,7 +424,7 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
         long generation,
         Map<String, BlobLocation> commitFiles,
         Set<String> internalFiles,
-        StatelessCompoundCommit.TimestampFieldValueRange timestampRange
+        TimestampFieldValueRange timestampRange
     ) {
         return new StatelessCompoundCommit(
             new ShardId("index", "_na_", 0),

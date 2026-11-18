@@ -3354,7 +3354,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 referenceVbcc.appendCommit(
                     commitRef,
                     testHarness.commitService.useReplicatedRanges(),
-                    new StatelessCompoundCommit.TimestampFieldValueRange(100, 200)
+                    new TimestampFieldValueRange(100, 200)
                 );
                 testHarness.commitService.onCommitCreation(commitRef);
             } while (testHarness.commitService.getCurrentVirtualBcc(testHarness.shardId) != null);

@@ -459,10 +459,13 @@ public final class FetchPhase {
             }
 
             @Override
+            protected boolean announces() {
+                return prefetchBudget > 0;
+            }
+
+            @Override
             protected void announce(List<LeafReaderContext> leaves, List<int[]> docsInLeaves) throws IOException {
-                if (prefetchBudget > 0) {
-                    sourceLoader.announce(new DocValuesBatchPrefetcher(prefetchBudget), leaves, docsInLeaves);
-                }
+                sourceLoader.announce(new DocValuesBatchPrefetcher(prefetchBudget), leaves, docsInLeaves);
             }
 
             @Override

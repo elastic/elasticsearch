@@ -2656,13 +2656,22 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         // A column of a single term stores no ordinal.
         final NumericPrefetch ords = entry.ordsEntry.indexMeta == null ? null : new NumericPrefetch(entry.ordsEntry, terms.termsDictSize);
         final IndexInput in = data.clone();
+        // Without ordinals there is still the presence of a sparse column, which reading it needs.
+        final DocRanks presence = ords != null
+            ? null
+            : ranks(
+                in,
+                entry.ordsEntry.docsWithFieldOffset,
+                entry.ordsEntry.docsWithFieldLength,
+                entry.ordsEntry.jumpTableEntryCount,
+                entry.ordsEntry.denseRankPower,
+                entry.ordsEntry.numValues
+            );
         final int blockShift = formatConfig.termsBlockLz4Shift();
         final long numBlocks = ((terms.termsDictSize - 1) >>> blockShift) + 1;
-        PrefetchSteps.Step prefetchTables = (docs, from, to) -> (ords != null && ords.prefetchPresenceAndIndex()) | prefetchTable(
-            in,
-            terms.termsAddressesOffset,
-            terms.termsAddressesLength
-        );
+        PrefetchSteps.Step prefetchTables = (docs, from, to) -> (ords != null
+            ? ords.prefetchPresenceAndIndex()
+            : presence.prefetchPresence()) | prefetchTable(in, terms.termsAddressesOffset, terms.termsAddressesLength);
         PrefetchSteps.Step prefetchOrds = (docs, from, to) -> ords != null && ords.prefetchBlocks(docs, from, to);
         PrefetchSteps.Step prefetchTerms = (docs, from, to) -> {
             long[] blocks = new long[ords == null ? 1 : ords.ranks.count()];

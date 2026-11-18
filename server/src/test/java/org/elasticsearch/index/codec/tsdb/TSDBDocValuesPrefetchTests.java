@@ -97,7 +97,15 @@ public class TSDBDocValuesPrefetchTests extends ESTestCase {
     }
 
     public void testKeyword() throws IOException {
-        Corpus corpus = new Corpus(randomBoolean(), randomBoolean());
+        assertKeyword(new Corpus(randomBoolean(), randomBoolean(), randomIntBetween(2, 300)));
+    }
+
+    /** A column of a single term stores no ordinals, but a sparse one still has a presence bitmap that reading it needs. */
+    public void testSparseKeywordOfOneTerm() throws IOException {
+        assertKeyword(new Corpus(false, randomBoolean(), 1));
+    }
+
+    private void assertKeyword(Corpus corpus) throws IOException {
         try (Directory dir = newDirectory()) {
             corpus.index(dir, format());
             try (
@@ -166,18 +174,24 @@ public class TSDBDocValuesPrefetchTests extends ESTestCase {
     private static class Corpus {
         final boolean dense;
         final boolean fixedLength;
+        final int numTerms;
         final int numDocs = randomIntBetween(2_000, 6_000);
         final Map<Integer, Long> numerics = new HashMap<>();
         final Map<Integer, BytesRef> binaries = new HashMap<>();
         final Map<Integer, BytesRef> keywords = new HashMap<>();
 
         Corpus(boolean dense, boolean fixedLength) {
+            this(dense, fixedLength, randomIntBetween(2, 300));
+        }
+
+        Corpus(boolean dense, boolean fixedLength, int numTerms) {
             this.dense = dense;
             this.fixedLength = fixedLength;
+            this.numTerms = numTerms;
         }
 
         void index(Directory dir, DocValuesFormat format) throws IOException {
-            BytesRef[] terms = IntStream.range(0, randomIntBetween(2, 300))
+            BytesRef[] terms = IntStream.range(0, numTerms)
                 .mapToObj(i -> new BytesRef(randomAlphaOfLength(randomIntBetween(4, 30))))
                 .toArray(BytesRef[]::new);
             IndexWriterConfig config = new IndexWriterConfig().setCodec(TestUtil.alwaysDocValuesFormat(format)).setUseCompoundFile(false);

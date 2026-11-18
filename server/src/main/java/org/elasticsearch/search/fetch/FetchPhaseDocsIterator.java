@@ -80,11 +80,19 @@ abstract class FetchPhaseDocsIterator {
      */
     protected abstract void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) throws IOException;
 
+    /** Whether to {@link #announce} the documents; grouping them by segment is wasted work for an iterator that ignores them. */
+    protected boolean announces() {
+        return false;
+    }
+
     /** Called once before the first {@link #setNextReader} with the segments, in reading order, and their documents. */
     protected void announce(List<LeafReaderContext> leaves, List<int[]> docsInLeaves) throws IOException {}
 
-    /** Groups {@code docs}, sorted by doc id, by segment and {@link #announce}s them. */
+    /** Groups {@code docs}, sorted by doc id, by segment and {@link #announce}s them, if {@link #announces}. */
     final void announceAll(IndexReader indexReader, DocIdToIndex[] docs) throws IOException {
+        if (announces() == false) {
+            return;
+        }
         List<LeafReaderContext> leaves = new ArrayList<>();
         List<int[]> docsInLeaves = new ArrayList<>();
         for (int i = 0; i < docs.length;) {

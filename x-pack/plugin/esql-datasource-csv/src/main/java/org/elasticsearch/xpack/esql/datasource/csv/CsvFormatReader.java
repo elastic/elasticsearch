@@ -2269,8 +2269,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
-     * The bracketed object part a schema-path message carries, with {@code leadIn} ({@code " of"}, or empty
-     * where the sentence already supplies the word) so the whole phrase disappears together when the name is
+     * The bracketed object part a schema-path message carries, with {@code leadIn} ({@code " of"},
+     * {@code " for"}, or empty where the sentence already supplies the word) so the whole phrase disappears
+     * together when the name is
      * unavailable rather than leaving a dangling preposition. One owner because the four messages that take it
      * must agree: three of them named no object at all, so a single bad file in a glob failed the query with a
      * message saying only which format it was. {@link RowLocation#displayObjectName} has already been applied
@@ -2360,9 +2361,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
         String sourceLocation
     ) {
         Exception cause = firstCause instanceof Exception ex ? ex : null;
-        StringBuilder details = new StringBuilder(displayName(format)).append(" schema inference")
-            .append(objectClause(" of", sourceLocation))
-            .append(" failed: no rows could be parsed; first errors: ");
+        // The object goes AFTER "failed" so that phrase stays contiguous: a test pinned it as one
+        // substring, and splitting it is a silent break for anything else matching the same way.
+        StringBuilder details = new StringBuilder(displayName(format)).append(" schema inference failed")
+            .append(objectClause(" for", sourceLocation))
+            .append(": no rows could be parsed; first errors: ");
         appendCapturedErrors(details, capturedErrors);
         ExternalClientException zeroEx = new ExternalClientException(
             ExternalException.Condition.MALFORMED_DATA,

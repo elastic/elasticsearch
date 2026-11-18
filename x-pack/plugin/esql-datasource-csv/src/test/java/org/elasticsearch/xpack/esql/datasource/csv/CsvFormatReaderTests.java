@@ -7662,6 +7662,8 @@ public class CsvFormatReaderTests extends ESTestCase {
             }
         });
         assertTrue("expected zero-rows message, got: " + e.getMessage(), e.getMessage().contains("schema inference failed"));
+        // The fourth schema-path message, pinned to the object like the other three.
+        assertThat(e.getMessage(), containsString("schema inference failed for [test.csv]"));
         assertEquals(org.elasticsearch.rest.RestStatus.BAD_REQUEST, e.status());
     }
 

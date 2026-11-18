@@ -8,7 +8,9 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.bulk.BatchIndexingEnabled;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.ingest.IngestPipelineTestUtils;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
@@ -37,22 +39,32 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
         return CollectionUtils.appendToCopy(super.nodePlugins(), IngestCommonPlugin.class);
     }
 
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), true)
+            .build();
+    }
+
     @Before
     public void createDestination() {
         assumeTrue("INTO is only enabled in snapshot builds", EsqlCapabilities.Cap.INTO_COMMAND.isEnabled());
-        assertAcked(indicesAdmin().prepareCreate(DESTINATION).setMapping("""
-            {
-              "dynamic": "strict",
-              "properties": {
-                "k":  { "type": "keyword" },
-                "l":  { "type": "long" },
-                "d":  { "type": "double" },
-                "b":  { "type": "boolean" },
-                "dt": { "type": "date" },
-                "ip": { "type": "ip" }
-              }
-            }
-            """));
+        assertAcked(
+            indicesAdmin().prepareCreate(DESTINATION).setSettings(Settings.builder().put("index.batch_indexing", true)).setMapping("""
+                {
+                  "dynamic": "strict",
+                  "properties": {
+                    "k":  { "type": "keyword" },
+                    "l":  { "type": "long" },
+                    "d":  { "type": "double" },
+                    "b":  { "type": "boolean" },
+                    "dt": { "type": "date" },
+                    "ip": { "type": "ip" }
+                  }
+                }
+                """)
+        );
     }
 
     public void testTypes() {
@@ -84,7 +96,11 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
     public void testDateMathDestination() {
         String dateMathDest = "<dest-into-{now/d}>";
         String resolvedDest = IndexNameExpressionResolver.resolveDateMathExpression(dateMathDest);
-        assertAcked(indicesAdmin().prepareCreate(resolvedDest).setMapping("{\"properties\":{\"k\":{\"type\":\"keyword\"}}}"));
+        assertAcked(
+            indicesAdmin().prepareCreate(resolvedDest)
+                .setSettings(Settings.builder().put("index.batch_indexing", true))
+                .setMapping("{\"properties\":{\"k\":{\"type\":\"keyword\"}}}")
+        );
         assertIntoTarget("ROW k = \"x\"", dateMathDest, 1);
     }
 
@@ -111,14 +127,18 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
         IngestPipelineTestUtils.putJsonPipeline(client(), pipeline, """
             {"processors": [{"set": {"field": "pipeline_ran", "value": true}}]}""");
 
-        assertAcked(indicesAdmin().prepareCreate(pipelineDest).setSettings(Map.of("index.default_pipeline", pipeline)).setMapping("""
-            {
-              "dynamic": "strict",
-              "properties": {
-                "k":            { "type": "keyword" },
-                "pipeline_ran": { "type": "boolean" }
-              }
-            }"""));
+        assertAcked(
+            indicesAdmin().prepareCreate(pipelineDest)
+                .setSettings(Settings.builder().put("index.default_pipeline", pipeline).put("index.batch_indexing", true))
+                .setMapping("""
+                    {
+                      "dynamic": "strict",
+                      "properties": {
+                        "k":            { "type": "keyword" },
+                        "pipeline_ran": { "type": "boolean" }
+                      }
+                    }""")
+        );
 
         ElasticsearchStatusException e = expectThrows(
             ElasticsearchStatusException.class,

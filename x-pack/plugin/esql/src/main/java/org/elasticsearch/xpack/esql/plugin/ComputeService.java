@@ -12,6 +12,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.bulk.BatchIndexingEnabled;
+import org.elasticsearch.action.bulk.EscfBulkService;
 import org.elasticsearch.action.bulk.ShardBatchIndexer;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -251,6 +252,7 @@ public class ComputeService {
     /** Which nodes of the cluster state may be given external splits right now; see {@link #externalWorkers()}. */
     private final ExternalWorkerReadiness externalWorkerReadiness;
     private final BatchIndexingEnabled batchIndexingEnabled;
+    private final EscfBulkService escfBulkService;
 
     @SuppressWarnings("this-escape")
     public ComputeService(
@@ -264,9 +266,11 @@ public class ComputeService {
         OperatorFactoryRegistry operatorFactoryRegistry,
         FormatReaderRegistry formatReaderRegistry,
         Client client,
-        ExternalWorkerReadiness externalWorkerReadiness
+        ExternalWorkerReadiness externalWorkerReadiness,
+        EscfBulkService escfBulkService
     ) {
         this.externalWorkerReadiness = externalWorkerReadiness;
+        this.escfBulkService = escfBulkService;
         this.searchService = transportActionServices.searchService();
         this.transportService = transportActionServices.transportService();
         this.exchangeService = transportActionServices.exchangeService();
@@ -1220,7 +1224,13 @@ public class ComputeService {
                 projectResolver.getProjectMetadata(clusterService.state()),
                 target
             );
-            IntoPageWriter.Factory sink = IntoPageWriter.Factory.createFactory(client, target, into.child().output());
+            IntoPageWriter.Factory sink = IntoPageWriter.Factory.createFactory(
+                escfBulkService,
+                client,
+                blockFactory.breaker(),
+                target,
+                into.child().output()
+            );
             physicalPlan = OutputExec.withFactory(into.source(), into.child(), sink);
             listener = listener.delegateFailureAndWrap((l, result) -> {
                 Exception failure = sink.failure();

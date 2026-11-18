@@ -22,6 +22,8 @@ import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.action.shard.FailedShardEntry;
+import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
@@ -44,10 +46,14 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.recovery.CancelRecoveriesAction;
+import org.elasticsearch.indices.recovery.RecoveryCancelledException;
+import org.elasticsearch.indices.recovery.ShardRecoveryCancellation;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
@@ -1430,6 +1436,74 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
 
             mockLog.assertAllExpectationsMatched();
         }
+    }
+
+    public void testDirectCancellationWhileAwaitingOfflineWarmingFailsSearchRecovery() throws Exception {
+        final var masterNode = startMasterOnlyNode();
+
+        final Settings nodeSettings = Settings.builder()
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE.getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
+            .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+            .build();
+        startIndexNode(nodeSettings);
+        final String searchNode = startSearchNode(nodeSettings);
+        ensureStableCluster(3);
+
+        final String indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).build());
+        indexDocs(indexName, randomIntBetween(1, 100));
+        refresh(indexName);
+
+        // Hold the offline warming tasks back so that the recovery stays blocked waiting for warming, and make sure it does wait.
+        final var capturedTasks = new CopyOnWriteArrayList<ActionListener<Releasable>>();
+        final var warmCacheReturnedLatch = new CountDownLatch(1);
+        final var warmingService = getSharedBlobCacheWarmingService(searchNode);
+        warmingService.setAwaitWarmingForSearchRecovery(true);
+        warmingService.setScheduleWarmingTaskInterceptor(capturedTasks::add);
+        warmingService.setWarmCacheReturnedCallback(warmCacheReturnedLatch::countDown);
+
+        setReplicaCount(1, indexName);
+        safeAwait(warmCacheReturnedLatch);
+        assertThat("expect at least one warming task to have been enqueued", capturedTasks.size(), greaterThan(0));
+
+        final var shardId = new ShardId(resolveIndex(indexName), 0);
+        final var searchShard = findSearchShard(indexName);
+        assertThat(searchShard.state(), equalTo(IndexShardState.RECOVERING));
+
+        final var shardFailureReceived = new CountDownLatch(1);
+        MockTransportService.getInstance(masterNode)
+            .addRequestHandlingBehavior(ShardStateAction.SHARD_FAILED_ACTION_NAME, (handler, request, channel, task) -> {
+                if (request instanceof FailedShardEntry failedShard
+                    && failedShard.getShardId().equals(shardId)
+                    && ExceptionsHelper.unwrap(failedShard.getFailure(), RecoveryCancelledException.class) != null) {
+                    shardFailureReceived.countDown();
+                }
+                handler.messageReceived(request, channel, task);
+            });
+
+        final var clusterService = internalCluster().getInstance(ClusterService.class, searchNode);
+        client(searchNode).execute(
+            CancelRecoveriesAction.TYPE,
+            new CancelRecoveriesAction.Request(
+                clusterService.state().term(),
+                clusterService.state().version(),
+                List.of(new ShardRecoveryCancellation(shardId, searchShard.routingEntry().allocationId().getId(), true))
+            )
+        ).get();
+
+        // The requested cancellation does not complete the recovery itself: it is stuck waiting for warming. Releasing the warming
+        // tasks lets them see the cancellation and skip their work, and then the recovery has to notice the cancellation, instead of
+        // going on to start the shard with a partially warmed cache.
+        warmingService.setScheduleWarmingTaskInterceptor(null);
+        warmingService.setAwaitWarmingForSearchRecovery(false);
+        for (var task : capturedTasks) {
+            task.onResponse(() -> {});
+        }
+
+        safeAwait(shardFailureReceived);
+        assertThat(searchShard.state(), equalTo(IndexShardState.CLOSED));
     }
 
     public void testRelocateIndexingShardWithMultipleBlobsPrewarmsRegionZero() throws Exception {

@@ -1979,6 +1979,30 @@ public final class RestoreService implements ClusterStateApplier {
     }
 
     /**
+     * Has the {@link RestoreProjectCustomUpdater} record the completion of {@code entry} in {@code updatedCustoms}, which holds the customs
+     * changed so far by the same cleanup, keyed by project. Does nothing when {@code project} is {@code null}, because it is gone, or when
+     * the updater maintains no custom. The updater is given the custom from {@code updatedCustoms} if an earlier entry of the cleanup
+     * changed it, and the one in {@code project} otherwise. Package-private for unit tests.
+     */
+    void applyRestoreCompletedUpdater(
+        RestoreInProgress.Entry entry,
+        @Nullable ProjectMetadata project,
+        Map<ProjectId, Metadata.ProjectCustom> updatedCustoms
+    ) {
+        final String type = customUpdater.projectCustomType();
+        if (project == null || type == null) {
+            return;
+        }
+        final Metadata.ProjectCustom current = updatedCustoms.containsKey(project.id())
+            ? updatedCustoms.get(project.id())
+            : project.custom(type);
+        final Metadata.ProjectCustom updated = customUpdater.onRestoreCompleted(entry, project, current);
+        if (updated != null) {
+            updatedCustoms.put(project.id(), updated);
+        }
+    }
+
+    /**
      * Has the {@link RestoreProjectCustomUpdater} record each completed {@link RestoreInProgress} entry in its project's custom, then
      * removes those entries. The updater runs before the entry is removed, and its result is published in the same update, so the two
      * appear atomically. Package-private for unit tests.
@@ -1998,17 +2022,11 @@ public final class RestoreService implements ClusterStateApplier {
                 );
                 // Record the completion before the entry disappears from cluster state.
                 try {
-                    final ProjectId projectId = entry.snapshot().getProjectId();
-                    final ProjectMetadata project = customType == null ? null : currentState.metadata().projects().get(projectId);
-                    if (project != null) {
-                        final Metadata.ProjectCustom current = updatedCustoms.containsKey(projectId)
-                            ? updatedCustoms.get(projectId)
-                            : project.custom(customType);
-                        final Metadata.ProjectCustom updated = customUpdater.onRestoreCompleted(entry, project, current);
-                        if (updated != null) {
-                            updatedCustoms.put(projectId, updated);
-                        }
-                    }
+                    applyRestoreCompletedUpdater(
+                        entry,
+                        currentState.metadata().projects().get(entry.snapshot().getProjectId()),
+                        updatedCustoms
+                    );
                     changed = true;
                 } catch (Exception e) {
                     logger.warn(

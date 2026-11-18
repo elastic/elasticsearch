@@ -85,6 +85,7 @@ import java.util.function.BiFunction;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -1692,6 +1693,76 @@ public class RestoreServiceTests extends ESTestCase {
         expectThrows(
             IllegalStateException.class,
             () -> service.applyRestoreInitializedUpdater(buildRestoreEntry(), ProjectMetadata.builder(randomProjectIdOrDefault()))
+        );
+    }
+
+    public void testApplyRestoreCompletedUpdaterRecordsTheResultForTheProject() {
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).putCustom(CUSTOM_TYPE, new SeenRestores("before")).build();
+        RestoreService service = createMinimalRestoreService(completionUpdater((entry, p, current) -> {
+            assertSame(project, p);
+            assertEquals(new SeenRestores("before"), current);
+            return new SeenRestores("after");
+        }));
+
+        final Map<ProjectId, Metadata.ProjectCustom> updated = new HashMap<>();
+        service.applyRestoreCompletedUpdater(buildRestoreEntry(), project, updated);
+
+        assertEquals(Map.of(project.id(), new SeenRestores("after")), updated);
+    }
+
+    public void testApplyRestoreCompletedUpdaterPrefersACustomAnEarlierEntryChanged() {
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).putCustom(CUSTOM_TYPE, new SeenRestores("stored")).build();
+        RestoreService service = createMinimalRestoreService(completionUpdater((entry, p, current) -> {
+            assertEquals(new SeenRestores("earlier"), current);
+            return new SeenRestores("later");
+        }));
+
+        final Map<ProjectId, Metadata.ProjectCustom> updated = new HashMap<>(Map.of(project.id(), new SeenRestores("earlier")));
+        service.applyRestoreCompletedUpdater(buildRestoreEntry(), project, updated);
+
+        assertEquals(Map.of(project.id(), new SeenRestores("later")), updated);
+    }
+
+    public void testApplyRestoreCompletedUpdaterLeavesTheMapAloneWhenTheUpdaterReturnsNull() {
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        RestoreService service = createMinimalRestoreService(completionUpdater((entry, p, current) -> null));
+
+        final Map<ProjectId, Metadata.ProjectCustom> updated = new HashMap<>();
+        service.applyRestoreCompletedUpdater(buildRestoreEntry(), project, updated);
+
+        assertThat(updated, anEmptyMap());
+    }
+
+    public void testApplyRestoreCompletedUpdaterSkipsAProjectThatIsGone() {
+        AtomicInteger callCount = new AtomicInteger(0);
+        RestoreService service = createMinimalRestoreService(completionUpdater((entry, p, current) -> {
+            callCount.incrementAndGet();
+            return new SeenRestores("x");
+        }));
+
+        final Map<ProjectId, Metadata.ProjectCustom> updated = new HashMap<>();
+        service.applyRestoreCompletedUpdater(buildRestoreEntry(), null, updated);
+
+        assertEquals(0, callCount.get());
+        assertThat(updated, anEmptyMap());
+    }
+
+    public void testApplyRestoreCompletedUpdaterDoesNothingWhenNothingIsMaintained() {
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        final Map<ProjectId, Metadata.ProjectCustom> updated = new HashMap<>();
+        createMinimalRestoreService().applyRestoreCompletedUpdater(buildRestoreEntry(), project, updated);
+        assertThat(updated, anEmptyMap());
+    }
+
+    /** The cleanup relies on this to retain the entry and retry. */
+    public void testApplyRestoreCompletedUpdaterPropagatesAnException() {
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        RestoreService service = createMinimalRestoreService(completionUpdater((entry, p, current) -> {
+            throw new IllegalStateException("not now");
+        }));
+        expectThrows(
+            IllegalStateException.class,
+            () -> service.applyRestoreCompletedUpdater(buildRestoreEntry(), project, new HashMap<>())
         );
     }
 

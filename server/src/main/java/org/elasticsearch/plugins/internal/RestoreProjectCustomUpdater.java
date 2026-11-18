@@ -24,7 +24,8 @@ import org.elasticsearch.snapshots.RestoreService;
  * state, also leaves it to {@link RestoreService} to put it into the state that it is already building.
  * <p>
  * An implementation maintains a single type of custom, {@link #projectCustomType()}, and only for the project that the restore belongs to.
- * It never removes the custom: to leave nothing, return an empty one.
+ * It never removes the custom: to leave nothing, return an empty one. Returning {@code null} from a callback is not a removal; it means
+ * there is no change, and the custom stays as it was.
  */
 public interface RestoreProjectCustomUpdater {
 

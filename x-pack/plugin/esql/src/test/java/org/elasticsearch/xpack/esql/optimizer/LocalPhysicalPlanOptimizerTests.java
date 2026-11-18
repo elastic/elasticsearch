@@ -48,7 +48,6 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TemporalityAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
-import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
@@ -67,7 +66,7 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.Re2Like;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
@@ -1288,9 +1287,8 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         var queries = expressionQueries(plan.collect(EsQueryExec.class).getFirst().query());
         assertThat(queries, hasSize(1));
         assertThat(queries.getFirst().fieldName(), equalTo("pod"));
-        var rLike = as(queries.getFirst().getExpression(), RLike.class);
-        assertThat(rLike.pattern().pattern(), equalTo("(?i)a.*b"));
-        assertThat(rLike.pattern().syntax(), equalTo(RLikePattern.Syntax.RE2));
+        var re2Like = as(queries.getFirst().getExpression(), Re2Like.class);
+        assertThat(re2Like.pattern().pattern(), equalTo("(?i)a.*b"));
     }
 
     private static List<ExpressionQueryBuilder> expressionQueries(QueryBuilder query) {

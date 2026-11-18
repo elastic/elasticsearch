@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -25,7 +24,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PromqlHistogramQuantile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.Re2Like;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -179,19 +178,18 @@ public class PromqlPlanSelectorTests extends AbstractPromqlPlanOptimizerTests {
     public void testLabelSelectorRegexNegation() {
         var plan = planPromql("PROMQL index=k8s step=1m avg(network.bytes_in{pod!~\"f.o\"})");
         var not = collectInnermostSelectorFilter(plan, Not.class);
-        var rLike = as(not.field(), RLike.class);
-        assertThat(as(rLike.field(), FieldAttribute.class).name(), equalTo("pod"));
-        assertThat(rLike.pattern().pattern(), equalTo("f.o"));
+        var re2Like = as(not.field(), Re2Like.class);
+        assertThat(as(re2Like.field(), FieldAttribute.class).name(), equalTo("pod"));
+        assertThat(re2Like.pattern().pattern(), equalTo("f.o"));
     }
 
-    /** The RLIKE fallback keeps the regex in RE2 syntax, where Lucene's own operators are literals. */
+    /** The regex fallback keeps the regex in RE2 syntax, where Lucene's own operators are literals. */
     public void testLabelSelectorRegexLuceneOnlyOperatorsAreLiterals() {
         var plan = planPromql("PROMQL index=k8s step=1m avg(network.bytes_in{pod!~\"(a<1-3>|~b&c)\"})");
         var not = collectInnermostSelectorFilter(plan, Not.class);
-        var rLike = as(not.field(), RLike.class);
-        assertThat(as(rLike.field(), FieldAttribute.class).name(), equalTo("pod"));
-        assertThat(rLike.pattern().pattern(), equalTo("(a<1-3>|~b&c)"));
-        assertThat(rLike.pattern().syntax(), equalTo(RLikePattern.Syntax.RE2));
+        var re2Like = as(not.field(), Re2Like.class);
+        assertThat(as(re2Like.field(), FieldAttribute.class).name(), equalTo("pod"));
+        assertThat(re2Like.pattern().pattern(), equalTo("(a<1-3>|~b&c)"));
     }
 
     public void testLabelSelectors() {

@@ -12,7 +12,7 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
-import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.Re2Pattern;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher.Matcher;
 
 import java.util.List;
@@ -207,11 +207,10 @@ public class LabelMatcherTests extends ESTestCase {
         assertThat(AutomatonUtils.matchesExact(matcher.automaton()), equalTo("\"a\"\n"));
     }
 
-    /** The {@code RLIKE} filter gets the regex as written, in RE2 syntax like the automaton. */
+    /** The filter gets the regex as written, in RE2 syntax like the automaton. */
     public void testRegexPattern() {
-        RLikePattern pattern = LabelMatcher.regex("(?i)(a<1-3>|~b&c)");
+        Re2Pattern pattern = LabelMatcher.regex("(?i)(a<1-3>|~b&c)");
         assertThat(pattern.pattern(), equalTo("(?i)(a<1-3>|~b&c)"));
-        assertThat(pattern.syntax(), equalTo(RLikePattern.Syntax.RE2));
         Automaton expected = new LabelMatcher("label", "(?i)(a<1-3>|~b&c)", Matcher.REG).automaton();
         assertTrue(AutomatonTestUtil.sameLanguage(expected, pattern.createAutomaton(false)));
     }

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.core.expression.predicate.regex;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -21,53 +20,28 @@ import java.util.Objects;
 
 public class RLikePattern extends AbstractStringPattern implements Writeable {
 
-    /**
-     * The regular expression dialect a pattern is written in.
-     */
-    public enum Syntax {
-        /** Lucene's {@link RegExp} syntax, which {@code RLIKE} takes. */
-        LUCENE,
-        /** RE2 syntax, which PromQL label matchers take; see {@link Re2RegExp}. */
-        RE2
-    }
-
-    static final TransportVersion ESQL_RLIKE_RE2_SYNTAX = TransportVersion.fromName("esql_rlike_re2_syntax");
-
     private final String regexpPattern;
-    private final Syntax syntax;
 
     public RLikePattern(String regexpPattern) {
-        this(regexpPattern, Syntax.LUCENE);
-    }
-
-    public RLikePattern(String regexpPattern, Syntax syntax) {
         this.regexpPattern = regexpPattern;
-        this.syntax = syntax;
     }
 
     public RLikePattern(StreamInput in) throws IOException {
-        this(in.readString(), in.getTransportVersion().supports(ESQL_RLIKE_RE2_SYNTAX) ? in.readEnum(Syntax.class) : Syntax.LUCENE);
+        this(in.readString());
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(regexpPattern);
-        if (out.getTransportVersion().supports(ESQL_RLIKE_RE2_SYNTAX)) {
-            out.writeEnum(syntax);
-        } else if (syntax != Syntax.LUCENE) {
-            // an older node would read the pattern as Lucene syntax and match other values
-            throw new UnsupportedOperationException("version does not support RE2 regex syntax");
-        }
     }
 
     @Override
     protected Automaton doCreateAutomaton(boolean ignoreCase) {
-        Automaton automaton = switch (syntax) {
-            case LUCENE -> new RegExp(regexpPattern, RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT, ignoreCase ? RegExp.CASE_INSENSITIVE : 0)
-                .toAutomaton();
-            case RE2 -> new Re2RegExp(regexpPattern, ignoreCase).toAutomaton();
-        };
-        return Operations.determinize(automaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        int matchFlags = ignoreCase ? RegExp.CASE_INSENSITIVE : 0;
+        return Operations.determinize(
+            new RegExp(regexpPattern, RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT, matchFlags).toAutomaton(),
+            Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
+        );
     }
 
     @Override
@@ -80,20 +54,16 @@ public class RLikePattern extends AbstractStringPattern implements Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         RLikePattern that = (RLikePattern) o;
-        return Objects.equals(regexpPattern, that.regexpPattern) && syntax == that.syntax;
+        return Objects.equals(regexpPattern, that.regexpPattern);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(regexpPattern, syntax);
+        return Objects.hash(regexpPattern);
     }
 
     public String pattern() {
         return regexpPattern;
-    }
-
-    public Syntax syntax() {
-        return syntax;
     }
 
     private static final String REGEX_METACHARACTERS = ".*+?()[]{}|^$\\";

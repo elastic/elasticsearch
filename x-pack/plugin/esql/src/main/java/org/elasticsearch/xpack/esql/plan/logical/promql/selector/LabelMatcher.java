@@ -12,7 +12,7 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.lucene.util.automaton.MinimizationOperations;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
-import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.Re2Pattern;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringRenderable;
@@ -149,11 +149,11 @@ public class LabelMatcher implements NodeStringRenderable {
     }
 
     /**
-     * A PromQL regex as an {@link RLikePattern}, used for both the matcher's automaton and the {@code RLIKE} filter so
-     * the two agree on what it matches. PromQL regexes use RE2 syntax, which Lucene's regexp syntax doesn't cover.
+     * A PromQL regex, in RE2 syntax, used for both the matcher's automaton and the filter so the two agree on what it
+     * matches.
      */
-    public static RLikePattern regex(String regex) {
-        return new RLikePattern(regex, RLikePattern.Syntax.RE2);
+    public static Re2Pattern regex(String regex) {
+        return new Re2Pattern(regex);
     }
 
     private static Automaton regexAutomaton(String regex) {

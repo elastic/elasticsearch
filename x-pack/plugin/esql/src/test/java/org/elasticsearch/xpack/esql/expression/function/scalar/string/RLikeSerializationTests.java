@@ -20,7 +20,8 @@ public class RLikeSerializationTests extends AbstractExpressionSerializationTest
     protected RLike createTestInstance() {
         Source source = randomSource();
         Expression child = randomChild();
-        return new RLike(source, child, randomPattern());
+        RLikePattern pattern = new RLikePattern(randomAlphaOfLength(4));
+        return new RLike(source, child, pattern);
     }
 
     @Override
@@ -31,12 +32,8 @@ public class RLikeSerializationTests extends AbstractExpressionSerializationTest
         if (randomBoolean()) {
             child = randomValueOtherThan(child, AbstractExpressionSerializationTests::randomChild);
         } else {
-            pattern = randomValueOtherThan(pattern, RLikeSerializationTests::randomPattern);
+            pattern = randomValueOtherThan(pattern, () -> new RLikePattern(randomAlphaOfLength(4)));
         }
         return new RLike(source, child, pattern);
-    }
-
-    private static RLikePattern randomPattern() {
-        return new RLikePattern(randomAlphaOfLength(4), randomFrom(RLikePattern.Syntax.values()));
     }
 }

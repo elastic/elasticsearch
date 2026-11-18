@@ -8,8 +8,6 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.string.regex;
 
 import org.apache.lucene.search.MultiTermQuery;
-import org.apache.lucene.util.automaton.Automaton;
-import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -30,7 +28,6 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.io.stream.ExpressionQuery;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
@@ -123,7 +120,7 @@ public class RLike extends RegexMatch<RLikePattern> implements AnyNullIsNull {
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
-            new RLikePattern(in),
+            new RLikePattern(in.readString()),
             deserializeCaseInsensitivity(in)
         );
     }
@@ -132,7 +129,7 @@ public class RLike extends RegexMatch<RLikePattern> implements AnyNullIsNull {
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
         out.writeNamedWriteable(field());
-        pattern().writeTo(out);
+        out.writeString(pattern().asJavaRegex());
         serializeCaseInsensitivity(out);
     }
 
@@ -159,10 +156,8 @@ public class RLike extends RegexMatch<RLikePattern> implements AnyNullIsNull {
     @Override
     public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
         if (LucenePushdownPredicates.pushesOverValuesOnly(pushdownPredicates, field())) {
-            // The field answers over the values it keeps, which the expression asks it for on the shard, in Lucene syntax.
-            return pattern().syntax() == RLikePattern.Syntax.LUCENE && FieldValueQueries.pushable(pushdownPredicates.minTransportVersion())
-                ? Translatable.YES
-                : Translatable.NO;
+            // The field answers over the values it keeps, which the expression asks it for on the shard.
+            return FieldValueQueries.pushable(pushdownPredicates.minTransportVersion()) ? Translatable.YES : Translatable.NO;
         }
         return super.translatable(pushdownPredicates);
     }
@@ -173,13 +168,8 @@ public class RLike extends RegexMatch<RLikePattern> implements AnyNullIsNull {
             return FieldValueQueries.over(source(), handler.nameOf(field()), this);
         }
         var fa = LucenePushdownPredicates.checkIsFieldAttribute(field());
-        String fieldName = handler.nameOf(fa.exactAttribute());
-        if (pattern().syntax() == RLikePattern.Syntax.RE2) {
-            // a regexp query parses Lucene syntax, so the expression goes to the shard and builds its automaton there
-            return new ExpressionQuery(source(), fieldName, this);
-        }
         // TODO: see whether escaping is needed
-        return new RegexQuery(source(), fieldName, pattern().asJavaRegex(), caseInsensitive());
+        return new RegexQuery(source(), handler.nameOf(fa.exactAttribute()), pattern().asJavaRegex(), caseInsensitive());
     }
 
     /**
@@ -191,16 +181,6 @@ public class RLike extends RegexMatch<RLikePattern> implements AnyNullIsNull {
         MultiTermQuery.RewriteMethod constantScoreRewrite,
         SearchExecutionContext context
     ) {
-        if (pattern().syntax() == RLikePattern.Syntax.RE2) {
-            Automaton automaton = pattern().createAutomaton(caseInsensitive());
-            return fieldType.automatonQuery(
-                () -> automaton,
-                () -> new CharacterRunAutomaton(automaton),
-                constantScoreRewrite,
-                context,
-                "RLIKE(\"" + pattern().pattern() + "\"), syntax=RE2, caseInsensitive=" + caseInsensitive()
-            );
-        }
         return FieldValueQueries.textFamily(fieldType)
             .regexpLikeQuery(
                 pattern().asJavaRegex(),

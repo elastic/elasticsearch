@@ -112,6 +112,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.TopSnippet
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Trim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLikeList;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.Re2Like;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLikeList;
 import org.elasticsearch.xpack.esql.expression.function.scalar.util.Delay;
@@ -229,6 +230,7 @@ public class ExpressionWritables {
         entries.add(Random.ENTRY);
         entries.add(RLike.ENTRY);
         entries.add(RLikeList.ENTRY);
+        entries.add(Re2Like.ENTRY);
         entries.add(RTrim.ENTRY);
         entries.add(Scalb.ENTRY);
         entries.add(Signum.ENTRY);

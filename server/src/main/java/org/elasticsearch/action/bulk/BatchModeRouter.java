@@ -62,7 +62,7 @@ final class BatchModeRouter implements Releasable {
 
     /** The name of the index abstraction the items holding the rows of this router's batch target; null in x-content mode. */
     @Nullable
-    final String key;
+    final String indexAbstractionName;
     @Nullable
     private final EscfBatch source;
     @Nullable
@@ -98,8 +98,8 @@ final class BatchModeRouter implements Releasable {
     /** Per-bulk cache of the {@code index.batch_indexing} decision per concrete index (x-content mode only). */
     private final Map<Index, Boolean> batchEnabledByIndex = new HashMap<>();
 
-    BatchModeRouter(String key, EscfBatch source, Recycler<BytesRef> recycler) {
-        this.key = key;
+    BatchModeRouter(String indexAbstractionName, EscfBatch source, Recycler<BytesRef> recycler) {
+        this.indexAbstractionName = indexAbstractionName;
         this.source = source;
         this.partitionIds = new int[source.docCount()];
         this.items = new BulkItemRequest[source.docCount()];
@@ -108,7 +108,7 @@ final class BatchModeRouter implements Releasable {
     }
 
     private BatchModeRouter(BulkBatchEncoders encoders, Recycler<BytesRef> recycler) {
-        this.key = null;
+        this.indexAbstractionName = null;
         this.source = null;
         this.partitionIds = null;
         this.items = null;
@@ -147,7 +147,7 @@ final class BatchModeRouter implements Releasable {
         if (encoders != null || source == null) {
             return false;
         }
-        IndexAbstraction ia = project.getIndicesLookup().get(key);
+        IndexAbstraction ia = project.getIndicesLookup().get(indexAbstractionName);
         if (ia == null) {
             return false;
         }
@@ -199,7 +199,7 @@ final class BatchModeRouter implements Releasable {
         if (anyHasTimestamp && anyLacksTimestamp) {
             throw new IllegalArgumentException(
                 "pre-built batch for ["
-                    + key
+                    + indexAbstractionName
                     + "] has a mix of requests with and without a pre-set timestamp;"
                     + " either all requests must supply a timestamp (producer-side) or none"
             );
@@ -215,7 +215,7 @@ final class BatchModeRouter implements Releasable {
         if (leaf < 0) {
             throw new IllegalArgumentException(
                 "pre-built batch for ["
-                    + key
+                    + indexAbstractionName
                     + "] targets a TSDB data stream but the batch has no ["
                     + DataStream.TIMESTAMP_FIELD_NAME
                     + "] column; the batch producer must include a timestamp column"
@@ -231,7 +231,7 @@ final class BatchModeRouter implements Releasable {
             case EscfColumnKind.UNION -> resolveTimestampsFromUnion(col, byRow);
             default -> throw new UnsupportedOperationException(
                 "pre-built batch for ["
-                    + key
+                    + indexAbstractionName
                     + "] has a ["
                     + DataStream.TIMESTAMP_FIELD_NAME
                     + "] column of unsupported kind ["
@@ -254,7 +254,7 @@ final class BatchModeRouter implements Releasable {
             setTimestampOnRequest(byRow, r, Instant.ofEpochMilli(cursor.longValue()));
             seen[r] = true;
         }
-        checkAllRowsHaveTimestamp(seen, byRow, key);
+        checkAllRowsHaveTimestamp(seen, byRow, indexAbstractionName);
     }
 
     /**
@@ -273,7 +273,7 @@ final class BatchModeRouter implements Releasable {
             setTimestampOnRequest(byRow, r, ts);
             seen[r] = true;
         }
-        checkAllRowsHaveTimestamp(seen, byRow, key);
+        checkAllRowsHaveTimestamp(seen, byRow, indexAbstractionName);
     }
 
     /**
@@ -296,7 +296,7 @@ final class BatchModeRouter implements Releasable {
             } else {
                 throw new UnsupportedOperationException(
                     "pre-built batch for ["
-                        + key
+                        + indexAbstractionName
                         + "] row "
                         + r
                         + " has a UNION ["
@@ -309,15 +309,15 @@ final class BatchModeRouter implements Releasable {
             setTimestampOnRequest(byRow, r, ts);
             seen[r] = true;
         }
-        checkAllRowsHaveTimestamp(seen, byRow, key);
+        checkAllRowsHaveTimestamp(seen, byRow, indexAbstractionName);
     }
 
-    private static void checkAllRowsHaveTimestamp(boolean[] seen, IndexRequest[] byRow, String key) {
+    private static void checkAllRowsHaveTimestamp(boolean[] seen, IndexRequest[] byRow, String indexAbstractionName) {
         for (int row = 0; row < seen.length; row++) {
             if (seen[row] == false && byRow[row] != null) {
                 throw new IllegalArgumentException(
                     "pre-built batch for ["
-                        + key
+                        + indexAbstractionName
                         + "] row "
                         + row
                         + " has no ["
@@ -435,7 +435,7 @@ final class BatchModeRouter implements Releasable {
         int docCount = source.docCount();
         if (rowIndex < 0 || rowIndex >= docCount) {
             throw new IllegalArgumentException(
-                "rowIndex " + rowIndex + " is out of range [0, " + docCount + ") for pre-built batch [" + key + "]"
+                "rowIndex " + rowIndex + " is out of range [0, " + docCount + ") for pre-built batch [" + indexAbstractionName + "]"
             );
         }
         if (rowIndex <= lastRow) {
@@ -445,7 +445,7 @@ final class BatchModeRouter implements Releasable {
                     + " is not strictly greater than the previous row "
                     + lastRow
                     + " of pre-built batch ["
-                    + key
+                    + indexAbstractionName
                     + "]; rows must arrive in ascending order"
             );
         }
@@ -481,7 +481,7 @@ final class BatchModeRouter implements Releasable {
         if (routedCount != source.docCount()) {
             throw new IllegalStateException(
                 "pre-built batch ["
-                    + key
+                    + indexAbstractionName
                     + "] had "
                     + source.docCount()
                     + " rows but only "

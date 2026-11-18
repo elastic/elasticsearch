@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -58,6 +59,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class DatasetRewriterTests extends ESTestCase {
@@ -309,6 +311,103 @@ public class DatasetRewriterTests extends ESTestCase {
         IllegalStateException ex = expectThrows(IllegalStateException.class, () -> rewrite(relationOf("orphan_ds"), project));
         assertThat(ex.getMessage(), containsString("dataset [orphan_ds]"));
         assertThat(ex.getMessage(), containsString("unknown data source [missing_parent]"));
+    }
+
+    public void testClosedDatasetFailsWithADatasetClosedError() {
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of(), null, false);
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
+
+        DatasetClosedException ex = expectThrows(DatasetClosedException.class, () -> rewrite(relationOf("logs"), project));
+        assertThat(ex.getMessage(), equalTo("dataset [logs] is closed"));
+        assertThat(ex.status(), equalTo(RestStatus.BAD_REQUEST));
+    }
+
+    public void testDatasetOfAClosedDataSourceFailsWithoutNamingTheDataSource() {
+        DataSource parent = new DataSource("s3_parent", "test", null, Map.of(), false);
+        Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
+
+        DatasetClosedException ex = expectThrows(DatasetClosedException.class, () -> rewrite(relationOf("logs"), project));
+        assertThat(ex.getMessage(), equalTo("dataset [logs] is closed"));
+        assertThat("the data source is not named", ex.getMessage(), not(containsString("s3_parent")));
+    }
+
+    /** The names come from the cluster state when the resolve action ran; a dataset created since is not in the query's snapshot. */
+    public void testDatasetCreatedAfterTheSnapshotIsLeftOut() {
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset logsA = new Dataset("logs_a", new DataSourceReference("s3_parent"), "s3://a/", null, Map.of());
+        Dataset logsB = new Dataset("logs_b", new DataSourceReference("s3_parent"), "s3://b/", null, Map.of());
+        ProjectMetadata snapshot = projectWith(Map.of("s3_parent", parent), Map.of("logs_a", logsA));
+        ProjectMetadata resolvedAgainst = projectWith(Map.of("s3_parent", parent), Map.of("logs_a", logsA, "logs_b", logsB));
+
+        UnresolvedRelation wildcard = relationOf("logs_*");
+        DatasetRewriter.DatasetResolution resolution = resolve("logs_*", resolvedAgainst, Set.of("logs_a", "logs_b"));
+        LogicalPlan rewritten = DatasetRewriter.rewrite(
+            wildcard,
+            snapshot,
+            Map.of(wildcard, resolution),
+            false,
+            QueryPragmas.EMPTY,
+            EsqlFlags.DEFAULTS
+        );
+        assertThat(tablePathString((UnresolvedExternalRelation) rewritten), equalTo("s3://a/"));
+
+        UnresolvedRelation named = relationOf("logs_b");
+        DatasetRewriter.DatasetResolution namedResolution = resolve("logs_b", resolvedAgainst, Set.of("logs_b"));
+        assertSame(
+            named,
+            DatasetRewriter.rewrite(named, snapshot, Map.of(named, namedResolution), false, QueryPragmas.EMPTY, EsqlFlags.DEFAULTS)
+        );
+    }
+
+    /** A wildcard skips a closed dataset silently, as it skips a closed index: no warning, no error. */
+    public void testWildcardSkipsAClosedDataset() {
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset open = new Dataset("logs_a", new DataSourceReference("s3_parent"), "s3://a/", null, Map.of());
+        Dataset closed = new Dataset("logs_b", new DataSourceReference("s3_parent"), "s3://b/", null, Map.of(), null, false);
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_a", open, "logs_b", closed));
+
+        LogicalPlan rewritten = rewrite(relationOf("logs_*"), project);
+        assertThat(rewritten, instanceOf(UnresolvedExternalRelation.class));
+        assertThat(tablePathString((UnresolvedExternalRelation) rewritten), equalTo("s3://a/"));
+    }
+
+    /** A wildcard skips the datasets of a closed data source silently, as it skips a closed index: no warning, no error. */
+    public void testWildcardSkipsTheDatasetsOfAClosedDataSource() {
+        DataSource closedParent = new DataSource("closed_parent", "test", null, Map.of(), false);
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset open = new Dataset("logs_a", new DataSourceReference("s3_parent"), "s3://a/", null, Map.of());
+        Dataset underClosed = new Dataset("logs_b", new DataSourceReference("closed_parent"), "s3://b/", null, Map.of());
+        ProjectMetadata project = projectWith(
+            Map.of("s3_parent", parent, "closed_parent", closedParent),
+            Map.of("logs_a", open, "logs_b", underClosed)
+        );
+
+        LogicalPlan rewritten = rewrite(relationOf("logs_*"), project);
+        assertThat(rewritten, instanceOf(UnresolvedExternalRelation.class));
+        assertThat(tablePathString((UnresolvedExternalRelation) rewritten), equalTo("s3://a/"));
+    }
+
+    public void testWildcardMatchingOnlyClosedDatasetsLeavesThePlanUnchanged() {
+        // Nothing readable under the wildcard: the relation flows through untouched, so it fails the way a pattern that
+        // matches nothing does, instead of failing with a closed-dataset error the query never named.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset closed = new Dataset("logs_a", new DataSourceReference("s3_parent"), "s3://a/", null, Map.of(), null, false);
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_a", closed));
+
+        UnresolvedRelation relation = relationOf("logs_*");
+        assertSame(relation, rewrite(relation, project));
+    }
+
+    public void testNamingAClosedDatasetFailsEvenAlongsideAWildcardThatMatchesIt() {
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset open = new Dataset("logs_a", new DataSourceReference("s3_parent"), "s3://a/", null, Map.of());
+        Dataset closed = new Dataset("logs_b", new DataSourceReference("s3_parent"), "s3://b/", null, Map.of(), null, false);
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_a", open, "logs_b", closed));
+
+        DatasetClosedException ex = expectThrows(DatasetClosedException.class, () -> rewrite(relationOf("logs_*,logs_b"), project));
+        assertThat(ex.getMessage(), equalTo("dataset [logs_b] is closed"));
     }
 
     public void testNonSecretSettingsArriveAsTheirOriginalValue() {

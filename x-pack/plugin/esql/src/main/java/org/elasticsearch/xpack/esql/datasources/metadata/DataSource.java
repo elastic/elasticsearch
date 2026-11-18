@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.metadata;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,16 +30,28 @@ import java.util.Objects;
  */
 public final class DataSource implements Writeable, ToXContentObject {
 
+    /** Gates the {@link #enabled} flag on the wire. */
+    public static final TransportVersion ESQL_DATASOURCE_STATE = TransportVersion.fromName("esql_datasource_state");
+
     private static final ParseField NAME = new ParseField("name");
     private static final ParseField TYPE_FIELD = new ParseField("type");
     private static final ParseField DESCRIPTION = new ParseField("description");
     private static final ParseField SETTINGS = new ParseField("settings");
+    private static final ParseField STATE = new ParseField("state");
+    private static final String STATE_OPEN = "open";
+    private static final String STATE_CLOSED = "closed";
 
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<DataSource, Void> PARSER = new ConstructingObjectParser<>(
         "data_source",
         false,
-        (args, ctx) -> new DataSource((String) args[0], (String) args[1], (String) args[2], (Map<String, DataSourceSetting>) args[3])
+        (args, ctx) -> new DataSource(
+            (String) args[0],
+            (String) args[1],
+            (String) args[2],
+            (Map<String, DataSourceSetting>) args[3],
+            isOpen((String) args[4])
+        )
     );
 
     static {
@@ -53,22 +66,33 @@ public final class DataSource implements Writeable, ToXContentObject {
             }
             return settings;
         }, SETTINGS);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), STATE);
     }
 
     private final String name;
     private final String type;
     private final String description;
     private final DataSourceSettings settings;
+    private final boolean enabled;
 
     public DataSource(String name, String type, @Nullable String description, Map<String, DataSourceSetting> settings) {
-        this(name, type, description, new DataSourceSettings(Objects.requireNonNull(settings, "settings must not be null")));
+        this(name, type, description, new DataSourceSettings(Objects.requireNonNull(settings, "settings must not be null")), true);
     }
 
     public DataSource(String name, String type, @Nullable String description, DataSourceSettings settings) {
+        this(name, type, description, settings, true);
+    }
+
+    public DataSource(String name, String type, @Nullable String description, Map<String, DataSourceSetting> settings, boolean enabled) {
+        this(name, type, description, new DataSourceSettings(Objects.requireNonNull(settings, "settings must not be null")), enabled);
+    }
+
+    public DataSource(String name, String type, @Nullable String description, DataSourceSettings settings, boolean enabled) {
         this.name = Objects.requireNonNull(name, "name must not be null");
         this.type = Objects.requireNonNull(type, "type must not be null");
         this.description = description;
         this.settings = Objects.requireNonNull(settings, "settings must not be null");
+        this.enabled = enabled;
     }
 
     public DataSource(StreamInput in) throws IOException {
@@ -76,6 +100,7 @@ public final class DataSource implements Writeable, ToXContentObject {
         this.type = in.readString();
         this.description = in.readOptionalString();
         this.settings = new DataSourceSettings(in);
+        this.enabled = in.getTransportVersion().supports(ESQL_DATASOURCE_STATE) ? in.readBoolean() : true;
     }
 
     @Override
@@ -84,6 +109,9 @@ public final class DataSource implements Writeable, ToXContentObject {
         out.writeString(type);
         out.writeOptionalString(description);
         settings.writeTo(out);
+        if (out.getTransportVersion().supports(ESQL_DATASOURCE_STATE)) {
+            out.writeBoolean(enabled);
+        }
     }
 
     public String name() {
@@ -100,6 +128,39 @@ public final class DataSource implements Writeable, ToXContentObject {
 
     public DataSourceSettings settings() {
         return settings;
+    }
+
+    /**
+     * Whether this data source is open for query use, the default. When {@code false} it is closed: queries that name a
+     * dataset on it fail, wildcards skip those datasets, and new datasets cannot be created on it. Admin GET/PUT of the
+     * definition still succeed. The flag is kept as a boolean (and is {@code enabled} on the wire), and the API shows it
+     * as {@link #state()}.
+     */
+    public boolean enabled() {
+        return enabled;
+    }
+
+    /** {@code "open"} or {@code "closed"}, as the API shows the state, the way an index has an open or closed state. */
+    public String state() {
+        return enabled ? STATE_OPEN : STATE_CLOSED;
+    }
+
+    private static boolean isOpen(String state) {
+        if (state == null || STATE_OPEN.equals(state)) {
+            return true;
+        }
+        if (STATE_CLOSED.equals(state)) {
+            return false;
+        }
+        throw new IllegalArgumentException("unknown data source state [" + state + "], expected [open] or [closed]");
+    }
+
+    /** Returns a copy of this data source with the given enabled flag. */
+    public DataSource withEnabled(boolean enabled) {
+        if (this.enabled == enabled) {
+            return this;
+        }
+        return new DataSource(name, type, description, settings, enabled);
     }
 
     public static DataSource fromXContent(XContentParser parser) throws IOException {
@@ -123,6 +184,7 @@ public final class DataSource implements Writeable, ToXContentObject {
             }
         }
         builder.endObject();
+        builder.field(STATE.getPreferredName(), state());
         builder.endObject();
         return builder;
     }
@@ -132,7 +194,8 @@ public final class DataSource implements Writeable, ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         DataSource that = (DataSource) o;
-        return Objects.equals(name, that.name)
+        return enabled == that.enabled
+            && Objects.equals(name, that.name)
             && Objects.equals(type, that.type)
             && Objects.equals(description, that.description)
             && Objects.equals(settings, that.settings);
@@ -140,7 +203,7 @@ public final class DataSource implements Writeable, ToXContentObject {
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, type, description, settings);
+        return Objects.hash(name, type, description, settings, enabled);
     }
 
     @Override
@@ -154,6 +217,8 @@ public final class DataSource implements Writeable, ToXContentObject {
             + description
             + "', settings="
             + settings.toPresentationMap()
+            + ", enabled="
+            + enabled
             + "}";
     }
 }

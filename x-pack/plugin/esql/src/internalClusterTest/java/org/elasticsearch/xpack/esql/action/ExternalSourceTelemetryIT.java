@@ -27,10 +27,14 @@ import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
+import org.elasticsearch.xpack.esql.datasources.dataset.CloseDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.DeleteDatasetAction;
+import org.elasticsearch.xpack.esql.datasources.dataset.OpenDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
+import org.elasticsearch.xpack.esql.datasources.datasource.CloseDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.DataSourceService;
 import org.elasticsearch.xpack.esql.datasources.datasource.DeleteDataSourceAction;
+import org.elasticsearch.xpack.esql.datasources.datasource.OpenDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.PutDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
@@ -59,6 +63,7 @@ import java.util.zip.GZIPOutputStream;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -177,7 +182,8 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
         "emp_client_ok",
         "emp_client_bad",
         "emp_fmt_csv",
-        "emp_fmt_nd"
+        "emp_fmt_nd",
+        "emp_closed"
     );
     private static final Set<String> CREATED_DATASOURCES = Set.of(
         "ds",
@@ -189,7 +195,8 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
         "ds_bad_row",
         "ds_dup_header",
         "ds_client",
-        "ds_fmt"
+        "ds_fmt",
+        "ds_closed"
     );
 
     @After
@@ -532,6 +539,123 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
         long failuresAfter = clusterTotal(a -> a.queries(DataSourceUsageAccumulator.OUTCOME_FAILURE));
         assertThat(failuresAfter - failuresBefore, equalTo(1L));
         assertThat(clusterTotal(IT_SUM_OF_QUERY_FAILURES) - byTypeBefore, equalTo(1L));
+    }
+
+    /**
+     * A query refused because its dataset's data source is closed fails in dataset resolution, before analysis could flag it as an
+     * external-source query. It must still be metered, under its own {@code closed} category, not under {@code other}.
+     */
+    public void testQueryRefusedForAClosedDataSourceIsCountedAsClosed() throws Exception {
+        Path dir = createTempDir();
+        Files.writeString(dir.resolve("e.csv"), "emp_no:integer\n1\n");
+        assertAcked(
+            client().execute(
+                PutDataSourceAction.INSTANCE,
+                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "ds_closed", "test", null, new HashMap<>())
+            )
+        );
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "emp_closed",
+                    "ds_closed",
+                    dir.resolve("e.csv").toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "csv"))
+                )
+            )
+        );
+        assertAcked(
+            client().execute(
+                CloseDataSourceAction.INSTANCE,
+                new CloseDataSourceAction.Request(TIMEOUT, TIMEOUT, new String[] { "ds_closed" })
+            )
+        );
+        int closed = DataSourceUsageAccumulator.ERROR_TYPE_NAMES.indexOf("closed");
+        long closedBefore = clusterTotal(a -> a.queryFailures(closed));
+        long failuresBefore = clusterTotal(a -> a.queries(DataSourceUsageAccumulator.OUTCOME_FAILURE));
+        resetAllMeters();
+
+        Exception e = expectThrows(Exception.class, () -> {
+            try (var ignored = run(syncEsqlQueryRequest("FROM emp_closed | LIMIT 1"), TIMEOUT)) {
+                // the dataset is refused before anything is read
+            }
+        });
+        collectAllMeters();
+
+        assertThat(e.getMessage(), containsString("dataset [emp_closed] is closed"));
+        List<Measurement> failed = counters(ExternalSourceMetrics.QUERIES_TOTAL).stream()
+            .filter(m -> ExternalSourceMetrics.OUTCOME_FAILURE.equals(m.attributes().get(ExternalSourceMetrics.OUTCOME_ATTRIBUTE)))
+            .toList();
+        assertThat(failed, hasSize(1));
+        assertThat(failed.get(0).attributes().get(ExternalSourceMetrics.ERROR_TYPE_ATTRIBUTE), equalTo("closed"));
+        assertThat(failed.get(0).attributes().get(ExternalSourceMetrics.STATUS_ATTRIBUTE), equalTo("400"));
+        assertThat(clusterTotal(a -> a.queryFailures(closed)) - closedBefore, equalTo(1L));
+        assertThat(clusterTotal(a -> a.queries(DataSourceUsageAccumulator.OUTCOME_FAILURE)) - failuresBefore, equalTo(1L));
+
+        assertAcked(
+            client().execute(
+                OpenDataSourceAction.INSTANCE,
+                new OpenDataSourceAction.Request(TIMEOUT, TIMEOUT, new String[] { "ds_closed" })
+            )
+        );
+    }
+
+    /**
+     * The same as for a closed data source, for a dataset closed on its own: the data source stays open, only the dataset is
+     * refused, and the refusal is still counted under {@code closed}.
+     */
+    public void testQueryRefusedForAClosedDatasetIsCountedAsClosed() throws Exception {
+        Path dir = createTempDir();
+        Files.writeString(dir.resolve("e.csv"), "emp_no:integer\n1\n");
+        assertAcked(
+            client().execute(
+                PutDataSourceAction.INSTANCE,
+                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "ds_closed", "test", null, new HashMap<>())
+            )
+        );
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "emp_closed",
+                    "ds_closed",
+                    dir.resolve("e.csv").toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "csv"))
+                )
+            )
+        );
+        assertAcked(
+            client().execute(CloseDatasetAction.INSTANCE, new CloseDatasetAction.Request(TIMEOUT, TIMEOUT, new String[] { "emp_closed" }))
+        );
+        int closed = DataSourceUsageAccumulator.ERROR_TYPE_NAMES.indexOf("closed");
+        long closedBefore = clusterTotal(a -> a.queryFailures(closed));
+        resetAllMeters();
+
+        Exception e = expectThrows(Exception.class, () -> {
+            try (var ignored = run(syncEsqlQueryRequest("FROM emp_closed | LIMIT 1"), TIMEOUT)) {
+                // the dataset is refused before anything is read
+            }
+        });
+        collectAllMeters();
+
+        assertThat(e.getMessage(), containsString("dataset [emp_closed] is closed"));
+        List<Measurement> failed = counters(ExternalSourceMetrics.QUERIES_TOTAL).stream()
+            .filter(m -> ExternalSourceMetrics.OUTCOME_FAILURE.equals(m.attributes().get(ExternalSourceMetrics.OUTCOME_ATTRIBUTE)))
+            .toList();
+        assertThat(failed, hasSize(1));
+        assertThat(failed.get(0).attributes().get(ExternalSourceMetrics.ERROR_TYPE_ATTRIBUTE), equalTo("closed"));
+        assertThat(clusterTotal(a -> a.queryFailures(closed)) - closedBefore, equalTo(1L));
+
+        assertAcked(
+            client().execute(OpenDatasetAction.INSTANCE, new OpenDatasetAction.Request(TIMEOUT, TIMEOUT, new String[] { "emp_closed" }))
+        );
     }
 
     /**

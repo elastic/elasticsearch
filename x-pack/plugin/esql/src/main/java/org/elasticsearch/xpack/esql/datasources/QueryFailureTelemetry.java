@@ -111,6 +111,10 @@ public final class QueryFailureTelemetry {
         if (timeout != null) {
             return new Failure(DataSourceUsageAccumulator.ERROR_TYPE_TIMEOUT, status(timeout));
         }
+        Throwable closed = unwrapCause(failure, DatasetClosedException::isClosedRefusal);
+        if (closed != null) {
+            return new Failure(DataSourceUsageAccumulator.ERROR_TYPE_CLOSED, status(closed));
+        }
         Throwable analysis = ExceptionsHelper.unwrap(failure, EsqlClientException.class);
         if (analysis != null) {
             return new Failure(DataSourceUsageAccumulator.ERROR_TYPE_VERIFICATION, status(analysis));

@@ -4944,6 +4944,14 @@ public class EsqlCapabilities {
         INTO_COMMAND(Build.current().isSnapshot()),
 
         /**
+         * Does the usage information for ESQL count datasource/dataset close and open operations
+         * ({@code datasources.config.datasources.changes.by_op.opened}, {@code .closed} and the same under
+         * {@code datasources.config.datasets}), and have a failure category for queries refused because a dataset is closed
+         * ({@code datasources.queries.failures.by_error_type.closed})? Only operations that change the state are counted.
+         */
+        USAGE_CONTAINS_DATASOURCE_OPEN_CLOSE,
+
+        /**
          * The usage information for ESQL counts queries by the Elastic product in {@code X-elastic-product-origin}: one
          * {@code queries.<product>} per known product origin, {@code queries.other} for any other origin, and {@code queries.rest}
          * for a request without the header. Before this, every query was counted as {@code rest}.

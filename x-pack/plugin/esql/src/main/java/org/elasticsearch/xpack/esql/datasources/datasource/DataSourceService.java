@@ -154,7 +154,9 @@ public class DataSourceService {
             }
         }
         final Map<String, DataSourceSetting> validated = validator.validateDatasource(request.rawSettings(), existingSecretKeys);
-        return new DataSource(request.name(), request.type(), request.description(), validated);
+        // PUT create defaults to open; PUT replace preserves the existing state (the close and open APIs change it).
+        final boolean enabled = current == null || current.enabled();
+        return new DataSource(request.name(), request.type(), request.description(), validated, enabled);
     }
 
     /**
@@ -273,7 +275,13 @@ public class DataSourceService {
                 // whole PUT instead of silently persisting a data source with incomplete credentials.
                 final DataSource validated = validatePutDataSource(project, request);
                 final DataSourceSettings merged = mergeCarriedForwardSecrets(current, validated.type(), encryptedNew, request);
-                final DataSource stored = new DataSource(validated.name(), validated.type(), validated.description(), merged);
+                final DataSource stored = new DataSource(
+                    validated.name(),
+                    validated.type(),
+                    validated.description(),
+                    merged,
+                    validated.enabled()
+                );
                 final Map<String, DataSource> updated = new HashMap<>(metadata.dataSources());
                 updated.put(stored.name(), stored);
                 pendingOp.set(current == null ? ConfigChangeTelemetry.OP_CREATED : ConfigChangeTelemetry.OP_UPDATED);
@@ -512,6 +520,99 @@ public class DataSourceService {
             delegate.onResponse(r);
         }, e -> {
             recordRejected(failureType.get(), e);
+            delegate.onFailure(e);
+        });
+    }
+
+    /**
+     * Close ({@code enabled = false}) or open data sources by name. Idempotent if already in the target state; only names
+     * whose state actually changed are counted in the config-change telemetry. Fails with 404 if a name does not exist.
+     */
+    public void setDataSourcesEnabled(
+        ProjectId projectId,
+        TimeValue masterNodeTimeout,
+        TimeValue ackTimeout,
+        Collection<String> names,
+        boolean enabled,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        // A node that predates the state reads every resource as open, so a query it coordinates would ignore the
+        // close while this call reported success. Refuse until every node knows the state.
+        if (clusterService.state().getMinTransportVersion().supports(DataSource.ESQL_DATASOURCE_STATE) == false) {
+            IllegalArgumentException e = new IllegalArgumentException(
+                "cannot close or open data sources until all nodes in the cluster are upgraded to a version that supports it"
+            );
+            recordRejected(null, e);
+            listener.onFailure(e);
+            return;
+        }
+        final ProjectMetadata projectMetadata = clusterService.state().metadata().getProject(projectId);
+        final DataSourceMetadata metadata = getMetadata(projectMetadata);
+        final Optional<String> notFound = names.stream().filter(n -> metadata.get(n) == null).findAny();
+        if (notFound.isPresent()) {
+            ResourceNotFoundException e = new ResourceNotFoundException("data source [{}] not found", notFound.get());
+            recordRejected(null, e);
+            listener.onFailure(e);
+            return;
+        }
+        logger.debug("submitting set enabled={} for data sources {}", enabled, names);
+        final AtomicReference<List<String>> flippedTypes = new AtomicReference<>();
+        final AckedClusterStateUpdateTask task = new AckedClusterStateUpdateTask(
+            masterNodeTimeout,
+            ackTimeout,
+            enabledRecordingListener(listener, enabled, flippedTypes)
+        ) {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                final ProjectMetadata project = currentState.metadata().getProject(projectId);
+                final DataSourceMetadata current = getMetadata(project);
+                final Map<String, DataSource> updated = new HashMap<>(current.dataSources());
+                final List<String> flipped = new ArrayList<>();
+                for (String name : names) {
+                    final DataSource existing = updated.get(name);
+                    if (existing == null) {
+                        throw new ResourceNotFoundException("data source [{}] not found", name);
+                    }
+                    final DataSource next = existing.withEnabled(enabled);
+                    if (next != existing) {
+                        updated.put(name, next);
+                        flipped.add(existing.type());
+                    }
+                }
+                if (flipped.isEmpty()) {
+                    return currentState;
+                }
+                flippedTypes.set(flipped);
+                return ClusterState.builder(currentState)
+                    .putProjectMetadata(
+                        ProjectMetadata.builder(project).putCustom(DataSourceMetadata.TYPE, new DataSourceMetadata(updated))
+                    )
+                    .build();
+            }
+        };
+        taskQueue.submitTask("set-state-esql-data-source-metadata-" + names, task, task.timeout());
+    }
+
+    private ActionListener<AcknowledgedResponse> enabledRecordingListener(
+        ActionListener<AcknowledgedResponse> delegate,
+        boolean enabled,
+        AtomicReference<List<String>> flippedTypes
+    ) {
+        return ActionListener.wrap(r -> {
+            List<String> types = flippedTypes.get();
+            if (types != null) {
+                for (String type : types) {
+                    metrics.recordConfigChange(
+                        ConfigChangeTelemetry.KIND_DATASOURCE,
+                        enabled ? ConfigChangeTelemetry.OP_OPENED : ConfigChangeTelemetry.OP_CLOSED,
+                        ConfigChangeTelemetry.typeToken(type),
+                        null
+                    );
+                }
+            }
+            delegate.onResponse(r);
+        }, e -> {
+            recordRejected(null, e);
             delegate.onFailure(e);
         });
     }

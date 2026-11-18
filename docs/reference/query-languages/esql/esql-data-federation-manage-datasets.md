@@ -31,3 +31,6 @@ With [audit logging enabled](docs-content://deploy-manage/security/logging-confi
 creating, updating, and deleting datasets generates `security_config_change` events. Refer to
 [put_dataset](../../elasticsearch/elasticsearch-audit-events.md#event-put-dataset) and
 [delete_dataset](../../elasticsearch/elasticsearch-audit-events.md#event-delete-dataset).
+{applies_to}`stack: preview 9.7+` Closing and opening a dataset generates events too. Refer to
+[open_dataset](../../elasticsearch/elasticsearch-audit-events.md#event-open-dataset) and
+[close_dataset](../../elasticsearch/elasticsearch-audit-events.md#event-close-dataset).

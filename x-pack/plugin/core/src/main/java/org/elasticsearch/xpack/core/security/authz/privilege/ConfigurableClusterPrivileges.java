@@ -589,6 +589,8 @@ public final class ConfigurableClusterPrivileges {
                     EsqlDataSourceActionNames.ESQL_PUT_DATA_SOURCE_ACTION_NAME,
                     EsqlDataSourceActionNames.ESQL_GET_DATA_SOURCE_ACTION_NAME,
                     EsqlDataSourceActionNames.ESQL_DELETE_DATA_SOURCE_ACTION_NAME,
+                    EsqlDataSourceActionNames.ESQL_OPEN_DATA_SOURCE_ACTION_NAME,
+                    EsqlDataSourceActionNames.ESQL_CLOSE_DATA_SOURCE_ACTION_NAME,
                     EsqlDatasetActionNames.ESQL_AUTHORIZE_DATASET_DATASOURCE_ACTION_NAME
                 ),
                 requestPredicate

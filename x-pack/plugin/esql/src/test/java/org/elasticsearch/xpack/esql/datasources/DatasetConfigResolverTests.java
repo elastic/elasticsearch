@@ -170,6 +170,36 @@ public class DatasetConfigResolverTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("external dataset [logs] is not registered on this node"));
     }
 
+    /**
+     * A plan from a coordinator that predates the state, or a crafted one, must not read a closed dataset: the node
+     * checks its own registry, and refuses with a message of its own, not the binding failure's.
+     */
+    public void testClosedDatasetRefused() {
+        DataSource parent = dataSource(Map.of("auth", "anonymous"));
+        Dataset closed = dataset(Map.of()).withEnabled(false);
+        ExternalSourceExec exec = exec(HOSTILE_CONFIG, DATASET);
+
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> new DatasetConfigResolver(project(parent, closed), randomBoolean()).rebind(exec)
+        );
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(e.getMessage(), equalTo("external dataset [logs] is closed"));
+    }
+
+    /** A closed data source refuses its datasets too, without naming the data source the caller may not be allowed to see. */
+    public void testDatasetOfClosedDataSourceRefused() {
+        DataSource closedParent = dataSource(Map.of("auth", "anonymous")).withEnabled(false);
+        ExternalSourceExec exec = exec(HOSTILE_CONFIG, DATASET);
+
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> new DatasetConfigResolver(project(closedParent, dataset(Map.of())), randomBoolean()).rebind(exec)
+        );
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(e.getMessage(), equalTo("external dataset [logs] is closed"));
+    }
+
     /** The plan's definition version is what discovery ran under; a node holding another definition must not read. */
     public void testDefinitionVersionMismatchRefused() {
         DataSource parent = dataSource(Map.of("auth", "anonymous"));

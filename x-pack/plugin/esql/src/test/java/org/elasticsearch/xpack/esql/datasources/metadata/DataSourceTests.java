@@ -7,11 +7,14 @@
 
 package org.elasticsearch.xpack.esql.datasources.metadata;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -47,31 +50,43 @@ public class DataSourceTests extends AbstractXContentSerializingTestCase<DataSou
 
     @Override
     protected DataSource mutateInstance(DataSource instance) {
-        return switch (randomIntBetween(0, 3)) {
+        return switch (randomIntBetween(0, 4)) {
             case 0 -> new DataSource(
                 randomValueOtherThan(instance.name(), () -> randomAlphaOfLength(8).toLowerCase(Locale.ROOT)),
                 instance.type(),
                 instance.description(),
-                instance.settings()
+                instance.settings(),
+                instance.enabled()
             );
             case 1 -> new DataSource(
                 instance.name(),
                 randomValueOtherThan(instance.type(), () -> randomFrom("s3", "gcs", "azure")),
                 instance.description(),
-                instance.settings()
+                instance.settings(),
+                instance.enabled()
             );
             case 2 -> new DataSource(
                 instance.name(),
                 instance.type(),
                 randomValueOtherThan(instance.description(), () -> randomAlphaOfLengthBetween(1, 16)),
-                instance.settings()
+                instance.settings(),
+                instance.enabled()
             );
-            default -> new DataSource(
+            case 3 -> new DataSource(
                 instance.name(),
                 instance.type(),
                 instance.description(),
-                randomValueOtherThan(instance.settings(), DataSourceTests::randomSettings)
+                randomValueOtherThan(instance.settings(), DataSourceTests::randomSettings),
+                instance.enabled()
             );
+            case 4 -> new DataSource(
+                instance.name(),
+                instance.type(),
+                instance.description(),
+                instance.settings(),
+                instance.enabled() == false
+            );
+            default -> throw new AssertionError("unexpected mutation index");
         };
     }
 
@@ -80,7 +95,8 @@ public class DataSourceTests extends AbstractXContentSerializingTestCase<DataSou
             randomAlphaOfLength(8).toLowerCase(Locale.ROOT),
             randomFrom("s3", "gcs", "azure"),
             randomBoolean() ? null : randomAlphaOfLengthBetween(0, 32),
-            randomSettings()
+            randomSettings(),
+            randomBoolean()
         );
     }
 
@@ -115,6 +131,24 @@ public class DataSourceTests extends AbstractXContentSerializingTestCase<DataSou
         assertEquals(2, deserialized.settings().size());
     }
 
+    /** A closed data source keeps its state across the wire, and a node that predates the state reads it as open. */
+    public void testStateAcrossTheWireGate() throws IOException {
+        var closed = new DataSource("my-s3", "s3", null, Map.of("region", new DataSourceSetting("us-east-1", false)), false);
+
+        BytesStreamOutput current = new BytesStreamOutput();
+        closed.writeTo(current);
+        assertFalse(new DataSource(current.bytes().streamInput()).enabled());
+
+        TransportVersion older = TransportVersionUtils.randomVersionNotSupporting(DataSource.ESQL_DATASOURCE_STATE);
+        BytesStreamOutput legacy = new BytesStreamOutput();
+        legacy.setTransportVersion(older);
+        closed.writeTo(legacy);
+        assertEquals("the state is one boolean, not written below the gate", current.size() - 1, legacy.size());
+        StreamInput in = legacy.bytes().streamInput();
+        in.setTransportVersion(older);
+        assertTrue("a node that predates the state reads it as open", new DataSource(in).enabled());
+    }
+
     public void testToPresentationMap() {
         var dataSource = new DataSource(
             "my-s3",
@@ -143,6 +177,34 @@ public class DataSourceTests extends AbstractXContentSerializingTestCase<DataSou
         assertTrue(masked.containsKey("optional_region"));
         assertNull(masked.get("optional_region"));
         assertEquals("::es_redacted::", masked.get("present_secret"));
+    }
+
+    public void testStateIsOpenByDefaultAndClosedWhenTheFlagIsOff() {
+        DataSource open = new DataSource("test", "s3", null, Map.of());
+        assertEquals("open", open.state());
+        assertEquals("closed", open.withEnabled(false).state());
+    }
+
+    public void testStateIsShownAsOpenOrClosedInTheJson() {
+        DataSource open = new DataSource("test", "s3", null, Map.of());
+        assertTrue(Strings.toString(open).contains("\"state\":\"open\""));
+        assertTrue(Strings.toString(open.withEnabled(false)).contains("\"state\":\"closed\""));
+        assertFalse(Strings.toString(open).contains("enabled"));
+    }
+
+    public void testStateParsing() throws IOException {
+        String base = "{\"name\":\"d\",\"type\":\"s3\",\"settings\":{}";
+        assertTrue("no state is open", parse(base + "}").enabled());
+        assertTrue(parse(base + ",\"state\":\"open\"}").enabled());
+        assertFalse(parse(base + ",\"state\":\"closed\"}").enabled());
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parse(base + ",\"state\":\"bogus\"}"));
+        assertTrue(e.getMessage(), e.getMessage().contains("bogus") || e.getCause() != null && e.getCause().getMessage().contains("bogus"));
+    }
+
+    private DataSource parse(String json) throws IOException {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            return DataSource.fromXContent(parser);
+        }
     }
 
     public void testNullDescription() throws IOException {

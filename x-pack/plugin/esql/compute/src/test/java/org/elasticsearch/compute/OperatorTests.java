@@ -349,11 +349,10 @@ public class OperatorTests extends MapperServiceTestCase {
                     driverContext,
                     new SequenceLongBlockSourceOperator(driverContext.blockFactory(), values, 100),
                     List.of(
-                        new RowInTableLookupOperator(
-                            driverContext.blockFactory(),
+                        new RowInTableLookupOperator.Factory(
                             new RowInTableLookupOperator.Key[] { new RowInTableLookupOperator.Key("primes", primesBlock) },
                             new int[] { 0 }
-                        )
+                        ).get(driverContext)
                     ),
                     new PageConsumerOperator(page -> {
                         try {

@@ -1628,9 +1628,27 @@ public class CsvTestsDataLoader {
         );
     }
 
-    private static void forceMerge(RestClient client, Set<String> indices) throws IOException {
-        String pattern = String.join(",", indices);
+    /** An HTTP request line holds at most 4096 bytes, so the indices are merged in batches that keep the URL well below that. */
+    private static final int MAX_FORCE_MERGE_PATTERN_LENGTH = 2000;
 
+    private static void forceMerge(RestClient client, Set<String> indices) throws IOException {
+        StringBuilder pattern = new StringBuilder();
+        for (String index : indices) {
+            if (pattern.isEmpty() == false && pattern.length() + 1 + index.length() > MAX_FORCE_MERGE_PATTERN_LENGTH) {
+                forceMergeBatch(client, pattern.toString());
+                pattern.setLength(0);
+            }
+            if (pattern.isEmpty() == false) {
+                pattern.append(',');
+            }
+            pattern.append(index);
+        }
+        if (pattern.isEmpty() == false) {
+            forceMergeBatch(client, pattern.toString());
+        }
+    }
+
+    private static void forceMergeBatch(RestClient client, String pattern) throws IOException {
         Request request = new Request("POST", "/" + pattern + "/_forcemerge?max_num_segments=1");
         Response response = client.performRequest(request);
         if (response.getStatusLine().getStatusCode() != 200) {

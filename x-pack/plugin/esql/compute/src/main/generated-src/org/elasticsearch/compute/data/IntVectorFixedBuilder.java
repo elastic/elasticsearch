@@ -18,6 +18,7 @@ import org.apache.lucene.util.RamUsageEstimator;
 public final class IntVectorFixedBuilder implements IntVector.FixedBuilder {
     private final BlockFactory blockFactory;
     private final int[] values;
+    private final int size;
     private final long preAdjustedBytes;
     /**
      * The next value to write into. {@code -1} means the vector has already
@@ -27,11 +28,21 @@ public final class IntVectorFixedBuilder implements IntVector.FixedBuilder {
 
     private boolean closed;
 
-    IntVectorFixedBuilder(int size, BlockFactory blockFactory) {
-        preAdjustedBytes = ramBytesUsed(size);
-        blockFactory.adjustBreaker(preAdjustedBytes);
+    private final boolean enablePooling;
+
+    IntVectorFixedBuilder(int size, BlockFactory blockFactory, boolean enablePooling) {
         this.blockFactory = blockFactory;
-        this.values = new int[size];
+        this.size = size;
+        this.enablePooling = enablePooling;
+        if (enablePooling) {
+            // a pooled array can be longer than size and is not zeroed
+            values = blockFactory.acquireInts(size);
+            preAdjustedBytes = LocalArrayPool.usedBytesForInts(values.length);
+        } else {
+            preAdjustedBytes = ramBytesUsed(size);
+            blockFactory.adjustBreaker(preAdjustedBytes);
+            values = new int[size];
+        }
     }
 
     @Override
@@ -56,7 +67,7 @@ public final class IntVectorFixedBuilder implements IntVector.FixedBuilder {
 
     @Override
     public long estimatedBytes() {
-        return ramBytesUsed(values.length);
+        return ramBytesUsed(size);
     }
 
     @Override
@@ -64,12 +75,16 @@ public final class IntVectorFixedBuilder implements IntVector.FixedBuilder {
         if (closed) {
             throw new IllegalStateException("already closed");
         }
-        closed = true;
         IntVector vector;
-        if (values.length == 1) {
+        if (size == 1) {
             vector = blockFactory.newConstantIntVector(values[0], 1, preAdjustedBytes);
         } else {
-            vector = blockFactory.newIntArrayVector(values, values.length, preAdjustedBytes);
+            vector = blockFactory.newIntArrayVector(values, size, preAdjustedBytes);
+        }
+        closed = true;
+        if (enablePooling) {
+            vector.enablePooling();
+            return vector;
         }
         assert vector.ramBytesUsed() == preAdjustedBytes : "fixed Builders should estimate the exact ram bytes used";
         return vector;
@@ -80,6 +95,10 @@ public final class IntVectorFixedBuilder implements IntVector.FixedBuilder {
         if (closed == false) {
             // If nextIndex < 0 we've already built the vector
             closed = true;
+            if (enablePooling) {
+                blockFactory.recycleInts(values);
+                return;
+            }
             blockFactory.adjustBreaker(-preAdjustedBytes);
         }
     }

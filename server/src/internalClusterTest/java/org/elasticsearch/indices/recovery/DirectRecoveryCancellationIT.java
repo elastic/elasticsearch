@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.action.shard.FailedShardEntry;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.ShardAllocationKey;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -842,7 +843,7 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         assertThat(
             "index2 recovery should be cancelled from the pending queue",
             cancellationResponse.cancelledInQueue(),
-            equalTo(Set.of(new CancelRecoveriesAction.CancelledInQueue(shardId2, allocationId2)))
+            equalTo(Set.of(new ShardAllocationKey(shardId2, allocationId2)))
         );
 
         // Release index1's gate so it can complete recovery. The master publishes the resulting cluster state with

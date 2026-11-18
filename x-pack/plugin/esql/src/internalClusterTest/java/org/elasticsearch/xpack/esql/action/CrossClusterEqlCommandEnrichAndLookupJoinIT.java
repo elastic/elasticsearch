@@ -118,6 +118,7 @@ public class CrossClusterEqlCommandEnrichAndLookupJoinIT extends AbstractEnrichB
             )) {
                 String query = eqlSource + " | " + enrich;
                 expectThrows(
+                    "Query [" + query + "] is expected to throw " + VerificationException.class.getSimpleName(),
                     VerificationException.class,
                     allOf(
                         containsString("ENRICH with remote policy can't be executed after [" + eqlSource + "]"),

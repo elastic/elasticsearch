@@ -233,6 +233,12 @@ public class CsvSpecReaderTests extends ESTestCase {
         assertThat(((CsvTestCase) parser.parse(";")).params, empty());
     }
 
+    public void testParamInResultsIsNotADirective() {
+        CsvTestCase testCase = parseWithWarnings("param:keyword | other:integer", "param: 42 | 1");
+        assertThat(testCase.params, empty());
+        assertThat(testCase.expectedResults, equalTo("param:keyword | other:integer\r\nparam: 42 | 1\r\n"));
+    }
+
     public void testUnquotedStringParamRejected() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,

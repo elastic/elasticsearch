@@ -515,7 +515,7 @@ public class CsvLoadAllUnmappedKeywordIT extends CsvIT {
 
         private TestResults rewriteActualResults(CsvSpecReader.CsvTestCase testCase, TestResults expected, TestResults actual) {
             String removedField = removedFieldsByIndex.get(extractSingleFromIndex(testCase.query));
-            Pattern named = Pattern.compile("(?<![\\w*])" + Pattern.quote(removedField) + "(?![\\w*])");
+            Pattern named = Pattern.compile("(?<![\\w*?])" + Pattern.quote(removedField) + "(?![\\w*])");
             boolean namedInQuery = named.matcher(testCase.query).find();
             boolean rebuilt = false;
             List<String> names = new ArrayList<>(actual.columnNames());

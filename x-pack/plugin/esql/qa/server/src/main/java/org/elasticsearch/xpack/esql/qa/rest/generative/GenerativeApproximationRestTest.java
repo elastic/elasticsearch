@@ -79,6 +79,10 @@ public abstract class GenerativeApproximationRestTest extends EsqlSpecTestCase {
             ForkTestUtils.shouldSkipForkTest(testCase, adminClient());
             assumeTrue("Subqueries in approximation require inline stats capability", APPROXIMATION_INLINE_STATS_V2.isEnabled());
             assumeTrue("Subquery must start with FROM", query.toUpperCase(Locale.ROOT).startsWith("FROM "));
+            assumeTrue(
+                "The subqueries repeat the query, which needs each unnamed parameter twice",
+                testCase.params.isEmpty() || testCase.params.getFirst().name() != null
+            );
             executeQuery("""
                 SET approximation={"rows":2000000000};
                 FROM ({QUERY} | EVAL _subquery=1), ({QUERY} | EVAL _subquery=2)

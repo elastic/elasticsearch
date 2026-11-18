@@ -505,12 +505,17 @@ public final class CsvSpecReader {
      * {@code param: <json>} for an unnamed one. The JSON value is written as in the {@code params} array of the request,
      * so strings are quoted. The directive is repeatable, and the parameters are sent in declaration order. Like the
      * request, a test can't mix named and unnamed parameters.
+     * <p>
+     * Only recognized in the preamble, so a result column named {@code param} stays part of the results.
      */
     record Params(ParserContext state) implements SpecReader.Parser {
         private static final Pattern NAMED = Pattern.compile("([a-zA-Z_][a-zA-Z0-9_]*)\\s*=(.*)");
 
         @Override
         public Object parse(String line) {
+            if (state.testCase != null) {
+                return null;
+            }
             String lower = line.toLowerCase(Locale.ROOT);
             if (lower.startsWith("param:") == false) {
                 return null;

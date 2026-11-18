@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2;
 
-import com.google.re2j.Pattern;
-import com.google.re2j.PatternSyntaxException;
-
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.test.ESTestCase;
@@ -244,12 +241,10 @@ public class Re2RegExpTests extends ESTestCase {
     }
 
     /**
-     * RE2/J, which this parser is forked from and ES|QL uses for {@code label_replace}, agrees on what random
-     * expressions match and reject. The expressions avoid where the fork follows Go instead: a repeated literal
-     * <code>&#123;</code>, a capture group name used twice, {@code (?i)} on a negated Unicode class, and alternatives
-     * that start with the same literal in different cases.
+     * The automaton built from the parsed expression and the matcher {@code label_replace} runs on the same parse agree
+     * on what random expressions match.
      */
-    public void testAgreesWithRe2j() {
+    public void testAgreesWithMatcher() {
         List<String> values = values();
         for (int i = 0; i < 200; i++) {
             StringBuilder regexBuilder = new StringBuilder();
@@ -257,19 +252,16 @@ public class Re2RegExpTests extends ESTestCase {
                 regexBuilder.append(randomFrom(TOKENS));
             }
             String regex = regexBuilder.toString();
-            if (regex.contains("|") && regex.contains("(?i")) {
-                continue;
-            }
-            Pattern re2j;
+            Pattern pattern;
             try {
-                re2j = Pattern.compile(regex, Pattern.DOTALL);
+                pattern = Pattern.compile(regex, Pattern.DOTALL);
             } catch (PatternSyntaxException e) {
                 expectThrows(IllegalArgumentException.class, "[" + regex + "] should be invalid", () -> new Re2RegExp(regex));
                 continue;
             }
             CharacterRunAutomaton run = run(new Re2RegExp(regex));
             for (String value : values) {
-                assertThat("[" + regex + "] on [" + value + "]", run.run(value), equalTo(re2j.matches(value)));
+                assertThat("[" + regex + "] on [" + value + "]", run.run(value), equalTo(pattern.matches(value)));
             }
         }
     }
@@ -304,6 +296,7 @@ public class Re2RegExpTests extends ESTestCase {
         "]",
         "^",
         "$",
+        "{",
         "}",
         ":",
         ",",
@@ -316,6 +309,8 @@ public class Re2RegExpTests extends ESTestCase {
         "(?m)",
         "(?-m)",
         "(?:",
+        "(?P<n>",
+        "(?<n>",
         "(?i:",
         "(?U)",
         "(?is)",
@@ -334,6 +329,7 @@ public class Re2RegExpTests extends ESTestCase {
         "\\PL",
         "\\p{Greek}",
         "\\p{Lu}",
+        "\\p{^Ll}",
         "\\pN",
         "[[:alpha:]]",
         "[[:^alpha:]]",

@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.promql.function;
 
-import com.google.re2j.Matcher;
-import com.google.re2j.Pattern;
-
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.RamUsageEstimator;
@@ -23,6 +20,8 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.Matcher;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.Pattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**

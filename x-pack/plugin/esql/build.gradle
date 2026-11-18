@@ -84,7 +84,6 @@ dependencies {
   api project(":libs:h3")
   implementation "org.apache.commons:commons-math3:${versions.commons_math3}"
   implementation 'com.carrotsearch:hppc:0.8.1'
-  implementation 'com.google.re2j:re2j:1.8'
 
   testImplementation(project('qa:testFixtures')) {
     exclude(group: "org.elasticsearch.plugin", module: "esql")
@@ -353,10 +352,19 @@ pluginManager.withPlugin('com.diffplug.spotless') {
         // forked from RE2/J and kept in its formatting, so that it diffs against it line by line
         "src/main/java/org/elasticsearch/xpack/esql/core/expression/predicate/regex/re2/CharClass.java",
         "src/main/java/org/elasticsearch/xpack/esql/core/expression/predicate/regex/re2/CharGroup.java",
+        "src/main/java/org/elasticsearch/xpack/esql/core/expression/predicate/regex/re2/Compiler.java",
+        "src/main/java/org/elasticsearch/xpack/esql/core/expression/predicate/regex/re2/Inst.java",
+        "src/main/java/org/elasticsearch/xpack/esql/core/expression/predicate/regex/re2/Machine.java",
+        "src/main/java/org/elasticsearch/xpack/esql/core/expression/predicate/regex/re2/MachineInput.java",
+        "src/main/java/org/elasticsearch/xpack/esql/core/expression/predicate/regex/re2/Matcher.java",
+        "src/main/java/org/elasticsearch/xpack/esql/core/expression/predicate/regex/re2/MatcherInput.java",
         "src/main/java/org/elasticsearch/xpack/esql/core/expression/predicate/regex/re2/Parser.java",
+        "src/main/java/org/elasticsearch/xpack/esql/core/expression/predicate/regex/re2/Pattern.java",
         "src/main/java/org/elasticsearch/xpack/esql/core/expression/predicate/regex/re2/PatternSyntaxException.java",
+        "src/main/java/org/elasticsearch/xpack/esql/core/expression/predicate/regex/re2/Prog.java",
         "src/main/java/org/elasticsearch/xpack/esql/core/expression/predicate/regex/re2/RE2.java",
         "src/main/java/org/elasticsearch/xpack/esql/core/expression/predicate/regex/re2/Regexp.java",
+        "src/main/java/org/elasticsearch/xpack/esql/core/expression/predicate/regex/re2/Simplify.java",
         "src/main/java/org/elasticsearch/xpack/esql/core/expression/predicate/regex/re2/Utils.java"
       toggleOffOn('begin generated imports', 'end generated imports')
     }

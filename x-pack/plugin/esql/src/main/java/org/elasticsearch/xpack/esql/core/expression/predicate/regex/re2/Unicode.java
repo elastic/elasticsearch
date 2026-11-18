@@ -87,6 +87,19 @@ final class Unicode {
         return orbit[0];
     }
 
+    /** Whether two code points are equal under simple case folding; a negative one, the end of the input, equals any. */
+    static boolean equalsIgnoreCase(int r1, int r2) {
+        if (r1 < 0 || r2 < 0 || r1 == r2) {
+            return true;
+        }
+        for (int r = simpleFold(r1); r != r1; r = simpleFold(r)) {
+            if (r == r2) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** As Go's {@code unicode.IsPrint}: a letter, mark, number, punctuation, symbol or the ASCII space. */
     static boolean isPrint(int r) {
         if (r == ' ') {

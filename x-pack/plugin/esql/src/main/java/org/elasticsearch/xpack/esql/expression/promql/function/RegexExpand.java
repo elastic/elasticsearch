@@ -7,10 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.promql.function;
 
-import com.google.re2j.Matcher;
-import com.google.re2j.Pattern;
-import com.google.re2j.PatternSyntaxException;
-
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.TransportVersion;
@@ -23,6 +19,9 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.Matcher;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.Pattern;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.PatternSyntaxException;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -178,8 +177,8 @@ public final class RegexExpand extends EsqlScalarFunction implements VersionedNa
     /**
      * Validates a user-supplied {@code label_replace} regular expression by compiling it exactly as {@link #toEvaluator}
      * will, so an invalid pattern is rejected during analysis rather than surfacing later during execution. Returns
-     * {@code null} when {@code regex} compiles, otherwise the RE2/J syntax-error message. Returning the message rather than
-     * throwing keeps the RE2/J dependency contained to this class: the analyzer need not depend on {@code com.google.re2j}.
+     * {@code null} when {@code regex} compiles, otherwise the RE2 syntax-error message. Returning the message rather than
+     * throwing keeps the regex engine contained to this class: the analyzer need not depend on it.
      */
     public static String validateRegex(String regex) {
         try {

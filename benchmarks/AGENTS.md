@@ -88,6 +88,10 @@ Facts about the code the catalog pins down:
   resolve-level fallback shape.
 - The JSON token kind, not the mapping type, selects the transform: integers into a `long` field
   alias the input column, doubles or numeric strings allocate.
+- `ip`: one malformed value with `ignore_malformed` sends the whole batch to the row path, and
+  `[ip, null]` on a `multi_value=false` field falls back because the null counts as a second
+  value; `ip.malformed100`, `ip.malformedall` and `ip.single.nullarr` are therefore fallback
+  shapes until #165648 merges.
 
 Absent values and arrays both force the column off the dense fast path in `IndexingChain`, which
 is where most of their cost sits, not in the mapper.

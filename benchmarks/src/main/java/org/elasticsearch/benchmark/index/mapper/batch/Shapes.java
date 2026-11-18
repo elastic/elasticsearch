@@ -36,6 +36,13 @@ public final class Shapes {
 
     private static final String TIMESTAMP = "@timestamp";
 
+    /**
+     * Where {@code ip.malformed*} and {@code ip.single.nullarr} go. Both fall back today: a malformed ip sends the whole batch to the
+     * row path, and {@code [ip, null]} on a {@code multi_value=false} field counts the null as a second value. #165648 moves both onto
+     * the column path; when it merges, set this to COLUMN and move the three names from FallbackState to ColumnState.
+     */
+    private static final Expect IP_PR165648_EXPECT = Expect.FALLBACK_MAP;
+
     public static final Map<String, BenchShape> CATALOG = buildCatalog();
 
     private Shapes() {}
@@ -98,7 +105,45 @@ public final class Shapes {
                 .build("scaled_float.dense")
         );
         add(shapes, metrics4());
+        add(shapes, ipShape("ip.dense", Map.of(), 0, 0, 0, Expect.COLUMN));
+        add(shapes, ipShape("ip.mv1to4", Map.of(), 4, 0, 0, Expect.COLUMN));
+        add(shapes, ipShape("ip.malformed100", Map.of("ignore_malformed", true), 0, 100, 0, IP_PR165648_EXPECT));
+        add(shapes, ipShape("ip.malformedall", Map.of("ignore_malformed", true), 0, 1, 0, IP_PR165648_EXPECT));
+        add(shapes, ipShape("ip.single.nullarr", Map.of("multi_value", false), 0, 0, 10, IP_PR165648_EXPECT));
         return Collections.unmodifiableMap(shapes);
+    }
+
+    /**
+     * Four ip fields of IPv4 strings. {@code multiMax > 0} writes arrays of 1 to {@code multiMax} values, {@code malformedEvery > 0}
+     * replaces every n-th value with a string that is not an ip, and {@code nullArrayEvery > 0} writes every n-th value as
+     * {@code [ip, null]}, which makes the column a UNION.
+     */
+    private static BenchShape ipShape(
+        String name,
+        Map<String, Object> params,
+        int multiMax,
+        int malformedEvery,
+        int nullArrayEvery,
+        Expect expect
+    ) {
+        String[] names = { "f0", "f1", "f2", "f3" };
+        EnumSet<Feature> features = EnumSet.of(Feature.STRING_INPUT, Feature.NOT_INDEXED);
+        if (multiMax > 0) {
+            features.add(Feature.MULTI_VALUE);
+        } else if (nullArrayEvery > 0) {
+            features.add(Feature.EXPLICIT_NULL);
+        } else {
+            features.add(Feature.DENSE);
+        }
+        return new BenchShape(
+            name,
+            IndexMode.COLUMNAR,
+            mapping(names, "ip", params),
+            new IpDocs(names, multiMax, malformedEvery, nullArrayEvery),
+            features,
+            expect,
+            List.of()
+        );
     }
 
     private static void add(Map<String, BenchShape> shapes, BenchShape shape) {
@@ -366,6 +411,45 @@ public final class Shapes {
 
         private double doubleValue(Random r, int doc) {
             return type.floating ? type.narrow(dist.nextDouble(r, doc)) : longValue(r, doc);
+        }
+    }
+
+    private record IpDocs(String[] names, int multiMax, int malformedEvery, int nullArrayEvery) implements DocGenerator {
+
+        @Override
+        public JsonKind kind() {
+            return JsonKind.STRING;
+        }
+
+        @Override
+        public void write(XContentBuilder b, Random r, int doc) throws IOException {
+            b.field(TIMESTAMP, ValueDist.MONOTONIC_TS.nextLong(r, doc));
+            for (int f = 0; f < names.length; f++) {
+                b.field(names[f]);
+                if (multiMax > 0) {
+                    int count = 1 + r.nextInt(multiMax);
+                    b.startArray();
+                    for (int i = 0; i < count; i++) {
+                        writeValue(b, r, doc, f);
+                    }
+                    b.endArray();
+                } else if (nullArrayEvery > 0 && (doc + f + 1) % nullArrayEvery == 0) {
+                    b.startArray();
+                    writeValue(b, r, doc, f);
+                    b.nullValue();
+                    b.endArray();
+                } else {
+                    writeValue(b, r, doc, f);
+                }
+            }
+        }
+
+        private void writeValue(XContentBuilder b, Random r, int doc, int f) throws IOException {
+            if (malformedEvery > 0 && (doc + f + 1) % malformedEvery == 0) {
+                b.value("not-an-ip-" + r.nextInt(1000));
+            } else {
+                b.value("10." + r.nextInt(256) + "." + r.nextInt(256) + "." + r.nextInt(256));
+            }
         }
     }
 

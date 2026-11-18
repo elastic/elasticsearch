@@ -45,7 +45,9 @@ public class KnnQuerySamplingPlugin extends Plugin {
 
     static final String THREAD_POOL_NAME = "query_sampling";
     private static final int QUEUE_SIZE = 1000;
-    private static final int MAX_DISTINCT_QUERIES = 100_000;
+    // about 130 bytes each, so 6.5 MB; at the default capture rate it is reached by about 700 searches a second of queries that are all
+    // new, and a query that does not fit is not sampled, so it is better not to go lower without making the capture rate back off
+    private static final int MAX_DISTINCT_QUERIES = 50_000;
 
     private final SetOnce<QueryCaptureSink> captureSink = new SetOnce<>();
 

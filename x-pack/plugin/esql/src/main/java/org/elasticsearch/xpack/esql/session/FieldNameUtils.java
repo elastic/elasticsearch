@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedPattern;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
-import org.elasticsearch.xpack.esql.core.type.NestedScopeField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
@@ -109,34 +108,35 @@ public class FieldNameUtils {
     }
 
     /**
-     * A {@code NESTED_EXPAND} needs the nested field's mapping, which field caps otherwise drops. The marker tells the
-     * resolver to keep those fields in a private schema instead of turning them into ordinary columns.
+     * A {@code NESTED_EXPAND} needs the nested field's mapping, which field caps otherwise drops. The result's
+     * {@link PreAnalysisResult#nestedScope()} tells the resolution of the main source to keep those fields in a private schema
+     * instead of turning them into ordinary columns.
      */
     private static PreAnalysisResult addNestedExpand(LogicalPlan parsed, PreAnalysisResult result) {
         Set<String> collections = new HashSet<>();
         parsed.forEachDown(NestedExpand.class, expand -> {
             if (expand.bound() == false && expand.target() != null) {
+                // TODO: When collection aliases/references are supported, resolve their owning
+                // source and mapped path here; the target name may be an alias in the query.
                 collections.add(expand.target().name());
             }
         });
         if (collections.isEmpty()) {
             return result;
         }
-        Set<String> fieldNames = new HashSet<>(result.fieldNames());
-        fieldNames.add(NestedScopeField.REQUEST_MARKER);
-        if (fieldNames.contains(WILDCARD) == false) {
-            Set<String> extra = new HashSet<>();
-            for (String name : result.fieldNames()) {
-                extra.addAll(parentPrefixes(name));
-            }
-            for (String collection : collections) {
-                extra.add(collection);
-                extra.add(collection + ".*");
-                extra.addAll(parentPrefixes(collection));
-            }
-            fieldNames.addAll(extra);
+        if (result.fieldNames().contains(WILDCARD)) {
+            return new PreAnalysisResult(result.fieldNames(), result.parentPaths(), true, result.wildcardJoinIndices());
         }
-        return new PreAnalysisResult(fieldNames, result.parentPaths(), result.wildcardJoinIndices());
+        Set<String> fieldNames = new HashSet<>(result.fieldNames());
+        for (String name : result.fieldNames()) {
+            fieldNames.addAll(parentPrefixes(name));
+        }
+        for (String collection : collections) {
+            fieldNames.add(collection);
+            fieldNames.add(collection + ".*");
+            fieldNames.addAll(parentPrefixes(collection));
+        }
+        return new PreAnalysisResult(fieldNames, result.parentPaths(), true, result.wildcardJoinIndices());
     }
 
     private static PreAnalysisResult collectFieldNames(LogicalPlan parsed, boolean hasEnriches, boolean includePrefixFields) {
@@ -495,7 +495,7 @@ public class FieldNameUtils {
             allFields.add(MetadataAttribute.INDEX);
             Set<String> onlyParentPaths = onlyParentPaths(parentPaths, allFields);
             allFields.addAll(parentPaths);
-            return new PreAnalysisResult(allFields, onlyParentPaths, wildcardJoinIndices);
+            return new PreAnalysisResult(allFields, onlyParentPaths, false, wildcardJoinIndices);
         }
     }
 

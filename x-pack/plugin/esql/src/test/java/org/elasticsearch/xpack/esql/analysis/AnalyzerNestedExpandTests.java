@@ -36,6 +36,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.mergedResolution;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
@@ -112,6 +113,34 @@ public class AnalyzerNestedExpandTests extends AnalyzerTestCase {
             "SET unmapped_fields=\"load\"; FROM ne | NESTED_EXPAND items | EVAL u = items.undeclared | KEEP id, u"
         );
         assertLoadedFromParent(plan);
+    }
+
+    public void testLoadAllRejectsNestedExpandWithUndeclaredNameBeforeExpansion() {
+        nestedAnalyzer().statementError(
+            "SET unmapped_fields=\"load_all\"; FROM ne | EVAL u = items.undeclared | NESTED_EXPAND items | KEEP id, u",
+            containsString("line 1:71: " + Verifier.loadAllUnsupportedCommandMessage("NestedExpand"))
+        );
+    }
+
+    public void testLoadAllRejectsNestedExpandWithUndeclaredNameAfterExpansion() {
+        nestedAnalyzer().statementError(
+            "SET unmapped_fields=\"load_all\"; FROM ne | NESTED_EXPAND items | EVAL u = items.undeclared | KEEP id, u",
+            containsString("line 1:43: " + Verifier.loadAllUnsupportedCommandMessage("NestedExpand"))
+        );
+    }
+
+    public void testUndeclaredNameBeforeExpansionIsNullified() {
+        LogicalPlan plan = nestedAnalyzer().statement(
+            "SET unmapped_fields=\"nullify\"; FROM ne | EVAL u = items.undeclared | NESTED_EXPAND items | KEEP id, u"
+        );
+        assertNullified(plan);
+    }
+
+    public void testUndeclaredNameAfterExpansionIsNullified() {
+        LogicalPlan plan = nestedAnalyzer().statement(
+            "SET unmapped_fields=\"nullify\"; FROM ne | NESTED_EXPAND items | EVAL u = items.undeclared | KEEP id, u"
+        );
+        assertNullified(plan);
     }
 
     public void testUnknownField() {
@@ -306,6 +335,16 @@ public class AnalyzerNestedExpandTests extends AnalyzerTestCase {
         plan.forEachDown(EsRelation.class, relations::add);
         assertThat(relations, hasSize(1));
         assertThat(names(relations.getFirst().output()), hasItem("items.undeclared"));
+    }
+
+    private static void assertNullified(LogicalPlan plan) {
+        assertThat(names(expand(plan).expanded()), not(hasItem("items.undeclared")));
+        List<EsRelation> relations = new ArrayList<>();
+        plan.forEachDown(EsRelation.class, relations::add);
+        assertThat(relations, hasSize(1));
+        List<Attribute> nullified = relations.getFirst().output().stream().filter(a -> a.name().equals("items.undeclared")).toList();
+        assertThat(nullified, hasSize(1));
+        assertThat(nullified.getFirst().dataType(), equalTo(DataType.NULL));
     }
 
     private static NestedExpand expand(LogicalPlan plan) {

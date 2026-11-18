@@ -68,7 +68,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -79,6 +81,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 
 import static java.lang.Math.max;
@@ -131,6 +134,13 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
      * {@link RequestWrapper} completely.
      */
     private final BiFunction<RequestWrapper<?>, PaginatedHitSource.Hit, RequestWrapper<?>> scriptApplier;
+
+    /**
+     * Hits the script already released while building the current bulk.
+     * Cleanup walks those same hits and must leave them alone.
+     */
+    private final Set<PaginatedHitSource.Hit> hitsReleasedWhileBuilding = Collections.newSetFromMap(new IdentityHashMap<>());
+
     private int lastBatchSize;
     /**
      * The current paginated search response being processed. Set atomically so that either {@link #prepareBulkRequest} or
@@ -406,6 +416,9 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
             )
         );
         scriptApplier = Objects.requireNonNull(buildScriptApplier(), "script applier must not be null");
+        if (scriptApplier instanceof ScriptApplier<?> applier) {
+            applier.releaseConsumedHitWith(this::releaseHitForThisBulk);
+        }
     }
 
     /** Computes the minimum time a relocated task must run before it can be relocated again. Visible for testing. */
@@ -1422,9 +1435,17 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         }
     }
 
-    private static void releaseHits(List<? extends PaginatedHitSource.Hit> hits) {
+    private void releaseHitForThisBulk(PaginatedHitSource.Hit hit) {
+        hit.release();
+        hitsReleasedWhileBuilding.add(hit);
+    }
+
+    private void releaseHits(List<? extends PaginatedHitSource.Hit> hits) {
         for (PaginatedHitSource.Hit hit : hits) {
-            hit.release();
+            // The script already dropped this hit when it copied the source.
+            if (hitsReleasedWhileBuilding.remove(hit) == false) {
+                hit.release();
+            }
         }
     }
 
@@ -1660,8 +1681,9 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
 
     /**
      * Applies a script to a request built from one search hit.
-     * Once the script has replaced the source, the hit is released. The request holds the new source, so the hit's bytes are no longer
-     * needed. A request with no script keeps the hit until the page is released, because the bulk shares that source.
+     * Once the script has replaced the source, the hit is released once. The request holds the new source, so the hit's bytes are no
+     * longer needed, and the page cleanup does not release that hit again. A request with no script keeps the hit until the page is
+     * released, because the bulk shares that source.
      */
     public abstract static class ScriptApplier<T extends Metadata>
         implements
@@ -1675,6 +1697,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         protected final Script script;
         protected final Map<String, Object> params;
         protected final LongSupplier nowInMillisSupplier;
+        private Consumer<PaginatedHitSource.Hit> releaseConsumedHit = PaginatedHitSource.Hit::release;
 
         public ScriptApplier(
             WorkerBulkByPaginatedSearchTaskState taskWorker,
@@ -1690,6 +1713,13 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
             this.nowInMillisSupplier = nowInMillisSupplier;
         }
 
+        /**
+         * Where a consumed hit is released. The action records the hit so page cleanup does not release it again.
+         */
+        private void releaseConsumedHitWith(Consumer<PaginatedHitSource.Hit> releaseConsumedHit) {
+            this.releaseConsumedHit = releaseConsumedHit;
+        }
+
         @Override
         public RequestWrapper<?> apply(RequestWrapper<?> request, PaginatedHitSource.Hit doc) {
             if (script == null) {
@@ -1703,7 +1733,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
             request.setSource(ctxMap.getSource());
             // The request now holds the source the script produced, so the hit's bytes are no longer needed.
             // Shared source, the path with no script, keeps the hit until the page is released.
-            doc.release();
+            releaseConsumedHit.accept(doc);
 
             updateRequest(request, metadata);
 

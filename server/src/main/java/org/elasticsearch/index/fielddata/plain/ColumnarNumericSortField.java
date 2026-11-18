@@ -23,8 +23,8 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.comparators.LongComparator;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
-import org.elasticsearch.columnar.numeric.ColumnarNumericBinaryDocValues;
 import org.elasticsearch.columnar.numeric.NumericBinaryPayload;
+import org.elasticsearch.columnar.numeric.NumericBinaryValues;
 import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
@@ -70,11 +70,7 @@ public final class ColumnarNumericSortField extends SortField {
      */
     public boolean isMaybeMultiValued(LeafReader reader) throws IOException {
         BinaryDocValues values = reader.getBinaryDocValues(getField());
-        if (values == null) {
-            return false;
-        }
-        // Payloads that are not a column, such as those of another codec, say nothing of the segment as a whole.
-        return values instanceof ColumnarNumericBinaryDocValues columnar ? columnar.isSingleValued() == false : true;
+        return values != null && NumericBinaryValues.of(values).isSingleValued() == false;
     }
 
     @Override
@@ -107,18 +103,31 @@ public final class ColumnarNumericSortField extends SortField {
      * Each document's sort key. A document without a value writes no payload, so the binary doc values visit exactly the
      * documents that have one.
      */
-    private NumericDocValues sortKeys(LeafReader reader) throws IOException {
-        BinaryDocValues values = DocValues.getBinary(reader, getField());
-        return values instanceof ColumnarNumericBinaryDocValues columnar
-            ? new ColumnSortKeys(columnar, maxMode)
-            : new PayloadSortKeys(values, maxMode);
+    NumericDocValues sortKeys(LeafReader reader) throws IOException {
+        return new SortKeys(NumericBinaryValues.of(DocValues.getBinary(reader, getField())), maxMode);
     }
 
-    private abstract static class SortKeys extends NumericDocValues {
-        private final BinaryDocValues in;
+    /**
+     * Each document's minimum or maximum value. The binary doc values are either the column, or payloads that haven't been
+     * through the codec, such as the buffered ones a segment is sorted by at flush.
+     */
+    private static final class SortKeys extends NumericDocValues {
+        private final NumericBinaryValues in;
+        private final boolean maxMode;
 
-        SortKeys(BinaryDocValues in) {
+        SortKeys(NumericBinaryValues in, boolean maxMode) {
             this.in = in;
+            this.maxMode = maxMode;
+        }
+
+        @Override
+        public long longValue() throws IOException {
+            long extreme = in.valueAt(0);
+            for (int i = 1, count = in.docValueCount(); i < count; i++) {
+                long value = in.valueAt(i);
+                extreme = maxMode ? Math.max(extreme, value) : Math.min(extreme, value);
+            }
+            return extreme;
         }
 
         @Override
@@ -144,52 +153,6 @@ public final class ColumnarNumericSortField extends SortField {
         @Override
         public long cost() {
             return in.cost();
-        }
-    }
-
-    /** Reads the extreme straight out of the column, without building the payload. */
-    private static final class ColumnSortKeys extends SortKeys {
-        private final ColumnarNumericBinaryDocValues columnar;
-        private final boolean maxMode;
-
-        ColumnSortKeys(ColumnarNumericBinaryDocValues columnar, boolean maxMode) {
-            super(columnar);
-            this.columnar = columnar;
-            this.maxMode = maxMode;
-        }
-
-        @Override
-        public long longValue() throws IOException {
-            long extreme = columnar.valueAt(0);
-            for (int i = 1, count = columnar.docValueCount(); i < count; i++) {
-                long value = columnar.valueAt(i);
-                extreme = maxMode ? Math.max(extreme, value) : Math.min(extreme, value);
-            }
-            return extreme;
-        }
-    }
-
-    /** Decodes payloads that haven't been through the codec, such as the buffered ones a segment is sorted by at flush. */
-    private static final class PayloadSortKeys extends SortKeys {
-        private final BinaryDocValues values;
-        private final boolean maxMode;
-        private final long[][] decoded = { new long[8] };
-
-        PayloadSortKeys(BinaryDocValues values, boolean maxMode) {
-            super(values);
-            this.values = values;
-            this.maxMode = maxMode;
-        }
-
-        @Override
-        public long longValue() throws IOException {
-            int count = NumericBinaryPayload.decode(values.binaryValue(), decoded);
-            assert count > 0 : "a document without a value writes no payload";
-            long extreme = decoded[0][0];
-            for (int i = 1; i < count; i++) {
-                extreme = maxMode ? Math.max(extreme, decoded[0][i]) : Math.min(extreme, decoded[0][i]);
-            }
-            return extreme;
         }
     }
 

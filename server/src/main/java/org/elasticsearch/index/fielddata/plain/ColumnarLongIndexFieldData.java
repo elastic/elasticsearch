@@ -16,8 +16,8 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.LongValues;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.ArrayUtil;
-import org.elasticsearch.columnar.numeric.ColumnarNumericBinaryDocValues;
 import org.elasticsearch.columnar.numeric.NumericBinaryPayload;
+import org.elasticsearch.columnar.numeric.NumericBinaryValues;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -157,56 +157,37 @@ public class ColumnarLongIndexFieldData extends IndexNumericFieldData {
         if (binary == null) {
             return SortedNumericLongValues.EMPTY;
         }
-        if (binary instanceof ColumnarNumericBinaryDocValues columnar) {
-            return columnar.isSingleValued() ? singleValued(columnar) : multiValued(columnar);
-        }
-        // Payloads that haven't been through the codec, such as a document an index-time script reads as it is indexed.
-        return fromPayloads(binary);
+        // The payloads may not have been through the codec, such as a document an index-time script reads as it is indexed.
+        final NumericBinaryValues values = NumericBinaryValues.of(binary);
+        return values.isSingleValued() ? singleValued(values) : multiValued(values);
     }
 
-    private static SortedNumericLongValues singleValued(ColumnarNumericBinaryDocValues columnar) {
+    private static SortedNumericLongValues singleValued(NumericBinaryValues in) {
         return SortedNumericLongValues.singleton(new LongValues() {
             @Override
             public boolean advanceExact(int doc) throws IOException {
-                return columnar.advanceExact(doc);
+                return in.advanceExact(doc);
             }
 
             @Override
             public long longValue() throws IOException {
-                return columnar.valueAt(0);
+                return in.valueAt(0);
             }
-        }, columnar);
+        }, in);
     }
 
-    private static SortedNumericLongValues multiValued(ColumnarNumericBinaryDocValues columnar) {
-        return new SortedValues(columnar) {
+    private static SortedNumericLongValues multiValued(NumericBinaryValues in) {
+        return new SortedValues(in) {
             @Override
             public boolean advanceExact(int target) throws IOException {
-                if (columnar.advanceExact(target) == false) {
+                if (in.advanceExact(target) == false) {
                     return false;
                 }
-                final int count = columnar.docValueCount();
+                final int count = in.docValueCount();
                 final long[] values = grow(count);
                 for (int i = 0; i < count; i++) {
-                    values[i] = columnar.valueAt(i);
+                    values[i] = in.valueAt(i);
                 }
-                sort(count);
-                return true;
-            }
-        };
-    }
-
-    private static SortedNumericLongValues fromPayloads(BinaryDocValues binary) {
-        final long[][] decoded = { new long[8] };
-        return new SortedValues(binary) {
-            @Override
-            public boolean advanceExact(int target) throws IOException {
-                if (binary.advanceExact(target) == false) {
-                    return false;
-                }
-                final int count = NumericBinaryPayload.decode(binary.binaryValue(), decoded);
-                final long[] values = grow(count);
-                System.arraycopy(decoded[0], 0, values, 0, count);
                 sort(count);
                 return true;
             }

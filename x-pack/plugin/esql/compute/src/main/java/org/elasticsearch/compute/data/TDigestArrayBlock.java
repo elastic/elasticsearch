@@ -150,6 +150,26 @@ public final class TDigestArrayBlock extends AbstractDelegatingCompoundBlock<TDi
     }
 
     @Override
+    public DoubleBlock getMinBlock() {
+        return minima;
+    }
+
+    @Override
+    public DoubleBlock getMaxBlock() {
+        return maxima;
+    }
+
+    @Override
+    public DoubleBlock getSumBlock() {
+        return sums;
+    }
+
+    @Override
+    public LongBlock getCountBlock() {
+        return valueCounts;
+    }
+
+    @Override
     public DoubleBlock buildHistogramComponentBlock(Component component) {
         if (mayHaveMultivaluedFields()) {
             throw new UnsupportedOperationException("Not yet implemented for multi-valued blocks");

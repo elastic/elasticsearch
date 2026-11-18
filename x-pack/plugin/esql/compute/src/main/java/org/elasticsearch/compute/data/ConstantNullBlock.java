@@ -379,6 +379,26 @@ public final class ConstantNullBlock extends AbstractBlockRefCounted
     }
 
     @Override
+    public ConstantNullBlock getMinBlock() {
+        return this;
+    }
+
+    @Override
+    public ConstantNullBlock getMaxBlock() {
+        return this;
+    }
+
+    @Override
+    public ConstantNullBlock getSumBlock() {
+        return this;
+    }
+
+    @Override
+    public ConstantNullBlock getCountBlock() {
+        return this;
+    }
+
+    @Override
     public DoubleBlock buildHistogramComponentBlock(Component component) {
         // if all histograms are null, the component block is also a constant null block with the same position count
         this.incRef();

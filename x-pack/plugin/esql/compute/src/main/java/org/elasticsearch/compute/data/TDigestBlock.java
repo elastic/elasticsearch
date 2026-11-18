@@ -12,6 +12,9 @@ import org.elasticsearch.index.mapper.BlockLoader;
 
 public sealed interface TDigestBlock extends HistogramBlock permits ConstantNullBlock, TDigestArrayBlock {
 
+    @Override
+    LongBlock getCountBlock();
+
     static boolean equals(TDigestBlock blockA, TDigestBlock blockB) {
         if (blockA == blockB) {
             return true;

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.core.expression.predicate.regex;
 
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.Re2RegExp;
 
 import java.util.Objects;
 

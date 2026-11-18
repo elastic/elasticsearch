@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.core.expression.predicate.regex;
+package org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2;
 
 import com.google.re2j.Pattern;
 import com.google.re2j.PatternSyntaxException;
@@ -244,9 +244,10 @@ public class Re2RegExpTests extends ESTestCase {
     }
 
     /**
-     * RE2/J, the port of RE2 that ES|QL already uses for {@code label_replace}, agrees on what random expressions match
-     * and reject. It differs from Go in two places, so the expressions avoid them: it rejects a repeated literal
-     * {@code &#123;}, and it negates a Unicode class before folding it under {@code (?i)}.
+     * RE2/J, which this parser is forked from and ES|QL uses for {@code label_replace}, agrees on what random
+     * expressions match and reject. The expressions avoid where the fork follows Go instead: a repeated literal
+     * <code>&#123;</code>, a capture group name used twice, {@code (?i)} on a negated Unicode class, and alternatives
+     * that start with the same literal in different cases.
      */
     public void testAgreesWithRe2j() {
         List<String> values = values();
@@ -256,6 +257,9 @@ public class Re2RegExpTests extends ESTestCase {
                 regexBuilder.append(randomFrom(TOKENS));
             }
             String regex = regexBuilder.toString();
+            if (regex.contains("|") && regex.contains("(?i")) {
+                continue;
+            }
             Pattern re2j;
             try {
                 re2j = Pattern.compile(regex, Pattern.DOTALL);
@@ -313,8 +317,6 @@ public class Re2RegExpTests extends ESTestCase {
         "(?-m)",
         "(?:",
         "(?i:",
-        "(?P<n>",
-        "(?<n>",
         "(?U)",
         "(?is)",
         "(?i-s:",

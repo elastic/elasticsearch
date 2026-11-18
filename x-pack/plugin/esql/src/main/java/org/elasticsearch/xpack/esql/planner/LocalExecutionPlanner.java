@@ -190,6 +190,9 @@ import org.elasticsearch.xpack.esql.inference.completion.CompletionOperator;
 import org.elasticsearch.xpack.esql.inference.embedding.EmbeddingOperator;
 import org.elasticsearch.xpack.esql.inference.rerank.RerankOperator;
 import org.elasticsearch.xpack.esql.inference.textembedding.TextEmbeddingOperator;
+import org.elasticsearch.xpack.esql.into.IntoMergeStatsOperator;
+import org.elasticsearch.xpack.esql.into.IntoOperator;
+import org.elasticsearch.xpack.esql.into.IntoPageWriter;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -221,6 +224,7 @@ import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.HighlightExec;
 import org.elasticsearch.xpack.esql.plan.physical.InsertEmptyBucketsExec;
+import org.elasticsearch.xpack.esql.plan.physical.IntoExec;
 import org.elasticsearch.xpack.esql.plan.physical.IpLocationExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitByExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
@@ -611,7 +615,9 @@ public class LocalExecutionPlanner {
             return planLookupJoin(join, context);
         }
         // output
-        else if (node instanceof StreamingOutputExec streamingOutput) {
+        else if (node instanceof IntoExec into) {
+            return planInto(into, context);
+        } else if (node instanceof StreamingOutputExec streamingOutput) {
             return planStreamingOutput(streamingOutput, context);
         } else if (node instanceof OutputExec outputExec) {
             return planOutput(outputExec, context);
@@ -999,7 +1005,7 @@ public class LocalExecutionPlanner {
             new OutputOperatorFactory(
                 Expressions.names(output),
                 alignPageToAttributes(output, source.layout),
-                outputExec.getPageConsumerFactory()
+                outputExec.getPageConsumer()
             ),
             source.layout
         );
@@ -1027,6 +1033,26 @@ public class LocalExecutionPlanner {
         } : Function.identity();
 
         return transformer;
+    }
+
+    private PhysicalOperation planInto(IntoExec into, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(into.child(), context);
+        Layout outputLayout = new Layout.Builder().append(into.output()).build();
+        return switch (into.mode()) {
+            case WRITE -> {
+                IntoPageWriter.Factory sink = IntoPageWriter.Factory.createFactory(
+                    client,
+                    into.destination(),
+                    into.sourceAttributes(),
+                    configuration.explainOnly() ? IntoPageWriter.Factory.Indexing.DISCARD : IntoPageWriter.Factory.Indexing.INDEX
+                );
+                yield source.with(
+                    new IntoOperator.Factory(sink, alignPageToAttributes(into.sourceAttributes(), source.layout)),
+                    outputLayout
+                );
+            }
+            case MERGE_STATS -> source.with(new IntoMergeStatsOperator.Factory(), outputLayout);
+        };
     }
 
     private PhysicalOperation planStreamingOutput(StreamingOutputExec exec, LocalExecutionPlannerContext context) {
@@ -1783,7 +1809,8 @@ public class LocalExecutionPlanner {
         PhysicalOperation source = plan(join.left(), context);
         int positionsChannel = source.layout.numberOfChannels();
         LocalSourceExec localSourceExec = (LocalSourceExec) join.joinData();
-        // The lookup operators copy the blocks they keep into each driver's breaker-tracked block factory
+        // The lookup operators never take ownership of these blocks: RowInTableLookupOperator builds its table from
+        // them without keeping them, and ColumnLoadOperator copies the values it keeps into each driver's block factory
         Page localData = localSourceExec.supplier().peek();
 
         // see {@link Mapper#JOIN_MARKER_PREFIX}

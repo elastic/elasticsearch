@@ -50,7 +50,8 @@ public class KibanaPluginTests extends ESTestCase {
                 KibanaPlugin.WORKFLOWS_EXECUTION_LOGS_DATA_STREAM_NAME,
                 KibanaPlugin.CHANGE_HISTORY_DATA_STREAM_NAME,
                 KibanaPlugin.NOTIFICATION_CENTER_DATA_STREAM_NAME,
-                KibanaPlugin.CONTEXT_ENGINE_SESSION_EVENTS_DATA_STREAM_NAME
+                KibanaPlugin.CONTEXT_ENGINE_SESSION_EVENTS_DATA_STREAM_NAME,
+                KibanaPlugin.CONTEXT_ENGINE_SESSION_MEMORY_DATA_STREAM_NAME
             )
         );
     }
@@ -63,12 +64,13 @@ public class KibanaPluginTests extends ESTestCase {
         assertFalse(indexDescriptors.stream().anyMatch(d -> d.matchesIndexPattern(".kibana_change_history-000001")));
         assertFalse(indexDescriptors.stream().anyMatch(d -> d.matchesIndexPattern(".kibana-notifications")));
         assertFalse(indexDescriptors.stream().anyMatch(d -> d.matchesIndexPattern(".context-engine-session-events")));
+        assertFalse(indexDescriptors.stream().anyMatch(d -> d.matchesIndexPattern(".context-engine-session-memory")));
     }
 
     public void testContextEngineSystemIndexDescriptorStillCoversOtherContextEngineIndices() {
         assertTrue(KibanaPlugin.CONTEXT_ENGINE_INDEX_DESCRIPTOR.matchesIndexPattern(".context-engine-ai-indices"));
         assertTrue(KibanaPlugin.CONTEXT_ENGINE_INDEX_DESCRIPTOR.matchesIndexPattern(".context-engine-improvements"));
-        assertTrue(KibanaPlugin.CONTEXT_ENGINE_INDEX_DESCRIPTOR.matchesIndexPattern(".context-engine-session-memory"));
+        assertFalse(KibanaPlugin.CONTEXT_ENGINE_INDEX_DESCRIPTOR.matchesIndexPattern(".context-engine-session-memory"));
         assertFalse(KibanaPlugin.CONTEXT_ENGINE_INDEX_DESCRIPTOR.matchesIndexPattern(".context-engine-session-events"));
     }
 
@@ -94,8 +96,21 @@ public class KibanaPluginTests extends ESTestCase {
                 "raw"
             )
         );
-        assertThat(asMap(asMap(properties.get("content")).get("fields")), hasEntry("semantic", Map.of("type", "semantic_text")));
+        assertThat(asMap(asMap(properties.get("content")).get("fields")), hasEntry("semantic_text", Map.of("type", "semantic_text")));
         assertThat(properties, hasEntry("raw", Map.of("type", "object", "enabled", false)));
+    }
+
+    /**
+     * Kibana writes these fields and filters every read and delete on {@code space} and {@code user_id}; nothing in
+     * Elasticsearch reads them, so only this test would catch a change that drops one.
+     */
+    public void testContextEngineSessionMemoryMapsKibanaFields() {
+        Map<String, Object> properties = mappedProperties(KibanaPlugin.CONTEXT_ENGINE_SESSION_MEMORY_DATA_STREAM_NAME);
+        assertThat(
+            properties.keySet(),
+            containsInAnyOrder("@timestamp", "id", "space", "ai_index_id", "session_id", "user_id", "content", "attributes", "deleted_at")
+        );
+        assertThat(asMap(asMap(properties.get("content")).get("fields")), hasEntry("semantic_text", Map.of("type", "semantic_text")));
     }
 
     public void testWorkflowsSystemIndexDescriptorCoversOtherWorkflowsIndices() {

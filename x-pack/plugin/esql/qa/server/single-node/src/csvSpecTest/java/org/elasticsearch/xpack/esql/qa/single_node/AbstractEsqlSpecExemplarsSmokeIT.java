@@ -112,6 +112,9 @@ public abstract class AbstractEsqlSpecExemplarsSmokeIT extends AbstractEsqlSpecI
 
         RequestObjectBuilder builder = new RequestObjectBuilder(randomFrom(XContentType.values())).query(query)
             .settings("{\"exemplars\": " + exemplarsSetting + "}");
+        if (testCase.paramsJson() != null) {
+            builder.params(testCase.paramsJson());
+        }
         if (Strings.isNullOrEmpty(testCase.requestTimeRangeGte) == false) {
             // TSTEP and PROMQL range queries take their time range from the request filter
             String gte = testCase.requestTimeRangeGte;

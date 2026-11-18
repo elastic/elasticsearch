@@ -257,6 +257,9 @@ public class CsvLoadAllUnmappedKeywordIT extends CsvIT {
         if (testCase.datasetSources.isEmpty() == false) {
             return "dataset sources";
         }
+        if (testCase.paramsCanBeNames()) {
+            return "query parameter used as a field name";
+        }
         if (testCase.requiredCapabilities.stream().anyMatch(c -> c.startsWith("optional_fields_load_all"))) {
             return "optional_fields_load_all capability";
         }

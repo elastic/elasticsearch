@@ -272,6 +272,32 @@ similarityScore:double | topIds:long
 ;
 ```
 
+### Query parameters
+
+Query parameters are declared with the `param:` directive, one per line, in the order they're sent:
+`param: name = <json>` for a named parameter and `param: <json>` for an unnamed one.
+The value is written as in the `params` array of the request, so strings are quoted, and named parameters
+can also be objects like `{"identifier": "first_name"}` or `{"pattern": "*_name"}`.
+As in the request, a test can't mix named and unnamed parameters.
+
+```csv-spec
+doubleParameterMarkers
+required_capability: double_parameter_markers_for_identifiers
+param: field = "last_name"
+param: last = "Koblick"
+FROM employees
+| WHERE ??field == ?last
+| KEEP emp_no, ??field
+;
+
+emp_no:integer | last_name:keyword
+10004          | Koblick
+;
+```
+
+Variants that look for field names in the query text, like `CsvLoadAllUnmappedKeywordIT`, skip tests where a
+parameter can be a field name: a `??` reference, or a parameter declared as an identifier or pattern.
+
 ### Query pragmas
 
 Query pragmas can also be provided with the `pragma: pragma_name=value` directive.

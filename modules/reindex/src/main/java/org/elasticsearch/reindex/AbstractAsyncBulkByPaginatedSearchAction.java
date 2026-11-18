@@ -820,10 +820,31 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
             releaseBatchHits.close();
             return;
         }
-        bulkRetry.withBackoff(bulkClient::bulk, request, ActionListener.releaseBefore(releaseBatchHits, ActionListener.wrap(response -> {
-            logger.debug("[{}]: completed [{}] entry bulk request", task.getId(), requestSize);
-            onBulkResponse(response, onSuccess);
-        }, this::finishHim)));
+        bulkRetry.withBackoff(
+            this::sendBulkUnlessCancelled,
+            request,
+            ActionListener.releaseBefore(releaseBatchHits, ActionListener.wrap(response -> {
+                logger.debug("[{}]: completed [{}] entry bulk request", task.getId(), requestSize);
+                onBulkResponse(response, onSuccess);
+            }, this::finishHim))
+        );
+    }
+
+    /**
+     * Sends one bulk attempt. When the task has been cancelled since the previous attempt, sends nothing and completes the listener so the
+     * task can finish cancelled. {@link Retry} calls this for the first send and for every attempt it has scheduled.
+     *
+     * @param bulkRequest the bulk for this attempt
+     * @param listener completed when the attempt finishes
+     */
+    private void sendBulkUnlessCancelled(BulkRequest bulkRequest, ActionListener<BulkResponse> listener) {
+        if (task.isCancelled()) {
+            logger.debug("[{}]: not sending bulk because the task was cancelled", task.getId());
+            // A non-429 failure would fail the task. Cancellation finishes with the cancel reason, so this attempt reports nothing.
+            listener.onResponse(new BulkResponse(new BulkItemResponse[0], 0L));
+            return;
+        }
+        bulkClient.bulk(bulkRequest, listener);
     }
 
     /**

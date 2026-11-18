@@ -222,7 +222,7 @@ import org.elasticsearch.plugins.internal.InternalVectorFormatProviderPlugin;
 import org.elasticsearch.plugins.internal.LoggingDataProvider;
 import org.elasticsearch.plugins.internal.ReloadAwarePlugin;
 import org.elasticsearch.plugins.internal.RestExtension;
-import org.elasticsearch.plugins.internal.RestoreLifecycleListener;
+import org.elasticsearch.plugins.internal.RestoreProjectCustomUpdater;
 import org.elasticsearch.plugins.internal.SettingsExtension;
 import org.elasticsearch.plugins.internal.ShardGenerationListener;
 import org.elasticsearch.readiness.ReadinessService;
@@ -1333,7 +1333,7 @@ class NodeConstruction {
             projectResolver.supportsMultipleProjects(),
             pluginsService.loadSingletonServiceProvider(IndexMetadataRestoreTransformer.class, NoOpRestoreTransformer::getInstance),
             featureService,
-            pluginsService.loadSingletonServiceProvider(RestoreLifecycleListener.class, () -> RestoreLifecycleListener.NOOP)
+            pluginsService.loadSingletonServiceProvider(RestoreProjectCustomUpdater.class, () -> RestoreProjectCustomUpdater.NOOP)
         );
 
         DiscoveryModule discoveryModule = createDiscoveryModule(

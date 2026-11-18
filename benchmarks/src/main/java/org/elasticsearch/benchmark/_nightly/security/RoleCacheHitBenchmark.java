@@ -72,15 +72,15 @@ import java.util.concurrent.TimeUnit;
  * or invalidation scans.
  * <p>
  * The defaults are what the nightly and pull request runs measure. The values listed in {@link ExtraParam} reproduce the
- * rest of the comparison and are selected with {@code -p}, for example {@code -p impl=monitor,prehashed,segmented}.
+ * rest of the comparison and are selected with {@code -p}, for example {@code -p impl=prehashed}.
  * <p>
  * Run, for example, with
  * {@code ../gradlew run --args "org.elasticsearch.benchmark._nightly.security.RoleCacheHitBenchmark.getRole_08 -p roles=1024 -p namesPerKey=100 -bm thrpt -tu s"}.
  * Larger keys can be selected with {@code -p namesPerKey=1000}.
  */
 @Fork(1)
-@Warmup(iterations = 3, time = 2)
-@Measurement(iterations = 5, time = 2)
+@Warmup(iterations = 1, time = 2)
+@Measurement(iterations = 5, time = 1)
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @State(Scope.Benchmark)
@@ -109,8 +109,8 @@ public class RoleCacheHitBenchmark {
      * {@code prehashed}, that map with hashing before the monitor; and {@code segmented}, the map split into independently
      * locked segments.
      */
-    @Param({ "cache", "interned", "concurrent" })
-    @ExtraParam({ "monitor", "prehashed", "segmented" })
+    @Param({ "cache", "monitor", "interned", "segmented", "concurrent" })
+    @ExtraParam({ "prehashed" })
     private String impl;
 
     private RoleCache roleCache;

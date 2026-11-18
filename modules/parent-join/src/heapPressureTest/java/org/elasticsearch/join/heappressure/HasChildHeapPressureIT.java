@@ -51,7 +51,7 @@ public class HasChildHeapPressureIT extends SearchHeapPressureTestCase {
     /** {@link #PARENTS} parents with one child each, in one segment: parent {@code i} and then its child. */
     @Before
     public void indexDocuments() throws IOException {
-        indexBulkEntries(INDEX, 1, """
+        indexBulkEntries(client(), INDEX, 1, "", """
             {
               "join": {"type": "join", "relations": {"parent": "child"}},
               "n": {"type": "long"}

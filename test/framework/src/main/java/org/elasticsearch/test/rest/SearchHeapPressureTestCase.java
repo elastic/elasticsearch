@@ -175,17 +175,8 @@ public abstract class SearchHeapPressureTestCase extends HeapPressureTestCase {
     }
 
     /**
-     * Like {@link #indexDocuments(String, int, String, int, IntFunction)}, but {@code bulkEntry} returns the whole bulk entry of each
-     * document, its action line and its source line, so that a document can have its own {@code _id} or {@code routing}.
-     */
-    protected void indexBulkEntries(String index, int shards, String properties, int docs, IntFunction<String> bulkEntry)
-        throws IOException {
-        indexBulkEntries(client(), index, shards, "", properties, docs, bulkEntry);
-    }
-
-    /**
-     * Like {@link #indexBulkEntries(String, int, String, int, IntFunction)}, with {@code extraSettings}, on the cluster of
-     * {@code restClient}.
+     * Like {@link #indexDocuments(RestClient, String, int, String, String, int, IntFunction)}, but {@code bulkEntry} returns the whole bulk
+     * entry of each document, its action line and its source line, so that a document can have its own {@code _id} or {@code routing}.
      */
     protected void indexBulkEntries(
         RestClient restClient,

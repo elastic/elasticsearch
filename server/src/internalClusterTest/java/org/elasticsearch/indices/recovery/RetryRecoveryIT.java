@@ -458,7 +458,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
             RetryRecoveryTestPlugin.armDirectoryException();
 
-            // Recover from empty store; Store.createEmpty hits a one-shot AlreadyClosedException
+            // Recover from empty store; Store.createEmpty hits a one-shot exception
             createIndex(indexName, indexSettings(1, 0).build());
 
             ensureGreen(indexName);
@@ -487,7 +487,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
             RetryRecoveryTestPlugin.armDirectoryException();
 
-            // Recover from local shards; addIndices' temporary IndexWriter hits ACE once
+            // Recover from local shards; addIndices' temporary IndexWriter hits exception once
             ResizeIndexTestUtils.executeResize(ResizeType.CLONE, sourceIndexName, targetIndexName, indexSettings(1, 0));
 
             ensureGreen(sourceIndexName);
@@ -527,7 +527,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
             RetryRecoveryTestPlugin.armDirectoryException();
 
-            // Force stale primary → bootstrapNewHistory temporary IndexWriter hits ACE once
+            // Force stale primary → bootstrapNewHistory temporary IndexWriter hits exception once
             ClusterRerouteUtils.reroute(client(), new AllocateStalePrimaryAllocationCommand(indexName, 0, node1, true));
 
             ensureGreen(indexName);
@@ -719,7 +719,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         }
     }
 
-    /// Inject a one-shot [AlreadyClosedException] from the Lucene Directory during temporary IndexWriter use.
+    /// Inject a one-shot [AlreadyClosedException]/[IOException] from the Lucene Directory during temporary IndexWriter use.
     public static class RetryRecoveryTestPlugin extends Plugin {
         private static final AtomicBoolean throwOnCreateOutput = new AtomicBoolean();
 

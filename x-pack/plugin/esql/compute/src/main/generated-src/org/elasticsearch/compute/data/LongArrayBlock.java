@@ -248,6 +248,11 @@ public final class LongArrayBlock extends AbstractArrayBlock implements LongBloc
     }
 
     @Override
+    public void enablePooling() {
+        vector.enablePooling();
+    }
+
+    @Override
     public BlockFactory blockFactory() {
         return vector.blockFactory();
     }

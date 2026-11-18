@@ -15,15 +15,14 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.cluster.state.RemoteClusterStateRequest;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -120,68 +119,67 @@ public final class RemoteClusterConnection implements Closeable {
     /**
      * Collects all nodes on the connected cluster and returns / passes a nodeID to {@link DiscoveryNode} lookup function
      * that returns <code>null</code> if the node ID is not found.
-     *
+     * <p>
      * The requests to get cluster state on the connected cluster are made in the system context because logically
      * they are equivalent to checking a single detail in the local cluster state and should not require that the
      * user who made the request that is using this method in its implementation is authorized to view the entire
      * cluster state.
      */
     void collectNodes(ActionListener<Function<String, DiscoveryNode>> listener) {
-        Runnable runnable = () -> {
-            final ThreadContext threadContext = threadPool.getThreadContext();
-            final ContextPreservingActionListener<Function<String, DiscoveryNode>> contextPreservingActionListener =
-                new ContextPreservingActionListener<>(threadContext.newRestorableContext(false), listener);
-            try (var ignore = threadContext.newEmptySystemContext()) {
-                // we stash any context here since this is an internal execution and should not leak any existing context information
-                Transport.Connection connection = remoteConnectionManager.getAnyRemoteConnection();
+        final var threadContext = threadPool.getThreadContext();
+        final var originalContext = threadContext.newRestorableContext(false); // capture early to ensure no headers from ensureConnected
 
-                // Use different action to collect nodes information depending on the connection model
-                if (REMOTE_CLUSTER_PROFILE.equals(remoteConnectionManager.getConnectionProfile().getTransportProfile())) {
-                    transportService.sendRequest(
-                        connection,
-                        RemoteClusterNodesAction.TYPE.name(),
-                        RemoteClusterNodesAction.Request.ALL_NODES,
-                        TransportRequestOptions.EMPTY,
-                        new ActionListenerResponseHandler<>(contextPreservingActionListener.map(response -> {
-                            final Map<String, DiscoveryNode> nodeLookup = response.getNodes()
-                                .stream()
-                                .collect(Collectors.toUnmodifiableMap(DiscoveryNode::getId, Function.identity()));
-                            return nodeLookup::get;
-                        }), RemoteClusterNodesAction.Response::new, TransportResponseHandler.TRANSPORT_WORKER)
-                    );
-                } else {
-                    final RemoteClusterStateRequest request = new RemoteClusterStateRequest(
-                        /* Timeout doesn't really matter with .local(true) */
-                        TimeValue.THIRTY_SECONDS
-                    );
-                    request.clear();
-                    request.nodes(true);
+        SubscribableListener
 
-                    transportService.sendRequest(
-                        connection,
-                        ClusterStateAction.NAME,
-                        request,
-                        TransportRequestOptions.EMPTY,
-                        new ActionListenerResponseHandler<>(
-                            contextPreservingActionListener.map(response -> response.getState().nodes()::get),
-                            ClusterStateResponse::new,
-                            TransportResponseHandler.TRANSPORT_WORKER
-                        )
-                    );
+            .newForked(this::ensureConnected)
+
+            .andThenApply(ignored -> remoteConnectionManager.getAnyRemoteConnection())
+
+            .<Function<String, DiscoveryNode>>andThen((l, connection) -> {
+                try (var ignore = threadContext.newEmptySystemContext()) {
+                    // we stash any context here since this is an internal execution and should not leak any existing context information
+
+                    // Use different action to collect nodes information depending on the connection model
+                    if (REMOTE_CLUSTER_PROFILE.equals(remoteConnectionManager.getConnectionProfile().getTransportProfile())) {
+                        transportService.sendRequest(
+                            connection,
+                            RemoteClusterNodesAction.TYPE.name(),
+                            RemoteClusterNodesAction.Request.ALL_NODES,
+                            TransportRequestOptions.EMPTY,
+                            new ActionListenerResponseHandler<>(
+                                l.map(
+                                    response -> response.getNodes()
+                                        .stream()
+                                        .collect(Collectors.toUnmodifiableMap(DiscoveryNode::getId, Function.identity()))::get
+                                ),
+                                RemoteClusterNodesAction.Response::new,
+                                TransportResponseHandler.TRANSPORT_WORKER
+                            )
+                        );
+                    } else {
+                        final RemoteClusterStateRequest request = new RemoteClusterStateRequest(
+                            /* Timeout doesn't really matter, this request is handled on the receiving node */
+                            TimeValue.THIRTY_SECONDS
+                        );
+                        request.clear();
+                        request.nodes(true);
+
+                        transportService.sendRequest(
+                            connection,
+                            ClusterStateAction.NAME,
+                            request,
+                            TransportRequestOptions.EMPTY,
+                            new ActionListenerResponseHandler<>(
+                                l.map(response -> response.getState().nodes()::get),
+                                ClusterStateResponse::new,
+                                TransportResponseHandler.TRANSPORT_WORKER
+                            )
+                        );
+                    }
                 }
-            }
-        };
+            })
 
-        try {
-            // just in case if we are not connected for some reason we try to connect and if we fail we have to notify the listener
-            // this will cause some back pressure on the search end and eventually will cause rejections but that's fine
-            // we can't proceed with a search on a cluster level.
-            // in the future we might want to just skip the remote nodes in such a case but that can already be implemented on the
-            // caller end since they provide the listener.
-            ensureConnected(listener.delegateFailureAndWrap((l, x) -> runnable.run()));
-        } catch (Exception ex) {
-            listener.onFailure(ex);
-        }
+            .addListener(new ContextPreservingActionListener<>(originalContext, listener));
     }
 
     /**

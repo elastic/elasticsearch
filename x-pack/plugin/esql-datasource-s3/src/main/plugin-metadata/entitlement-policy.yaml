@@ -8,12 +8,7 @@ ALL-UNNAMED:
       mode: "read"
     # EKS Pod Identity: operator symlinks
     # /var/run/secrets/pods.eks.amazonaws.com/serviceaccount/eks-pod-identity-token here.
+    # Read by EsqlContainerCredentialsProvider — no JVM-wide system-property redirect.
     - relative_path: "esql-datasource-s3/eks-pod-identity-token"
       relative_to: "config"
       mode: "read"
-  # The AWS SDK's ContainerCredentialsProvider is final and reads the auth-token path from
-  # AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE; we redirect it via the JVM sysprop override so the
-  # SDK reads from the entitled symlink above instead of the Kubernetes-injected location.
-  - write_system_properties:
-      properties:
-        - aws.containerAuthorizationTokenFile

@@ -1,0 +1,2 @@
+FROM employees, (TS k8s | STATS avg_cost = AVG(network.cost) BY WITHOUT(pod, region))
+| KEEP emp_no, avg_cost, _timeseries

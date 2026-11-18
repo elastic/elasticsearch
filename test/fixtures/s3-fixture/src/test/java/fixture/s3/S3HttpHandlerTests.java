@@ -85,8 +85,23 @@ public class S3HttpHandlerTests extends ESTestCase {
         assertEquals("GET " + requestUri, normalizeLastModified(expectedResponse), normalizeLastModified(actual.body().utf8ToString()));
     }
 
+    /**
+     * The listing also carries each object's ETag, which is the hash of its content. The expected XML is written without it,
+     * so it is removed on both sides here; {@link #testListingReportsEachObjectsETag} checks it.
+     */
     private static String normalizeLastModified(String xml) {
-        return xml.replaceAll("<LastModified>[^<]+</LastModified>", "<LastModified>*</LastModified>");
+        return xml.replaceAll("<LastModified>[^<]+</LastModified>", "<LastModified>*</LastModified>").replaceAll("<ETag>[^<]+</ETag>", "");
+    }
+
+    public void testListingReportsEachObjectsETag() {
+        final var handler = new S3HttpHandler("bucket", S3ConsistencyModel.randomConsistencyModel());
+        final var body = new BytesArray(randomAlphaOfLength(50).getBytes(StandardCharsets.UTF_8));
+        assertEquals(RestStatus.OK, handleRequest(handler, "PUT", "/bucket/path/blob", body).status());
+
+        final var listing = handleRequest(handler, "GET", "/bucket?list-type=2&prefix=path/").body().utf8ToString();
+        final var matcher = java.util.regex.Pattern.compile("<ETag>([^<]+)</ETag>").matcher(listing);
+        assertTrue("the listing must carry the object's ETag: " + listing, matcher.find());
+        assertEquals(S3HttpHandler.getEtagFromContents(body), matcher.group(1));
     }
 
     public void testSimpleObjectOperations() {

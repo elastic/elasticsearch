@@ -9,6 +9,8 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
@@ -28,7 +30,9 @@ import java.util.Objects;
 /**
  * Class for holding Rollover related information within an index
  */
-public class RolloverInfo implements SimpleDiffable<RolloverInfo>, Writeable, ToXContentFragment {
+public class RolloverInfo implements SimpleDiffable<RolloverInfo>, Writeable, ToXContentFragment, Accountable {
+
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(RolloverInfo.class);
 
     public static final ParseField CONDITION_FIELD = new ParseField("met_conditions");
     public static final ParseField TIME_FIELD = new ParseField("time");
@@ -79,6 +83,12 @@ public class RolloverInfo implements SimpleDiffable<RolloverInfo>, Writeable, To
 
     public long getTime() {
         return time;
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        // metConditions elements are Accountable, so sizeOfCollection recurses into each condition's ramBytesUsed.
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(alias) + RamUsageEstimator.sizeOfCollection(metConditions);
     }
 
     public static Diff<RolloverInfo> readDiffFrom(StreamInput in) throws IOException {

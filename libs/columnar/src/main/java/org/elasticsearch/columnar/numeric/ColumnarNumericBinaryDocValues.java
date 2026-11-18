@@ -18,7 +18,11 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.IOSupplier;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
+import org.elasticsearch.columnar.substrate.ColumnPrefetcher;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.lucene.store.PrefetchableDocValues;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
@@ -29,7 +33,7 @@ import java.io.IOException;
  * directly. Those fast paths require a dense single-valued column; otherwise the caller falls back to
  * {@link #binaryValue}. The skip index lives inside the column, not on the Lucene surface.
  */
-public final class ColumnarNumericBinaryDocValues extends BinaryDocValues implements NumericColumnSource {
+public final class ColumnarNumericBinaryDocValues extends BinaryDocValues implements NumericColumnSource, PrefetchableDocValues {
 
     private static final float RANGE_MATCH_COST = 2f;
 
@@ -42,11 +46,19 @@ public final class ColumnarNumericBinaryDocValues extends BinaryDocValues implem
     private final int blockMask;
     private final NumericColumnMetadata.Skipper skipperMeta;
     private final IndexInput skipIndex;
+    @Nullable
+    private final IOSupplier<NumericColumnReader> prefetchColumn;
+    private ColumnPrefetcher prefetcher;
 
     private final BytesRefBuilder payload = new BytesRefBuilder();
     private long[] values = new long[8];
     /** Reused across {@link #bulkLongs} calls; grown to the batch size, never to the column size. */
     private int[] ranks = new int[8];
+
+    // Where the values of the document at addressedRank start and how many it holds, for docValueCount and valueAt.
+    private int addressedRank = -1;
+    private long addressedFirstValue;
+    private int addressedValueCount;
 
     public ColumnarNumericBinaryDocValues(
         NumericColumnReader reader,
@@ -55,14 +67,43 @@ public final class ColumnarNumericBinaryDocValues extends BinaryDocValues implem
         NumericColumnMetadata.Skipper skipperMeta,
         IndexInput skipIndex
     ) {
+        this(reader, iterator, maxDoc, skipperMeta, skipIndex, null);
+    }
+
+    /** @param prefetchColumn opens another reader of the column, which prefetches */
+    public ColumnarNumericBinaryDocValues(
+        NumericColumnReader reader,
+        ColumnIterator iterator,
+        int maxDoc,
+        NumericColumnMetadata.Skipper skipperMeta,
+        IndexInput skipIndex,
+        @Nullable IOSupplier<NumericColumnReader> prefetchColumn
+    ) {
         this.reader = reader;
+        this.prefetchColumn = prefetchColumn;
         this.iterator = iterator;
         this.maxDoc = maxDoc;
-        this.singleValued = reader.multiValued() == false;
+        // A column written without the addressing is read by value address, and nothing hands one to this
+        // class; without that, no table would read as one value a document and a rank as its value address.
+        assert reader.hasValueAddresses() || reader.numValues() == reader.numDocsWithField()
+            : "a column of " + reader.numValues() + " values over " + reader.numDocsWithField() + " documents tables no addressing";
+        this.singleValued = reader.hasValueAddresses() == false;
         this.blockShift = Integer.numberOfTrailingZeros(reader.blockSize());
         this.blockMask = reader.blockSize() - 1;
         this.skipperMeta = skipperMeta;
         this.skipIndex = skipIndex;
+    }
+
+    /** Prefetches through a reader of its own, opened on first use; nothing without {@code prefetchColumn}. */
+    @Override
+    public boolean prefetch(int stage, int[] docs, int from, int to) throws IOException {
+        if (prefetchColumn == null) {
+            return false;
+        }
+        if (prefetcher == null) {
+            prefetcher = new ColumnPrefetcher(prefetchColumn.get());
+        }
+        return prefetcher.prefetch(stage, docs, from, to);
     }
 
     @Override
@@ -77,6 +118,39 @@ public final class ColumnarNumericBinaryDocValues extends BinaryDocValues implem
             values[i] = reader.valueAt(first + i);
         }
         return NumericBinaryPayload.encode(values, (int) count, payload);
+    }
+
+    /** Whether every document in the column holds exactly one value. */
+    public boolean isSingleValued() {
+        return singleValued;
+    }
+
+    /** Whether every document in the segment has a value. */
+    public boolean isDense() {
+        return reader.numDocsWithField() == maxDoc;
+    }
+
+    /** The number of values the current document holds; at least one. */
+    public int docValueCount() {
+        addressCurrentDoc();
+        return addressedValueCount;
+    }
+
+    /** The current document's {@code index}-th value, in the order the values were written. */
+    public long valueAt(int index) throws IOException {
+        addressCurrentDoc();
+        assert index >= 0 && index < addressedValueCount : "value " + index + " of a document holding " + addressedValueCount;
+        return reader.valueAt(addressedFirstValue + index);
+    }
+
+    /** Looks up where the current document's values are once, however many of them are read. */
+    private void addressCurrentDoc() {
+        final int rank = iterator.rank();
+        if (rank != addressedRank) {
+            addressedFirstValue = reader.firstValueAddress(rank);
+            addressedValueCount = (int) reader.valueCount(rank);
+            addressedRank = rank;
+        }
     }
 
     @Override

@@ -249,7 +249,8 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                         mock(CrossProjectModeDecider.class),
                         projectId -> false,
                         mock(ProjectResolver.class),
-                        mock(TransformCloudCredentialManager.class)
+                        mock(TransformCloudCredentialManager.class),
+                        Clock.systemUTC()
                     ),
                     mock(CheckpointProvider.class),
                     new AtomicReference<>(IndexerState.STOPPED),
@@ -339,7 +340,8 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                         mock(CrossProjectModeDecider.class),
                         projectId -> false,
                         mock(ProjectResolver.class),
-                        mock(TransformCloudCredentialManager.class)
+                        mock(TransformCloudCredentialManager.class),
+                        Clock.systemUTC()
                     ),
                     mock(CheckpointProvider.class),
                     new AtomicReference<>(IndexerState.STOPPED),
@@ -478,7 +480,8 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                     mock(CrossProjectModeDecider.class),
                     projectId -> false,
                     mock(ProjectResolver.class),
-                    mock(TransformCloudCredentialManager.class)
+                    mock(TransformCloudCredentialManager.class),
+                    Clock.systemUTC()
                 ),
                 mock(CheckpointProvider.class),
                 new AtomicReference<>(IndexerState.STOPPED),

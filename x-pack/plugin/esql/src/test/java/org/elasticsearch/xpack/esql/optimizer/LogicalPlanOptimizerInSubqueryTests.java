@@ -14,7 +14,6 @@ import org.junit.Before;
 
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.hamcrest.Matchers.containsString;
 
@@ -27,6 +26,10 @@ import static org.hamcrest.Matchers.containsString;
  * These queries work if an explicit {@code Limit} is specified inside the IN subquery.
  */
 public class LogicalPlanOptimizerInSubqueryTests extends AbstractLogicalPlanOptimizerTests {
+
+    public LogicalPlanOptimizerInSubqueryTests(VersionMode versionMode) {
+        super(versionMode);
+    }
 
     @Before
     public void checkInSubquerySupport() {
@@ -63,7 +66,10 @@ public class LogicalPlanOptimizerInSubqueryTests extends AbstractLogicalPlanOpti
         );
         assertThat(
             e.getMessage(),
-            containsString("Knn function must be used with a LIMIT clause after it to set the number of nearest neighbors to find")
+            containsString(
+                "[KNN] function must specify a k option or be used with a LIMIT clause after it to set"
+                    + " the number of nearest neighbors to find"
+            )
         );
     }
 

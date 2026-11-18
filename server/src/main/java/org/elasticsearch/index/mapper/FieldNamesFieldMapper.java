@@ -16,12 +16,12 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.escf.EscfColumnData;
 import org.elasticsearch.escf.LuceneBinaryColumn;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.transport.BytesRefRecycler;
 
 import java.util.Collections;
 
@@ -39,20 +39,11 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
 
     public static final String CONTENT_TYPE = "_field_names";
 
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(createdOnOrAfterV8).init(this);
-    }
-
     public static class Defaults {
         public static final String NAME = FieldNamesFieldMapper.NAME;
 
         public static final Explicit<Boolean> ENABLED = Explicit.IMPLICIT_TRUE;
 
-    }
-
-    private static FieldNamesFieldMapper toType(FieldMapper in) {
-        return (FieldNamesFieldMapper) in;
     }
 
     public static final String ENABLED_DEPRECATION_MESSAGE =
@@ -61,11 +52,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
 
     static class Builder extends MetadataFieldMapper.Builder {
 
-        private final Parameter<Explicit<Boolean>> enabled = updateableBoolParam(
-            "enabled",
-            m -> toType(m).enabled,
-            Defaults.ENABLED.value()
-        );
+        private final Parameter<Explicit<Boolean>> enabled = updateableBoolParam("enabled", Defaults.ENABLED.value());
 
         private final boolean createdOnOrAfterV8;
 
@@ -101,15 +88,13 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
                 }
             }
             if (Defaults.ENABLED.equals(enabled.getValue())) {
-                return createdOnOrAfterV8 ? DEFAULT : DEFAULT_OLD;
+                return DEFAULT;
             }
-            return new FieldNamesFieldMapper(enabled.getValue(), createdOnOrAfterV8);
+            return new FieldNamesFieldMapper(enabled.getValue());
         }
     }
 
-    private static final FieldNamesFieldMapper DEFAULT = new FieldNamesFieldMapper(Defaults.ENABLED, true);
-
-    private static final FieldNamesFieldMapper DEFAULT_OLD = new FieldNamesFieldMapper(Defaults.ENABLED, false);
+    private static final FieldNamesFieldMapper DEFAULT = new FieldNamesFieldMapper(Defaults.ENABLED);
 
     public static final TypeParser PARSER = new ConfigurableTypeParser(c -> new Builder(c.indexVersionCreated()));
 
@@ -164,12 +149,10 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
     }
 
     private final Explicit<Boolean> enabled;
-    private final boolean createdOnOrAfterV8;
 
-    private FieldNamesFieldMapper(Explicit<Boolean> enabled, boolean createdOnOrAfterV8) {
+    private FieldNamesFieldMapper(Explicit<Boolean> enabled) {
         super(FieldNamesFieldType.get(enabled.value()));
         this.enabled = enabled;
-        this.createdOnOrAfterV8 = createdOnOrAfterV8;
     }
 
     @Override
@@ -213,11 +196,12 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         if (acc == null || acc.isEmpty()) {
             return;
         }
-        ctx.addColumn(LuceneBinaryColumn.of(acc.finish(BytesRefRecycler.NON_RECYCLING_INSTANCE), NAME, StringField.TYPE_NOT_STORED));
+        final EscfColumnData data = acc.finish(ctx.recycler());
+        ctx.addColumn(LuceneBinaryColumn.of(data, NAME, StringField.TYPE_NOT_STORED), data);
     }
 
     @Override
-    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
         return true;
     }
 }

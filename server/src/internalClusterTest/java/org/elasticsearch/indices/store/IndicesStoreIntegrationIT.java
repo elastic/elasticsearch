@@ -164,7 +164,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         // use a tracer on the target node to track relocation start and end
         MockTransportService.getInstance(nodeTo).addMessageListener(new TransportMessageListener() {
             @Override
-            public void onRequestReceived(long requestId, String action) {
+            public void onRequestReceived(long requestId, String action, int networkMessageSize) {
                 if (action.equals(PeerRecoveryTargetService.Actions.FILES_INFO)) {
                     logger.info("received: {}, relocation starts", action);
                     beginRelocationLatch.countDown();

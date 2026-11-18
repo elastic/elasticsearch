@@ -62,6 +62,8 @@ public record HighlightOptions(
     public static final List<String> ALLOWED_ORDERS = List.of(ORDER_NONE, ORDER_SCORE);
     // -1 means "use the index setting"; the current coordinator-side operator uses the default index value.
     public static final int DEFAULT_MAX_ANALYZED_OFFSET = -1;
+    // Tags wrap every match, so their length multiplies the size of the output.
+    private static final int MAX_TAG_LENGTH = 256;
 
     /**
      * A string-valued enum option together with its allowed values and case-sensitivity. Shared by
@@ -88,8 +90,8 @@ public record HighlightOptions(
             return defaults();
         }
         return new HighlightOptions(
-            string(Highlight.PRE_TAGS, options.get(Highlight.PRE_TAGS), foldContext, DEFAULT_PRE_TAG),
-            string(Highlight.POST_TAGS, options.get(Highlight.POST_TAGS), foldContext, DEFAULT_POST_TAG),
+            tag(Highlight.PRE_TAGS, options.get(Highlight.PRE_TAGS), foldContext, DEFAULT_PRE_TAG),
+            tag(Highlight.POST_TAGS, options.get(Highlight.POST_TAGS), foldContext, DEFAULT_POST_TAG),
             ENCODER_OPTION.normalize(string(Highlight.ENCODER, options.get(Highlight.ENCODER), foldContext, DEFAULT_ENCODER)),
             analyzerName(Highlight.ANALYZER, options.get(Highlight.ANALYZER), foldContext),
             integer(Highlight.NUMBER_OF_FRAGMENTS, options.get(Highlight.NUMBER_OF_FRAGMENTS), foldContext, DEFAULT_NUMBER_OF_FRAGMENTS),
@@ -128,7 +130,7 @@ public record HighlightOptions(
      */
     public static void validate(String name, Expression value, FoldContext foldContext) {
         switch (name) {
-            case Highlight.PRE_TAGS, Highlight.POST_TAGS -> string(name, value, foldContext, null);
+            case Highlight.PRE_TAGS, Highlight.POST_TAGS -> tag(name, value, foldContext, null);
             case Highlight.ANALYZER -> analyzerName(name, value, foldContext);
             case Highlight.BOUNDARY_SCANNER_LOCALE -> locale(name, value, foldContext);
             case Highlight.NUMBER_OF_FRAGMENTS, Highlight.FRAGMENT_SIZE, Highlight.NO_MATCH_SIZE -> integer(name, value, foldContext, 0);
@@ -159,6 +161,16 @@ public record HighlightOptions(
             return list.isEmpty() ? defaultValue : requireString(name, list.getFirst());
         }
         return requireString(name, folded);
+    }
+
+    private static String tag(String name, Expression value, FoldContext foldContext, String defaultValue) {
+        String tag = string(name, value, foldContext, defaultValue);
+        if (tag != null && tag.length() > MAX_TAG_LENGTH) {
+            throw new IllegalArgumentException(
+                "Option [" + name + "] must be at most [" + MAX_TAG_LENGTH + "] characters, found [" + tag.length() + "]"
+            );
+        }
+        return tag;
     }
 
     /** Reads the {@code analyzer} name without resolving it. */

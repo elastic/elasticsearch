@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 161688
+summary: Bound a dataset listing by matched files, and prune fan-out slots by the glob
+type: bug

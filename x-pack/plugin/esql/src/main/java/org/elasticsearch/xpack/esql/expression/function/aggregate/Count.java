@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
+import org.elasticsearch.xpack.esql.expression.unit.UnitAware;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
@@ -55,12 +56,13 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOGRAM;
 
-public class Count extends AggregateFunction
+public class Count extends UnaryAggregateFunction
     implements
         ToAggregator,
         SurrogateExpression,
         AggregateMetricDoubleNativeSupport,
-        OptionalArgument {
+        OptionalArgument,
+        UnitAware.Unitless {
     public static final TransportVersion ESQL_COUNT_HISTOGRAM_BUCKET = TransportVersion.fromName("esql_count_histogram_bucket");
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Count", Count::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Count.class)
@@ -68,11 +70,11 @@ public class Count extends AggregateFunction
         .capabilities("flattened", "histogram_bucket")
         .name("count");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
-        .acrossSeries(Count::new)
+        .acrossSeries((source, field) -> new Count(source, CountOverTime.promqlSample(field)))
         .description("Counts the number of elements in the input vector.")
         .example("count(http_requests_total)")
         .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
-        .differenceFromPrometheus(PromqlFunctionDefinition.COUNT_NOTE)
+        .stdDivergence(PromqlFunctionDefinition.COUNT_NOTE)
         .name("count");
 
     @FunctionInfo(
@@ -115,6 +117,28 @@ public class Count extends AggregateFunction
                     + "returning the total number of values which were used to construct the digests.",
                 file = "tdigest",
                 tag = "countTDigestForDocs"
+            ),
+            @Example(
+                description = """
+                    To count only the histogram values that fall into a range, pass a `double_range` (for example from
+                    [`TO_RANGE`](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_range.md)) as the
+                    second argument. Combine this with
+                    [`BUCKET`](/reference/query-languages/esql/functions-operators/grouping-functions/bucket.md) on the same
+                    histogram field to create a histogram of the recorded values:""",
+                file = "exponential_histogram",
+                tag = "countBucketExpHistoForDocs",
+                explanation = """
+                    ::::{note}
+                    Histograms only record approximate value distributions, so the counts per bucket are estimates.
+                    ::::"""
+            ),
+            @Example(
+                description = "The same works for `tdigest` and casted `histogram` fields:",
+                file = "tdigest",
+                tag = "countBucketTDigestForDocs",
+                explanation = """
+                    A `tdigest` does not track which ranges between its centroids are empty, so `BUCKET` returns every bucket
+                    between the smallest and the largest centroid of a digest, and some of them may end up with a count of `0`."""
             ) }
     )
     public Count(
@@ -127,6 +151,9 @@ public class Count extends AggregateFunction
                 "boolean",
                 "cartesian_point",
                 "cartesian_shape",
+                "counter_double",
+                "counter_integer",
+                "counter_long",
                 "exponential_histogram",
                 "date",
                 "date_nanos",
@@ -195,11 +222,6 @@ public class Count extends AggregateFunction
     }
 
     @Override
-    public AggregateFunction withFilter(Expression filter) {
-        return new Count(source(), field(), filter, window(), bucket());
-    }
-
-    @Override
     public Count replaceChildren(List<Expression> newChildren) {
         return new Count(
             source(),
@@ -244,13 +266,7 @@ public class Count extends AggregateFunction
                 "tdigest"
             ).and(isType(bucket(), dt -> dt == DataType.DOUBLE_RANGE, sourceText(), SECOND, "double_range"));
         }
-        return isType(
-            field(),
-            dt -> dt.isCounter() == false && dt != DataType.HISTOGRAM,
-            sourceText(),
-            DEFAULT,
-            "any type except counter types or histogram"
-        );
+        return isType(field(), dt -> dt != DataType.HISTOGRAM, sourceText(), DEFAULT, "any type except histogram");
     }
 
     @Override
@@ -317,7 +333,7 @@ public class Count extends AggregateFunction
         return null;
     }
 
-    public static Expression AggregateMetricDoubleSurrogate(AggregateFunction af) {
+    public static Expression AggregateMetricDoubleSurrogate(UnaryAggregateFunction af) {
         var s = af.source();
         return new Sum(
             s,

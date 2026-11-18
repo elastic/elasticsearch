@@ -54,6 +54,11 @@ public final class ConstantNullBlock extends AbstractBlockRefCounted
     }
 
     @Override
+    public long estimateTotalValueBytes() {
+        return 0;
+    }
+
+    @Override
     public ToMask toMask() {
         return new ToMask(blockFactory.newConstantBooleanVector(false, positionCount), false);
     }

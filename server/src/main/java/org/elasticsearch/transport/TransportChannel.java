@@ -10,6 +10,8 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.core.Nullable;
 
 /**
  * A transport channel allows to send a response to a request on the channel.
@@ -19,6 +21,16 @@ public interface TransportChannel {
     String getProfileName();
 
     void sendResponse(TransportResponse response);
+
+    /**
+     * Sends the response and charges its serialized bytes to {@code circuitBreaker} until they are written. If the breaker trips,
+     * the caller gets the {@link org.elasticsearch.common.breaker.CircuitBreakingException} instead. Channels that don't serialize,
+     * such as the local direct channel, ignore the breaker. For a pre-serialized {@link BytesTransportResponse}, only the message
+     * header is charged, since the caller already holds its bytes.
+     */
+    default void sendResponse(TransportResponse response, @Nullable CircuitBreaker circuitBreaker) {
+        sendResponse(response);
+    }
 
     void sendResponse(Exception exception);
 

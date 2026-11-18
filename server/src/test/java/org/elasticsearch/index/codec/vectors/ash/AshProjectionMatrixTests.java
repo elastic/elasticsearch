@@ -12,9 +12,14 @@ package org.elasticsearch.index.codec.vectors.ash;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.ByteBuffersIndexInput;
 import org.apache.lucene.store.ByteBuffersIndexOutput;
+import org.elasticsearch.simdvec.ESVectorUtil;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.UUID;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThan;
 
 /**
  * Tests for {@link AshProjectionMatrix}.
@@ -24,76 +29,121 @@ public class AshProjectionMatrixTests extends ESTestCase {
     public void testDimAccessors() {
         int originalDim = 768;
         int nDims = 384;
-        float[] w = new float[originalDim * nDims];
-        AshProjectionMatrix pm = new AshProjectionMatrix(w, originalDim, nDims);
+        float[] wT = new float[originalDim * nDims];
+        AshProjectionMatrix pm = matrix(wT, originalDim, nDims, true);
         assertEquals(originalDim, pm.originalDim());
         assertEquals(nDims, pm.nDims());
-    }
-
-    public void testTransposeCorrectness() {
-        int originalDim = 4;
-        int nDims = 3;
-        float[] w = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 };
-        AshProjectionMatrix pm = new AshProjectionMatrix(w, originalDim, nDims);
-        float[] wT = pm.wT();
-
-        // wT should be (nDims x originalDim)
-        assertEquals(nDims * originalDim, wT.length);
-
-        // Verify transpose: wT[j][i] == w[i][j] (i.e. wT[j*originalDim+i] == w[i*nDims+j])
-        for (int i = 0; i < originalDim; i++) {
-            for (int j = 0; j < nDims; j++) {
-                assertEquals(w[i * nDims + j], wT[j * originalDim + i], 0f);
-            }
-        }
-    }
-
-    public void testTransposeLazyAndCached() {
-        float[] w = { 1, 2, 3, 4 };
-        AshProjectionMatrix pm = new AshProjectionMatrix(w, 2, 2);
-        float[] wT1 = pm.wT();
-        float[] wT2 = pm.wT();
-        assertSame(wT1, wT2);
     }
 
     public void testSerializationRoundtrip() throws IOException {
         int originalDim = randomIntBetween(4, 100);
         int nDims = randomIntBetween(2, originalDim);
-        float[] w = randomMatrix(originalDim, nDims);
+        float[] wT = AshUtils.randomGaussians(random(), originalDim * nDims);
 
-        AshProjectionMatrix original = new AshProjectionMatrix(w, originalDim, nDims);
+        AshProjectionMatrix original = matrix(wT, originalDim, nDims, true);
 
         AshProjectionMatrix restored = writeAndRead(original);
 
         assertEquals(originalDim, restored.originalDim());
         assertEquals(nDims, restored.nDims());
-        assertArrayEquals(w, restored.w(), 0f);
+        assertArrayEquals(wT, restored.wT(), 0f);
+    }
+
+    public void testProjectQueryApproximatesFloatProjection() {
+        int originalDim = randomIntBetween(64, 1024);
+        int nDims = randomIntBetween(32, originalDim);
+        float[] wT = AshUtils.randomGaussians(random(), originalDim * nDims);
+        AshUtils.qrOrthogonalize(wT, originalDim, nDims);
+        AshProjectionMatrix pm = matrix(wT, originalDim, nDims, true);
+        float[] query = AshUtils.randomGaussians(random(), originalDim);
+
+        float[] expected = ESVectorUtil.matrixVectorMultiply(wT, nDims, originalDim, query);
+        float[] projected = pm.projectQuery(query);
+
+        double errorSq = 0;
+        double expectedSq = 0;
+        for (int j = 0; j < nDims; j++) {
+            errorSq += Math.pow(projected[j] - expected[j], 2);
+            expectedSq += Math.pow(expected[j], 2);
+        }
+        // int8 rounding of both the query and W^T, relative to the largest magnitude in each
+        assertThat(Math.sqrt(errorSq / expectedSq), lessThan(0.03));
+    }
+
+    public void testProjectZeroQuery() {
+        int originalDim = randomIntBetween(4, 100);
+        int nDims = randomIntBetween(2, originalDim);
+        float[] wT = AshUtils.randomGaussians(random(), originalDim * nDims);
+        AshProjectionMatrix pm = matrix(wT, originalDim, nDims, true);
+
+        assertThat(pm.projectQuery(new float[originalDim]), equalTo(new float[nDims]));
     }
 
     public void testByteSizeMatchesActualSerialized() throws IOException {
         int originalDim = randomIntBetween(4, 50);
         int nDims = randomIntBetween(2, originalDim);
-        float[] w = randomMatrix(originalDim, nDims);
+        float[] wT = AshUtils.randomGaussians(random(), originalDim * nDims);
 
-        AshProjectionMatrix pm = new AshProjectionMatrix(w, originalDim, nDims);
+        AshProjectionMatrix pm = matrix(wT, originalDim, nDims, true);
 
         ByteBuffersDataOutput dataOut = new ByteBuffersDataOutput();
         try (ByteBuffersIndexOutput out = new ByteBuffersIndexOutput(dataOut, "test", "test")) {
             pm.write(out);
         }
 
-        long expectedSize = Integer.BYTES * 2L + (long) originalDim * nDims * Float.BYTES;
+        // dims, learned flag, id, training sample size, then W^T
+        long expectedSize = Integer.BYTES * 2L + Byte.BYTES + Long.BYTES * 2L + Integer.BYTES + (long) originalDim * nDims * Float.BYTES;
         assertEquals(expectedSize, pm.byteSize());
+        assertEquals(pm.byteSize(), dataOut.size());
+    }
+
+    public void testLearnedFlagRoundTrips() throws IOException {
+        int originalDim = randomIntBetween(4, 50);
+        int nDims = randomIntBetween(2, originalDim);
+        float[] wT = AshUtils.randomGaussians(random(), originalDim * nDims);
+
+        for (boolean learned : new boolean[] { true, false }) {
+            AshProjectionMatrix original = matrix(wT, originalDim, nDims, learned);
+            assertEquals(learned, original.isLearned());
+            AshProjectionMatrix restored = writeAndRead(original);
+            assertEquals(learned, restored.isLearned());
+            assertArrayEquals(wT, restored.wT(), 0f);
+        }
+    }
+
+    public void testIdentityRoundTrips() throws IOException {
+        int originalDim = randomIntBetween(4, 50);
+        int nDims = randomIntBetween(2, originalDim);
+        float[] wT = AshUtils.randomGaussians(random(), originalDim * nDims);
+        UUID id = UUID.randomUUID();
+        int trainingSampleSize = randomIntBetween(0, 100_000);
+
+        AshProjectionMatrix original = new AshProjectionMatrix(wT, originalDim, nDims, true, id, trainingSampleSize);
+        AshProjectionMatrix restored = writeAndRead(original);
+        assertEquals(id, restored.id());
+        assertEquals(trainingSampleSize, restored.trainingSampleSize());
+        assertEquals(originalDim, restored.originalDim());
+        assertEquals(nDims, restored.nDims());
+        assertArrayEquals(wT, restored.wT(), 0f);
+    }
+
+    public void testRejectsNegativeTrainingSampleSize() {
+        expectThrows(IllegalArgumentException.class, () -> new AshProjectionMatrix(new float[8], 4, 2, true, UUID.randomUUID(), -1));
     }
 
     public void testEmptyMatrix() throws IOException {
-        AshProjectionMatrix pm = new AshProjectionMatrix(new float[0], 0, 0);
+        AshProjectionMatrix pm = matrix(new float[0], 0, 0, true);
         assertEquals(0, pm.originalDim());
         assertEquals(0, pm.nDims());
 
         AshProjectionMatrix restored = writeAndRead(pm);
         assertEquals(0, restored.originalDim());
         assertEquals(0, restored.nDims());
+    }
+
+    /** A matrix with a new id and no recorded sample. */
+    private static AshProjectionMatrix matrix(float[] wT, int originalDim, int nDims, boolean learned) {
+        return new AshProjectionMatrix(wT, originalDim, nDims, learned, UUID.randomUUID(), 0);
     }
 
     private AshProjectionMatrix writeAndRead(AshProjectionMatrix pm) throws IOException {
@@ -103,13 +153,5 @@ public class AshProjectionMatrixTests extends ESTestCase {
         }
         ByteBuffersIndexInput in = new ByteBuffersIndexInput(dataOut.toDataInput(), "test");
         return AshProjectionMatrix.read(in);
-    }
-
-    private float[] randomMatrix(int rows, int cols) {
-        float[] m = new float[rows * cols];
-        for (int i = 0; i < rows * cols; i++) {
-            m[i] = (float) random().nextGaussian();
-        }
-        return m;
     }
 }

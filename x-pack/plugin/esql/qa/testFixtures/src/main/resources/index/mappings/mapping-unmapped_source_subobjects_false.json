@@ -1,0 +1,7 @@
+{
+    "dynamic": "false",
+    "subobjects": false,
+    "properties": {
+        "id": { "type": "keyword" }
+    }
+}

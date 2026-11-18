@@ -9,12 +9,19 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.create;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.snapshots.SnapshotEncryptedData;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContent.MapParams;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -29,10 +36,15 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.snapshots.SnapshotInfoTestUtils.randomUserMetadata;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 
 public class CreateSnapshotRequestTests extends ESTestCase {
+
+    private static final String PASSWORD = "correct-horse-battery-staple";
 
     // tests creating XContent and parsing with source(Map) equivalency
     public void testToXContent() throws IOException {
@@ -159,6 +171,44 @@ public class CreateSnapshotRequestTests extends ESTestCase {
             assertThat(validationException.validationErrors(), hasSize(1));
             assertThat(validationException.validationErrors().get(0), equalTo("metadata must be smaller than 1024 bytes, but was [1049]"));
         }
+    }
+
+    public void testEncryptedDataFromSource() {
+        assumeTrue("encrypted_data is only parsed with the feature flag", SnapshotEncryptedData.FEATURE_FLAG.isEnabled());
+        final CreateSnapshotRequest request = new CreateSnapshotRequest(TEST_REQUEST_TIMEOUT, "repo", "snap").source(
+            Map.of("encrypted_data", Map.of("type", "password", "password", PASSWORD, "password_id", "pw-1"))
+        );
+        assertThat(request.encryptedData().type(), equalTo(SnapshotEncryptedData.TYPE_PASSWORD));
+        assertThat(request.encryptedData().password().toString(), equalTo(PASSWORD));
+        assertThat(request.encryptedData().passwordId(), equalTo("pw-1"));
+        assertNull(request.validate());
+
+        final ActionRequestValidationException e = request.includeGlobalState(false).validate();
+        assertNotNull(e);
+        assertThat(e.validationErrors(), contains("encrypted_data requires include_global_state to be true"));
+    }
+
+    public void testEncryptedDataPasswordNotInToXContentOrToString() throws IOException {
+        final CreateSnapshotRequest request = requestWithEncryptedData();
+        final String xContent = Strings.toString(request.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS));
+        assertThat(xContent, containsString("pw-1"));
+        assertThat(xContent, not(containsString(PASSWORD)));
+        assertThat(request.toString(), not(containsString(PASSWORD)));
+    }
+
+    public void testEncryptedDataSerialization() throws IOException {
+        final CreateSnapshotRequest request = requestWithEncryptedData();
+        final NamedWriteableRegistry registry = new NamedWriteableRegistry(List.of());
+        assertEquals(request, copyWriteable(request, registry, CreateSnapshotRequest::new));
+
+        final TransportVersion previous = TransportVersionUtils.randomVersionNotSupporting(SnapshotEncryptedData.TRANSPORT_VERSION);
+        assertNull(copyWriteable(request, registry, CreateSnapshotRequest::new, previous).encryptedData());
+    }
+
+    private static CreateSnapshotRequest requestWithEncryptedData() {
+        return new CreateSnapshotRequest(TEST_REQUEST_TIMEOUT, "repo", "snap").encryptedData(
+            new SnapshotEncryptedData(SnapshotEncryptedData.TYPE_PASSWORD, new SecureString(PASSWORD.toCharArray()), "pw-1")
+        );
     }
 
     private CreateSnapshotRequest createSnapshotRequestWithMetadata(Map<String, Object> metadata) {

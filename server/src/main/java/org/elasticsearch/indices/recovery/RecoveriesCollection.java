@@ -24,7 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.indices.recovery.RecoveryListener.FailureStrategy.FAIL_SEND;
+import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SEND;
 
 /**
  * This class holds a collection of all on going recoveries on the current node (i.e., the node is the target node
@@ -189,7 +189,7 @@ public class RecoveriesCollection {
      * @param e               exception with reason for the failure
      * @param failureStrategy failure strategy decides if master should be notified
      */
-    public void failRecovery(long id, RecoveryFailedException e, RecoveryListener.FailureStrategy failureStrategy) {
+    public void failRecovery(long id, RecoveryFailedException e, FailureStrategy failureStrategy) {
         RecoveryTarget removed = removeRecoveryTarget(id);
         if (removed != null) {
             logger.trace(

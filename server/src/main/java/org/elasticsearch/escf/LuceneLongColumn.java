@@ -17,6 +17,7 @@ import org.apache.lucene.document.column.LongValuesCursor;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.NumericUtils;
@@ -26,17 +27,33 @@ import org.elasticsearch.sourcebatch.LuceneColumn;
 
 import java.util.List;
 
+import static org.elasticsearch.escf.EscfColumn.windowValidity;
+
 /**
  * A {@link LongColumn} backed by an {@link EscfLongColumn} (single-value) or {@link EscfArrayColumn}
  * (multi-value). Multi-value columns always use {@link Density#SPARSE}.
+ *
+ * <p>An optional {@code filter} bitset (see {@link #withFilter}) can restrict which documents are
+ * emitted to Lucene. When non-null the column is always {@link Density#SPARSE}, regardless of the
+ * underlying data's density, and only documents whose bit is set in the filter appear in
+ * {@link #tuples()}, {@link #rowFieldCursor()}, and {@link #values()}.
  */
 public final class LuceneLongColumn extends LongColumn implements LuceneColumn {
 
     private final EscfColumn data;
+    private final FixedBitSet filter;
 
-    private LuceneLongColumn(EscfColumn data, String name, IndexableFieldType fieldType, Density density, LongColumn.NumericKind kind) {
-        super(name, fieldType, density, kind);
+    private LuceneLongColumn(
+        EscfColumn data,
+        String name,
+        IndexableFieldType fieldType,
+        Density density,
+        LongColumn.NumericKind kind,
+        FixedBitSet filter
+    ) {
+        super(name, fieldType, filter != null ? Density.SPARSE : density, kind);
         this.data = data;
+        this.filter = filter;
     }
 
     /**
@@ -48,7 +65,7 @@ public final class LuceneLongColumn extends LongColumn implements LuceneColumn {
         assert values.length % 8 == 0;
         int rowCount = values.length / 8;
         EscfLongColumn column = new EscfLongColumn(rowCount, null, new BytesArray(values.bytes, values.offset, values.length));
-        return new LuceneLongColumn(column, name, fieldType, Density.DENSE, kind);
+        return new LuceneLongColumn(column, name, fieldType, Density.DENSE, kind, null);
     }
 
     /**
@@ -73,7 +90,7 @@ public final class LuceneLongColumn extends LongColumn implements LuceneColumn {
         assert validity != null : "use longColumn() for a dense (all-present) column";
         assert values.length == docCount * 8 : "values.length must equal docCount * 8";
         EscfLongColumn column = new EscfLongColumn(docCount, validity, new BytesArray(values));
-        return new LuceneLongColumn(column, name, fieldType, Density.SPARSE, kind);  // validity != null → always sparse
+        return new LuceneLongColumn(column, name, fieldType, Density.SPARSE, kind, null);  // validity != null → always sparse
     }
 
     /**
@@ -106,14 +123,27 @@ public final class LuceneLongColumn extends LongColumn implements LuceneColumn {
             : "expected LONG or ARRAY, got " + EscfColumnKind.name(data.kind());
         EscfColumn col = EscfColumn.from(data);
         Density density = (data.kind() == EscfColumnKind.LONG && data.validity() == null) ? Density.DENSE : Density.SPARSE;
-        return new LuceneLongColumn(col, name, fieldType, density, kind);
+        return new LuceneLongColumn(col, name, fieldType, density, kind, null);
+    }
+
+    /**
+     * Returns a copy of this column that passes only the documents whose bit is set in
+     * {@code filter} to Lucene. The returned column is always {@link Density#SPARSE}. Pass
+     * {@code null} to remove any existing filter.
+     *
+     * @param filter a bitset of length equal to this column's doc count, or {@code null}
+     */
+    public LuceneLongColumn withFilter(FixedBitSet filter) {
+        assert filter == null || filter.length() == data.docCount;
+        Density density = (data instanceof EscfArrayColumn || data.validity != null) ? Density.SPARSE : Density.DENSE;
+        return new LuceneLongColumn(data, name(), fieldType(), density, numericKind(), LuceneColumn.singleFilter(this.filter, filter));
     }
 
     @Override
     public LuceneLongColumn slice(int from, int count) {
         EscfColumn sliced = data.sliceInternal(from, count);
-        Density density = (sliced instanceof EscfLongColumn l && l.validity == null) ? Density.DENSE : Density.SPARSE;
-        return new LuceneLongColumn(sliced, name(), fieldType(), density, numericKind());
+        Density density = (sliced instanceof EscfArrayColumn || sliced.validity != null) ? Density.SPARSE : Density.DENSE;
+        return new LuceneLongColumn(sliced, name(), fieldType(), density, numericKind(), windowValidity(filter, from, count));
     }
 
     @Override
@@ -123,7 +153,8 @@ public final class LuceneLongColumn extends LongColumn implements LuceneColumn {
 
     @Override
     public LuceneColumn.RowFieldCursor rowFieldCursor() {
-        final LongTupleCursor cursor = data.longCursor();
+        // Use tuples() so that any active filter is applied transparently.
+        final LongTupleCursor cursor = tuples();
         if (data instanceof EscfArrayColumn) {
             // Multi-value: appendCurrentFields is called multiple times for the same row. Each call must
             // produce an independent field snapshot; reusing one mutable object would corrupt earlier
@@ -161,7 +192,27 @@ public final class LuceneLongColumn extends LongColumn implements LuceneColumn {
 
     @Override
     public LongTupleCursor tuples() {
-        return data.longCursor();
+        LongTupleCursor inner = data.longCursor();
+        if (filter == null) {
+            return inner;
+        }
+        return new LongTupleCursor() {
+            @Override
+            public int nextDoc() {
+                int doc;
+                while ((doc = inner.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                    if (filter.get(doc)) {
+                        return doc;
+                    }
+                }
+                return DocIdSetIterator.NO_MORE_DOCS;
+            }
+
+            @Override
+            public long longValue() {
+                return inner.longValue();
+            }
+        };
     }
 
     @Override

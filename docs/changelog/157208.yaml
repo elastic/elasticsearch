@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 157208
-summary: Read `partition_detection` and `partition_path` on the query path
-type: bug

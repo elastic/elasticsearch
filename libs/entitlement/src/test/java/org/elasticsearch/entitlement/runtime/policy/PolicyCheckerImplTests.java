@@ -102,7 +102,6 @@ public class PolicyCheckerImplTests extends ESTestCase {
 
         var policyManager = new TestPolicyManager(
             createEmptyTestServerPolicy(),
-            List.of(),
             Map.of(
                 "testComponent",
                 new Policy(

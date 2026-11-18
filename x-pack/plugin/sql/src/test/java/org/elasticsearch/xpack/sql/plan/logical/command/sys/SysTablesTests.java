@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.sql.action.Protocol;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
+import org.elasticsearch.xpack.sql.plugin.SqlPlugin;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
@@ -76,7 +77,8 @@ public class SysTablesTests extends ESTestCase {
         null,
         false,
         false,
-        null
+        null,
+        SqlPlugin.DEFAULT_MAX_QUERY_LENGTH
     );
 
     //
@@ -369,7 +371,7 @@ public class SysTablesTests extends ESTestCase {
     private Tuple<Command, SqlSession> sql(String sql, List<SqlTypedParamValue> params, SqlConfiguration cfg) {
         EsIndex test = new EsIndex("test", mapping);
         Analyzer analyzer = analyzer(IndexResolution.valid(test));
-        Command cmd = (Command) analyzer.analyze(parser.createStatement(sql, params, cfg.zoneId()), true);
+        Command cmd = (Command) analyzer.analyze(parser.createStatement(sql, params, cfg.zoneId(), cfg.maxQueryLength()), true);
 
         IndexResolver resolver = mock(IndexResolver.class);
         when(resolver.clusterName()).thenReturn(CLUSTER_NAME);

@@ -34,4 +34,11 @@ public interface AshScorer<T> {
      * Advances the IndexInput past {@code blockSize} vectors' packed code bytes.
      */
     void scoreBulk(T query, int blockSize, float[] scores) throws IOException;
+
+    /**
+     * Scores the next {@code blockSize} data vectors whose bit is set in {@code mask} (see {@link BulkMask}), advancing
+     * the input past all of them so a block can be consumed whole even when most of it is filtered out. Scores are
+     * written into the corresponding entries in {@code scores[0..blockSize)}.
+     */
+    void scoreBulkMasked(T query, int mask, float[] scores, int blockSize) throws IOException;
 }

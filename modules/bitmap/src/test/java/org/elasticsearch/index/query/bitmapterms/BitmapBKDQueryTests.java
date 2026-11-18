@@ -28,6 +28,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortedNumericSelector;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
@@ -131,7 +132,7 @@ public class BitmapBKDQueryTests extends ESTestCase {
 
         abstract SortField.Type sortType();
 
-        /** Boxed as the type {@link SortField#setMissingValue} demands for this type. */
+        /** Boxed as the type {@link SortField} constructors demand for this type. */
         abstract Object missingValue(long value);
 
         /** Adds the point plus the doc values the index sort and the streaming scan's skip both read. */
@@ -431,10 +432,13 @@ public class BitmapBKDQueryTests extends ESTestCase {
      */
     private static RandomIndexWriter sortedWriter(NumberType type, Directory dir, Long missingValue) throws IOException {
         IndexWriterConfig config = newIndexWriterConfig();
-        SortedNumericSortField sortField = new SortedNumericSortField(FIELD, type.sortType());
-        if (missingValue != null) {
-            sortField.setMissingValue(type.missingValue(missingValue));
-        }
+        SortedNumericSortField sortField = new SortedNumericSortField(
+            FIELD,
+            type.sortType(),
+            false,
+            SortedNumericSelector.Type.MIN,
+            missingValue == null ? null : type.missingValue(missingValue)
+        );
         config.setIndexSort(new Sort(sortField));
         return new RandomIndexWriter(random(), dir, config);
     }

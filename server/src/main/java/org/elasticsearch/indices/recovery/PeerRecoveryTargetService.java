@@ -70,8 +70,8 @@ import java.util.function.Consumer;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
-import static org.elasticsearch.indices.recovery.RecoveryListener.FailureStrategy.FAIL_SEND;
-import static org.elasticsearch.indices.recovery.RecoveryListener.FailureStrategy.FAIL_SILENT;
+import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SEND;
+import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SILENT;
 
 /**
  * The recovery target handles recoveries of peer shards of the shard+node to recover to.
@@ -341,7 +341,9 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                                     || cause instanceof IndexNotFoundException
                                     || cause instanceof AlreadyClosedException) ? FAIL_SILENT : FAIL_SEND;
 
-                            // TODO retries? See RecoveryResponseHandler#handleException
+                            // TODO retries? See RecoveryResponseHandler#handleException.
+                            // Also see IndexShard#markActivelyRelocatingPrimary. A retry will not be able to send the same
+                            // clusterStateVersion: the source needs each attempt having distinct versions to tell attempts apart.
                             onGoingRecoveries.failRecovery(
                                 recoveryId,
                                 new RecoveryFailedException(recoveryState, null, e),

@@ -28,8 +28,8 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
+import org.elasticsearch.cluster.routing.allocation.allocator.ShardAssignment;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
-import org.elasticsearch.cluster.routing.allocation.decider.SnapshotInProgressAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
@@ -62,14 +62,15 @@ import java.util.concurrent.Semaphore;
 /// - Desired-balance cancellations ([cancelUndesiredRecoveries]): when the desired balance changes and an
 ///   initializing shard is no longer assigned to its current node, a [CancelRecoveriesAction] request is sent to
 ///   the data node so the recovery is aborted as soon as possible rather than waiting for it to complete before
-///   the next allocation round can move the shard.
+///   the next allocation round can move the shard. Unless the desired balance converged with the latest input, only
+///   queued recoveries of shards that also cannot remain on their current node are cancelled.
 ///
 /// - Snapshot-blocking cancellations ([cancelRecoveriesBlockingSnapshots]): when a snapshot has
 ///   [SnapshotsInProgress.ShardState#WAITING] shards blocked by a primary relocation, we attempt to cancel the
 ///   relocation target recovery if it has not started yet, so the snapshot can proceed. Relocations driven by node
-///   removal are left untouched. Skipped entirely when relocation is decoupled from snapshots
-///   ([SnapshotInProgressAllocationDecider#RELOCATION_DURING_SNAPSHOT_ENABLED_SETTING_NAME]). This path is driven by
-///   [ClusterStateListener#clusterChanged].
+///   removal are left untouched. Enabled by default on stateful nodes and disabled by default on stateless nodes
+///   (where recoveries are generally quick), controllable via [ENABLE_DIRECT_CANCELLATIONS_FOR_SNAPSHOTS_SETTING].
+///   This path is driven by [ClusterStateListener#clusterChanged].
 ///
 /// Every operation in this service is fire-and-forget. Errors are logged as warnings or silently ignored; in all
 /// failure cases the affected shards are eventually reassigned through the normal reroute/shard-failed path.
@@ -87,9 +88,28 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
     /// entries are eventually evicted in clusters where the size bound is rarely reached.
     private static final TimeValue CANCELLATION_CACHE_TTL = TimeValue.timeValueHours(6);
 
+    /// Currently only registered by the stateless plugin, elsewhere disabled.
+    /// TODO: register in `BUILT_IN_CLUSTER_SETTINGS` once DNRT is ready for stateful.
+    ///
     public static final Setting<Boolean> ENABLE_DIRECT_RECOVERY_CANCELLATIONS_SETTING = Setting.boolSetting(
         "indices.recovery.enable_direct_cancellations",
         false,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /// Allows direct cancellation of recoveries blocking snapshots. Enabled by default on stateful nodes,
+    /// disabled by default on stateless nodes (where recoveries are expected to be generally quick).
+    ///
+    /// Takes effect only when [ENABLE_DIRECT_RECOVERY_CANCELLATIONS_SETTING] is also enabled. Both settings must be
+    /// enabled for direct cancellation of snapshot-blocking recoveries to occur.
+    ///
+    /// Currently only registered by the stateless plugin.
+    /// TODO: register in `BUILT_IN_CLUSTER_SETTINGS` once DNRT is ready for stateful.
+    ///
+    public static final Setting<Boolean> ENABLE_DIRECT_CANCELLATIONS_FOR_SNAPSHOTS_SETTING = Setting.boolSetting(
+        "indices.recovery.enable_direct_cancellations_for_snapshots",
+        settings -> DiscoveryNode.isStateless(settings) ? "false" : "true",
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -98,8 +118,8 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
     private final ClusterService clusterService;
     private final MasterServiceTaskQueue<ShardFailedTaskExecutor.Task> failedShardTaskQueue;
     private final Executor genericExecutor;
-    private volatile boolean enableDirectRecoveryCancellations = false;
-    private volatile boolean relocationDuringSnapshotEnabled = false;
+    private volatile boolean enableDirectRecoveryCancellations;
+    private volatile boolean enableDirectCancellationsForSnapshots;
 
     /// Single permit used to coalesce snapshot-cancellation runs.
     /// Acquired when a run is queued, released at the start of each run (or on rejection).
@@ -136,18 +156,26 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
     @Override
     protected void doStart() {
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
-        clusterSettings.initializeAndWatchIfRegistered(
-            ENABLE_DIRECT_RECOVERY_CANCELLATIONS_SETTING,
-            value -> this.enableDirectRecoveryCancellations = value
-        );
-        // Only registered on stateless.
-        final Setting<?> relocationDuringSnapshotSetting = clusterSettings.get(
-            SnapshotInProgressAllocationDecider.RELOCATION_DURING_SNAPSHOT_ENABLED_SETTING_NAME
-        );
-        if (relocationDuringSnapshotSetting != null) {
-            assert relocationDuringSnapshotSetting.isDynamic();
-            clusterSettings.initializeAndWatch(relocationDuringSnapshotSetting, value -> relocationDuringSnapshotEnabled = (boolean) value);
-        }
+        clusterSettings.initializeAndWatchIfRegistered(ENABLE_DIRECT_RECOVERY_CANCELLATIONS_SETTING, enabled -> {
+            this.enableDirectRecoveryCancellations = enabled;
+            if (enabled == false || lifecycle.started() == false) {
+                return;
+            }
+            final ClusterState state = clusterService.state();
+            if (state.nodes().isLocalNodeElectedMaster() && state.clusterRecovered() && enableDirectCancellationsForSnapshots) {
+                cancelRecoveriesBlockingSnapshots();
+            }
+        });
+        clusterSettings.initializeAndWatchIfRegistered(ENABLE_DIRECT_CANCELLATIONS_FOR_SNAPSHOTS_SETTING, enabled -> {
+            this.enableDirectCancellationsForSnapshots = enabled;
+            if (enabled == false || lifecycle.started() == false) {
+                return;
+            }
+            final ClusterState state = clusterService.state();
+            if (state.nodes().isLocalNodeElectedMaster() && state.clusterRecovered() && enableDirectRecoveryCancellations) {
+                cancelRecoveriesBlockingSnapshots();
+            }
+        });
         clusterService.addListener(this);
     }
 
@@ -164,9 +192,13 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
         if (event.localNodeMaster() == false) {
             return;
         }
-        if (enableDirectRecoveryCancellations == false || relocationDuringSnapshotEnabled) {
+
+        // ClusterApplierService.runTask() calls clusterSettings.applySettings() before callClusterStateListeners(), so
+        // those fields are always up to date with the current cluster state when clusterChanged() is called.
+        if (enableDirectRecoveryCancellations == false || enableDirectCancellationsForSnapshots == false) {
             return;
         }
+
         final SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(event.state());
         final boolean newMaster = event.previousState().nodes().isLocalNodeElectedMaster() == false;
         if (newMaster || snapshotsInProgress != SnapshotsInProgress.get(event.previousState()) || event.routingTableChanged()) {
@@ -187,18 +219,35 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
     /// @param desiredBalance the desired balance used to determine which recoveries are no longer heading to a desired node
     /// @param routingAllocation the routing allocation snapshot the desired balance was derived from, used to identify
     /// which shards are currently initializing on an undesired node
-    public void cancelUndesiredRecoveries(DesiredBalance desiredBalance, RoutingAllocation routingAllocation) {
-        genericExecutor.execute(new CancelUndesiredRecoveriesRunnable(desiredBalance, routingAllocation));
+    /// @param convergedWithLatestInput whether the computation of the desired balance converged and no newer input
+    /// arrived in the meantime, see [#computeUndesiredRecoveryCancellations]
+    public void cancelUndesiredRecoveries(
+        DesiredBalance desiredBalance,
+        RoutingAllocation routingAllocation,
+        boolean convergedWithLatestInput
+    ) {
+        if (lifecycle.started() == false) {
+            logger.debug("service stopped or not yet fully started, will not cancel undesired recoveries");
+            return;
+        }
+        genericExecutor.execute(new CancelUndesiredRecoveriesRunnable(desiredBalance, routingAllocation, convergedWithLatestInput));
     }
 
     /// Returns a map of [CancelRecoveriesAction.Request] per relevant data node. Each request lists the initializing
     /// shards on that node that are no longer heading to a desired location according to `desiredBalance` and for
     /// which a recovery cancellation will be requested. Each [ShardRecoveryCancellation] carries a `cancelIfStarted`
-    /// flag, determined by recovery type and allocation decider result, indicating whether the recovery should be
-    /// interrupted even after it has started work.
+    /// flag, determined by recovery type, the shutdown status of the relocation source node (if any) and allocation
+    /// decider result, indicating whether the recovery should be interrupted even after it has started work.
+    ///
+    /// If `convergedWithLatestInput` is false, the final `desiredBalance` is still being determined. Either this
+    /// computation stopped early, or newer input arrived before it completed. A later computation may still revise such
+    /// a balance, so only shards that cannot remain on their current node are included, and their recoveries are only
+    /// cancelled if they have not started yet. A rebalancing move in such a balance may be reversed by a later computation,
+    /// but a shard that cannot remain on its node is less likely to return to it.
     static Map<DiscoveryNode, CancelRecoveriesAction.Request> computeUndesiredRecoveryCancellations(
         DesiredBalance desiredBalance,
-        RoutingAllocation allocation
+        RoutingAllocation allocation,
+        boolean convergedWithLatestInput
     ) {
         final long term = allocation.getClusterState().term();
         final long version = allocation.getClusterState().version();
@@ -211,18 +260,25 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
                     continue;
                 }
 
-                final var assignment = desiredBalance.getAssignment(shardRouting.shardId());
+                final ShardAssignment assignment = desiredBalance.getAssignment(shardRouting.shardId());
                 if (assignment == null || assignment.nodeIds().contains(shardRouting.currentNodeId())) {
                     continue;
                 }
 
-                boolean cancelIfRecoveryStarted = false;
-                if (recoveryCanBeCancelledIfStarted(shardRouting, routingNodes)) {
-                    final var canRemainDecision = allocation.deciders().canRemain(shardRouting, routingNode, allocation);
-                    cancelIfRecoveryStarted = canRemainDecision.type() == Decision.Type.NO;
+                final boolean canRemain = allocation.deciders().canRemain(shardRouting, routingNode, allocation).type() != Decision.Type.NO;
+                // A balance that has not converged with the latest input may still move this shard back to its current
+                // node in a later computation. A move driven by a canRemain NO (shutdowns, allocation filters, disk watermarks)
+                // is less likely to be reversed than a rebalancing move, so only cancel recoveries of shards that cannot remain.
+                if (canRemain && convergedWithLatestInput == false) {
+                    continue;
                 }
+
+                final boolean canCancelIfStarted = recoveryCanBeCancelledIfStarted(shardRouting, allocation);
+                // Only interrupt a started recovery if the shard cannot remain on its current node and the balance
+                // converged with the latest input. Otherwise, only cancel recoveries that have not started yet.
+                final boolean cancelIfStarted = canCancelIfStarted && canRemain == false && convergedWithLatestInput;
                 nodeCancellations.add(
-                    new ShardRecoveryCancellation(shardRouting.shardId(), shardRouting.allocationId().getId(), cancelIfRecoveryStarted)
+                    new ShardRecoveryCancellation(shardRouting.shardId(), shardRouting.allocationId().getId(), cancelIfStarted)
                 );
             }
             if (nodeCancellations.isEmpty() == false) {
@@ -232,34 +288,52 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
         return cancellationRequests;
     }
 
-    private static boolean recoveryCanBeCancelledIfStarted(ShardRouting shardRouting, RoutingNodes routingNodes) {
+    private static boolean recoveryCanBeCancelledIfStarted(ShardRouting shardRouting, RoutingAllocation allocation) {
         assert shardRouting.initializing() : "calling recoveryCanBeCancelledIfStarted for non-initializing shard " + shardRouting;
+
+        // Some shard relocations can take a long time (e.g. stateless search shards due to offline warming, or stateful
+        // peer recoveries). If the source node is being removed, don't delay its evacuation by discarding a started
+        // recovery, even if the target node is also shutting down. The target's shutdown was most likely registered after
+        // the relocation began, since the shutdown decider would not have picked it as a target otherwise. Prioritize the
+        // source's evacuation, even if this means doing duplicate work.
+        final NodesShutdownMetadata nodeShutdowns = allocation.metadata().nodeShutdowns();
+        if (shardRouting.relocatingNodeId() != null && nodeShutdowns.isNodeMarkedForRemoval(shardRouting.relocatingNodeId())) {
+            return false;
+        }
         if (shardRouting.primary()) {
             return shardRouting.relocatingNodeId() != null;
         }
         if (shardRouting.role().equals(ShardRouting.Role.SEARCH_ONLY) == false) {
             return true;
         }
-        return routingNodes.assignedShards(shardRouting.shardId())
+        return allocation.routingNodes()
+            .assignedShards(shardRouting.shardId())
             .stream()
-            .filter(ShardRouting::started)
+            .filter(ShardRouting::active)
             .anyMatch(s -> s.role().equals(ShardRouting.Role.SEARCH_ONLY));
     }
 
     private class CancelUndesiredRecoveriesRunnable extends AbstractRunnable {
         private final DesiredBalance desiredBalance;
         private final RoutingAllocation routingAllocation;
+        private final boolean convergedWithLatestInput;
 
-        CancelUndesiredRecoveriesRunnable(DesiredBalance desiredBalance, RoutingAllocation routingAllocation) {
+        CancelUndesiredRecoveriesRunnable(
+            DesiredBalance desiredBalance,
+            RoutingAllocation routingAllocation,
+            boolean convergedWithLatestInput
+        ) {
             this.desiredBalance = desiredBalance;
             this.routingAllocation = routingAllocation;
+            this.convergedWithLatestInput = convergedWithLatestInput;
         }
 
         @Override
         protected void doRun() {
             final Map<DiscoveryNode, CancelRecoveriesAction.Request> requests = computeUndesiredRecoveryCancellations(
                 desiredBalance,
-                routingAllocation
+                routingAllocation,
+                convergedWithLatestInput
             );
             if (requests.isEmpty()) {
                 return;
@@ -377,6 +451,10 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
         protected synchronized void doRun() {
             pendingSnapshotCancellationPermit.release();
             final ClusterState currentState = clusterService.state();
+            if (currentState.nodes().isLocalNodeElectedMaster() == false) {
+                // The node stepped down while the run was scheduled, abort
+                return;
+            }
             final Map<DiscoveryNode, CancelRecoveriesAction.Request> requests = computeCancellationCandidatesForSnapshots(currentState);
             if (requests.isEmpty()) {
                 return;

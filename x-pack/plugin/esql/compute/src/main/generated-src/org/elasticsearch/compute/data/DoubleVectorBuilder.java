@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.RamUsageEstimator;
+
 import java.util.Arrays;
 
 /**
@@ -20,8 +22,8 @@ final class DoubleVectorBuilder extends AbstractVectorBuilder implements DoubleV
     DoubleVectorBuilder(int estimatedSize, BlockFactory blockFactory) {
         super(blockFactory);
         int initialSize = Math.max(estimatedSize, 2);
-        adjustBreaker(initialSize);
-        values = new double[Math.max(estimatedSize, 2)];
+        adjustBreaker(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) initialSize * elementSize());
+        values = new double[initialSize];
     }
 
     @Override
@@ -52,7 +54,7 @@ final class DoubleVectorBuilder extends AbstractVectorBuilder implements DoubleV
         finish();
         DoubleVector vector;
         if (valueCount == 1) {
-            vector = blockFactory.newConstantDoubleBlockWith(values[0], 1, estimatedBytes).asVector();
+            vector = blockFactory.newConstantDoubleVector(values[0], 1, estimatedBytes);
         } else {
             if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
                 values = Arrays.copyOf(values, valueCount);

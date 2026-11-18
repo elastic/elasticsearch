@@ -31,14 +31,12 @@ import java.io.IOException;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 /**
  * The function that checks for the presence of a field in the output result.
  * Presence means that the input expression yields any non-null value.
  */
-public class Present extends AggregateFunction implements ToAggregator, AggregateMetricDoubleNativeSupport {
+public class Present extends UnaryAggregateFunction implements ToAggregator, AggregateMetricDoubleNativeSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Present", Present::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Present.class)
         .unary(Present::new)
@@ -74,6 +72,9 @@ public class Present extends AggregateFunction implements ToAggregator, Aggregat
                 "boolean",
                 "cartesian_point",
                 "cartesian_shape",
+                "counter_double",
+                "counter_integer",
+                "counter_long",
                 "date",
                 "date_nanos",
                 "date_range",
@@ -121,11 +122,6 @@ public class Present extends AggregateFunction implements ToAggregator, Aggregat
     }
 
     @Override
-    public AggregateFunction withFilter(Expression filter) {
-        return new Present(source(), field(), filter, window());
-    }
-
-    @Override
     public Present replaceChildren(List<Expression> newChildren) {
         return new Present(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
@@ -147,6 +143,6 @@ public class Present extends AggregateFunction implements ToAggregator, Aggregat
 
     @Override
     protected TypeResolution resolveType() {
-        return isType(field(), dt -> dt.isCounter() == false, sourceText(), DEFAULT, "any type except counter types");
+        return TypeResolution.TYPE_RESOLVED;
     }
 }

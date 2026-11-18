@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.repositories.RepositoryException;
@@ -26,14 +27,19 @@ import org.elasticsearch.xpack.stateless.cluster.coordination.TransportConsisten
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 
 public class StaleIndicesGCService {
+    // Bound retained candidates per GC cycle; subsequent cycles collect the remaining files.
+    private static final int STALE_SHARD_FILES_BATCH_SIZE = 10_000;
+
     private final Logger logger = LogManager.getLogger(StaleIndicesGCService.class);
 
     private final Supplier<ObjectStoreService> objectStoreService;
@@ -153,6 +159,121 @@ public class StaleIndicesGCService {
                         );
                     }
                 }
+            }
+            return null;
+        });
+    }
+
+    /** Cleans shard IDs removed by a restore without deleting the surviving index's blob container. */
+    void cleanStaleShardFiles(ActionListener<Void> listener) {
+        try {
+            final var candidates = getStaleShardFiles();
+            if (candidates.isEmpty()) {
+                listener.onResponse(null);
+                return;
+            }
+            SubscribableListener.newForked(this::doConsistentClusterStateRead)
+                .<Void>andThen(threadPool.generic(), threadContext, (l, state) -> deleteStaleShardFiles(l, state, candidates))
+                .addListener(listener);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    // Capture individual blob names before the consistent read. Never recursively delete a removed shard's container: a later
+    // restore/reshard can reuse the ID while deletion is in flight. Restore carries the old maximum primary term forward so that
+    // newly written blobs use a different primary-term namespace.
+    record StaleShardFiles(ProjectId projectId, Index index, int shardId, String history, BlobContainer container, Set<String> names) {}
+
+    List<StaleShardFiles> getStaleShardFiles() throws IOException {
+        return getStaleShardFiles(STALE_SHARD_FILES_BATCH_SIZE);
+    }
+
+    // Package-private to exercise multiple batches without creating thousands of blobs in tests.
+    List<StaleShardFiles> getStaleShardFiles(int batchSize) throws IOException {
+        assert batchSize > 0;
+        int remaining = batchSize;
+        final List<StaleShardFiles> candidates = new ArrayList<>();
+        for (var project : clusterService.state().metadata().projects().values()) {
+            for (IndexMetadata index : project) {
+                final String history = index.getSettings().get(IndexMetadata.SETTING_HISTORY_UUID);
+                if (history == null) {
+                    continue;
+                }
+                final BlobContainer indexContainer;
+                try {
+                    indexContainer = objectStoreService().getIndexBlobContainer(project.id(), index.getIndexUUID());
+                } catch (RepositoryException e) {
+                    continue; // project removal is concurrent with GC
+                }
+                for (var shard : indexContainer.children(OperationPurpose.INDICES).entrySet()) {
+                    final int shardId = Integer.parseInt(shard.getKey());
+                    if (shardId >= index.getNumberOfShards()) {
+                        remaining = collectStaleShardFiles(
+                            project.id(),
+                            index.getIndex(),
+                            shardId,
+                            history,
+                            shard.getValue(),
+                            candidates,
+                            remaining
+                        );
+                        if (remaining == 0) {
+                            return List.copyOf(candidates);
+                        }
+                    }
+                }
+            }
+        }
+        return List.copyOf(candidates);
+    }
+
+    private static int collectStaleShardFiles(
+        ProjectId projectId,
+        Index index,
+        int shardId,
+        String history,
+        BlobContainer container,
+        List<StaleShardFiles> candidates,
+        int remaining
+    ) throws IOException {
+        // BlobContainer has no paginated listing API, so one container's listing is still materialized temporarily.
+        // Retain only the names that fit in this cycle's batch, rather than retaining listings across the whole cluster.
+        final Set<String> names = new HashSet<>();
+        for (String name : container.listBlobs(OperationPurpose.INDICES).keySet()) {
+            names.add(name);
+            if (--remaining == 0) {
+                break;
+            }
+        }
+        if (names.isEmpty() == false) {
+            candidates.add(new StaleShardFiles(projectId, index, shardId, history, container, Set.copyOf(names)));
+        }
+        if (remaining == 0) {
+            return 0;
+        }
+        for (BlobContainer child : container.children(OperationPurpose.INDICES).values()) {
+            remaining = collectStaleShardFiles(projectId, index, shardId, history, child, candidates, remaining);
+            if (remaining == 0) {
+                return 0;
+            }
+        }
+        return remaining;
+    }
+
+    void deleteStaleShardFiles(ActionListener<Void> listener, ClusterState state, List<StaleShardFiles> candidates) {
+        ActionListener.completeWith(listener, () -> {
+            for (StaleShardFiles candidate : candidates) {
+                if (state.metadata().hasProject(candidate.projectId()) == false) {
+                    continue;
+                }
+                final var index = state.metadata().getProject(candidate.projectId()).index(candidate.index());
+                if (index == null
+                    || candidate.shardId() < index.getNumberOfShards()
+                    || candidate.history().equals(index.getSettings().get(IndexMetadata.SETTING_HISTORY_UUID)) == false) {
+                    continue;
+                }
+                candidate.container().deleteBlobsIgnoringIfNotExists(OperationPurpose.INDICES, candidate.names().iterator());
             }
             return null;
         });

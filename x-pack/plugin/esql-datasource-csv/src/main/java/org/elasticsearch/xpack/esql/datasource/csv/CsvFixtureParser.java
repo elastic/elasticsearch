@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.csv;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -21,7 +22,8 @@ import java.util.Set;
 
 /**
  * Standalone CSV parser for fixture generation. Parses CSV files with bracket-aware
- * multi-value support, matching the behavior of {@link CsvFormatReader}.
+ * multi-value support, matching the behavior {@link CsvFormatReader} has on the arm these fixtures stand in
+ * for: a read with no declared mappings, hence an inferred schema (see {@link #parseCell} on blank cells).
  * <p>
  * Used by OrcFixtureGenerator, ParquetFixtureGenerator, NdJsonFixtureGenerator, and TsvFixtureGenerator to read CSV fixtures
  * with correct multi-value handling (e.g. {@code [a,b,c]} as a list, not just first element).
@@ -278,8 +280,17 @@ public final class CsvFixtureParser {
             return null;
         }
         if (value.isEmpty()) {
-            // Mirror CsvFormatReader: a present-but-empty cell on a string column is the empty string,
-            // not null; a genuinely missing field or an empty cell on any other column type is null.
+            // Mirror CsvFormatReader: a blank cell is "" on a string (keyword/text) column, null on every
+            // other type. The generated fixtures stand in for these CSVs in the shared cross-format csv-spec
+            // suites, where the dataset is registered WITHOUT mappings -- so the CSV read of the same file
+            // infers its schema; writing "" for string columns keeps the CSV and its Parquet/ORC/NDJSON twins
+            // in agreement on grouping queries (e.g. a blank gender bucket counts identically across formats).
+            //
+            // This covers a blank in a LIST column too (one whose other rows hold [a,b]): the generators
+            // write it absent rather than as a one-element [""], which again is what the reader produces --
+            // a blank cell is never bracketed, so it takes the scalar path there as well. A blank ELEMENT
+            // inside brackets is a different question, decided by parseScalar; that one still diverges from
+            // the reader (it drops the element where the reader keeps ""), which predates this method's rule.
             return isStringType(type) ? "" : null;
         }
         if (value.startsWith("[") && value.endsWith("]")) {
@@ -288,8 +299,9 @@ public final class CsvFixtureParser {
         return parseScalar(value, type, quote);
     }
 
-    private static boolean isStringType(String type) {
-        return "keyword".equals(type) || "text".equals(type) || "string".equals(type);
+    /** Mirrors {@code DataType.isString}: true for keyword, text, and semantic_text (which maps to text). */
+    static boolean isStringType(String type) {
+        return "keyword".equals(type) || "text".equals(type) || "semantic_text".equals(type);
     }
 
     private static Object parseMultiValue(String value, String type, char quote, char esc) {
@@ -366,8 +378,19 @@ public final class CsvFixtureParser {
             case "double", "scaled_float", "float", "half_float" -> tryParseDouble(value);
             case "boolean", "bool" -> tryParseBoolean(value);
             case "date", "datetime", "dt" -> tryParseDatetime(value);
-            // date_nanos values are plain epoch-nanosecond longs in the fixture CSVs; parse the same way.
-            case "date_nanos" -> tryParseDatetime(value);
+            // A header naming a sub-millisecond unit takes a plain count of THAT unit, so neither arm may go
+            // through tryParseDatetime: its ISO fallback returns epoch MILLIS, which the generators then write
+            // verbatim as the named unit -- silently off by 1e3 for date_micros and 1e6 for date_nanos, with no
+            // failure anywhere to say so. An ISO cell is still accepted, scaled to the header's own unit, because
+            // data/date_nanos.csv and data/all-types.csv write theirs that way and rejecting them would null a
+            // valid column just as silently. date_micros has no ESQL type of its own (it renders date_nanos),
+            // which is why the header names the unit; see ParquetFixtureGenerator's matching scalar and list arms.
+            case "date_nanos" -> tryParseSubMilliInstant(value, 1_000_000_000L);
+            case "date_micros" -> tryParseSubMilliInstant(value, 1_000_000L);
+            // A parquet TIME column's value is a count of its own unit since midnight, so the fixture cell is a
+            // plain number -- there is no date to parse. The unit lives in the type name because the annotation the
+            // generator writes differs per unit, and the physical width with it (MILLIS is an INT32).
+            case "time_millis", "time_micros", "time_nanos" -> tryParseLong(value);
             case "ip" -> value;
             case "null", "n" -> null;
             default -> value; // keyword, text, string, etc.
@@ -386,6 +409,33 @@ public final class CsvFixtureParser {
         try {
             return Integer.parseInt(value);
         } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /**
+     * A sub-millisecond temporal cell: a plain count of {@code unitsPerSecond}-ths of a second, or an ISO instant
+     * scaled to that unit. {@code tryParseDatetime} cannot serve these headers because it truncates to epoch
+     * millis, and the generators write whatever this returns verbatim as the named unit.
+     */
+    private static Long tryParseSubMilliInstant(String value, long unitsPerSecond) {
+        if (looksNumeric(value)) {
+            Long plain = tryParseLong(value);
+            if (plain != null) {
+                return plain;
+            }
+        }
+        try {
+            Instant instant = Instant.parse(value);
+            long nanosPerUnit = 1_000_000_000L / unitsPerSecond;
+            // BigInteger, not multiplyExact: the seconds term alone underflows a long just below the representable
+            // floor while the instant itself still fits, because getNano() is always non-negative and adds back.
+            // 1677-09-21T00:12:43.5Z as nanos is -9223372036500000000, which fits, while -9223372037 * 1e9 does not.
+            return BigInteger.valueOf(instant.getEpochSecond())
+                .multiply(BigInteger.valueOf(unitsPerSecond))
+                .add(BigInteger.valueOf(instant.getNano() / nanosPerUnit))
+                .longValueExact();
+        } catch (Exception e) {
             return null;
         }
     }

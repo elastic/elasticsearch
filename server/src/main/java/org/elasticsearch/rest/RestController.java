@@ -18,6 +18,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -27,6 +28,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.path.PathTrie;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.ParsedContentReservation;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -95,6 +97,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
     public static final String STATUS_CODE_KEY = "es_rest_status_code";
     public static final String HANDLER_NAME_KEY = "es_rest_handler_name";
     public static final String REQUEST_METHOD_KEY = "es_rest_request_method";
+    public static final String ERROR_TRACE_PARAM = "error_trace";
     public static final boolean ERROR_TRACE_DEFAULT = false;
 
     static {
@@ -484,11 +487,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
             }
 
             if (handler != null) {
-                var supportedParams = handler.supportedQueryParameters();
-                assert supportedParams == handler.supportedQueryParameters()
-                    : handler.getName() + ": did not return same instance from supportedQueryParameters()";
-                return (supportedParams == null || supportedParams.containsAll(parameters))
-                    && handler.supportedCapabilities().containsAll(capabilities);
+                return handler.supportsQueryParameters(parameters) && handler.supportedCapabilities().containsAll(capabilities);
             }
         }
         return false;
@@ -566,8 +565,24 @@ public class RestController implements HttpServerTransport.Dispatcher {
             } else {
                 inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(contentLength);
             }
+            // Parsing the content can take far more heap than the content itself, so the request's parsers charge for what they read, and
+            // the charge is held until the response is sent, like the in-flight bytes, or until the work that keeps the parsed request ends
+            // if that is later, see ParsedContentReservation#hold. Only content or a source parameter is parsed.
+            final ParsedContentReservation parsedContentReservation = request.hasContentOrSourceParam()
+                ? new ParsedContentReservation(circuitBreakerService.getBreaker(CircuitBreaker.REQUEST), handler.canTripCircuitBreaker())
+                : null;
             // iff we could reserve bytes for the request we need to send the response also over this channel
-            responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, contentLength, methodHandlers);
+            responseChannel = new ResourceHandlingHttpChannel(
+                channel,
+                circuitBreakerService,
+                contentLength,
+                parsedContentReservation,
+                methodHandlers
+            );
+            if (parsedContentReservation != null) {
+                request.setParsedContentReservation(parsedContentReservation);
+                threadContext.putTransient(ParsedContentReservation.TRANSIENT_NAME, parsedContentReservation);
+            }
 
             if (handler.allowSystemIndexAccessByDefault() == false) {
                 // The ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER indicates that the request is coming from an Elastic product and
@@ -649,18 +664,12 @@ public class RestController implements HttpServerTransport.Dispatcher {
             && FORM_URLENCODED_MEDIA_TYPE.equals(request.getParsedContentType().mediaTypeWithoutParameters());
     }
 
-    private boolean handleNoHandlerFound(
-        ThreadContext threadContext,
-        String rawPath,
-        RestRequest.Method method,
-        String uri,
-        RestChannel channel
-    ) {
+    private boolean handleNoHandlerFound(String rawPath, RestRequest.Method method, String uri, RestChannel channel) {
         // Get the map of matching handlers for a request, for the full set of HTTP methods.
         final Set<RestRequest.Method> validMethodSet = getValidHandlerMethodSet(rawPath);
         if (validMethodSet.contains(method) == false) {
             if (method == RestRequest.Method.OPTIONS) {
-                startTrace(threadContext, channel);
+                startInstrumentation(channel);
                 handleOptionsRequest(channel, validMethodSet);
                 return true;
             }
@@ -668,7 +677,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 // If an alternative handler for an explicit path is registered to a
                 // different HTTP method than the one supplied - return a 405 Method
                 // Not Allowed error.
-                startTrace(threadContext, channel);
+                startInstrumentation(channel);
                 handleUnsupportedHttpMethod(uri, method, channel, validMethodSet, null);
                 return true;
             }
@@ -676,15 +685,15 @@ public class RestController implements HttpServerTransport.Dispatcher {
         return false;
     }
 
-    private void startTrace(ThreadContext threadContext, RestChannel channel) {
-        startTrace(threadContext, channel, null);
+    private void startInstrumentation(RestChannel channel) {
+        startInstrumentation(channel, null);
     }
 
-    private void startTrace(ThreadContext threadContext, RestChannel channel, String restPath) {
-        this.instrumentation.start(threadContext, channel.request(), restPath);
+    private void startInstrumentation(RestChannel channel, @Nullable String restPath) {
+        this.instrumentation.start(channel.request(), restPath);
     }
 
-    private void traceException(RestChannel channel, Throwable e) {
+    private void recordInstrumentationException(RestChannel channel, Throwable e) {
         this.instrumentation.recordException(channel.request(), e);
     }
 
@@ -703,7 +712,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         try {
             validateErrorTrace(request, channel);
         } catch (IllegalArgumentException e) {
-            startTrace(threadContext, channel);
+            startInstrumentation(channel);
             channel.sendResponse(RestResponse.createSimpleErrorResponse(channel, BAD_REQUEST, e.getMessage()));
             recordRequestMetric(BAD_REQUEST, requestsCounter);
             return;
@@ -728,31 +737,31 @@ public class RestController implements HttpServerTransport.Dispatcher {
                     handler = handlers.getHandler(requestMethod, restApiVersion);
                 }
                 if (handler == null) {
-                    if (handleNoHandlerFound(threadContext, rawPath, requestMethod, uri, channel)) {
+                    if (handleNoHandlerFound(rawPath, requestMethod, uri, channel)) {
                         return;
                     }
                 } else {
-                    startTrace(threadContext, channel, handlers.getPath());
+                    startInstrumentation(channel, handlers.getPath());
                     var decoratedChannel = new MeteringRestChannelDecorator(channel, requestsCounter, handler.getConcreteRestHandler());
                     maybeAggregateAndDispatchRequest(request, decoratedChannel, handler, handlers, threadContext);
                     return;
                 }
             }
         } catch (final IllegalArgumentException e) {
-            startTrace(threadContext, channel);
-            traceException(channel, e);
+            startInstrumentation(channel);
+            recordInstrumentationException(channel, e);
             handleUnsupportedHttpMethod(uri, null, channel, getValidHandlerMethodSet(rawPath), e);
             return;
         }
         // If request has not been handled, fallback to a bad request error.
-        startTrace(threadContext, channel);
+        startInstrumentation(channel);
         handleBadRequest(uri, requestMethod, channel);
     }
 
     private static void validateErrorTrace(RestRequest request, RestChannel channel) {
         // error_trace cannot be used when we disable detailed errors
         // we consume the error_trace parameter first to ensure that it is always consumed
-        if (request.paramAsBoolean("error_trace", ERROR_TRACE_DEFAULT) && channel.detailedErrorsEnabled() == false) {
+        if (request.paramAsBoolean(ERROR_TRACE_PARAM, ERROR_TRACE_DEFAULT) && channel.detailedErrorsEnabled() == false) {
             throw new IllegalArgumentException("error traces in responses are disabled.");
         }
     }
@@ -913,6 +922,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
 
         @Override
+        public String handlerName() {
+            return delegate.handlerName();
+        }
+
+        @Override
         public XContentBuilder newBuilder() throws IOException {
             return delegate.newBuilder();
         }
@@ -981,6 +995,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
 
         @Override
+        public String handlerName() {
+            return restHandler.getName();
+        }
+
+        @Override
         public void sendResponse(RestResponse response) {
             super.sendResponse(response);
             recordRequestMetric(response.status(), restHandler.getName(), request().method().name(), requestsCounter);
@@ -995,6 +1014,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
     private static final class ResourceHandlingHttpChannel extends DelegatingRestChannel {
         private final CircuitBreakerService circuitBreakerService;
         private final int contentLength;
+        @Nullable
+        private final ParsedContentReservation parsedContentReservation;
         private final HttpRouteStatsTracker statsTracker;
         private final long startTime;
         private final AtomicBoolean responseSent = new AtomicBoolean();
@@ -1003,11 +1024,13 @@ public class RestController implements HttpServerTransport.Dispatcher {
             RestChannel delegate,
             CircuitBreakerService circuitBreakerService,
             int contentLength,
+            @Nullable ParsedContentReservation parsedContentReservation,
             MethodHandlers methodHandlers
         ) {
             super(delegate);
             this.circuitBreakerService = circuitBreakerService;
             this.contentLength = contentLength;
+            this.parsedContentReservation = parsedContentReservation;
             this.statsTracker = methodHandlers.statsTracker();
             this.startTime = rawRelativeTimeInMillis();
         }
@@ -1023,6 +1046,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                     throw new IllegalStateException(message);
                 }
                 inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(-contentLength);
+                Releasables.close(parsedContentReservation);
 
                 statsTracker.addRequestStats(contentLength);
                 statsTracker.addResponseTime(rawRelativeTimeInMillis() - startTime);
@@ -1033,7 +1057,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
                     final var headers = response.getHeaders();
                     response = RestResponse.chunked(
                         response.status(),
-                        new EncodedLengthTrackingChunkedRestResponseBodyPart(response.chunkedContent(), responseLengthRecorder),
+                        new AccountingChunkedRestResponseBodyPart(
+                            response.chunkedContent(),
+                            responseLengthRecorder,
+                            circuitBreakerService.getBreaker(CircuitBreaker.REQUEST)
+                        ),
                         Releasables.wrap(responseLengthRecorder, response)
                     );
                     for (final var header : headers.entrySet()) {
@@ -1084,17 +1112,31 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
     }
 
-    private static class EncodedLengthTrackingChunkedRestResponseBodyPart implements ChunkedRestResponseBodyPart {
+    /**
+     * Chunks smaller than this are not charged. The HTTP layer asks for chunks of 256 KB, so a chunk only gets this large when it holds one
+     * large item, such as a search hit with a large {@code _source}.
+     */
+    static final int MIN_CHARGED_BYTES = 1 << 20;
+
+    /**
+     * Records each chunk's encoded length for the route stats, and charges chunks of at least {@link #MIN_CHARGED_BYTES} to the request
+     * breaker until the HTTP layer closes them. A chunk is already allocated when its size is known, so it is charged without breaking,
+     * and later requests trip instead.
+     */
+    private static class AccountingChunkedRestResponseBodyPart implements ChunkedRestResponseBodyPart {
 
         private final ChunkedRestResponseBodyPart delegate;
         private final ResponseLengthRecorder responseLengthRecorder;
+        private final CircuitBreaker breaker;
 
-        private EncodedLengthTrackingChunkedRestResponseBodyPart(
+        private AccountingChunkedRestResponseBodyPart(
             ChunkedRestResponseBodyPart delegate,
-            ResponseLengthRecorder responseLengthRecorder
+            ResponseLengthRecorder responseLengthRecorder,
+            CircuitBreaker breaker
         ) {
             this.delegate = delegate;
             this.responseLengthRecorder = responseLengthRecorder;
+            this.breaker = breaker;
         }
 
         @Override
@@ -1110,18 +1152,31 @@ public class RestController implements HttpServerTransport.Dispatcher {
         @Override
         public void getNextPart(ActionListener<ChunkedRestResponseBodyPart> listener) {
             delegate.getNextPart(
-                listener.map(continuation -> new EncodedLengthTrackingChunkedRestResponseBodyPart(continuation, responseLengthRecorder))
+                listener.map(continuation -> new AccountingChunkedRestResponseBodyPart(continuation, responseLengthRecorder, breaker))
             );
         }
 
         @Override
         public ReleasableBytesReference encodeChunk(int sizeHint, Recycler<BytesRef> recycler) throws IOException {
             final ReleasableBytesReference bytesReference = delegate.encodeChunk(sizeHint, recycler);
-            responseLengthRecorder.addChunkLength(bytesReference.length());
+            final int length = bytesReference.length();
+            responseLengthRecorder.addChunkLength(length);
             if (isPartComplete() && isLastPart()) {
                 responseLengthRecorder.close();
             }
-            return bytesReference;
+            // Charge last, so nothing can fail between the charge and the HTTP layer registering the release.
+            if (length < MIN_CHARGED_BYTES) {
+                return bytesReference;
+            }
+            breaker.addWithoutBreaking(length, ChildMemoryCircuitBreaker.CATEGORY_REST_RESPONSE);
+            // Released with the chunk, when its last reference is closed.
+            return new ReleasableBytesReference(
+                bytesReference,
+                Releasables.wrap(
+                    bytesReference,
+                    () -> breaker.addWithoutBreaking(-length, ChildMemoryCircuitBreaker.CATEGORY_REST_RESPONSE)
+                )
+            );
         }
 
         @Override

@@ -33,8 +33,18 @@ public abstract class TimeSeriesGroupingAggregatorEvaluationContext extends Grou
      */
     public abstract void forEachGroupInRange(int startingGroupId, long rangeStartMillis, long rangeEndMillis, IntConsumer action);
 
+    /**
+     * Returns the group of the same time series whose time bucket is the closest <em>populated</em> bucket before the one of
+     * {@code currentGroupId}, skipping over empty buckets, or {@code -1} if there is none. Requires
+     * {@link #computeAdjacentGroupIds()} to have been called.
+     */
     public abstract int previousGroupId(int currentGroupId);
 
+    /**
+     * Returns the group of the same time series whose time bucket is the closest <em>populated</em> bucket after the one of
+     * {@code currentGroupId}, skipping over empty buckets, or {@code -1} if there is none. Requires
+     * {@link #computeAdjacentGroupIds()} to have been called.
+     */
     public abstract int nextGroupId(int currentGroupId);
 
     /**

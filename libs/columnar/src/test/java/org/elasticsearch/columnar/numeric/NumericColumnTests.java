@@ -9,24 +9,23 @@
 
 package org.elasticsearch.columnar.numeric;
 
-import org.apache.lucene.codecs.CodecUtil;
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.columnar.FormatVersion;
 import org.elasticsearch.columnar.substrate.BlockBytesCodec;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
 import org.elasticsearch.columnar.substrate.ColumnIteratorMetadata;
+import org.elasticsearch.columnar.substrate.ColumnTestFiles;
 import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
+import static org.elasticsearch.columnar.ColumnarTestUtils.multiValuedCursor;
 import static org.elasticsearch.columnar.ColumnarTestUtils.randomValidBlockSize;
 import static org.elasticsearch.columnar.ColumnarTestUtils.readNumericMeta;
 
@@ -108,6 +107,65 @@ public class NumericColumnTests extends ESTestCase {
         }
     }
 
+    /**
+     * A column whose caller reaches it by value address asks for no document-to-value addressing, and then
+     * holds more values than documents while tabling none of it. The metadata has to carry that, since the
+     * counts alone no longer say whether a table follows.
+     */
+    public void testColumnWrittenWithoutAddressingTablesNone() throws IOException {
+        final long[][] docValues = new long[500][];
+        long numValues = 0;
+        for (int d = 0; d < docValues.length; d++) {
+            docValues[d] = new long[] { d, d + 1, d + 2 };
+            numValues += docValues[d].length;
+        }
+        assertTrue("expected more values than documents", numValues > docValues.length);
+        final byte[] segmentId = new byte[16];
+        random().nextBytes(segmentId);
+        try (Directory dir = newDirectory()) {
+            final NumericColumnMetadata written;
+            try (
+                ColumnTestFiles.Outputs out = ColumnTestFiles.create(dir, "num", segmentId);
+                IndexOutput skip = dir.createOutput("num.cns", IOContext.DEFAULT)
+            ) {
+                ColumnarCodecUtil.writeHeader(skip, "ColumNARSkipIndex", FormatVersion.CURRENT, segmentId, "");
+                written = NumericColumnWriter.write(
+                    docValues.length,
+                    docValues.length,
+                    numValues,
+                    false,
+                    () -> multiValuedCursor(docValues),
+                    NumericPipeline.defaultPipeline(randomValidBlockSize()),
+                    BlockBytesCodec.forId(BlockBytesCodec.IDENTITY_ID),
+                    SkipIndexCodec.forId(SkipIndexCodec.MULTI_LEVEL_ID),
+                    out.outputs(),
+                    skip
+                );
+                ColumnarCodecUtil.writeFooter(skip);
+            }
+            assertFalse("asked for no addressing, so none is tabled", written.hasValueAddresses());
+
+            try (IndexOutput meta = dir.createOutput("num.cnm", IOContext.DEFAULT)) {
+                ColumnarCodecUtil.writeHeader(meta, "ColumNARMeta", FormatVersion.CURRENT, segmentId, "");
+                written.writeTo(meta, FormatVersion.CURRENT);
+                ColumnarCodecUtil.writeFooter(meta);
+            }
+            final NumericColumnMetadata read = readNumericMeta(dir, "num.cnm", segmentId, docValues.length);
+            assertFalse("the round trip has to carry that no table follows", read.hasValueAddresses());
+
+            // Every value is still there, reached by value address rather than through a document.
+            try (ColumnTestFiles.Inputs data = ColumnTestFiles.open(dir, "num", segmentId)) {
+                final NumericColumnReader reader = new NumericColumnReader(read, data.inputs());
+                long address = 0;
+                for (long[] values : docValues) {
+                    for (long value : values) {
+                        assertEquals(value, reader.valueAt(address++));
+                    }
+                }
+            }
+        }
+    }
+
     public void testLargeNumValuesMetadataRoundTrips() throws IOException {
         final long numValues = randomLongBetween((long) Integer.MAX_VALUE + 1, (long) Integer.MAX_VALUE * 2);
         final int blockSize = randomValidBlockSize();
@@ -143,7 +201,7 @@ public class NumericColumnTests extends ESTestCase {
 
         final byte[] buf = new byte[256];
         final ByteArrayDataOutput out = new ByteArrayDataOutput(buf);
-        meta.writeTo(out);
+        meta.writeTo(out, FormatVersion.CURRENT);
         final ByteArrayDataInput in = new ByteArrayDataInput(buf, 0, out.getPosition());
         final NumericColumnMetadata roundTripped = NumericColumnMetadata.readFrom(in, numDocsWithField, FormatVersion.CURRENT);
 
@@ -167,41 +225,37 @@ public class NumericColumnTests extends ESTestCase {
         try (Directory dir = newDirectory()) {
             NumericColumnMetadata written;
             try (
-                IndexOutput out = dir.createOutput("num.cnd", IOContext.DEFAULT);
+                ColumnTestFiles.Outputs out = ColumnTestFiles.create(dir, "num", segmentId);
                 IndexOutput skip = dir.createOutput("num.cns", IOContext.DEFAULT)
             ) {
-                ColumnarCodecUtil.writeHeader(out, "ColumNARData", FormatVersion.CURRENT, segmentId, "");
                 ColumnarCodecUtil.writeHeader(skip, "ColumNARSkipIndex", FormatVersion.CURRENT, segmentId, "");
                 written = NumericColumnWriter.write(
                     maxDoc,
                     numDocsWithField,
                     numValues,
-                    () -> cursor(docValues),
+                    true,
+                    () -> multiValuedCursor(docValues),
                     NumericPipeline.defaultPipeline(randomValidBlockSize()),
                     BlockBytesCodec.forId(BlockBytesCodec.IDENTITY_ID),
                     SkipIndexCodec.forId(SkipIndexCodec.MULTI_LEVEL_ID),
-                    dir,
-                    IOContext.DEFAULT,
-                    out,
+                    out.outputs(),
                     skip
                 );
-                ColumnarCodecUtil.writeFooter(out);
                 ColumnarCodecUtil.writeFooter(skip);
             }
 
             try (IndexOutput meta = dir.createOutput("num.cnm", IOContext.DEFAULT)) {
                 ColumnarCodecUtil.writeHeader(meta, "ColumNARMeta", FormatVersion.CURRENT, segmentId, "");
-                written.writeTo(meta);
+                written.writeTo(meta, FormatVersion.CURRENT);
                 ColumnarCodecUtil.writeFooter(meta);
             }
 
             final NumericColumnMetadata read = readNumericMeta(dir, "num.cnm", segmentId, maxDoc);
-            assertEquals(numValues > numDocsWithField, read.multiValued());
+            // Written asking for the addressing, so a column holding more values than documents tables it.
+            assertEquals(numValues > numDocsWithField, read.hasValueAddresses());
 
-            try (IndexInput data = dir.openInput("num.cnd", IOContext.DEFAULT)) {
-                CodecUtil.checksumEntireFile(data);
-                ColumnarCodecUtil.checkHeader(data, "ColumNARData", segmentId, "");
-                NumericColumnReader reader = new NumericColumnReader(read, data);
+            try (ColumnTestFiles.Inputs data = ColumnTestFiles.open(dir, "num", segmentId)) {
+                NumericColumnReader reader = new NumericColumnReader(read, data.inputs());
 
                 ColumnIterator iterator = reader.iterator();
                 for (int doc = iterator.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = iterator.nextDoc()) {
@@ -216,50 +270,6 @@ public class NumericColumnTests extends ESTestCase {
                 }
             }
         }
-    }
-
-    /** A fresh {@link SortedNumericDocValues} over the per-document values, yielding them in array order. */
-    private static NumericColumnValues cursor(long[][] docValues) {
-        return new NumericColumnValues() {
-            private int doc = -1;
-            private int valueIndex;
-
-            @Override
-            public int valueCount() {
-                return docValues[doc].length;
-            }
-
-            @Override
-            public long nextValue() {
-                return docValues[doc][valueIndex++];
-            }
-
-            @Override
-            public int docID() {
-                return doc;
-            }
-
-            @Override
-            public int nextDoc() {
-                for (doc = doc + 1; doc < docValues.length; doc++) {
-                    if (docValues[doc] != null && docValues[doc].length > 0) {
-                        valueIndex = 0;
-                        return doc;
-                    }
-                }
-                return doc = DocIdSetIterator.NO_MORE_DOCS;
-            }
-
-            @Override
-            public int advance(int target) {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public long cost() {
-                return docValues.length;
-            }
-        };
     }
 
 }

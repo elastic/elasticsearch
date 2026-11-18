@@ -188,16 +188,18 @@ public final class EscfBatchScatterer implements Releasable {
 
     /**
      * Scatters a LONG or DOUBLE column. Both store raw 64-bit LE words, so they share a loop via
-     * {@link EscfColumnBuilder#setRawFixed64} with no decode/re-encode.
+     * {@link EscfColumnBuilder#setRawFixed64} with no decode/re-encode; and a DOUBLE value's stored spelling, if any.
      */
     private void scatterFixed64(EscfColumn col, int[] partitionIds, int docCount, int[] destRow) {
         byte kind = col.kind();
+        EscfDoubleColumn doubles = col instanceof EscfDoubleColumn d ? d : null;
         var cursor = col.longCursor();
         int nextPresentDoc = cursor.nextDoc();
         for (int row = 0; row < docCount; row++) {
             int p = partitionIds[row];
             if (row == nextPresentDoc) {
-                builders[p].setRawFixed64(destRow[p], kind, cursor.longValue());
+                BytesRef lexicalForm = doubles == null ? null : doubles.lexicalForm(row);
+                builders[p].setRawFixed64(destRow[p], kind, cursor.longValue(), lexicalForm);
                 nextPresentDoc = cursor.nextDoc();
             }
             // Absent rows: fillGapTo in finish() will back-fill.
@@ -307,10 +309,10 @@ public final class EscfBatchScatterer implements Releasable {
     }
 
     private void releaseInFlight() {
-        // discard() on a builder is idempotent after finish() (the stream is already moved/nulled).
+        // close() on a builder is a no-op after finish(), which moved the buffers into the column data.
         for (int p = 0; p < builders.length; p++) {
             if (builders[p] != null) {
-                builders[p].discard();
+                builders[p].close();
                 builders[p] = null;
             }
         }

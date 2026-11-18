@@ -44,6 +44,7 @@ import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
@@ -135,6 +136,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             builder,
             false
         );
+
         assertTermQueryWithBinaryDocValues(ft);
     }
 
@@ -388,7 +390,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             true
         );
         assertEquals(
-            ScanningBinaryDocValuesAutomatonQuery.forWildcard("field", "foo*", false, SEPARATE_COUNT),
+            ScanningBinaryDocValuesAutomatonQuery.forWildcard("field", "foo*", false, SEPARATE_COUNT, NoopCircuitBreaker.INSTANCE),
             ft.wildcardQuery("foo*", null, MOCK_CONTEXT)
         );
     }
@@ -456,19 +458,16 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testRegexpQueryDocValuesOnlyCaseInsensitive() {
-        // SortedSet DV → RegexpQuery with DOC_VALUES_REWRITE and ASCII_CASE_INSENSITIVE matchFlag
+        // SortedSet DV → RegexpQuery with DOC_VALUES_REWRITE and CASE_INSENSITIVE matchFlag
         MappedFieldType ft = new KeywordFieldType("field", false, true, Map.of());
-        Query q = ft.regexpQuery("foo.*", 0, RegExp.ASCII_CASE_INSENSITIVE, 10, null, MOCK_CONTEXT);
+        Query q = ft.regexpQuery("foo.*", 0, RegExp.CASE_INSENSITIVE, 10, null, MOCK_CONTEXT);
         assertThat(q, instanceOf(RegexpQuery.class));
         assertEquals(MultiTermQuery.DOC_VALUES_REWRITE, ((RegexpQuery) q).getRewriteMethod());
 
         // Binary DV → ScanningBinaryDocValuesRegexpQuery, which handles matchFlags via RegExp(pattern, syntaxFlags, matchFlags)
         MappedFieldType binaryFt = new KeywordFieldType("field", false, true, true, Map.of());
-        q = binaryFt.regexpQuery("foo.*", 0, RegExp.ASCII_CASE_INSENSITIVE, 10, null, MOCK_CONTEXT);
-        assertEquals(
-            new ScanningBinaryDocValuesRegexpQuery("field", "foo.*", 0, RegExp.ASCII_CASE_INSENSITIVE, 10, SEPARATE_COUNT, null),
-            q
-        );
+        q = binaryFt.regexpQuery("foo.*", 0, RegExp.CASE_INSENSITIVE, 10, null, MOCK_CONTEXT);
+        assertEquals(new ScanningBinaryDocValuesRegexpQuery("field", "foo.*", 0, RegExp.CASE_INSENSITIVE, 10, SEPARATE_COUNT, null), q);
     }
 
     public void testAutomatonQuery() {
@@ -553,6 +552,57 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             )
         );
         assertEquals("[fuzzy] queries cannot be executed when 'search.allow_expensive_queries' is set to false.", ee.getMessage());
+    }
+
+    public void testFuzzyQueryHighCardinality() {
+        KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder("field", defaultIndexSettings());
+        builder.docValues(FieldMapper.DocValuesParameter.Values.Cardinality.HIGH);
+        MappedFieldType ft = new KeywordFieldType(
+            "field",
+            IndexType.docValuesOnly(),
+            TextSearchInfo.SIMPLE_MATCH_ONLY,
+            null,
+            builder,
+            true
+        );
+        assertEquals(
+            ScanningBinaryDocValuesAutomatonQuery.forFuzzy("field", "foo", 2, 1, true, SEPARATE_COUNT),
+            ft.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, MOCK_CONTEXT)
+        );
+    }
+
+    public void testTermQueryCaseInsensitiveHighCardinality() {
+        KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder("field", defaultIndexSettings());
+        builder.docValues(FieldMapper.DocValuesParameter.Values.Cardinality.HIGH);
+        MappedFieldType ft = new KeywordFieldType(
+            "field",
+            IndexType.docValuesOnly(),
+            TextSearchInfo.SIMPLE_MATCH_ONLY,
+            null,
+            builder,
+            true
+        );
+        assertEquals(
+            ScanningBinaryDocValuesAutomatonQuery.forCaseInsensitiveTerm("field", "Foo", SEPARATE_COUNT),
+            ft.termQueryCaseInsensitive("Foo", MOCK_CONTEXT)
+        );
+    }
+
+    public void testWildcardQueryCaseInsensitiveHighCardinality() {
+        KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder("field", defaultIndexSettings());
+        builder.docValues(FieldMapper.DocValuesParameter.Values.Cardinality.HIGH);
+        MappedFieldType ft = new KeywordFieldType(
+            "field",
+            IndexType.docValuesOnly(),
+            TextSearchInfo.SIMPLE_MATCH_ONLY,
+            null,
+            builder,
+            true
+        );
+        assertEquals(
+            ScanningBinaryDocValuesAutomatonQuery.forWildcard("field", "foo*", true, SEPARATE_COUNT, NoopCircuitBreaker.INSTANCE),
+            ft.wildcardQuery("foo*", null, true, MOCK_CONTEXT)
+        );
     }
 
     public void testNormalizeQueries() {

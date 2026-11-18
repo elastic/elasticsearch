@@ -59,7 +59,7 @@ public class ElasticsearchOtelAppender extends AbstractAppender {
     private static final String MESSAGE_KEY = "message";
     private static final String TRACE_ID_KEY = "trace.id";
 
-    private volatile OpenTelemetry openTelemetry;
+    private final OpenTelemetry openTelemetry;
     /**
      * Optional message filter which can modify or discard log events.
      */
@@ -90,7 +90,7 @@ public class ElasticsearchOtelAppender extends AbstractAppender {
 
     /**
      * @param name          appender name used by the log4j configuration graph
-     * @param openTelemetry initial OTel instance; may be updated atomically via {@link #setOpenTelemetry}
+     * @param openTelemetry OTel instance to emit to
      * @param filter        optional filter applied before emitting each event; {@code null} means no filtering
      */
     public ElasticsearchOtelAppender(String name, OpenTelemetry openTelemetry, @Nullable TelemetryLogEventFilter filter) {
@@ -98,14 +98,6 @@ public class ElasticsearchOtelAppender extends AbstractAppender {
         Objects.requireNonNull(openTelemetry, "openTelemetry is null");
         this.openTelemetry = openTelemetry;
         this.filter = filter;
-    }
-
-    /**
-     * Hot-swap the OTel instance. Safe to call concurrently with {@link #append}.
-     */
-    public void setOpenTelemetry(OpenTelemetry openTelemetry) {
-        Objects.requireNonNull(openTelemetry, "openTelemetry is null");
-        this.openTelemetry = openTelemetry;
     }
 
     @Override

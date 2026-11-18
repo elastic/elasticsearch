@@ -154,6 +154,7 @@ public class TimeSeriesAggregatorTests extends AggregationTestCase {
                 new NumberFieldMapper.NumberFieldType("val1", NumberFieldMapper.NumberType.INTEGER)
             ).withQuery(Queries.ALL_DOCS_INSTANCE)
         );
+        assertWarnings(TimeSeriesAggregationBuilder.DEPRECATION_MESSAGE);
     }
 
     public void testMultiBucketAggregationAsSubAggregation() throws IOException {
@@ -273,6 +274,7 @@ public class TimeSeriesAggregatorTests extends AggregationTestCase {
         System.arraycopy(fieldTypes, 0, newFieldTypes, 2, fieldTypes.length);
 
         testCase(buildIndex, verify, new AggTestConfig(builder, newFieldTypes).withQuery(query));
+        assertWarnings(TimeSeriesAggregationBuilder.DEPRECATION_MESSAGE);
     }
 
 }

@@ -46,6 +46,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.IntFunction;
 
@@ -277,6 +278,26 @@ public abstract class StreamOutput extends OutputStream {
         final byte[] buffer = StreamOutputHelper.getThreadLocalScratchBuffer();
         ByteUtils.writeLongLE(i, buffer, 0);
         writeBytes(buffer, 0, 8);
+    }
+
+    /**
+     * Writes {@code length} ints from {@code values} starting at {@code offset}, each as four bytes, least significant bytes first.
+     */
+    public void writeIntsLE(int[] values, int offset, int length) throws IOException {
+        Objects.checkFromIndexSize(offset, length, values.length);
+        for (int i = offset; i < offset + length; i++) {
+            writeIntLE(values[i]);
+        }
+    }
+
+    /**
+     * Writes {@code length} longs from {@code values} starting at {@code offset}, each as eight bytes, least significant bytes first.
+     */
+    public void writeLongsLE(long[] values, int offset, int length) throws IOException {
+        Objects.checkFromIndexSize(offset, length, values.length);
+        for (int i = offset; i < offset + length; i++) {
+            writeLongLE(values[i]);
+        }
     }
 
     /**

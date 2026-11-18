@@ -206,7 +206,6 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
      * After the task is removed from cluster state (successfully or already absent), that manager invokes
      * {@link #deleteGeoIpDatabasesIndex} to drop the {@code .geoip_databases} index when appropriate.
      */
-    @FixForMultiProject(description = "Make sure removed project tasks are cancelled: https://elasticco.atlassian.net/browse/ES-12054")
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         if (event.state().nodes().getMasterNode() == null || event.state().clusterRecovered() == false) {

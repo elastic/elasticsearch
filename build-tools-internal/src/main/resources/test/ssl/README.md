@@ -1,6 +1,6 @@
 This directory contains test certificates used for testing ssl handling.
 
-These keystores and certificates can be used via applying the `elasticsearch.test-with-ssl` plugin.
+These keystores and certificates are used by the internal REST/cluster test build logic.
 
 The generated certificates are valid till 05. Jun 2030.
 

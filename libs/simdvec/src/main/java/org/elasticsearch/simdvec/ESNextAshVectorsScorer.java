@@ -60,6 +60,20 @@ public final class ESNextAshVectorsScorer {
             }
         }
 
+        @Override
+        public void scoreBulkMasked(float[] queryTransformed, int mask, float[] scores, int blockSize) throws IOException {
+            float sum = ESVectorUtil.sum(queryTransformed, nDims);
+            int numLevels = 1 << bitsPerDim;
+            float centerOffset = (numLevels - 1) / 2.0f;
+            for (int j = 0; j < blockSize; j++) {
+                if (BulkMask.isSelected(mask, j)) {
+                    scores[j] = scoreFloatSingle(queryTransformed, sum, centerOffset);
+                } else {
+                    in.skipBytes((long) bitsPerDim * planeBytes);
+                }
+            }
+        }
+
         private float scoreFloatSingle(float[] queryTransformed, float querySum, float centerOffset) throws IOException {
             float dot = -centerOffset * querySum;
             for (int p = 0; p < bitsPerDim; p++) {

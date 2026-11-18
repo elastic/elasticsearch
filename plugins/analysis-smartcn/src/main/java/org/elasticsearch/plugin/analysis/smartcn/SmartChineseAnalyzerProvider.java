@@ -29,4 +29,9 @@ public class SmartChineseAnalyzerProvider extends AbstractIndexAnalyzerProvider<
     public SmartChineseAnalyzer get() {
         return this.analyzer;
     }
+
+    @Override
+    public Object sharingKey() {
+        return getClass();
+    }
 }

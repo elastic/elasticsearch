@@ -7,13 +7,13 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
-import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 
 import java.util.HashSet;
@@ -31,47 +31,51 @@ import java.util.Set;
  * {@code INLINESTATS} never benefit from the eager global aggregation and must not pay its
  * per-file footer-read cost.
  *
- * <p>The result of {@link #pathsRequiringEagerStats(LogicalPlan)} is used by
+ * <p>The result of {@link #specsRequiringEagerStats(LogicalPlan)} is used by
  * {@code ExternalSourceResolver} to gate the FIRST_FILE_WINS eager all-file stats aggregation: a
- * path absent from the set defers the N footer reads (keeping {@code STATS_FILE_COUNT}, marking
+ * spec absent from the set defers the N footer reads (keeping {@code STATS_FILE_COUNT}, marking
  * stats partial), so wide globs no longer block planning on thousands of object-store GETs for
  * queries that do not consume the global stats (e.g. {@code LIMIT}, {@code SELECT *}, grouped
  * {@code STATS ... BY}, {@code INLINESTATS}).
  *
- * <h2>Deliberate safety bias</h2>
- * An ungrouped aggregate is matched <em>anywhere above</em> the relation, not only as its direct
- * parent. A false <em>negative</em> would turn a metadata-only {@code COUNT(*)} over a huge glob
- * into a full N-file scan (a severe regression); a false <em>positive</em> (e.g.
- * {@code ... | WHERE x > 5 | STATS COUNT(*)}, which usually will not actually skip split discovery)
- * only costs the over-read we already tolerate today. We bias toward eager for ungrouped aggregates.
+ * <h2>Blocking nodes between STATS and the relation</h2>
+ * Eager harvest only helps when skip-discovery can fire: ungrouped {@code STATS} whose walk down
+ * to the relation hits no {@link Filter}, {@link Limit}, or {@link Sample}. Those nodes already
+ * make {@code canSkipSplitDiscovery} false, so harvesting every footer in Phase 1 is wasted
+ * (hive/VPC {@code WHERE} especially). {@code KEEP}/{@code DROP}/{@code RENAME}/{@code Project}/
+ * {@code Eval} stay non-blocking ({@code PruneColumns} strips unused KEEP for {@code COUNT(*)}).
  *
- * <h2>Per-path conservatism for mixed branches</h2>
- * The result is a {@link Set}: if the same path appears under an ungrouped aggregate in one branch
- * (e.g. a {@code FORK} arm) and under {@code LIMIT} in another, the union marks it as requiring eager
- * stats. The single resolution of that path stays eager, which is correct because one resolution
- * feeds both branches.
+ * <p>A node <em>above</em> the aggregate (e.g. {@code STATS COUNT(*) | LIMIT}) does not sit on the
+ * aggregate-to-relation path and does not block. Remaining risk is a false <em>negative</em>
+ * (defer when skip-discovery could still have fired); over-reading every file for Filter/Limit
+ * is no longer the bias.
+ *
+ * <h2>Per-spec conservatism for mixed branches</h2>
+ * Keyed by {@link ExternalSourceSpec}, as resolution is. Within one spec the result is still a union — a spec under
+ * an ungrouped aggregate in one branch (a {@code FORK} arm, say) and under {@code LIMIT} in another stays eager —
+ * which never makes a spec less eager than its own branch needs.
  */
 public final class ExternalStatsRequirementExtractor {
 
     private ExternalStatsRequirementExtractor() {}
 
     /**
-     * Returns the literal {@code tablePath} of every {@link UnresolvedExternalRelation} that has an
-     * <b>ungrouped</b> {@link Aggregate} ancestor. The path-key derivation is identical to
-     * {@code PreAnalyzer} and {@code EsqlSession#extractExternalConfigs}
-     * ({@code BytesRefs.toString(literal.value())}), so the keys match the resolver's
-     * {@code icebergPaths} by construction.
+     * Returns every {@link UnresolvedExternalRelation} that has an <b>ungrouped</b> {@link Aggregate}
+     * ancestor with no {@link Filter}, {@link Limit}, or {@link Sample} on the walk from that aggregate
+     * down to the relation, as the spec it denotes. The derivation is {@link ExternalSourceSpec#ofOrNull},
+     * which is also what {@code EsqlSession#extractExternalSourceSpecs} uses, so every spec here is one
+     * the session derives too -- a relation the two disagreed about would carry a demand nothing claims.
      *
      * @param unresolvedPlan the root of the unresolved logical plan
-     * @return the set of literal path strings whose resolution must eagerly aggregate global stats
+     * @return the specs whose resolution must eagerly aggregate global stats
      */
-    public static Set<String> pathsRequiringEagerStats(LogicalPlan unresolvedPlan) {
-        Set<String> result = new HashSet<>();
+    public static Set<ExternalSourceSpec> specsRequiringEagerStats(LogicalPlan unresolvedPlan) {
+        Set<ExternalSourceSpec> result = new HashSet<>();
         collect(unresolvedPlan, false, result);
         return result;
     }
 
-    private static void collect(Node<?> node, boolean ungroupedAggAbove, Set<String> result) {
+    private static void collect(Node<?> node, boolean ungroupedAggAbove, Set<ExternalSourceSpec> result) {
         // INLINESTATS wraps its embedded Aggregate as its child (UnaryPlan child). That embedded
         // aggregate produces an InlineJoin, not the ungrouped-aggregate metadata fast path, so it
         // must not flip the flag — skip the Aggregate node and walk below it with the flag unchanged.
@@ -86,11 +90,17 @@ public final class ExternalStatsRequirementExtractor {
             ungroupedAggAbove = true;
         }
 
+        // Filter/Limit/Sample between an ungrouped STATS and the relation already prevent
+        // skip-discovery; do not harvest every footer for a path that will still run discovery.
+        if (blocksEagerHarvest(node)) {
+            ungroupedAggAbove = false;
+        }
+
         if (node instanceof UnresolvedExternalRelation relation) {
             if (ungroupedAggAbove) {
-                String path = extractPath(relation);
-                if (path != null) {
-                    result.add(path);
+                ExternalSourceSpec spec = ExternalSourceSpec.ofOrNull(relation);
+                if (spec != null) {
+                    result.add(spec);
                 }
             }
             return; // leaf: no children below a relation
@@ -102,20 +112,12 @@ public final class ExternalStatsRequirementExtractor {
     }
 
     /**
-     * Path-key derivation kept in lockstep with {@code PreAnalyzer#icebergPaths} and
-     * {@code EsqlSession#extractExternalConfigs}: a non-null {@link Literal} {@code tablePath}
-     * rendered via {@code BytesRefs.toString}. Returns {@code null} for a non-literal {@code tablePath}
-     * so detection never throws; that path is then absent from the set and, since the resolver
-     * receives a non-null set, would <em>defer</em> rather than aggregate eagerly. In practice this
-     * branch is unreachable: {@code EsqlSession#extractExternalConfigs} runs first on the same plan
-     * and throws on a non-literal {@code tablePath}, so resolution never reaches a path this method
-     * could fail to key.
+     * Nodes that sit between an ungrouped aggregate and the relation and already make the
+     * metadata-only skip-discovery path ineligible. {@code KEEP}/{@code DROP}/{@code RENAME}/
+     * {@code Project}/{@code Eval} are deliberately not listed.
      */
-    private static String extractPath(UnresolvedExternalRelation relation) {
-        Expression tablePath = relation.tablePath();
-        if (tablePath instanceof Literal literal && literal.value() != null) {
-            return BytesRefs.toString(literal.value());
-        }
-        return null;
+    private static boolean blocksEagerHarvest(Node<?> node) {
+        return node instanceof Filter || node instanceof Limit || node instanceof Sample;
     }
+
 }

@@ -24,6 +24,9 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DocBlock;
+import org.elasticsearch.compute.data.DocOrigin;
+import org.elasticsearch.compute.data.DocOrigins;
+import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -40,6 +43,7 @@ import org.elasticsearch.compute.operator.topn.TopNOperator.InputOrdering;
 import org.elasticsearch.compute.test.AbstractTypedBlockSourceOperator;
 import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.RandomBlock;
 import org.elasticsearch.compute.test.TestBlockBuilder;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.compute.test.TestDriverFactory;
@@ -65,6 +69,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -2637,6 +2642,176 @@ public class TopNOperatorTests extends OperatorTestCase {
         }
 
         return new RandomBlocksResult(expectedValues, blocks, validSortKeys, elementTypes, encoders);
+    }
+
+    /**
+     * Like {@link #testSplitOnSize} for detached documents, with rows from many origins, so the origin dictionaries
+     * dominate the size of each output page. No page goes past {@code jumboPageBytes} by more than one row.
+     */
+    public void testSplitOnSizeWithDetachedDocs() {
+        DriverContext driverContext = driverContext();
+        BlockFactory blockFactory = driverContext.blockFactory();
+        var layout = ChannelLayout.forDataColumns(2, groupKeys());
+        int inputPageRows = 20;
+        int inputPageCount = 10;
+        int rowCount = inputPageRows * inputPageCount;
+        List<DocOrigin> origins = RandomBlock.randomDocOrigins(rowCount);
+        long jumboPageBytes = ByteSizeValue.ofKb(between(16, 64)).getBytes();
+        long maxOriginBytes = origins.stream().mapToLong(DocOrigin::ramBytesUsed).max().orElseThrow();
+        // a page stops at the first row past the limit, which brings its origin and some block overhead
+        long maxPageSize = jumboPageBytes + maxOriginBytes + 1000;
+        DetachedDocColumns columns = DetachedDocColumns.of(layout);
+        try (
+            Operator op = createTopNOperatorFactory(
+                rowCount,
+                columns.elementTypes(),
+                columns.encoders(),
+                List.of(new TopNOperator.SortOrder(layout.dataChannel(0), randomBoolean(), randomBoolean())),
+                groupKeys(),
+                Integer.MAX_VALUE,
+                jumboPageBytes,
+                InputOrdering.NOT_SORTED,
+                null
+            ).get(driverContext)
+        ) {
+            for (int p = 0; p < inputPageCount; p++) {
+                List<DocOrigin> pageOrigins = origins.subList(p * inputPageRows, (p + 1) * inputPageRows);
+                try (
+                    LongBlock.Builder keyColumn = blockFactory.newLongBlockBuilder(inputPageRows);
+                    DocBlock.Builder docColumn = DocBlock.newBlockBuilder(blockFactory, inputPageRows)
+                ) {
+                    for (int r = 0; r < inputPageRows; r++) {
+                        keyColumn.appendLong(randomLong());
+                        // every row has an origin of its own, so the dictionaries are most of each output page
+                        docColumn.appendShard(r).appendSegment(between(0, 3)).appendDoc(between(0, 1000));
+                    }
+                    DocVector.Config config = DocVector.config().origins(DocOrigins.of(pageOrigins)).mayContainDuplicates();
+                    op.addInput(new Page(layout.buildPageBlocks(inputPageRows, blockFactory, keyColumn.build(), docColumn.build(config))));
+                }
+            }
+            op.finish();
+            int totalPositions = 0;
+            while (op.isFinished() == false) {
+                try (Page out = op.getOutput()) {
+                    totalPositions += out.getPositionCount();
+                    assertThat(out.ramBytesUsedByBlocks(), lessThanOrEqualTo(maxPageSize));
+                }
+            }
+            assertThat(totalPositions, equalTo(rowCount));
+        }
+    }
+
+    /**
+     * Documents that left their nodes keep their origins through the TopN, though each page numbers its origins in its own
+     * way. Each output page only names the origins its own rows reference.
+     */
+    public void testDetachedDocsFromManyOrigins() {
+        DriverContext driverContext = driverContext();
+        BlockFactory blockFactory = driverContext.blockFactory();
+        var layout = ChannelLayout.forDataColumns(2, groupKeys());
+        List<DocOrigin> origins = RandomBlock.randomDocOrigins(4);
+        // distinct keys, so the winners don't depend on how ties break
+        List<Long> keys = new ArrayList<>();
+        for (long k = 0; k < 400; k++) {
+            keys.add(k);
+        }
+        Collections.shuffle(keys, random());
+        List<Tuple<Long, BlockUtils.DetachedDoc>> rows = new ArrayList<>();
+        List<Page> pages = new ArrayList<>();
+        int next = 0;
+        while (next < keys.size()) {
+            int positions = Math.min(between(1, 50), keys.size() - next);
+            List<DocOrigin> pageOrigins = new ArrayList<>(randomSubsetOf(between(1, origins.size()), origins));
+            Collections.shuffle(pageOrigins, random());
+            try (
+                LongBlock.Builder keyColumn = blockFactory.newLongBlockBuilder(positions);
+                DocBlock.Builder docColumn = DocBlock.newBlockBuilder(blockFactory, positions)
+            ) {
+                for (int p = 0; p < positions; p++) {
+                    long key = keys.get(next++);
+                    int ordinal = between(0, pageOrigins.size() - 1);
+                    int segment = between(0, 3);
+                    int doc = between(0, 1000);
+                    keyColumn.appendLong(key);
+                    docColumn.appendShard(ordinal).appendSegment(segment).appendDoc(doc);
+                    rows.add(tuple(key, new BlockUtils.DetachedDoc(pageOrigins.get(ordinal), segment, doc)));
+                }
+                DocVector.Config config = DocVector.config().origins(DocOrigins.of(pageOrigins)).mayContainDuplicates();
+                pages.add(new Page(layout.buildPageBlocks(positions, blockFactory, keyColumn.build(), docColumn.build(config))));
+            }
+        }
+        int topCount = between(1, rows.size());
+
+        List<Tuple<Long, BlockUtils.DetachedDoc>> actual = new ArrayList<>();
+        DetachedDocColumns columns = DetachedDocColumns.of(layout);
+        try (
+            Driver driver = TestDriverFactory.create(
+                driverContext,
+                new CannedSourceOperator(pages.iterator()),
+                List.of(
+                    createTopNOperatorFactory(
+                        topCount,
+                        columns.elementTypes(),
+                        columns.encoders(),
+                        List.of(new TopNOperator.SortOrder(layout.dataChannel(0), true, false)),
+                        groupKeys(),
+                        randomPageSize(),
+                        randomJumboPageBytes(),
+                        InputOrdering.NOT_SORTED,
+                        null
+                    ).get(driverContext)
+                ),
+                new PageConsumerOperator(page -> {
+                    try {
+                        LongBlock keyColumn = page.getBlock(layout.dataChannel(0));
+                        DocBlock docColumn = page.getBlock(layout.dataChannel(1));
+                        Set<DocOrigin> referenced = new HashSet<>();
+                        for (int p = 0; p < page.getPositionCount(); p++) {
+                            BlockUtils.DetachedDoc doc = (BlockUtils.DetachedDoc) toJavaObject(docColumn, p);
+                            referenced.add(doc.origin());
+                            actual.add(tuple(keyColumn.getLong(p), doc));
+                        }
+                        assertThat(
+                            "the page names only its own origins",
+                            docColumn.asVector().origins().size(),
+                            equalTo(referenced.size())
+                        );
+                    } finally {
+                        page.releaseBlocks();
+                    }
+                })
+            )
+        ) {
+            new TestDriverRunner().run(driver);
+        }
+
+        rows.sort(Comparator.comparing(Tuple::v1));
+        actual.sort(Comparator.comparing(Tuple::v1));
+        assertThat(actual, equalTo(rows.subList(0, topCount)));
+    }
+
+    /**
+     * The columns of the detached document tests: the group keys of the layout, a sortable {@code long} key in the
+     * first data channel and detached documents in the second.
+     */
+    private record DetachedDocColumns(List<ElementType> elementTypes, List<TopNEncoder> encoders) {
+        static DetachedDocColumns of(ChannelLayout layout) {
+            List<ElementType> elementTypes = new ArrayList<>();
+            List<TopNEncoder> encoders = new ArrayList<>();
+            for (int ch = 0; ch < layout.totalChannels(); ch++) {
+                if (layout.groupKeySet().contains(ch)) {
+                    elementTypes.add(INT);
+                    encoders.add(DEFAULT_UNSORTABLE);
+                } else if (ch == layout.dataChannel(0)) {
+                    elementTypes.add(LONG);
+                    encoders.add(DEFAULT_SORTABLE);
+                } else {
+                    elementTypes.add(ElementType.DOC);
+                    encoders.add(DocVectorEncoder.detached());
+                }
+            }
+            return new DetachedDocColumns(elementTypes, encoders);
+        }
     }
 
     /**

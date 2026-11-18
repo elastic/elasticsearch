@@ -1,0 +1,6 @@
+area: Columnar
+issues:
+ - 164688
+pr: 164762
+summary: Fix `seq_no` check for 9.5 columnar backing indices
+type: bug

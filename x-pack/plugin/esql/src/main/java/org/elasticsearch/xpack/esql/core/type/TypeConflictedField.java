@@ -44,10 +44,12 @@ public abstract sealed class TypeConflictedField extends EsField permits Invalid
     private String cachedErrorMessage;
 
     public String errorMessage() {
-        if (cachedErrorMessage == null) {
-            cachedErrorMessage = makeErrorMessage();
+        String errorMessage = cachedErrorMessage;
+        if (errorMessage == null) {
+            errorMessage = makeErrorMessage();
+            cachedErrorMessage = errorMessage;
         }
-        return cachedErrorMessage;
+        return errorMessage;
     }
 
     /**
@@ -84,7 +86,7 @@ public abstract sealed class TypeConflictedField extends EsField permits Invalid
 
     /**
      * The single mapped type widened to its ES|QL surface type (e.g. {@code SHORT -> INTEGER}), so the implicit load matches an
-     * explicit cast and agrees with the Fork/UnionAll output. Only valid when {@link #isSingleTypePotentiallyUnmapped()}.
+     * explicit cast and agrees with the {@code MergePlan} output. Only valid when {@link #isSingleTypePotentiallyUnmapped()}.
      */
     public DataType singleMappedTypeWidened() {
         return singleMappedType().widenSmallNumeric();

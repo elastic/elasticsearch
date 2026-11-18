@@ -214,4 +214,37 @@ public class GlobMatcherTests extends ESTestCase {
             assertFalse(m.matches("a/b/c/y.csv"));
         }
     }
+
+    /**
+     * A directory is worth descending into when the pattern matches it at its own depth, and is not when it does
+     * not. This is what keeps the prefix fan-out's cost a property of the glob: a sibling partition folder the
+     * pattern excludes holds nothing addressable at any depth, so it earns no request.
+     */
+    public void testCouldContainMatchAtTheDirectorysOwnDepth() {
+        GlobMatcher m = new GlobMatcher("date=2024-01-0*/*.csv");
+        assertTrue(m.couldContainMatch("date=2024-01-05"));
+        assertFalse("a sibling the first segment excludes is unreachable however deep it goes", m.couldContainMatch("date=2023-07-01"));
+        // The pattern is exhausted but the directory goes deeper, so no key under it is addressable.
+        assertFalse(m.couldContainMatch("date=2024-01-05/hour=03"));
+        // The root itself always could: it is the prefix every match sits under.
+        assertTrue(m.couldContainMatch(""));
+    }
+
+    /** A globstar makes every remaining depth possible, so nothing below one may be skipped. */
+    public void testCouldContainMatchIsTrueUnderAGlobstar() {
+        GlobMatcher m = new GlobMatcher("**/*.parquet");
+        assertTrue(m.couldContainMatch("anything"));
+        assertTrue(m.couldContainMatch("a/b/c/d"));
+    }
+
+    /**
+     * The predicate permits looking, it does not promise a match: a folder whose name matches the first segment
+     * holds nothing the pattern matches unless a file inside it matches the last. Pruning on anything stronger
+     * would drop files rather than requests.
+     */
+    public void testCouldContainMatchIsNotAPromiseOfAMatch() {
+        GlobMatcher m = new GlobMatcher("date=2024-01-0*/*.csv");
+        assertTrue(m.couldContainMatch("date=2024-01-09"));
+        assertFalse(m.matches("date=2024-01-09/part.parquet"));
+    }
 }

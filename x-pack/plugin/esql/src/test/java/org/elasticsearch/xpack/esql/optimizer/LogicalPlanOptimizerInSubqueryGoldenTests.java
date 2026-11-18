@@ -36,10 +36,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
 
     private static final EnumSet<Stage> STAGES = EnumSet.of(Stage.ANALYSIS, Stage.LOGICAL_OPTIMIZATION);
 
-    private static void requireMultiColumnInSubquerySupport() {
-        assumeTrue("Requires multi-column IN subquery support", EsqlCapabilities.Cap.WHERE_IN_MULTI_COLUMN_SUBQUERY.isEnabled());
-    }
-
     public void testDisjunctiveInSubqueryAtTopLevel() {
         runGoldenTest("""
             FROM employees
@@ -627,7 +623,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     // -- multi-column IN / NOT IN subqueries: WHERE (field1, field2) IN (subquery) --
 
     public void testMultiColumnInSubqueryAtTopLevel() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | WHERE (emp_no, languages) IN (FROM employees | KEEP emp_no, languages)
@@ -635,7 +630,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testMultiColumnNotInSubqueryAtTopLevel() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | WHERE (emp_no, languages) NOT IN (FROM employees | KEEP emp_no, languages)
@@ -643,7 +637,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testDisjunctiveMultiColumnInSubqueryAtTopLevel() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | WHERE (emp_no, languages) IN (FROM employees | KEEP emp_no, languages) OR salary > 50000
@@ -651,7 +644,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testDisjunctiveMultiColumnInSubqueryInsideFromSubquery() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees,
                  (FROM employees | WHERE (emp_no, languages) IN (FROM employees | KEEP emp_no, languages) OR salary > 50000 | KEEP emp_no)
@@ -659,7 +651,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testDisjunctiveMultiColumnNotInSubqueryInsideFromSubquery() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees,
                  (FROM employees
@@ -669,7 +660,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testNestedDisjunctiveMultiColumnInSubqueries() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | WHERE (emp_no, languages) IN (
@@ -681,7 +671,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testDisjunctiveMultiColumnInSubqueryWithFork() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | WHERE (emp_no, languages) IN (FROM employees | KEEP emp_no, languages) OR salary > 50000
@@ -690,7 +679,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testSortWithLimitInMultiColumnInSubqueryIsAllowed() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | WHERE (emp_no, languages) IN (FROM employees | SORT emp_no | LIMIT 5 | KEEP emp_no, languages)
@@ -698,7 +686,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testStatsWithSortLimitInMultiColumnInSubquery() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | WHERE (emp_no, languages) IN (FROM employees | STATS m = MAX(emp_no) BY languages | SORT m | LIMIT 3 | KEEP m, languages)
@@ -706,7 +693,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testMultipleFiltersInMultiColumnInSubqueryCombined() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | WHERE (emp_no, languages) IN (FROM employees | WHERE salary > 50000 | WHERE languages > 2 | KEEP emp_no, languages)
@@ -714,7 +700,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testCombineDisjunctionsInsideMultiColumnInSubquery() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | WHERE (emp_no, languages) IN (FROM employees | WHERE salary == 50000 or salary == 10000 | KEEP emp_no, languages)
@@ -722,7 +707,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testMultiColumnInSubqueryReferencingView() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | WHERE (emp_no, languages) IN (FROM emps_view)
@@ -731,7 +715,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testMultiColumnNotInSubqueryReferencingView() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | WHERE (emp_no, languages) NOT IN (FROM emps_view)
@@ -742,7 +725,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     // -- multi-column IN subquery inside CASE, COALESCE, IS [NOT] NULL in WHERE --
 
     public void testMultiColumnInSubqueryInCase() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | WHERE CASE((emp_no, languages) IN (FROM employees | KEEP emp_no, languages), true, false)
@@ -750,7 +732,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testMultiColumnNotInSubqueryInCase() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | WHERE CASE((emp_no, languages) NOT IN (FROM employees | KEEP emp_no, languages), true, false)
@@ -758,7 +739,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testMultiColumnInSubqueryInCoalesce() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | WHERE COALESCE((emp_no, languages) IN (FROM employees | KEEP emp_no, languages), false)
@@ -766,7 +746,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testMultiColumnInSubqueryInIsNotNull() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | WHERE ((emp_no, languages) IN (FROM employees | KEEP emp_no, languages)) IS NOT NULL
@@ -774,7 +753,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testMultiColumnInSubqueryInIsNull() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | WHERE ((emp_no, languages) IN (FROM employees | KEEP emp_no, languages)) IS NULL
@@ -782,7 +760,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testMultiColumnInSubqueryNestedInCaseAndEquals() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | WHERE CASE((emp_no, languages) IN (FROM employees | KEEP emp_no, languages), "yes", "no") == "yes"
@@ -790,7 +767,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testMultiColumnInSubqueryNestedInCoalesceAndNotEquals() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | WHERE COALESCE((emp_no, languages) IN (FROM employees | KEEP emp_no, languages), false) != false
@@ -798,7 +774,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testComplexBooleanWithMultiColumnInSubqueryInExpressions() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | WHERE (salary > 50000 AND (((emp_no, languages) IN (FROM employees | KEEP emp_no, languages)) IS NULL))
@@ -807,7 +782,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testMultiColumnInSubqueryInEquals() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | WHERE ((emp_no, languages) IN (FROM employees | KEEP emp_no, languages)) == true
@@ -815,7 +789,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testMultiColumnInSubqueryInNotEquals() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | WHERE ((emp_no, languages) IN (FROM employees | KEEP emp_no, languages)) != false
@@ -823,7 +796,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testMultiColumnInSubqueryInEqualsInEval() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | EVAL m = ((emp_no, languages) IN (FROM employees | KEEP emp_no, languages)) == true
@@ -831,7 +803,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testMultiColumnInSubqueryInEqualsInStatsWhere() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | STATS cnt = COUNT(*) WHERE ((emp_no, languages) IN (FROM employees | KEEP emp_no, languages)) == true
@@ -839,7 +810,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testMultiColumnInSubqueryInEqualsInInlineStatsWhere() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | INLINE STATS cnt = COUNT(*) WHERE ((emp_no, languages) IN (FROM employees | KEEP emp_no, languages)) == true
@@ -847,7 +817,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testCaseWithSingleColumnInSubqueryEqualsCoalesceWithMultiColumnInSubquery() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | WHERE CASE(emp_no IN (FROM employees | KEEP emp_no), true, false)
@@ -1002,7 +971,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testMultiColumnInTsSubqueryInEval() {
-        requireMultiColumnInSubquerySupport();
         builder("""
             TS k8s
             | EVAL m = (pod, cluster) IN (TS k8s | STATS m = max(rate(network.total_bytes_in)) BY pod, cluster | KEEP pod, cluster)
@@ -1019,7 +987,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testMultiColumnInRowSubqueryInEval() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | EVAL m = (emp_no, languages) IN (ROW emp_no = 1, languages = 2)
@@ -1027,7 +994,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testMultiColumnInSubqueryNestedInCaseInEval() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | EVAL m = CASE((emp_no, languages) IN (FROM employees | KEEP emp_no, languages), true, false)
@@ -1035,7 +1001,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testMultiColumnInSubqueryNestedInCoalesceInEval() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | EVAL m = COALESCE((emp_no, languages) IN (FROM employees | KEEP emp_no, languages), false)
@@ -1043,7 +1008,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testMultiColumnInSubqueryNestedInIsNullInEval() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | EVAL m = ((emp_no, languages) IN (FROM employees | KEEP emp_no, languages)) IS NULL
@@ -1051,7 +1015,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testMultiColumnInSubqueryNestedInIsNotNullInEval() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | EVAL m = ((emp_no, languages) IN (FROM employees | KEEP emp_no, languages)) IS NOT NULL
@@ -1070,9 +1033,9 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
             """, STAGES);
     }
 
-    // -- EVAL IN subquery: name-collision flush --
+    // -- EVAL IN subquery: name-collision --
 
-    public void testInSubqueryInEvalNameCollisionFlushesInterveningAlias() {
+    public void testInSubqueryInEvalNameCollisionInterveningAlias() {
         assumeTrue("Requires IN subquery in EVAL support", EsqlCapabilities.Cap.EVAL_IN_SUBQUERY.isEnabled());
         runGoldenTest("""
             FROM employees
@@ -1285,7 +1248,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testStatsWhereMultiColumnRowInSubquery() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | STATS cnt = COUNT(*) WHERE (emp_no, salary) IN (ROW a = 1, b = 2 | KEEP a, b)
@@ -1293,7 +1255,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testStatsWhereMultiColumnTsInSubquery() {
-        requireMultiColumnInSubquerySupport();
         builder("""
             FROM employees
             | STATS cnt = COUNT(*) WHERE (emp_no, gender) IN (TS k8s
@@ -1304,7 +1265,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testStatsWhereInSubqueryInComplexNesting() {
-        requireMultiColumnInSubquerySupport();
         builder("""
             FROM employees
             | STATS count = COUNT(*) WHERE COALESCE(
@@ -1497,7 +1457,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testMultiColumnInSubqueryInInlineStatsWhereWithRow() {
-        requireMultiColumnInSubquerySupport();
         runGoldenTest("""
             FROM employees
             | INLINE STATS c = COUNT(*) WHERE (salary, languages) IN (ROW a = 1, b = 2 | KEEP a, b)
@@ -1542,5 +1501,400 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
             FROM employees
             | INLINE STATS c = COUNT(*) WHERE (emp_no IN (ROW a = 1 | KEEP a)) IS NOT NULL
             """, STAGES);
+    }
+
+    public void testForkMarkJoinUnmappedEvalNullifyDoesNotLeakMark() {
+        runGoldenTest("""
+            SET unmapped_fields="nullify";
+            FROM employees
+            | FORK
+                (WHERE emp_no IN (FROM employees | KEEP emp_no) OR false)
+                (WHERE first_name IN (FROM employees | KEEP first_name) OR false)
+            | EVAL y = does_not_exist_field
+            """, STAGES);
+    }
+
+    public void testForkMarkJoinUnmappedEvalLoadDoesNotLeakMark() {
+        runGoldenTest("""
+            SET unmapped_fields="load";
+            FROM employees
+            | FORK
+                (WHERE emp_no IN (FROM employees | KEEP emp_no) OR false)
+                (WHERE first_name IN (FROM employees | KEEP first_name) OR false)
+            | EVAL y = does_not_exist_field
+            """, STAGES);
+    }
+
+    public void testUnionAllMarkJoinUnmappedEvalNullifyDoesNotLeakMark() {
+        runGoldenTest("""
+            SET unmapped_fields="nullify";
+            FROM (FROM employees | WHERE emp_no IN (FROM employees | KEEP emp_no) OR false),
+                 (FROM employees | WHERE first_name IN (FROM employees | KEEP first_name) OR false)
+            | EVAL y = does_not_exist_field
+            """, STAGES);
+    }
+
+    public void testUnionAllMarkJoinUnmappedEvalLoadDoesNotLeakMark() {
+        runGoldenTest("""
+            SET unmapped_fields="load";
+            FROM (FROM employees | WHERE emp_no IN (FROM employees | KEEP emp_no) OR false),
+                 (FROM employees | WHERE first_name IN (FROM employees | KEEP first_name) OR false)
+            | EVAL y = does_not_exist_field
+            """, STAGES);
+    }
+
+    public void testForkFoldableLhsUnmappedEvalNullifyDoesNotLeakConst() {
+        runGoldenTest("""
+            SET unmapped_fields="nullify";
+            FROM employees
+            | FORK
+                (WHERE 10001 IN (ROW x = 10001) OR false)
+                (WHERE "Georgi" IN (ROW x = "Georgi") OR false)
+            | EVAL y = does_not_exist_field
+            """, STAGES);
+    }
+
+    // -- FORK inside an IN subquery, with a FORK in the host query before or after it: separate FORK scopes --
+
+    public void testForkInsideInSubqueryInWhere() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE emp_no IN (FROM employees
+                               | FORK (WHERE salary > 70000) (WHERE salary <= 70000)
+                               | KEEP emp_no)
+            """, STAGES);
+    }
+
+    public void testForkBeforeInSubqueryWithForkInWhere() {
+        runGoldenTest("""
+            FROM employees
+            | FORK (WHERE emp_no > 10000) (WHERE emp_no <= 10000)
+            | WHERE emp_no IN (FROM employees
+                               | FORK (WHERE salary > 70000) (WHERE salary <= 70000)
+                               | KEEP emp_no)
+            """, STAGES);
+    }
+
+    public void testForkAfterInSubqueryWithForkInWhere() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE emp_no IN (FROM employees | FORK (WHERE salary > 70000) (WHERE salary <= 70000) | KEEP emp_no)
+            | FORK (WHERE emp_no > 0) (WHERE emp_no <= 0)
+            """, STAGES);
+    }
+
+    public void testForkBranchWithInSubqueryWithForkInWhere() {
+        runGoldenTest("""
+            FROM employees
+            | FORK (WHERE emp_no IN (FROM employees
+                                     | FORK (WHERE salary > 70000) (WHERE salary <= 70000)
+                                     | KEEP emp_no)) (WHERE true)
+            """, STAGES);
+    }
+
+    public void testForkInsideInSubqueryNotInWhere() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE emp_no NOT IN (FROM employees | FORK (WHERE salary > 70000) (WHERE salary <= 70000) | KEEP emp_no)
+            """, STAGES);
+    }
+
+    public void testForkBeforeInSubqueryWithForkNotInWhere() {
+        runGoldenTest("""
+            FROM employees
+            | FORK (WHERE emp_no > 10000) (WHERE emp_no <= 10000)
+            | WHERE emp_no NOT IN (FROM employees | FORK (WHERE salary > 70000) (WHERE salary <= 70000) | KEEP emp_no)
+            """, STAGES);
+    }
+
+    public void testForkAfterInSubqueryWithForkNotInWhere() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE emp_no NOT IN (FROM employees | FORK (WHERE salary > 70000) (WHERE salary <= 70000) | KEEP emp_no)
+            | FORK (WHERE emp_no > 0) (WHERE emp_no <= 0)
+            """, STAGES);
+    }
+
+    public void testForkBranchWithInSubqueryWithForkNotInWhere() {
+        runGoldenTest("""
+            FROM employees
+            | FORK (WHERE emp_no NOT IN (FROM employees
+                                         | FORK (WHERE salary > 70000) (WHERE salary <= 70000)
+                                         | KEEP emp_no))
+                   (WHERE true)
+            """, STAGES);
+    }
+
+    public void testForkInsideInSubqueryInEval() {
+        runGoldenTest("""
+            FROM employees
+            | EVAL m = emp_no IN (
+                FROM employees | FORK (WHERE salary > 70000) (WHERE salary <= 70000) | KEEP emp_no
+            )
+            """, STAGES);
+    }
+
+    public void testForkBeforeInSubqueryWithForkInEval() {
+        runGoldenTest("""
+            FROM employees
+            | FORK (WHERE emp_no > 10000) (WHERE emp_no <= 10000)
+            | EVAL m = emp_no IN (
+                FROM employees | FORK (WHERE salary > 70000) (WHERE salary <= 70000) | KEEP emp_no
+            )
+            """, STAGES);
+    }
+
+    public void testForkAfterInSubqueryWithForkInEval() {
+        runGoldenTest("""
+            FROM employees
+            | EVAL m = emp_no IN (
+                FROM employees | FORK (WHERE salary > 70000) (WHERE salary <= 70000) | KEEP emp_no
+            )
+            | FORK (WHERE emp_no > 0) (WHERE emp_no <= 0)
+            """, STAGES);
+    }
+
+    public void testForkBranchWithInSubqueryWithForkInEval() {
+        runGoldenTest("""
+            FROM employees
+            | FORK (EVAL m = emp_no IN (FROM employees
+                                        | FORK (WHERE salary > 70000) (WHERE salary <= 70000)
+                                        | KEEP emp_no))
+                   (WHERE true)
+            """, STAGES);
+    }
+
+    public void testForkInsideInSubqueryInStatsWhere() {
+        runGoldenTest("""
+            FROM employees
+            | STATS c = COUNT(*) WHERE emp_no IN (
+                FROM employees | FORK (WHERE salary > 70000) (WHERE salary <= 70000) | KEEP emp_no
+            )
+            """, STAGES);
+    }
+
+    public void testForkBeforeInSubqueryWithForkInStatsWhere() {
+        runGoldenTest("""
+            FROM employees
+            | FORK (WHERE emp_no > 10000) (WHERE emp_no <= 10000)
+            | STATS c = COUNT(*) WHERE emp_no IN (
+                FROM employees | FORK (WHERE salary > 70000) (WHERE salary <= 70000) | KEEP emp_no
+            )
+            """, STAGES);
+    }
+
+    public void testForkAfterInSubqueryWithForkInStatsWhere() {
+        runGoldenTest("""
+            FROM employees
+            | STATS c = COUNT(*) WHERE emp_no IN (
+                FROM employees | FORK (WHERE salary > 70000) (WHERE salary <= 70000) | KEEP emp_no
+            )
+            | FORK (WHERE c > 0) (WHERE c <= 0)
+            """, STAGES);
+    }
+
+    public void testForkBranchWithInSubqueryWithForkInStatsWhere() {
+        runGoldenTest("""
+            FROM employees
+            | FORK (STATS c = COUNT(*) WHERE emp_no IN (FROM employees
+                                                        | FORK (WHERE salary > 70000) (WHERE salary <= 70000)
+                                                        | KEEP emp_no))
+                   (WHERE true)
+            """, STAGES);
+    }
+
+    public void testForkInsideInSubqueryInInlineStatsWhere() {
+        runGoldenTest("""
+            FROM employees
+            | INLINE STATS c = COUNT(*) WHERE emp_no IN (
+                FROM employees | FORK (WHERE salary > 70000) (WHERE salary <= 70000) | KEEP emp_no
+            )
+            """, STAGES);
+    }
+
+    public void testForkBeforeInSubqueryWithForkInInlineStatsWhere() {
+        runGoldenTest("""
+            FROM employees
+            | FORK (WHERE emp_no > 10000) (WHERE emp_no <= 10000)
+            | INLINE STATS c = COUNT(*) WHERE emp_no IN (
+                FROM employees | FORK (WHERE salary > 70000) (WHERE salary <= 70000) | KEEP emp_no
+            )
+            """, STAGES);
+    }
+
+    public void testForkAfterInSubqueryWithForkInInlineStatsWhere() {
+        runGoldenTest("""
+            FROM employees
+            | INLINE STATS c = COUNT(*) WHERE emp_no IN (
+                FROM employees | FORK (WHERE salary > 70000) (WHERE salary <= 70000) | KEEP emp_no
+            )
+            | FORK (WHERE emp_no > 0) (WHERE emp_no <= 0)
+            """, STAGES);
+    }
+
+    public void testForkBranchWithInSubqueryWithForkInInlineStatsWhere() {
+        runGoldenTest("""
+            FROM employees
+            | FORK (INLINE STATS c = COUNT(*) WHERE emp_no IN (FROM employees
+                                                               | FORK (WHERE salary > 70000) (WHERE salary <= 70000)
+                                                               | KEEP emp_no))
+                   (WHERE true)
+            """, STAGES);
+    }
+
+    public void testForkInsideInSubqueryInMultiColumnWhere() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no, salary) IN (
+                FROM employees | FORK (WHERE salary > 70000) (WHERE salary <= 70000) | KEEP emp_no, salary
+            )
+            """, STAGES);
+    }
+
+    public void testForkBeforeInSubqueryWithForkInMultiColumnWhere() {
+        runGoldenTest("""
+            FROM employees
+            | FORK (WHERE emp_no > 10000) (WHERE emp_no <= 10000)
+            | WHERE (emp_no, salary) IN (
+                FROM employees | FORK (WHERE salary > 70000) (WHERE salary <= 70000) | KEEP emp_no, salary
+            )
+            """, STAGES);
+    }
+
+    public void testForkAfterInSubqueryWithForkInMultiColumnWhere() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no, salary) IN (
+                FROM employees | FORK (WHERE salary > 70000) (WHERE salary <= 70000) | KEEP emp_no, salary
+            )
+            | FORK (WHERE emp_no > 0) (WHERE emp_no <= 0)
+            """, STAGES);
+    }
+
+    public void testForkBranchWithInSubqueryWithForkInMultiColumnWhere() {
+        runGoldenTest("""
+            FROM employees
+            | FORK (WHERE (emp_no, salary) IN (FROM employees
+                                               | FORK (WHERE salary > 70000) (WHERE salary <= 70000)
+                                               | KEEP emp_no, salary))
+                   (WHERE true)
+            """, STAGES);
+    }
+
+    // -- views and LET bindings that contain a FORK, read from or around an IN subquery --
+
+    public void testForkAfterViewWithInSubqueryContainingFork() {
+        runGoldenTest(
+            "FROM in_fork_view | FORK (WHERE emp_no > 10000) (WHERE emp_no <= 10000)",
+            STAGES,
+            Map.of(
+                "in_fork_view",
+                "FROM employees | WHERE emp_no IN (FROM employees | FORK (WHERE salary > 70000) (WHERE salary <= 70000) | KEEP emp_no)"
+            )
+        );
+    }
+
+    public void testForkAfterInSubqueryOverViewWithFork() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE emp_no IN (FROM fork_view | KEEP emp_no)
+            | FORK (WHERE emp_no > 10000) (WHERE emp_no <= 10000)
+            """, STAGES, Map.of("fork_view", "FROM employees | FORK (WHERE salary > 70000) (WHERE salary <= 70000)"));
+    }
+
+    public void testForkOverViewWithForkInsideInSubquery() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE emp_no IN (FROM fork_view | FORK (WHERE emp_no > 10000) (WHERE emp_no <= 10000) | KEEP emp_no)
+            """, STAGES, Map.of("fork_view", "FROM employees | FORK (WHERE salary > 70000) (WHERE salary <= 70000)"));
+    }
+
+    public void testForkOverViewWithForkInsideInSubqueryInEval() {
+        runGoldenTest("""
+            FROM employees
+            | EVAL m = emp_no IN (FROM fork_view | FORK (WHERE emp_no > 5) (WHERE emp_no <= 5) | KEEP emp_no)
+            """, STAGES, Map.of("fork_view", "FROM employees | FORK (WHERE emp_no > 10000) (WHERE emp_no <= 10000)"));
+    }
+
+    public void testForkOverViewWithForkInsideInSubqueryInStatsWhere() {
+        runGoldenTest("""
+            FROM employees
+            | STATS c = COUNT(*) WHERE emp_no IN (FROM fork_view | FORK (WHERE emp_no > 5) (WHERE emp_no <= 5) | KEEP emp_no)
+            """, STAGES, Map.of("fork_view", "FROM employees | FORK (WHERE emp_no > 10000) (WHERE emp_no <= 10000)"));
+    }
+
+    public void testForkOverViewWithForkInsideInSubqueryInInlineStatsWhere() {
+        runGoldenTest("""
+            FROM employees
+            | INLINE STATS c = COUNT(*) WHERE emp_no IN (FROM fork_view | FORK (WHERE emp_no > 5) (WHERE emp_no <= 5) | KEEP emp_no)
+            """, STAGES, Map.of("fork_view", "FROM employees | FORK (WHERE emp_no > 10000) (WHERE emp_no <= 10000)"));
+    }
+
+    public void testForkViewReadingInSubqueryWithForkOverViewFork() {
+        runGoldenTest("""
+            FROM fork_view
+            | WHERE emp_no IN (FROM fork_view | FORK (WHERE emp_no > 5) (WHERE emp_no <= 5) | KEEP emp_no)
+            """, STAGES, Map.of("fork_view", "FROM employees | FORK (WHERE emp_no > 10000) (WHERE emp_no <= 10000)"));
+    }
+
+    public void testForkAfterLetWithInSubqueryContainingFork() {
+        assumeTrue("requires NAMED_SUBQUERY_LET capability", EsqlCapabilities.Cap.NAMED_SUBQUERY_LET.isEnabled());
+        runGoldenTest("""
+            LET q = (
+                FROM employees
+                | WHERE emp_no IN (FROM employees | FORK (WHERE salary > 70000) (WHERE salary <= 70000) | KEEP emp_no)
+            );
+            FROM q
+            | FORK (WHERE emp_no > 10000) (WHERE emp_no <= 10000)
+            """, STAGES);
+    }
+
+    public void testForkAfterInSubqueryOverLetWithFork() {
+        assumeTrue("requires NAMED_SUBQUERY_LET capability", EsqlCapabilities.Cap.NAMED_SUBQUERY_LET.isEnabled());
+        runGoldenTest("""
+            LET q = (FROM employees | FORK (WHERE salary > 70000) (WHERE salary <= 70000));
+            FROM employees
+            | WHERE emp_no IN (FROM q | KEEP emp_no)
+            | FORK (WHERE emp_no > 10000) (WHERE emp_no <= 10000)
+            """, STAGES);
+    }
+
+    public void testForkOverLetWithForkInsideInSubquery() {
+        assumeTrue("requires NAMED_SUBQUERY_LET capability", EsqlCapabilities.Cap.NAMED_SUBQUERY_LET.isEnabled());
+        runGoldenTest("""
+            LET q = (FROM employees | FORK (WHERE salary > 70000) (WHERE salary <= 70000));
+            FROM employees
+            | WHERE emp_no IN (FROM q | FORK (WHERE emp_no > 10000) (WHERE emp_no <= 10000) | KEEP emp_no)
+            """, STAGES);
+    }
+
+    // a time series subquery with a FORK, in an IN subquery
+
+    public void testForkInsideTimeSeriesInSubqueryInWhere() {
+        builder("""
+            TS k8s
+            | STATS m = MAX(network.bytes_in) BY cluster
+            | WHERE cluster IN (TS k8s | STATS m = MAX(network.bytes_in) BY cluster | FORK (WHERE m > 0) (WHERE m <= 0) | KEEP cluster)
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
+    }
+
+    public void testForkAfterTimeSeriesInSubqueryWithForkInWhere() {
+        builder("""
+            TS k8s
+            | STATS m = MAX(network.bytes_in) BY cluster
+            | WHERE cluster IN (TS k8s | STATS m = MAX(network.bytes_in) BY cluster | FORK (WHERE m > 0) (WHERE m <= 0) | KEEP cluster)
+            | FORK (WHERE m > 5) (WHERE m <= 5)
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
+    }
+
+    public void testForkInsideTimeSeriesInSubqueryInStatsWhere() {
+        builder("""
+            TS k8s
+            | STATS m = MAX(network.bytes_in) BY cluster
+            | STATS c = COUNT(*) WHERE cluster IN (TS k8s
+                                                   | STATS m = MAX(network.bytes_in) BY cluster
+                                                   | FORK (WHERE m > 0) (WHERE m <= 0)
+                                                   | KEEP cluster)
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
     }
 }

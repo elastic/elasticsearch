@@ -70,6 +70,12 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     /** Per-phase retained query memory charged by {@link org.elasticsearch.index.query.AbstractQueryBuilder#toQuery}. */
     public static final String CATEGORY_QUERY = "query";
 
+    /**
+     * Analyzed query text a query parser buffers while it builds the query (label is {@code query_tokens:<field>}), see
+     * {@link org.elasticsearch.index.search.QueryTokenCacheAccountingFilter}.
+     */
+    public static final String CATEGORY_QUERY_TOKENS = "query_tokens";
+
     /** Fetch-phase retained memory. */
     public static final String CATEGORY_FETCH = "fetch";
 
@@ -85,17 +91,33 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     /** Up-front reservation made by {@link PreallocatedCircuitBreakerService} (label is {@code preallocate[<detail>]}). */
     public static final String CATEGORY_PREALLOCATE = "preallocate";
 
-    /** Coordinating-node buffer for multi-search sub-responses (label is {@code msearch[<detail>]}). */
+    /**
+     * Multi-search sub-responses: buffered on the coordinating node by the multi-search API, and built on the data node by enrich
+     * lookups (label is {@code msearch[<detail>]}).
+     */
     public static final String CATEGORY_MSEARCH = "msearch";
+
+    /** Structural {@code TermInSetQuery} reservation. Per-leaf execution charges are tracked under {@link #CATEGORY_UNCATEGORIZED}. */
+    public static final String CATEGORY_TERMS = "terms";
+
+    /** Heap taken by parsing request content, see {@link org.elasticsearch.common.xcontent.ParsedContentReservation}. */
+    public static final String CATEGORY_PARSED_REQUEST = "parsed_request";
+
+    /** Large chunks of REST responses waiting to be written to the client, see {@link org.elasticsearch.rest.RestController}. */
+    public static final String CATEGORY_REST_RESPONSE = "rest_response";
 
     private static final Set<String> KNOWN_CATEGORIES = Set.of(
         CATEGORY_QUERY,
+        CATEGORY_QUERY_TOKENS,
         CATEGORY_FETCH,
         CATEGORY_WILDCARD,
         CATEGORY_REGEXP,
         CATEGORY_RANGE,
         CATEGORY_PREALLOCATE,
-        CATEGORY_MSEARCH
+        CATEGORY_MSEARCH,
+        CATEGORY_TERMS,
+        CATEGORY_PARSED_REQUEST,
+        CATEGORY_REST_RESPONSE
     );
 
     /**
@@ -351,6 +373,15 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
 
     void recordHeldDelta(long bytes, String label) {
         this.memoryHeldMeter.add(bytes, heldAttributes(label));
+    }
+
+    /**
+     * Moves the bytes in the held gauge only. The used bytes do not change, not even briefly.
+     */
+    @Override
+    public void moveHeld(long bytes, String fromLabel, String toLabel) {
+        recordHeldDelta(bytes, toLabel);
+        recordHeldDelta(-bytes, fromLabel);
     }
 
     private void adjustUsedBytes(long bytes) {

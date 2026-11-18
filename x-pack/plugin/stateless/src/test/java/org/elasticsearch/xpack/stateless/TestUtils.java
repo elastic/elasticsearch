@@ -7,13 +7,19 @@
 
 package org.elasticsearch.xpack.stateless;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.TimeProvider;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
 import org.elasticsearch.indices.IndicesService;
@@ -27,16 +33,19 @@ import org.elasticsearch.xpack.stateless.cache.reader.FillCacheMemoryPressure;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.InternalFilesReplicatedRanges;
+import org.elasticsearch.xpack.stateless.commits.MergeBlobInjector;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
+import static org.elasticsearch.xpack.stateless.StatelessPlugin.MERGE_BLOBS_ENABLED;
 import static org.elasticsearch.xpack.stateless.commits.InternalFilesReplicatedRanges.REPLICATED_CONTENT_MAX_SINGLE_FILE_SIZE;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -44,6 +53,9 @@ import static org.mockito.Mockito.when;
 public class TestUtils {
 
     private TestUtils() {}
+
+    /** A {@link TimeProvider} with all methods returning {@code 0L}, for use in tests that do not exercise time-based bucketing. */
+    public static final TimeProvider NOOP_TIME_PROVIDER = SharedBlobCacheServiceTestUtils.NOOP_TIME_PROVIDER;
 
     /**
      * A {@link FillCacheMemoryPressure} using {@code settings} (default: heap-relative) and no telemetry, for tests that do not
@@ -77,8 +89,8 @@ public class TestUtils {
                 Sets.addToCopy(
                     ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
                     StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING,
+                    StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_INDEXING_ENABLED_SETTING,
                     StatelessSharedBlobCacheService.STATELESS_CACHE_DEMOTE_CLOSED_SHARD_REGIONS_ENABLED_SETTING,
-                    StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_TIMESTAMP_BACKFILL_ENABLED_SETTING,
                     StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_DELETED_INDEX_REGIONS_ENABLED_SETTING
                 )
             )
@@ -87,12 +99,41 @@ public class TestUtils {
     }
 
     public static class StatelessPluginWithTrialLicense extends StatelessPlugin {
+
+        private final boolean hasIndexRole;
+        // TODO(szybia): remove once merge blobs are uploaded for real
+        private final SetOnce<ThreadPool> threadPoolForInjector = new SetOnce<>();
+
         public StatelessPluginWithTrialLicense(Settings settings) {
             super(settings);
+            this.hasIndexRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.INDEX_ROLE);
         }
 
         protected XPackLicenseState getLicenseState() {
             return new XPackLicenseState(System::currentTimeMillis, new XPackLicenseStatus(License.OperationMode.TRIAL, true, null));
+        }
+
+        // TODO(szybia): remove once merge blobs are uploaded for real
+        @Override
+        public Collection<Object> createComponents(PluginServices services) {
+            if (MERGE_BLOBS_ENABLED) {
+                threadPoolForInjector.set(services.threadPool());
+                // tells the injector which shards a restore removed, their merge blobs are deleted with them
+                services.clusterService().addListener(MergeBlobInjector::clusterChanged);
+            }
+            return super.createComponents(services);
+        }
+
+        // TODO(szybia): remove once merge blobs are uploaded for real
+        @Override
+        public void onIndexModule(IndexModule indexModule) {
+            super.onIndexModule(indexModule);
+            // only index nodes write to shard containers
+            if (MERGE_BLOBS_ENABLED && hasIndexRole) {
+                indexModule.addIndexEventListener(
+                    new MergeBlobInjector(shardBlobContainerFunc(), getCommitService(), threadPoolForInjector.get())
+                );
+            }
         }
     }
 
@@ -124,7 +165,7 @@ public class TestUtils {
             nodeEnvironment,
             settings,
             threadPool,
-            meterRegistry == null ? new BlobCacheMetrics(MeterRegistry.NOOP) : new BlobCacheMetrics(meterRegistry),
+            new BlobCacheMetrics(meterRegistry == null ? MeterRegistry.NOOP : meterRegistry, NOOP_TIME_PROVIDER),
             clusterService,
             mockIndicesService(clusterService),
             new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)

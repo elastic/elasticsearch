@@ -57,4 +57,9 @@ public interface LongLongHashTable extends Releasable, Accountable {
     default void bulkAdd(long[] key1s, long[] key2s, int[] ids, int length) {
         throw new UnsupportedOperationException("bulkAdd is not supported");
     }
+
+    /**
+     * Removes all entries, keeping the allocated structures for reuse. The hash will be empty after this call returns.
+     */
+    void clear();
 }

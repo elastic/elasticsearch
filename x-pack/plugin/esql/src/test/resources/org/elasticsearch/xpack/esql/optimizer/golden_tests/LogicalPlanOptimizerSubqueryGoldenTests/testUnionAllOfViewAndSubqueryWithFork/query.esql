@@ -1,0 +1,3 @@
+FROM view_datasets,
+     (FROM heavy_a, heavy_b | WHERE salary > 1000)
+| FORK (WHERE emp_no > 10) (WHERE emp_no <= 10)

@@ -31,13 +31,13 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.IndexType;
+import org.elasticsearch.index.mapper.ReanalyzingIntervalsSource;
+import org.elasticsearch.index.mapper.ReanalyzingTextQuery;
 import org.elasticsearch.index.mapper.TextFamilyFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryBlockLoader;
-import org.elasticsearch.index.mapper.extras.SourceConfirmedTextQuery;
-import org.elasticsearch.index.mapper.extras.SourceIntervalsSource;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.lucene.search.FuzzyQueries;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
@@ -168,17 +168,27 @@ public class PatternTextFieldType extends TextFamilyFieldType {
         };
     }
 
+    /**
+     * Every positional query this field answers reads its values, which carry the positions, so a query built for it
+     * may ask about them. The values come from this field's own doc values rather than from {@code _source}, so they
+     * are readable whatever the source is mapped as.
+     */
+    @Override
+    public boolean answersPositionsFromValues(SearchExecutionContext context) {
+        return true;
+    }
+
     private Query maybeSourceConfirmQuery(Query query, SearchExecutionContext context) {
         // Disable scoring similarly to match_only_text
         if (hasPositions) {
             return new ConstantScoreQuery(query);
         } else {
-            return new ConstantScoreQuery(new SourceConfirmedTextQuery(query, getValueFetcherProvider(), indexAnalyzer));
+            return new ConstantScoreQuery(new ReanalyzingTextQuery(query, getValueFetcherProvider(), indexAnalyzer));
         }
     }
 
     private IntervalsSource toIntervalsSource(IntervalsSource source, Query approximation, SearchExecutionContext searchExecutionContext) {
-        return new SourceIntervalsSource(source, approximation, getValueFetcherProvider(), indexAnalyzer);
+        return new ReanalyzingIntervalsSource(source, approximation, getValueFetcherProvider(), indexAnalyzer);
     }
 
     @Override

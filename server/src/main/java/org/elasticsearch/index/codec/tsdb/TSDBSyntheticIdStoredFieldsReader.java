@@ -63,8 +63,9 @@ public class TSDBSyntheticIdStoredFieldsReader extends StoredFieldsReader {
     private final DocValuesProducer docValuesProducer;
     private final FieldInfo fieldInfo;
     private final TSDBSyntheticIdDocValuesHolder docValuesHolder;
+    private final boolean ownsDocValuesProducer;
 
-    private TSDBSyntheticIdStoredFieldsReader(
+    TSDBSyntheticIdStoredFieldsReader(
         Directory directory,
         SegmentInfo segmentInfo,
         FieldInfos fieldInfos,
@@ -72,13 +73,26 @@ public class TSDBSyntheticIdStoredFieldsReader extends StoredFieldsReader {
         DocValuesProducer docValuesProducer,
         FieldInfo fieldInfo
     ) {
+        this(directory, segmentInfo, fieldInfos, context, docValuesProducer, fieldInfo, true);
+    }
+
+    private TSDBSyntheticIdStoredFieldsReader(
+        Directory directory,
+        SegmentInfo segmentInfo,
+        FieldInfos fieldInfos,
+        IOContext context,
+        DocValuesProducer docValuesProducer,
+        FieldInfo fieldInfo,
+        boolean ownsDocValuesProducer
+    ) {
         this.directory = Objects.requireNonNull(directory);
         this.segmentInfo = Objects.requireNonNull(segmentInfo);
         this.fieldInfos = Objects.requireNonNull(fieldInfos);
         this.context = Objects.requireNonNull(context);
         this.docValuesProducer = Objects.requireNonNull(docValuesProducer);
         this.fieldInfo = Objects.requireNonNull(fieldInfo);
-        this.docValuesHolder = new TSDBSyntheticIdDocValuesHolder(fieldInfos, docValuesProducer);
+        this.docValuesHolder = new TSDBSyntheticIdDocValuesHolder(fieldInfos, docValuesProducer, segmentInfo.maxDoc());
+        this.ownsDocValuesProducer = ownsDocValuesProducer;
     }
 
     @Override
@@ -101,28 +115,28 @@ public class TSDBSyntheticIdStoredFieldsReader extends StoredFieldsReader {
             fieldInfos,
             context,
             docValuesProducer.getMergeInstance(),
-            fieldInfo(fieldInfos)
+            fieldInfo,
+            false
         );
     }
 
     @Override
     public StoredFieldsReader clone() {
-        return new TSDBSyntheticIdStoredFieldsReader(
-            directory,
-            segmentInfo,
-            fieldInfos,
-            context,
-            docValuesProducer.getMergeInstance(),
-            fieldInfo(fieldInfos)
-        );
+        // The producer is shared, the holder caching doc values instances on top of it is not.
+        return new TSDBSyntheticIdStoredFieldsReader(directory, segmentInfo, fieldInfos, context, docValuesProducer, fieldInfo, false);
     }
 
     @Override
-    public void checkIntegrity() throws IOException {}
+    public void checkIntegrity() throws IOException {
+        docValuesProducer.checkIntegrity();
+    }
 
     @Override
     public void close() throws IOException {
-        IOUtils.close(docValuesProducer);
+        // Clones and merge instances read through a producer this reader does not own.
+        if (ownsDocValuesProducer) {
+            IOUtils.close(docValuesProducer);
+        }
     }
 
     private static FieldInfo fieldInfo(FieldInfos fn) {

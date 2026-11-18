@@ -235,9 +235,9 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
                 return new LongIntBlockHash(groups, blockFactory, emitBatchSize, true);
             }
             if (g1.elementType() == ElementType.LONG && g2.elementType() == ElementType.BYTES_REF) {
-                return new LongBytesRefAdaptiveBlockHash(groups, blockFactory, emitBatchSize, false);
+                return new LongBytesRefBlockHash(groups, blockFactory, emitBatchSize, false);
             } else if (g1.elementType() == ElementType.BYTES_REF && g2.elementType() == ElementType.LONG) {
-                return new LongBytesRefAdaptiveBlockHash(groups, blockFactory, emitBatchSize, true);
+                return new LongBytesRefBlockHash(groups, blockFactory, emitBatchSize, true);
             }
             // TODO: wire (LONG, LONG) with adaptive
             if (allowBrokenOptimizations) {
@@ -252,7 +252,7 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
     /**
      * Temporary method to build a {@link PackedValuesBlockHash}.
      */
-    public static BlockHash buildPackedValuesBlockHash(List<GroupSpec> groups, BlockFactory blockFactory, int emitBatchSize) {
+    public static PackedValuesBlockHash buildPackedValuesBlockHash(List<GroupSpec> groups, BlockFactory blockFactory, int emitBatchSize) {
         return new PackedValuesBlockHash(groups, blockFactory, emitBatchSize);
     }
 
@@ -317,5 +317,14 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
      */
     public static long hashOrdToGroupNullReserved(long ord) {
         return hashOrdToGroup(ord) + 1;
+    }
+
+    /**
+     * Optionally hints to the blockhash to ensure the given capacity.
+     * The blockhash may ignore the hint or resize upfront as an optimization
+     * to avoid multiple resizes as the capacity is reached.
+     */
+    public void ensureCapacity(int size) {
+
     }
 }

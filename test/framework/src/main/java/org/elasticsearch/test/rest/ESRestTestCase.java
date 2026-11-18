@@ -131,6 +131,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -1139,7 +1140,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         return null;
     }
 
-    private String getHotThreads() {
+    protected String getHotThreads() {
         try {
             Response response = adminClient().performRequest(
                 new Request("GET", "/_nodes/hot_threads?ignore_idle_threads=false&threads=9999")
@@ -1367,8 +1368,12 @@ public abstract class ESRestTestCase extends ESTestCase {
             for (Object view : views) {
                 try {
                     @SuppressWarnings("unchecked")
-                    Map<String, String> viewMap = (Map<String, String>) view;
-                    String viewName = viewMap.get("name");
+                    Map<String, Object> viewMap = (Map<String, Object>) view;
+                    if (Boolean.TRUE.equals(viewMap.get("reserved"))) {
+                        // Reserved views are managed by the cluster itself and cannot be deleted through the REST API
+                        continue;
+                    }
+                    String viewName = (String) viewMap.get("name");
                     assertAcked(
                         "Failed to delete view [" + viewName + ']',
                         cleanupClient().performRequest(new Request("DELETE", "_query/view/" + viewName))
@@ -1542,7 +1547,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                 response.getTotalShards(),
                 response.getSuccessfulShards(),
                 response.getFailedShards(),
-                Arrays.asList(response.getShardFailures())
+                response.getShardFailures()
             );
         }
     );
@@ -2012,6 +2017,33 @@ public abstract class ESRestTestCase extends ESTestCase {
                 request.addParameter("timeout", timeout);
             }
         });
+    }
+
+    /**
+     * Performs {@code request} once, translating a {@link ResponseException} whose HTTP status is one of
+     * {@code retryableStatuses} into an {@link AssertionError}. Wrap the call in {@link #assertBusy} at the
+     * call site so the enclosing loop retries transient failures (e.g. a 404 while an index relocates during
+     * a rolling upgrade); capture the result via an {@link AtomicReference} if the response is needed outside
+     * the loop. Non-retryable ResponseExceptions propagate unchanged.
+     */
+    protected Response performRequestRaisingAssertionOnTransientStatus(Request request, RestStatus... retryableStatuses)
+        throws IOException {
+        try {
+            return client().performRequest(request);
+        } catch (ResponseException e) {
+            int status = e.getResponse().getStatusLine().getStatusCode();
+            if (isRetryableStatus(status, retryableStatuses)) {
+                throw new AssertionError(
+                    "retryable status [" + status + "] from [" + request.getMethod() + " " + request.getEndpoint() + "]",
+                    e
+                );
+            }
+            throw e;
+        }
+    }
+
+    static boolean isRetryableStatus(int status, RestStatus... retryableStatuses) {
+        return Arrays.stream(retryableStatuses).anyMatch(s -> s.getStatus() == status);
     }
 
     /**
@@ -2535,6 +2567,8 @@ public abstract class ESRestTestCase extends ESTestCase {
             case ".kibana-reporting":
             case "ai-index-idx":
             case "ai-index-ds":
+            case "ai-index-idx-managed":
+            case "ai-index-ds-managed":
                 return true;
             default:
                 return false;
@@ -2941,6 +2975,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             .entry("enrich_resolution", instanceOf(Map.class))
             .entry("inference_resolution", instanceOf(Map.class))
             .entry("analysis", instanceOf(Map.class))
+            .entry("planning_cpu_nanos", IntOrLongMatcher.isIntOrLong())
             .entry("field_caps_calls", instanceOf(Integer.class))
             .entry("unmapped_fields", instanceOf(String.class))
             .entry("drivers", instanceOf(List.class))
@@ -2953,7 +2988,8 @@ public abstract class ESRestTestCase extends ESTestCase {
         boolean includeDocumentsFound,
         boolean includeTimestamps,
         boolean includeRollupMetrics,
-        boolean includeReadCpuNanos
+        boolean includeReadCpuNanos,
+        boolean includeDriverNanos
     ) {
         MapMatcher mapMatcher = matchesMap();
         if (includeDocumentsFound) {
@@ -2972,6 +3008,10 @@ public abstract class ESRestTestCase extends ESTestCase {
                 mapMatcher = mapMatcher.entry("read_cpu_nanos", IntOrLongMatcher.isIntOrLong());
             }
             mapMatcher = mapMatcher.entry("cpu_nanos", IntOrLongMatcher.isIntOrLong());
+            if (includeDriverNanos) {
+                // Added with the esql_driver_nanos TV. Older nodes don't emit it.
+                mapMatcher = mapMatcher.entry("driver_nanos", IntOrLongMatcher.isIntOrLong());
+            }
         }
         if (includeTimestamps) {
             // Older versions may not return start_time_in_millis, completion_time_in_millis and expiration_time_in_millis
@@ -2994,7 +3034,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         boolean includeTimestamps,
         boolean includeRollupMetrics
     ) {
-        return getResultMatcher(includePartial, includeDocumentsFound, includeTimestamps, includeRollupMetrics, false);
+        return getResultMatcher(includePartial, includeDocumentsFound, includeTimestamps, includeRollupMetrics, false, false);
     }
 
     /** Deprecated three-arg form kept for callers that haven't been updated for the rollup metrics. */
@@ -3012,7 +3052,8 @@ public abstract class ESRestTestCase extends ESTestCase {
             result.containsKey("documents_found"),
             result.containsKey("start_time_in_millis"),
             result.containsKey("rows_emitted"),
-            result.containsKey("read_cpu_nanos")
+            result.containsKey("read_cpu_nanos"),
+            result.containsKey("driver_nanos")
         );
     }
 

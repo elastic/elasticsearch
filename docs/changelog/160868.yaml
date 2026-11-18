@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 160798
+pr: 160868
+summary: Complex patterns on wildcard field resolves into `IllegalArgumentException`
+type: bug

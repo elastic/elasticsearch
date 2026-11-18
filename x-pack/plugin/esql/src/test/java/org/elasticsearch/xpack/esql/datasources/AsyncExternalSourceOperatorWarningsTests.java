@@ -24,12 +24,12 @@ import static org.hamcrest.Matchers.nullValue;
  * <p>They have to land in the driver's {@link DriverContext} sink, which {@code DriverCompletionInfo} ships back from
  * whatever node ran the scan for the coordinator to re-emit. The earlier route — {@code HeaderWarning} on the driver
  * thread — only reached the client when the scan happened to run on the coordinator, so a read the planner shipped to
- * a data node returned the right values with no warning at all (elastic/esql-planning#1837).
+ * a data node returned the right values with no warning at all.
  */
 public class AsyncExternalSourceOperatorWarningsTests extends ESTestCase {
 
     private static final BlockFactory BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("none"))
+        .breaker(NoopCircuitBreaker.INSTANCE)
         .build();
 
     /**
@@ -43,7 +43,7 @@ public class AsyncExternalSourceOperatorWarningsTests extends ESTestCase {
         buffer.recordWarning("a record exceeded external_max_record_size and was truncated");
 
         DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, BLOCK_FACTORY, null);
-        new AsyncExternalSourceOperator(buffer, driverContext, ExternalSourceMetrics.NOOP, "s3").close();
+        new AsyncExternalSourceOperator(buffer, driverContext, ExternalSourceMetrics.NOOP, "s3", "csv").close();
 
         driverContext.finish();
         assertThat(
@@ -59,7 +59,8 @@ public class AsyncExternalSourceOperatorWarningsTests extends ESTestCase {
     /** A read that recorded nothing must leave the sink empty rather than depositing an empty or null entry. */
     public void testCloseWithoutWarningsLeavesTheDriverSinkEmpty() {
         DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, BLOCK_FACTORY, null);
-        new AsyncExternalSourceOperator(new AsyncExternalSourceBuffer(1024), driverContext, ExternalSourceMetrics.NOOP, "s3").close();
+        new AsyncExternalSourceOperator(new AsyncExternalSourceBuffer(1024), driverContext, ExternalSourceMetrics.NOOP, "s3", "csv")
+            .close();
 
         driverContext.finish();
         assertThat(driverContext.warnings(), empty());

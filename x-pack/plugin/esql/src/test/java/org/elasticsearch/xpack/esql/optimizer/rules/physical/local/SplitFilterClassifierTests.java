@@ -10,10 +10,12 @@ package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.SplitStats;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
@@ -160,6 +162,14 @@ public class SplitFilterClassifierTests extends ESTestCase {
     }
 
     // --- AND conjunction ---
+
+    public void testClassifySplitSingleConjunctRewritesMixedLiteral() {
+        // size==1 must rewrite like the multi-conjunct path; else mixed stays AMBIGUOUS via
+        // disagreeingPushdownLiteral. age < 5.5 → age <= 5 is MISS against [10, 20].
+        Expression mixed = lessThanOf(AGE, of(5.5));
+        assertEquals(MISS, classifySplit(List.of(mixed), STATS_10_20, true));
+        assertEquals(MISS, classifySplit(List.of(mixed, greaterThanOrEqualOf(AGE, of(10L))), STATS_10_20, true));
+    }
 
     public void testConjunctionAllMatch() {
         assertEquals(MATCH, classifySplit(List.of(greaterThanOrEqualOf(AGE, of(10L)), lessThanOrEqualOf(AGE, of(20L))), STATS_10_20, true));
@@ -385,6 +395,70 @@ public class SplitFilterClassifierTests extends ESTestCase {
         assertEquals(MISS, classify(filter, STATS_30_50));
     }
 
+    public void testMixedDateLiteralOnDateNanosConvertsAndMatches() {
+        long millis = 1_767_312_000_000L;
+        long nanos = 1_767_312_000_000_000_000L;
+        ReferenceAttribute ts = referenceAttribute("ts", DataType.DATE_NANOS);
+        SplitStats stats = colStats("ts", nanos, nanos, 1L, 0L);
+        Literal dateLit = new Literal(Source.EMPTY, millis, DataType.DATETIME);
+        assertEquals(MATCH, classify(equalsOf(ts, dateLit), stats));
+        assertEquals(MATCH, classify(lessThanOrEqualOf(ts, dateLit), stats));
+    }
+
+    public void testMatchingDateNanosLiteralStillMatches() {
+        long nanos = 1_767_312_000_000_000_000L;
+        ReferenceAttribute ts = referenceAttribute("ts", DataType.DATE_NANOS);
+        SplitStats stats = colStats("ts", nanos, nanos, 1L, 0L);
+        Literal nanosLit = new Literal(Source.EMPTY, nanos, DataType.DATE_NANOS);
+        assertEquals(MATCH, classify(equalsOf(ts, nanosLit), stats));
+        assertEquals(MATCH, classify(lessThanOrEqualOf(ts, nanosLit), stats));
+    }
+
+    public void testMixedIntegerLessThanDoubleConvertsAndMatches() {
+        ReferenceAttribute id = referenceAttribute("id", DataType.INTEGER);
+        SplitStats stats = colStats("id", 5, 5, 1L, 0L);
+        assertEquals(MATCH, classify(lessThanOf(id, of(5.5)), stats));
+    }
+
+    public void testMatchingIntegerLiteralStillMatches() {
+        ReferenceAttribute id = referenceAttribute("id", DataType.INTEGER);
+        SplitStats stats = colStats("id", 5, 5, 1L, 0L);
+        assertEquals(MATCH, classify(equalsOf(id, of(5)), stats));
+        assertEquals(MATCH, classify(lessThanOf(id, of(10)), stats));
+    }
+
+    public void testMixedDateLiteralInOnDateNanosConvertsAndMatches() {
+        long millis = 1_767_312_000_000L;
+        long nanos = 1_767_312_000_000_000_000L;
+        ReferenceAttribute ts = referenceAttribute("ts", DataType.DATE_NANOS);
+        SplitStats stats = colStats("ts", nanos, nanos, 1L, 0L);
+        Literal dateLit = new Literal(Source.EMPTY, millis, DataType.DATETIME);
+        assertEquals(MATCH, classify(in(ts, dateLit), stats));
+    }
+
+    public void testMatchingDateNanosLiteralInStillMatches() {
+        long nanos = 1_767_312_000_000_000_000L;
+        ReferenceAttribute ts = referenceAttribute("ts", DataType.DATE_NANOS);
+        SplitStats stats = colStats("ts", nanos, nanos, 1L, 0L);
+        Literal nanosLit = new Literal(Source.EMPTY, nanos, DataType.DATE_NANOS);
+        assertEquals(MATCH, classify(in(ts, nanosLit), stats));
+    }
+
+    public void testMixedIntegerInDoubleConverts() {
+        ReferenceAttribute id = referenceAttribute("id", DataType.INTEGER);
+        SplitStats stats = colStats("id", 5, 5, 1L, 0L);
+        // IN (5.5) alone → contradiction → MISS
+        assertEquals(MISS, classify(in(id, of(5.5)), stats));
+        // IN (5, 5.5) → drop 5.5 → equals 5 → MATCH
+        assertEquals(MATCH, classify(in(id, of(5), of(5.5)), stats));
+    }
+
+    public void testMatchingIntegerLiteralInStillMatches() {
+        ReferenceAttribute id = referenceAttribute("id", DataType.INTEGER);
+        SplitStats stats = colStats("id", 5, 5, 1L, 0L);
+        assertEquals(MATCH, classify(in(id, of(5)), stats));
+    }
+
     // --- compareValues ---
 
     public void testCompareValuesLongs() {
@@ -401,6 +475,26 @@ public class SplitFilterClassifierTests extends ESTestCase {
     public void testCompareValuesDoubles() {
         assertEquals(-1, Integer.signum(compareValues(1.5, 2.5)));
         assertEquals(0, compareValues(1.5, 1.5));
+    }
+
+    public void testCompareValuesSignedZeros() {
+        assertEquals(0, compareValues(-0.0, 0.0));
+        assertEquals(0, compareValues(0.0, -0.0));
+    }
+
+    public void testEqualsKeepsOppositeSignZero() {
+        ReferenceAttribute score = referenceAttribute("score", DataType.DOUBLE);
+        SplitStats negZero = colStats("score", -0.0, -0.0, 10L, 0L);
+        assertEquals(MATCH, classify(equalsOf(score, of(0.0)), negZero));
+        assertEquals(MATCH, classify(greaterThanOrEqualOf(score, of(0.0)), negZero));
+        assertEquals(MISS, classify(greaterThanOf(score, of(0.0)), negZero));
+    }
+
+    public void testInLeavesOppositeSignZeroUnknown() {
+        ReferenceAttribute score = referenceAttribute("score", DataType.DOUBLE);
+        SplitStats negZero = colStats("score", -0.0, -0.0, 10L, 0L);
+        assertEquals(AMBIGUOUS, classify(in(score, of(0.0)), negZero));
+        assertEquals(MATCH, classify(in(score, of(-0.0)), negZero));
     }
 
     public void testCompareValuesNull() {
@@ -429,6 +523,40 @@ public class SplitFilterClassifierTests extends ESTestCase {
         builder.min(col, min);
         builder.max(col, max);
         return builder.build();
+    }
+
+    // --- mv_in_range ---
+
+    public void testMvInRangeMissBelow() {
+        assertEquals(MISS, classify(mvInRange(5L, 9L), STATS_10_20));
+    }
+
+    public void testMvInRangeMissAbove() {
+        assertEquals(MISS, classify(mvInRange(21L, 30L), STATS_10_20));
+    }
+
+    public void testMvInRangeMissExclusiveLowerOnMax() {
+        // [10,20] vs (20, 30] — max sits on the excluded lower bound.
+        assertEquals(MISS, classify(mvInRange(20L, 30L, false, true), STATS_10_20));
+    }
+
+    public void testMvInRangeAmbiguousOverlap() {
+        assertEquals(AMBIGUOUS, classify(mvInRange(15L, 25L), STATS_10_20));
+    }
+
+    public void testMvInRangeMatchContained() {
+        assertEquals(MATCH, classify(mvInRange(5L, 25L), STATS_10_20));
+    }
+
+    public void testMvInRangeAllNullIsMiss() {
+        var stats = colStats(COL, 10L, 20L, 100L, 100L);
+        assertEquals(MISS, classify(mvInRange(5L, 25L), stats));
+    }
+
+    public void testMvInRangeMultivaluedStillMissesWhenDisjoint() {
+        SplitStats mv = colStats(COL, 10L, 20L, 100L, 0L, 150L);
+        assertEquals(MISS, classify(mvInRange(30L, 40L), mv));
+        assertEquals(AMBIGUOUS, classify(mvInRange(5L, 25L), mv));
     }
 
     public void testComparisonOnMultivaluedColumnIsAmbiguousNotMatch() {
@@ -465,5 +593,27 @@ public class SplitFilterClassifierTests extends ESTestCase {
 
     private static Expression in(Expression value, Literal... list) {
         return new In(Source.EMPTY, value, List.of(list));
+    }
+
+    private static Expression mvInRange(long lower, long upper) {
+        return new MvInRange(Source.EMPTY, AGE, of(lower), of(upper));
+    }
+
+    private static Expression mvInRange(long lower, long upper, boolean includeLower, boolean includeUpper) {
+        return new MvInRange(
+            Source.EMPTY,
+            AGE,
+            of(lower),
+            of(upper),
+            new MapExpression(
+                Source.EMPTY,
+                List.of(
+                    Literal.keyword(Source.EMPTY, "include_lower"),
+                    new Literal(Source.EMPTY, includeLower, DataType.BOOLEAN),
+                    Literal.keyword(Source.EMPTY, "include_upper"),
+                    new Literal(Source.EMPTY, includeUpper, DataType.BOOLEAN)
+                )
+            )
+        );
     }
 }

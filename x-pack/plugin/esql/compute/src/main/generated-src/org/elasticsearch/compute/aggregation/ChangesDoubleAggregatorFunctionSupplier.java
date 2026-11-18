@@ -75,9 +75,9 @@ final class ChangesDoubleGroupingAggregatorFunction extends AbstractRateGrouping
     private final RateDoubleGroupingAggregatorFunction.DoubleRawBuffer rawBuffer;
     private final RateDoubleGroupingAggregatorFunction.IntervalBuffer intervalBuffer;
     private ObjectArray<ReducedState> reducedStates;
-    private int lastSliceIndex = -1;
 
     ChangesDoubleGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
+        super(channels.get(2));
         this.channels = channels;
         this.driverContext = driverContext;
         this.bigArrays = driverContext.bigArrays();
@@ -106,17 +106,13 @@ final class ChangesDoubleGroupingAggregatorFunction extends AbstractRateGrouping
     }
 
     @Override
-    public boolean canEmitPartialResultsPeriodically() {
-        return false;
-    }
-
-    @Override
     public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
         // Nulls are represented by missing reduced states.
     }
 
     @Override
     public AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds, Page page) {
+        maybeFlushOnNewSlice(page);
         DoubleBlock valuesBlock = page.getBlock(channels.get(0));
         if (valuesBlock.areAllValuesNull()) {
             return null;
@@ -125,13 +121,6 @@ final class ChangesDoubleGroupingAggregatorFunction extends AbstractRateGrouping
         if (timestampsVector == null) {
             assert false : "expected timestamp vector in time-series aggregation";
             throw new IllegalStateException("expected timestamp vector in time-series aggregation");
-        }
-        IntVector sliceIndices = ((IntBlock) page.getBlock(channels.get(2))).asVector();
-        assert sliceIndices != null : "expected slice indices vector in time-series aggregation";
-        int sliceIndex = sliceIndices.getInt(0);
-        if (sliceIndex > lastSliceIndex) {
-            flushRawBuffers();
-            lastSliceIndex = sliceIndex;
         }
         DoubleVector valuesVector = valuesBlock.asVector();
         if (valuesVector != null) {
@@ -373,7 +362,8 @@ final class ChangesDoubleGroupingAggregatorFunction extends AbstractRateGrouping
         return state;
     }
 
-    private void flushRawBuffers() {
+    @Override
+    void flushRawBuffers() {
         if (rawBuffer.minGroupId > rawBuffer.maxGroupId) {
             return;
         }

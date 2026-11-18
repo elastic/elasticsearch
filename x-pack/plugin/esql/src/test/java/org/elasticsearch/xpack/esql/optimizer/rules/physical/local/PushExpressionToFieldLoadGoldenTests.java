@@ -20,6 +20,7 @@ public class PushExpressionToFieldLoadGoldenTests extends GoldenTestCase {
     private static final String DIMENSION_VALUES = "dimension_values";
     private static final String ESQL_SUM_LONG_OVERFLOW_FIX = "esql_sum_long_overflow_fix";
     private static final String PACK_DIMS_AGG = "pack_dims_agg";
+    private static final String ESQL_TIME_SERIES_SINGLE_PASS = "esql_time_series_single_pass";
 
     private static final EnumSet<Stage> STAGES = EnumSet.of(
         Stage.ANALYSIS,
@@ -205,6 +206,17 @@ public class PushExpressionToFieldLoadGoldenTests extends GoldenTestCase {
             """).expectationChangesAt(DIMENSION_VALUES)
             .expectationChangesAt(ESQL_SUM_LONG_OVERFLOW_FIX)
             .expectationChangesAt(PACK_DIMS_AGG)
+            .run();
+    }
+
+    public void testSinglePassRate() {
+        goldenTest("""
+            TS k8s
+            | STATS m = max(rate(network.total_bytes_in)) BY pod, time_bucket = BUCKET(@timestamp, 5minute)
+            """).singleConcreteIndex()
+            .expectationChangesAt(DIMENSION_VALUES)
+            .expectationChangesAt(PACK_DIMS_AGG)
+            .expectationChangesAt(ESQL_TIME_SERIES_SINGLE_PASS)
             .run();
     }
 

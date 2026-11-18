@@ -24,6 +24,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.ShardContext;
+import org.elasticsearch.compute.operator.ProfileSchema;
 import org.elasticsearch.compute.operator.topn.SharedMinCompetitive;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -244,6 +245,19 @@ public class MinCompetitiveQuery implements Releasable {
         int updateInvocations,
         long updateNanos
     ) implements Writeable, ToXContentObject {
+        public static final ProfileSchema<Status> PROFILE_SCHEMA = ProfileSchema.of(
+            Status.class,
+            (builder, status, params) -> status.writeProfile(builder)
+        )
+            .required("changed_value", ProfileSchema.integer())
+            .required("match_all", ProfileSchema.integer())
+            .required("match_none", ProfileSchema.integer())
+            .required("greater_than_min_competitive", ProfileSchema.integer())
+            .required("update_invocations", ProfileSchema.integer())
+            .required("update_nanos", ProfileSchema.integer())
+            .optional("update_time", ProfileSchema.string())
+            .build();
+
         public static Status readFrom(StreamInput in) throws IOException {
             return new Status(in.readVInt(), in.readVInt(), in.readVInt(), in.readVInt(), in.readVInt(), in.readVLong());
         }
@@ -258,8 +272,7 @@ public class MinCompetitiveQuery implements Releasable {
             out.writeVLong(updateNanos);
         }
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        private XContentBuilder writeProfile(XContentBuilder builder) throws IOException {
             builder.startObject();
             builder.field("changed_value", changedValue);
             builder.field("match_all", matchAll);
@@ -271,6 +284,11 @@ public class MinCompetitiveQuery implements Releasable {
                 builder.field("update_time", TimeValue.timeValueNanos(updateNanos));
             }
             return builder.endObject();
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return PROFILE_SCHEMA.write(builder, this, params);
         }
     }
 }

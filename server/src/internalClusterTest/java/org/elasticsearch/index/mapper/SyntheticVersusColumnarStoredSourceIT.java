@@ -9,10 +9,13 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryInfo;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.datageneration.DataGeneratorSpecification;
 import org.elasticsearch.datageneration.DocumentGenerator;
 import org.elasticsearch.datageneration.FieldType;
@@ -30,6 +33,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.junit.After;
 
 import java.util.HashMap;
 import java.util.List;
@@ -38,12 +42,19 @@ import java.util.Random;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.greaterThan;
 
 /**
  * Verifies that a {@code columnar_stored} source index and an equivalent {@code synthetic} source index
  * (both using {@code columnar} index mode) return identical {@code _source} for every document.
  */
 public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
+
+    @After
+    public void resetRebalancing() {
+        // indexAndFetchSources disables rebalancing; the persistent cluster setting must not leak out of the test.
+        updateClusterSettings(Settings.builder().putNull(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey()));
+    }
 
     @Override
     protected Settings.Builder setRandomIndexSettings(Random random, Settings.Builder builder) {
@@ -261,14 +272,44 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
         }
     }
 
+    /**
+     * Asserts {@code _ignored} contains {@code fieldName} on <em>every</em> copy of the shard, not only on whichever copy a search happens
+     * to be routed to (#157799, #155610).
+     * <p>
+     * The index is created without replicas and the replica is added only after the document was indexed (and without a flush), so the
+     * replica must recover by replaying the primary's operations. That replay re-parses the source reconstructed from synthetic source,
+     * so a value that is not restored faithfully (e.g. a multi-value violation stored in {@code ._on_failure}) would make the replica
+     * lose {@code _ignored}. Adding the replica at index creation instead would let it receive the document via ordinary replication with
+     * the original source and never exercise this path.
+     */
     private void assertIgnoredContains(String index, String fieldName) {
-        var resp = client().prepareSearch(index).addFetchField(IgnoredFieldMapper.NAME).get();
-        try {
-            var ignoredField = resp.getHits().getAt(0).field(IgnoredFieldMapper.NAME);
-            assertNotNull(index + ": violation must populate _ignored", ignoredField);
-            assertTrue(index + ": _ignored must contain '" + fieldName + "'", ignoredField.getValues().contains(fieldName));
-        } finally {
-            resp.decRef();
+        setReplicaCount(1, index);
+        ensureGreen(index);
+        var replicaRecoveredOperations = indicesAdmin().prepareRecoveries(index)
+            .get()
+            .shardRecoveryInfos()
+            .get(index)
+            .stream()
+            .map(ShardRecoveryInfo::recoveryState)
+            .filter(state -> state.getPrimary() == false)
+            .mapToInt(state -> state.getTranslog().recoveredOperations())
+            .sum();
+        assertThat(index + ": the replica must have recovered by replaying operations", replicaRecoveredOperations, greaterThan(0));
+
+        var routing = clusterService().state().routingTable().index(index).shard(0);
+        for (var copy : routing.assignedShards()) {
+            var resp = client().prepareSearch(index)
+                .setPreference("_only_nodes:" + copy.currentNodeId())
+                .addFetchField(IgnoredFieldMapper.NAME)
+                .get();
+            try {
+                var ignoredField = resp.getHits().getAt(0).field(IgnoredFieldMapper.NAME);
+                var label = index + " primary=" + copy.primary();
+                assertNotNull(label + ": violation must populate _ignored", ignoredField);
+                assertTrue(label + ": _ignored must contain '" + fieldName + "'", ignoredField.getValues().contains(fieldName));
+            } finally {
+                resp.decRef();
+            }
         }
     }
 
@@ -309,19 +350,30 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
         Map<String, ?> document,
         boolean useTimeSeriesDocValuesFormat
     ) {
+        // assertIgnoredContains adds a replica only after indexing, so that the replica must recover by replaying operations. For that:
+        // - start the second data node up front and disable rebalancing, otherwise a primary could relocate after indexing, and the
+        // relocation force-flushes the document into a commit that the replica then copies instead of replaying operations;
+        // - pin the replica count and the translog flush threshold, which ESIntegTestCase randomizes (a flush has the same effect).
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        updateClusterSettings(Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none"));
         var syntheticSettings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
             .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC.toString())
             .put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), useTimeSeriesDocValuesFormat)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1);
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.ofGb(1));
         var columnarStoredSettings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
             .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
             .put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), useTimeSeriesDocValuesFormat)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1);
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.ofGb(1));
 
         assertAcked(prepareCreate("test_synthetic").setMapping(mappingXContent).setSettings(syntheticSettings));
         assertAcked(prepareCreate("test_columnar_stored").setMapping(mappingXContent).setSettings(columnarStoredSettings));
+        ensureGreen("test_synthetic", "test_columnar_stored");
 
         prepareIndex("test_synthetic").setId("1").setSource(document).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         prepareIndex("test_columnar_stored").setId("1").setSource(document).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();

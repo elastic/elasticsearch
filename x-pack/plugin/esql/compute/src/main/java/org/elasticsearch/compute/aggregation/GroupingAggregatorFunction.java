@@ -240,18 +240,17 @@ public interface GroupingAggregatorFunction extends Releasable {
     int intermediateBlockCount();
 
     /**
-     * Whether this aggregation can safely emit partial results from its current state.
-     * Defaults to {@code true}; most aggregations can emit partial state at any time.
-     * Rate-like aggregations return {@code false} today; they may later allow flush at slice boundaries.
+     * Prepares this aggregation for periodic emit and returns whether its current state can be emitted before
+     * {@code incomingPage} is processed.
      */
-    default boolean canEmitPartialResultsPeriodically() {
+    default boolean prepareForPeriodicEmit(Page incomingPage) {
         return true;
     }
 
     /**
-     * Whether this grouping aggregation function supports partitioning
+     * Whether this grouping aggregation function supports partitioning when running in the given mode
      */
-    default boolean supportPartitioning() {
+    default boolean supportPartitioning(AggregatorMode mode) {
         return false;
     }
 
@@ -283,7 +282,7 @@ public interface GroupingAggregatorFunction extends Releasable {
 
     /**
      * Creates a splitter for this grouping aggregation state.
-     * Callers must check {@link #supportPartitioning()} first; otherwise this method throws {@link UnsupportedOperationException}.
+     * Callers must check {@link #supportPartitioning} first; otherwise this method throws {@link UnsupportedOperationException}.
      */
     default PartitionSplitter createPartitioningSplitter(CircuitBreaker breaker) {
         throw new UnsupportedOperationException(getClass().getSimpleName() + " doesn't support partitioning");
@@ -291,7 +290,7 @@ public interface GroupingAggregatorFunction extends Releasable {
 
     /**
      * Combines one partition into this grouping aggregation state.
-     * Callers must check {@link #supportPartitioning()} first; otherwise this method throws {@link UnsupportedOperationException}.
+     * Callers must check {@link #supportPartitioning} first; otherwise this method throws {@link UnsupportedOperationException}.
      *
      * @param source     the partitioned state
      * @param partition  the partition to combine

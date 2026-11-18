@@ -344,6 +344,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.script.field;
     exports org.elasticsearch.script.field.vectors;
     exports org.elasticsearch.search;
+    exports org.elasticsearch.search.scheduling;
     exports org.elasticsearch.search.aggregations;
     exports org.elasticsearch.search.aggregations.bucket;
     exports org.elasticsearch.search.aggregations.bucket.composite;
@@ -546,7 +547,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.index.codec.vectors.diskbbq.es94 to org.elasticsearch.test.knn, org.elasticsearch.xpack.diskbbq;
     exports org.elasticsearch.index.codec.vectors.diskbbq.es95 to org.elasticsearch.test.knn, org.elasticsearch.xpack.diskbbq;
     exports org.elasticsearch.index.codec.vectors.cluster to org.elasticsearch.test.knn;
-    exports org.elasticsearch.index.codec.vectors.es93 to org.elasticsearch.test.knn;
+    exports org.elasticsearch.index.codec.vectors.es93;
     exports org.elasticsearch.index.codec.vectors.es94 to org.elasticsearch.test.knn;
     exports org.elasticsearch.search.crossproject;
     exports org.elasticsearch.index.mapper.blockloader;

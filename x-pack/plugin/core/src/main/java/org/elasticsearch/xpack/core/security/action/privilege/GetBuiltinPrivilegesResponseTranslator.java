@@ -19,7 +19,9 @@ public interface GetBuiltinPrivilegesResponseTranslator {
      */
     Set<String> BOOST_CLUSTER_PRIVILEGES = Set.of(
         ClusterPrivilegeResolver.READ_BOOST_PROFILES.name(),
-        ClusterPrivilegeResolver.READ_BOOST_RULES.name()
+        ClusterPrivilegeResolver.READ_BOOST_RULES.name(),
+        ClusterPrivilegeResolver.MANAGE_BOOST_PROFILES.name(),
+        ClusterPrivilegeResolver.MANAGE_BOOST_RULES.name()
     );
 
     GetBuiltinPrivilegesResponse translate(GetBuiltinPrivilegesResponse response);

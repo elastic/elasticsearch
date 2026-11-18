@@ -56,7 +56,7 @@ public class IsAfterAssertion extends Assertion {
             "value to test against [" + expectedValue + "] cannot be parsed to " + Instant.class.getSimpleName()
         );
 
-        logger.trace("assert that [{}] is after [{}] (field [{}])", fieldInstant, valueInstant);
+        logger.trace("assert that [{}] is after [{}] (field [{}])", fieldInstant, valueInstant, getField());
         assertTrue("field [" + getField() + "] should be after [" + actualValue + "], but was not", fieldInstant.isAfter(valueInstant));
     }
 

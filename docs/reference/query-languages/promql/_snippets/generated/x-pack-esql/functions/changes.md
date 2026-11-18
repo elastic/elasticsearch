@@ -22,6 +22,8 @@
 changes(process_start_time_seconds[1h])
 ```
 
-**Differences from Prometheus**
+:::{note}
+**Differences from {{prom}}**
 
-Returns a `long` integer count rather than a floating-point value. A single Elasticsearch field has a fixed type, so transitions between float and native histogram samples cannot be represented.
+Returns a `long` integer count rather than a floating-point value. A single {{es}} field has a fixed type, so transitions between float and native histogram samples cannot be represented.
+:::

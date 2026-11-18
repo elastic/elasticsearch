@@ -1927,6 +1927,38 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
+    /**
+     * Closing a shard with a flush puts its engine into the closing state before the final flush, as on relocation or shutdown, so a
+     * failure of that flush is reported as a clean close. An {@link AlreadyClosedException} is then expected and must not count, but
+     * any other failure must still count.
+     */
+    public void testFlushFailureDuringCleanCloseClassification() throws IOException {
+        failFinalFlushOnClose(new AlreadyClosedException("engine is closing"));
+        assertFlushFailureCount(0L);
+
+        failFinalFlushOnClose(new IllegalStateException("unexpected"));
+        assertFlushFailureCount(1L);
+    }
+
+    private void failFinalFlushOnClose(RuntimeException failure) throws IOException {
+        AtomicReference<RuntimeException> engineFailure = new AtomicReference<>();
+        IndexShard shard = newStartedShard(true, Settings.EMPTY, config -> new InternalEngine(config) {
+            @Override
+            protected void ensureCanFlush() {
+                super.ensureCanFlush();
+                RuntimeException e = engineFailure.getAndSet(null);
+                if (e != null) {
+                    throw e;
+                }
+            }
+        });
+        indexDoc(shard, "_doc", "1");
+        engineFailure.set(failure);
+
+        IOUtils.close(() -> flushAndCloseShardNoCheck(shard), shard.store());
+        assertThat("the final flush must reach the engine", engineFailure.get(), nullValue());
+    }
+
     private Exception flushFailure(IndexShard shard) {
         AtomicReference<Exception> failure = new AtomicReference<>();
         shard.flush(

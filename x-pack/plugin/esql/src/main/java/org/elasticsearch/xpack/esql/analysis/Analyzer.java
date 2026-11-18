@@ -489,8 +489,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<AnalyzerContext.ViewBoundary> views = e.getValue();
             // A nested view prints two names, so one that no longer fits can be followed by one that still does.
             int remainingViewNames = viewNameBudget - (e.getKey().settingView() == null ? 0 : 1);
-            List<AnalyzerContext.ViewBoundary> listedViews = new ArrayList<>(views.size());
+            List<AnalyzerContext.ViewBoundary> listedViews = new ArrayList<>(Math.min(views.size(), MAX_LISTED_VIEW_BOUNDARY_VIEW_NAMES));
             for (AnalyzerContext.ViewBoundary view : views) {
+                if (remainingViewNames <= 0) {
+                    break;
+                }
                 if (viewNamesPrinted(view) <= remainingViewNames) {
                     listedViews.add(view);
                     remainingViewNames -= viewNamesPrinted(view);

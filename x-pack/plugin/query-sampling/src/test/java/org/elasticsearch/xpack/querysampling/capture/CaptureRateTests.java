@@ -85,14 +85,14 @@ public class CaptureRateTests extends ESTestCase {
         CaptureRate rate = new CaptureRate(0.1, 0);
         rate.observe(500, 10);
 
-        rate.configured(0.4);
+        rate.baseRate(0.4);
         assertThat(rate.effective(), equalTo(0.4));
 
         rate.minPerHour(3600); // a floor of 2% is below the configured rate
         assertThat(rate.effective(), equalTo(0.4));
         rate.minPerHour(36_000); // a floor of 20% still is
         assertThat(rate.effective(), equalTo(0.4));
-        rate.configured(0.01);
+        rate.baseRate(0.01);
         assertThat("now the floor is higher", rate.effective(), closeTo(0.2, 1e-12));
     }
 

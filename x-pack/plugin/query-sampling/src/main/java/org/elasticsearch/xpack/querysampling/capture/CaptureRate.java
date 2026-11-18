@@ -29,7 +29,12 @@ public final class CaptureRate {
         this.effective = configured;
     }
 
-    public synchronized void configured(double configured) {
+    /**
+     * Sets the base rate: the value of the {@code capture_rate} setting, before the floor of captures per hour raises it. It is
+     * called the base rate because that is what it is, a base that {@link #effective()}, the rate that searches use, never goes
+     * below, and not the rate in use: that one also depends on the traffic.
+     */
+    public synchronized void baseRate(double configured) {
         this.configured = configured;
         recompute();
     }

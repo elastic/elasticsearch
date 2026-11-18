@@ -105,7 +105,7 @@ public final class QueryCaptureSink extends QuerySink<QueryCaptureContext> {
         this.millis = millis;
         this.lastUpdate = new AtomicReference<>(new Mark(0, millis.getAsLong()));
         clusterSettings.initializeAndWatch(QuerySamplingSettings.ENABLED, value -> this.enabled = value);
-        clusterSettings.initializeAndWatch(QuerySamplingSettings.CAPTURE_RATE, captureRate::configured);
+        clusterSettings.initializeAndWatch(QuerySamplingSettings.CAPTURE_RATE, captureRate::baseRate);
         clusterSettings.initializeAndWatch(QuerySamplingSettings.MIN_CAPTURES_PER_HOUR, captureRate::minPerHour);
     }
 

@@ -21,7 +21,10 @@ import java.util.List;
 
 /** Integration tests for Iceberg tables with metadata (loads iceberg-*.csv-spec). */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
-@AwaitsFix(bugUrl = "Iceberg integration tests disabled pending stabilization")
+@AwaitsFix(
+    bugUrl = "Iceberg integration tests disabled pending stabilization. The EXTERNAL command was removed and Iceberg does not "
+        + "accept FROM <dataset>, so the specs cannot run"
+)
 public class IcebergSpecIT extends IcebergSpecTestCase {
 
     /** Elasticsearch cluster with S3 fixture and Iceberg catalog for testing. */

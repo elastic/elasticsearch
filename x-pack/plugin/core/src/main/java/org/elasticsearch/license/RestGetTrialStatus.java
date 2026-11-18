@@ -14,10 +14,13 @@ import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestGetTrialStatus extends BaseRestHandler {
+
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of(RestUtils.REST_MASTER_TIMEOUT_PARAM);
 
     public RestGetTrialStatus() {}
 
@@ -35,6 +38,11 @@ public class RestGetTrialStatus extends BaseRestHandler {
     @Override
     public String getName() {
         return "get_trial_status";
+    }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return SUPPORTED_QUERY_PARAMETERS;
     }
 
 }

@@ -86,13 +86,11 @@ import org.elasticsearch.xpack.esql.plan.logical.InfoCommandPlanUtils;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Into;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
-import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MMR;
-import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
@@ -509,6 +507,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             plan = processingCommand.apply(plan);
         }
         forkSeenInScope = forkSeenInEnclosingScope;
+        plan.forEachDown(Into.class, into -> { throw new ParsingException(into.source(), "INTO must be the last command of the query"); });
         return plan;
     }
 
@@ -564,10 +563,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitIntoCommand(EsqlBaseParser.IntoCommandContext ctx) {
         Source source = source(ctx);
-        if ((ctx.getParent().getParent() instanceof EsqlBaseParser.CompositeQueryContext parent
-            && parent.getParent() instanceof EsqlBaseParser.SingleStatementContext) == false) {
-            throw new ParsingException(source, "INTO must be the last command of the query");
-        }
         Source destinationSource = source(ctx.indexPattern());
         String destination = visitIndexPattern(List.of(ctx.indexPattern()));
         if (destination.contains(WILDCARD)) {
@@ -587,12 +582,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 destination
             );
         }
-        return input -> {
-            if (input.anyMatch(p -> p instanceof MergePlan || (p instanceof LeafPlan && p instanceof Row == false))) {
-                throw new ParsingException(source, "INTO currently only supports ROW as a source, without FORK");
-            }
-            return new Into(source, input, destination);
-        };
+        return input -> new Into(source, input, destination);
     }
 
     @Override

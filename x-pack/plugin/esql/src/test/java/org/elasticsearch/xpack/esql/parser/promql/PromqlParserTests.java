@@ -1366,11 +1366,8 @@ public class PromqlParserTests extends ESTestCase {
     }
 
     public void testBuilderErrorLocationMultiline() {
-        ParsingException e = assertThrows(
-            ParsingException.class,
-            () -> parse("PROMQL index=test step=5m (\nfoo and on(job) group_left bar)")
-        );
-        assertThat(e.getMessage(), containsString("line 2:9: No grouping [LEFT] allowed for [and] operator"));
+        ParsingException e = assertThrows(ParsingException.class, () -> parse("PROMQL index=test step=5m foo\nand on(job) group_left bar"));
+        assertThat(e.getMessage(), containsString("line 2:5: No grouping [LEFT] allowed for [and] operator"));
     }
 
     public void testBuilderErrorLocationStandalone() {
@@ -1381,13 +1378,27 @@ public class PromqlParserTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("line 1:9: No grouping [LEFT] allowed for [and] operator"));
     }
 
+    public void testBuilderErrorLocationStandaloneMultiline() {
+        ParsingException e = assertThrows(
+            ParsingException.class,
+            () -> new PromqlParser().createStatement("foo\nand on(job) group_left bar")
+        );
+        assertThat(e.getMessage(), containsString("line 2:5: No grouping [LEFT] allowed for [and] operator"));
+    }
+
     public void testSyntaxErrorLocation() {
         ParsingException e = assertThrows(ParsingException.class, () -> parse("PROMQL index=test step=5m foo{not valid}"));
         assertThat(e.getMessage(), containsString("line 1:35: extraneous input 'valid' expecting '}'"));
     }
 
     public void testSyntaxErrorLocationMultiline() {
-        ParsingException e = assertThrows(ParsingException.class, () -> parse("PROMQL index=test step=5m (\nfoo{not valid})"));
+        // the PromQL query starts at foo on line 2, so its second line is line 3
+        ParsingException e = assertThrows(ParsingException.class, () -> parse("PROMQL index=test step=5m (\nfoo +\nfoo{not valid})"));
+        assertThat(e.getMessage(), containsString("line 3:9: extraneous input 'valid' expecting '}'"));
+    }
+
+    public void testSyntaxErrorLocationStandaloneMultiline() {
+        ParsingException e = assertThrows(ParsingException.class, () -> new PromqlParser().createStatement("foo +\nfoo{not valid}"));
         assertThat(e.getMessage(), containsString("line 2:9: extraneous input 'valid' expecting '}'"));
     }
 

@@ -244,8 +244,8 @@ public class PromqlParserUtils {
      */
     public static Location adjustLocation(Location location, int startLine, int startColumn) {
         int lineNumber = location.getLineNumber();
-        int columnNumber = location.getColumnNumber();
-        return new Location(adjustLine(lineNumber, startLine), adjustColumn(lineNumber, columnNumber, startColumn));
+        int charPositionInLine = location.getColumnNumber() - 1;
+        return new Location(adjustLine(lineNumber, startLine), adjustCharPosition(lineNumber, charPositionInLine, startColumn));
     }
 
     /**
@@ -260,7 +260,7 @@ public class PromqlParserUtils {
             pe.getErrorMessage(),
             pe.getCause() instanceof Exception ? (Exception) pe.getCause() : null,
             adjustLine(pe.getLineNumber(), promqlStartLine),
-            adjustColumn(pe.getLineNumber(), pe.getColumnNumber(), promqlStartColumn)
+            adjustCharPosition(pe.getLineNumber(), pe.getColumnNumber() - 1, promqlStartColumn)
         );
         adjusted.setStackTrace(pe.getStackTrace());
         return adjusted;
@@ -270,9 +270,9 @@ public class PromqlParserUtils {
         return lineNumber + startLine - 1;
     }
 
-    private static int adjustColumn(int lineNumber, int columnNumber, int startColumn) {
+    private static int adjustCharPosition(int lineNumber, int charPositionInLine, int startColumn) {
         // the column offset only applies to the first line of the PROMQL command
-        return lineNumber == 1 ? columnNumber + startColumn - 1 : columnNumber;
+        return lineNumber == 1 ? charPositionInLine + startColumn : charPositionInLine;
     }
 
     /*

@@ -25,7 +25,6 @@ import org.elasticsearch.xcontent.XContentString;
 import org.elasticsearch.xpack.core.analytics.mapper.HistogramEscfSchema;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPoint;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPointGroupingContext;
-import org.elasticsearch.xpack.oteldata.otlp.datapoint.ExponentialHistogramConverter;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.TargetIndex;
 
 import java.util.List;
@@ -79,7 +78,7 @@ public final class OTLPMetricBatchBuilder extends AbstractOTLPBatchBuilder {
     private int temporalityCol = NOT_REGISTERED;
     private int docCountCol = NOT_REGISTERED;
 
-    private final ExponentialHistogramConverter.BucketBuffer scratch = new ExponentialHistogramConverter.BucketBuffer();
+    private final DataPoint.SerializationScratch scratch = new DataPoint.SerializationScratch();
 
     /** Creates a builder using {@code recycler} to back column byte buffers for high-throughput paths. */
     public OTLPMetricBatchBuilder(Recycler<BytesRef> recycler, MappingHints defaultMappingHints) {

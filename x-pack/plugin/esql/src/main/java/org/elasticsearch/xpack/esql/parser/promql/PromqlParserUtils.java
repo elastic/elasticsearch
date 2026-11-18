@@ -113,12 +113,28 @@ public class PromqlParserUtils {
         return Duration.ofMillis(millis);
     }
 
+    /** The bases of PromQL number literals, which decide the digits an underscore may separate. */
+    enum NumberBase {
+        DECIMAL(10),
+        HEXADECIMAL(16);
+
+        private final int radix;
+
+        NumberBase(int radix) {
+            this.radix = radix;
+        }
+
+        boolean isDigit(char c) {
+            return Character.digit(c, radix) >= 0;
+        }
+    }
+
     /**
      * Drops the underscores that, like in Prometheus, may separate the digits of a number, as in 1_000 or 0x_1F.
-     * An underscore must sit between two digits of the radix, or right after the 0x of a hexadecimal number;
+     * An underscore must sit between two digits of the base, or right after the 0x of a hexadecimal number;
      * anything else, such as 1__000 or 1_000_, is rejected rather than silently dropped.
      */
-    static String stripDigitSeparators(Source source, String number, int radix) {
+    static String stripDigitSeparators(Source source, String number, NumberBase base) {
         int first = number.indexOf('_');
         if (first < 0) {
             return number;
@@ -130,9 +146,9 @@ public class PromqlParserUtils {
                 digits.append(c);
                 continue;
             }
-            boolean afterPrefix = radix == 16 && i == 2 && (number.charAt(1) == 'x' || number.charAt(1) == 'X');
-            boolean afterDigit = i > 0 && (Character.digit(number.charAt(i - 1), radix) >= 0 || afterPrefix);
-            boolean beforeDigit = i + 1 < number.length() && Character.digit(number.charAt(i + 1), radix) >= 0;
+            boolean afterPrefix = base == NumberBase.HEXADECIMAL && i == 2 && (number.charAt(1) == 'x' || number.charAt(1) == 'X');
+            boolean afterDigit = i > 0 && (base.isDigit(number.charAt(i - 1)) || afterPrefix);
+            boolean beforeDigit = i + 1 < number.length() && base.isDigit(number.charAt(i + 1));
             if (afterDigit == false || beforeDigit == false) {
                 throw new ParsingException(source, "Invalid number [{}], an underscore must separate two digits", number);
             }

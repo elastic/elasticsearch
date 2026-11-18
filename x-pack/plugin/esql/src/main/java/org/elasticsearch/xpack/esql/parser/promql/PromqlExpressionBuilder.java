@@ -52,6 +52,8 @@ import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.OffsetContext
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.ParenthesizedContext;
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.TimeValueContext;
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.ValueExpressionContext;
+import static org.elasticsearch.xpack.esql.parser.promql.PromqlParserUtils.NumberBase.DECIMAL;
+import static org.elasticsearch.xpack.esql.parser.promql.PromqlParserUtils.NumberBase.HEXADECIMAL;
 
 class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
 
@@ -336,7 +338,7 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
     @Override
     public Literal visitDecimalLiteral(DecimalLiteralContext ctx) {
         Source source = source(ctx);
-        String text = PromqlParserUtils.stripDigitSeparators(source, ctx.getText(), 10);
+        String text = PromqlParserUtils.stripDigitSeparators(source, ctx.getText(), DECIMAL);
 
         try {
             double value;
@@ -357,7 +359,7 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
     @Override
     public Literal visitIntegerLiteral(IntegerLiteralContext ctx) {
         Source source = source(ctx);
-        String text = PromqlParserUtils.stripDigitSeparators(source, ctx.getText(), 10);
+        String text = PromqlParserUtils.stripDigitSeparators(source, ctx.getText(), DECIMAL);
 
         Number value;
 
@@ -380,7 +382,7 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
     @Override
     public Literal visitHexLiteral(HexLiteralContext ctx) {
         Source source = source(ctx);
-        String text = PromqlParserUtils.stripDigitSeparators(source, ctx.getText(), 16);
+        String text = PromqlParserUtils.stripDigitSeparators(source, ctx.getText(), HEXADECIMAL);
 
         DataType type = DataType.LONG;
         Object val;

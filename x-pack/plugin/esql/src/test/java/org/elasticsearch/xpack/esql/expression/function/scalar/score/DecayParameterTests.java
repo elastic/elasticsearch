@@ -20,8 +20,10 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.scalar.score.Decay.DecayFunction;
 
 import java.time.Duration;
+import java.time.Period;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.of;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
@@ -155,6 +157,54 @@ public class DecayParameterTests extends ESTestCase {
             Literal.timeDuration(Source.EMPTY, Duration.ofNanos(100)),
             null
         );
+    }
+
+    public void testScaleInMonthsIsRejected() {
+        assertFoldError(
+            "[scale] must not contain months or years, use days or a time duration: [P1M]",
+            new Literal(Source.EMPTY, 1_000L, DataType.DATETIME),
+            new Literal(Source.EMPTY, 0L, DataType.DATETIME),
+            new Literal(Source.EMPTY, Period.ofMonths(1), DataType.DATE_PERIOD),
+            null
+        );
+    }
+
+    public void testOffsetInYearsIsRejected() {
+        assertFoldError(
+            "[offset] must not contain months or years, use days or a time duration: [P1Y]",
+            new Literal(Source.EMPTY, 1_000L, DataType.DATE_NANOS),
+            new Literal(Source.EMPTY, 0L, DataType.DATE_NANOS),
+            new Literal(Source.EMPTY, Period.ofDays(7), DataType.DATE_PERIOD),
+            options("offset", new Literal(Source.EMPTY, Period.ofYears(1), DataType.DATE_PERIOD))
+        );
+    }
+
+    /**
+     * Older data nodes only accept durations, so day periods must be gone before the plan leaves the coordinator.
+     */
+    public void testSurrogateRewritesDayPeriodsToDurations() {
+        Decay decay = new Decay(
+            Source.EMPTY,
+            new Literal(Source.EMPTY, 1_000L, DataType.DATETIME),
+            new Literal(Source.EMPTY, 0L, DataType.DATETIME),
+            new Literal(Source.EMPTY, Period.ofWeeks(1), DataType.DATE_PERIOD),
+            options("offset", new Literal(Source.EMPTY, Period.ofDays(1), DataType.DATE_PERIOD), "decay", 0.5)
+        );
+        Decay surrogate = (Decay) decay.surrogate();
+        assertThat(surrogate.scale(), equalTo(Literal.timeDuration(Source.EMPTY, Duration.ofDays(7))));
+        Map<String, Expression> options = ((MapExpression) surrogate.options()).keyFoldedMap();
+        assertThat(options.get("offset"), equalTo(Literal.timeDuration(Source.EMPTY, Duration.ofDays(1))));
+        assertThat(options.get("decay"), equalTo(of(0.5)));
+        assertThat(surrogate.fold(FoldContext.small()), equalTo(decay.fold(FoldContext.small())));
+    }
+
+    public void testSurrogateKeepsMonthPeriodsAndDurations() {
+        Expression value = new Literal(Source.EMPTY, 1_000L, DataType.DATETIME);
+        Expression origin = new Literal(Source.EMPTY, 0L, DataType.DATETIME);
+        Expression month = new Literal(Source.EMPTY, Period.ofMonths(1), DataType.DATE_PERIOD);
+        Expression week = Literal.timeDuration(Source.EMPTY, Duration.ofDays(7));
+        assertThat(new Decay(Source.EMPTY, value, origin, month, null).surrogate(), nullValue());
+        assertThat(new Decay(Source.EMPTY, value, origin, week, options("offset", week)).surrogate(), nullValue());
     }
 
     public void testDatetimeOriginBeforeEpochOnDateNanosValue() {

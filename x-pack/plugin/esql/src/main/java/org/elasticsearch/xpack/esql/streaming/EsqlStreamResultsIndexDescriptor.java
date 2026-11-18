@@ -141,6 +141,7 @@ public final class EsqlStreamResultsIndexDescriptor {
             .setMappings(mappings())
             .setSettings(settings())
             .setOrigin(ESQL_ORIGIN)
+            .setNetNew()
             .build();
     }
 }

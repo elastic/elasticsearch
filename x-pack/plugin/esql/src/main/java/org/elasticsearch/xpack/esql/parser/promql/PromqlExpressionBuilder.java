@@ -390,7 +390,7 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
         // remove leading 0x
         long value;
         try {
-            value = Long.parseLong(text.substring(2), 16);
+            value = Long.parseLong(text.substring(2), HEXADECIMAL.radix());
         } catch (NumberFormatException e) {
             throw new ParsingException(source, "Cannot parse hexadecimal expression [{}]", text);
         }

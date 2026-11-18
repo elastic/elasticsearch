@@ -22,6 +22,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.uhighlight.FieldHighlighter;
 import org.apache.lucene.search.uhighlight.FieldOffsetStrategy;
+import org.apache.lucene.search.uhighlight.MemoryIndexOffsetStrategy;
 import org.apache.lucene.search.uhighlight.NoOpOffsetStrategy;
 import org.apache.lucene.search.uhighlight.Passage;
 import org.apache.lucene.search.uhighlight.PassageFormatter;
@@ -91,6 +92,7 @@ public final class CustomUnifiedHighlighter extends UnifiedHighlighter {
     private final CustomFieldHighlighter fieldHighlighter;
     private final int maxAnalyzedOffset;
     private final QueryMaxAnalyzedOffset queryMaxAnalyzedOffset;
+    private boolean tokenPrefilter;
 
     /**
      * Creates a new instance of {@link CustomUnifiedHighlighter}
@@ -191,6 +193,19 @@ public final class CustomUnifiedHighlighter extends UnifiedHighlighter {
     /** Returns the offset source selected by Lucene. */
     OffsetSource resolvedOffsetSource() {
         return fieldHighlighter.getFieldOffsetStrategy().getOffsetSource();
+    }
+
+    /** Returns whether tokens are filtered against the query before populating the per-document MemoryIndex. */
+    boolean hasTokenPrefilter() {
+        return tokenPrefilter;
+    }
+
+    @Override
+    protected FieldOffsetStrategy getOffsetStrategy(OffsetSource offsetSource, UHComponents components) {
+        FieldOffsetStrategy strategy = super.getOffsetStrategy(offsetSource, components);
+        // Same condition MemoryIndexOffsetStrategy uses to build its (private) prefilter.
+        tokenPrefilter = strategy instanceof MemoryIndexOffsetStrategy && components.terms() != null && components.automata() != null;
+        return strategy;
     }
 
     @Override

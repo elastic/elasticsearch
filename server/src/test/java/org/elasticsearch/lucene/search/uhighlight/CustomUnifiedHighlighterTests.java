@@ -208,6 +208,7 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
             "<b>quick</b> brown <b>fox</b>",
             true
         );
+        assertTrue(highlighter.hasTokenPrefilter());
         assertFalse(highlighter.hasUnrecognizedQuery("text"::equals, query));
         Query withUnknownLeaf = new BooleanQuery.Builder().add(query, BooleanClause.Occur.MUST)
             .add(new FieldExistsQuery("text"), BooleanClause.Occur.FILTER)

@@ -77,6 +77,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.SendRequestTransportException;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
@@ -2546,6 +2547,21 @@ public class ComputeService {
      */
     <T> ActionListener<T> coordinate(Task coordinatorTask, ActionListener<T> listener) {
         return ActionListener.releaseAfter(listener, searchService.coordinate(coordinatorTask));
+    }
+
+    /**
+     * A remote sink that charges the pages it receives to the query through {@code part}.
+     */
+    RemoteSink newRemoteSink(Task task, String exchangeId, Transport.Connection connection, QueryScheduler.QueryPart part) {
+        BlockFactory queryFactory = blockFactory.newQueryFactory(part.breaker(), part.bigArrays(bigArrays));
+        return exchangeService.newRemoteSink(task, exchangeId, transportService, connection, queryFactory);
+    }
+
+    /**
+     * A part of query {@code queryId} for the pages the remote sinks of {@code owner} receive.
+     */
+    QueryScheduler.QueryPart remoteSinkPart(TaskId queryId, Task owner) {
+        return searchService.queryScheduler().part(queryId, owner.getId());
     }
 
     /**

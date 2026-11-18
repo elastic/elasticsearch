@@ -42,12 +42,23 @@ public final class EsqlStreamResultsIndexDescriptor {
     public static final String INDEX = ".esql-stream-results";
 
     public static final String STREAM_ID_FIELD = "stream_id";
-    public static final String SEQ_FIELD = "seq";
-    public static final String OFFSET_FIELD = "offset";
-    public static final String SIZE_FIELD = "size";
-    public static final String TRANSPORT_VERSION_FIELD = "transport_version";
-    public static final String EXPIRATION_TIME_FIELD = "expiration_time";
-    public static final String DATA_FIELD = "data";
+    public static final String STREAM_HEADERS = "stream_headers";
+    public static final String STREAM_WARNINGS = "stream_warnings";
+    public static final String STREAM_COLUMNS = "stream_columns";
+    public static final String STREAM_TASK = "stream_task";
+    public static final String STREAM_EXPIRATION_TIME_FIELD = "stream_expiration_time";
+    public static final String STREAM_STATUS = "stream_status";
+    public static final String STREAM_TOTAL_PAGES = "stream_pages";
+    public static final String STREAM_TOTAL_ROWS = "stream_rows";
+    public static final String STREAM_TOOK = "stream_took";
+    public static final String STREAM_PARTIAL = "stream_partial";
+    public static final String STREAM_FAILURE = "stream_failure";
+
+    public static final String PAGE_SEQ_FIELD = "seq";
+    public static final String PAGE_OFFSET_FIELD = "offset";
+    public static final String PAGE_SIZE_FIELD = "size";
+    public static final String PAGE_TRANSPORT_VERSION_FIELD = "transport_version";
+    public static final String PAGE_FIELD = "page";
 
     private static final int MAPPINGS_VERSION = 0;
 
@@ -77,7 +88,7 @@ public final class EsqlStreamResultsIndexDescriptor {
                 MergePolicyConfig.INDEX_MERGE_POLICY_TYPE_SETTING.getKey(),
                 MergePolicyConfig.Type.TIME_BASED.name().toLowerCase(Locale.ROOT)
             )
-            .putList(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), STREAM_ID_FIELD, SEQ_FIELD)
+            .putList(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), STREAM_ID_FIELD, PAGE_SEQ_FIELD)
             .build();
     }
 
@@ -96,32 +107,76 @@ public final class EsqlStreamResultsIndexDescriptor {
                 .field("index", false)
                 .field("multi_value", false)
                 .endObject()
-                .startObject(SEQ_FIELD)
-                .field("type", "integer")
+                .startObject(STREAM_HEADERS)
+                .field("type", "text")
                 .field("index", false)
                 .field("multi_value", false)
                 .endObject()
-                .startObject(OFFSET_FIELD)
+                .startObject(STREAM_WARNINGS)
+                .field("type", "text")
+                .field("index", false)
+                .field("multi_value", false)
+                .endObject()
+                .startObject(STREAM_COLUMNS)
+                .field("type", "text")
+                .field("index", false)
+                .field("multi_value", false)
+                .endObject()
+                .startObject(STREAM_TASK)
+                .field("type", "keyword")
+                .field("multi_value", false)
+                .endObject()
+                .startObject(STREAM_EXPIRATION_TIME_FIELD)
                 .field("type", "long")
                 .field("index", false)
                 .field("multi_value", false)
                 .endObject()
-                .startObject(SIZE_FIELD)
+                .startObject(STREAM_STATUS)
+                .field("type", "keyword")
+                .field("multi_value", false)
+                .endObject()
+                .startObject(STREAM_TOTAL_PAGES)
+                .field("type", "long")
+                .field("multi_value", false)
+                .endObject()
+                .startObject(STREAM_TOTAL_ROWS)
+                .field("type", "long")
+                .field("multi_value", false)
+                .endObject()
+                .startObject(STREAM_TOOK)
+                .field("type", "long")
+                .field("multi_value", false)
+                .endObject()
+                .startObject(STREAM_PARTIAL)
+                .field("type", "boolean")
+                .field("multi_value", false)
+                .endObject()
+                .startObject(STREAM_FAILURE)
+                .field("type", "text")
+                .field("index", false)
+                .field("multi_value", false)
+                .endObject()
+                .startObject(PAGE_SEQ_FIELD)
                 .field("type", "integer")
                 .field("index", false)
                 .field("multi_value", false)
                 .endObject()
-                .startObject(TRANSPORT_VERSION_FIELD)
-                .field("type", "integer")
-                .field("index", false)
-                .field("multi_value", false)
-                .endObject()
-                .startObject(EXPIRATION_TIME_FIELD)
+                .startObject(PAGE_OFFSET_FIELD)
                 .field("type", "long")
                 .field("index", false)
                 .field("multi_value", false)
                 .endObject()
-                .startObject(DATA_FIELD)
+                .startObject(PAGE_SIZE_FIELD)
+                .field("type", "integer")
+                .field("index", false)
+                .field("multi_value", false)
+                .endObject()
+                .startObject(PAGE_TRANSPORT_VERSION_FIELD)
+                .field("type", "integer")
+                .field("index", false)
+                .field("multi_value", false)
+                .endObject()
+                .startObject(PAGE_FIELD)
                 .field("type", "binary")
                 .field("multi_value", false)
                 .endObject()

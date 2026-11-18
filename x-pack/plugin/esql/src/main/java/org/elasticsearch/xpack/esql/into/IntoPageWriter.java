@@ -134,7 +134,10 @@ public final class IntoPageWriter implements PageConsumer {
         private static boolean routesFromSource(ProjectMetadata project, String target) {
             IndexAbstraction abstraction = project.getIndicesLookup().get(target);
             if (abstraction == null) {
-                return MetadataIndexTemplateService.findV2Template(project, target, false) != null;
+                // Any matching template can create the index with source routing. Applying the template
+                // is what resolves that routing, so a match takes the inline path.
+                return MetadataIndexTemplateService.findV2Template(project, target, false) != null
+                    || MetadataIndexTemplateService.findV1Templates(project, target, Boolean.FALSE).isEmpty() == false;
             }
             Index writeIndex = abstraction.getWriteIndex();
             return writeIndex != null
@@ -173,13 +176,7 @@ public final class IntoPageWriter implements PageConsumer {
 
     private ReservedBulk bulkFor(Page page) {
         BulkRequest bulk = new BulkRequest();
-        PageToEscfBatch.ConvertResult result = PageToEscfBatch.convert(
-            page,
-            sink.columns,
-            sink.types,
-            recycler,
-            sink.batchForm == Factory.BatchForm.PREBUILT ? breaker : null
-        );
+        PageToEscfBatch.ConvertResult result = PageToEscfBatch.convert(page, sink.columns, sink.types, recycler, breaker);
         bulk.setPreBuiltBatches(Map.of(sink.destination, result.batch()));
         long reserved = result.charged();
         try {
@@ -196,6 +193,8 @@ public final class IntoPageWriter implements PageConsumer {
             }
             if (sink.batchForm == Factory.BatchForm.INLINE) {
                 bulk.releasePreBuiltBatches();
+                release(result.charged());
+                reserved -= result.charged();
             }
             return new ReservedBulk(bulk, reserved);
         } catch (Exception e) {

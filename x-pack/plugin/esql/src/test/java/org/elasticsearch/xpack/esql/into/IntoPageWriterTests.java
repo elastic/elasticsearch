@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
@@ -367,6 +368,17 @@ public class IntoPageWriterTests extends ComputeTestCase {
         assertThat(sink.stats(), equalTo(new IntoStats(0, 0)));
     }
 
+    public void testInlineConversionTripsOnTheColumnBuffer() {
+        BigArrays bigArrays = mockBigArrays();
+        long pageSize = bigArrays.bytesRefRecycler().pageSize();
+        BlockFactory limited = blockFactory(ByteSizeValue.ofBytes(pageSize - 1));
+        IntoPageWriter inlineWriter = IntoPageWriter.Factory.createFactory(client, DESTINATION, COLUMNS, INLINE)
+            .create(new DriverContext(bigArrays, limited, null));
+        expectThrows(CircuitBreakingException.class, () -> inlineWriter.consume(page("h1")));
+        assertThat(limited.breaker().getUsed(), equalTo(0L));
+        assertThat(client.bulks, empty());
+    }
+
     public void testInlineSourceBytesMatchTheCharge() {
         IntoPageWriter inlineWriter = IntoPageWriter.Factory.createFactory(client, DESTINATION, COLUMNS, INLINE).create(driverContext);
         inlineWriter.consume(page("h1", "h2"));
@@ -439,6 +451,15 @@ public class IntoPageWriterTests extends ComputeTestCase {
 
     public void testMissingIndexWithNoTemplateIsEligible() {
         assertPreBuilt(ProjectMetadata.builder(randomProjectIdOrDefault()).build(), "new-dest", true);
+    }
+
+    public void testLegacyTemplateIsNotEligible() {
+        IndexTemplateMetadata template = IndexTemplateMetadata.builder("legacy")
+            .patterns(List.of("legacy-*"))
+            .settings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "host").build())
+            .build();
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).put(template).build();
+        assertPreBuilt(project, "legacy-logs", false);
     }
 
     public void testTwoWritersAreIndependent() {

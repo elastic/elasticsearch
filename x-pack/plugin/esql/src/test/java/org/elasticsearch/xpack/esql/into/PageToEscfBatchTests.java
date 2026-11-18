@@ -10,7 +10,11 @@ package org.elasticsearch.xpack.esql.into;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.index.IndexSource;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreaker.Durability;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -39,6 +43,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class PageToEscfBatchTests extends ComputeTestCase {
     private final MockBigArrays bigArrays;
@@ -81,7 +86,7 @@ public class PageToEscfBatchTests extends ComputeTestCase {
             b.appendNull();
             assertThat(
                 rows(List.of(DataType.LONG), b.build()),
-                equalTo(List.of(Map.of("c0", List.of(10_000_000_000L, 20_000_000_000L)), Map.of("c0", List.of(30_000_000_000L)), Map.of()))
+                equalTo(List.of(Map.of("c0", List.of(10_000_000_000L, 20_000_000_000L)), Map.of("c0", 30_000_000_000L), Map.of()))
             );
         }
     }
@@ -90,10 +95,7 @@ public class PageToEscfBatchTests extends ComputeTestCase {
         try (DoubleBlock.Builder b = blockFactory().newDoubleBlockBuilder(2)) {
             b.beginPositionEntry().appendDouble(1.1).appendDouble(2.2).endPositionEntry();
             b.appendDouble(3.3);
-            assertThat(
-                rows(List.of(DataType.DOUBLE), b.build()),
-                equalTo(List.of(Map.of("c0", List.of(1.1, 2.2)), Map.of("c0", List.of(3.3))))
-            );
+            assertThat(rows(List.of(DataType.DOUBLE), b.build()), equalTo(List.of(Map.of("c0", List.of(1.1, 2.2)), Map.of("c0", 3.3))));
         }
     }
 
@@ -128,10 +130,7 @@ public class PageToEscfBatchTests extends ComputeTestCase {
         try (BytesRefBlock.Builder b = blockFactory().newBytesRefBlockBuilder(2)) {
             b.beginPositionEntry().appendBytesRef(new BytesRef("a")).appendBytesRef(new BytesRef("b")).endPositionEntry();
             b.appendBytesRef(new BytesRef("c"));
-            assertThat(
-                rows(List.of(DataType.KEYWORD), b.build()),
-                equalTo(List.of(Map.of("c0", List.of("a", "b")), Map.of("c0", List.of("c"))))
-            );
+            assertThat(rows(List.of(DataType.KEYWORD), b.build()), equalTo(List.of(Map.of("c0", List.of("a", "b")), Map.of("c0", "c"))));
         }
     }
 
@@ -170,7 +169,60 @@ public class PageToEscfBatchTests extends ComputeTestCase {
         long encoded = NumericUtils.asLongUnsigned(big);
         try (LongBlock.Builder b = blockFactory().newLongBlockBuilder(1)) {
             b.appendLong(encoded);
-            assertThat(rows(List.of(DataType.UNSIGNED_LONG), b.build()), equalTo(List.of(Map.of("c0", big.toString()))));
+            Object value = rows(List.of(DataType.UNSIGNED_LONG), b.build()).getFirst().get("c0");
+            assertThat(value, instanceOf(BigInteger.class));
+            assertThat(value, equalTo(big));
+        }
+    }
+
+    public void testUnsignedLongArrayAboveLongMaxStaysNumeric() throws IOException {
+        BigInteger big = new BigInteger("10000000000000000000");
+        long encoded = NumericUtils.asLongUnsigned(big);
+        try (LongBlock.Builder b = blockFactory().newLongBlockBuilder(1)) {
+            b.beginPositionEntry().appendLong(encoded).appendLong(NumericUtils.asLongUnsigned(BigInteger.valueOf(7))).endPositionEntry();
+            Object value = rows(List.of(DataType.UNSIGNED_LONG), b.build()).getFirst().get("c0");
+            assertThat(value, equalTo(List.of(big.doubleValue(), 7)));
+        }
+    }
+
+    public void testStringColumnTripsOnTheNextRow() {
+        BytesRef value = new BytesRef("abcdefghijklmnopq");
+        int rows = 2;
+        Recycler<BytesRef> recycler = bigArrays.bytesRefRecycler();
+        long overhead = recycler.pageSize() + (long) (rows + 1) * Integer.BYTES;
+        LimitingBreaker breaker = new LimitingBreaker(overhead + value.length);
+        Page page = new Page(blockFactory().newConstantBytesRefBlockWith(value, rows));
+        try {
+            CircuitBreakingException e = expectThrows(
+                CircuitBreakingException.class,
+                () -> PageToEscfBatch.convert(page, List.of("c0"), List.of(DataType.KEYWORD), recycler, breaker)
+            );
+            assertThat(e.getBytesWanted(), equalTo((long) value.length));
+            int acceptedRows = 0;
+            for (long bytes : breaker.accepted()) {
+                if (bytes == value.length) {
+                    acceptedRows++;
+                }
+            }
+            assertThat(acceptedRows, equalTo(1));
+            assertThat(breaker.getUsed(), equalTo(0L));
+        } finally {
+            page.releaseBlocks();
+        }
+    }
+
+    public void testMixedStringCardinalityKeepsScalarRows() throws IOException {
+        try (BytesRefBlock.Builder b = blockFactory().newBytesRefBlockBuilder(2)) {
+            b.appendBytesRef(new BytesRef("c"));
+            b.beginPositionEntry().appendBytesRef(new BytesRef("a")).appendBytesRef(new BytesRef("b")).endPositionEntry();
+            assertThat(rows(List.of(DataType.KEYWORD), b.build()), equalTo(List.of(Map.of("c0", "c"), Map.of("c0", List.of("a", "b")))));
+        }
+    }
+
+    public void testSourceColumnIsAnObject() throws IOException {
+        try (BytesRefBlock.Builder b = blockFactory().newBytesRefBlockBuilder(1)) {
+            b.appendBytesRef(new BytesRef("{\"n\":1}"));
+            assertThat(rows(List.of(DataType.SOURCE), b.build()), equalTo(List.of(Map.of("c0", Map.of("n", 1)))));
         }
     }
 
@@ -221,7 +273,7 @@ public class PageToEscfBatchTests extends ComputeTestCase {
             b.beginPositionEntry().appendLong(20_000_000_000L).appendLong(30_000_000_000L).endPositionEntry();
             assertThat(
                 rows(List.of(DataType.LONG), b.build()),
-                equalTo(List.of(Map.of("c0", List.of(10_000_000_000L)), Map.of(), Map.of("c0", List.of(20_000_000_000L, 30_000_000_000L))))
+                equalTo(List.of(Map.of("c0", 10_000_000_000L), Map.of(), Map.of("c0", List.of(20_000_000_000L, 30_000_000_000L))))
             );
         }
     }
@@ -241,6 +293,72 @@ public class PageToEscfBatchTests extends ComputeTestCase {
         } finally {
             page.releaseBlocks();
         }
+    }
+
+    private static final class LimitingBreaker implements CircuitBreaker {
+        private final long limit;
+        private final List<Long> accepted = new ArrayList<>();
+        private long used;
+
+        LimitingBreaker(long limit) {
+            this.limit = limit;
+        }
+
+        List<Long> accepted() {
+            return accepted;
+        }
+
+        @Override
+        public void circuitBreak(String fieldName, long bytesNeeded) {
+            throw new CircuitBreakingException(fieldName, bytesNeeded, limit, Durability.TRANSIENT);
+        }
+
+        @Override
+        public void addEstimateBytesAndMaybeBreak(long bytes, String label) {
+            if (used + bytes > limit) {
+                circuitBreak(label, bytes);
+            }
+            used += bytes;
+            accepted.add(bytes);
+        }
+
+        @Override
+        public void addWithoutBreaking(long bytes) {
+            used += bytes;
+        }
+
+        @Override
+        public long getUsed() {
+            return used;
+        }
+
+        @Override
+        public long getLimit() {
+            return limit;
+        }
+
+        @Override
+        public double getOverhead() {
+            return 1;
+        }
+
+        @Override
+        public long getTrippedCount() {
+            return 0;
+        }
+
+        @Override
+        public String getName() {
+            return "into-test";
+        }
+
+        @Override
+        public Durability getDurability() {
+            return Durability.TRANSIENT;
+        }
+
+        @Override
+        public void setLimitAndOverhead(long limit, double overhead) {}
     }
 
     private static List<Map<String, Object>> toMaps(EscfBatch batch) throws IOException {

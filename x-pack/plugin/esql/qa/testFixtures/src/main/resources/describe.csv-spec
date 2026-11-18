@@ -186,7 +186,7 @@ FROM k8s
 | EVAL day = DATE_TRUNC(1 day, @timestamp)
 | STATS c = COUNT(*) BY b = BUCKET(@timestamp, 1 hour), day
 | RENAME b AS hour
-| EVAL month = DATE_TRUNC(1 month, hour), bucketed_by_count = BUCKET(hour, 20, "2024-05-10T00:00:00Z", "2024-05-11T00:00:00Z")
+| EVAL month = DATE_TRUNC(1 month, hour), ninety = DATE_TRUNC(90 minutes, hour), bucketed_by_count = BUCKET(hour, 20, "2024-05-10T00:00:00Z", "2024-05-11T00:00:00Z")
 | DESCRIBE
 | KEEP name, role, interval, time_zone
 ;
@@ -196,7 +196,8 @@ c                 | null         | null             | null
 hour              | time         | 1 hour           | UTC
 day               | time         | 1 day            | UTC
 month             | time         | 1 month          | UTC
-bucketed_by_count | time         | null             | null
+ninety            | time         | 90 minutes       | UTC
+bucketed_by_count | time         | 3 hours          | UTC
 ;
 
 describeIntervalOfOtherDates

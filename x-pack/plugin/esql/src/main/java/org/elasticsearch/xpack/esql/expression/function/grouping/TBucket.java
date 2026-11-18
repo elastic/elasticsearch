@@ -339,10 +339,6 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction
         return buckets;
     }
 
-    public Configuration configuration() {
-        return configuration;
-    }
-
     public Expression from() {
         return from;
     }

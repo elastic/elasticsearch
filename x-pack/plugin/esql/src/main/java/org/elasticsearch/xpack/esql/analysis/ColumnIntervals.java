@@ -7,22 +7,19 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
-import org.elasticsearch.xpack.esql.session.Configuration;
 
-import java.time.Duration;
-import java.time.Period;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.HashMap;
@@ -63,61 +60,31 @@ public final class ColumnIntervals {
 
     private static Interval of(Expression e) {
         if (e instanceof Bucket bucket) {
-            return of(bucket.buckets(), bucket.configuration());
+            return bucket.field().dataType().isDate() ? of(bucket) : null;
         }
         if (e instanceof TBucket tbucket) {
-            return of(tbucket.buckets(), tbucket.configuration());
+            boolean bounded = tbucket.buckets().dataType().isWholeNumber() == false || (tbucket.from() != null && tbucket.to() != null);
+            return bounded && tbucket.surrogate() instanceof Bucket bucket ? of(bucket) : null;
         }
         if (e instanceof DateTrunc dateTrunc) {
-            return of(dateTrunc.interval(), dateTrunc.configuration());
+            return of(dateTrunc.timeBucketSpecRef());
         }
         return null;
     }
 
     /**
-     * Null when the bucketing function takes a target number of buckets, or an interval that is not a constant.
+     * The interval {@code _meta.bucket} reports for the same bucket, or null when its arguments are not constant.
      */
-    private static Interval of(Expression span, Configuration configuration) {
-        if (DataType.isTemporalAmount(span.dataType()) == false || span.foldable() == false) {
-            return null;
-        }
-        String interval = format(span.fold(FoldContext.small()));
+    private static Interval of(Bucket bucket) {
+        Rounding.Interval interval = bucket.dateInterval(FoldContext.small());
         if (interval == null) {
             return null;
         }
-        ZoneId zone = QuerySettings.TIME_ZONE.get(configuration.resolvedSettings());
-        return new Interval(interval, zone.equals(ZoneOffset.UTC) ? "UTC" : zone.getId());
+        ZoneId zone = QuerySettings.TIME_ZONE.get(bucket.configuration().resolvedSettings());
+        return new Interval(format(interval), zone.equals(ZoneOffset.UTC) ? "UTC" : zone.getId());
     }
 
-    static String format(Object span) {
-        if (span instanceof Duration duration) {
-            long millis = duration.toMillis();
-            if (millis % 3_600_000 == 0) {
-                return amount(millis / 3_600_000, "hour");
-            }
-            if (millis % 60_000 == 0) {
-                return amount(millis / 60_000, "minute");
-            }
-            if (millis % 1_000 == 0) {
-                return amount(millis / 1_000, "second");
-            }
-            return amount(millis, "millisecond");
-        }
-        if (span instanceof Period period) {
-            if (period.getDays() == 0 && period.getMonths() == 0) {
-                return amount(period.getYears(), "year");
-            }
-            if (period.getYears() == 0 && period.getDays() == 0) {
-                return amount(period.getMonths(), "month");
-            }
-            if (period.getYears() == 0 && period.getMonths() == 0) {
-                return period.getDays() % 7 == 0 ? amount(period.getDays() / 7, "week") : amount(period.getDays(), "day");
-            }
-        }
-        return null;
-    }
-
-    private static String amount(long value, String unit) {
-        return value + " " + unit + (value == 1 ? "" : "s");
+    static String format(Rounding.Interval interval) {
+        return interval.size() + " " + interval.unit() + (interval.size() == 1 ? "" : "s");
     }
 }

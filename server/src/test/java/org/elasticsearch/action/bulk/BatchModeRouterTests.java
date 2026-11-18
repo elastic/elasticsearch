@@ -415,6 +415,38 @@ public class BatchModeRouterTests extends ESTestCase {
         // second release of the batch trips its own assertion.
     }
 
+    /**
+     * A row is the document of one item, so two items on the same row of a batch are a mistake of the producer. It is
+     * rejected when the router set is created, with the batch released, and not found out later when items are routed.
+     */
+    public void testTwoItemsOnTheSameRowAreRejected() throws IOException {
+        EscfBatch batch = buildBatch(3);
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(rowRequest("myindex", batch, 1));
+        bulkRequest.add(rowRequest("myindex", batch, 1));
+        bulkRequest.setPreBuiltBatches(Map.of("myindex", batch));
+
+        var e = expectThrows(IllegalArgumentException.class, () -> BatchRouterSet.create(bulkRequest, true, recycler));
+        assertThat(e.getMessage(), containsString("two items hold row 1 of the pre-built batch for [myindex]"));
+        assertFalse(bulkRequest.hasPreBuiltBatches());
+    }
+
+    /** Rows of different batches overlap, and must not be taken for the same row. */
+    public void testItemsOnTheSameRowOfDifferentBatchesAreAccepted() throws IOException {
+        EscfBatch batchA = buildBatch(2);
+        EscfBatch batchB = buildBatch(2);
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int row = 0; row < 2; row++) {
+            bulkRequest.add(rowRequest("index-a", batchA, row));
+            bulkRequest.add(rowRequest("index-b", batchB, row));
+        }
+        bulkRequest.setPreBuiltBatches(Map.of("index-a", batchA, "index-b", batchB));
+
+        BatchRouterSet router = BatchRouterSet.create(bulkRequest, true, recycler);
+        assertThat(router, notNullValue());
+        router.close();
+    }
+
     public void testCreateReturnsNullWhenNoBatches() {
         assertThat(BatchRouterSet.create(new BulkRequest(), true, recycler), nullValue());
     }

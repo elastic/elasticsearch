@@ -25,6 +25,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.sourcebatch.SourceBatch;
 
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
@@ -90,8 +91,9 @@ final class BatchRouterSet implements Releasable {
      * carries pre-built batches, the set owns them, taken from the request; if this throws, they are released.
      *
      * @throws IllegalStateException    if pre-built batches are present but batch indexing is not supported on this node
-     * @throws IllegalArgumentException if any item is not an {@link IndexRequest} carrying a source-row reference,
-     *                                  or if any batch is not an {@link EscfBatch}
+     * @throws IllegalArgumentException if any item is not an {@link IndexRequest} carrying a source-row reference, if
+     *                                  any batch is not an {@link EscfBatch}, if one batch is supplied under several
+     *                                  keys, or if two items hold the same row of a batch
      */
     @Nullable
     static BatchRouterSet create(BulkRequest bulkRequest, boolean batchIndexingSupported, Recycler<BytesRef> recycler) {
@@ -129,6 +131,8 @@ final class BatchRouterSet implements Releasable {
                 }
             }
             BatchRouterSet set = forBatches(provided, recycler);
+            // If this throws the set is not closed: the batches are released below, once each, which is all it would do.
+            validateEachRowHasOneItem(bulkRequest.requests(), set);
             success = true;
             return set;
         } finally {
@@ -179,6 +183,35 @@ final class BatchRouterSet implements Releasable {
             return new BatchRouterSet(routers.values().iterator().next(), false, routersByBatch);
         }
         return new BatchRouterSet(routers, routersByBatch);
+    }
+
+    /**
+     * Checks that no row of a pre-built batch is held by two items. A row is the document of one item, so this is a
+     * mistake of the producer, which would otherwise show up later as one item losing its timestamp, or being rejected
+     * when it is routed.
+     *
+     * <p>An item with the row of a batch that was not supplied is left to be rejected when it is routed, as is a row
+     * out of range.
+     *
+     * @param requests the items of the bulk, each an {@link IndexRequest} with a source row
+     * @throws IllegalArgumentException if two items hold the same row of a batch
+     */
+    private static void validateEachRowHasOneItem(List<DocWriteRequest<?>> requests, BatchRouterSet set) {
+        Map<BatchModeRouter, BitSet> rowsTaken = new HashMap<>();
+        for (DocWriteRequest<?> request : requests) {
+            final var indexSource = ((IndexRequest) request).indexSource();
+            final var router = set.routersByBatch.get(indexSource.sourceBatch());
+            final int row = indexSource.rowIndex();
+            if (router != null && row < router.source().docCount()) {
+                BitSet taken = rowsTaken.computeIfAbsent(router, r -> new BitSet(r.source().docCount()));
+                if (taken.get(row)) {
+                    throw new IllegalArgumentException(
+                        "two items hold row " + row + " of the pre-built batch for [" + router.indexAbstractionName + "]"
+                    );
+                }
+                taken.set(row);
+            }
+        }
     }
 
     /**

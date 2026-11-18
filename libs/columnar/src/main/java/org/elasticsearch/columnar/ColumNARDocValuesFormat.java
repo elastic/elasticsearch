@@ -83,6 +83,7 @@ public class ColumNARDocValuesFormat extends DocValuesFormat {
     private final ColumnarFieldTypeSelector typeSelector;
     private final int blockSize;
     private final StringColumnOptionsSelector stringSelector;
+    private final FormatVersion writeVersion;
 
     /** The bounds a string column's dictionary is chosen under when a field names none of its own. */
     public static final DictionaryPolicy DEFAULT_DICTIONARY_POLICY = StringColumnOptions.DEFAULT_DICTIONARY;
@@ -131,16 +132,22 @@ public class ColumNARDocValuesFormat extends DocValuesFormat {
             pipelineSelector,
             typeSelector,
             blockSize,
-            StringColumnOptionsSelector.always(StringColumnOptions.DEFAULT.withPolicies(dictionaryPolicy, summaryPolicy))
+            StringColumnOptionsSelector.always(StringColumnOptions.DEFAULT.withPolicies(dictionaryPolicy, summaryPolicy)),
+            FormatVersion.CURRENT
         );
     }
 
-    /** Every column is written as the selector for its kind says that field should be. */
+    /**
+     * Every column is written as the selector for its kind says that field should be, in the layout of
+     * {@code writeVersion}. A segment of any version from {@link FormatVersion#BASELINE} on is still read, whatever the
+     * version a format writes.
+     */
     public ColumNARDocValuesFormat(
         final NumericPipelineSelector pipelineSelector,
         final ColumnarFieldTypeSelector typeSelector,
         int blockSize,
-        final StringColumnOptionsSelector stringSelector
+        final StringColumnOptionsSelector stringSelector,
+        final FormatVersion writeVersion
     ) {
         super(ColumnarFormat.NAME);
         if (blockSize < MIN_BLOCK_SIZE || blockSize > MAX_BLOCK_SIZE || (blockSize & (blockSize - 1)) != 0) {
@@ -152,11 +159,12 @@ public class ColumNARDocValuesFormat extends DocValuesFormat {
         this.typeSelector = typeSelector;
         this.blockSize = blockSize;
         this.stringSelector = stringSelector;
+        this.writeVersion = writeVersion;
     }
 
     @Override
     public DocValuesConsumer fieldsConsumer(SegmentWriteState state) throws IOException {
-        return new ColumNARDocValuesConsumer(state, pipelineSelector, typeSelector, blockSize, stringSelector);
+        return new ColumNARDocValuesConsumer(state, pipelineSelector, typeSelector, blockSize, stringSelector, writeVersion);
     }
 
     @Override

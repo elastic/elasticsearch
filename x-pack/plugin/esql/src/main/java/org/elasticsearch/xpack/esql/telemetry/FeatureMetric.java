@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.InsertEmptyBuckets;
+import org.elasticsearch.xpack.esql.plan.logical.Into;
 import org.elasticsearch.xpack.esql.plan.logical.IpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -145,6 +146,7 @@ public enum FeatureMetric {
     IP_LOCATION(plan -> plan instanceof IpLocation || plan instanceof UnresolvedIpLocation),
     DEDUP(Dedup.class::isInstance),
     DESCRIBE(Describe.class::isInstance),
+    INTO(Into.class::isInstance),
     HIGHLIGHT(Highlight.class::isInstance),
     // IN_SUBQUERY is collected by InSubqueryResolver on the pre-resolution plan (when the
     // InSubquery expression is still in place); by the time the Analyzer/Verifier walk runs,

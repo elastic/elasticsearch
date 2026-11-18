@@ -51,10 +51,12 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), true)
-            .build();
+        Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
+        if (BatchIndexingEnabled.FEATURE_FLAG.isEnabled()) {
+            // The setting is rejected while the feature flag is off, which would fail the cluster before the tests can be skipped.
+            settings.put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), true);
+        }
+        return settings.build();
     }
 
     @Before

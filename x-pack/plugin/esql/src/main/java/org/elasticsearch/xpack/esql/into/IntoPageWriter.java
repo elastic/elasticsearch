@@ -185,6 +185,8 @@ public final class IntoPageWriter {
          * Checked once on the coordinator.
          */
         public static void requireBatchDestination(boolean batchIndexingSupported, ProjectMetadata project, String target) {
+            // TODO: authorize write access to the destination before reporting destination-specific errors below, which would
+            // otherwise reveal an inaccessible index's pipeline or routing. Tracked with the destination authorization in EsqlSession.
             if (batchIndexingSupported == false) {
                 throw rejection("INTO [%s] requires batch indexing", target);
             }
@@ -281,6 +283,9 @@ public final class IntoPageWriter {
     public void close() {
         // finish() keeps the async action until the bulks settle. A failure never calls finish().
         if (producerClosed == false) {
+            // Closing without finish() means the driver failed or was cancelled, so drop the rows not sent yet instead of
+            // letting the producer hand its open batch to the writer to be flushed.
+            sink.writer.close();
             closeProducer();
             releaseAsyncAction();
         }

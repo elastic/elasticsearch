@@ -325,6 +325,23 @@ public class IntoPageWriterTests extends ComputeTestCase {
         assertFalse(driverContext.hasPendingAsyncActions());
     }
 
+    public void testCloseWithoutFinishDropsRowsThatWereNotSent() {
+        int inFlight = IntoPageWriter.POLICY.maxBulksInFlight();
+        for (int i = 0; i < inFlight + 1; i++) {
+            writer.consume(widePage());
+        }
+        assertThat(client.bulks, hasSize(inFlight));
+
+        // A cancelled or failed driver closes without finish(): the page held back for lack of capacity must not be written afterwards.
+        writer.close();
+        for (int i = 0; i < inFlight; i++) {
+            client.answer(CREATED);
+        }
+        assertThat(client.bulks, empty());
+        assertThat(driverContext.breaker().getUsed(), equalTo(0L));
+        assertFalse(driverContext.hasPendingAsyncActions());
+    }
+
     public void testCloseAfterFailureReleasesTheAsyncAction() {
         Attribute column = new ReferenceAttribute(Source.EMPTY, "n", DataType.UNSIGNED_LONG);
         IntoPageWriter exactWriter = IntoPageWriter.Factory.createFactory(

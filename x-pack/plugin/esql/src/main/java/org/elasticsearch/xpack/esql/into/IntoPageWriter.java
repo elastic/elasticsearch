@@ -27,7 +27,6 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.compute.operator.PageConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.escf.EscfBatchBuilder;
@@ -50,14 +49,23 @@ import java.util.concurrent.atomic.AtomicReference;
  * Streams an {@code INTO} query's pages through one {@link EscfBulkWriter}. Each driver has
  * its own producer. The writer bounds the bulks in flight and charges the query breaker and coordinating indexing pressure.
  */
-public final class IntoPageWriter implements PageConsumer {
+public final class IntoPageWriter {
     static final EscfBulkWriter.Policy POLICY = new EscfBulkWriter.Policy(3, Operator.TARGET_PAGE_SIZE);
 
     /** Holds the query-scoped configuration, counters, and failure state across drivers for one {@code INTO} run. */
-    public static final class Factory implements PageConsumer.Factory {
+    public static final class Factory {
+        public enum Indexing {
+            /** Sends incoming pages to the destination as ESCF batches. */
+            INDEX,
+            /** Releases incoming pages without writing anything. */
+            DISCARD
+        }
+
         private final String destination;
         private final List<String> columns;
         private final List<DataType> types;
+        private final Indexing indexing;
+        @Nullable
         private final EscfBulkWriter writer;
         private final AtomicLong total = new AtomicLong();
         private final AtomicLong created = new AtomicLong();
@@ -71,7 +79,8 @@ public final class IntoPageWriter implements PageConsumer {
             Client client,
             CircuitBreaker breaker,
             String destination,
-            List<Attribute> output
+            List<Attribute> output,
+            Indexing indexing
         ) {
             return new Factory(
                 bulks,
@@ -79,7 +88,8 @@ public final class IntoPageWriter implements PageConsumer {
                 breaker,
                 destination,
                 Expressions.names(output),
-                output.stream().map(Attribute::dataType).toList()
+                output.stream().map(Attribute::dataType).toList(),
+                indexing
             );
         }
 
@@ -89,18 +99,30 @@ public final class IntoPageWriter implements PageConsumer {
             CircuitBreaker breaker,
             String destination,
             List<String> columns,
-            List<DataType> types
+            List<DataType> types,
+            Indexing indexing
         ) {
             this.destination = destination;
             this.columns = columns;
             this.types = types;
-            this.writer = bulks.newWriter(client, breaker, destination, POLICY, this::onResponse, this::onCapacity);
+            this.indexing = indexing;
+            this.writer = indexing == Indexing.INDEX
+                ? bulks.newWriter(client, breaker, destination, POLICY, this::onResponse, this::onCapacity)
+                : null;
         }
 
-        @Override
+        String destination() {
+            return destination;
+        }
+
         public IntoPageWriter create(DriverContext driverContext) {
             openProducers.incrementAndGet();
-            IntoPageWriter pageWriter = new IntoPageWriter(this, writer.newProducer(), Objects.requireNonNull(driverContext));
+            IntoPageWriter pageWriter = new IntoPageWriter(
+                this,
+                writer == null ? null : writer.newProducer(),
+                Objects.requireNonNull(driverContext),
+                drivers.isEmpty()
+            );
             drivers.add(pageWriter);
             return pageWriter;
         }
@@ -148,7 +170,7 @@ public final class IntoPageWriter implements PageConsumer {
             }
         }
 
-        public IntoStats stats() {
+        IntoStats stats() {
             return new IntoStats(total.get(), created.get());
         }
 
@@ -199,8 +221,11 @@ public final class IntoPageWriter implements PageConsumer {
     }
 
     private final Factory sink;
+    @Nullable
     private final EscfBulkWriter.Producer producer;
     private final DriverContext driverContext;
+    // The factory's counters are query-wide, so only one driver reports them; the merge step sums every driver's row.
+    private final boolean reportsStats;
 
     private boolean finished;
     private boolean producerClosed;
@@ -209,16 +234,30 @@ public final class IntoPageWriter implements PageConsumer {
     @Nullable
     private SubscribableListener<Void> waiting;
 
-    private IntoPageWriter(Factory sink, EscfBulkWriter.Producer producer, DriverContext driverContext) {
+    private IntoPageWriter(Factory sink, @Nullable EscfBulkWriter.Producer producer, DriverContext driverContext, boolean reportsStats) {
         this.sink = sink;
         this.producer = producer;
         this.driverContext = driverContext;
+        this.reportsStats = reportsStats;
+        if (producer == null) {
+            // Nothing is written, so there is nothing to settle.
+            producerClosed = true;
+        }
     }
 
-    @Override
+    IntoStats stats() {
+        return reportsStats ? sink.stats() : new IntoStats(0, 0);
+    }
+
+    /** Returns the first bulk or item failure recorded by this run, or {@code null} if every write succeeded. */
+    @Nullable
+    Exception failure() {
+        return sink.failure();
+    }
+
     public void consume(Page page) {
         try {
-            if (page.getPositionCount() > 0 && sink.failure.get() == null) {
+            if (producer != null && page.getPositionCount() > 0 && sink.failure.get() == null) {
                 if (asyncAction.compareAndSet(false, true)) {
                     driverContext.addAsyncAction();
                 }
@@ -234,13 +273,11 @@ public final class IntoPageWriter implements PageConsumer {
         }
     }
 
-    @Override
     public void finish() {
         closeProducer();
         wake(() -> finished = true);
     }
 
-    @Override
     public void close() {
         // finish() keeps the async action until the bulks settle. A failure never calls finish().
         if (producerClosed == false) {
@@ -289,7 +326,6 @@ public final class IntoPageWriter implements PageConsumer {
         }
     }
 
-    @Override
     public synchronized IsBlockedResult isBlocked() {
         if (mayContinue()) {
             return Operator.NOT_BLOCKED;
@@ -304,12 +340,14 @@ public final class IntoPageWriter implements PageConsumer {
         if (Thread.holdsLock(this) == false) {
             throw new IllegalStateException("mayContinue() must be called while holding this monitor");
         }
+        if (producer == null) {
+            return true;
+        }
         return finished ? sink.settled : producer.hasCapacity();
     }
 
-    @Override
     public synchronized boolean isFinished() {
-        return finished && sink.settled;
+        return finished && (producer == null || sink.settled);
     }
 
     private record PageRows(Page page, List<String> columns, List<DataType> types, String destination) implements EscfBulkWriter.Rows {

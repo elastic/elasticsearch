@@ -18,7 +18,6 @@ import org.gradle.api.file.FileTree;
 import org.gradle.api.file.FileVisitDetails;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.problems.Problem;
-import org.gradle.api.problems.ProblemId;
 import org.gradle.api.problems.ProblemReporter;
 import org.gradle.api.problems.Problems;
 import org.gradle.api.provider.ListProperty;
@@ -145,11 +144,7 @@ public abstract class TestingConventionsCheckTask extends PrecommitTask {
                 for (Class<?> clazz : mismatchingBaseClasses) {
                     problems.add(
                         reporter.create(
-                            ProblemId.create(
-                                "missing-base-class",
-                                "Testing convention violation",
-                                ElasticsearchBuildProblems.TESTING_CONVENTIONS
-                            ),
+                            ElasticsearchBuildProblems.TESTING_CONVENTIONS.problemId(getProblems(), "Missing test base class"),
                             spec -> spec.contextualLabel(clazz.getName()).solution("Make the test class extend a supported base class")
                         )
                     );
@@ -174,11 +169,7 @@ public abstract class TestingConventionsCheckTask extends PrecommitTask {
                 for (Class<?> clazz : matchingBaseClassNotMatchingSuffix) {
                     problems.add(
                         reporter.create(
-                            ProblemId.create(
-                                "invalid-suffix",
-                                "Testing convention violation",
-                                ElasticsearchBuildProblems.TESTING_CONVENTIONS
-                            ),
+                            ElasticsearchBuildProblems.TESTING_CONVENTIONS.problemId(getProblems(), "Invalid test class suffix"),
                             spec -> spec.contextualLabel(clazz.getName()).solution("Rename the test class to use the correct suffix")
                         )
                     );

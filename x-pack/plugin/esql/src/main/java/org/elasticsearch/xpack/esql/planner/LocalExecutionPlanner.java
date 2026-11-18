@@ -12,10 +12,12 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.bulk.EscfBulkService;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -190,6 +192,9 @@ import org.elasticsearch.xpack.esql.inference.completion.CompletionOperator;
 import org.elasticsearch.xpack.esql.inference.embedding.EmbeddingOperator;
 import org.elasticsearch.xpack.esql.inference.rerank.RerankOperator;
 import org.elasticsearch.xpack.esql.inference.textembedding.TextEmbeddingOperator;
+import org.elasticsearch.xpack.esql.into.IntoMergeStatsOperator;
+import org.elasticsearch.xpack.esql.into.IntoOperator;
+import org.elasticsearch.xpack.esql.into.IntoPageWriter;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -221,6 +226,7 @@ import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.HighlightExec;
 import org.elasticsearch.xpack.esql.plan.physical.InsertEmptyBucketsExec;
+import org.elasticsearch.xpack.esql.plan.physical.IntoExec;
 import org.elasticsearch.xpack.esql.plan.physical.IpLocationExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitByExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
@@ -276,6 +282,7 @@ import java.util.Optional;
 import java.util.SequencedMap;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
@@ -321,6 +328,10 @@ public class LocalExecutionPlanner {
     private final LookupFromIndexService lookupFromIndexService;
     private final InferenceService inferenceService;
     private final Client client;
+    // INTO writes through ESCF batches; null in planners that never plan an INTO
+    @Nullable
+    private final EscfBulkService escfBulkService;
+    private final BooleanSupplier batchIndexingSupported;
     private final UserAgentParserRegistry userAgentParserRegistry;
     private final IpLocationService ipLocationService;
     private final ProjectResolver projectResolver;
@@ -387,7 +398,9 @@ public class LocalExecutionPlanner {
         MatcherWatchdog grokMatcherWatchdog,
         TransportVersion minTransportVersion,
         Client client,
-        ExternalComputeContext externalCompute
+        ExternalComputeContext externalCompute,
+        @Nullable EscfBulkService escfBulkService,
+        BooleanSupplier batchIndexingSupported
     ) {
 
         this.sessionId = sessionId;
@@ -418,6 +431,8 @@ public class LocalExecutionPlanner {
         this.minTransportVersion = minTransportVersion;
         this.client = client;
         this.externalCompute = externalCompute;
+        this.escfBulkService = escfBulkService;
+        this.batchIndexingSupported = batchIndexingSupported;
     }
 
     /**
@@ -611,7 +626,9 @@ public class LocalExecutionPlanner {
             return planLookupJoin(join, context);
         }
         // output
-        else if (node instanceof StreamingOutputExec streamingOutput) {
+        else if (node instanceof IntoExec into) {
+            return planInto(into, context);
+        } else if (node instanceof StreamingOutputExec streamingOutput) {
             return planStreamingOutput(streamingOutput, context);
         } else if (node instanceof OutputExec outputExec) {
             return planOutput(outputExec, context);
@@ -999,7 +1016,7 @@ public class LocalExecutionPlanner {
             new OutputOperatorFactory(
                 Expressions.names(output),
                 alignPageToAttributes(output, source.layout),
-                outputExec.getPageConsumerFactory()
+                outputExec.getPageConsumer()
             ),
             source.layout
         );
@@ -1027,6 +1044,33 @@ public class LocalExecutionPlanner {
         } : Function.identity();
 
         return transformer;
+    }
+
+    private PhysicalOperation planInto(IntoExec into, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(into.child(), context);
+        Layout outputLayout = new Layout.Builder().append(into.output()).build();
+        return switch (into.mode()) {
+            case WRITE -> {
+                String target = IndexNameExpressionResolver.resolveDateMathExpression(into.destination());
+                boolean discard = configuration.explainOnly();
+                if (discard == false) {
+                    IntoPageWriter.Factory.requireBatchDestination(batchIndexingSupported.getAsBoolean(), projectMetadata, target);
+                }
+                IntoPageWriter.Factory sink = IntoPageWriter.Factory.createFactory(
+                    escfBulkService,
+                    client,
+                    blockFactory.breaker(),
+                    target,
+                    into.sourceAttributes(),
+                    discard ? IntoPageWriter.Factory.Indexing.DISCARD : IntoPageWriter.Factory.Indexing.INDEX
+                );
+                yield source.with(
+                    new IntoOperator.Factory(sink, alignPageToAttributes(into.sourceAttributes(), source.layout)),
+                    outputLayout
+                );
+            }
+            case MERGE_STATS -> source.with(new IntoMergeStatsOperator.Factory(), outputLayout);
+        };
     }
 
     private PhysicalOperation planStreamingOutput(StreamingOutputExec exec, LocalExecutionPlannerContext context) {

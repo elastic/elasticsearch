@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedMetadata;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
 
@@ -269,6 +270,77 @@ public class LetResolverTests extends ESTestCase {
         assertThat(union.children(), hasSize(2));
         assertLimitOver(binding(union.children().get(0), "top3"), "logs");
         assertUnresolvedRelation(union.children().get(1), "real_index_2");
+    }
+
+    // -----------------------------------------------------------------------
+    // Index patterns inside a binding body pass through untouched
+    // -----------------------------------------------------------------------
+
+    public void testBindingBodyOverIndexListIsLeftUntouched() {
+        LogicalPlan result = parseAndResolveLet("LET x = (FROM employees, languages | LIMIT 5); FROM x");
+        assertLimitOver(binding(result, "x"), "employees,languages");
+    }
+
+    public void testBindingBodyWithWildcardIsLeftUntouched() {
+        LogicalPlan result = parseAndResolveLet("LET x = (FROM languages* | LIMIT 5); FROM x");
+        assertLimitOver(binding(result, "x"), "languages*");
+    }
+
+    public void testBindingBodyWithDateMathIsLeftUntouched() {
+        LogicalPlan result = parseAndResolveLet("LET x = (FROM <idx-{now/d}> | LIMIT 5); FROM x");
+        assertLimitOver(binding(result, "x"), "<idx-{now/d}>");
+    }
+
+    public void testBindingBodyWithExclusionIsLeftUntouched() {
+        LogicalPlan result = parseAndResolveLet("LET x = (FROM idx*, -idx_lookup | LIMIT 5); FROM x");
+        assertLimitOver(binding(result, "x"), "idx*,-idx_lookup");
+    }
+
+    public void testBindingBodyWithRemotePatternIsLeftUntouched() {
+        LogicalPlan result = parseAndResolveLet("LET x = (FROM remote:idx*, idx | LIMIT 5); FROM x");
+        assertLimitOver(binding(result, "x"), "remote:idx*,idx");
+    }
+
+    /**
+     * A binding body that reads an earlier binding alongside a list of indices, wildcards, exclusions, date math and remote
+     * patterns: the earlier binding is substituted, and every other token is kept, in order, in one residual relation.
+     */
+    public void testBindingBodyMixingEarlierBindingWithPatterns() {
+        LogicalPlan result = parseAndResolveLet(
+            "LET a = (FROM base | LIMIT 1); LET b = (FROM other, a, other*, -other_x, <logs-{now/d}>, remote:idx* | LIMIT 5); FROM b"
+        );
+        LogicalPlan bBody = binding(result, "b");
+        assertThat(bBody, instanceOf(Limit.class));
+        LogicalPlan union = ((Limit) bBody).child();
+        assertThat(union, instanceOf(UnionAll.class));
+        List<LogicalPlan> children = union.children();
+        assertThat(children, hasSize(2));
+        assertLimitOver(binding(children.get(0), "a"), "base");
+        assertUnresolvedRelation(children.get(1), "other,other*,-other_x,<logs-{now/d}>,remote:idx*");
+    }
+
+    /**
+     * A remote pattern whose index part equals a binding name refers to the remote index, not the binding.
+     */
+    public void testRemotePatternNamedLikeBindingIsNotSubstituted() {
+        LogicalPlan result = parseAndResolveLet("LET a = (FROM base | LIMIT 1); FROM remote:a");
+        assertUnresolvedRelation(result, "remote:a");
+    }
+
+    /**
+     * Metadata fields on the body's {@code FROM} stay on the body's relation, however many patterns it lists.
+     */
+    public void testBindingBodyWithPatternsKeepsItsMetadataFields() {
+        LogicalPlan result = parseAndResolveLet(
+            "LET x = (FROM employees, languages*, -languages_lookup METADATA _index | LIMIT 5); FROM x"
+        );
+        LogicalPlan body = binding(result, "x");
+        assertThat(body, instanceOf(Limit.class));
+        assertThat(((Limit) body).child(), instanceOf(UnresolvedMetadata.class));
+        UnresolvedMetadata metadata = (UnresolvedMetadata) ((Limit) body).child();
+        assertThat(metadata.metadataFields(), hasSize(1));
+        assertThat(metadata.metadataFields().get(0).name(), is("_index"));
+        assertUnresolvedRelation(metadata.child(), "employees,languages*,-languages_lookup");
     }
 
     // -----------------------------------------------------------------------

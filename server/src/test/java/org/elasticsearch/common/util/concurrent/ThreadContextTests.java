@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.telemetry.tracing.Span;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.hamcrest.Matcher;
@@ -29,6 +30,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -49,6 +51,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.Mockito.mock;
 
 public class ThreadContextTests extends ESTestCase {
 
@@ -1279,79 +1282,206 @@ public class ThreadContextTests extends ESTestCase {
         assertNotNull(threadContext.getHeader(header));
     }
 
-    public void testNewTraceContext() {
+    public void testPutTransientAllowOverwrite() {
         final var threadContext = new ThreadContext(Settings.EMPTY);
+        final var key = randomIdentifier();
 
-        var rootTraceContext = Map.of(Task.TRACE_PARENT_HTTP_HEADER, randomIdentifier(), Task.TRACE_STATE, randomIdentifier());
-        var apmTraceContext = new Object();
-        var traceStartTime = Instant.now();
-        var responseKey = randomIdentifier();
-        var responseValue = randomAlphaOfLength(10);
+        threadContext.putTransient(key, "first");
+        expectThrows(IllegalArgumentException.class, () -> threadContext.putTransient(key, "second"));
 
-        threadContext.putHeader(rootTraceContext);
-        threadContext.putTransient(Task.TRACE_START_TIME, traceStartTime);
-        threadContext.putTransient(Task.APM_TRACE_CONTEXT, apmTraceContext);
+        threadContext.putTransientAllowOverwrite(key, "second");
+        assertThat(threadContext.getTransient(key), equalTo("second"));
 
-        assertThat(threadContext.hasApmTraceContext(), equalTo(true));
-        assertThat(threadContext.hasParentApmTraceContext(), equalTo(false));
-
-        try (var ignored = threadContext.newTraceContext()) {
-            assertThat(threadContext.hasApmTraceContext(), equalTo(false)); // no trace started yet
-            assertThat(threadContext.hasParentApmTraceContext(), equalTo(true));
-
-            assertThat(threadContext.getHeaders(), is(anEmptyMap()));
-            // trace start time is not propagated
-            assertThat(
-                threadContext.getTransientHeaders(),
-                equalTo(
-                    Map.of(
-                        Task.PARENT_TRACE_PARENT_HEADER,
-                        rootTraceContext.get(Task.TRACE_PARENT_HTTP_HEADER),
-                        Task.PARENT_TRACE_STATE,
-                        rootTraceContext.get(Task.TRACE_STATE),
-                        Task.PARENT_APM_TRACE_CONTEXT,
-                        apmTraceContext
-                    )
-                )
-            );
-            // response headers shall be propagated
-            threadContext.addResponseHeader(responseKey, responseValue);
+        try (var ignored = threadContext.newStoredContext()) {
+            threadContext.putTransientAllowOverwrite(key, "third");
+            assertThat(threadContext.getTransient(key), equalTo("third"));
         }
-
-        assertThat(threadContext.hasApmTraceContext(), equalTo(true));
-        assertThat(threadContext.hasParentApmTraceContext(), equalTo(false));
-
-        assertThat(threadContext.getHeaders(), equalTo(rootTraceContext));
-        assertThat(
-            threadContext.getTransientHeaders(),
-            equalTo(Map.of(Task.APM_TRACE_CONTEXT, apmTraceContext, Task.TRACE_START_TIME, traceStartTime))
-        );
-        assertThat(threadContext.getResponseHeaders(), equalTo(Map.of(responseKey, List.of(responseValue))));
+        assertThat(threadContext.getTransient(key), equalTo("second"));
     }
 
-    public void testNewTraceContextWithoutParentTrace() {
+    public void testPutHeaderAllowOverwriteAndRemoveHeaders() {
+        final var threadContext = new ThreadContext(Settings.EMPTY);
+        final var key = randomIdentifier();
+
+        threadContext.putHeader(key, "first");
+        expectThrows(IllegalArgumentException.class, () -> threadContext.putHeader(key, "second"));
+
+        threadContext.putHeaderAllowOverwrite(key, "second");
+        assertThat(threadContext.getHeader(key), equalTo("second"));
+
+        try (var ignored = threadContext.newStoredContext()) {
+            threadContext.removeHeaders(key);
+            assertNull(threadContext.getHeader(key));
+            // removing a missing header is a noop
+            threadContext.removeHeaders(key);
+        }
+        assertThat(threadContext.getHeader(key), equalTo("second"));
+
+        final var otherKey = randomIdentifier();
+        final var missingKey = randomIdentifier();
+        threadContext.putHeader(otherKey, "other");
+        try (var ignored = threadContext.newStoredContext()) {
+            threadContext.removeHeaders(key, missingKey, otherKey);
+            assertThat(threadContext.getHeaders(), is(anEmptyMap()));
+        }
+        assertThat(threadContext.getHeader(key), equalTo("second"));
+        assertThat(threadContext.getHeader(otherKey), equalTo("other"));
+    }
+
+    public void testRemoveTransientReturnsAndRemovesTheValue() {
+        final var threadContext = new ThreadContext(Settings.EMPTY);
+        final var value = new Object();
+        final var otherValue = new Object();
+        threadContext.putTransient("key", value);
+        threadContext.putTransient("other", otherValue);
+
+        assertThat(threadContext.removeTransient("key"), sameInstance(value));
+
+        assertThat(threadContext.getTransient("key"), nullValue());
+        assertThat(threadContext.getTransientHeaders(), equalTo(Map.of("other", otherValue)));
+
+        // there is nothing left to remove
+        assertThat(threadContext.removeTransient("key"), nullValue());
+        assertThat(threadContext.getTransient("key"), nullValue());
+        assertThat(threadContext.getTransientHeaders(), equalTo(Map.of("other", otherValue)));
+
+        // and the key can be put again, which is not allowed while it is there
+        threadContext.putTransient("key", value);
+        assertThat(threadContext.getTransient("key"), sameInstance(value));
+    }
+
+    public void testRemoveTransientIsUndoneByRestoringTheContext() {
+        final var threadContext = new ThreadContext(Settings.EMPTY);
+        final var value = new Object();
+        threadContext.putTransient("key", value);
+
+        try (var ignored = threadContext.newStoredContext()) {
+            assertThat(threadContext.removeTransient("key"), sameInstance(value));
+            assertThat(threadContext.getTransient("key"), nullValue());
+        }
+
+        assertThat(threadContext.getTransient("key"), sameInstance(value));
+    }
+
+    public void testSpanIsNoopUnlessSet() {
         final var threadContext = new ThreadContext(Settings.EMPTY);
 
+        assertThat(threadContext.getSpan(), sameInstance(Span.noop()));
+    }
+
+    public void testSetSpanReplacesTheSpan() {
+        final var threadContext = new ThreadContext(Settings.EMPTY);
+        final Span first = mock(Span.class);
+        final Span second = mock(Span.class);
+
+        threadContext.setSpan(first);
+        assertThat(threadContext.getSpan(), sameInstance(first));
+
+        threadContext.setSpan(second);
+        assertThat(threadContext.getSpan(), sameInstance(second));
+    }
+
+    public void testSpanIsRestoredWithTheStoredContext() {
+        final var threadContext = new ThreadContext(Settings.EMPTY);
+        final Span outer = mock(Span.class);
+        final Span inner = mock(Span.class);
+        threadContext.setSpan(outer);
+
+        try (var ignored = threadContext.newStoredContext()) {
+            threadContext.setSpan(inner);
+            assertThat(threadContext.getSpan(), sameInstance(inner));
+        }
+
+        assertThat(threadContext.getSpan(), sameInstance(outer));
+    }
+
+    public void testSpanIsNotVisibleInAnEmptyContext() {
+        final var threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext.setSpan(mock(Span.class));
+
+        try (var ignored = threadContext.newEmptyContext()) {
+            assertThat(threadContext.getSpan(), sameInstance(Span.noop()));
+        }
+    }
+
+    public void testSpanIsPropagatedToTheThreadThatRunsAPreservedContext() throws Exception {
+        final var threadContext = new ThreadContext(Settings.EMPTY);
+        final Span span = mock(Span.class);
+        threadContext.setSpan(span);
+        final var seen = new AtomicReference<Span>();
+
+        final Runnable preserved = threadContext.preserveContext(() -> seen.set(threadContext.getSpan()));
+        final Thread thread = new Thread(preserved);
+        thread.start();
+        thread.join();
+
+        assertThat(seen.get(), sameInstance(span));
+        // the span of the thread that ran it is its own
+        assertThat(threadContext.getSpan(), sameInstance(span));
+    }
+
+    /** Transient headers are never sent over the wire; trace context is propagated through ThreadContext headers by the APM module. */
+    public void testSpanIsNotSerialized() throws IOException {
+        final var threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext.putHeader("header", "value");
+        threadContext.setSpan(mock(Span.class));
+
+        final var otherThreadContext = new ThreadContext(Settings.EMPTY);
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            threadContext.writeTo(out);
+            otherThreadContext.readHeaders(out.bytes().streamInput());
+        }
+
+        assertThat(otherThreadContext.getHeader("header"), equalTo("value"));
+        assertThat(otherThreadContext.getSpan(), sameInstance(Span.noop()));
+    }
+
+    public void testStashContextPreservesTraceContext() {
+        final var threadContext = new ThreadContext(Settings.EMPTY);
+
+        var traceHeaders = Map.of(Task.TRACE_PARENT_HTTP_HEADER, randomIdentifier(), Task.TRACE_STATE, randomIdentifier());
+        var span = mock(Span.class);
+
+        threadContext.putHeader(traceHeaders);
+        threadContext.putTransient(Task.LOCAL_TRACE_START_TIME, Instant.now());
+        threadContext.setSpan(span);
+
+        try (var ignored = threadContext.stashContext()) {
+            assertThat(threadContext.getHeaders(), equalTo(traceHeaders));
+            assertThat(threadContext.getSpan(), sameInstance(span));
+            // the trace start time only applies to the local root span, and so it is not propagated
+            assertThat(threadContext.hasTransient(List.of(Task.LOCAL_TRACE_START_TIME)), is(false));
+        }
+    }
+
+    public void testClearTraceContext() {
+        final var threadContext = new ThreadContext(Settings.EMPTY);
+
+        var otherHeader = randomIdentifier();
+        var otherValue = randomIdentifier();
+        var startTime = Instant.now();
         var responseKey = randomIdentifier();
         var responseValue = randomAlphaOfLength(10);
+        var traceHeaders = Map.of(Task.TRACE_PARENT_HTTP_HEADER, randomIdentifier(), Task.TRACE_STATE, randomIdentifier());
+        var span = mock(Span.class);
 
-        assertThat(threadContext.hasApmTraceContext(), equalTo(false));
-        assertThat(threadContext.hasParentApmTraceContext(), equalTo(false));
+        threadContext.putHeader(traceHeaders);
+        threadContext.putHeader(otherHeader, otherValue);
+        threadContext.putTransient(Task.LOCAL_TRACE_START_TIME, startTime);
+        threadContext.setSpan(span);
 
-        try (var ignored = threadContext.newTraceContext()) {
-            assertTrue(threadContext.isDefaultContext());
-            assertThat(threadContext.hasApmTraceContext(), equalTo(false));
-            assertThat(threadContext.hasParentApmTraceContext(), equalTo(false));
-
-            // discared, just making sure the context is isolated
-            threadContext.putTransient(randomIdentifier(), randomAlphaOfLength(10));
-            // response headers shall be propagated
+        try (var ignored = threadContext.clearTraceContext()) {
+            assertThat(threadContext.getHeaders(), equalTo(Map.of(otherHeader, otherValue)));
+            assertThat(threadContext.getTransientHeaders(), equalTo(Map.of(Task.LOCAL_TRACE_START_TIME, startTime)));
+            assertThat(threadContext.getSpan(), sameInstance(Span.noop()));
             threadContext.addResponseHeader(responseKey, responseValue);
         }
 
-        assertThat(threadContext.getHeaders(), is(anEmptyMap()));
-        assertThat(threadContext.getTransientHeaders(), is(anEmptyMap()));
-        assertThat(threadContext.getResponseHeaders(), equalTo(Map.of(responseKey, List.of(responseValue))));
+        // the original context is restored
+        assertThat(threadContext.getHeader(Task.TRACE_PARENT_HTTP_HEADER), equalTo(traceHeaders.get(Task.TRACE_PARENT_HTTP_HEADER)));
+        assertThat(threadContext.getHeader(Task.TRACE_STATE), equalTo(traceHeaders.get(Task.TRACE_STATE)));
+        assertThat(threadContext.getSpan(), sameInstance(span));
+        assertThat(threadContext.getResponseHeaders(), is(anEmptyMap()));
     }
 
     public void testRestoreExistingContext() {

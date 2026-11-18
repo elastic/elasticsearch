@@ -194,13 +194,9 @@ public class AsyncTaskManagementService<
             return;
         }
         String nodeId = clusterService.localNode().getId();
-        try (var ignored = threadPool.getThreadContext().newTraceContext()) {
-            @SuppressWarnings("unchecked")
-            T searchTask = (T) taskManager.register(
-                "transport",
-                action + "[a]",
-                new AsyncRequestWrapper(request, nodeId, resolvedKeepAlive)
-            );
+        @SuppressWarnings("unchecked")
+        T searchTask = (T) taskManager.register("transport", action + "[a]", new AsyncRequestWrapper(request, nodeId, resolvedKeepAlive));
+        try (var ignored = searchTask.getSpan().storeInThreadContext()) {
             // If the query runs past wait_for_completion_timeout, the submit responds first, so the query holds the parsed request's
             // charge until it ends. Taken before the timeout is scheduled, since the response it sends releases the charge.
             final Releasable hold = ParsedContentReservation.hold(threadPool.getThreadContext());

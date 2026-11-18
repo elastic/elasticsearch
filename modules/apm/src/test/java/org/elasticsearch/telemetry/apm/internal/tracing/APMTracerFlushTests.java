@@ -9,12 +9,13 @@
 
 package org.elasticsearch.telemetry.apm.internal.tracing;
 
-import io.opentelemetry.api.OpenTelemetry;
+import io.opentelemetry.api.trace.TracerProvider;
 import io.opentelemetry.sdk.common.CompletableResultCode;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
+import org.elasticsearch.telemetry.apm.internal.APMTracingService;
 import org.elasticsearch.telemetry.apm.internal.export.TraceSupplier;
 import org.elasticsearch.test.ESTestCase;
 
@@ -22,9 +23,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.is;
 
 public class APMTracerFlushTests extends ESTestCase {
 
@@ -46,8 +47,8 @@ public class APMTracerFlushTests extends ESTestCase {
         }
 
         @Override
-        public OpenTelemetry get() {
-            return OpenTelemetry.noop();
+        public TracerProvider get() {
+            return TracerProvider.noop();
         }
 
         @Override
@@ -66,7 +67,7 @@ public class APMTracerFlushTests extends ESTestCase {
         RecordingTraceSupplier supplier = new RecordingTraceSupplier();
 
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
-        APMTracer tracer = new APMTracer(new ThreadContext(settings), settings, supplier, 0, false);
+        APMTracingService tracer = new APMTracingService(new ThreadContext(settings), settings, supplier);
         tracer.start();
         tracer.stop();
         assertThat(supplier.calls, contains("attemptFlushTraces"));
@@ -79,7 +80,7 @@ public class APMTracerFlushTests extends ESTestCase {
         RecordingTraceSupplier supplier = new RecordingTraceSupplier();
 
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), false).build();
-        APMTracer tracer = new APMTracer(new ThreadContext(settings), settings, supplier, 0, false);
+        APMTracingService tracer = new APMTracingService(new ThreadContext(settings), settings, supplier);
         tracer.start();
         tracer.attemptFlushTraces();
 
@@ -90,12 +91,13 @@ public class APMTracerFlushTests extends ESTestCase {
         RecordingTraceSupplier supplier = new RecordingTraceSupplier(() -> { throw new RuntimeException("simulated flush failure"); });
 
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
-        APMTracer tracer = new APMTracer(new ThreadContext(settings), settings, supplier, 0, false);
+        APMTracingService tracer = new APMTracingService(new ThreadContext(settings), settings, supplier);
         tracer.start();
         tracer.close(); // must not throw
 
         assertThat(supplier.calls, contains("attemptFlushTraces", "close"));
-        assertThat(tracer.getSpans(), anEmptyMap());
+        // the tracing is shut down, so nothing is recorded anymore
+        assertThat(tracer.tracer().spanBuilder("name").startSpan().isRecording(), is(false));
     }
 
     /**
@@ -107,7 +109,7 @@ public class APMTracerFlushTests extends ESTestCase {
         RecordingTraceSupplier supplier = new RecordingTraceSupplier();
 
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), false).build();
-        APMTracer tracer = new APMTracer(new ThreadContext(settings), settings, supplier, 0, false);
+        APMTracingService tracer = new APMTracingService(new ThreadContext(settings), settings, supplier);
         tracer.start();
         tracer.close();
 

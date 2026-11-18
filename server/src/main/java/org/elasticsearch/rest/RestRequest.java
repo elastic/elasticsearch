@@ -31,7 +31,6 @@ import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.telemetry.tracing.Traceable;
 import org.elasticsearch.xcontent.ParsedMediaType;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
@@ -52,7 +51,7 @@ import java.util.regex.Pattern;
 import static org.elasticsearch.common.unit.ByteSizeValue.parseBytesSizeValue;
 import static org.elasticsearch.core.TimeValue.parseTimeValue;
 
-public class RestRequest implements ToXContent.Params, Traceable {
+public class RestRequest implements ToXContent.Params {
 
     private static final Logger logger = LogManager.getLogger(RestRequest.class);
 
@@ -775,11 +774,6 @@ public class RestRequest implements ToXContent.Params, Traceable {
         params.put(param, "true");
         // this parameter is intended be consumed via ToXContent.Params.param(..), not this.params(..) so don't require it is consumed here
         consumedParams.add(param);
-    }
-
-    @Override
-    public String getSpanId() {
-        return "rest-" + getRequestId();
     }
 
     public static class MediaTypeHeaderException extends RuntimeException {

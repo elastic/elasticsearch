@@ -400,27 +400,27 @@ public class MasterService extends AbstractLifecycleComponent {
             listener.onResponse(null);
         } else {
             final long publicationStartTime = threadPool.rawRelativeTimeInMillis();
-            try (var ignored = threadPool.getThreadContext().newTraceContext()) {
-                final var newClusterStateVersion = newClusterState.getVersion();
+            final var newClusterStateVersion = newClusterState.getVersion();
 
-                final Task task = taskManager.register("master", STATE_UPDATE_ACTION_NAME, new TaskAwareRequest() {
-                    @Override
-                    public void setParentTask(TaskId taskId) {}
+            final Task task = taskManager.register("master", STATE_UPDATE_ACTION_NAME, new TaskAwareRequest() {
+                @Override
+                public void setParentTask(TaskId taskId) {}
 
-                    @Override
-                    public void setRequestId(long requestId) {}
+                @Override
+                public void setRequestId(long requestId) {}
 
-                    @Override
-                    public TaskId getParentTask() {
-                        return TaskId.EMPTY_TASK_ID;
-                    }
+                @Override
+                public TaskId getParentTask() {
+                    return TaskId.EMPTY_TASK_ID;
+                }
 
-                    @Override
-                    public String getDescription() {
-                        return "publication of cluster state [" + newClusterStateVersion + "]";
-                    }
-                });
+                @Override
+                public String getDescription() {
+                    return "publication of cluster state [" + newClusterStateVersion + "]";
+                }
+            });
 
+            try (var ignored = task.getSpan().storeInThreadContext()) {
                 ActionListener.run(
                     new DelegatingActionListener<Void, Void>(
                         ActionListener.runAfter(listener, () -> taskManager.unregister(task)).delegateResponse((l, e) -> {

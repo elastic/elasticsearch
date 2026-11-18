@@ -244,28 +244,24 @@ public class IncrementalBulkService {
                 throw e;
             }
 
-            try (var ignored = threadPool.getThreadContext().newTraceContext()) {
-                bulkSessionTask = (CancellableTask) taskManager.register(
-                    BULK_SESSION_TASK_TYPE,
-                    BULK_SESSION_ACTION,
-                    new TaskAwareRequest() {
-                        @Override
-                        public void setParentTask(TaskId taskId) {}
+            bulkSessionTask = (CancellableTask) taskManager.register(BULK_SESSION_TASK_TYPE, BULK_SESSION_ACTION, new TaskAwareRequest() {
+                @Override
+                public void setParentTask(TaskId taskId) {}
 
-                        @Override
-                        public void setRequestId(long requestId) {}
+                @Override
+                public void setRequestId(long requestId) {}
 
-                        @Override
-                        public TaskId getParentTask() {
-                            return TaskId.EMPTY_TASK_ID;
-                        }
+                @Override
+                public TaskId getParentTask() {
+                    return TaskId.EMPTY_TASK_ID;
+                }
 
-                        @Override
-                        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-                            return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers);
-                        }
-                    }
-                );
+                @Override
+                public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+                    return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers);
+                }
+            });
+            try (var ignored = bulkSessionTask.getSpan().storeInThreadContext()) {
                 createNewBulkRequest(EMPTY_STATE);
             } catch (Exception e) {
                 // The caller never receives this Handler, so nothing would be left to release the reservations.

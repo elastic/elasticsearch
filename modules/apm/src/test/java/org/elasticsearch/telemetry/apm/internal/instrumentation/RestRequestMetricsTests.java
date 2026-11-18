@@ -24,6 +24,7 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.telemetry.apm.internal.instrumentation.RestRequestMetrics.STATE_KEY;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -227,10 +228,8 @@ public class RestRequestMetricsTests extends ESTestCase {
         );
 
         for (var c : cases) {
-            // the metrics state is kept in a transient header, which can only be set once per context
-            try (var ignored = threadContext.newEmptyContext()) {
-                var request = request(c.method, c.path);
-                metrics.start(request, c.route);
+            var request = request(c.method, c.path);
+            try (var ignored = metrics.start(request, c.route).storeInThreadContext()) {
                 metrics.prepareEnd(request, response(RestStatus.OK)).close();
             }
         }
@@ -251,21 +250,75 @@ public class RestRequestMetricsTests extends ESTestCase {
     public void test_leadingSlashStripped() {
         var request = request(RestRequest.Method.GET, "/_search");
 
-        metrics.start(request, "/_search");
-        var end = metrics.prepareEnd(request, response(RestStatus.OK));
+        try (var ignored = metrics.start(request, "/_search").storeInThreadContext()) {
+            var end = metrics.prepareEnd(request, response(RestStatus.OK));
 
+            assertThat(recordings(SEARCH_DURATION_METRIC), empty());
+
+            end.close();
+        }
+
+        assertThat(recordings(SEARCH_DURATION_METRIC), hasSize(1));
+    }
+
+    /**
+     * The state that is kept for the duration of the request is part of the thread context that the returned stored context restores.
+     */
+    public void test_storeInThreadContext_returnsAContextThatRestoresTheThreadContext() {
+        var request = request(RestRequest.Method.GET, "/_search");
+
+        try (var ignored = metrics.start(request, "_search").storeInThreadContext()) {
+            metrics.prepareEnd(request, response(RestStatus.OK)).close();
+        }
+        assertThat(recordings(SEARCH_DURATION_METRIC), hasSize(1));
+
+        // the state is gone with the context
+        metrics.prepareEnd(request, response(RestStatus.OK)).close();
+        assertThat(recordings(SEARCH_DURATION_METRIC), hasSize(1));
+    }
+
+    public void test_start_doesNotChangeTheThreadContext() {
+        var request = request(RestRequest.Method.GET, "/_search");
+
+        metrics.start(request, "_search");
+
+        // nothing is kept in the thread context until the operation is stored in it
+        metrics.prepareEnd(request, response(RestStatus.OK)).close();
         assertThat(recordings(SEARCH_DURATION_METRIC), empty());
+    }
 
-        end.close();
+    /**
+     * The operation is stored in the thread context of whoever dispatches the request and of whoever sends the response, possibly while
+     * it is already stored in another one: the duration is that of the request, however many times it was stored.
+     */
+    public void test_storeInThreadContext_canBeCalledAgainAndKeepsTheSameState() {
+        var request = request(RestRequest.Method.GET, "/_search");
+        var operation = metrics.start(request, "_search");
 
+        final Object state;
+        try (var ignored = operation.storeInThreadContext()) {
+            state = threadContext.getTransient(STATE_KEY);
+            assertNotNull(state);
+            try (var ignored2 = operation.storeInThreadContext()) {
+                assertSame(state, threadContext.getTransient(STATE_KEY));
+            }
+            assertSame(state, threadContext.getTransient(STATE_KEY));
+        }
+
+        // as it is when the response is sent later on, from another thread context
+        try (var ignored = threadContext.newEmptyContext(); var ignored2 = operation.storeInThreadContext()) {
+            assertSame(state, threadContext.getTransient(STATE_KEY));
+            metrics.prepareEnd(request, response(RestStatus.OK)).close();
+        }
         assertThat(recordings(SEARCH_DURATION_METRIC), hasSize(1));
     }
 
     public void test_nullRoute_noRecording() {
         var request = request(RestRequest.Method.GET, "/_search");
 
-        metrics.start(request, null);
-        metrics.prepareEnd(request, response(RestStatus.OK)).close();
+        try (var ignored = metrics.start(request, null).storeInThreadContext()) {
+            metrics.prepareEnd(request, response(RestStatus.OK)).close();
+        }
 
         assertThat(recordings(SEARCH_DURATION_METRIC), empty());
     }
@@ -273,8 +326,9 @@ public class RestRequestMetricsTests extends ESTestCase {
     public void test_unmeasuredRoute_noRecording() {
         var request = request(RestRequest.Method.GET, "/_cluster/health");
 
-        metrics.start(request, "_cluster/health");
-        metrics.prepareEnd(request, response(RestStatus.OK)).close();
+        try (var ignored = metrics.start(request, "_cluster/health").storeInThreadContext()) {
+            metrics.prepareEnd(request, response(RestStatus.OK)).close();
+        }
 
         assertThat(registry.getRecorder().getAllMeasurements(), empty());
     }
@@ -290,12 +344,13 @@ public class RestRequestMetricsTests extends ESTestCase {
     public void test_statusCodeAttribute() {
         var request = request(RestRequest.Method.GET, "/_search");
 
-        metrics.start(request, "_search");
-        var end = metrics.prepareEnd(request, response(RestStatus.BAD_REQUEST));
+        try (var ignored = metrics.start(request, "_search").storeInThreadContext()) {
+            var end = metrics.prepareEnd(request, response(RestStatus.BAD_REQUEST));
 
-        assertThat(recordings(SEARCH_DURATION_METRIC), empty());
+            assertThat(recordings(SEARCH_DURATION_METRIC), empty());
 
-        end.close();
+            end.close();
+        }
 
         var recorded = recordings(SEARCH_DURATION_METRIC);
         assertEquals(1, recorded.size());

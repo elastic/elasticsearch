@@ -10,33 +10,90 @@
 package org.elasticsearch.telemetry.apm.internal.instrumentation;
 
 import io.opentelemetry.api.common.Attributes;
+import io.opentelemetry.api.common.AttributesBuilder;
 import io.opentelemetry.api.trace.StatusCode;
-import io.opentelemetry.instrumentation.api.instrumenter.SpanStatusBuilder;
 
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.telemetry.apm.internal.tracing.APMSpanBuilder;
 import org.elasticsearch.telemetry.apm.internal.tracing.APMTracer;
+import org.elasticsearch.telemetry.apm.internal.tracing.AbstractSpan;
+import org.elasticsearch.telemetry.tracing.Span;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.mockito.ArgumentCaptor;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import static io.opentelemetry.api.common.AttributeKey.longKey;
 import static io.opentelemetry.api.common.AttributeKey.stringKey;
 import static java.util.Map.entry;
+import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.RETURNS_SELF;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class HttpServerTracingTests extends ESTestCase {
 
-    final SpanStatusBuilder spanStatusBuilder = mock(SpanStatusBuilder.class);
     final APMTracer tracer = mock(APMTracer.class);
+    final APMSpanBuilder spanBuilder = mock(APMSpanBuilder.class, RETURNS_SELF);
+    final AbstractSpan span = mock(AbstractSpan.class);
+    /** The attributes that the instrumentation adds to the span builder, apart from the ones that it sets one by one. */
+    final AttributesBuilder extractedAttributes = Attributes.builder();
+    final ThreadContext.StoredContext storedContext = mock(ThreadContext.StoredContext.class);
+    final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
     final HttpServerTracing instrumentation = new HttpServerTracing(tracer);
+
+    public HttpServerTracingTests() {
+        when(tracer.spanBuilder("GET /{index}/_search")).thenReturn(spanBuilder);
+        when(spanBuilder.startSpan()).thenReturn(span);
+        when(spanBuilder.attributesBuilder()).thenReturn(extractedAttributes);
+        when(span.storeInThreadContext()).thenReturn(storedContext);
+        when(span.isRecording()).thenReturn(true);
+        // the span of the request is the current one, as it is when the response is sent
+        when(tracer.currentSpan()).thenReturn(span);
+    }
+
+    public void test_start_doesNotChangeTheThreadContext() {
+        final String traceParent = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01";
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
+            .withPath("/my-index/_search")
+            .withHeaders(Map.of(Task.TRACE_PARENT_HTTP_HEADER, List.of(traceParent), Task.TRACE_STATE, List.of("vendor=value")))
+            .build();
+
+        instrumentation.start(request, "/{index}/_search");
+
+        verify(span, never()).storeInThreadContext();
+    }
+
+    public void test_storeInThreadContext_storesTheSpanOfTheRequestAndReturnsItsStoredContext() {
+        final ThreadContext.StoredContext storedContext = mock(ThreadContext.StoredContext.class);
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
+            .withPath("/my-index/_search")
+            .build();
+        when(span.storeInThreadContext()).thenReturn(storedContext);
+
+        final var operation = instrumentation.start(request, "/{index}/_search");
+
+        assertSame(storedContext, operation.storeInThreadContext());
+        // it can be stored any number of times: it is done by whoever dispatches the request, and by whoever sends the response
+        assertSame(storedContext, operation.storeInThreadContext());
+        verify(span, times(2)).storeInThreadContext();
+    }
 
     public void test_start_setsRequestAttributes_minimal() {
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
@@ -45,13 +102,11 @@ public class HttpServerTracingTests extends ESTestCase {
             .withHeaders(Map.of("Accept-Encoding", List.of("gzip")))
             .build();
 
-        instrumentation.start(request, "/{index}/_search");
+        final var started = instrumentation.start(request, "/{index}/_search");
 
-        var inOrder = inOrder(tracer);
-        inOrder.verify(tracer)
-            .startTrace(
-                request,
-                "GET /{index}/_search",
+        assertThat(
+            requestAttributes(),
+            equalTo(
                 Map.of(
                     "http.method",
                     "GET",
@@ -62,18 +117,20 @@ public class HttpServerTracingTests extends ESTestCase {
                     "http.request.headers.accept_encoding",
                     "gzip"
                 )
-            );
-        inOrder.verify(tracer)
-            .setAttributes(
-                request,
+            )
+        );
+        assertThat(
+            extractedAttributes.build(),
+            equalTo(
                 Attributes.builder()
                     .put(stringKey("http.request.method"), "GET")
                     .put(stringKey("url.scheme"), "https")
                     .put(stringKey("http.route"), "/{index}/_search")
                     .put(stringKey("url.path"), "/my-index/_search")
                     .build()
-            );
-        inOrder.verifyNoMoreInteractions();
+            )
+        );
+        verifyNoMoreInteractions(span);
     }
 
     public void test_start_setsRequestAttributes_full() {
@@ -91,13 +148,11 @@ public class HttpServerTracingTests extends ESTestCase {
             .build();
         var route = "/{index}/_search";
 
-        instrumentation.start(request, route);
+        final var started = instrumentation.start(request, route);
 
-        var inOrder = inOrder(tracer);
-        inOrder.verify(tracer)
-            .startTrace(
-                request,
-                "GET /{index}/_search",
+        assertThat(
+            requestAttributes(),
+            equalTo(
                 Map.of(
                     "http.method",
                     "GET",
@@ -114,10 +169,11 @@ public class HttpServerTracingTests extends ESTestCase {
                     "http.request.headers.user_agent",
                     "Firefox"
                 )
-            );
-        inOrder.verify(tracer)
-            .setAttributes(
-                request,
+            )
+        );
+        assertThat(
+            extractedAttributes.build(),
+            equalTo(
                 Attributes.builder()
                     .put(stringKey("http.request.method"), "GET")
                     .put(stringKey("http.route"), "/{index}/_search")
@@ -129,11 +185,25 @@ public class HttpServerTracingTests extends ESTestCase {
                     .put(stringKey("client.address"), "1.1.1.1")
                     .put(stringKey("user_agent.original"), "Firefox")
                     .build()
-            );
-        inOrder.verifyNoMoreInteractions();
+            )
+        );
+        verifyNoMoreInteractions(span);
     }
 
-    public void test_recordException_delegatesToTracer() {
+    public void test_withNoopCurrentSpan_doesNothing() {
+        when(tracer.currentSpan()).thenReturn(Span.noop());
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
+            .withPath("/my-index/_search")
+            .build();
+        RestResponse response = new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);
+
+        instrumentation.recordException(request, new RuntimeException("test"));
+        instrumentation.prepareEnd(request, response).close();
+
+        verifyNoInteractions(span);
+    }
+
+    public void test_recordException_recordsExceptionOnTheCurrentSpan() {
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
             .withPath("/my-index/_search")
             .build();
@@ -141,9 +211,19 @@ public class HttpServerTracingTests extends ESTestCase {
 
         instrumentation.recordException(request, exception);
 
-        var inOrder = inOrder(tracer);
-        inOrder.verify(tracer).addError(request, exception);
-        inOrder.verifyNoMoreInteractions();
+        verify(span).recordException(exception);
+        verifyNoMoreInteractions(span);
+    }
+
+    public void test_recordException_withoutACurrentSpan_isIgnored() {
+        when(tracer.currentSpan()).thenReturn(Span.noop());
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
+            .withPath("/my-index/_search")
+            .build();
+
+        instrumentation.recordException(request, new RuntimeException("test"));
+
+        verifyNoInteractions(span);
     }
 
     public void test_end_setsResponseAttributes_minimal() {
@@ -154,22 +234,24 @@ public class HttpServerTracingTests extends ESTestCase {
 
         var releasable = instrumentation.prepareEnd(request, response);
 
-        verifyNoMoreInteractions(tracer, spanStatusBuilder);
+        // nothing happens before the response is sent
+        verify(span).isRecording();
+        verifyNoMoreInteractions(span);
 
         releasable.close();
 
-        var inOrder = inOrder(tracer, spanStatusBuilder);
-        inOrder.verify(tracer).setAttribute(request, "http.status_code", 200L);
-        inOrder.verify(tracer)
-            .setAttributes(
-                request,
+        var inOrder = inOrder(span);
+        inOrder.verify(span).setAttribute("http.status_code", 200L);
+        inOrder.verify(span)
+            .setAllAttributes(
                 Attributes.builder()
                     .put(longKey("http.response.status_code"), 200L)
                     .put(stringKey("network.protocol.version"), "1.1")
                     .build()
             );
-        inOrder.verify(tracer).stopTrace(request);
+        inOrder.verify(span).end();
         inOrder.verifyNoMoreInteractions();
+        verify(span, never()).setStatus(StatusCode.ERROR);
     }
 
     public void test_end_setsResponseAttributes_full() {
@@ -177,28 +259,65 @@ public class HttpServerTracingTests extends ESTestCase {
             .withPath("/my-index/_search")
             .build();
         RestResponse response = new RestResponse(RestStatus.INTERNAL_SERVER_ERROR, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);
-
-        when(tracer.spanStatusBuilder(request)).thenReturn(spanStatusBuilder);
+        response.addHeader("X-Elastic-Product", "Elasticsearch");
 
         var releasable = instrumentation.prepareEnd(request, response);
 
-        verifyNoMoreInteractions(tracer, spanStatusBuilder);
+        // nothing happens before the response is sent
+        verify(span).isRecording();
+        verifyNoMoreInteractions(span);
 
         releasable.close();
 
-        var inOrder = inOrder(tracer, spanStatusBuilder);
-        inOrder.verify(tracer).setAttribute(request, "http.status_code", 500L);
-        inOrder.verify(tracer)
-            .setAttributes(
-                request,
+        var inOrder = inOrder(span);
+        inOrder.verify(span).setAttribute("http.status_code", 500L);
+        inOrder.verify(span).setAttribute("http.response.headers.X-Elastic-Product", "Elasticsearch");
+        inOrder.verify(span)
+            .setAllAttributes(
                 Attributes.builder()
                     .put(longKey("http.response.status_code"), 500L)
                     .put(stringKey("error.type"), "500")
                     .put(stringKey("network.protocol.version"), "1.1")
                     .build()
             );
-        inOrder.verify(spanStatusBuilder).setStatus(StatusCode.ERROR);
-        inOrder.verify(tracer).stopTrace(request);
+        inOrder.verify(span).setStatus(StatusCode.ERROR);
+        inOrder.verify(span).end();
         inOrder.verifyNoMoreInteractions();
+    }
+
+    public void test_end_withoutACurrentSpan_isIgnored() {
+        when(tracer.currentSpan()).thenReturn(Span.noop());
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
+            .withPath("/my-index/_search")
+            .build();
+        RestResponse response = new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);
+
+        instrumentation.prepareEnd(request, response).close();
+
+        verifyNoInteractions(span);
+    }
+
+    public void test_end_ofASpanThatIsNotRecording_doesNothing() {
+        when(span.isRecording()).thenReturn(false);
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
+            .withPath("/my-index/_search")
+            .build();
+        RestResponse response = new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);
+
+        instrumentation.prepareEnd(request, response).close();
+
+        verify(span).isRecording();
+        verifyNoMoreInteractions(span);
+    }
+
+    private Map<String, String> requestAttributes() {
+        final ArgumentCaptor<String> keys = ArgumentCaptor.forClass(String.class);
+        final ArgumentCaptor<String> values = ArgumentCaptor.forClass(String.class);
+        verify(spanBuilder, atLeastOnce()).setAttribute(keys.capture(), values.capture());
+        final Map<String, String> attributes = new HashMap<>();
+        for (int i = 0; i < keys.getAllValues().size(); i++) {
+            attributes.put(keys.getAllValues().get(i), values.getAllValues().get(i));
+        }
+        return attributes;
     }
 }

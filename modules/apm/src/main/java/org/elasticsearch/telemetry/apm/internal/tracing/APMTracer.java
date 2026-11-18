@@ -9,169 +9,91 @@
 
 package org.elasticsearch.telemetry.apm.internal.tracing;
 
-import io.opentelemetry.api.OpenTelemetry;
-import io.opentelemetry.api.common.Attributes;
-import io.opentelemetry.api.common.AttributesBuilder;
-import io.opentelemetry.api.metrics.MeterProvider;
-import io.opentelemetry.api.trace.Span;
-import io.opentelemetry.api.trace.SpanBuilder;
-import io.opentelemetry.api.trace.SpanKind;
-import io.opentelemetry.api.trace.StatusCode;
-import io.opentelemetry.api.trace.Tracer;
-import io.opentelemetry.context.Context;
-import io.opentelemetry.context.ContextKey;
-import io.opentelemetry.context.propagation.TextMapGetter;
-import io.opentelemetry.instrumentation.api.instrumenter.SpanStatusBuilder;
-import io.opentelemetry.sdk.common.CompletableResultCode;
+import io.opentelemetry.api.trace.TracerProvider;
+import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
+import io.opentelemetry.context.propagation.TextMapPropagator;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.automaton.Automata;
-import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
-import org.apache.lucene.util.automaton.Operations;
-import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.Build;
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.lucene.util.automaton.MinimizationOperations;
-import org.elasticsearch.tasks.Task;
-import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
-import org.elasticsearch.telemetry.apm.internal.export.TraceSupplier;
-import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkExportTracerSupplier;
-import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings;
-import org.elasticsearch.telemetry.tracing.Traceable;
+import org.elasticsearch.telemetry.apm.internal.util.PatternAutomata;
+import org.elasticsearch.telemetry.tracing.Span;
+import org.elasticsearch.telemetry.tracing.Tracer;
 
-import java.time.Instant;
 import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
+
+import static java.util.Objects.requireNonNull;
 
 /**
- * {@link org.elasticsearch.telemetry.tracing.Tracer} implementation provided by the Elasticsearch {@code apm}
- * module ({@code modules/apm}). It records spans using the OpenTelemetry API and exports them over OTLP through
- * the {@link OtelSdkExportTracerSupplier}, an {@link io.opentelemetry.sdk.OpenTelemetrySdk} owned by this module.
+ * {@link Tracer} implementation provided by the Elasticsearch {@code apm} module ({@code modules/apm}). It records spans using the
+ * OpenTelemetry API, which exports them over OTLP through an {@link io.opentelemetry.sdk.OpenTelemetrySdk} owned by this module.
  */
-public class APMTracer extends AbstractLifecycleComponent implements org.elasticsearch.telemetry.tracing.Tracer {
+public class APMTracer implements Tracer {
 
-    private static final Logger logger = LogManager.getLogger(APMTracer.class);
+    private final ThreadContext threadContext;
+    private final Supplier<TracerProvider> tracerProvider;
+    private final AtomicBoolean enabled;
+    private final AtomicBoolean recordExceptionStacks;
 
-    /** Tracks per-span local depth in Context to enforce {@link OtelSdkSettings#TELEMETRY_TRACING_MAX_DEPTH}. */
-    private static final ContextKey<Integer> SPAN_LOCAL_DEPTH_KEY = ContextKey.named("es.apm.span.local_depth");
+    private final TextMapPropagator propagator = W3CTraceContextPropagator.getInstance();
 
-    /** Counter shared by all spans under the same local root to enforce {@link OtelSdkSettings#TELEMETRY_TRACING_MAX_SPANS}. */
-    private static final ContextKey<AtomicInteger> SPAN_LOCAL_COUNT_KEY = ContextKey.named("es.apm.span.local_count");
+    @Nullable
+    private volatile io.opentelemetry.api.trace.Tracer otelTracer;
 
-    /** Holds in-flight span information. */
-    private final Map<String, Context> spans = ConcurrentCollections.newConcurrentMap();
-
-    final ThreadContext threadContext;
-    private final TraceSupplier traceSupplier;
-
-    private volatile boolean enabled;
-    private volatile APMServices services;
-
-    private List<String> includeNames;
-    private List<String> excludeNames;
-    private List<String> labelFilters;
+    private List<String> includeNames = List.of();
+    private List<String> excludeNames = List.of();
     /** Built using {@link #includeNames} and {@link #excludeNames}, and filters out spans based on their name. */
-    private volatile CharacterRunAutomaton filterAutomaton;
-    private volatile CharacterRunAutomaton labelFilterAutomaton;
-    private String clusterName;
-    private String nodeName;
-
-    /** Maximum local span depth on the OTel SDK path; see {@link OtelSdkSettings#TELEMETRY_TRACING_MAX_DEPTH}. */
+    private volatile CharacterRunAutomaton filterAutomaton = PatternAutomata.compile(List.of(), List.of());
     private volatile int maxTraceDepth;
-
-    /** Maximum number of spans under a local root on the OTel SDK path; see {@link OtelSdkSettings#TELEMETRY_TRACING_MAX_SPANS}. */
     private volatile int maxSpans;
+    private volatile CharacterRunAutomaton labelFilterAutomaton = PatternAutomata.compile(List.of(), List.of());
+    private volatile String clusterName;
+    private volatile String nodeName;
 
-    /** Whether to attach exception stack traces on the OTel SDK path;
-     *  see {@link OtelSdkSettings#TELEMETRY_TRACING_RECORD_EXCEPTION_STACKS}. */
-    private volatile boolean recordExceptionStacks;
-
-    public void setClusterName(String clusterName) {
-        this.clusterName = clusterName;
-    }
-
-    public void setNodeName(String nodeName) {
-        this.nodeName = nodeName;
-    }
-
-    /**
-     * This class is used to make all OpenTelemetry services visible at once
-     */
-    record APMServices(Tracer tracer, OpenTelemetry openTelemetry) {}
-
-    public APMTracer(ThreadContext threadContext, Settings settings, Supplier<MeterProvider> meterProvider) {
-        this(
-            threadContext,
-            settings,
-            new OtelSdkExportTracerSupplier(settings, meterProvider),
-            OtelSdkSettings.TELEMETRY_TRACING_MAX_DEPTH.get(settings),
-            OtelSdkSettings.TELEMETRY_TRACING_RECORD_EXCEPTION_STACKS.get(settings)
-        );
-    }
-
-    // package-private for testing
-    APMTracer(
+    public APMTracer(
         ThreadContext threadContext,
-        Settings settings,
-        TraceSupplier traceSupplier,
-        int maxTraceDepth,
-        boolean recordExceptionStacks
+        Supplier<TracerProvider> tracerProvider,
+        AtomicBoolean enabled,
+        AtomicBoolean recordExceptionStacks
     ) {
         this.threadContext = threadContext;
-        this.traceSupplier = traceSupplier;
-        this.includeNames = APMAgentSettings.TELEMETRY_TRACING_NAMES_INCLUDE_SETTING.get(settings);
-        this.excludeNames = APMAgentSettings.TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING.get(settings);
-        this.labelFilters = APMAgentSettings.TELEMETRY_TRACING_SANITIZE_FIELD_NAMES.get(settings);
-
-        this.filterAutomaton = buildAutomaton(includeNames, excludeNames);
-        this.labelFilterAutomaton = buildAutomaton(labelFilters, List.of());
-        this.enabled = APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.get(settings);
-        this.maxTraceDepth = maxTraceDepth;
-        this.maxSpans = OtelSdkSettings.TELEMETRY_TRACING_MAX_SPANS.get(settings);
+        this.tracerProvider = tracerProvider;
+        this.enabled = enabled;
         this.recordExceptionStacks = recordExceptionStacks;
     }
 
-    public CompletableResultCode attemptFlushTraces() {
-        if (enabled == false) {
-            return CompletableResultCode.ofSuccess();
-        }
-        return traceSupplier.attemptFlushTraces();
+    @Override
+    public APMSpanBuilder spanBuilder(String name) {
+        assert name != null : "span name cannot be null";
+        return new APMSpanBuilder(this, requireNonNull(name, "span name"));
     }
 
-    public void setEnabled(boolean enabled) {
-        this.enabled = enabled;
-        if (enabled) {
-            this.services = createApmServices();
-        } else {
-            destroyApmServices();
+    @Override
+    public Span currentSpan() {
+        var span = threadContext.getSpan();
+        assert span != null : "span cannot be null";
+        if (span == null || span == Span.noop()) {
+            return Span.noop();
         }
+        assert span instanceof AbstractSpan : "only AbstractSpan instances are allowed in ThreadContext; found" + span.getClass().getName();
+        return span;
     }
 
-    public void setIncludeNames(List<String> includeNames) {
+    public synchronized void setIncludeNames(List<String> includeNames) {
         this.includeNames = includeNames;
-        this.filterAutomaton = buildAutomaton(includeNames, excludeNames);
+        this.filterAutomaton = PatternAutomata.compile(includeNames, excludeNames);
     }
 
-    public void setExcludeNames(List<String> excludeNames) {
+    public synchronized void setExcludeNames(List<String> excludeNames) {
         this.excludeNames = excludeNames;
-        this.filterAutomaton = buildAutomaton(includeNames, excludeNames);
+        this.filterAutomaton = PatternAutomata.compile(includeNames, excludeNames);
     }
 
     public void setLabelFilters(List<String> labelFilters) {
-        this.labelFilters = labelFilters;
-        this.labelFilterAutomaton = buildAutomaton(labelFilters, List.of());
+        this.labelFilterAutomaton = PatternAutomata.compile(labelFilters, List.of());
     }
 
     public void setMaxTraceDepth(int maxTraceDepth) {
@@ -182,346 +104,62 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         this.maxSpans = maxSpans;
     }
 
-    public void setRecordExceptionStacks(boolean recordExceptionStacks) {
-        this.recordExceptionStacks = recordExceptionStacks;
+    public void setClusterName(String clusterName) {
+        this.clusterName = clusterName;
     }
 
-    // package-private for testing
-    CharacterRunAutomaton getLabelFilterAutomaton() {
-        return labelFilterAutomaton;
+    public void setNodeName(String nodeName) {
+        this.nodeName = nodeName;
     }
 
-    @Override
-    protected void doStart() {
-        if (enabled) {
-            this.services = createApmServices();
+    ThreadContext threadContext() {
+        return threadContext;
+    }
+
+    io.opentelemetry.api.trace.Tracer otelTracer() {
+        var otelTracer = this.otelTracer;
+        if (otelTracer == null) {
+            // no need for double-checked locking, the SDK will always return the same tracer instance for given scope
+            this.otelTracer = otelTracer = tracerProvider.get().get("elasticsearch", Build.current().version());
         }
+        return otelTracer;
     }
 
-    @Override
-    protected void doStop() {
-        // Best-effort flush of buffered spans, but keep the SDK alive: node shutdown stops all lifecycle components
-        // before closing any of them, so leaving the tracer running until doClose() lets spans emitted during the rest
-        // of the shutdown sequence (e.g. shard relocations draining in IndicesService) still be recorded and exported.
-        if (enabled) {
-            try {
-                traceSupplier.attemptFlushTraces().join(OtelSdkSettings.OTEL_EXPORT_FLUSH_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
-            } catch (Exception e) {
-                logger.warn("Exception flushing trace supplier", e);
-            }
-        }
+    boolean isEnabled() {
+        return enabled.get();
     }
 
-    @Override
-    protected void doClose() {
-        try {
-            traceSupplier.close();
-        } catch (Exception e) {
-            logger.warn("Exception closing trace supplier", e);
-        }
-        destroyApmServices();
+    String clusterName() {
+        return clusterName;
     }
 
-    // package-private for tests
-    APMServices createApmServices() {
-        assert this.enabled;
-        assert this.services == null;
-
-        var openTelemetry = traceSupplier.get();
-        var tracer = openTelemetry.getTracer("elasticsearch", Build.current().version());
-        return new APMServices(tracer, openTelemetry);
+    String nodeName() {
+        return nodeName;
     }
 
-    private void destroyApmServices() {
-        this.services = null;
-        this.spans.clear();// discard in-flight spans
+    /** Whether the name of a span is excluded from tracing by the configured include and exclude patterns. */
+    boolean isFilteredOut(String spanName) {
+        return filterAutomaton.run(spanName) == false;
     }
 
-    @Override
-    public void startTrace(Traceable traceable, String spanName, @Nullable Map<String, Object> attributes) {
-        String spanId = traceable.getSpanId();
-        assert spanId != null;
-        assert spanName != null;
-
-        // If tracing has been disabled, return immediately
-        var services = this.services;
-        if (services == null) {
-            return;
-        }
-
-        if (filterAutomaton.run(spanName) == false) {
-            logger.trace("Skipping tracing [{}] [{}] as it has been filtered out", spanId, spanName);
-            return;
-        }
-
-        spans.computeIfAbsent(spanId, _spanId -> {
-            // A span can have a parent span, which here is modelled though a parent span context.
-            // Setting this is important for seeing a complete trace in the APM UI.
-            // Attempt to fetch a local parent context first, otherwise look for a remote parent
-            final Context localParentContext = threadContext.getTransient(Task.PARENT_APM_TRACE_CONTEXT);
-
-            // max_depth and max_spans apply per local root: the first span of a request on this node, even if it continues a
-            // remote trace. A child gets its parent's depth + 1 and shares its parent's span counter, which excludes the root.
-            final int localDepth;
-            final AtomicInteger localSpanCount;
-            if (localParentContext != null) {
-                Integer parentDepth = localParentContext.get(SPAN_LOCAL_DEPTH_KEY);
-                localDepth = (parentDepth != null ? parentDepth : 0) + 1;
-
-                AtomicInteger parentSpanCount = localParentContext.get(SPAN_LOCAL_COUNT_KEY);
-                localSpanCount = parentSpanCount != null ? parentSpanCount : new AtomicInteger();
-            } else {
-                localDepth = 0;
-                localSpanCount = new AtomicInteger();
-            }
-
-            if (localDepth > maxTraceDepth) {
-                logger.trace("Skipping span [{}] [{}] at local depth {} (maxTraceDepth={})", spanId, spanName, localDepth, maxTraceDepth);
-                return null;
-            }
-
-            if (localDepth > 0 && (localSpanCount.get() > maxSpans || localSpanCount.incrementAndGet() > maxSpans)) {
-                logger.trace("Skipping span [{}] [{}] as the local root reached maxSpans={}", spanId, spanName, maxSpans);
-                return null;
-            }
-
-            logger.trace("Tracing [{}] [{}]", spanId, spanName);
-            final SpanBuilder spanBuilder = services.tracer.spanBuilder(spanName);
-
-            final Context parentContext = localParentContext != null ? localParentContext : getRemoteParentContext(services);
-            if (parentContext != null) {
-                spanBuilder.setParent(parentContext);
-            }
-
-            setSpanAttributes(attributes, spanBuilder);
-            setAttributesFromHeaders(spanBuilder);
-
-            Instant startTime = threadContext.getTransient(Task.TRACE_START_TIME);
-            if (startTime != null) {
-                spanBuilder.setStartTimestamp(startTime);
-            }
-
-            final Span span = spanBuilder.startSpan();
-            if (span.isRecording() == false) {
-                logger.trace("Span [{}] [{}] will not be recorded due to sampling", spanId, spanName);
-                span.end(); // end span immediately to release any resources.
-                return null; // return null to discard and not record in map of spans
-            }
-
-            final Context contextForNewSpan = Context.current()
-                .with(span)
-                .with(SPAN_LOCAL_DEPTH_KEY, localDepth)
-                .with(SPAN_LOCAL_COUNT_KEY, localSpanCount);
-            if (span.isRecording()) {
-                logger.trace("Recording trace [{}] [{}]", spanId, spanName);
-                updateThreadContext(services, contextForNewSpan);
-            }
-
-            return contextForNewSpan;
-        });
+    int maxTraceDepth() {
+        return maxTraceDepth;
     }
 
-    private void updateThreadContext(APMServices services, Context context) {
-        // The new span context can be used as the parent context directly within the same Java process...
-        threadContext.putTransient(Task.APM_TRACE_CONTEXT, context);
-
-        // ...whereas for tasks sent to other ES nodes, we need to put trace HTTP headers into the traceContext so
-        // that they can be propagated.
-        services.openTelemetry.getPropagators().getTextMapPropagator().inject(context, threadContext, (tc, key, value) -> {
-            if (isSupportedContextKey(key)) {
-                tc.putHeader(key, value);
-            }
-        });
+    int maxSpans() {
+        return maxSpans;
     }
 
-    private Context getRemoteParentContext(APMServices services) {
-        // https://github.com/open-telemetry/opentelemetry-java/discussions/2884#discussioncomment-381870
-        // If you just want to propagate across threads within the same process, you don't need context propagators (extract/inject).
-        // You can just pass the Context object directly to another thread (it is immutable and thus thread-safe).
-
-        final String traceParentHeader = threadContext.getTransient(Task.PARENT_TRACE_PARENT_HEADER);
-        final String traceStateHeader = threadContext.getTransient(Task.PARENT_TRACE_STATE);
-
-        if (traceParentHeader != null) {
-            final Map<String, String> traceContextMap = Maps.newMapWithExpectedSize(2);
-            // traceparent and tracestate should match the keys used by W3CTraceContextPropagator
-            traceContextMap.put(Task.TRACE_PARENT_HTTP_HEADER, traceParentHeader);
-            if (traceStateHeader != null) {
-                traceContextMap.put(Task.TRACE_STATE, traceStateHeader);
-            }
-
-            return services.openTelemetry.getPropagators()
-                .getTextMapPropagator()
-                .extract(Context.current(), traceContextMap, new MapKeyGetter());
-        }
-        return null;
+    /** Whether the value of an attribute with the given key is sensitive and must be redacted. */
+    boolean isRedacted(String attributeKey) {
+        return labelFilterAutomaton.run(attributeKey);
     }
 
-    private void setSpanAttributes(@Nullable Map<String, Object> spanAttributes, SpanBuilder spanBuilder) {
-        if (spanAttributes != null) {
-            for (Map.Entry<String, Object> entry : spanAttributes.entrySet()) {
-                final String key = entry.getKey();
-                final Object value = entry.getValue();
-
-                if (this.labelFilterAutomaton.run(key)) {
-                    spanBuilder.setAttribute(key, "[REDACTED]");
-                    continue;
-                }
-
-                if (value instanceof String) {
-                    spanBuilder.setAttribute(key, (String) value);
-                } else if (value instanceof Long) {
-                    spanBuilder.setAttribute(key, (Long) value);
-                } else if (value instanceof Integer) {
-                    spanBuilder.setAttribute(key, (Integer) value);
-                } else if (value instanceof Double) {
-                    spanBuilder.setAttribute(key, (Double) value);
-                } else if (value instanceof Boolean) {
-                    spanBuilder.setAttribute(key, (Boolean) value);
-                } else if (value == null) {
-                    throw new IllegalArgumentException("span attributes cannot have a null value");
-                } else {
-                    throw new IllegalArgumentException(
-                        "span attributes do not support value type of [" + value.getClass().getCanonicalName() + "]"
-                    );
-                }
-            }
-
-            final boolean isHttpSpan = spanAttributes.keySet().stream().anyMatch(key -> key.startsWith("http."));
-            spanBuilder.setSpanKind(isHttpSpan ? SpanKind.SERVER : SpanKind.INTERNAL);
-        } else {
-            spanBuilder.setSpanKind(SpanKind.INTERNAL);
-        }
-
-        spanBuilder.setAttribute(org.elasticsearch.telemetry.tracing.Tracer.AttributeKeys.NODE_NAME, nodeName);
-        spanBuilder.setAttribute(org.elasticsearch.telemetry.tracing.Tracer.AttributeKeys.CLUSTER_NAME, clusterName);
+    boolean recordExceptionStacks() {
+        return recordExceptionStacks.get();
     }
 
-    private void setAttributesFromHeaders(SpanBuilder spanBuilder) {
-        final String xOpaqueId = threadContext.getHeader(Task.X_OPAQUE_ID_HTTP_HEADER);
-        if (xOpaqueId != null) {
-            spanBuilder.setAttribute("es.x-opaque-id", xOpaqueId);
-        }
-
-        final String projectId = threadContext.getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER);
-        if (projectId != null) {
-            spanBuilder.setAttribute("project.id", projectId);
-        }
+    TextMapPropagator propagator() {
+        return propagator;
     }
-
-    private Span getSpan(Traceable traceable) {
-        final Context context = spans.get(traceable.getSpanId());
-        return context == null ? Span.getInvalid() : Span.fromContext(context);
-    }
-
-    @Override
-    public void addError(Traceable traceable, Throwable throwable) {
-        final var span = getSpan(traceable);
-        if (recordExceptionStacks) {
-            span.recordException(throwable);
-            return;
-        }
-        AttributesBuilder attrs = Attributes.builder().put("exception.type", throwable.getClass().getName());
-        Optional.ofNullable(throwable.getMessage()).ifPresent(m -> attrs.put("exception.message", m));
-        span.addEvent("exception", attrs.build());
-    }
-
-    @Override
-    public void setAttribute(Traceable traceable, String key, boolean value) {
-        getSpan(traceable).setAttribute(key, value);
-    }
-
-    @Override
-    public void setAttribute(Traceable traceable, String key, double value) {
-        getSpan(traceable).setAttribute(key, value);
-    }
-
-    @Override
-    public void setAttribute(Traceable traceable, String key, long value) {
-        getSpan(traceable).setAttribute(key, value);
-    }
-
-    @Override
-    public void setAttribute(Traceable traceable, String key, String value) {
-        getSpan(traceable).setAttribute(key, value);
-    }
-
-    public void setAttributes(Traceable traceable, Attributes attributes) {
-        getSpan(traceable).setAllAttributes(attributes);
-    }
-
-    public SpanStatusBuilder spanStatusBuilder(Traceable traceable) {
-        return new APMSpanStatusBuilder(getSpan(traceable));
-    }
-
-    private record APMSpanStatusBuilder(Span span) implements SpanStatusBuilder {
-
-        @Override
-        public SpanStatusBuilder setStatus(StatusCode statusCode, String description) {
-            span.setStatus(statusCode, description);
-            return this;
-        }
-    }
-
-    @Override
-    public void stopTrace(Traceable traceable) {
-        final String spanId = traceable.getSpanId();
-        final Context context = spans.remove(spanId);
-        if (context != null) {
-            logger.trace("Finishing trace [{}]", spanId);
-            Span.fromContext(context).end();
-        }
-    }
-
-    private static class MapKeyGetter implements TextMapGetter<Map<String, String>> {
-
-        @Override
-        public Iterable<String> keys(Map<String, String> carrier) {
-            return carrier.keySet().stream().filter(APMTracer::isSupportedContextKey).collect(Collectors.toSet());
-        }
-
-        @Override
-        public String get(Map<String, String> carrier, String key) {
-            return carrier.get(key);
-        }
-    }
-
-    private static boolean isSupportedContextKey(String key) {
-        return Task.TRACE_PARENT_HTTP_HEADER.equals(key) || Task.TRACE_STATE.equals(key);
-    }
-
-    // VisibleForTesting
-    Map<String, Context> getSpans() {
-        return spans;
-    }
-
-    private static CharacterRunAutomaton buildAutomaton(List<String> includePatterns, List<String> excludePatterns) {
-        Automaton includeAutomaton = patternsToAutomaton(includePatterns);
-        Automaton excludeAutomaton = patternsToAutomaton(excludePatterns);
-
-        if (includeAutomaton == null) {
-            includeAutomaton = Automata.makeAnyString();
-        }
-
-        final Automaton finalAutomaton = excludeAutomaton == null
-            ? includeAutomaton
-            : Operations.minus(includeAutomaton, excludeAutomaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
-
-        return new CharacterRunAutomaton(MinimizationOperations.minimize(finalAutomaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT));
-    }
-
-    private static Automaton patternsToAutomaton(List<String> patterns) {
-        final List<Automaton> automata = patterns.stream().map(s -> {
-            final String regex = s.replace(".", "\\.").replace("*", ".*");
-            return new RegExp(regex, RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT).toAutomaton();
-        }).toList();
-        if (automata.isEmpty()) {
-            return null;
-        }
-        if (automata.size() == 1) {
-            return automata.get(0);
-        }
-        return Operations.union(automata);
-    }
-
 }

@@ -2595,13 +2595,11 @@ public class ComputeService {
 
     CancellableTask createGroupTask(Task parentTask, Supplier<String> description) throws TaskCancelledException {
         final TaskManager taskManager = transportService.getTaskManager();
-        try (var ignored = transportService.getThreadPool().getThreadContext().newTraceContext()) {
-            return (CancellableTask) taskManager.register(
-                "transport",
-                "esql_compute_group",
-                new ComputeGroupTaskRequest(parentTask.taskInfo(transportService.getLocalNode().getId(), false).taskId(), description)
-            );
-        }
+        return (CancellableTask) taskManager.register(
+            "transport",
+            "esql_compute_group",
+            new ComputeGroupTaskRequest(parentTask.taskInfo(transportService.getLocalNode().getId(), false).taskId(), description)
+        );
     }
 
     public EsqlFlags createFlags() {

@@ -178,7 +178,7 @@ public abstract class TaskManagerTestCase extends ESTestCase {
                 discoveryNode.set(DiscoveryNodeUtils.create(name, address.publishAddress(), emptyMap(), emptySet()));
                 return discoveryNode.get();
             };
-            TaskManager taskManager = MockTaskManager.create(settings, threadPool, emptySet(), Tracer.NOOP, name);
+            TaskManager taskManager = MockTaskManager.create(settings, threadPool, emptySet(), Tracer.noop(), name);
             transportService = new TransportService(
                 settings,
                 new Netty4Transport(

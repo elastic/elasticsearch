@@ -27,19 +27,17 @@ import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
 import org.elasticsearch.telemetry.apm.internal.APMLoggingService;
 import org.elasticsearch.telemetry.apm.internal.APMMeterService;
 import org.elasticsearch.telemetry.apm.internal.APMTelemetryProvider;
+import org.elasticsearch.telemetry.apm.internal.APMTracingService;
 import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings;
 import org.elasticsearch.telemetry.apm.internal.metrics.spi.MetricReaderProvider;
-import org.elasticsearch.telemetry.apm.internal.tracing.APMTracer;
 
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
 
 /**
- * This module integrates Elastic's APM product with Elasticsearch. Elasticsearch has
- * a {@link org.elasticsearch.telemetry.tracing.Tracer} interface, which this module implements via
- * {@link APMTracer}. We use the OpenTelemetry API to capture telemetry, and the OpenTelemetry SDK
- * to ship it to an APM server using OTLP/gRPC.
+ * This module integrates Elastic's APM product with Elasticsearch. We use the OpenTelemetry API to capture telemetry, and the OpenTelemetry
+ * SDK to ship it to an APM server using OTLP/gRPC.
  * <p>
  * All settings are found under the <code>telemetry.</code> prefix.
  */
@@ -87,21 +85,19 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin, Exten
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
-        final APMTracer apmTracer = telemetryProvider.get().getTracer();
-        final APMMeterService apmMeter = telemetryProvider.get().getMeterService();
-
-        apmTracer.setClusterName(services.clusterService().getClusterName().value());
-        apmTracer.setNodeName(services.clusterService().getNodeName());
-
-        new APMAgentSettings().addClusterSettingsListeners(services.clusterService(), telemetryProvider.get());
-        logger.info("Sending apm metrics is {}", APMAgentSettings.TELEMETRY_METRICS_ENABLED_SETTING.get(settings) ? "enabled" : "disabled");
+        final APMTracingService tracingService = telemetryProvider.get().getTracingService();
+        tracingService.addClusterSettingsListeners(services.clusterService());
         logger.info("Sending apm tracing is {}", APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.get(settings) ? "enabled" : "disabled");
 
-        final APMLoggingService loggingService = telemetryProvider.get().getLoggingService();
-        logger.info("OTel audit log export is {}", OtelSdkSettings.TELEMETRY_LOGS_AUDIT_ENABLED.get(settings) ? "enabled" : "disabled");
-        telemetryProvider.get().initCertReload(services.resourceWatcherService());
+        final APMMeterService meterService = telemetryProvider.get().getMeterService();
+        meterService.addClusterSettingsListeners(services.clusterService());
+        logger.info("Sending apm metrics is {}", APMAgentSettings.TELEMETRY_METRICS_ENABLED_SETTING.get(settings) ? "enabled" : "disabled");
 
-        return List.of(apmTracer, apmMeter, loggingService);
+        final APMLoggingService loggingService = telemetryProvider.get().getLoggingService();
+        loggingService.initCertReload(services.resourceWatcherService());
+        logger.info("OTel audit log export is {}", OtelSdkSettings.TELEMETRY_LOGS_AUDIT_ENABLED.get(settings) ? "enabled" : "disabled");
+
+        return List.of(tracingService, meterService, loggingService);
     }
 
     @Override

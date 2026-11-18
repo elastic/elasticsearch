@@ -35,7 +35,7 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
  */
 public class RestRequestMetrics implements HttpServerInstrumentation {
 
-    private static final String STATE_KEY = State.class.getName();
+    static final String STATE_KEY = State.class.getName();
     private static final double NANOS_PER_MS = MILLISECONDS.toNanos(1);
 
     // 1 ms to 30 sec
@@ -190,9 +190,9 @@ public class RestRequestMetrics implements HttpServerInstrumentation {
     }
 
     @Override
-    public void start(RestRequest request, @Nullable String route) {
+    public InstrumentedHttpOperation start(RestRequest request, @Nullable String route) {
         if (route == null) {
-            return;
+            return InstrumentedHttpOperation.NOOP;
         }
         if (route.startsWith("/")) {
             route = route.substring(1);
@@ -200,10 +200,16 @@ public class RestRequestMetrics implements HttpServerInstrumentation {
 
         var durationHistogram = measuredRoutes.get(new RouteKey(request.method(), route));
         if (durationHistogram == null) {
-            return;
+            return InstrumentedHttpOperation.NOOP;
         }
 
-        threadContext.putTransient(STATE_KEY, new State(durationHistogram, System.nanoTime()));
+        // the start time is taken once, here, however many times the operation is stored in a thread context afterwards
+        final State state = new State(durationHistogram, System.nanoTime());
+        return () -> {
+            final ThreadContext.StoredContext storedContext = threadContext.newStoredContextPreservingResponseHeaders();
+            threadContext.putTransientAllowOverwrite(STATE_KEY, state);
+            return storedContext;
+        };
     }
 
     @Override

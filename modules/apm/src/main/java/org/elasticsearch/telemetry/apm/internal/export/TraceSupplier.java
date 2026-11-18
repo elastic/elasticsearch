@@ -10,6 +10,7 @@
 package org.elasticsearch.telemetry.apm.internal.export;
 
 import io.opentelemetry.api.OpenTelemetry;
+import io.opentelemetry.api.trace.TracerProvider;
 import io.opentelemetry.sdk.common.CompletableResultCode;
 
 import java.util.function.Supplier;
@@ -19,7 +20,7 @@ import java.util.function.Supplier;
  * (rather than just a {@code Tracer}) because callers also need {@code getPropagators()} for
  * context propagation.
  */
-public interface TraceSupplier extends Supplier<OpenTelemetry>, AutoCloseable {
+public interface TraceSupplier extends Supplier<TracerProvider>, AutoCloseable {
 
     /**
      * Initiates a best-effort export of buffered traces. Callers must join the result with an appropriate timeout.

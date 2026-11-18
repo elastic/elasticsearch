@@ -20,6 +20,9 @@ import io.opentelemetry.sdk.trace.samplers.Sampler;
 import io.opentelemetry.sdk.trace.samplers.SamplingDecision;
 import io.opentelemetry.sdk.trace.samplers.SamplingResult;
 
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
+
 import java.util.List;
 import java.util.Objects;
 
@@ -29,13 +32,19 @@ import java.util.Objects;
  * {@code es} parsing follows the APM Java agent
  * <a href="https://github.com/elastic/apm-agent-java/blob/0b0082d92686c5ba4fedbc4a251bcefbdbf6b8f8/apm-agent-core/src/main/java/co/elastic/apm/agent/impl/transaction/TraceState.java#L83-L155">TraceState#addTextHeader</a>.
  */
-final class ElasticTracestateSampler implements Sampler {
+public final class ElasticTracestateSampler implements Sampler {
 
-    private final Sampler delegate;
+    // TODO: emit the modern th: tracestate instead of ot=p: once exporting to EDOT gateway
+    private final Sampler root;
     private final String localRootOt;
 
+    public ElasticTracestateSampler(Settings settings) {
+        this(OtelSdkSettings.TELEMETRY_TRACING_SAMPLE_RATE.get(settings));
+    }
+
+    // visible for tests
     ElasticTracestateSampler(double sampleRate) {
-        this.delegate = Sampler.parentBased(Sampler.traceIdRatioBased(sampleRate));
+        this.root = Sampler.parentBased(Sampler.traceIdRatioBased(sampleRate));
         this.localRootOt = sampleRate > 0 ? pValueForRate(sampleRate) : null;
     }
 
@@ -48,12 +57,12 @@ final class ElasticTracestateSampler implements Sampler {
         Attributes attributes,
         List<LinkData> parentLinks
     ) {
-        SamplingResult result = delegate.shouldSample(parentContext, traceId, name, spanKind, attributes, parentLinks);
+        SamplingResult result = root.shouldSample(parentContext, traceId, name, spanKind, attributes, parentLinks);
         if (result.getDecision() == SamplingDecision.DROP) {
             return result;
         }
         String ot = resolveOt(Span.fromContext(parentContext).getSpanContext());
-        return ot == null ? result : withOt(result, ot);
+        return ot == null ? result : new SamplingResultWithOt(result, ot);
     }
 
     private String resolveOt(SpanContext parent) {
@@ -68,25 +77,7 @@ final class ElasticTracestateSampler implements Sampler {
         return existing.isEmpty() ? p : p + ";" + existing;
     }
 
-    private static SamplingResult withOt(SamplingResult result, String ot) {
-        return new SamplingResult() {
-            @Override
-            public SamplingDecision getDecision() {
-                return result.getDecision();
-            }
-
-            @Override
-            public Attributes getAttributes() {
-                return result.getAttributes();
-            }
-
-            @Override
-            public TraceState getUpdatedTraceState(TraceState traceState) {
-                return result.getUpdatedTraceState(traceState).toBuilder().put("ot", ot).build();
-            }
-        };
-    }
-
+    @Nullable
     private static String pValueFromESString(String es) {
         if (es == null || es.startsWith("s:") == false) {
             return null;
@@ -109,6 +100,23 @@ final class ElasticTracestateSampler implements Sampler {
 
     @Override
     public String getDescription() {
-        return "ElasticTracestateSampler{" + delegate.getDescription() + "}";
+        return "ElasticTracestateSampler{" + root.getDescription() + "}";
+    }
+
+    private record SamplingResultWithOt(SamplingResult original, String ot) implements SamplingResult {
+        @Override
+        public SamplingDecision getDecision() {
+            return original.getDecision();
+        }
+
+        @Override
+        public Attributes getAttributes() {
+            return original.getAttributes();
+        }
+
+        @Override
+        public TraceState getUpdatedTraceState(TraceState traceState) {
+            return original.getUpdatedTraceState(traceState).toBuilder().put("ot", ot).build();
+        }
     }
 }

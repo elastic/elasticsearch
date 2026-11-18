@@ -12,6 +12,7 @@ package org.elasticsearch.telemetry.apm.internal.tracing;
 import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.metrics.Meter;
 import io.opentelemetry.api.metrics.MeterProvider;
+import io.opentelemetry.api.trace.TracerProvider;
 import io.opentelemetry.sdk.common.CompletableResultCode;
 
 import org.elasticsearch.common.settings.Settings;
@@ -21,6 +22,7 @@ import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
 import org.elasticsearch.telemetry.apm.internal.APMLoggingService;
 import org.elasticsearch.telemetry.apm.internal.APMMeterService;
 import org.elasticsearch.telemetry.apm.internal.APMTelemetryProvider;
+import org.elasticsearch.telemetry.apm.internal.APMTracingService;
 import org.elasticsearch.telemetry.apm.internal.export.MeterSupplier;
 import org.elasticsearch.telemetry.apm.internal.export.TraceSupplier;
 import org.elasticsearch.telemetry.instrumentation.HttpServerInstrumentation;
@@ -52,8 +54,8 @@ public class APMTelemetryProviderTests extends ESTestCase {
 
         TraceSupplier traceSupplier = new TraceSupplier() {
             @Override
-            public OpenTelemetry get() {
-                return OpenTelemetry.noop();
+            public TracerProvider get() {
+                return TracerProvider.noop();
             }
 
             @Override
@@ -87,8 +89,8 @@ public class APMTelemetryProviderTests extends ESTestCase {
 
         TraceSupplier traceSupplier = new TraceSupplier() {
             @Override
-            public OpenTelemetry get() {
-                return OpenTelemetry.noop();
+            public TracerProvider get() {
+                return TracerProvider.noop();
             }
 
             @Override
@@ -136,8 +138,8 @@ public class APMTelemetryProviderTests extends ESTestCase {
 
         TraceSupplier traceSupplier = new TraceSupplier() {
             @Override
-            public OpenTelemetry get() {
-                return OpenTelemetry.noop();
+            public TracerProvider get() {
+                return TracerProvider.noop();
             }
 
             @Override
@@ -164,7 +166,7 @@ public class APMTelemetryProviderTests extends ESTestCase {
             .put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), tracingEnabled)
             .build();
         APMMeterService meterService = new APMMeterService(settings, meterSupplier, () -> OpenTelemetry.noop().getMeter("noop"));
-        APMTracer tracer = new APMTracer(new ThreadContext(settings), settings, traceSupplier, 0, false);
+        APMTracingService tracer = new APMTracingService(new ThreadContext(settings), settings, traceSupplier);
         return new APMTelemetryProvider(
             meterService,
             tracer,

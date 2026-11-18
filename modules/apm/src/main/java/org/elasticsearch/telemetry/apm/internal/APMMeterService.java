@@ -18,6 +18,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.telemetry.apm.internal.export.MeterSupplier;
@@ -28,6 +29,8 @@ import org.elasticsearch.telemetry.apm.internal.metrics.spi.MetricReaderProvider
 
 import java.nio.file.Path;
 import java.util.concurrent.TimeUnit;
+
+import static org.elasticsearch.telemetry.apm.internal.APMAgentSettings.TELEMETRY_METRICS_ENABLED_SETTING;
 
 public class APMMeterService extends AbstractLifecycleComponent {
 
@@ -45,7 +48,7 @@ public class APMMeterService extends AbstractLifecycleComponent {
     }
 
     public APMMeterService(Settings settings, MeterSupplier otelMeterSupplier, MeterSupplier noopMeterSupplier) {
-        this.enabled = APMAgentSettings.TELEMETRY_METRICS_ENABLED_SETTING.get(settings);
+        this.enabled = TELEMETRY_METRICS_ENABLED_SETTING.get(settings);
         this.otelMeterSupplier = otelMeterSupplier;
         this.noopMeterSupplier = noopMeterSupplier;
         this.meterRegistry = new APMMeterRegistry(enabled ? otelMeterSupplier.get() : noopMeterSupplier.get());
@@ -76,9 +79,16 @@ public class APMMeterService extends AbstractLifecycleComponent {
         return CompletableResultCode.ofSuccess();
     }
 
-    /**
-     * @see APMAgentSettings#addClusterSettingsListeners(ClusterService, APMTelemetryProvider)
-     */
+    public void addClusterSettingsListeners(ClusterService clusterService) {
+        final ClusterSettings clusterSettings = clusterService.getClusterSettings();
+
+        clusterSettings.addSettingsUpdateConsumer(TELEMETRY_METRICS_ENABLED_SETTING, this::setEnabled);
+        clusterSettings.addSettingsUpdateConsumer(
+            OtelSdkSettings.TELEMETRY_METRICS_INSTRUMENT_TIMING_ENABLED,
+            meterRegistry::setInstrumentTimingEnabled
+        );
+    }
+
     void setEnabled(boolean enabled) {
         this.enabled = enabled;
         meterRegistry.setProvider(enabled ? otelMeterSupplier.get() : noopMeterSupplier.get());
@@ -115,11 +125,6 @@ public class APMMeterService extends AbstractLifecycleComponent {
         @Override
         public Meter get() {
             return OpenTelemetry.noop().getMeter("noop");
-        }
-
-        @Override
-        public CompletableResultCode attemptFlushMetrics() {
-            return CompletableResultCode.ofSuccess();
         }
     }
 }

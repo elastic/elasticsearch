@@ -13,11 +13,13 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.telemetry.tracing.Traceable;
+import org.elasticsearch.telemetry.tracing.Span;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 
 import java.io.IOException;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -27,7 +29,7 @@ import static java.util.Objects.requireNonNull;
 /**
  * Current task information
  */
-public class Task implements Traceable {
+public class Task {
 
     /**
      * The request header to mark tasks with specific ids
@@ -43,10 +45,9 @@ public class Task implements Traceable {
     public static final String X_ELASTIC_PROJECT_ID_HTTP_HEADER = "X-Elastic-Project-Id";
 
     /**
-     * The request header which is contained in HTTP request. We parse trace.id from it and store it in thread context.
-     * TRACE_PARENT once parsed in RestController.tryAllHandler is not preserved
-     * has to be declared as a header copied over from http request.
-     * May also be used internally when APM is enabled.
+     * The W3C {@code traceparent} request header. It always identifies the span that is current in the thread context: before a local
+     * root span is started it holds the remote parent (if any), afterwards the id of the local span. Being a request header it is
+     * propagated to other nodes. We also parse {@link #TRACE_ID} from the incoming HTTP request's header.
      * https://www.w3.org/TR/trace-context-1/#traceparent-header
      */
     public static final String TRACE_PARENT_HTTP_HEADER = "traceparent";
@@ -58,35 +59,42 @@ public class Task implements Traceable {
     public static final String TRACE_ID = "trace.id";
 
     /**
-     * Optional request header carrying vendor-specific trace information.
+     * Optional request header carrying vendor-specific trace information. Always kept in sync with {@link #TRACE_PARENT_HTTP_HEADER}.
      * https://www.w3.org/TR/trace-context-1/#tracestate-header
      */
     public static final String TRACE_STATE = "tracestate";
 
     /**
-     * Optional transient header allowing to override the start time of the root trace.
-     * This is discarded when creating a new trace context once an APM trace context exists.
+     * Optional transient header allowing to override the start time of the local root span. Ignored for any other span.
      */
-    public static final String TRACE_START_TIME = "trace.starttime";
-
-    /**
-     * Used internally to pass the apm trace context between the nodes
-     */
-    public static final String APM_TRACE_CONTEXT = "apm.local.context";
-
-    public static final String PARENT_TRACE_PARENT_HEADER = "parent_" + Task.TRACE_PARENT_HTTP_HEADER;
-
-    public static final String PARENT_TRACE_STATE = "parent_" + Task.TRACE_STATE;
-
-    public static final String PARENT_APM_TRACE_CONTEXT = "parent_" + Task.APM_TRACE_CONTEXT;
+    public static final String LOCAL_TRACE_START_TIME = "trace.starttime";
 
     public static final Set<String> HEADERS_TO_COPY = Set.of(
         X_OPAQUE_ID_HTTP_HEADER,
         TRACE_PARENT_HTTP_HEADER,
+        TRACE_STATE,
         TRACE_ID,
         X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER,
         X_ELASTIC_PROJECT_ID_HTTP_HEADER
     );
+
+    private static final VarHandle SPAN;
+
+    static {
+        try {
+            SPAN = MethodHandles.lookup().findVarHandle(Task.class, "span", Span.class);
+        } catch (Exception e) {
+            throw new ExceptionInInitializerError(e);
+        }
+    }
+
+    /**
+     * The span that traces this task, a no-op span unless the task is traced. It is started by the {@link TaskManager} when the task is
+     * registered and ended when the task is unregistered, which may happen on a different thread. It is therefore handed over by way of
+     * the task, and it is not made current in any thread context.
+     */
+    @SuppressWarnings("unused")
+    private volatile Span span = Span.noop();
 
     private final long id;
 
@@ -308,11 +316,6 @@ public class Task implements Traceable {
         }
     }
 
-    @Override
-    public String getSpanId() {
-        return "task-" + getId();
-    }
-
     protected record OriginalTaskInfo(TaskId originalTaskId, long originalStartTimeMillis) {
 
         public OriginalTaskInfo {
@@ -328,5 +331,17 @@ public class Task implements Traceable {
 
     public Optional<TaskId> getOriginalTaskId() {
         return getOriginalTaskInfo().map(OriginalTaskInfo::originalTaskId);
+    }
+
+    void setSpan(Span span) {
+        SPAN.setVolatile(this, span);
+    }
+
+    public Span getSpan() {
+        return (Span) SPAN.getVolatile(this);
+    }
+
+    Span popSpan() {
+        return (Span) SPAN.getAndSet(this, Span.noop());
     }
 }

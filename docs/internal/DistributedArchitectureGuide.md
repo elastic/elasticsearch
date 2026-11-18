@@ -3078,10 +3078,11 @@ Some examples of the use of persistent tasks include:
 
 ### Integration with APM
 
-[Traceable]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/telemetry/tracing/Traceable.java
+[Span]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/telemetry/tracing/Span.java
+[Tracer]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/telemetry/tracing/Tracer.java
 [APM Spans]:https://www.elastic.co/guide/en/observability/current/apm-data-model-spans.html
 
-Tasks are integrated with the ElasticSearch APM infrastructure. They implement the [Traceable] interface, and [spans][APM Spans] are published to represent the execution of each task.
+Tasks are integrated with the ElasticSearch APM infrastructure. The execution of a task is represented by a [Span], created using the [Tracer] interface -- the resulting [span data][APM Spans] is published to the APM.
 
 # Cross Cluster Replication (CCR)
 

@@ -9,12 +9,9 @@
 
 package org.elasticsearch.telemetry.tracing;
 
-/**
- * A class that can be traced using the telemetry tracing API
- */
-public interface Traceable {
-    /**
-     * A consistent id for the span.  Should be structured "[short-name]-[unique-id]" ie "request-abc1234"
-     */
-    String getSpanId();
+public interface AttributeKeys {
+    String TASK_ID = "es.task.id";
+    String PARENT_TASK_ID = "es.task.parent.id";
+    String CLUSTER_NAME = "es.cluster.name";
+    String NODE_NAME = "es.node.name";
 }

@@ -266,7 +266,7 @@ public class OtelSdkTracesIT extends AbstractTelemetryIT {
     /**
      * Verifies that only the root (entry-point) span is exported and no child spans leak through,
      * which ES enforces through the default {@code telemetry.tracing.max_depth=0}. Then verifies that with a depth
-     * allowing children, {@code telemetry.tracing.max_spans} caps a search over 8 shards to the root plus {@code max_spans} spans.
+     * allowing children, {@code telemetry.tracing.max_spans} caps a search over 8 shards to {@code max_spans} spans, the root included.
      */
     public void testSpanLimits() throws Exception {
         final String traceIdValue = "1234567890abcdef1234567890abcdef";
@@ -326,7 +326,7 @@ public class OtelSdkTracesIT extends AbstractTelemetryIT {
 
             assertTrue("Root span should be received within timeout", searchRootReceived.await(TELEMETRY_TIMEOUT, TimeUnit.SECONDS));
             Thread.sleep(CHILD_SPAN_GRACE_PERIOD_MS);
-            assertEquals("The root plus max_spans spans should be exported; received: " + searchSpans, 4, searchSpans.size());
+            assertEquals("max_spans spans, the root included, should be exported; received: " + searchSpans, 3, searchSpans.size());
         } finally {
             updateClusterSettings(Settings.builder().putNull("telemetry.tracing.max_depth").putNull("telemetry.tracing.max_spans").build());
         }

@@ -165,7 +165,7 @@ public class IndexMetadataUpdaterTests extends ESTestCase {
             new RecoverySource.ReshardSplitRecoverySource(sourceShardId),
             unassignedInfo,
             ShardRouting.Role.DEFAULT,
-            RecoveryPriority.UNASSIGNED_EXPECTED
+            RecoveryPriority.UNASSIGNED_RESHARD_SPLIT_TARGET
         );
         final ShardRouting sourceInitializing = sourceUnassigned.initialize(
             node.getId(),

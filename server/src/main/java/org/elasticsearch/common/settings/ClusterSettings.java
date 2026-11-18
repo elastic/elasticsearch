@@ -103,6 +103,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.MergePolicyConfig;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.index.search.stats.SearchStatsSettings;
@@ -161,6 +162,8 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Encapsulates all valid cluster level settings.
@@ -231,7 +234,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         }
     }
 
-    public static final Set<Setting<?>> BUILT_IN_CLUSTER_SETTINGS = Set.of(
+    private static final Set<Setting<?>> RELEASED_CLUSTER_SETTINGS = Set.of(
         AllocationService.PRESERVE_DECISION_LABELS_SETTING,
         AllocationBalancingRoundSummaryService.ENABLE_BALANCER_ROUND_SUMMARIES_METRICS_SETTING,
         AllocationBalancingRoundSummaryService.ENABLE_BALANCER_ROUND_SUMMARIES_LOGGING_SETTING,
@@ -733,4 +736,13 @@ public final class ClusterSettings extends AbstractScopedSettings {
         SystemIndices.NUMBER_OF_REPLICAS_SETTING,
         SystemIndices.AUTO_EXPAND_REPLICAS_SETTING
     );
+
+    /**
+     * The escape hatch for the not-yet-released analyzer sharing feature is registered only while its feature flag is on, so it is
+     * not exposed publicly before the feature ships.
+     */
+    public static final Set<Setting<?>> BUILT_IN_CLUSTER_SETTINGS = AnalysisRegistry.SHARED_ANALYZERS_FEATURE_FLAG.isEnabled()
+        ? Stream.concat(RELEASED_CLUSTER_SETTINGS.stream(), Stream.of(AnalysisRegistry.SHARED_ANALYZERS_ENABLED_SETTING))
+            .collect(Collectors.toUnmodifiableSet())
+        : RELEASED_CLUSTER_SETTINGS;
 }

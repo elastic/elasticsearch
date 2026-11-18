@@ -3604,7 +3604,6 @@ loadViewSingleEvalNonExistent
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM employees_all
@@ -3622,7 +3621,6 @@ loadViewSingleStatsByNonExistent
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM employees_all
@@ -3638,7 +3636,6 @@ loadViewSingleSortByNonExistent
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM employees_all
@@ -3658,7 +3655,6 @@ loadViewSingleRenameNonExistent
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM employees_all
@@ -3675,7 +3671,6 @@ loadViewSingleWhereNonExistentNotNull
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM employees_all
@@ -3692,7 +3687,6 @@ loadViewSingleKeepNonExistent
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM employees_all
@@ -3712,7 +3706,6 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM view_with_subquery
@@ -3730,7 +3723,6 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: views_deduplication_bugfix
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM employees_extra
@@ -3748,7 +3740,6 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: views_deduplication_bugfix
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM employees_all, employees_extra
@@ -3767,7 +3758,6 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM (FROM employees_all | WHERE emp_no < 10005)
@@ -3839,7 +3829,6 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: views_deduplication_bugfix
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM employees, employees_all
@@ -3855,7 +3844,6 @@ loadViewDedupViewAndView_CountNonExistent
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM employees_all, employees_all
@@ -4034,7 +4022,6 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
 required_capability: settings_scoped_at_view_boundaries
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_view
@@ -4068,7 +4055,6 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
 required_capability: settings_scoped_at_view_boundaries
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_view
@@ -4086,7 +4072,6 @@ required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: settings_scoped_at_view_boundaries
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_view | KEEP message, unmapped_message), (FROM employees | KEEP emp_no)
@@ -4105,7 +4090,6 @@ required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: settings_scoped_at_view_boundaries
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_view | WHERE message == "42"), (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.1!")
@@ -4124,7 +4108,6 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
 required_capability: settings_scoped_at_view_boundaries
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_mv_view
@@ -4142,7 +4125,6 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
 required_capability: settings_scoped_at_view_boundaries
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_mv_view
@@ -4164,7 +4146,6 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
 required_capability: settings_scoped_at_view_boundaries
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_mv_view
@@ -4183,7 +4164,6 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
 required_capability: settings_scoped_at_view_boundaries
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_mv_view
@@ -4203,7 +4183,6 @@ required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: settings_scoped_at_view_boundaries
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_mv_view | WHERE message == "42" | MV_EXPAND unmapped_mv | KEEP message, unmapped_mv), (FROM partial_mapping_mv_view | WHERE message == "Connected to 10.1.0.1!" | KEEP message, unmapped_mv)
@@ -4222,7 +4201,6 @@ required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: settings_scoped_at_view_boundaries
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_view | WHERE message == "42"),
@@ -4244,7 +4222,6 @@ required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: settings_scoped_at_view_boundaries
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_view | WHERE message == "42"),
@@ -4264,7 +4241,6 @@ required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: settings_scoped_at_view_boundaries
-required_capability: warn_unmapped_fields_stopped_at_view
 
 // unmapped_message is null in every row (the views contribute null at their output), so the sort needs the
 // message tiebreaker to be deterministic.
@@ -4289,7 +4265,6 @@ required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: settings_scoped_at_view_boundaries
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_view | WHERE message == "42" | DROP unmapped_message),
@@ -4310,7 +4285,6 @@ required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: settings_scoped_at_view_boundaries
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_view | WHERE message == "42" | RENAME unmapped_message AS renamed),
@@ -4331,7 +4305,6 @@ required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: settings_scoped_at_view_boundaries
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_view | WHERE unmapped_message == "43" | DROP unmapped_message),
@@ -4351,7 +4324,6 @@ required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: settings_scoped_at_view_boundaries
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_view | WHERE message == "42" | EVAL tag = unmapped_message),
@@ -4372,7 +4344,6 @@ required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: settings_scoped_at_view_boundaries
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_view | WHERE message == "42" | KEEP message, unmapped_message),
@@ -4394,7 +4365,6 @@ required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: settings_scoped_at_view_boundaries
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_view | WHERE message == "42" | RENAME unmapped_message AS renamed),
@@ -4415,7 +4385,6 @@ required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: settings_scoped_at_view_boundaries
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_view | WHERE message == "42"),
@@ -4453,7 +4422,6 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
 required_capability: settings_scoped_at_view_boundaries
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_view
@@ -4474,7 +4442,6 @@ required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: where_in_subquery_with_view
 required_capability: settings_scoped_at_view_boundaries
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_view | WHERE message == "42" | KEEP message, unmapped_message),

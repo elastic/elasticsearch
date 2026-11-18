@@ -3246,7 +3246,6 @@ required_capability: nested_subquery_in_from_command
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: nested_subquery_in_from_command_with_view_fork_dataset
 required_capability: settings_scoped_at_view_boundaries
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM (FROM view_partial_mapping_sample_data | WHERE unmapped_message == "Disconnection error" OR unmapped_message == "43"),
@@ -3271,7 +3270,6 @@ required_capability: nested_subquery_in_from_command
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: nested_subquery_in_from_command_with_view_fork_dataset
 required_capability: settings_scoped_at_view_boundaries
-required_capability: warn_unmapped_fields_stopped_at_view
 
 // The sibling of the test above: the view does not surface unmapped_message, so the view boundary answers null for it
 // instead of loading it from the view's source, and WHERE ... IS NULL keeps all of the view's rows.
@@ -3294,7 +3292,6 @@ required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: settings_scoped_at_view_boundaries
-required_capability: warn_unmapped_fields_stopped_at_view
 
 // The view is a pass-through to the very index that is also queried directly, as a sibling and in a subquery. Only the
 // index branches load unmapped_message from _source; the view must not merge with them and answers null for all its rows.
@@ -3317,7 +3314,6 @@ required_capability: subquery_in_from_command
 required_capability: nested_subquery_in_from_command
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: settings_scoped_at_view_boundaries
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM (FROM (FROM view_partial_mapping_sample_data), partial_mapping_sample_data), (FROM sample_data)
@@ -3335,7 +3331,6 @@ required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: settings_scoped_at_view_boundaries
-required_capability: warn_unmapped_fields_stopped_at_view
 
 // view_with_unionall is a union of subqueries over employees_all, another view: all of it is the view's own scope.
 SET unmapped_fields="load"\;
@@ -3354,7 +3349,6 @@ required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: settings_scoped_at_view_boundaries
-required_capability: warn_unmapped_fields_stopped_at_view
 
 // The view's trailing WHERE keeps its union of an index and a subquery inside the view, and either branch would surface the field.
 SET unmapped_fields="load"\;
@@ -3372,7 +3366,6 @@ viewSettingLoadWarnsAboutFieldItDoesNotReference
 required_capability: views_crud_as_index_actions
 required_capability: set_in_view_definitions
 required_capability: settings_scoped_at_view_boundaries
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM view_partial_mapping_loads_event_duration
@@ -3654,7 +3647,6 @@ required_capability: subquery_in_from_command
 required_capability: nested_subquery_in_from_command
 required_capability: nested_subquery_in_from_command_with_view_fork_dataset
 required_capability: optional_fields_load_with_fork_subqueries_and_views
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM (FROM view_with_fork),

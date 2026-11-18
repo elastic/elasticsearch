@@ -268,7 +268,8 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         return IndexVersion.current();
     }
 
-    protected final MapperService createMapperServiceWithParams(Settings settings, org.elasticsearch.datageneration.Mapping mapping) throws IOException {
+    protected final MapperService createMapperServiceWithParams(Settings settings, org.elasticsearch.datageneration.Mapping mapping)
+        throws IOException {
         return createMapperServiceWithParams(settings, mapping.raw());
     }
 
@@ -288,8 +289,8 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         // Copies all tha maps down the path to _doc.properties.sensor_id
         var mappingRawCopy = new HashMap<>(mapping);
         var doc = (Map<String, Object>) mappingRawCopy.get("_doc");
-        var docCopy = new HashMap<> (doc);
-        var propertiesCopy = new HashMap<> ((Map<String, Object>) docCopy.get("properties"));
+        var docCopy = new HashMap<>(doc);
+        var propertiesCopy = new HashMap<>((Map<String, Object>) docCopy.get("properties"));
         propertiesCopy.put(TIME_SERIES_DIMENSION_FIELD, Map.of("type", "keyword", "time_series_dimension", true));
         docCopy.put("properties", propertiesCopy);
         mappingRawCopy.put("_doc", docCopy);

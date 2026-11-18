@@ -28,8 +28,10 @@ import org.bouncycastle.pkcs.PKCS10CertificationRequest;
 import org.bouncycastle.pkcs.jcajce.JcaPKCS10CertificationRequest;
 import org.bouncycastle.util.io.pem.PemObject;
 import org.bouncycastle.util.io.pem.PemReader;
+import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.ProcessInfo;
+import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -526,6 +528,145 @@ public class HttpCertificateCommandTests extends ESTestCase {
         );
     }
 
+    public void testGenerateCertificateWithNewCaAsBcfks() throws Exception {
+        final Path outFile = testRoot.resolve("certs.zip").toAbsolutePath();
+        final CliKeyStoreFormat format = CliKeyStoreFormatTests.bcfks();
+        final HttpCertificateCommand command = new PathAwareHttpCertificateCommand(format, outFile);
+        final String hostName = randomAlphaOfLengthBetween(4, 8);
+
+        final MockTerminal terminal = MockTerminal.create();
+        terminal.addTextInput("n"); // don't generate CSR
+        terminal.addTextInput("n"); // no existing CA
+        terminal.addTextInput("n"); // don't change CA defaults
+
+        final String caPassword = randomBcfksPassword();
+        addNewPassword(terminal, caPassword);
+
+        terminal.addTextInput("2y"); // validity period
+        terminal.addTextInput("n"); // don't use cert-per-node
+        terminal.addTextInput(hostName);
+        terminal.addTextInput(""); // end-of-hosts
+        terminal.addTextInput("y"); // yes, correct
+        terminal.addTextInput(""); // end-of-ips
+        terminal.addTextInput("y"); // yes, correct
+        terminal.addTextInput("n"); // don't change advanced settings
+
+        final String password = randomBcfksPassword();
+        addNewPassword(terminal, password);
+
+        terminal.addTextInput(outFile.toString());
+
+        command.execute(terminal, command.getParser().parse(), newEnvironment(), new ProcessInfo(Map.of(), Map.of(), createTempDir()));
+
+        final Path zipRoot = getZipRoot(outFile);
+        final Path caPath = zipRoot.resolve("ca/ca.bcfks");
+        final X509Certificate caCert = readCertificateAndKey(format, caPath, caPassword.toCharArray()).v1();
+
+        final Path keyStorePath = zipRoot.resolve("elasticsearch/http.bcfks");
+        final X509Certificate cert = readCertificateAndKey(format, keyStorePath, password.toCharArray()).v1();
+        verifyChain(cert, caCert);
+
+        final String yml = Files.readString(zipRoot.resolve("elasticsearch/sample-elasticsearch.yml"));
+        assertThat(yml, containsString("xpack.security.http.ssl.keystore.path: \"http.bcfks\""));
+        assertThat(yml, containsString("xpack.security.http.ssl.keystore.type: \"BCFKS\""));
+        assertThat(Files.readString(zipRoot.resolve("elasticsearch/README.txt")), containsString("BCFKS format keystore"));
+    }
+
+    public void testGenerateCertificateWithExistingBcfksCa() throws Exception {
+        final Path outFile = testRoot.resolve("certs.zip").toAbsolutePath();
+        final CliKeyStoreFormat format = CliKeyStoreFormatTests.bcfks();
+        final String caPassword = randomBcfksPassword();
+        final Path caPath = writeBcfksCa(format, caPassword);
+        final HttpCertificateCommand command = new PathAwareHttpCertificateCommand(format, outFile);
+
+        final MockTerminal terminal = MockTerminal.create();
+        terminal.addTextInput("n"); // don't generate CSR
+        terminal.addTextInput("y"); // existing CA
+        terminal.addTextInput(caPath.toString());
+        terminal.addSecretInput(caPassword);
+
+        terminal.addTextInput("2y"); // validity period
+        terminal.addTextInput("n"); // don't use cert-per-node
+        terminal.addTextInput(randomAlphaOfLengthBetween(4, 8));
+        terminal.addTextInput(""); // end-of-hosts
+        terminal.addTextInput("y"); // yes, correct
+        terminal.addTextInput(""); // end-of-ips
+        terminal.addTextInput("y"); // yes, correct
+        terminal.addTextInput("n"); // don't change advanced settings
+
+        final String password = randomBcfksPassword();
+        addNewPassword(terminal, password);
+
+        terminal.addTextInput(outFile.toString());
+
+        command.execute(terminal, command.getParser().parse(), newEnvironment(), new ProcessInfo(Map.of(), Map.of(), createTempDir()));
+
+        final Path zipRoot = getZipRoot(outFile);
+        final X509Certificate cert = readCertificateAndKey(format, zipRoot.resolve("elasticsearch/http.bcfks"), password.toCharArray())
+            .v1();
+        verifyChain(cert, CertParsingUtils.readX509Certificate(getDataPath("ca.crt")));
+        assertThat(zipRoot.resolve("ca"), not(pathExists()));
+    }
+
+    public void testBcfksRejectsPkcs12Ca() throws Exception {
+        assertRejectsCaKeyStore(CliKeyStoreFormatTests.bcfks(), getDataPath("ca.p12"));
+    }
+
+    public void testPkcs12RejectsBcfksCa() throws Exception {
+        assertRejectsCaKeyStore(CliKeyStoreFormat.PKCS12, writeBcfksCa(CliKeyStoreFormatTests.bcfks(), randomBcfksPassword()));
+    }
+
+    private void assertRejectsCaKeyStore(CliKeyStoreFormat format, Path caPath) throws Exception {
+        final Path outFile = testRoot.resolve("certs.zip").toAbsolutePath();
+        final HttpCertificateCommand command = new PathAwareHttpCertificateCommand(format, outFile);
+
+        final MockTerminal terminal = MockTerminal.create();
+        terminal.addTextInput("n"); // don't generate CSR
+        terminal.addTextInput("y"); // existing CA
+        terminal.addTextInput(caPath.toString());
+
+        final UserException e = expectThrows(
+            UserException.class,
+            () -> command.execute(
+                terminal,
+                command.getParser().parse(),
+                newEnvironment(),
+                new ProcessInfo(Map.of(), Map.of(), createTempDir())
+            )
+        );
+        assertThat(e.exitCode, is(ExitCodes.DATA_ERROR));
+        assertThat(e.getMessage(), containsString("Unsupported keystore type"));
+        assertThat(terminal.getOutput(), containsString("which this tool does not support on this JVM"));
+    }
+
+    /**
+     * Unlike PKCS#12, BCFKS accepts blank and non-ASCII passwords.
+     */
+    private static String randomBcfksPassword() {
+        return randomFrom("", "pässwörd", randomAlphaOfLengthBetween(1, 40));
+    }
+
+    private static void addNewPassword(MockTerminal terminal, String password) {
+        terminal.addSecretInput(password);
+        if (password.isEmpty() == false) {
+            terminal.addSecretInput(password); // confirm
+        }
+    }
+
+    /**
+     * Copies the test CA into a BCFKS keystore on the default filesystem, where the command looks for an existing CA.
+     */
+    private Path writeBcfksCa(CliKeyStoreFormat format, String password) throws Exception {
+        final Tuple<X509Certificate, PrivateKey> ca = readCertificateAndKey(getDataPath("ca.p12"), CA_PASSWORD.toCharArray());
+        final KeyStore keyStore = format.newKeyStore();
+        keyStore.setKeyEntry("ca", ca.v2(), password.toCharArray(), new Certificate[] { ca.v1() });
+        final Path caPath = createTempDir().resolve("ca.bcfks");
+        try (OutputStream out = Files.newOutputStream(caPath)) {
+            keyStore.store(out, password.toCharArray());
+        }
+        return caPath;
+    }
+
     public void testParsingValidityPeriod() throws Exception {
         final MockTerminal terminal = MockTerminal.create();
 
@@ -610,6 +751,8 @@ public class HttpCertificateCommandTests extends ESTestCase {
         assertThat(guessFileType(tmpP12, terminal), is(FileType.PKCS12));
         final Path tmpJks = testRoot.resolve("tmp.jks");
         assertThat(guessFileType(tmpJks, terminal), is(FileType.JKS));
+        final Path tmpBcfks = testRoot.resolve("tmp.bcfks");
+        assertThat(guessFileType(tmpBcfks, terminal), is(FileType.BCFKS));
 
         final Path tmpKeystore = testRoot.resolve("tmp.keystore");
         writeDummyKeystore(tmpKeystore, "PKCS12");
@@ -837,8 +980,13 @@ public class HttpCertificateCommandTests extends ESTestCase {
 
     private Tuple<X509Certificate, PrivateKey> readCertificateAndKey(Path pkcs12, char[] password) throws IOException,
         GeneralSecurityException {
+        return readCertificateAndKey(CliKeyStoreFormat.PKCS12, pkcs12, password);
+    }
 
-        final Map<Certificate, Key> entries = CertParsingUtils.readPkcs12KeyPairs(pkcs12, password, alias -> password);
+    private Tuple<X509Certificate, PrivateKey> readCertificateAndKey(CliKeyStoreFormat format, Path keyStore, char[] password)
+        throws IOException, GeneralSecurityException {
+
+        final Map<Certificate, Key> entries = format.readKeyPairs(keyStore, password, alias -> password);
         assertThat(entries.entrySet(), Matchers.hasSize(1));
 
         Certificate cert = entries.keySet().iterator().next();
@@ -880,6 +1028,11 @@ public class HttpCertificateCommandTests extends ESTestCase {
         final Map<String, Path> paths;
 
         PathAwareHttpCertificateCommand(Path... configuredPaths) {
+            this(CliKeyStoreFormat.PKCS12, configuredPaths);
+        }
+
+        PathAwareHttpCertificateCommand(CliKeyStoreFormat keyStoreFormat, Path... configuredPaths) {
+            super(keyStoreFormat);
             paths = Stream.of(configuredPaths).collect(Collectors.toUnmodifiableMap(Path::toString, Function.identity()));
         }
 

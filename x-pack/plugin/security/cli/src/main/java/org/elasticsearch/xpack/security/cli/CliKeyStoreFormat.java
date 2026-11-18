@@ -71,6 +71,13 @@ final class CliKeyStoreFormat {
     }
 
     /**
+     * The JCA keystore type, e.g. {@code PKCS12}.
+     */
+    String type() {
+        return type;
+    }
+
+    /**
      * The name of this format to show to users, e.g. {@code PKCS#12}.
      */
     String description() {

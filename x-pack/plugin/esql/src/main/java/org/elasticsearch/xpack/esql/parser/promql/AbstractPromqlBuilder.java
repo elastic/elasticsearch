@@ -56,27 +56,27 @@ class AbstractPromqlBuilder extends PromqlBaseParserBaseVisitor<Object> {
     }
 
     protected Source source(TerminalNode terminalNode) {
-        return adjust(ParserUtils.source(terminalNode));
+        return tagSource(ParserUtils.source(terminalNode));
     }
 
     protected Source source(ParserRuleContext parserRuleContext) {
-        return adjust(ParserUtils.source(parserRuleContext));
+        return tagSource(ParserUtils.source(parserRuleContext));
     }
 
     protected Source source(ParseTree parseTree) {
-        return adjust(ParserUtils.source(parseTree));
+        return tagSource(ParserUtils.source(parseTree));
     }
 
     protected Source source(Token token) {
-        return adjust(ParserUtils.source(token));
+        return tagSource(ParserUtils.source(token));
     }
 
     protected Source source(Token start, Token stop) {
-        return adjust(ParserUtils.source(start, stop));
+        return tagSource(ParserUtils.source(start, stop));
     }
 
-    private Source adjust(Source source) {
-        return viewName == null ? source : source.withViewName(viewName);
+    private Source tagSource(Source source) {
+        return source.withViewName(viewName);
     }
 
 }

@@ -69,10 +69,11 @@ public class PromqlParser {
     }
 
     /**
-     * Parses a PromQL expression that starts at {@code startLine} (1-based) and {@code startColumn} (0-based)
-     * of an enclosing query, such as the inner query of a PROMQL source command. The lexer starts at that
-     * position, so every location, including the one of a thrown {@link ParsingException}, is in the
-     * coordinates of the enclosing query. A standalone expression starts at line 1, column 0.
+     * Parses a PromQL expression that starts at line {@code startLine} (counting from 1) and column
+     * {@code startColumn} (counting from 0) of an enclosing query, such as the inner query of a PROMQL source
+     * command. The lexer starts at that position, so every location, including the one of a thrown
+     * {@link ParsingException}, is in the coordinates of the enclosing query. A standalone expression starts
+     * at line 1, column 0.
      */
     public LogicalPlan createStatement(String query, Literal start, Literal end, int startLine, int startColumn, QueryParams params) {
         return createStatement(query, start, end, startLine, startColumn, params, null);

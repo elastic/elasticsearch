@@ -13,7 +13,6 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.state.AwaitClusterStateVersionAppliedRequest;
 import org.elasticsearch.action.admin.cluster.state.TransportAwaitClusterStateVersionAppliedAction;
 import org.elasticsearch.action.support.SubscribableListener;
@@ -45,6 +44,7 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
+import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 
 import java.util.HashMap;
@@ -55,6 +55,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
@@ -117,7 +118,7 @@ public class SplitSourceService {
     // Tracks source shard state machine that performs cleanup logic and moves source shard to DONE once all target shards are complete.
     private final ConcurrentHashMap<IndexShard, SourceShardStateMachine> activeSourceShards = new ConcurrentHashMap<>();
     // Used to abort merges that complete just before handoff so that we don't block indexing waiting for them to upload
-    private final Set<ShardId> shardsPreparingForHandoff = ConcurrentHashMap.newKeySet();
+    private final ConcurrentHashMap<ShardId, IndexShard> shardsPreparingForHandoff = new ConcurrentHashMap<>();
 
     // ES-12460 for testing purposes, until pre-handoff logic (flush etc) is built out
     @Nullable
@@ -128,7 +129,7 @@ public class SplitSourceService {
      * Used by ShouldSkipMerges to abort merges during this window so they don't block indexing while they upload.
      */
     public boolean isPreparingForHandoff(ShardId shardId) {
-        return shardsPreparingForHandoff.contains(shardId);
+        return shardsPreparingForHandoff.containsKey(shardId);
     }
 
     public SplitSourceService(
@@ -327,29 +328,26 @@ public class SplitSourceService {
             throw new StaleSplitRequestException(message);
         }
 
-        SubscribableListener.<Releasable>newForked(
-            l -> clusterService.threadPool().generic().execute(ActionRunnable.wrap(l, handoffListener -> {
-                commitService.markSplitting(sourceShardId, targetShardId);
-                // Prevent copying later commits uploaded by a relocated shard
-                final var latestUploadedBcc = commitService.getLatestUploadedBcc(sourceShardId);
-                final var latestCommitToCopy = latestUploadedBcc == null ? null : latestUploadedBcc.primaryTermAndGeneration();
-                objectStoreService.copyShard(task, sourceShardId, targetShardId, sourcePrimaryTerm, latestCommitToCopy);
-                task.ensureNotCancelled();
-                prepareForHandoff(handoffListener, sourceShard, targetShardId);
-            }))
-        )
+        final var abortSplit = new AtomicReference<Runnable>();
+        SubscribableListener.<PrimaryTermAndGeneration>newForked(l -> {
+            abortSplit.set(commitService.markSplitting(sourceShardId, targetShardId));
+            // Prevent copying later commits uploaded by a relocated shard
+            final var latestUploadedBcc = commitService.getLatestUploadedBcc(sourceShardId);
+            l.onResponse(latestUploadedBcc == null ? null : latestUploadedBcc.primaryTermAndGeneration());
+        }).<Releasable>andThen(clusterService.threadPool().generic(), null, (l, latestCommitToCopy) -> {
+            objectStoreService.copyShard(task, sourceShardId, targetShardId, sourcePrimaryTerm, latestCommitToCopy);
+            task.ensureNotCancelled();
+            prepareForHandoff(l, sourceShard, targetShardId);
+        })
             .addListener(
                 listener.<Releasable>safeMap(
                     permits -> new HandoffPreparation(sourceShardId, historyUuid(sourceShard.indexSettings().getIndexMetadata()), permits)
                 ).delegateResponse((l, e) -> {
-                    try {
-                        commitService.markSplitEnding(sourceShardId, targetShardId, true);
-                    } catch (AlreadyClosedException ignored) {
-                        // It's okay to not clean up the splitting flag since the shard is closed anyway
-                        // and there will be no new commits.
-                        // We explicitly swallow this exception since the contract of `delegateResponse` is to not throw.
+                    final var abort = abortSplit.get();
+                    if (abort != null) {
+                        abort.run();
                     }
-                    shardsPreparingForHandoff.remove(sourceShard.shardId());
+                    shardsPreparingForHandoff.remove(sourceShard.shardId(), sourceShard);
                     activeTargetRequests.remove(sourceShard);
                     l.onFailure(e);
                 })
@@ -403,7 +401,7 @@ public class SplitSourceService {
             // Similar to relocation, flush before blocking operations because we expect this to reduce the amount of work done by the
             // flush that happens while operations are blocked. NB the flush has force=false so may do nothing.
             // Start cancelling completing merges at this point so that they don't delay flush during handoff.
-            shardsPreparingForHandoff.add(sourceShard.shardId());
+            shardsPreparingForHandoff.put(sourceShard.shardId(), sourceShard);
             engine.flush(/* force */ false, /* waitIfOngoing */ true, afterFirstFlush);
             return null;
         })).<Releasable>andThen(acquiredPermits -> {
@@ -428,7 +426,7 @@ public class SplitSourceService {
                         // commits spontaneously even though indexing permits are held. These are harmless to copy.
                         logger.debug("handoff: stopping commit copy from {} to {}", sourceShard.shardId(), targetShardId);
                         stopCopyingNewCommits(targetShardId);
-                        shardsPreparingForHandoff.remove(sourceShard.shardId());
+                        shardsPreparingForHandoff.remove(sourceShard.shardId(), sourceShard);
                         activeTargetRequests.remove(sourceShard);
                         afterSecondFlush.onResponse(permits);
                     }, e -> {
@@ -787,7 +785,9 @@ public class SplitSourceService {
             logger.info("cancelling split from {} because the shard is closed", indexShard.shardId());
             taskManager.cancelTaskAndDescendants(currentSplit.task, "source shard closed", false, ActionListener.noop());
         }
-        shardsPreparingForHandoff.remove(indexShard.shardId());
+        // Only remove the original IndexShard instance, if the shard relocated from and back to the original node, then we risk removing
+        // the new ongoing entry.
+        shardsPreparingForHandoff.remove(indexShard.shardId(), indexShard);
         var stateMachine = activeSourceShards.remove(indexShard);
         if (stateMachine != null) {
             stateMachine.cancel();
@@ -799,7 +799,7 @@ public class SplitSourceService {
     Set<ShardId> getShardsWithActiveSplitState() {
         return Stream.concat(
             Stream.concat(activeSourceShards.keySet().stream(), activeTargetRequests.keySet().stream()).map(IndexShard::shardId),
-            shardsPreparingForHandoff.stream()
+            shardsPreparingForHandoff.keySet().stream()
         ).collect(Collectors.toSet());
     }
 

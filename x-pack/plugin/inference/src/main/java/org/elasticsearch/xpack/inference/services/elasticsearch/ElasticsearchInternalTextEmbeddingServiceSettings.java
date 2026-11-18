@@ -104,6 +104,9 @@ public class ElasticsearchInternalTextEmbeddingServiceSettings extends Elasticse
         var similarity = extractSimilarityOrDefault(map, validationException);
         var elementType = extractElementTypeOrDefault(map, validationException);
 
+        // the legacy extraction accumulates errors instead of throwing, and build() rejects the incomplete builder they leave behind
+        validationException.throwIfValidationErrorsExist();
+
         return new CommonFields(internalSettings.build(), similarity, elementType);
     }
 

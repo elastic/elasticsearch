@@ -107,11 +107,11 @@ $$$index-sort-expression$$$
     * `ASC` or `DESC`: The sort order. Defaults to `ASC`.
     * `NULLS FIRST` or `NULLS LAST`: Where documents without a value are sorted. Like in ES|QL, a missing value counts as larger than any value, so this defaults to `NULLS LAST` for `ASC` and `NULLS FIRST` for `DESC`.
 
-    Keywords and function names are case-insensitive. Field names that contain whitespace, commas, parentheses or backticks can be quoted with backticks, doubling any backtick in the name. Other expressions and functions aren't supported.
+    Keywords and function names are case-insensitive. Unquoted field names follow the ES|QL identifier rules: dot-separated parts that start with a letter, `_` or `@` and contain only letters, digits and `_`, and that aren't a reserved word such as `null` or `asc`. Any other field name, for example one with a hyphen, whitespace or a comma, must be quoted with backticks, doubling any backtick in the name. Other expressions and functions aren't supported.
 
     The `NULLS` default for `DESC` differs from `index.sort.missing`, which defaults to `_last` for either order. It matches what an ES|QL `SORT field DESC` asks for, so the index sort and the query agree. To keep documents without a value last, write `NULLS LAST`.
 
-    The expression is stored as written, and the `index.sort.*` settings stay unset and report the values derived from it as defaults. `index.sort` can't be combined with any of the `index.sort.*` settings.
+    The expression is stored as written, and the index is sorted from it directly. The `index.sort.*` settings stay unset and report their own defaults, not the values from the expression. `index.sort` can't be combined with any of the `index.sort.*` settings.
 
 $$$index-sort-field$$$
 `index.sort.field`

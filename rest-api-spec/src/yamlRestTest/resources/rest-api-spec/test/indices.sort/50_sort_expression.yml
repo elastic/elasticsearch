@@ -33,16 +33,15 @@ setup:
   - is_false: sorted_index.settings.index\.sort\.mode
   - is_false: sorted_index.settings.index\.sort\.missing
 
-  # The expression has no default to report, the derived index.sort.* values are reported as defaults.
-  # Like in ES|QL, a descending field without NULLS sorts nulls first, unlike index.sort.missing which defaults to _last.
+  # The expression has no default to report, and the index.sort.* settings report their own defaults, not the expression.
   - do:
       indices.get_settings:
         index: sorted_index
         include_defaults: true
-  - match: { sorted_index.defaults.index.sort.field: [ "rank" ] }
-  - match: { sorted_index.defaults.index.sort.order: [ "desc" ] }
-  - match: { sorted_index.defaults.index.sort.mode: [ "max" ] }
-  - match: { sorted_index.defaults.index.sort.missing: [ "_first" ] }
+  - match: { sorted_index.defaults.index.sort.field: [] }
+  - match: { sorted_index.defaults.index.sort.order: [] }
+  - match: { sorted_index.defaults.index.sort.mode: [] }
+  - match: { sorted_index.defaults.index.sort.missing: [] }
 
   # Index a document without a rank first, then ranks in ascending order, and flush each into its own segment.
   - do:
@@ -175,33 +174,6 @@ setup:
   - match: { error.root_cause.0.reason: "/unsupported.function.\\[ABS\\]/" }
 
 ---
-"Sort expression defaults to ES|QL null ordering":
-  - do:
-      indices.create:
-        index: sorted_index
-        body:
-          settings:
-            number_of_shards: 1
-            index.sort: "rank, other DESC, third DESC NULLS LAST, fourth ASC NULLS FIRST"
-          mappings:
-            properties:
-              rank:
-                type: long
-              other:
-                type: long
-              third:
-                type: long
-              fourth:
-                type: long
-
-  - do:
-      indices.get_settings:
-        index: sorted_index
-        include_defaults: true
-  - match: { sorted_index.defaults.index.sort.order: [ "asc", "desc", "desc", "asc" ] }
-  - match: { sorted_index.defaults.index.sort.missing: [ "_last", "_first", "_last", "_first" ] }
-
----
 "Sort expression rejects a trailing comma":
   - do:
       catch: bad_request
@@ -229,7 +201,7 @@ setup:
             properties:
               rank:
                 type: long
-  - match: { error.root_cause.0.reason: "/field.\\[rank\\].more.than.once/" }
+  - match: { error.root_cause.0.reason: "/sort.key.\\[rank\\].more.than.once/" }
 
 ---
 "Sort expression rejects a field missing from the mappings":

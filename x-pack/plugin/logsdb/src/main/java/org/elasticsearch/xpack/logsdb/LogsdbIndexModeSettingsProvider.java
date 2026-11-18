@@ -237,7 +237,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
                     List<String> sortFields = new ArrayList<>(
                         sortExpression.isEmpty()
                             ? settings.getAsList(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey())
-                            : IndexSortConfig.parseSortExpression(sortExpression).fields()
+                            : IndexSortConfig.sortFields(settings).stream().distinct().toList()
                     );
                     sortFields.removeIf(s -> s.equals(DataStreamTimestampFieldMapper.DEFAULT_PATH));
                     if (sortFields.size() < 2) {

@@ -41,6 +41,7 @@ import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.regex.Pattern;
 
 /**
  * Holds all the information that is used to build the sort order of an index.
@@ -61,8 +62,8 @@ import java.util.function.Supplier;
  * </ul>
  *
  * Alternatively the sort can be configured with the single `index.sort` expression setting, for example
- * `MV_MAX(@timestamp) DESC NULLS LAST, host.name`. It is stored as is, the four settings above stay unset and their
- * values are derived from the expression. It can't be combined with them.
+ * `MV_MAX(@timestamp) DESC NULLS LAST, host.name`. It is stored as is and the four settings above keep their own
+ * defaults. It can't be combined with them.
  *
 **/
 public final class IndexSortConfig {
@@ -75,8 +76,8 @@ public final class IndexSortConfig {
      * {@code MV_MAX(field)}. Like in ES|QL, {@code DESC} defaults to {@code NULLS FIRST}, unlike {@code index.sort.missing}, which
      * defaults to {@code _last} for both orders.
      * <p>
-     * It is stored as is, so that reading back the settings returns what was written. The values of the {@code index.sort.*}
-     * settings are derived from it by {@link IndexSortConfigDefaults}. It has no default to report, which keeps
+     * It is stored as is, so that reading back the settings returns what was written. When set, {@link IndexSortConfig} is built
+     * from it directly and the {@code index.sort.*} settings are not consulted. It has no default to report, which keeps
      * {@code include_defaults} from emitting an {@code index.sort} value next to the nested {@code index.sort.*} settings.
      */
     public static final Setting<String> INDEX_SORT_SETTING = new Setting<>("index.sort", "", s -> s, new Setting.Validator<String>() {
@@ -206,11 +207,6 @@ public final class IndexSortConfig {
                 return NO_SORT;
             }
 
-            String sortExpression = settings.get(INDEX_SORT_SETTING.getKey(), "");
-            if (sortExpression.isEmpty() == false) {
-                return parseSortExpression(sortExpression);
-            }
-
             // Can't use IndexSettings.MODE.get(settings) here because the validation logic for IndexSettings.MODE uses the default value
             // of index.sort.*, which causes infinite recursion (since we're already in the default value provider for those settings).
             // So we need to get the mode while bypassing the validation.
@@ -300,9 +296,17 @@ public final class IndexSortConfig {
     }
 
     /**
-     * Parses an {@link #INDEX_SORT_SETTING} expression into the equivalent values of the {@code index.sort.*} settings.
+     * One entry of an {@link #INDEX_SORT_SETTING} expression, with the order, multi-value mode and missing value already resolved
+     * to their ES|QL defaults.
+     *
+     * @param key the canonical sort key, {@code field} or {@code MV_MIN(field)} or {@code MV_MAX(field)}, used to detect duplicates
      */
-    public static IndexSortConfigDefaults.SortDefault parseSortExpression(String expression) {
+    public record SortEntry(String key, String field, SortOrder order, MultiValueMode mode, String missing) {}
+
+    /**
+     * Parses an {@link #INDEX_SORT_SETTING} expression into its sort entries.
+     */
+    public static List<SortEntry> parseSortExpression(String expression) {
         if (expression.isBlank()) {
             throw new IllegalArgumentException("setting [" + INDEX_SORT_SETTING.getKey() + "] must not be blank");
         }
@@ -311,10 +315,34 @@ public final class IndexSortConfig {
 
     /**
      * Hand written parser for the {@link #INDEX_SORT_SETTING} syntax, since the ES|QL grammar lives in an x-pack plugin that
-     * {@code server} can't depend on. Anything beyond the supported subset is rejected, so more functions can be added later
-     * without changing the meaning of existing expressions.
+     * {@code server} can't depend on. Accepts a strict subset of the ES|QL {@code SORT} syntax, so the same text keeps its
+     * meaning when it is later parsed by ES|QL. Anything beyond the supported subset is rejected.
      */
     private static final class SortExpressionParser {
+        /** Each dot-separated part of an unquoted name follows the ES|QL UNQUOTED_IDENTIFIER rule, anything else needs backticks. */
+        private static final Pattern UNQUOTED_PART = Pattern.compile("[a-z][a-z0-9_]*|[_@][a-z0-9_]+", Pattern.CASE_INSENSITIVE);
+        /** Keywords in ES|QL expressions, which ES|QL never reads as field names when unquoted. */
+        private static final Set<String> RESERVED_WORDS = Set.of(
+            "and",
+            "asc",
+            "by",
+            "desc",
+            "false",
+            "first",
+            "in",
+            "is",
+            "last",
+            "like",
+            "not",
+            "null",
+            "nulls",
+            "on",
+            "or",
+            "rlike",
+            "true",
+            "with"
+        );
+
         private final String expression;
         private int pos = 0;
 
@@ -322,15 +350,13 @@ public final class IndexSortConfig {
             this.expression = expression;
         }
 
-        IndexSortConfigDefaults.SortDefault parse() {
-            List<String> fields = new ArrayList<>();
-            List<String> orders = new ArrayList<>();
-            List<String> modes = new ArrayList<>();
-            List<String> missings = new ArrayList<>();
-            Set<String> seenFields = new HashSet<>();
+        List<SortEntry> parse() {
+            List<SortEntry> entries = new ArrayList<>();
+            Set<String> seenKeys = new HashSet<>();
             while (true) {
                 int entryStart = pos;
                 String mode = null;
+                String function = null;
                 skipWhitespace();
                 if (atEnd() || peek() == ',') {
                     throw error("contains an empty sort entry");
@@ -340,7 +366,8 @@ public final class IndexSortConfig {
                 if (quoted == false) {
                     skipWhitespace();
                     if (isAt('(')) {
-                        mode = switch (field.toUpperCase(Locale.ROOT)) {
+                        function = field.toUpperCase(Locale.ROOT);
+                        mode = switch (function) {
                             case "MV_MIN" -> "min";
                             case "MV_MAX" -> "max";
                             default -> throw error("contains unsupported function [" + field + "], expected one of [MV_MIN, MV_MAX]");
@@ -355,8 +382,9 @@ public final class IndexSortConfig {
                         pos++;
                     }
                 }
-                if (seenFields.add(field) == false) {
-                    throw error("contains field [" + field + "] more than once");
+                String key = function == null ? field : function + "(" + field + ")";
+                if (seenKeys.add(key) == false) {
+                    throw error("contains sort key [" + key + "] more than once");
                 }
 
                 String order = null;
@@ -401,13 +429,10 @@ public final class IndexSortConfig {
                     // Like ES|QL, null sorts as larger than any value, so DESC puts nulls first.
                     nulls = order.equals("desc") ? "_first" : "_last";
                 }
-                fields.add(field);
-                orders.add(order);
-                modes.add(mode);
-                missings.add(nulls);
+                entries.add(new SortEntry(key, field, parseOrderMode(order), parseMultiValueMode(mode), nulls));
 
                 if (atEnd()) {
-                    return new IndexSortConfigDefaults.SortDefault(fields, orders, modes, missings);
+                    return entries;
                 }
                 pos++; // the comma
             }
@@ -440,7 +465,16 @@ public final class IndexSortConfig {
                 }
                 return name.toString();
             }
-            return readWord();
+            String name = readWord();
+            for (String part : name.split("\\.", -1)) {
+                if (UNQUOTED_PART.matcher(part).matches() == false) {
+                    throw error("has invalid unquoted field name [" + name + "], use backticks to quote it");
+                }
+            }
+            if (RESERVED_WORDS.contains(name.toLowerCase(Locale.ROOT))) {
+                throw error("has reserved word [" + name + "] as a field name, use backticks to quote it");
+            }
+            return name;
         }
 
         /** Reads a run of characters that are not whitespace, a comma, a parenthesis or a backtick. */
@@ -513,6 +547,19 @@ public final class IndexSortConfig {
         }
     }
 
+    /**
+     * The sort fields of an index, from {@link #INDEX_SORT_SETTING} if it is set and from {@link #INDEX_SORT_FIELD_SETTING}
+     * (or its default) otherwise, one per sort entry so a field can repeat, for example {@code MV_MIN(a), MV_MAX(a)}. Doesn't
+     * include the slice key.
+     */
+    public static List<String> sortFields(Settings settings) {
+        String expression = settings.get(INDEX_SORT_SETTING.getKey(), "");
+        if (expression.isEmpty()) {
+            return INDEX_SORT_FIELD_SETTING.get(settings);
+        }
+        return parseSortExpression(expression).stream().map(SortEntry::field).toList();
+    }
+
     private static void validateSortSettings(Settings settings) {
         boolean hasSortExpression = settings.get(INDEX_SORT_SETTING.getKey(), "").isEmpty() == false;
         if (hasSortExpression) {
@@ -540,7 +587,7 @@ public final class IndexSortConfig {
         }
 
         if (IndexSettings.SLICE_ENABLED.get(settings) && (INDEX_SORT_FIELD_SETTING.exists(settings) || hasSortExpression)) {
-            for (String field : INDEX_SORT_FIELD_SETTING.get(settings)) {
+            for (String field : sortFields(settings)) {
                 if (field.equals(RoutingFieldMapper.NAME)
                     || field.equals(SliceIndexing.FIELD_NAME)
                     || field.equals(SliceIndexing.SLICE_KEY_FIELD_NAME)
@@ -562,6 +609,10 @@ public final class IndexSortConfig {
                     );
                 }
             }
+        }
+
+        if (hasSortExpression) {
+            return;
         }
 
         List<String> fields = INDEX_SORT_FIELD_SETTING.get(settings);
@@ -592,10 +643,23 @@ public final class IndexSortConfig {
 
         validateSortSettings(settings);
 
-        List<String> fields = new ArrayList<>(INDEX_SORT_FIELD_SETTING.get(settings));
-        List<SortOrder> orders = new ArrayList<>(INDEX_SORT_ORDER_SETTING.get(settings));
-        List<MultiValueMode> modes = new ArrayList<>(INDEX_SORT_MODE_SETTING.get(settings));
-        List<String> missingValues = new ArrayList<>(INDEX_SORT_MISSING_SETTING.get(settings));
+        List<String> fields;
+        List<SortOrder> orders;
+        List<MultiValueMode> modes;
+        List<String> missingValues;
+        String expression = settings.get(INDEX_SORT_SETTING.getKey(), "");
+        if (expression.isEmpty()) {
+            fields = new ArrayList<>(INDEX_SORT_FIELD_SETTING.get(settings));
+            orders = new ArrayList<>(INDEX_SORT_ORDER_SETTING.get(settings));
+            modes = new ArrayList<>(INDEX_SORT_MODE_SETTING.get(settings));
+            missingValues = new ArrayList<>(INDEX_SORT_MISSING_SETTING.get(settings));
+        } else {
+            List<SortEntry> entries = parseSortExpression(expression);
+            fields = new ArrayList<>(entries.stream().map(SortEntry::field).toList());
+            orders = new ArrayList<>(entries.stream().map(SortEntry::order).toList());
+            modes = new ArrayList<>(entries.stream().map(SortEntry::mode).toList());
+            missingValues = new ArrayList<>(entries.stream().map(SortEntry::missing).toList());
+        }
         if (indexSettings.isSliceEnabled()) {
             prependSliceKeySort(fields, orders, modes, missingValues);
         }

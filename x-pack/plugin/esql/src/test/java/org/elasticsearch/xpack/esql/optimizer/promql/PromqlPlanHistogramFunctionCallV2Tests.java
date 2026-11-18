@@ -10,14 +10,18 @@ package org.elasticsearch.xpack.esql.optimizer.promql;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PromqlHistogramQuantile;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.HistogramPercentile;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataFilter;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataPath;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -41,7 +45,14 @@ public class PromqlPlanHistogramFunctionCallV2Tests extends AbstractPromqlPlanOp
 
         PromqlHistogramQuantile quantile = expressions(plan, PromqlHistogramQuantile.class).getFirst();
         assertThat(as(quantile.upperBound(), Attribute.class).name(), equalTo("le"));
-        assertThat(expressions(plan, TimeSeriesMetadataPath.class), empty());
+        // a label read above the aggregate reads off its key, which holds every label of the group
+        var keys = new HashSet<NameId>();
+        for (Aggregate aggregate : plan.collect(Aggregate.class)) {
+            aggregate.groupings().forEach(grouping -> keys.add(Expressions.attribute(grouping).id()));
+        }
+        for (TimeSeriesMetadataPath read : expressions(plan, TimeSeriesMetadataPath.class)) {
+            assertThat(keys, hasItem(as(read.children().getFirst(), Attribute.class).id()));
+        }
         assertThat(names(plan.output()), hasItem("job"));
         assertThat(names(plan.output()), not(hasItem("le")));
     }

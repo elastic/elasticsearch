@@ -115,8 +115,27 @@ public class ScalarizeTimeSeriesMetadataPathsTests extends ESTestCase {
         assertThat(loads.getFirst().children(), empty());
     }
 
-    /** An aggregate keyed by labels packs them: a label of several values keys as a whole. */
-    public void testAggregateKeysByPackedLabels() {
+    /**
+     * An aggregate keyed by a typed label container keys by the container whole: one value per row, the same for the same label
+     * set, so nothing is split or packed and a label of several values keys as a whole.
+     */
+    public void testAggregateKeysByTheWholeContainer() {
+        Aggregate pushed = regroupedByPod(pushDown(regroupByPod()));
+        assertThat(pushed.groupings(), hasSize(1));
+        assertThat(pushed.groupings().getFirst().dataType(), sameInstance(DataType.TIME_SERIES_METADATA_DATA_TYPE));
+        assertThat(pushed.collect(PackDims.class), empty());
+    }
+
+    /** A keyword container cannot be written to: the aggregate keys by its labels instead, packed into one key. */
+    public void testKeywordAggregateKeysByPackedLabels() {
+        LogicalPlan plan = pushDownKeyword(regroupByPod());
+        Aggregate pushed = regroupedByPod(plan);
+        assertThat(pushed.child(), instanceOf(PackDims.class));
+        assertEquals(List.of("pod"), ((PackDims) pushed.child()).dims().stream().map(Attribute::name).toList());
+        assertThat(expressions(plan, AbstractTimeSeriesMetadataFunction.class), empty());
+    }
+
+    private Aggregate regroupByPod() {
         Alias labels = sourceLabels();
         TimeSeriesAggregate aggregate = timeSeriesAggregate(labels, TimeSeriesAggregate.Origin.PROMQL_COMMAND);
         Alias key = new Alias(
@@ -125,13 +144,11 @@ public class ScalarizeTimeSeriesMetadataPathsTests extends ESTestCase {
             new TimeSeriesMetadataFilter(SOURCE, labels.toAttribute(), List.of(Literal.keyword(SOURCE, "pod")), false)
         );
         Alias sum = new Alias(SOURCE, "value", new Values(SOURCE, aggregate.aggregates().getFirst().toAttribute()));
-        Aggregate regroup = new Aggregate(SOURCE, aggregate, List.of(key), List.of(sum, key.toAttribute()));
-        LogicalPlan plan = pushDown(regroup);
+        return new Aggregate(SOURCE, aggregate, List.of(key), List.of(sum, key.toAttribute()));
+    }
 
-        Aggregate pushed = plan.collect(Aggregate.class).stream().filter(a -> a instanceof TimeSeriesAggregate == false).findFirst().get();
-        assertThat(pushed.child(), instanceOf(PackDims.class));
-        assertEquals(List.of("pod"), ((PackDims) pushed.child()).dims().stream().map(Attribute::name).toList());
-        assertThat(expressions(plan, AbstractTimeSeriesMetadataFunction.class), empty());
+    private static Aggregate regroupedByPod(LogicalPlan plan) {
+        return plan.collect(Aggregate.class).stream().filter(a -> a instanceof TimeSeriesAggregate == false).findFirst().get();
     }
 
     /**
@@ -385,6 +402,11 @@ public class ScalarizeTimeSeriesMetadataPathsTests extends ESTestCase {
             @Override
             Expression compared(Parts parts, Source at) {
                 return whole(parts, at);
+            }
+
+            @Override
+            boolean keysWhole() {
+                return true;
             }
 
             @Override

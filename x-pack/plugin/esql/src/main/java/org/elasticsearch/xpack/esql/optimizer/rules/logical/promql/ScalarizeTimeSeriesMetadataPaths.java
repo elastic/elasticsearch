@@ -76,8 +76,12 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.ENABLE_TS
  * In this model a container holds every label of its series. What the source loads holds the dimensions only, and reading a
  * label out of it row by row hurts the vectorized operator pipeline. So this rule replaces every read by name with a reference
  * to an attribute loaded next to the container, a compiler optimization called scalar replacement of aggregates (SROA), and loads
- * the container without what nothing needs of it, or not at all. The plan is right only once no read by name is left: a read the
- * rule cannot replace fails the query.
+ * the container without what nothing needs of it, or not at all. The plan is right only once no read by name of what the source
+ * loads is left: a read the rule cannot replace fails the query.
+ * <p>
+ * A typed container is the same bytes for the same label set, so the rule never splits one that keys a group, a join or a
+ * ranking: it keys by the container whole, its promoted labels written back, and the rewrite changes no answer. A label read
+ * above an aggregate keyed by it reads off the key, which holds every label of the group.
  * <p>
  * The rule knows the container by the calls above alone, not by how the translation uses them. It has two steps
  * ({@link Run}):
@@ -133,6 +137,11 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
                 }
 
                 @Override
+                boolean keysWhole() {
+                    return true;
+                }
+
+                @Override
                 void verify(LogicalPlan rewritten) {
                     // what is left is a typed container every node reads
                 }
@@ -170,6 +179,11 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
             Expression compared(Parts parts, Source at) {
                 Expression container = container(parts);
                 return container == null ? absent(at) : container;
+            }
+
+            @Override
+            boolean keysWhole() {
+                return false;
             }
 
             @Override
@@ -318,6 +332,14 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
 
         /** The container as a join compares it. */
         abstract Expression compared(Parts parts, Source at);
+
+        /**
+         * Whether a container that keys a node keys it whole, as the one value {@link #compared} makes of it. A typed container
+         * is the same bytes for the same label set and one value per row, so it keys a group, a join or a ranking as it is, and
+         * a label read above an aggregate keyed by it reads off the key. A keyword container cannot be written to, so it keys by
+         * its parts instead, packed into one key: a label of several values keys as a whole.
+         */
+        abstract boolean keysWhole();
 
         /** Checks the rewritten plan: what is left of it must run on every participating node. */
         abstract void verify(LogicalPlan rewritten);
@@ -641,14 +663,15 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
 
         /**
          * The aggregate keyed by the parts of its label containers: each container, and its promoted labels. The time-series
-         * aggregate keys by the labels as they are and its translation packs them; any other aggregate packs them itself: a label
-         * of several values keys as a whole.
+         * aggregate keys by the labels as they are and its translation packs them. Any other aggregate keys by a typed container
+         * whole (see {@link #keysWhole}), and by the parts of a keyword one, packed: a label of several values keys as a whole.
          */
         private LogicalPlan rewriteAggregate(Aggregate aggregate) {
             var evals = new ArrayList<Alias>();
             var groupings = new ArrayList<Expression>();
             var keys = new ArrayList<NameId>();
             var packedLabels = new ArrayList<Attribute>();
+            var wholeKeys = new ArrayList<NameId>();
             source = promqlSource(aggregate);
             for (Expression grouping : aggregate.groupings()) {
                 if ((grouping instanceof NamedExpression key && isContainer(key)) == false) {
@@ -656,6 +679,20 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
                     continue;
                 }
                 NamedExpression key = (NamedExpression) grouping;
+                if (aggregate instanceof TimeSeriesAggregate == false && keysWhole()) {
+                    // A key whole holds every label it has: none is split out of it to key on its own.
+                    Parts parts = define(key.id(), key instanceof Alias alias ? alias.child() : key);
+                    // Above the aggregate the key is the container, whole: what reads its labels reads them off the key.
+                    Attribute keyed = attribute(compared(parts, key.source()), MetadataAttribute.TIMESERIES, evals);
+                    groupings.add(keyed);
+                    parts.container = keyed;
+                    // the key holds the labels written back into it, and is without the others the container was without
+                    parts.without.removeAll(parts.labels.keySet());
+                    parts.labels = new TreeMap<>();
+                    wholeKeys.add(key.id());
+                    keys.add(key.id());
+                    continue;
+                }
                 Parts parts = defineKey(key);
                 if (aggregate instanceof TimeSeriesAggregate) {
                     groupings.addAll(loadKey(parts));
@@ -690,9 +727,30 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
                 }
             }
             if (packedLabels.isEmpty()) {
-                return aggregate.with(child, groupings, aggregates);
+                return readKeyLabels(aggregate.with(child, groupings, aggregates), wholeKeys);
             }
-            return unpack(aggregate, child, groupings, aggregates, keys, packedLabels);
+            return readKeyLabels(unpack(aggregate, child, groupings, aggregates, keys, packedLabels), wholeKeys);
+        }
+
+        /**
+         * {@code plan} with the labels read by name off each container key in {@code keys} read off the key, which holds every
+         * label of the group, above the aggregate.
+         */
+        private LogicalPlan readKeyLabels(LogicalPlan plan, List<NameId> keys) {
+            var evals = new ArrayList<Alias>();
+            for (NameId id : keys) {
+                Parts key = containers.get(id);
+                for (String name : need(id)) {
+                    if (key.without.contains(name)) {
+                        // the key is without it: it reads absent
+                        continue;
+                    }
+                    Source at = key.container.source();
+                    Expression read = new TimeSeriesMetadataPath(at, key.container, Literal.keyword(at, name));
+                    key.labels.put(name, attribute(read, name, evals));
+                }
+            }
+            return evaluate(plan, evals);
         }
 
         /**
@@ -880,6 +938,18 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
                 }
                 Parts l = record(left);
                 Parts r = record(right);
+                if (keysWhole()) {
+                    // each side keys by its container whole: the same label set is the same value on both sides
+                    Expression leftKey = compared(l, left.source());
+                    Expression rightKey = compared(r, right.source());
+                    if (leftKey instanceof Literal && leftKey.equals(rightKey)) {
+                        // the same label set on every row of both sides tells no pair apart
+                        continue;
+                    }
+                    leftFields.add(attribute(leftKey, MetadataAttribute.TIMESERIES, leftEvals));
+                    rightFields.add(attribute(rightKey, MetadataAttribute.TIMESERIES, rightEvals));
+                    continue;
+                }
                 if (l.container != null || r.container != null) {
                     // a container compares whole: its labels are what the other side holds in or outside its own
                     leftLabels.add(attribute(compared(l, left.source()), MetadataAttribute.TIMESERIES, leftEvals));
@@ -936,6 +1006,7 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
         }
 
         private LogicalPlan rewriteTopNBy(TopNBy topNBy) {
+            var evals = new ArrayList<Alias>();
             var labels = new ArrayList<Attribute>();
             var groupings = new ArrayList<Expression>();
             for (Expression grouping : topNBy.groupings()) {
@@ -944,28 +1015,36 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
                     continue;
                 }
                 Parts parts = record(grouping);
+                if (keysWhole()) {
+                    groupings.add(attribute(compared(parts, grouping.source()), MetadataAttribute.TIMESERIES, evals));
+                    continue;
+                }
                 if (parts.container != null) {
                     groupings.add(parts.container);
                 }
                 // a label the container holds too is compared with it
                 parts.outside().values().forEach(label -> addIfAbsent(labels, (Attribute) label));
             }
-            return new TopNBy(topNBy.source(), pack(topNBy.child(), labels, groupings), topNBy.order(), topNBy.limitPerGroup(), groupings);
+            LogicalPlan child = pack(evaluate(topNBy.child(), evals), labels, groupings);
+            return new TopNBy(topNBy.source(), child, topNBy.order(), topNBy.limitPerGroup(), groupings);
         }
 
         /**
          * The pack of the parts of its label containers: the container that is left, and each label it does not hold.
          */
         private LogicalPlan rewritePackDims(PackDims pack) {
+            var evals = new ArrayList<Alias>();
             var dims = new ArrayList<Attribute>();
             for (Attribute dim : pack.dims()) {
-                if (isContainer(dim)) {
-                    keys(record(dim)).forEach(part -> addIfAbsent(dims, (Attribute) part));
-                } else {
+                if (isContainer(dim) == false) {
                     dims.add(dim);
+                } else if (keysWhole()) {
+                    addIfAbsent(dims, attribute(compared(record(dim), dim.source()), MetadataAttribute.TIMESERIES, evals));
+                } else {
+                    keys(record(dim)).forEach(part -> addIfAbsent(dims, (Attribute) part));
                 }
             }
-            return new PackDims(pack.source(), pack.child(), dims, pack.packed());
+            return new PackDims(pack.source(), evaluate(pack.child(), evals), dims, pack.packed());
         }
 
         private boolean isContainer(NamedExpression named) {
@@ -1190,7 +1269,10 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
                 case HashOffset hash -> {
                     var keys = new ArrayList<Expression>();
                     for (Expression key : hash.children()) {
-                        if (key.dataType() == DataType.TIME_SERIES_METADATA_DATA_TYPE && reads(key)) {
+                        if (key.dataType() == DataType.TIME_SERIES_METADATA_DATA_TYPE && reads(key) && keysWhole()) {
+                            // the container whole: the same series hashes alike whatever labels a plan promotes
+                            keys.add(compared(record(key), key.source()));
+                        } else if (key.dataType() == DataType.TIME_SERIES_METADATA_DATA_TYPE && reads(key)) {
                             // Each label once: a label in the container too would hash twice, so the same series would hash apart
                             // in plans that promote different labels.
                             keys.addAll(keys(record(key)));

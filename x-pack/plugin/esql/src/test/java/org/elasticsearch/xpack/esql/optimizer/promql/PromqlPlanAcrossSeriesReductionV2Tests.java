@@ -11,14 +11,12 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.expression.promql.function.HashOffset;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
@@ -46,8 +44,7 @@ public class PromqlPlanAcrossSeriesReductionV2Tests extends AbstractPromqlPlanOp
 
         TopNBy topN = plan.collect(TopNBy.class).getFirst();
         assertThat(topN.groupings(), hasSize(2));
-        PackDims partitions = as(topN.child(), PackDims.class);
-        assertThat(names(partitions.dims()), contains("cluster"));
+        assertThat(keyLabels(topN, (Attribute) topN.groupings().get(1)), contains("cluster"));
         assertThat(names(plan.output()), hasItem("_timeseries"));
     }
 

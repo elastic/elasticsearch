@@ -57,6 +57,12 @@ interface PlainSkipKind {
          */
         void add(long address, int doc, int chunk, BytesRef value, boolean repeat) throws IOException;
 
+        /**
+         * Takes a slot whose value equals the one before it, which the writer holds. It is {@link #add} with that value
+         * and {@code repeat} true, without the caller reading the value.
+         */
+        void addRepeat(long address, int doc, int chunk) throws IOException;
+
         /** Whether the values taken so far are in ascending order. */
         boolean ascending();
 

@@ -11,11 +11,12 @@ package org.elasticsearch.columnar.string;
 /**
  * Holds the parameters that determine how a plain column is written.
  *
- * @param capturesBounds whether the bounds of each chunk are captured for a skip region
- * @param streamsValues  whether bytes are copied from the cursor a piece at a time instead of read as values
- * @param checksOrder    whether each value is compared with the one before it to find out whether the column is sorted
+ * @param capturesBounds      whether the bounds of each chunk are captured for a skip region
+ * @param streamsValues       whether bytes are copied from the cursor a piece at a time instead of read as values
+ * @param checksOrder         whether each value is compared with the one before it to find out whether the column is sorted
+ * @param skipsRepeatedValues whether a value the cursor reports as a repeat is written without being read
  */
-record PlainWritePlan(boolean capturesBounds, boolean streamsValues, boolean checksOrder) {
+record PlainWritePlan(boolean capturesBounds, boolean streamsValues, boolean checksOrder, boolean skipsRepeatedValues) {
 
     /**
      * Returns the plan for a column, given its options and what its cursor offers.
@@ -23,7 +24,8 @@ record PlainWritePlan(boolean capturesBounds, boolean streamsValues, boolean che
      *
      * @param skipIndexRequested      whether the column's options ask for a skip region
      * @param skipIndexOutputAvailable whether the caller gave an output to write the region to
-     * @param inputsStream             whether the cursor can hand over values without a caller holding them
+     * @param inputsStream             whether the cursor can hand over values without a caller holding them, and report
+     *                                 which ones repeat the value before
      * @param inputsMayBeSorted        whether the values may arrive in ascending term order
      */
     static PlainWritePlan of(
@@ -35,6 +37,7 @@ record PlainWritePlan(boolean capturesBounds, boolean streamsValues, boolean che
         final boolean capturesBounds = skipIndexRequested && skipIndexOutputAvailable;
         final boolean streamsValues = inputsStream && inputsMayBeSorted == false && capturesBounds == false;
         final boolean checksOrder = streamsValues == false && capturesBounds == false;
-        return new PlainWritePlan(capturesBounds, streamsValues, checksOrder);
+        final boolean skipsRepeatedValues = capturesBounds && inputsStream;
+        return new PlainWritePlan(capturesBounds, streamsValues, checksOrder, skipsRepeatedValues);
     }
 }

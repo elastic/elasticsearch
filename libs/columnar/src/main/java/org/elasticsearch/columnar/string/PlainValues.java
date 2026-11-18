@@ -199,6 +199,23 @@ final class PlainValues {
                 throw new IllegalStateException("a value of " + value.length + " bytes in a column counted at " + constantLength);
             }
             final boolean repeat = count > 0 && previousNull == false && previous.get().bytesEquals(value);
+            store(value, repeat);
+            if (repeat == false) {
+                runs++;
+                previous.copyBytes(value);
+            }
+            return repeat;
+        }
+
+        /** Adds a value that equals the one before it, which the writer holds, so the caller does not read it. */
+        void addRepeat() throws IOException {
+            assert transferred != Boolean.TRUE : "a column's values are either added or transferred";
+            assert count > 0 && previousNull == false : "only a value can be repeated";
+            transferred = false;
+            store(previous.get(), true);
+        }
+
+        private void store(BytesRef value, boolean repeat) throws IOException {
             startSlot();
             recordOwnerChunk();
             if (lengths != null && repeat && count % lengthBlockSize != 0) {
@@ -212,13 +229,8 @@ final class PlainValues {
             valueBytes += value.length;
             minLength = minLength < 0 ? value.length : Math.min(minLength, value.length);
             maxLength = Math.max(maxLength, value.length);
-            if (repeat == false) {
-                runs++;
-                previous.copyBytes(value);
-            }
             previousNull = false;
             count++;
-            return repeat;
         }
 
         /**

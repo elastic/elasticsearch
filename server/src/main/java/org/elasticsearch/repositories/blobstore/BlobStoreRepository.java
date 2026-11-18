@@ -3716,8 +3716,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 // Notify here and not from allFilesUploadedListener: that listener lives until every file of this shard is uploaded, so
                 // referencing updatedBlobStoreIndexShardSnapshots (the history of every retained snapshot of the shard) from it would keep
                 // that history reachable for the whole upload. All shards of a node run this step before any file is uploaded, so that
-                // would
-                // hold every shard's history in memory at once.
+                // would hold every shard's history in memory at once.
                 reportShardGenerationSize(context.indexId(), shardId.id(), indexGeneration, updatedBlobStoreIndexShardSnapshots);
                 afterWriteSnapBlob = () -> {};
             } else {

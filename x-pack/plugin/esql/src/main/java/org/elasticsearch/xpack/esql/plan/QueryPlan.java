@@ -27,7 +27,7 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
 
     private AttributeSet lazyOutputSet;
     private AttributeSet lazyInputSet;
-    private List<Expression> lazyExpressions;
+    private volatile List<Expression> lazyExpressions;
     private AttributeSet lazyReferences;
 
     public QueryPlan(Source source, List<PlanType> children) {
@@ -41,17 +41,21 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
     public abstract List<Attribute> output();
 
     public AttributeSet outputSet() {
-        if (lazyOutputSet == null) {
-            lazyOutputSet = AttributeSet.of(output());
+        AttributeSet outputSet = lazyOutputSet;
+        if (outputSet == null) {
+            outputSet = AttributeSet.of(output());
+            lazyOutputSet = outputSet;
         }
-        return lazyOutputSet;
+        return outputSet;
     }
 
     public AttributeSet inputSet() {
-        if (lazyInputSet == null) {
-            lazyInputSet = AttributeSet.of(children(), QueryPlan::output);
+        AttributeSet inputSet = lazyInputSet;
+        if (inputSet == null) {
+            inputSet = AttributeSet.of(children(), QueryPlan::output);
+            lazyInputSet = inputSet;
         }
-        return lazyInputSet;
+        return inputSet;
     }
 
     /**
@@ -80,10 +84,12 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
      * {@code some_enrich_field}.
      */
     public AttributeSet references() {
-        if (lazyReferences == null) {
-            lazyReferences = computeReferences();
+        AttributeSet references = lazyReferences;
+        if (references == null) {
+            references = computeReferences();
+            lazyReferences = references;
         }
-        return lazyReferences;
+        return references;
     }
 
     /**

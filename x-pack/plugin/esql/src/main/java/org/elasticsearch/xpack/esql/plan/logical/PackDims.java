@@ -34,7 +34,7 @@ public class PackDims extends UnaryPlan {
 
     private final List<Attribute> dims;
     private final Attribute packed;
-    private List<Attribute> lazyOutput;
+    private volatile List<Attribute> lazyOutput;
 
     public PackDims(Source source, LogicalPlan child, List<Attribute> dims, Attribute packed) {
         super(source, child);

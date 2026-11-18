@@ -13,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.FilterWeight;
 import org.apache.lucene.search.LRUQueryCache;
@@ -21,6 +22,8 @@ import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.util.BitSetIterator;
+import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.lucene.ShardCoreKeyMap;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -453,6 +456,18 @@ public class IndicesQueryCache implements QueryCache, Closeable {
             if (shardStats != null) {
                 shardStats.missCount += 1;
             }
+        }
+
+        // Works around quadratic BitSetIterator#docIDRunEnd in Lucene 10.5, see RunEndCachingBitDocIdSet
+        @Override
+        protected CacheAndCount cacheImpl(BulkScorer scorer, int maxDoc) throws IOException {
+            final CacheAndCount cached = super.cacheImpl(scorer, maxDoc);
+            final FixedBitSet bits = BitSetIterator.getFixedBitSetOrNull(cached.iterator());
+            if (bits == null) {
+                return cached;
+            }
+            final int count = cached.count();
+            return new CacheAndCount(new RunEndCachingBitDocIdSet(bits, count), count);
         }
 
         @Override

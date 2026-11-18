@@ -293,8 +293,8 @@ public class SearchResponseMergerTests extends ESTestCase {
                 assertEquals(numResponses, mergedResponse.getSuccessfulShards());
                 assertEquals(0, mergedResponse.getSkippedShards());
                 assertEquals(priorityQueue.size(), mergedResponse.getFailedShards());
-                ShardSearchFailure[] shardFailures = mergedResponse.getShardFailures();
-                assertEquals(priorityQueue.size(), shardFailures.length);
+                List<ShardSearchFailure> shardFailures = mergedResponse.getShardFailures();
+                assertEquals(priorityQueue.size(), shardFailures.size());
                 for (ShardSearchFailure shardFailure : shardFailures) {
                     ShardSearchFailure expected = priorityQueue.poll().v2();
                     assertSame(expected, shardFailure);
@@ -356,8 +356,8 @@ public class SearchResponseMergerTests extends ESTestCase {
                 assertEquals(numResponses, mergedResponse.getSuccessfulShards());
                 assertEquals(0, mergedResponse.getSkippedShards());
                 assertEquals(priorityQueue.size(), mergedResponse.getFailedShards());
-                ShardSearchFailure[] shardFailures = mergedResponse.getShardFailures();
-                assertEquals(priorityQueue.size(), shardFailures.length);
+                List<ShardSearchFailure> shardFailures = mergedResponse.getShardFailures();
+                assertEquals(priorityQueue.size(), shardFailures.size());
                 for (ShardSearchFailure shardFailure : shardFailures) {
                     ShardSearchFailure expected = priorityQueue.poll().v2();
                     assertSame(expected, shardFailure);
@@ -411,8 +411,8 @@ public class SearchResponseMergerTests extends ESTestCase {
             assertEquals(numResponses, merger.numResponses());
             var mergedResponse = merger.getMergedResponse(SearchResponse.Clusters.EMPTY);
             try {
-                ShardSearchFailure[] shardFailures = mergedResponse.getShardFailures();
-                assertThat(Arrays.asList(shardFailures), containsInAnyOrder(expectedFailures.toArray(ShardSearchFailure.EMPTY_ARRAY)));
+                List<ShardSearchFailure> shardFailures = mergedResponse.getShardFailures();
+                assertThat(shardFailures, containsInAnyOrder(expectedFailures.toArray(ShardSearchFailure.EMPTY_ARRAY)));
             } finally {
                 mergedResponse.decRef();
             }
@@ -468,7 +468,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 assertEquals(numResponses, mergedResponse.getSuccessfulShards());
                 assertEquals(0, mergedResponse.getSkippedShards());
                 assertEquals(0, mergedResponse.getFailedShards());
-                assertEquals(0, mergedResponse.getShardFailures().length);
+                assertEquals(0, mergedResponse.getShardFailures().size());
                 assertEquals(expectedProfile, mergedResponse.getSearchProfileShardResults());
             } finally {
                 mergedResponse.decRef();
@@ -679,7 +679,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 assertEquals(numResponses, mergedResponse.getSuccessfulShards());
                 assertEquals(0, mergedResponse.getSkippedShards());
                 assertEquals(0, mergedResponse.getFailedShards());
-                assertEquals(0, mergedResponse.getShardFailures().length);
+                assertEquals(0, mergedResponse.getShardFailures().size());
                 Suggest.Suggestion<? extends Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>> suggestion =
                     mergedResponse.getSuggest().getSuggestion(suggestionName);
                 assertEquals(1, suggestion.getEntries().size());
@@ -767,7 +767,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 assertEquals(numResponses, mergedResponse.getSuccessfulShards());
                 assertEquals(0, mergedResponse.getSkippedShards());
                 assertEquals(0, mergedResponse.getFailedShards());
-                assertEquals(0, mergedResponse.getShardFailures().length);
+                assertEquals(0, mergedResponse.getShardFailures().size());
                 CompletionSuggestion suggestion = mergedResponse.getSuggest().getSuggestion(suggestionName);
                 assertEquals(1, suggestion.getEntries().size());
                 CompletionSuggestion.Entry options = suggestion.getEntries().get(0);
@@ -920,7 +920,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 assertEquals(numResponses, mergedResponse.getSuccessfulShards());
                 assertEquals(0, mergedResponse.getSkippedShards());
                 assertEquals(0, mergedResponse.getFailedShards());
-                assertEquals(0, mergedResponse.getShardFailures().length);
+                assertEquals(0, mergedResponse.getShardFailures().size());
                 assertEquals(0, mergedResponse.getHits().getHits().length);
                 assertEquals(2, mergedResponse.getAggregations().asList().size());
                 Max max = mergedResponse.getAggregations().get(maxAggName);
@@ -1221,7 +1221,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 assertEquals(expectedTotal, searchResponse.getTotalShards());
                 assertEquals(expectedSuccessful, searchResponse.getSuccessfulShards());
                 assertEquals(expectedSkipped, searchResponse.getSkippedShards());
-                assertEquals(0, searchResponse.getShardFailures().length);
+                assertEquals(0, searchResponse.getShardFailures().size());
                 assertEquals(expectedReducePhases, searchResponse.getNumReducePhases());
                 assertEquals(expectedTimedOut, searchResponse.isTimedOut());
                 assertEquals(expectedTerminatedEarly, searchResponse.isTerminatedEarly());
@@ -1308,7 +1308,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 assertNull(response.getSuggest());
                 assertEquals(0, response.getSearchProfileShardResults().size());
                 assertNull(response.isTerminatedEarly());
-                assertEquals(0, response.getShardFailures().length);
+                assertEquals(0, response.getShardFailures().size());
             } finally {
                 response.decRef();
             }
@@ -1648,7 +1648,7 @@ public class SearchResponseMergerTests extends ESTestCase {
         }
         try {
             assertNotNull(merged.getAggregations().get("max"));
-            assertThat(merged.getShardFailures().length, equalTo(2));
+            assertThat(merged.getShardFailures().size(), equalTo(2));
             assertThat(breaker.getUsed(), equalTo(SearchResponseMerger.estimateHitBytes(merged.getHits().getHits(), Set.of())));
         } finally {
             assertTrue(merged.decRef());

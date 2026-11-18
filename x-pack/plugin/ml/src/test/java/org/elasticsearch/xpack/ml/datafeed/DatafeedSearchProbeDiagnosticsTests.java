@@ -111,7 +111,7 @@ public class DatafeedSearchProbeDiagnosticsTests extends ESTestCase {
         );
         SearchResponse response = mock(SearchResponse.class);
         when(response.getClusters()).thenReturn(SearchResponse.Clusters.EMPTY);
-        when(response.shardFailuresList()).thenReturn(List.of(failure));
+        when(response.getShardFailures()).thenReturn(List.of(failure));
 
         String diagnosis = DatafeedSearchProbeDiagnostics.diagnoseSearchProbeFailure(response);
         assertThat(diagnosis, containsString("linked_project:priv-linked-logs"));
@@ -121,7 +121,7 @@ public class DatafeedSearchProbeDiagnosticsTests extends ESTestCase {
         ShardSearchFailure failure = new ShardSearchFailure(new ElasticsearchSecurityException("action denied", RestStatus.FORBIDDEN));
         SearchResponse response = mock(SearchResponse.class);
         when(response.getClusters()).thenReturn(SearchResponse.Clusters.EMPTY);
-        when(response.shardFailuresList()).thenReturn(List.of(failure));
+        when(response.getShardFailures()).thenReturn(List.of(failure));
 
         assertThat(
             DatafeedSearchProbeDiagnostics.diagnoseSearchProbeFailure(response),

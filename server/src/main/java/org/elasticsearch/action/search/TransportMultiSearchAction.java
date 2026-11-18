@@ -354,7 +354,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
             }
         }
 
-        bytes += estimateShardFailureBytes(response.shardFailuresList());
+        bytes += estimateShardFailureBytes(response.getShardFailures());
 
         Suggest suggest = response.getSuggest();
         if (suggest != null) {

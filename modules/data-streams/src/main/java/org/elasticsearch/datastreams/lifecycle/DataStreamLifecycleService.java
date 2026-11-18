@@ -1797,7 +1797,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             @Override
             public void onResponse(BroadcastResponse forceMergeResponse) {
                 if (forceMergeResponse.getFailedShards() > 0) {
-                    List<DefaultShardOperationFailedException> failures = forceMergeResponse.shardFailuresList();
+                    List<DefaultShardOperationFailedException> failures = forceMergeResponse.getShardFailures();
                     String message = Strings.format(
                         "Data stream lifecycle failed to forcemerge %d shards for index [%s] due to failures [%s]",
                         forceMergeResponse.getFailedShards(),

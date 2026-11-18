@@ -24,9 +24,11 @@ import java.util.Map;
 public class FlushMetrics {
 
     public static final String FLUSH_FAILURE_TOTAL = "es.flush.failure.total";
+    public static final String FLUSH_FAILURE_BLOBSTORE_TRANSIENT_TOTAL = "es.flush.failure.blobstore_transient.total";
     public static final FlushMetrics NOOP = new FlushMetrics(TelemetryProvider.NOOP.getMeterRegistry());
 
     private final LongCounter flushFailures;
+    private final LongCounter flushBlobStoreTransientFailures;
 
     public FlushMetrics(MeterRegistry meterRegistry) {
         flushFailures = meterRegistry.registerLongCounter(
@@ -35,14 +37,25 @@ public class FlushMetrics {
                 + "flushes rejected due to a cleanly closing shard or engine, or a pending translog recovery, are not counted",
             "unit"
         );
+        flushBlobStoreTransientFailures = meterRegistry.registerLongCounter(
+            FLUSH_FAILURE_BLOBSTORE_TRANSIENT_TOTAL,
+            "Number of flushes that failed because the blob store was unreachable or closed; also counted in " + FLUSH_FAILURE_TOTAL,
+            "unit"
+        );
     }
 
     public void onFailure(IndexMode indexMode, Throwable error) {
         // the engine wraps every commit or refresh failure, so report the cause to tell those failures apart
         final Throwable cause = error instanceof FlushFailedEngineException && error.getCause() != null ? error.getCause() : error;
-        flushFailures.incrementBy(
-            1,
-            Map.of(MetricAttributes.ES_INDEX_MODE, indexMode.getName(), MetricAttributes.ERROR_TYPE, MetricAttributes.errorType(cause))
+        final Map<String, Object> attributes = Map.of(
+            MetricAttributes.ES_INDEX_MODE,
+            indexMode.getName(),
+            MetricAttributes.ERROR_TYPE,
+            MetricAttributes.errorType(cause)
         );
+        flushFailures.incrementBy(1, attributes);
+        if (MergeMetrics.isBlobStoreClientFailure(error)) {
+            flushBlobStoreTransientFailures.incrementBy(1, attributes);
+        }
     }
 }

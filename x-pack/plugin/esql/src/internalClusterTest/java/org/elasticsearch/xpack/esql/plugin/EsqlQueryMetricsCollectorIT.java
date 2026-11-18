@@ -53,6 +53,7 @@ import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDI
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry.GA_TEXT_CODECS;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -72,11 +73,32 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
     /** Views created by the current test, in creation order; deleted by {@link #deleteViews()}. */
     private final List<String> viewNames = new ArrayList<>();
 
+    /** How the last query the collector was called for ended; written by the SPI-instantiated collector. */
+    static volatile QueryMetricsListener.Outcome lastOutcome;
+
+    /** Number of times the collector written the way billing is, without outcomes, was called. */
+    static final AtomicInteger successOnlyCollectorCalls = new AtomicInteger();
+
+    /** Wants every outcome. */
     public static final class CapturingCollector implements QueryMetricsListener {
         @Override
         public void onQueryCompleted(Map<String, Long> metrics) {
+            throw new AssertionError("a listener that implements the outcome is called with the outcome");
+        }
+
+        @Override
+        public void onQueryCompleted(Outcome outcome, Map<String, Long> metrics) {
+            EsqlQueryMetricsCollectorIT.lastOutcome = outcome;
             EsqlQueryMetricsCollectorIT.lastMetrics = metrics;
             EsqlQueryMetricsCollectorIT.collectorCalls.incrementAndGet();
+        }
+    }
+
+    /** Written the way the billing listener is: it knows nothing of outcomes, so it must only be called for queries that succeeded. */
+    public static final class SuccessOnlyCollector implements QueryMetricsListener {
+        @Override
+        public void onQueryCompleted(Map<String, Long> metrics) {
+            EsqlQueryMetricsCollectorIT.successOnlyCollectorCalls.incrementAndGet();
         }
     }
 
@@ -99,10 +121,21 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
         assumeTrue("requires local filesystem feature flag", HttpDataSourcePlugin.ESQL_EXTERNAL_DATASOURCES_LOCAL_FEATURE_FLAG.isEnabled());
     }
 
+    /**
+     * The collectors are loaded by every integration test that loads the metrics collectors, which run in the same JVM, so queries of
+     * another test can leave their calls here: start from nothing, not only end with nothing.
+     */
+    @Before
+    protected void resetCollectors() {
+        clearLastMetrics();
+    }
+
     @After
     protected void clearLastMetrics() {
         lastMetrics = null;
+        lastOutcome = null;
         collectorCalls.set(0);
+        successOnlyCollectorCalls.set(0);
     }
 
     /**
@@ -541,7 +574,7 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
 
         // Warm aggregate: answered from cached stats, so splitsScanned stays 0,
         // but the analyzed plan still contains an ExternalRelation, so the gate
-        // in hasExternalSources() fires.
+        // in collectMetrics() (externalSource) fires.
         lastMetrics = null;
         try (var ignored = run(syncEsqlQueryRequest("FROM " + ds + " | STATS COUNT(*)"), TIMEOUT)) {}
         assertThat("warm COUNT(*) over external source must be metered", lastMetrics, notNullValue());
@@ -672,5 +705,145 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
         assertThat(format + ": metrics must be set", lastMetrics, notNullValue());
         assertThat(format + ": read_nanos > 0", lastMetrics.get(QueryMetricsListener.READ_NANOS), greaterThan(0L));
         assertThat(format + ": read_cpu_nanos > 0", lastMetrics.get(QueryMetricsListener.READ_CPU_NANOS), greaterThan(0L));
+    }
+
+    /**
+     * A CSV whose header declares an integer column and whose row [badRow] is not an integer: a scan fails on it, after reading
+     * the rows before.
+     */
+    private Path writeCsvWithBadRow(int badRow, int rows) throws IOException {
+        Path dir = createTempDir();
+        StringBuilder csv = new StringBuilder("emp_no:integer\n");
+        for (int i = 0; i < rows; i++) {
+            csv.append(i == badRow ? "not_a_number" : Integer.toString(i)).append('\n');
+        }
+        Files.writeString(dir.resolve("bad.csv"), csv);
+        return dir.resolve("bad.csv");
+    }
+
+    /**
+     * A query that fails halfway through the scan is metered, with the work it did before it failed and the outcome that tells a
+     * consumer not to bill it: its planning, its split discovery and what its drivers read.
+     */
+    public void testFailedQueryMidScanIsMetered() throws Exception {
+        assumeFalse("Windows has bad timer resolution, metrics are not accurate", Constants.WINDOWS);
+        Path file = writeCsvWithBadRow(20_000, 40_000);
+        String dataset = registerDataset("metrics_failing_ds", file.toUri().toString(), Map.of("format", "csv"));
+
+        expectThrows(Exception.class, () -> {
+            try (var ignored = run(syncEsqlQueryRequest("FROM " + dataset + " | STATS s = SUM(emp_no)"), TIMEOUT)) {
+                // the scan must fail on the malformed row
+            }
+        });
+
+        assertThat("collector must fire exactly once", collectorCalls.get(), equalTo(1));
+        assertThat(lastOutcome, equalTo(QueryMetricsListener.Outcome.FAILED));
+        assertThat(lastMetrics.get(QueryMetricsListener.PLANNING_NANOS), greaterThan(0L));
+        assertThat(lastMetrics.get(QueryMetricsListener.PLANNING_CPU_NANOS), greaterThan(0L));
+        assertThat(lastMetrics.get(QueryMetricsListener.SPLIT_DISCOVERY_NANOS), greaterThan(0L));
+        assertThat(
+            "what the drivers read before the failure is reported",
+            lastMetrics.get(QueryMetricsListener.READ_CPU_NANOS),
+            greaterThan(0L)
+        );
+        assertThat(lastMetrics.get(QueryMetricsListener.DRIVER_NANOS), greaterThan(0L));
+    }
+
+    /**
+     * The CPU of a query that failed is in an APM counter of its own, with its outcome, equal to what the listener was given, and
+     * not in the one that matches what is billed.
+     */
+    public void testApmCpuOfAFailedQueryIsNotPartOfTheBilledCounter() throws Exception {
+        assumeFalse("Windows has bad timer resolution, metrics are not accurate", Constants.WINDOWS);
+        Path file = writeCsvWithBadRow(20_000, 40_000);
+        String dataset = registerDataset("metrics_apm_failing_ds", file.toUri().toString(), Map.of("format", "csv"));
+        TestTelemetryPlugin telemetry = internalCluster().getInstance(PluginsService.class)
+            .filterPlugins(TestTelemetryPlugin.class)
+            .findFirst()
+            .get();
+        telemetry.resetMeter();
+
+        expectThrows(Exception.class, () -> {
+            try (var ignored = run(syncEsqlQueryRequest("FROM " + dataset + " | STATS s = SUM(emp_no)"), TIMEOUT)) {
+                // the scan must fail on the malformed row
+            }
+        });
+
+        assertThat(lastOutcome, equalTo(QueryMetricsListener.Outcome.FAILED));
+        assertThat("what is billed is not affected", telemetry.getLongCounterMeasurement(ExternalSourceMetrics.QUERY_CPU_TOTAL), empty());
+        assertUnsuccessfulApmCpuMatches(
+            telemetry,
+            ExternalSourceMetrics.CPU_COMPONENT_PLANNING,
+            ExternalSourceMetrics.OUTCOME_FAILURE,
+            QueryMetricsListener.PLANNING_CPU_NANOS
+        );
+        assertUnsuccessfulApmCpuMatches(
+            telemetry,
+            ExternalSourceMetrics.CPU_COMPONENT_READ,
+            ExternalSourceMetrics.OUTCOME_FAILURE,
+            QueryMetricsListener.READ_CPU_NANOS
+        );
+        assertThat(
+            "nothing is recorded for the other outcome",
+            telemetry.getLongCounterMeasurement(ExternalSourceMetrics.QUERY_UNSUCCESSFUL_CPU_TOTAL)
+                .stream()
+                .filter(m -> ExternalSourceMetrics.OUTCOME_CANCELLED.equals(m.attributes().get(ExternalSourceMetrics.OUTCOME_ATTRIBUTE)))
+                .toList(),
+            empty()
+        );
+    }
+
+    private static void assertUnsuccessfulApmCpuMatches(
+        TestTelemetryPlugin telemetry,
+        String component,
+        String outcome,
+        String listenerKey
+    ) {
+        long apm = telemetry.getLongCounterMeasurement(ExternalSourceMetrics.QUERY_UNSUCCESSFUL_CPU_TOTAL)
+            .stream()
+            .filter(m -> outcome.equals(m.attributes().get(ExternalSourceMetrics.OUTCOME_ATTRIBUTE)))
+            .filter(m -> component.equals(m.attributes().get(ExternalSourceMetrics.CPU_COMPONENT_ATTRIBUTE)))
+            .mapToLong(Measurement::getLong)
+            .sum();
+        long reported = lastMetrics.get(listenerKey);
+        assertThat("reported " + listenerKey + " > 0", reported, greaterThan(0L));
+        assertThat("APM cpu.unsuccessful.total{" + outcome + "," + component + "} equals reported " + listenerKey, apm, equalTo(reported));
+    }
+
+    /** The billing listener does not know about outcomes: it is called for the query that succeeded and not for the one that failed. */
+    public void testListenerThatIgnoresOutcomesIsOnlyCalledForSuccess() throws Exception {
+        assumeFalse("Windows has bad timer resolution, metrics are not accurate", Constants.WINDOWS);
+        Path file = writeCsvWithBadRow(100, 200);
+        String failing = registerDataset("metrics_failing_ds", file.toUri().toString(), Map.of("format", "csv"));
+        Path dir = createTempDir();
+        Files.writeString(dir.resolve("data.csv"), createCsv(5));
+        String succeeding = registerDataset("metrics_succeeding_ds", dir.resolve("data.csv").toUri().toString(), Map.of("format", "csv"));
+
+        expectThrows(Exception.class, () -> {
+            try (var ignored = run(syncEsqlQueryRequest("FROM " + failing + " | STATS s = SUM(emp_no)"), TIMEOUT)) {
+                // the scan must fail on the malformed row
+            }
+        });
+        assertThat(collectorCalls.get(), equalTo(1));
+        assertThat(lastOutcome, equalTo(QueryMetricsListener.Outcome.FAILED));
+        assertThat("not called for a query that failed", successOnlyCollectorCalls.get(), equalTo(0));
+
+        try (var ignored = run(syncEsqlQueryRequest("FROM " + succeeding + " | LIMIT 10"), TIMEOUT)) {
+            // run the query — result discarded, only the collector side-effect matters
+        }
+        assertThat(collectorCalls.get(), equalTo(2));
+        assertThat(lastOutcome, equalTo(QueryMetricsListener.Outcome.SUCCESS));
+        assertThat("called for a query that succeeded", successOnlyCollectorCalls.get(), equalTo(1));
+    }
+
+    /** A query that fails before it reads anything, in the analysis, is not metered unless it resolved an external source. */
+    public void testQueryThatFailsBeforeResolvingAnExternalSourceIsNotMetered() throws Exception {
+        expectThrows(Exception.class, () -> {
+            try (var ignored = run(syncEsqlQueryRequest("FROM no_such_dataset_or_index | LIMIT 10"), TIMEOUT)) {
+                // the query must fail
+            }
+        });
+        assertThat(collectorCalls.get(), equalTo(0));
+        assertThat(lastMetrics, nullValue());
     }
 }

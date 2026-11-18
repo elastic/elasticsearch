@@ -435,15 +435,19 @@ public class PerFieldFormatSupplier {
 
         /**
          * How a string column is written, asked once per field by the codec. A field that is not stored as one is
-         * never asked, and asking about one fails rather than guessing the options.
+         * never asked, and asking about one fails rather than guessing the options. The primary field of the index sort
+         * has its plain column bounded by block, because the sort puts its values in order.
          */
         StringColumnOptions stringOptions(final String field, final ColumnarFieldType type) {
-            final StringColumnOptions options = stringOptionsOf(field);
-            if (options == null) {
+            final StringColumnOptions fieldOptions = stringOptionsOf(field);
+            if (fieldOptions == null) {
                 throw new IllegalStateException(
                     "field [" + field + "] is written as a ColumNAR string column but its mapper has no string options"
                 );
             }
+            final StringColumnOptions options = mapperService.getIndexSettings().getIndexSortConfig().hasPrimarySortOnField(field)
+                ? fieldOptions.withPlainSkipIndex(true)
+                : fieldOptions;
             if (mapperService.getIndexSettings().getMode() != IndexMode.VECTORDB_COLUMNAR) {
                 return options;
             }

@@ -14,6 +14,8 @@ import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortedNumericSortField;
+import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
@@ -21,6 +23,7 @@ import org.elasticsearch.columnar.ColumnarFormat;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -50,6 +53,7 @@ import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.metrics.ValueCount;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.Before;
@@ -57,6 +61,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -70,6 +75,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * A {@code long} field of a strict columnar index that opts into
@@ -298,31 +304,16 @@ public class ColumnarLongCodecTests extends ESSingleNodeTestCase {
      * {@code SORTED_NUMERIC} doc values.
      */
     public void testIndexSortedByColumnarLong() throws IOException {
-        final boolean reverse = randomBoolean();
-        final boolean max = randomBoolean();
-        final boolean missingFirst = randomBoolean();
-        final Settings sort = Settings.builder()
-            .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), FIELD)
-            .put(IndexSortConfig.INDEX_SORT_ORDER_SETTING.getKey(), reverse ? "desc" : "asc")
-            .put(IndexSortConfig.INDEX_SORT_MODE_SETTING.getKey(), max ? "max" : "min")
-            .put(IndexSortConfig.INDEX_SORT_MISSING_SETTING.getKey(), missingFirst ? "_first" : "_last")
-            .build();
-        final IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
-        final boolean indexed = randomBoolean();
-        final String mapping = Strings.format("""
-            {"properties":{"@timestamp":{"type":"date"},"id":{"type":"keyword"},"l":{"type":"long","index":%s,"index_terms":%s}}}\
-            """, indexed, indexed && randomBoolean());
-        for (String index : List.of(WITH_CODEC, WITHOUT_CODEC)) {
-            final Settings settings = Settings.builder().put(settings(mode, index.equals(WITH_CODEC))).put(sort).build();
-            indicesAdmin().prepareCreate(index).setSettings(settings).setMapping(mapping).get();
-        }
+        final SortSpec spec = SortSpec.random();
+        createSortedIndices(spec.settings(), longMapping());
 
         final boolean singleValued = randomBoolean();
-        final List<String> ids = new ArrayList<>();
+        boolean anyValue = false;
         for (int d = between(1, 300); d > 0; d--) {
             final String id = Integer.toString(d);
-            ids.add(id);
-            final String source = source(id, randomValues(singleValued, true));
+            final List<Long> values = randomValues(singleValued, true);
+            anyValue |= hasValue(values);
+            final String source = source(id, values);
             for (String index : List.of(WITH_CODEC, WITHOUT_CODEC)) {
                 prepareIndex(index).setId(id).setSource(source, XContentType.JSON).get();
             }
@@ -334,26 +325,405 @@ public class ColumnarLongCodecTests extends ESSingleNodeTestCase {
             indicesAdmin().prepareForceMerge(WITH_CODEC, WITHOUT_CODEC).setMaxNumSegments(1).get();
         }
         indicesAdmin().prepareRefresh(WITH_CODEC, WITHOUT_CODEC).get();
+        assertSortedLikeSortedNumeric(spec, anyValue);
+    }
 
-        assertEquals(ColumnarFormat.NAME, fieldInfo(WITH_CODEC, FIELD).getAttribute("PerFieldDocValuesFormat.format"));
-        final IndexShard shard = getInstanceFromNode(IndicesService.class).indexServiceSafe(resolveIndex(WITH_CODEC)).getShard(0);
-        try (Engine.Searcher searcher = shard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
-            for (LeafReaderContext leaf : searcher.getLeafContexts()) {
-                final SortField sortField = leaf.reader().getMetaData().sort().getSort()[0];
-                assertEquals(
-                    new ColumnarNumericSortField(
-                        FIELD,
-                        SortField.Type.LONG,
-                        reverse,
-                        max,
-                        missingFirst ^ reverse ? Long.MIN_VALUE : Long.MAX_VALUE
-                    ),
-                    sortField
-                );
-                assertSegmentSorted(leaf.reader(), reverse, max, missingFirst);
-            }
+    /**
+     * An index sorted by a ColumNAR long, merged from several segments that hold deleted documents. The flushed segments are
+     * sorted from the indexing buffer's payloads, but the merged segment is sorted from the column, and the deletes shift the
+     * document ids it is read through, so a wrong merged order would go unnoticed by anything that only looks at one segment.
+     */
+    public void testIndexSortedByColumnarLongAcrossMergeWithDeletes() throws IOException {
+        final SortSpec spec = SortSpec.random();
+        createSortedIndices(spec.settings(), longMapping());
+
+        final int numDocs = between(100, 300);
+        final List<String> ids = new ArrayList<>();
+        for (int i = 0; i < numDocs; i++) {
+            ids.add(Integer.toString(i));
         }
-        assertNotNull(indicesAdmin().prepareSegments(WITH_CODEC).get());
+        Collections.shuffle(ids, random());
+        final int batches = between(3, 5);
+        final int perBatch = (numDocs + batches - 1) / batches;
+        for (int from = 0; from < numDocs; from += perBatch) {
+            final BulkRequestBuilder bulk = client().prepareBulk();
+            for (String id : ids.subList(from, Math.min(from + perBatch, numDocs))) {
+                final List<Long> values = switch (Integer.parseInt(id) % 6) {
+                    case 0 -> null;
+                    case 1 -> List.of();
+                    case 2 -> Arrays.asList(randomValue(), null, randomValue());
+                    // More values than the payload decode buffer starts with.
+                    case 3 -> randomList(9, 20, ColumnarLongCodecTests::randomValue);
+                    case 4 -> randomList(2, 5, ColumnarLongCodecTests::randomValue);
+                    default -> List.of(randomValue());
+                };
+                for (String index : List.of(WITH_CODEC, WITHOUT_CODEC)) {
+                    bulk.add(prepareIndex(index).setId(id).setSource(source(id, values), XContentType.JSON));
+                }
+            }
+            assertNoFailures(bulk.get());
+            indicesAdmin().prepareRefresh(WITH_CODEC, WITHOUT_CODEC).get();
+        }
+        for (String id : randomSubsetOf(numDocs / 5, ids)) {
+            client().prepareDelete(WITH_CODEC, id).get();
+            client().prepareDelete(WITHOUT_CODEC, id).get();
+        }
+        indicesAdmin().prepareRefresh(WITH_CODEC, WITHOUT_CODEC).get();
+        indicesAdmin().prepareForceMerge(WITH_CODEC, WITHOUT_CODEC).setMaxNumSegments(1).get();
+        indicesAdmin().prepareRefresh(WITH_CODEC, WITHOUT_CODEC).get();
+        assertEquals(1, segmentCount(WITH_CODEC));
+        assertSortedLikeSortedNumeric(spec, true);
+    }
+
+    /**
+     * Keys at either limit of a {@code long}, keys equal to the missing value, and duplicated keys, sorted first from the
+     * indexing buffer's payloads and then, merged with a second segment, from the column.
+     */
+    public void testIndexSortedByColumnarLongAtTheLimits() throws IOException {
+        final Map<String, List<Long>> docs = new LinkedHashMap<>();
+        docs.put("min", List.of(Long.MIN_VALUE));
+        docs.put("min-twice", List.of(Long.MIN_VALUE, Long.MIN_VALUE));
+        docs.put("max-and-min", List.of(Long.MAX_VALUE, Long.MIN_VALUE));
+        docs.put("zero", List.of(0L));
+        docs.put("zeros-and-five", List.of(0L, 0L, 5L));
+        docs.put("max", List.of(Long.MAX_VALUE));
+        docs.put("missing", null);
+        docs.put("empty", List.of());
+        final Map<String, List<Long>> late = Map.of("late", List.of(1L, 3L));
+
+        // By minimum, ascending: a missing document takes Long.MAX_VALUE, which ties it with "max".
+        final SortSpec minAscending = new SortSpec(false, false, false);
+        assertIndexOrder(
+            minAscending,
+            docs,
+            late,
+            List.of(Set.of("min", "min-twice", "max-and-min"), Set.of("zero", "zeros-and-five"), Set.of("max", "missing", "empty")),
+            List.of(
+                Set.of("min", "min-twice", "max-and-min"),
+                Set.of("zero", "zeros-and-five"),
+                Set.of("late"),
+                Set.of("max", "missing", "empty")
+            )
+        );
+
+        // By maximum, descending, missing first: a missing document again takes Long.MAX_VALUE, which ties it with every
+        // document whose maximum is Long.MAX_VALUE.
+        indicesAdmin().prepareDelete(WITH_CODEC).get();
+        final SortSpec maxDescending = new SortSpec(true, true, true);
+        assertIndexOrder(
+            maxDescending,
+            docs,
+            late,
+            List.of(Set.of("max-and-min", "max", "missing", "empty"), Set.of("zeros-and-five"), Set.of("zero"), Set.of("min", "min-twice")),
+            List.of(
+                Set.of("max-and-min", "max", "missing", "empty"),
+                Set.of("zeros-and-five"),
+                Set.of("late"),
+                Set.of("zero"),
+                Set.of("min", "min-twice")
+            )
+        );
+    }
+
+    /**
+     * Arrays longer than the eight values the payload decode buffer starts with, sorted first from the indexing buffer's
+     * payloads and then, merged with a second segment, from the column. Their minimum and maximum put them in different orders.
+     */
+    public void testIndexSortedByColumnarLongWithManyValues() throws IOException {
+        final Map<String, List<Long>> docs = new LinkedHashMap<>();
+        docs.put("a", shuffledList(List.of(10L, 11L, 12L, 13L, 14L, 15L, 16L, 17L, 18L, 19L, 20L, 21L)));
+        docs.put("b", shuffledList(List.of(5L, 30L, 7L, 8L, 9L, 11L, 12L, 13L, 14L)));
+        docs.put("c", List.of(15L));
+        final Map<String, List<Long>> late = Map.of("d", shuffledList(List.of(16L, 17L, 18L, 19L, 20L, 21L, 22L, 23L, 24L, 25L)));
+
+        assertIndexOrder(
+            new SortSpec(false, false, randomBoolean()),
+            docs,
+            late,
+            List.of(Set.of("b"), Set.of("a"), Set.of("c")),
+            List.of(Set.of("b"), Set.of("a"), Set.of("c"), Set.of("d"))
+        );
+        indicesAdmin().prepareDelete(WITH_CODEC).get();
+        assertIndexOrder(
+            new SortSpec(false, true, randomBoolean()),
+            docs,
+            late,
+            List.of(Set.of("c"), Set.of("a"), Set.of("b")),
+            List.of(Set.of("c"), Set.of("a"), Set.of("d"), Set.of("b"))
+        );
+    }
+
+    /**
+     * Creates {@link #WITH_CODEC} sorted by {@code spec}, indexes {@code docs} into one segment and checks its order, then
+     * indexes {@code late} into a second segment, merges the two and checks the order of the merged segment. Each order is a
+     * list of groups of ids, in the order the groups sort; ids within one group tie, so their order is not checked.
+     */
+    private void assertIndexOrder(
+        SortSpec spec,
+        Map<String, List<Long>> docs,
+        Map<String, List<Long>> late,
+        List<Set<String>> flushedOrder,
+        List<Set<String>> mergedOrder
+    ) throws IOException {
+        final Settings settings = Settings.builder().put(settings(IndexMode.COLUMNAR, true)).put(spec.settings()).build();
+        indicesAdmin().prepareCreate(WITH_CODEC).setSettings(settings).setMapping(longMapping()).get();
+        indexInto(WITH_CODEC, docs);
+        assertEquals(1, segmentCount(WITH_CODEC));
+        assertGroupedOrder(spec + " flushed", flushedOrder, indexOrder(WITH_CODEC));
+
+        indexInto(WITH_CODEC, late);
+        indicesAdmin().prepareForceMerge(WITH_CODEC).setMaxNumSegments(1).get();
+        indicesAdmin().prepareRefresh(WITH_CODEC).get();
+        assertEquals(1, segmentCount(WITH_CODEC));
+        assertGroupedOrder(spec + " merged", mergedOrder, indexOrder(WITH_CODEC));
+    }
+
+    private void indexInto(String index, Map<String, List<Long>> docs) {
+        final BulkRequestBuilder bulk = client().prepareBulk();
+        for (Map.Entry<String, List<Long>> doc : shuffledList(new ArrayList<>(docs.entrySet()))) {
+            bulk.add(prepareIndex(index).setId(doc.getKey()).setSource(source(doc.getKey(), doc.getValue()), XContentType.JSON));
+        }
+        assertNoFailures(bulk.get());
+        indicesAdmin().prepareRefresh(index).get();
+    }
+
+    /** The ids of the index's documents in index order, which is the order of its only shard's segments. */
+    private List<String> indexOrder(String index) {
+        final List<String> ids = new ArrayList<>();
+        assertResponse(client().prepareSearch(index).addSort("_doc", SortOrder.ASC).setSize(10_000), response -> {
+            for (SearchHit hit : response.getHits().getHits()) {
+                ids.add(hit.getId());
+            }
+        });
+        return ids;
+    }
+
+    private static void assertGroupedOrder(String description, List<Set<String>> expected, List<String> actual) {
+        final List<Set<String>> grouped = new ArrayList<>();
+        int from = 0;
+        for (Set<String> group : expected) {
+            final int to = Math.min(actual.size(), from + group.size());
+            grouped.add(new HashSet<>(actual.subList(from, to)));
+            from = to;
+        }
+        assertEquals(description + " " + actual, expected, grouped);
+        assertEquals(description + " " + actual, from, actual.size());
+    }
+
+    /**
+     * An index sorted by a ColumNAR long and then by a {@code double}, which keeps its {@link SortedNumericSortField}, agrees
+     * with one sorted the same way on {@code SORTED_NUMERIC} doc values, across segments, deletes and a merge.
+     */
+    public void testIndexSortedByColumnarLongThenDouble() throws IOException {
+        assertTwoFieldSortLikeSortedNumeric(true);
+    }
+
+    /** As {@link #testIndexSortedByColumnarLongThenDouble}, with the ColumNAR long second. */
+    public void testIndexSortedByDoubleThenColumnarLong() throws IOException {
+        assertTwoFieldSortLikeSortedNumeric(false);
+    }
+
+    private void assertTwoFieldSortLikeSortedNumeric(boolean longFirst) throws IOException {
+        final SortSpec longSpec = SortSpec.random();
+        final SortSpec doubleSpec = SortSpec.random();
+        final List<String> fields = longFirst ? List.of(FIELD, "d") : List.of("d", FIELD);
+        final List<SortSpec> specs = longFirst ? List.of(longSpec, doubleSpec) : List.of(doubleSpec, longSpec);
+        final Settings sort = Settings.builder()
+            .putList(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), fields)
+            .putList(IndexSortConfig.INDEX_SORT_ORDER_SETTING.getKey(), specs.stream().map(s -> s.reverse ? "desc" : "asc").toList())
+            .putList(IndexSortConfig.INDEX_SORT_MODE_SETTING.getKey(), specs.stream().map(s -> s.max ? "max" : "min").toList())
+            .putList(
+                IndexSortConfig.INDEX_SORT_MISSING_SETTING.getKey(),
+                specs.stream().map(s -> s.missingFirst ? "_first" : "_last").toList()
+            )
+            .build();
+        createSortedIndices(sort, """
+            {"properties":{"@timestamp":{"type":"date"},"id":{"type":"keyword"},"l":{"type":"long"},"d":{"type":"double"}}}""");
+
+        // Few distinct values, so that documents tie on the first field and the second decides.
+        final boolean singleValued = randomBoolean();
+        final List<String> ids = new ArrayList<>();
+        for (int batch = between(2, 4); batch > 0; batch--) {
+            final BulkRequestBuilder bulk = client().prepareBulk();
+            for (int i = between(20, 80); i > 0; i--) {
+                final String id = Integer.toString(ids.size());
+                ids.add(id);
+                final StringBuilder source = new StringBuilder("{\"@timestamp\":\"2024-01-01T00:00:00Z\",\"id\":\"").append(id).append('"');
+                if (randomInt(9) > 0) {
+                    final List<Long> values = singleValued
+                        ? List.of(randomLongBetween(-3, 3))
+                        : randomList(1, 4, () -> randomLongBetween(-3, 3));
+                    source.append(",\"l\":").append(values);
+                }
+                if (randomInt(9) > 0) {
+                    source.append(",\"d\":").append(randomFrom(-1.5, 0.0, 2.5, 10.0));
+                }
+                final String json = source.append('}').toString();
+                for (String index : List.of(WITH_CODEC, WITHOUT_CODEC)) {
+                    bulk.add(prepareIndex(index).setId(id).setSource(json, XContentType.JSON));
+                }
+            }
+            assertNoFailures(bulk.get());
+            indicesAdmin().prepareRefresh(WITH_CODEC, WITHOUT_CODEC).get();
+        }
+        for (String id : randomSubsetOf(ids.size() / 10, ids)) {
+            client().prepareDelete(WITH_CODEC, id).get();
+            client().prepareDelete(WITHOUT_CODEC, id).get();
+        }
+        indicesAdmin().prepareRefresh(WITH_CODEC, WITHOUT_CODEC).get();
+        if (randomBoolean()) {
+            indicesAdmin().prepareForceMerge(WITH_CODEC, WITHOUT_CODEC).setMaxNumSegments(1).get();
+            indicesAdmin().prepareRefresh(WITH_CODEC, WITHOUT_CODEC).get();
+        }
+
+        final int longPosition = fields.indexOf(FIELD);
+        forEachLeaf(WITH_CODEC, leaf -> {
+            final SortField[] sortFields = leaf.reader().getMetaData().sort().getSort();
+            assertEquals(longSpec.sortField(), sortFields[longPosition]);
+            assertThat(sortFields[1 - longPosition], instanceOf(SortedNumericSortField.class));
+        });
+        assertEquals(reportedSegmentSorts(WITHOUT_CODEC), reportedSegmentSorts(WITH_CODEC));
+
+        assertSameHits(QueryBuilders.rangeQuery(FIELD).gte(randomLongBetween(-3, 3)));
+        assertSameSort(SortOrder.ASC);
+        assertSameSort(SortOrder.DESC);
+        final int pageSize = between(1, 20);
+        final Supplier<List<CompositeValuesSourceBuilder<?>>> sources = () -> fields.stream()
+            .<CompositeValuesSourceBuilder<?>>map(
+                f -> new TermsValuesSourceBuilder(f).field(f).order(specs.get(fields.indexOf(f)).reverse ? SortOrder.DESC : SortOrder.ASC)
+            )
+            .toList();
+        assertEquals(compositeBuckets(WITHOUT_CODEC, sources, pageSize), compositeBuckets(WITH_CODEC, sources, pageSize));
+    }
+
+    /**
+     * A segment sorted by each document's minimum isn't in the order of every value it holds: documents {@code [30, 10]} and
+     * {@code [20, 12]} sort as 10 then 12, so their values come in the order 10, 30, 12, 20. A composite aggregation that
+     * stopped early on the index sort would close its first page of two on 10 and 30. It mustn't, and a document without a
+     * value changes nothing.
+     */
+    public void testCompositeOnMultiValuedIndexSort() throws IOException {
+        final SortSpec spec = new SortSpec(false, false, randomBoolean());
+        final Settings settings = Settings.builder().put(settings(IndexMode.COLUMNAR, true)).put(spec.settings()).build();
+        indicesAdmin().prepareCreate(WITH_CODEC).setSettings(settings).setMapping(longMapping()).get();
+        final Map<String, List<Long>> docs = new LinkedHashMap<>();
+        docs.put("a", List.of(30L, 10L));
+        docs.put("b", List.of(20L, 12L));
+        docs.put("missing", null);
+        indexInto(WITH_CODEC, docs);
+
+        final Supplier<List<CompositeValuesSourceBuilder<?>>> terms = () -> List.of(new TermsValuesSourceBuilder("l").field(FIELD));
+        assertEquals(
+            List.of(
+                List.of(Map.of("l", 10L), 1L),
+                List.of(Map.of("l", 12L), 1L),
+                List.of(Map.of("l", 20L), 1L),
+                List.of(Map.of("l", 30L), 1L)
+            ),
+            compositeBuckets(WITH_CODEC, terms, 2)
+        );
+    }
+
+    /**
+     * On a single-valued segment the composite aggregation does stop early on the index sort, and finds the first document
+     * after the after key with the sort's own comparator, which has to place a document without a value where the index did.
+     */
+    public void testCompositeOnSingleValuedIndexSortWithMissing() throws IOException {
+        final SortSpec spec = new SortSpec(randomBoolean(), randomBoolean(), randomBoolean());
+        final Settings settings = Settings.builder().put(settings(IndexMode.COLUMNAR, true)).put(spec.settings()).build();
+        indicesAdmin().prepareCreate(WITH_CODEC).setSettings(settings).setMapping(longMapping()).get();
+        final Map<String, List<Long>> docs = new LinkedHashMap<>();
+        docs.put("a", List.of(30L));
+        docs.put("b", List.of(10L));
+        docs.put("c", List.of(20L));
+        docs.put("d", List.of(12L));
+        docs.put("missing", null);
+        indexInto(WITH_CODEC, docs);
+
+        final SortOrder order = spec.reverse ? SortOrder.DESC : SortOrder.ASC;
+        final Supplier<List<CompositeValuesSourceBuilder<?>>> terms = () -> List.of(
+            new TermsValuesSourceBuilder("l").field(FIELD).order(order)
+        );
+        final List<Object> ascending = List.of(
+            List.of(Map.of("l", 10L), 1L),
+            List.of(Map.of("l", 12L), 1L),
+            List.of(Map.of("l", 20L), 1L),
+            List.of(Map.of("l", 30L), 1L)
+        );
+        final List<Object> expected = spec.reverse ? ascending.reversed() : ascending;
+        for (int pageSize = 1; pageSize <= 4; pageSize++) {
+            assertEquals(spec + " page size " + pageSize, expected, compositeBuckets(WITH_CODEC, terms, pageSize));
+        }
+    }
+
+    /** The order, mode and missing value of one field of an index sort. */
+    private record SortSpec(boolean reverse, boolean max, boolean missingFirst) {
+        static SortSpec random() {
+            return new SortSpec(randomBoolean(), randomBoolean(), randomBoolean());
+        }
+
+        /** The index sort settings that sort by {@link #FIELD} alone. */
+        Settings settings() {
+            return Settings.builder()
+                .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), FIELD)
+                .put(IndexSortConfig.INDEX_SORT_ORDER_SETTING.getKey(), reverse ? "desc" : "asc")
+                .put(IndexSortConfig.INDEX_SORT_MODE_SETTING.getKey(), max ? "max" : "min")
+                .put(IndexSortConfig.INDEX_SORT_MISSING_SETTING.getKey(), missingFirst ? "_first" : "_last")
+                .build();
+        }
+
+        /** The value a document without one sorts as. */
+        long missing() {
+            return missingFirst ^ reverse ? Long.MIN_VALUE : Long.MAX_VALUE;
+        }
+
+        /** The sort field a ColumNAR long sorts the index with. */
+        ColumnarNumericSortField sortField() {
+            return new ColumnarNumericSortField(FIELD, SortField.Type.LONG, reverse, max, missing());
+        }
+    }
+
+    private static String longMapping() {
+        final boolean indexed = randomBoolean();
+        return Strings.format("""
+            {"properties":{"@timestamp":{"type":"date"},"id":{"type":"keyword"},"l":{"type":"long","index":%s,"index_terms":%s}}}\
+            """, indexed, indexed && randomBoolean());
+    }
+
+    /** Creates {@link #WITH_CODEC} and {@link #WITHOUT_CODEC} in the same columnar mode with the same index sort. */
+    private void createSortedIndices(Settings sort, String mapping) {
+        final IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
+        for (String index : List.of(WITH_CODEC, WITHOUT_CODEC)) {
+            final Settings settings = Settings.builder().put(settings(mode, index.equals(WITH_CODEC))).put(sort).build();
+            indicesAdmin().prepareCreate(index).setSettings(settings).setMapping(mapping).get();
+        }
+    }
+
+    private static boolean hasValue(List<Long> values) {
+        return values != null && values.stream().anyMatch(Objects::nonNull);
+    }
+
+    /**
+     * Each segment of {@link #WITH_CODEC}, sorted by {@link #FIELD} alone as {@code spec} says, records the sort and is in its
+     * order; the segments API reports the sort as the {@code SORTED_NUMERIC} index does; and searches, sorts, aggregations and
+     * composite pages agree with that index.
+     */
+    private void assertSortedLikeSortedNumeric(SortSpec spec, boolean anyValue) throws IOException {
+        if (anyValue) {
+            assertEquals(ColumnarFormat.NAME, fieldInfo(WITH_CODEC, FIELD).getAttribute("PerFieldDocValuesFormat.format"));
+        }
+        forEachLeaf(WITH_CODEC, leaf -> {
+            assertEquals(spec.sortField(), leaf.reader().getMetaData().sort().getSort()[0]);
+            assertSegmentSorted(leaf.reader(), spec.reverse, spec.max, spec.missingFirst);
+        });
+        final Map<String, Object> reported = new LinkedHashMap<>();
+        reported.put("field", FIELD);
+        reported.put("mode", spec.max ? "max" : "min");
+        reported.put("missing", Long.toString(spec.missing()));
+        reported.put("reverse", spec.reverse);
+        final Set<Object> sorts = reportedSegmentSorts(WITH_CODEC);
+        assertEquals(Set.of(List.of(reported)), sorts);
+        assertEquals(reportedSegmentSorts(WITHOUT_CODEC), sorts);
 
         assertSameHits(QueryBuilders.rangeQuery(FIELD).gte(randomLongBetween(-100, 100)));
         assertSameHits(QueryBuilders.existsQuery(FIELD));
@@ -362,15 +732,47 @@ public class ColumnarLongCodecTests extends ESSingleNodeTestCase {
         assertSameAggregations();
         final SortOrder compositeOrder = randomFrom(SortOrder.values());
         final int pageSize = between(1, 50);
-        final Supplier<CompositeValuesSourceBuilder<?>> terms = () -> new TermsValuesSourceBuilder("l").field(FIELD).order(compositeOrder);
+        final Supplier<List<CompositeValuesSourceBuilder<?>>> terms = () -> List.of(
+            new TermsValuesSourceBuilder("l").field(FIELD).order(compositeOrder)
+        );
         assertEquals(compositeBuckets(WITHOUT_CODEC, terms, pageSize), compositeBuckets(WITH_CODEC, terms, pageSize));
         // A rounded source can't use a ColumNAR index sort to terminate early. Its pages are checked against a single page of
         // every bucket rather than the SORTED_NUMERIC index's pages, which can undercount a bucket that spans two pages when
         // they terminate early on the rounded index sort.
-        final Supplier<CompositeValuesSourceBuilder<?>> rounded = () -> new DateHistogramValuesSourceBuilder("l").field(FIELD)
-            .fixedInterval(new DateHistogramInterval("10ms"))
-            .order(compositeOrder);
+        final Supplier<List<CompositeValuesSourceBuilder<?>>> rounded = () -> List.of(
+            new DateHistogramValuesSourceBuilder("l").field(FIELD).fixedInterval(new DateHistogramInterval("10ms")).order(compositeOrder)
+        );
         assertEquals(compositeBuckets(WITHOUT_CODEC, rounded, 10_000), compositeBuckets(WITH_CODEC, rounded, pageSize));
+    }
+
+    /** The index sort each segment of {@code index} reports through the segments API. */
+    private Set<Object> reportedSegmentSorts(String index) throws IOException {
+        final IndicesSegmentResponse response = indicesAdmin().prepareSegments(index).get();
+        final BytesReference rendered = XContentHelper.toXContent(response, XContentType.JSON, false);
+        final Map<String, Object> map = XContentHelper.convertToMap(rendered, false, XContentType.JSON).v2();
+        final Set<Object> sorts = new HashSet<>();
+        for (Object copy : (List<?>) ObjectPath.eval("indices." + index + ".shards.0", map)) {
+            for (Object segment : ((Map<?, ?>) ((Map<?, ?>) copy).get("segments")).values()) {
+                sorts.add(((Map<?, ?>) segment).get("sort"));
+            }
+        }
+        assertFalse("no segments in [" + index + "]", sorts.isEmpty());
+        return sorts;
+    }
+
+    private int segmentCount(String index) throws IOException {
+        final int[] count = { 0 };
+        forEachLeaf(index, leaf -> count[0]++);
+        return count[0];
+    }
+
+    private void forEachLeaf(String index, CheckedConsumer<LeafReaderContext, IOException> consumer) throws IOException {
+        final IndexShard shard = getInstanceFromNode(IndicesService.class).indexServiceSafe(resolveIndex(index)).getShard(0);
+        try (Engine.Searcher searcher = shard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
+            for (LeafReaderContext leaf : searcher.getLeafContexts()) {
+                consumer.accept(leaf);
+            }
+        }
     }
 
     /** Each document's sort key, in doc id order, never goes against the index sort. */
@@ -399,14 +801,12 @@ public class ColumnarLongCodecTests extends ESSingleNodeTestCase {
         }
     }
 
-    /** All buckets of a composite aggregation over the field, which can use the index sort to terminate early. */
-    private List<Object> compositeBuckets(String index, Supplier<CompositeValuesSourceBuilder<?>> source, int pageSize) {
+    /** All buckets of a composite aggregation over the given sources, which can use the index sort to terminate early. */
+    private List<Object> compositeBuckets(String index, Supplier<List<CompositeValuesSourceBuilder<?>>> sources, int pageSize) {
         final List<Object> buckets = new ArrayList<>();
         final AtomicReference<Map<String, Object>> after = new AtomicReference<>();
         do {
-            final CompositeAggregationBuilder composite = new CompositeAggregationBuilder("composite", List.of(source.get())).size(
-                pageSize
-            );
+            final CompositeAggregationBuilder composite = new CompositeAggregationBuilder("composite", sources.get()).size(pageSize);
             if (after.get() != null) {
                 composite.aggregateAfter(after.get());
             }

@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
 
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
@@ -57,6 +58,7 @@ public class AnalyzerContext {
     private final Set<String> deferredHeaderWarnings;
     private final Set<String> subqueryNonLoadableNullFills;
     private final Set<ViewBoundaryNullFill> viewBoundaryNullFills;
+    private final Map<String, UnmappedReference> unmappedReferences;
     private final TimestampBounds timestampBounds;
     private final IpLocationResolution ipLocationResolution;
     private final boolean preserveViewBoundaries;
@@ -154,6 +156,7 @@ public class AnalyzerContext {
         this.deferredHeaderWarnings = new LinkedHashSet<>();
         this.subqueryNonLoadableNullFills = new LinkedHashSet<>();
         this.viewBoundaryNullFills = new LinkedHashSet<>();
+        this.unmappedReferences = new LinkedHashMap<>();
         this.timestampBounds = timestampBounds;
         this.ipLocationResolution = ipLocationResolution;
         this.preserveViewBoundaries = preserveViewBoundaries;
@@ -192,6 +195,7 @@ public class AnalyzerContext {
         this.deferredHeaderWarnings = other.deferredHeaderWarnings;
         this.subqueryNonLoadableNullFills = other.subqueryNonLoadableNullFills;
         this.viewBoundaryNullFills = other.viewBoundaryNullFills;
+        this.unmappedReferences = other.unmappedReferences;
         this.timestampBounds = other.timestampBounds;
         this.ipLocationResolution = other.ipLocationResolution;
         this.preserveViewBoundaries = other.preserveViewBoundaries;
@@ -346,6 +350,23 @@ public class AnalyzerContext {
 
     /** {@code fieldName} was answered with null at the output of {@code boundary}'s view. */
     public record ViewBoundaryNullFill(ViewBoundary boundary, String fieldName) {}
+
+    /**
+     * Every field the caller's query references that {@code SET unmapped_fields} nullified or loaded from {@code _source}, keyed by
+     * name. View bodies are not the caller's to fix, so their references are not here. Once analysis succeeds, the ones with a
+     * {@link UnmappedReference#suggestion} are warned about as likely typos; the rest only keep later suggestions from naming a field
+     * that is itself missing.
+     */
+    public Map<String, UnmappedReference> unmappedReferences() {
+        return unmappedReferences;
+    }
+
+    /**
+     * {@code name} has no mapping and was {@code loaded} from {@code _source} or else nullified. {@code suggestion} is an in-scope
+     * column whose name is a likely typo of {@code name}, or {@code null} when there is none or nothing but a {@code DROP} references
+     * {@code name}.
+     */
+    public record UnmappedReference(String name, boolean loaded, @Nullable String suggestion) {}
 
     /**
      * Returns the {@code @timestamp} bounds extracted from the query DSL filter, or {@code null} if not available.

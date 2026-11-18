@@ -76,7 +76,10 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.MAX_LISTED_NON_LOADABLE_PUNKS;
+import static org.elasticsearch.xpack.esql.analysis.Analyzer.MAX_LISTED_UNMAPPED_TYPOS;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.nonLoadablePunksWarning;
+import static org.elasticsearch.xpack.esql.analysis.Analyzer.unmappedTypoWarning;
+import static org.elasticsearch.xpack.esql.analysis.Analyzer.unmappedTypoWarnings;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.fieldCapabilitiesIndexResponse;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.fieldResponseMap;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
@@ -84,6 +87,7 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.mergedReso
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
@@ -93,6 +97,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 // @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
@@ -1282,6 +1287,213 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         expected.addAll(List.of("does_not_exist", "x"));
         assertThat(body, Expressions.names(plan.output()), equalTo(expected));
         new LogicalPlanOptimizer(unboundLogicalOptimizerContext()).optimize(plan);
+    }
+
+    /**
+     * A missing field one typo away from an in-scope column is warned about under every mode that resolves it, naming the column;
+     * the outcome, null or loaded from {@code _source}, follows the mode.
+     */
+    public void testUnmappedTypoWarning() {
+        test().statement(setUnmappedNullify("FROM test | WHERE fist_name == \"Georgi\""));
+        assertWarnings("Field [fist_name] is not mapped and is null; did you mean [first_name]?");
+
+        test().statement(setUnmappedLoad("FROM test | WHERE fist_name == \"Georgi\""));
+        assertWarnings("Field [fist_name] is not mapped and is loaded from _source as KEYWORD; did you mean [first_name]?");
+
+        test().statement(setUnmappedLoadAll("FROM test | KEEP emp_on"));
+        assertWarnings("Field [emp_on] is not mapped and is loaded from _source as KEYWORD; did you mean [emp_no]?");
+    }
+
+    /**
+     * Several typos share one warning, with the suggestions in the same order as the fields. A missing field with no column within
+     * {@code fuzziness: AUTO} of its name is not a likely typo and is left out.
+     */
+    public void testUnmappedTypoWarningListsAllTypos() {
+        test().statement(setUnmappedNullify("FROM test | EVAL x = CONCAT(fist_name, lst_name), y = salry, z = does_not_exist, w = foo"));
+        assertWarnings(
+            "Fields [fist_name], [lst_name], [salry] are not mapped and are null; did you mean [first_name], [last_name], [salary]?"
+        );
+    }
+
+    /**
+     * {@code fuzziness: AUTO} allows no edit below three characters, one up to five and two from six, so a short name has to match
+     * more closely than a long one.
+     */
+    public void testUnmappedTypoWarningFollowsFuzzinessAuto() {
+        TestAnalyzer analyzer = analyzer().addIndex(
+            standardIndex("idx", Map.of("ab", keywordField("ab"), "abcd", keywordField("abcd"), "abcdefgh", keywordField("abcdefgh")))
+        );
+        // Two characters: no edit allowed.
+        analyzer.statement(setUnmappedNullify("FROM idx | KEEP ac"));
+        // Four characters: one edit, but not two.
+        analyzer.statement(setUnmappedNullify("FROM idx | KEEP abcx, axcx"));
+        assertWarnings("Field [abcx] is not mapped and is null; did you mean [abcd]?");
+        // Eight characters: two edits, but not three; a transposition is one edit.
+        analyzer.statement(setUnmappedNullify("FROM idx | KEEP abcdefxx, abcdexxx, bacdefgh"));
+        assertWarnings("Fields [abcdefxx], [bacdefgh] are not mapped and are null; did you mean [abcdefgh], [abcdefgh]?");
+    }
+
+    /**
+     * A name that is the parent or a sub-field of a column refers to the object or its field, not to a misspelled column.
+     */
+    public void testUnmappedTypoWarningSkipsParentAndSubFields() {
+        TestAnalyzer analyzer = analyzer().addIndex(
+            standardIndex("idx", Map.of("objarr.j", keywordField("objarr.j"), "objects", keywordField("objects")))
+        );
+        // objarr is two edits from its sub-field objarr.j, and objects.a two from its parent objects; objectz is one from objects.
+        analyzer.statement(setUnmappedNullify("FROM idx | EVAL x = objarr, y = objects.a, z = objectz"));
+        assertWarnings("Field [objectz] is not mapped and is null; did you mean [objects]?");
+    }
+
+    /**
+     * The suggestion is the closest in-scope column, which can be one the query computed, and ties go to the column that comes first.
+     */
+    public void testUnmappedTypoWarningSuggestsClosestInScopeColumn() {
+        test().statement(setUnmappedNullify("FROM test | EVAL total = salary * 2 | KEEP totl"));
+        assertWarnings("Field [totl] is not mapped and is null; did you mean [total]?");
+
+        TestAnalyzer analyzer = analyzer().addIndex(
+            standardIndex("idx", Map.of("status", keywordField("status"), "statue", keywordField("statue")))
+        );
+        // One edit from both: the first column wins.
+        analyzer.statement(setUnmappedNullify("FROM idx | KEEP statu"));
+        String first = Expressions.names(analyzer.statement("FROM idx").output()).getFirst();
+        assertWarnings("Field [statu] is not mapped and is null; did you mean [" + first + "]?");
+        // One edit from status, two from statue.
+        analyzer.statement(setUnmappedNullify("FROM idx | KEEP sttaus"));
+        assertWarnings("Field [sttaus] is not mapped and is null; did you mean [status]?");
+    }
+
+    /**
+     * A field the rule itself added is missing too, so it is never the suggestion, whether it was added in the same pass or an
+     * earlier one.
+     */
+    public void testUnmappedTypoWarningNeverSuggestsMissingField() {
+        test().statement(setUnmappedNullify("FROM test | EVAL x = missing_1, y = missing_2"));
+        test().statement(setUnmappedNullify("FROM test | EVAL x = missing_1 | EVAL y = missing_2"));
+        test().statement(setUnmappedLoad("FROM test | EVAL x = missing_1 | WHERE missing_2 IS NULL"));
+    }
+
+    /**
+     * Dropping a missing field is harmless, so a typo that only DROP references is silent; RENAME, like every other command,
+     * warns.
+     */
+    public void testUnmappedTypoWarningSkipsDrop() {
+        test().statement(setUnmappedNullify("FROM test | DROP fist_name"));
+        test().statement(setUnmappedNullify("FROM test | RENAME fist_name AS name"));
+        assertWarnings("Field [fist_name] is not mapped and is null; did you mean [first_name]?");
+    }
+
+    /**
+     * A ROW has no mapping either: its columns are the in-scope candidates.
+     */
+    public void testUnmappedTypoWarningOverRow() {
+        analyzer().statement(setUnmappedNullify("ROW status = 200 | WHERE sttaus == 200"));
+        assertWarnings("Field [sttaus] is not mapped and is null; did you mean [status]?");
+    }
+
+    /**
+     * A subquery is part of the caller's query, so its typos are warned about too.
+     */
+    public void testUnmappedTypoWarningInSubquery() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        test().statement(setUnmappedNullify("FROM test, (FROM test | WHERE fist_name IS NULL) | KEEP emp_no"));
+        assertWarnings("Field [fist_name] is not mapped and is null; did you mean [first_name]?");
+    }
+
+    /**
+     * A field that one subquery's index maps is not a typo where another subquery's index lacks it, even if that index maps a
+     * similar name.
+     */
+    public void testUnmappedTypoWarningSkipsFieldMappedElsewhere() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        TestAnalyzer analyzer = analyzer().addIndex(standardIndex("tx_idx", Map.of("bytes_tx", keywordField("bytes_tx"))))
+            .addIndex(standardIndex("rx_idx", Map.of("bytes_rx", keywordField("bytes_rx"), "status", keywordField("status"))));
+        // bytes_tx is one edit from bytes_rx, which rx_idx maps, but tx_idx maps bytes_tx itself.
+        analyzer.statement(setUnmappedNullify("FROM (FROM tx_idx), (FROM rx_idx | KEEP bytes_tx, status) | KEEP bytes_tx"));
+        analyzer.statement(setUnmappedNullify("FROM (FROM tx_idx), (FROM rx_idx | KEEP bytes_tx, sttaus) | KEEP bytes_tx"));
+        assertWarnings("Field [sttaus] is not mapped and is null; did you mean [status]?");
+    }
+
+    /**
+     * A view body is not the caller's query to fix, so a typo in it is silent, whether the view SETs the mode itself or the caller
+     * does. The caller's own typo of a column the view outputs still warns.
+     */
+    public void testUnmappedTypoWarningSkipsViewBodies() {
+        assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        TestAnalyzer analyzer = test().addView("v", "SET unmapped_fields=\"nullify\";\nFROM test | EVAL x = fist_name");
+        analyzer.statement("FROM v");
+        analyzer.statement(setUnmappedNullify("FROM v"));
+        analyzer.statement(setUnmappedNullify("FROM v | KEEP lst_name"));
+        assertWarnings("Field [lst_name] is not mapped and is null; did you mean [last_name]?");
+    }
+
+    /**
+     * PROMQL handles missing labels and metrics itself, so a typo inside it is silent.
+     */
+    public void testUnmappedTypoWarningSkipsPromQl() {
+        TestAnalyzer analyzer = test().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES);
+        assertTrue(analyzer.statement(setUnmappedNullify("PROMQL index=test step=5m sum(network.bytes_inn)")).resolved());
+    }
+
+    /**
+     * Like every analysis warning, the typo warning is only emitted once the query passes verification.
+     */
+    public void testUnmappedTypoWarningNotEmittedWhenVerificationFails() {
+        test().statementError(
+            setUnmappedNullify("FROM test | EVAL x = fist_name | WHERE first_name + 1 > 0"),
+            containsString("first_name")
+        );
+        assertWarnings();
+    }
+
+    /**
+     * The warning lists at most {@link Analyzer#MAX_LISTED_UNMAPPED_TYPOS} fields with their suggestions and only counts the rest.
+     */
+    public void testUnmappedTypoWarningCapsFields() {
+        List<AnalyzerContext.UnmappedReference> typos = new ArrayList<>();
+        int count = MAX_LISTED_UNMAPPED_TYPOS + between(1, 5);
+        for (int i = 0; i < count; i++) {
+            typos.add(new AnalyzerContext.UnmappedReference("fielx_" + i, randomBoolean(), "field_" + i));
+        }
+        String warning = unmappedTypoWarning(typos, false);
+        assertThat(warning, startsWith("Fields [fielx_0], [fielx_1], "));
+        assertThat(
+            warning,
+            containsString("[fielx_9] and [" + (count - MAX_LISTED_UNMAPPED_TYPOS) + "] more are not mapped and are null;")
+        );
+        assertThat(
+            warning,
+            endsWith(
+                "; did you mean [field_0], [field_1], [field_2], [field_3], [field_4], [field_5], [field_6], "
+                    + "[field_7], [field_8], [field_9]?"
+            )
+        );
+        assertThat(warning, not(containsString("fielx_10")));
+    }
+
+    /**
+     * References without a suggestion only keep later suggestions honest and are never warned about; nullified and loaded fields
+     * get a warning each.
+     */
+    public void testUnmappedTypoWarningsPerOutcome() {
+        assertThat(unmappedTypoWarnings(List.of(new AnalyzerContext.UnmappedReference("does_not_exist", false, null)), Set.of()), empty());
+        assertThat(
+            unmappedTypoWarnings(
+                List.of(
+                    new AnalyzerContext.UnmappedReference("fist_name", false, "first_name"),
+                    new AnalyzerContext.UnmappedReference("does_not_exist", true, null),
+                    new AnalyzerContext.UnmappedReference("lst_name", true, "last_name")
+                ),
+                Set.of()
+            ),
+            equalTo(
+                List.of(
+                    "Field [fist_name] is not mapped and is null; did you mean [first_name]?",
+                    "Field [lst_name] is not mapped and is loaded from _source as KEYWORD; did you mean [last_name]?"
+                )
+            )
+        );
     }
 
     public void testLoadModeDisallowsCrossBranchTypeConflict() {

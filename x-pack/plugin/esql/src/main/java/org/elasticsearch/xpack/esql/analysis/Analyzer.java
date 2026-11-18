@@ -420,7 +420,85 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         // verify throws on failure, so we only reach here once the plan is valid: flush the warnings deferred during analysis.
         context().deferredHeaderWarnings().forEach(HeaderWarning::addWarning);
         viewBoundaryNullFillWarnings(context().viewBoundaryNullFills()).forEach(HeaderWarning::addWarning);
+        // PROMQL answers an absent metric or label with no data on its own terms, and makes the session nullify the caller's whole
+        // query whatever it SETs, so its nulls are not the outcome of a SET unmapped_fields the user wrote.
+        if (ViewUtils.anyMatchOutsideViews(plan, p -> p instanceof PromqlCommand) == false) {
+            unmappedTypoWarnings(context().unmappedReferences().values(), mappedFieldNames(verified)).forEach(HeaderWarning::addWarning);
+        }
         return verified;
+    }
+
+    /**
+     * Upper bound on the fields listed in an {@link #unmappedTypoWarning}; any further fields are only counted. Each listed field
+     * comes with its suggestion, so this lists about as many names as {@link #MAX_LISTED_NON_LOADABLE_PUNKS}.
+     */
+    static final int MAX_LISTED_UNMAPPED_TYPOS = 10;
+
+    /**
+     * At most one warning per outcome, nullified or loaded, about the fields the caller's {@code SET unmapped_fields} resolved
+     * although they are likely typos of an existing column: a query with {@code WHERE sttaus == 200} otherwise just returns no rows.
+     * A field that some index of the query maps, {@code mappedFields}, is not a typo even where a branch of the query lacks it, e.g.
+     * a subquery over an index that does not map it next to one over an index that does.
+     */
+    static List<String> unmappedTypoWarnings(Collection<AnalyzerContext.UnmappedReference> references, Set<String> mappedFields) {
+        List<AnalyzerContext.UnmappedReference> nullified = new ArrayList<>();
+        List<AnalyzerContext.UnmappedReference> loaded = new ArrayList<>();
+        for (AnalyzerContext.UnmappedReference reference : references) {
+            if (reference.suggestion() != null && mappedFields.contains(reference.name()) == false) {
+                (reference.loaded() ? loaded : nullified).add(reference);
+            }
+        }
+        List<String> warnings = new ArrayList<>(2);
+        if (nullified.isEmpty() == false) {
+            warnings.add(unmappedTypoWarning(nullified, false));
+        }
+        if (loaded.isEmpty() == false) {
+            warnings.add(unmappedTypoWarning(loaded, true));
+        }
+        return warnings;
+    }
+
+    /**
+     * The names of the fields that the indices read by {@code plan} map, anywhere in it: not the fields {@code SET unmapped_fields}
+     * nullified or loaded from {@code _source} as {@link PotentiallyUnmappedKeywordEsField}s.
+     */
+    private static Set<String> mappedFieldNames(LogicalPlan plan) {
+        Set<String> names = new HashSet<>();
+        plan.forEachDown(EsRelation.class, relation -> {
+            for (Attribute attribute : relation.output()) {
+                if (attribute instanceof FieldAttribute fa
+                    && fa.field() instanceof MissingEsField == false
+                    && fa.field() instanceof PotentiallyUnmappedKeywordEsField == false) {
+                    names.add(fa.name());
+                }
+            }
+        });
+        return names;
+    }
+
+    // visible for testing
+    static String unmappedTypoWarning(List<AnalyzerContext.UnmappedReference> typos, boolean loaded) {
+        assert typos.isEmpty() == false : "no fields to warn about";
+        int listed = Math.min(typos.size(), MAX_LISTED_UNMAPPED_TYPOS);
+        StringBuilder fields = new StringBuilder();
+        StringBuilder suggestions = new StringBuilder();
+        for (int i = 0; i < listed; i++) {
+            fields.append(i == 0 ? "[" : ", [").append(typos.get(i).name()).append("]");
+            suggestions.append(i == 0 ? "[" : ", [").append(typos.get(i).suggestion()).append("]");
+        }
+        if (typos.size() > listed) {
+            fields.append(" and [").append(typos.size() - listed).append("] more");
+        }
+        boolean one = typos.size() == 1;
+        return Strings.format(
+            "Field%s %s %s not mapped and %s %s; did you mean %s?",
+            one ? "" : "s",
+            fields,
+            one ? "is" : "are",
+            one ? "is" : "are",
+            loaded ? "loaded from _source as KEYWORD" : "null",
+            suggestions
+        );
     }
 
     /**

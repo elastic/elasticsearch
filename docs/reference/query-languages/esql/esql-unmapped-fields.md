@@ -41,6 +41,8 @@ The `unmapped_fields` setting accepts the following values, which range from str
 | `LOAD` {applies_to}`stack: preview =9.4, ga 9.5+` | Loads the unmapped fields that the query names from [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) as `keyword`, or `null` if absent. Also loads partially mapped fields in the indices where they're unmapped. | You need the real values of a fully or partially unmapped field, so that you can filter or aggregate on it. |
 | `LOAD_ALL` {applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview` | Does everything `LOAD` does. In addition, returns every unmapped field that the query does not name in a single `_unmapped_fields` column, so you can discover fields without knowing their names. | You want to explore documents whose fields you don't know yet. |
 
+{applies_to}`stack: ga 9.7+` If a field that `NULLIFY`, `LOAD`, or `LOAD_ALL` returns as `null` or loads from `_source` looks like a misspelling of a column the query can see, the response includes a warning that suggests that column, for example `Field [sttaus] is not mapped and is null; did you mean [status]?`. A name counts as a misspelling when it's within the edit distance that [`fuzziness: AUTO`](/reference/elasticsearch/rest-apis/common-options.md#fuzziness) allows and no queried index maps it. Names that only a `DROP` or a view definition references don't trigger the warning.
+
 For the full syntax, refer to the [`SET unmapped_fields`](directives/set.md#esql-unmapped_fields) reference.
 
 :::{tip}

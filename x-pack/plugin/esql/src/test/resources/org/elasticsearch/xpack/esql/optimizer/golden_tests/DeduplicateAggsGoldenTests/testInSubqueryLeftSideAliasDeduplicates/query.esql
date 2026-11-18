@@ -1,0 +1,4 @@
+FROM employees
+| EVAL s2 = salary
+| WHERE emp_no IN (FROM employees | KEEP emp_no)
+| STATS a = MIN(s2), b = MIN(salary)

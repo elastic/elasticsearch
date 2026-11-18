@@ -1788,11 +1788,12 @@ public class EsqlSession {
 
     /**
      * The smallest {@code index.max_terms_count} of the indices {@code relation} reads, as shards reject a longer {@code terms} query.
-     * {@code 0} when unknown: an index on a remote cluster, or one the metadata does not hold. Also {@code 0} when expensive queries are
-     * not allowed, as a field that keeps only doc values cannot then be queried by a {@code terms} query.
+     * {@code 0} when unknown: an index on a remote cluster, or one the metadata does not hold. When expensive queries are not allowed the
+     * limit is capped at the default, as a field that keeps only doc values cannot then be queried by a {@code terms} query and the
+     * planner cannot see which fields those are.
      */
     static int maxIndexedValues(EsRelation relation, @Nullable ProjectMetadata projectMetadata, boolean allowExpensiveQueries) {
-        if (projectMetadata == null || allowExpensiveQueries == false) {
+        if (projectMetadata == null) {
             return 0;
         }
         for (String cluster : relation.concreteIndices().keySet()) {
@@ -1810,7 +1811,10 @@ public class EsqlSession {
                 max = Math.min(max, IndexSettings.MAX_TERMS_COUNT_SETTING.get(metadata.getSettings()));
             }
         }
-        return max == Integer.MAX_VALUE ? 0 : max;
+        if (max == Integer.MAX_VALUE) {
+            return 0;
+        }
+        return allowExpensiveQueries ? max : Math.min(max, AbstractSubqueryJoin.DEFAULT_FILTER_PATH_MAX_VALUES);
     }
 
     private static void releaseLocalRelationBlocks(AtomicReference<Page> localRelationPage) {

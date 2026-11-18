@@ -184,7 +184,7 @@ public abstract class AbstractSubqueryJoin extends Join implements SortPreservin
             return null;
         }
         Attribute leftField = config().leftFields().get(0);
-        if (leftField instanceof FieldAttribute key && key.dataType() != DataType.DATETIME && key.dataType() != DataType.DATE_NANOS) {
+        if (leftField instanceof FieldAttribute key && key.dataType().isDate() == false) {
             // Placeholder list: only pushability matters. A NULL literal reports YES_BUT_RECHECK_NEGATED, still pushed for a positive IN.
             In probe = new In(source(), key, List.of(new Literal(source(), null, key.dataType())));
             Translatable translatable = probe.translatable(LucenePushdownPredicates.DEFAULT);

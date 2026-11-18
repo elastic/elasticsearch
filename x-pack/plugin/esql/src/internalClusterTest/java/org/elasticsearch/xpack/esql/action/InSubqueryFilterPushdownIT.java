@@ -29,6 +29,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
@@ -190,15 +191,33 @@ public class InSubqueryFilterPushdownIT extends AbstractEsqlIntegTestCase {
      */
     public void testDocValuesOnlyKeywordWithExpensiveQueriesDisabledStaysOnHashJoin() {
         createEvents("events", null, "type=keyword,index=false");
+
+        QueryResult result = withExpensiveQueriesDisabled(() -> query("events", MANY_VALUES, getPragmas()));
+
+        assertThat(result.matches(), equalTo((long) MANY_VALUES));
+        assertThat(result.rowsRead(), greaterThanOrEqualTo((long) DOCS));
+    }
+
+    /**
+     * Disabling expensive queries stops the limit from being raised, but a known {@code index.max_terms_count} below the default still
+     * applies, as a shard rejects a longer {@code terms} query on an indexed field whether or not expensive queries are allowed.
+     */
+    public void testLowMaxTermsCountIsHonoredWithExpensiveQueriesDisabled() {
+        createEvents("events", 50, "type=keyword");
+        int values = 75;
+
+        QueryResult result = withExpensiveQueriesDisabled(() -> query("events", values, getPragmas()));
+
+        assertThat(result.matches(), equalTo((long) values));
+    }
+
+    private QueryResult withExpensiveQueriesDisabled(Supplier<QueryResult> query) {
         assertAcked(
             clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                 .setPersistentSettings(Settings.builder().put("search.allow_expensive_queries", false))
         );
         try {
-            QueryResult result = query("events", MANY_VALUES, getPragmas());
-
-            assertThat(result.matches(), equalTo((long) MANY_VALUES));
-            assertThat(result.rowsRead(), greaterThanOrEqualTo((long) DOCS));
+            return query.get();
         } finally {
             assertAcked(
                 clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
@@ -215,7 +234,7 @@ public class InSubqueryFilterPushdownIT extends AbstractEsqlIntegTestCase {
                 .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
                 .setMapping("d", "type=date,format=yyyy-MM-dd HH:mm:ss", "marker", "type=long")
         );
-        DateTimeFormatter format = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneOffset.UTC);
+        DateTimeFormatter format = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss", Locale.ROOT).withZone(ZoneOffset.UTC);
         Instant start = Instant.parse("2015-01-01T00:00:00Z");
         BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < DOCS; i++) {

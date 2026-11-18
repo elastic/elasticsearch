@@ -469,3 +469,8 @@ tests:
   - :x-pack:plugin:ml:internalClusterTest
   method: testDedicatedMlNode
   issue: https://github.com/elastic/elasticsearch/issues/166408
+- class: org.elasticsearch.xpack.searchablesnapshots.cache.blob.SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests
+  tasks:
+  - :x-pack:plugin:searchable-snapshots:internalClusterTest
+  method: testCleanUpMigratedSystemIndexAfterIndicesAreDeleted
+  issue: https://github.com/elastic/elasticsearch/issues/166411

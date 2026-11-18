@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 166562
+summary: Add global service account manage privilege
+type: enhancement

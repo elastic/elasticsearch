@@ -47,7 +47,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.fail;
 
 /**
- * Shared utilities for testing the ES|QL streaming API ({@code POST /_query?streaming=true}).
+ * Shared utilities for testing the ES|QL streaming API ({@code POST /_query/stream}).
  * The main entry point is {@link #stream}, which drives a streaming NDJSON consumer
  * over a real HTTP connection, handing each complete line to a {@link StreamGate}.
  *
@@ -150,9 +150,9 @@ public final class EsqlStreamTestUtils {
     }
 
     public static StreamOutcome stream(RestClient client, String queryJsonBody, StreamGate gate, String... queryParams) throws Exception {
-        String path = "/_query?streaming=true&format=ndjson";
+        String path = "/_query/stream";
         if (queryParams.length > 0) {
-            path += "&" + String.join("&", queryParams);
+            path += "?" + String.join("&", queryParams);
         }
         Request request = new Request("POST", path);
         request.setJsonEntity(queryJsonBody);
@@ -181,7 +181,7 @@ public final class EsqlStreamTestUtils {
     }
 
     public static Response rawStream(RestClient client, String bodyJson, String... queryParams) throws IOException {
-        String path = "/_query";
+        String path = "/_query/stream";
         if (queryParams.length > 0) {
             path += "?" + String.join("&", queryParams);
         }
@@ -359,7 +359,7 @@ public final class EsqlStreamTestUtils {
         }
         if ("x_content_parse_exception".equals(type) || "parsing_exception".equals(type)) {
             fail(
-                "Request was malformed, not disrupted — the body or params are wrong for /_query?streaming=true"
+                "Request was malformed, not disrupted — the body or params are wrong for /_query/stream"
                     + " (check that allow_partial_results and other non-body params are sent as URL params, not body fields): "
                     + error
             );

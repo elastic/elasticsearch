@@ -96,7 +96,15 @@ public class ClampMin extends EsqlScalarFunction implements AnyNullIsNull {
 
     @Override
     public DataType dataType() {
-        if (resolvedType == null && resolveType().resolved() == false) {
+        DataType cached = resolvedType;
+        return cached != null ? cached : resolveDataType();
+    }
+
+    /**
+     * {@link #resolveType} assigns {@link #resolvedType}. Reading it after this thread assigned it can't see {@code null}.
+     */
+    private DataType resolveDataType() {
+        if (resolveType().resolved() == false) {
             throw new EsqlIllegalArgumentException("Unable to resolve data type for clamp_min");
         }
         return resolvedType;

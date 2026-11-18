@@ -32,18 +32,12 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
-import static org.elasticsearch.compute.lucene.read.FetchDocsSourceOperator.ShardDocs.MIN_PIECE_DOCS;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.sameInstance;
 
 public class FetchDocsSourceOperatorTests extends ComputeTestCase {
     // the one reference its owner holds, like the shard contexts of a data node
@@ -205,132 +199,6 @@ public class FetchDocsSourceOperatorTests extends ComputeTestCase {
             assertTrue(source.isFinished());
             assertThat(source.status(), equalTo(new FetchDocsSourceOperator.Status(1, docCount, 1)));
         }
-    }
-
-    /**
-     * A shard with fewer than twice the minimum documents of a piece stays whole, because one of two pieces would be too
-     * small to read its stored fields sequentially.
-     */
-    public void testSplitKeepsAShardOfFewerThanTwoMinimumPiecesWhole() {
-        FetchDocsSourceOperator.ShardDocs shard = shardOfRuns(randomRuns(between(1, 2 * MIN_PIECE_DOCS - 1)));
-        assertThat(shard.split(between(1, 32)), contains(sameInstance(shard)));
-    }
-
-    public void testSplitMakesAtMostMaxPiecesOfAtLeastTheMinimum() {
-        for (int round = 0; round < 100; round++) {
-            FetchDocsSourceOperator.ShardDocs shard = shardOfRuns(randomRuns(between(2 * MIN_PIECE_DOCS, 2000)));
-            int maxPieces = between(1, 16);
-            List<FetchDocsSourceOperator.ShardDocs> pieces = shard.split(maxPieces);
-            assertThat(pieces.size(), lessThanOrEqualTo(maxPieces));
-            if (maxPieces == 1) {
-                assertThat(pieces, contains(sameInstance(shard)));
-            }
-            for (FetchDocsSourceOperator.ShardDocs piece : pieces) {
-                assertThat(piece.docCount(), greaterThanOrEqualTo(MIN_PIECE_DOCS));
-            }
-        }
-    }
-
-    /**
-     * The pieces put one after the other are the documents of the shard, in their order, so their rows are the rows of
-     * the shard.
-     */
-    public void testSplitPiecesPutTogetherAreTheShard() {
-        for (int round = 0; round < 100; round++) {
-            FetchDocsSourceOperator.ShardDocs shard = shardOfRuns(between(0, 5), randomRuns(between(1, 2000)));
-            List<Integer> segments = new ArrayList<>();
-            List<Integer> docs = new ArrayList<>();
-            for (FetchDocsSourceOperator.ShardDocs piece : shard.split(between(1, 16))) {
-                assertThat(piece.shard(), equalTo(shard.shard()));
-                for (int d = 0; d < piece.docCount(); d++) {
-                    segments.add(piece.segments()[d]);
-                    docs.add(piece.docs()[d]);
-                }
-            }
-            assertThat(segments.stream().mapToInt(Integer::intValue).toArray(), equalTo(shard.segments()));
-            assertThat(docs.stream().mapToInt(Integer::intValue).toArray(), equalTo(shard.docs()));
-        }
-    }
-
-    /**
-     * A cut moves to the boundary of two segment runs when one is within a quarter of a piece, so short runs stay whole.
-     */
-    public void testSplitCutsBetweenSegmentRunsNearTheEvenCut() {
-        List<FetchDocsSourceOperator.ShardDocs> pieces = shardOfRuns(new int[] { 48, 53, 49, 50 }).split(4);
-        assertThat(pieces.stream().map(FetchDocsSourceOperator.ShardDocs::docCount).toList(), equalTo(List.of(48, 53, 49, 50)));
-
-        int runs = between(2, 16);
-        int even = between(4, 50) * 8;
-        int[] lengths = new int[runs];
-        for (int r = 0; r < runs; r++) {
-            // the boundaries drift at most an eighth of a piece each, so each stays within a quarter of its even cut
-            lengths[r] = even + (r % 2 == 0 ? 1 : -1) * between(0, even / 16);
-        }
-        pieces = shardOfRuns(lengths).split(runs);
-        assertThat(pieces, hasSize(runs));
-        for (int r = 0; r < runs; r++) {
-            FetchDocsSourceOperator.ShardDocs piece = pieces.get(r);
-            assertThat("piece [" + r + "] is one whole run", piece.docCount(), equalTo(lengths[r]));
-            assertThat(piece.segments()[0], equalTo(piece.segments()[piece.docCount() - 1]));
-        }
-    }
-
-    /**
-     * A shard whose documents sit in one segment splits too, into pieces of about the same size.
-     */
-    public void testSplitCutsALongRunIntoPiecesOfAboutTheSameSize() {
-        int count = between(2 * MIN_PIECE_DOCS, 5000);
-        int maxPieces = between(2, 16);
-        List<FetchDocsSourceOperator.ShardDocs> pieces = shardOfRuns(new int[] { count }).split(maxPieces);
-
-        assertThat(pieces, hasSize(Math.min(maxPieces, count / MIN_PIECE_DOCS)));
-        int smallest = pieces.stream().mapToInt(FetchDocsSourceOperator.ShardDocs::docCount).min().orElseThrow();
-        int largest = pieces.stream().mapToInt(FetchDocsSourceOperator.ShardDocs::docCount).max().orElseThrow();
-        assertThat(largest - smallest, lessThanOrEqualTo(1));
-    }
-
-    public void testSplitNeedsAPositiveMaxPieces() {
-        int maxPieces = between(-5, 0);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> shardOfRuns(new int[] { 30 }).split(maxPieces));
-        assertThat(e.getMessage(), equalTo("maxPieces must be positive but was [" + maxPieces + "]"));
-    }
-
-    /**
-     * Run lengths of {@code count} documents in total, some long and some short.
-     */
-    private static int[] randomRuns(int count) {
-        List<Integer> lengths = new ArrayList<>();
-        int left = count;
-        while (left > 0) {
-            int length = Math.min(left, randomBoolean() ? between(1, 5) : between(1, 300));
-            lengths.add(length);
-            left -= length;
-        }
-        return lengths.stream().mapToInt(Integer::intValue).toArray();
-    }
-
-    private static FetchDocsSourceOperator.ShardDocs shardOfRuns(int[] runLengths) {
-        return shardOfRuns(0, runLengths);
-    }
-
-    /**
-     * The documents of {@code shard}, one segment per run of {@code runLengths}, with gaps between the documents of a run.
-     */
-    private static FetchDocsSourceOperator.ShardDocs shardOfRuns(int shard, int[] runLengths) {
-        int count = Arrays.stream(runLengths).sum();
-        int[] segments = new int[count];
-        int[] docs = new int[count];
-        int p = 0;
-        for (int segment = 0; segment < runLengths.length; segment++) {
-            int doc = 0;
-            for (int d = 0; d < runLengths[segment]; d++) {
-                doc += between(1, 3);
-                segments[p] = segment;
-                docs[p] = doc;
-                p++;
-            }
-        }
-        return new FetchDocsSourceOperator.ShardDocs(shard, segments, docs);
     }
 
     public void testShardDocsDescribeThemselvesWithoutTheirArrays() {

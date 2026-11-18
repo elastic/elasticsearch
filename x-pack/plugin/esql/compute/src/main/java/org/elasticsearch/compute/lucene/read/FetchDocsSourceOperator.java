@@ -25,8 +25,6 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
@@ -46,80 +44,8 @@ public final class FetchDocsSourceOperator extends SourceOperator {
      * @param shard the slot of the shard in the shard references the operator takes its pages' references from
      */
     public record ShardDocs(int shard, int[] segments, int[] docs) {
-        /**
-         * The fewest documents in a piece of a split. Fewer would read their stored fields one document at a time, also when
-         * they sit next to each other.
-         */
-        static final int MIN_PIECE_DOCS = ValuesFromSingleReader.SEQUENTIAL_BOUNDARY;
-
         public ShardDocs {
             checkSorted(segments, docs);
-        }
-
-        /**
-         * Splits these documents into at most {@code maxPieces} pieces that separate drivers can load at the same time. The
-         * pieces keep the order of these documents, so their rows put one after the other are the rows of the shard. Each
-         * piece holds at least {@link #MIN_PIECE_DOCS} documents, so a dense run in it still reads its stored fields
-         * sequentially, and the pieces are about the same size. A cut falls between two segment runs when one is within a
-         * quarter of a piece of the even cut, and inside a run otherwise, so a shard whose documents sit in one segment
-         * splits too.
-         */
-        public List<ShardDocs> split(int maxPieces) {
-            if (maxPieces < 1) {
-                throw new IllegalArgumentException("maxPieces must be positive but was [" + maxPieces + "]");
-            }
-            int count = docs.length;
-            int pieces = Math.min(maxPieces, count / MIN_PIECE_DOCS);
-            if (pieces < 2) {
-                return List.of(this);
-            }
-            int quarterOfAPiece = count / (4 * pieces);
-            List<ShardDocs> split = new ArrayList<>(pieces);
-            int start = 0;
-            for (int p = 1; p < pieces; p++) {
-                int evenCut = (int) ((long) p * count / pieces);
-                int cut = nearestRunBoundary(evenCut, quarterOfAPiece);
-                if (leavesEnoughDocs(start, cut) == false) {
-                    cut = evenCut;
-                }
-                if (leavesEnoughDocs(start, cut)) {
-                    split.add(slice(start, cut));
-                    start = cut;
-                }
-            }
-            split.add(slice(start, count));
-            return split;
-        }
-
-        /**
-         * Whether a cut at {@code cut} leaves at least {@link #MIN_PIECE_DOCS} documents on both sides, from {@code start}.
-         */
-        private boolean leavesEnoughDocs(int start, int cut) {
-            return cut - start >= MIN_PIECE_DOCS && docs.length - cut >= MIN_PIECE_DOCS;
-        }
-
-        /**
-         * The position nearest to {@code position} where a segment run starts, at most {@code distance} away, or
-         * {@code position} itself when there is none.
-         */
-        private int nearestRunBoundary(int position, int distance) {
-            for (int d = 0; d <= distance; d++) {
-                if (startsARun(position - d)) {
-                    return position - d;
-                }
-                if (startsARun(position + d)) {
-                    return position + d;
-                }
-            }
-            return position;
-        }
-
-        private boolean startsARun(int position) {
-            return position > 0 && position < segments.length && segments[position] != segments[position - 1];
-        }
-
-        private ShardDocs slice(int from, int to) {
-            return new ShardDocs(shard, Arrays.copyOfRange(segments, from, to), Arrays.copyOfRange(docs, from, to));
         }
 
         /**

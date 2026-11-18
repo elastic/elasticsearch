@@ -18,7 +18,6 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.xpack.stateless.cache.Lucene90CompoundEntriesReader;
 import org.elasticsearch.xpack.stateless.commits.InternalFilesReplicatedRanges.InternalFileReplicatedRange;
-import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.InternalFile;
 import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit.InternalDataReader;
 
 import java.io.IOException;
@@ -29,6 +28,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
+import java.util.SequencedCollection;
 import java.util.function.LongPredicate;
 
 import static org.elasticsearch.xpack.stateless.commits.InternalFilesReplicatedRanges.REPLICATED_CONTENT_FOOTER_SIZE;
@@ -53,6 +53,55 @@ class ReplicatedContent {
     private final List<InternalFileRangeReader> readers = new ArrayList<>();
 
     private ReplicatedContent() {}
+
+    /**
+     * Creates the replicated content of a blob that is written in cache regions, or {@link #EMPTY} if it is not needed.
+     * <p>
+     * The blob starts with a header, followed by the replicated content and the files. The replicated content copies the bytes that are
+     * read when the files are opened (headers, footers) to the start of the blob, so that they are in the same cache region as the header
+     * and opening the files does not need to read from the object store. This is useless if the header and all the files fit in the same
+     * region, and for the files that are already in the same region as the header, which are not replicated.
+     * <p>
+     * The size of the header is not known before the replicated content is, so it is estimated.
+     *
+     * @param internalFiles                 the files of the blob. The iteration order is the order in which they are laid out in the blob,
+     *                                     and the replicated positions depend on it
+     * @param internalFilesSizeInBytes      the sum of the sizes of the files
+     * @param directory                     the directory to read the files from
+     * @param cacheRegionSizeInBytes        the size of a cache region
+     * @param startPositionInRegion         the position of the start of the blob (its header) relative to the start of its cache region,
+     *                                      which is {@code 0} if the blob is stored on its own
+     * @param estimatedMaxHeaderSizeInBytes an estimation of the size of the header, which is {@code 0} to replicate the content of all the
+     *                                      files, including those in the same region as the header
+     */
+    static ReplicatedContent createForCacheRegions(
+        SequencedCollection<InternalFile> internalFiles,
+        long internalFilesSizeInBytes,
+        Directory directory,
+        int cacheRegionSizeInBytes,
+        int startPositionInRegion,
+        int estimatedMaxHeaderSizeInBytes
+    ) {
+        // Approximate position of the end of the header + replicated content (using the estimated max. header size as a hint)
+        int estimatedHeaderEnd = Math.addExact(startPositionInRegion, estimatedMaxHeaderSizeInBytes);
+
+        // Approximate position of the end of the blob
+        var estimatedEnd = Math.addExact(estimatedHeaderEnd, internalFilesSizeInBytes);
+
+        // Check if the header and internal files completely fit into the same region, in which case there is no need for replicated content
+        if (estimatedEnd < cacheRegionSizeInBytes) {
+            return EMPTY;
+        }
+
+        LongPredicate shouldReplicate;
+        if (estimatedMaxHeaderSizeInBytes != 0) {
+            // Replicate content for internal files that are not in the same region as the header
+            shouldReplicate = (offset) -> cacheRegionSizeInBytes <= (estimatedHeaderEnd + offset);
+        } else {
+            shouldReplicate = ALWAYS_REPLICATE; // Keep previous behavior
+        }
+        return create(true, internalFiles, directory, shouldReplicate);
+    }
 
     public static ReplicatedContent create(
         boolean useInternalFilesReplicatedContent,

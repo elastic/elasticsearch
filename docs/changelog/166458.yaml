@@ -1,5 +1,5 @@
 area: Security
 issues: []
 pr: 166458
-summary: Keep shared status of failed profile lookups
+summary: Return 429 for failed profile lookups that are all 429s
 type: enhancement

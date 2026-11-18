@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.MatchQueryBuilder;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.search.SearchHit;
@@ -295,7 +296,7 @@ public class CoordinatorTests extends ESTestCase {
         assertTrue(coordinator.remoteRequestPermits.tryAcquire());
 
         try {
-            coordinator.handleResponse(slots, response, batchFailure);
+            coordinator.handleResponse(Coordinator.Batch.of(slots), response, batchFailure);
         } finally {
             if (response != null) {
                 response.decRef();
@@ -303,6 +304,163 @@ public class CoordinatorTests extends ESTestCase {
         }
         assertThat(notified.get(), equalTo(batchSize));
         assertThat(slots, everyItem(nullValue()));
+    }
+
+    public void testIdenticalLookupsShareOneSearch() {
+        int numDistinct = randomIntBetween(1, 4);
+        int numSlots = randomIntBetween(numDistinct, 20);
+        MockLookupFunction lookupFunction = new MockLookupFunction();
+        Coordinator coordinator = new Coordinator(lookupFunction, numSlots, 1, 100);
+
+        // every distinct value is looked up at least once
+        List<Integer> valueOfSlot = new ArrayList<>();
+        for (int i = 0; i < numSlots; i++) {
+            valueOfSlot.add(i < numDistinct ? i : randomIntBetween(0, numDistinct - 1));
+        }
+        Collections.shuffle(valueOfSlot, random());
+        List<Integer> firstSeen = new ArrayList<>();
+        for (int value : valueOfSlot) {
+            if (firstSeen.contains(value) == false) {
+                firstSeen.add(value);
+            }
+        }
+
+        List<Integer> notified = new ArrayList<>();
+        SearchResponse[] received = new SearchResponse[numSlots];
+        Exception[] failed = new Exception[numSlots];
+        for (int i = 0; i < numSlots; i++) {
+            final int slot = i;
+            coordinator.queue.add(new Coordinator.Slot(lookupRequest("my-index", "value-" + valueOfSlot.get(i)), ActionListener.wrap(r -> {
+                notified.add(slot);
+                received[slot] = r;
+            }, e -> {
+                notified.add(slot);
+                failed[slot] = e;
+            })));
+        }
+        coordinator.coordinateLookups();
+
+        assertThat(lookupFunction.capturedRequests, hasSize(1));
+        List<SearchRequest> sent = lookupFunction.capturedRequests.getFirst().requests();
+        assertThat(sent, hasSize(numDistinct));
+        for (int item = 0; item < numDistinct; item++) {
+            assertThat(sent.get(item), equalTo(lookupRequest("my-index", "value-" + firstSeen.get(item))));
+        }
+
+        int failingItem = randomBoolean() ? randomIntBetween(0, numDistinct - 1) : -1;
+        Exception itemFailure = new RuntimeException("simulated item failure");
+        MultiSearchResponse.Item[] items = new MultiSearchResponse.Item[numDistinct];
+        SearchResponse[] itemResponses = new SearchResponse[numDistinct];
+        for (int item = 0; item < numDistinct; item++) {
+            if (item == failingItem) {
+                items[item] = new MultiSearchResponse.Item(null, itemFailure);
+            } else {
+                itemResponses[item] = searchResponse(100);
+                items[item] = new MultiSearchResponse.Item(itemResponses[item], null);
+            }
+        }
+        respond(lookupFunction, 0, new MultiSearchResponse(items, 1L));
+
+        List<Integer> slotOrder = new ArrayList<>();
+        for (int i = 0; i < numSlots; i++) {
+            slotOrder.add(i);
+        }
+        assertThat("every slot notified once, in slot order", notified, equalTo(slotOrder));
+        for (int i = 0; i < numSlots; i++) {
+            int item = firstSeen.indexOf(valueOfSlot.get(i));
+            if (item == failingItem) {
+                assertThat(failed[i], sameInstance(itemFailure));
+                assertThat(received[i], nullValue());
+            } else {
+                assertThat(received[i], sameInstance(itemResponses[item]));
+                assertThat(failed[i], nullValue());
+            }
+        }
+        assertThat(coordinator.executedSearchesTotal.sum(), equalTo((long) numDistinct));
+        assertThat(coordinator.remoteRequestsTotal.sum(), equalTo(1L));
+        assertThat(coordinator.getRemoteRequestsCurrent(), equalTo(0));
+    }
+
+    public void testFailedBatchFailsEveryIdenticalLookup() {
+        MockLookupFunction lookupFunction = new MockLookupFunction();
+        Coordinator coordinator = new Coordinator(lookupFunction, 4, 1, 100);
+        RuntimeException failure = new RuntimeException("simulated");
+        AtomicInteger failures = new AtomicInteger();
+        for (int i = 0; i < 4; i++) {
+            coordinator.queue.add(
+                new Coordinator.Slot(lookupRequest("my-index", "same"), ActionListener.wrap(r -> fail("unexpected response"), e -> {
+                    assertThat(e, sameInstance(failure));
+                    failures.incrementAndGet();
+                }))
+            );
+        }
+        coordinator.coordinateLookups();
+        assertThat(lookupFunction.capturedRequests.getFirst().requests(), hasSize(1));
+
+        lookupFunction.capturedConsumers.getFirst().accept(null, failure);
+
+        assertThat(failures.get(), equalTo(4));
+        assertThat(coordinator.executedSearchesTotal.sum(), equalTo(1L));
+        assertThat(coordinator.getRemoteRequestsCurrent(), equalTo(0));
+    }
+
+    public void testIdenticalLookupsAreChargedOnce() {
+        CapturingClient client = new CapturingClient();
+        CircuitBreaker breaker = requestBreaker(null, CircuitBreakerMetrics.NOOP);
+        int numSlots = 4;
+        Coordinator coordinator = new Coordinator(Coordinator.lookupFunction(client, breaker), numSlots, 1, 100);
+        BatchCircuitBreakerReading breakerReading = new BatchCircuitBreakerReading(breaker);
+        PermitReading permitReading = new PermitReading(coordinator);
+        for (int i = 0; i < numSlots; i++) {
+            coordinator.queue.add(new Coordinator.Slot(lookupRequest("my-index", "same"), ActionListener.running(() -> {
+                breakerReading.takeReading();
+                permitReading.takeReading();
+            })));
+        }
+        coordinator.coordinateLookups();
+        assertThat(client.pendingIndices(), equalTo(Set.of("my-index")));
+
+        // one copy is below the permit hold threshold, a copy per lookup would be above it
+        MultiSearchResponse response = multiSearchResponse(Math.toIntExact(Coordinator.PERMIT_HOLD_THRESHOLD_BYTES / 2));
+        long estimate = Coordinator.estimateResponseBytes(response);
+        client.respond("my-index", response);
+
+        assertThat("charged once for the shared item", breakerReading.used(numSlots), equalTo(estimate));
+        assertThat("permit released before the listeners ran", permitReading.remoteRequestsCurrent(numSlots), equalTo(0));
+        assertThat(breaker.getUsed(), equalTo(0L));
+        assertThat(coordinator.executedSearchesTotal.sum(), equalTo(1L));
+    }
+
+    public void testSlotsReleasedAfterNotificationWithIdenticalLookups() {
+        int batchSize = randomIntBetween(2, 8);
+        Coordinator coordinator = new Coordinator(new MockLookupFunction(), batchSize, 1, 100);
+        MultiSearchResponse response = multiSearchResponse(100);
+        SearchResponse shared = response.getResponses()[0].getResponse();
+        List<Coordinator.Slot> slots = new ArrayList<>();
+        AtomicInteger notified = new AtomicInteger();
+        for (int i = 0; i < batchSize; i++) {
+            final int index = i;
+            slots.add(new Coordinator.Slot(lookupRequest("my-index", "same"), ActionListener.running(() -> {
+                assertThat(notified.getAndIncrement(), equalTo(index));
+                assertTrue("the shared response is alive while its slots run", shared.hasReferences());
+                for (int j = 0; j < slots.size(); j++) {
+                    assertThat(slots.get(j), j < index ? nullValue() : notNullValue());
+                }
+            })));
+        }
+        Coordinator.Batch batch = Coordinator.Batch.of(slots);
+        assertThat(batch.searches(), equalTo(1));
+        // handleResponse releases the permit that coordinateLookups acquired
+        assertTrue(coordinator.remoteRequestPermits.tryAcquire());
+
+        try {
+            coordinator.handleResponse(batch, response, null);
+        } finally {
+            response.decRef();
+        }
+        assertThat(notified.get(), equalTo(batchSize));
+        assertThat(slots, everyItem(nullValue()));
+        assertFalse(shared.hasReferences());
     }
 
     public void testNoBlockingWhenQueueing() {
@@ -861,8 +1019,16 @@ public class CoordinatorTests extends ESTestCase {
         }
     }
 
+    private static final AtomicInteger SLOT_REQUESTS = new AtomicInteger();
+
     private static Coordinator.Slot slot(String index, ActionListener<SearchResponse> listener) {
-        return new Coordinator.Slot(new SearchRequest(index), listener);
+        return new Coordinator.Slot(lookupRequest(index, "value-" + SLOT_REQUESTS.incrementAndGet()), listener);
+    }
+
+    private static SearchRequest lookupRequest(String index, String value) {
+        SearchRequest request = new SearchRequest(index);
+        request.source().query(new TermQueryBuilder("field", value));
+        return request;
     }
 
     private static MultiSearchResponse multiSearchResponse(int... sourceBytesPerItem) {
@@ -1023,6 +1189,7 @@ public class CoordinatorTests extends ESTestCase {
 
             assertBusy(() -> assertThat(coordinator.getRemoteRequestsCurrent(), equalTo(0)));
             // ^ assertBusy here because the final check of the queue briefly counts as another remote request, after everything is complete
+            assertThat(coordinator.executedSearchesTotal.sum(), equalTo(coordinator.remoteRequestsTotal.sum()));
         } finally {
             ThreadPool.terminate(threadPool, 10L, TimeUnit.SECONDS);
         }

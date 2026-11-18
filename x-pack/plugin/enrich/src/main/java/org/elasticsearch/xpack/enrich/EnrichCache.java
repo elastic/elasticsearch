@@ -16,6 +16,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
 
 import java.util.ArrayList;
@@ -41,6 +42,8 @@ import static org.elasticsearch.common.util.CollectionUtils.DeepCopyOption.UNMOD
  * since there is no easy check to see that an enrich index used as cache key no longer is the
  * current enrich index that the enrich alias of a policy refers to. It would require checking
  * all cached entries on each cluster state update)
+ * <p>
+ * Identical lookups of a coordinator batch share one search response: the first miss converts and caches it, the others reuse it.
  */
 public final class EnrichCache {
 
@@ -49,6 +52,9 @@ public final class EnrichCache {
     private final Cache<CacheKey, CacheValue> cache;
     private final LongAdder sizeInBytes = new LongAdder();
     private final LongSupplier relativeNanoTimeProvider;
+    // own counters, so the second cache lookup on a miss is not counted
+    private final LongAdder hits = new LongAdder();
+    private final LongAdder misses = new LongAdder();
     private final LongAdder hitsTimeInNanos = new LongAdder();
     private final LongAdder missesTimeInNanos = new LongAdder();
 
@@ -111,8 +117,12 @@ public final class EnrichCache {
         } else {
             final long retrieveStart = relativeNanoTimeProvider.getAsLong();
             searchResponseFetcher.accept(ActionListener.wrap(resp -> {
-                CacheValue cacheValue = toCacheValue(resp);
-                put(cacheKey, cacheValue);
+                // an identical lookup sharing this response may have cached it already
+                CacheValue cacheValue = cache.get(cacheKey);
+                if (cacheValue == null) {
+                    cacheValue = toCacheValue(resp);
+                    put(cacheKey, cacheValue);
+                }
                 List<Map<?, ?>> copy = CollectionUtils.deepCopy(cacheValue.hits);
                 long databaseQueryAndCachePutTime = relativeNanoTimeProvider.getAsLong() - retrieveStart;
                 missesTimeInNanos.add(cacheRequestTime + databaseQueryAndCachePutTime);
@@ -125,8 +135,10 @@ public final class EnrichCache {
     List<Map<?, ?>> get(CacheKey cacheKey) {
         CacheValue response = cache.get(cacheKey);
         if (response != null) {
+            hits.increment();
             return CollectionUtils.deepCopy(response.hits);
         } else {
+            misses.increment();
             return null;
         }
     }
@@ -142,8 +154,8 @@ public final class EnrichCache {
         return new EnrichStatsAction.Response.CacheStats(
             localNodeId,
             cache.count(),
-            cacheStats.getHits(),
-            cacheStats.getMisses(),
+            hits.sum(),
+            misses.sum(),
             cacheStats.getEvictions(),
             TimeValue.nsecToMSec(hitsTimeInNanos.sum()),
             TimeValue.nsecToMSec(missesTimeInNanos.sum()),
@@ -166,7 +178,9 @@ public final class EnrichCache {
             // not array values within the object tree. so since SMILE (for example) can result in arrays
             // inside source docs (and arrays don't have a meaningful unmodifiable equivalent), we need
             // both this copy and the defensive deepCopy calls in the read paths.
-            result.add(CollectionUtils.deepCopy(hit.getSourceAsMap(), UNMODIFIABLE));
+            // not getSourceAsMap, which may be called only once per hit, but the response may be shared and converted again
+            Map<String, Object> source = hit.getSourceRef() == null ? null : Source.fromBytes(hit.getSourceRef()).source();
+            result.add(CollectionUtils.deepCopy(source, UNMODIFIABLE));
         }
         return new CacheValue(Collections.unmodifiableList(result), size);
     }

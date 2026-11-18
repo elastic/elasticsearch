@@ -28,7 +28,26 @@ import java.util.Arrays;
  * on the heap. Without this copy, every such search creates a new {@link DocValuesSkipper} and reads the skip index of the segment
  * from its start, which was a large part of the cost of synthetic {@code _id} lookups while indexing.
  * <p>
- * The copy takes 12 bytes per interval, which is about 3 KB per 1M documents with the default interval size.
+ * <b>Why not reuse a skipper of the segment?</b>
+ * <ul>
+ *     <li>A {@link DocValuesSkipper} is a forward-only cursor. A skipper that we keep between lookups helps only when the next
+ *     ordinal is higher than its current position. The ordinals of the documents that we index are random, so about half of the
+ *     lookups would need a new skipper, and a new skipper reads the skip index from the start of the segment.</li>
+ *     <li>All reads of a skipper go through the input of the segment, and so also through the store metrics wrapper, which adds a
+ *     cost to each small read.</li>
+ *     <li>A skipper is not thread-safe, so we would need one for each thread and each segment.</li>
+ * </ul>
+ * This class holds the same data as the skipper, but as arrays on the heap with random access and no I/O. It is shared by all the
+ * threads that read the segment. It also gives the end of the interval, which bounds the bisection of the ordinals.
+ * <p>
+ * <b>Costs</b>
+ * <ul>
+ *     <li>The copy takes 12 bytes per interval, which is about 3 KB per 1M documents with the default interval size.</li>
+ *     <li>The first lookup on a segment reads the whole level 0 skip index to build the copy. Each new segment, for example after a
+ *     refresh, builds its own copy, so the first lookup on it is slower than the next ones.</li>
+ *     <li>The copy is only correct if the ordinals never decrease from one interval to the next. {@link #build} checks this and
+ *     returns {@code null} if it is not true, and the caller then uses the skipper directly.</li>
+ * </ul>
  */
 final class TsIdSkipIndex {
 

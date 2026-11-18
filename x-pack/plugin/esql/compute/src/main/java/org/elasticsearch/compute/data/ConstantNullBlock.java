@@ -74,6 +74,11 @@ public final class ConstantNullBlock extends AbstractBlockRefCounted
     }
 
     @Override
+    public int nullValuesCount() {
+        return positionCount;
+    }
+
+    @Override
     public boolean mayHaveNulls() {
         return true;
     }

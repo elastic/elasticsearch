@@ -56,10 +56,13 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static java.util.stream.Collectors.toMap;
@@ -311,6 +314,59 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         });
         expectThrows(CircuitBreakingException.class, equalTo("cbe"), future::actionGet);
         assertThat(sent.size(), equalTo(1));
+    }
+
+    /**
+     * A request that failed does not take back what the requests that succeeded did: the failure carries no completion info, so the
+     * usage is reported to the consumer given to the sender, which is how the query is metered with it.
+     */
+    public void testSuccessfulWorkerUsageSurvivesSiblingFailure() {
+        var targetShards = List.of(targetShard(shard1, node1), targetShard(shard2, node2));
+        long cpuNanos = between(1, 1_000_000);
+        DriverCompletionInfo succeeded = new DriverCompletionInfo(
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            cpuNanos,
+            0,
+            0,
+            0,
+            0,
+            List.of(),
+            List.of(),
+            Map.of(),
+            false,
+            false,
+            Set.of()
+        );
+        // the sibling fails after the worker that succeeded has answered, whichever of them is asked first
+        CompletableFuture<Void> workerAnswered = new CompletableFuture<>();
+        AtomicReference<DriverCompletionInfo> reported = new AtomicReference<>();
+        var future = sendRequests(
+            false,
+            -1,
+            targetShards,
+            shardIds -> { throw new AssertionError("No shard resolution is expected here"); },
+            (node, shardIds, aliasFilters, listener) -> {
+                if (node1.equals(node)) {
+                    runWithDelay(() -> {
+                        listener.onResponse(new DataNodeComputeResponse(succeeded, Map.of()));
+                        workerAnswered.complete(null);
+                    });
+                } else {
+                    workerAnswered.thenRun(
+                        () -> listener.onFailure(new CircuitBreakingException("cbe", randomFrom(Durability.values())), false)
+                    );
+                }
+            },
+            usage -> assertTrue("reported once", reported.compareAndSet(null, usage))
+        );
+        expectThrows(CircuitBreakingException.class, equalTo("cbe"), future::actionGet);
+        assertNotNull("the usage is reported", reported.get());
+        assertThat(reported.get().cpuNanos(), equalTo(cpuNanos));
     }
 
     public void testLimitConcurrentNodes() {
@@ -678,10 +734,22 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         Resolver resolver,
         Sender sender
     ) {
+        return sendRequests(allowPartialResults, concurrentRequests, shards, resolver, sender, usage -> {});
+    }
+
+    PlainActionFuture<ComputeResponse> sendRequests(
+        boolean allowPartialResults,
+        int concurrentRequests,
+        List<DataNodeRequestSender.TargetShard> shards,
+        Resolver resolver,
+        Sender sender,
+        Consumer<DriverCompletionInfo> onFailureUsage
+    ) {
         PlainActionFuture<ComputeResponse> future = new PlainActionFuture<>();
         newSender(SliceSelection.UNSPECIFIED, allowPartialResults, concurrentRequests, shards, resolver, sender).startComputeOnDataNodes(
             Set.of(randomAlphaOfLength(10)),
             () -> {},
+            onFailureUsage,
             future
         );
         return future;

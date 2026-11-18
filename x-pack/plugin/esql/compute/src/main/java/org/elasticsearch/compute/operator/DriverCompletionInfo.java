@@ -58,7 +58,7 @@ import static org.elasticsearch.compute.operator.DriverStatus.ESQL_DRIVER_NANOS;
  *                               data-node execution and shipped back so the coordinator can merge and
  *                               enrich its {@code SchemaCacheEntry} for the next query. Keyed by file
  *                               path; the value is the list of contributions from each operator/driver
- *                               that touched the file (per-chunk for parallel parsing, per-split for
+ *                               that touched the file (per-stripe for parallel parsing, per-split for
  *                               macro-splits). The actual merge is intentionally deferred to esql-side
  *                               consumers because the merge algorithm lives in
  *                               {@code SourceStatisticsSerializer.mergeStatistics} which depends on

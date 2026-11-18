@@ -295,17 +295,9 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
 
         String query = "FROM test | KEEP emp_no | INTO dst";
         Configuration configuration = randomConfiguration(query, randomTables());
-        TransportVersion minimumVersion = TransportVersion.current();
-        LogicalPlan analyzed = analyzer().addIndex("test", "mapping-basic.json")
-            .minimumTransportVersion(minimumVersion)
-            .buildAnalyzer()
-            .analyze(TEST_PARSER.parseQuery(query));
-        LogicalPlan logicallyOptimized = new LogicalPlanOptimizer(
-            logicalOptimizerContext(configuration, FoldContext.small(), minimumVersion)
-        ).optimize(analyzed);
-        PhysicalPlan physicalPlan = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration, minimumVersion)).optimize(
-            new Mapper().map(new Versioned<>(logicallyOptimized, minimumVersion))
-        );
+        Versioned<LogicalPlan> logicalPlan = parse(query);
+        var physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration, logicalPlan.minimumVersion()));
+        PhysicalPlan physicalPlan = physicalPlanOptimizer.optimize(new Mapper().map(logicalPlan));
         PhysicalPlan dataNodePlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(
             EstimatesRowSize.estimateRowSize(0, physicalPlan),
             configuration
@@ -320,21 +312,11 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
             dataNodePlan,
             new String[] { "test" },
             IndicesOptions.STRICT_EXPAND_OPEN,
-            true,
-            true,
-            false
+            /* runNodeLevelReduction */ true,
+            /* reductionLateMaterialization */ true,
+            /* singleNodeOptimizations */ false
         );
-
-        DataNodeRequest received;
-        try (
-            StreamInput in = new NamedWriteableAwareStreamInput(
-                StreamInput.wrap(serialize(request, minimumVersion)),
-                getNamedWriteableRegistry()
-            )
-        ) {
-            in.setTransportVersion(minimumVersion);
-            received = new DataNodeRequest(in);
-        }
+        DataNodeRequest received = copyInstance(request, TransportVersion.current());
 
         ReductionPlan reductionPlan = ComputeService.reductionPlan(
             PlannerSettings.DEFAULTS,

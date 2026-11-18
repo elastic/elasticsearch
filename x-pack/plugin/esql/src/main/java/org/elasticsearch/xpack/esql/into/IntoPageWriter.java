@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.into;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -25,6 +26,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.esql.action.ResponseValueUtils;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -182,7 +184,7 @@ public final class IntoPageWriter {
         }
         driverContext.addAsyncAction();
         ActionListener<BulkResponse> listener = ActionListener.runAfter(
-            ActionListener.wrap(this::onBulkResponse, this::recordFailure),
+            ActionListener.wrap(this::onBulkResponse, e -> recordFailure(e, ExceptionsHelper.status(e))),
             () -> settle(bytes)
         );
         try (ThreadContext.StoredContext ignored = sink.caller.get()) {
@@ -195,24 +197,22 @@ public final class IntoPageWriter {
     private void onBulkResponse(BulkResponse response) {
         for (BulkItemResponse item : response) {
             if (item.isFailed()) {
-                Exception cause = item.getFailure().getCause();
-                recordFailure(
-                    new ElasticsearchStatusException(
-                        "INTO [{}] failed: {}",
-                        item.getFailure().getStatus(),
-                        cause,
-                        sink.destination,
-                        cause.getMessage()
-                    )
-                );
+                recordFailure(item.getFailure().getCause(), item.getFailure().getStatus());
                 return;
             }
         }
         created.addAndGet(response.getItems().length);
     }
 
-    private void recordFailure(Exception e) {
-        sink.failure.compareAndSet(null, e);
+    /**
+     * Wraps the failure so that a missing destination is not taken for a missing shard of the source, which
+     * {@code DataNodeRequestSender} would retry.
+     */
+    private void recordFailure(Exception cause, RestStatus status) {
+        sink.failure.compareAndSet(
+            null,
+            new ElasticsearchStatusException("INTO [{}] failed: {}", status, cause, sink.destination, cause.getMessage())
+        );
     }
 
     // Complete the async action before unblocking the driver so a finishing driver sees zero pending actions, and do

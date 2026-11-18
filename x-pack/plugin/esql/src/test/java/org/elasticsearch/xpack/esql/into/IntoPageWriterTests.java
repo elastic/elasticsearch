@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -24,6 +25,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.test.ComputeTestCase;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -246,8 +248,19 @@ public class IntoPageWriterTests extends ComputeTestCase {
         writer.finish();
 
         assertTrue(writer.isFinished());
-        assertThat(sink.failure(), sameInstance(rejected));
+        ElasticsearchStatusException failure = asInstanceOf(ElasticsearchStatusException.class, sink.failure());
+        assertThat(failure.status(), equalTo(RestStatus.TOO_MANY_REQUESTS));
+        assertThat(failure.getCause(), sameInstance(rejected));
         assertFalse(driverContext.hasPendingAsyncActions());
+    }
+
+    /** DataNodeRequestSender would take a missing destination for a missing source shard, and retry the source shard. */
+    public void testDestinationNotFoundIsNotMistakenForMissingSourceShard() {
+        writer.consume(page("h1"));
+        client.fail(new IndexNotFoundException("dst"));
+        writer.finish();
+
+        assertFalse(TransportActions.isShardNotAvailableException(sink.failure()));
     }
 
     public void testEmptyPageSendsNothing() {

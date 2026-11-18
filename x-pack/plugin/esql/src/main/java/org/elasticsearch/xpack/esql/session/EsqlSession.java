@@ -678,6 +678,8 @@ public class EsqlSession {
         PlanTimeProfile planTimeProfile = request.profile() ? new PlanTimeProfile() : null;
 
         ZoneId timeZone = QuerySettings.TIME_ZONE.get(resolved);
+        // A partial INTO would still have written the rows of the shards that succeeded
+        boolean allowPartialResults = request.allowPartialResults() && viewResolution.plan().anyMatch(Into.class::isInstance) == false;
         Configuration configuration = new Configuration(
             Instant.now(Clock.tick(Clock.system(timeZone), Duration.ofNanos(1))),
             request.locale() != null ? request.locale() : Locale.US,
@@ -691,8 +693,7 @@ public class EsqlSession {
             request.profile(),
             request.tables(),
             System.nanoTime(),
-            // A partial INTO would still have written the rows of the shards that succeeded
-            request.allowPartialResults() && viewResolution.plan().anyMatch(Into.class::isInstance) == false,
+            allowPartialResults,
             analyzerSettings.timeseriesResultTruncationMaxSize(),
             analyzerSettings.timeseriesResultTruncationDefaultSize(),
             resolved,

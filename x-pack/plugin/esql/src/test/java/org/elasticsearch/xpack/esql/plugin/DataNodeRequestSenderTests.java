@@ -294,30 +294,6 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         assertThat(sent.size(), equalTo(2));
     }
 
-    /**
-     * A data node may have written before failing, so neither a request-level nor a shard-level failure is
-     * retried on another copy.
-     */
-    public void testNoRetryWhenRetriesMayRepeatWrites() {
-        retryFailedShards = false;
-        var targetShards = List.of(targetShard(shard1, node1, node2));
-        var sent = ConcurrentCollections.<NodeRequest>newQueue();
-        boolean shardLevel = randomBoolean();
-        var future = sendRequests(false, -1, targetShards, (node, shardIds, aliasFilters, listener) -> {
-            sent.add(nodeRequest(node, shardIds));
-            Exception failure = new RuntimeException("test non fatal failure");
-            if (shardLevel) {
-                var shardFailures = Map.of(shard1.shardId(), failure);
-                runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, shardFailures)));
-            } else {
-                runWithDelay(() -> listener.onFailure(failure, false));
-            }
-        });
-        Exception exception = expectThrows(Exception.class, future::actionGet);
-        assertThat(exception.getMessage(), equalTo("test non fatal failure"));
-        assertThat(sent.size(), equalTo(1));
-    }
-
     public void testNonFatalFailedOnAllNodes() {
         var targetShards = List.of(targetShard(shard1, node1, node2));
         var sent = ConcurrentCollections.<NodeRequest>newQueue();
@@ -776,8 +752,6 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         return future;
     }
 
-    private boolean retryFailedShards = true;
-
     private DataNodeRequestSender newSender(
         SliceSelection slices,
         boolean allowPartialResults,
@@ -811,7 +785,6 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             slices,
             "",
             allowPartialResults,
-            retryFailedShards,
             concurrentRequests,
             10
         ) {

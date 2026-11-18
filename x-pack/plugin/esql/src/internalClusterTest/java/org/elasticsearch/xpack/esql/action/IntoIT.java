@@ -9,27 +9,21 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.script.LongFieldScript;
-import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.FailingFieldPlugin;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.Before;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -38,7 +32,6 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
@@ -64,9 +57,10 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.addAll(List.of(MockTransportService.TestPlugin.class, FailingFieldPlugin.class, FailOnceFieldPlugin.class));
-        return plugins;
+        return CollectionUtils.appendToCopy(
+            CollectionUtils.appendToCopy(super.nodePlugins(), MockTransportService.TestPlugin.class),
+            FailingFieldPlugin.class
+        );
     }
 
     @Before
@@ -160,34 +154,15 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
         assertReadBack("KEEP k, l | SORT k", List.of(List.of("false", 2L), List.of("true", 4L)));
     }
 
-    public void testFromIntoSendsDataNodeRequests() {
-        createSource();
-        AtomicInteger dataNodeRequests = new AtomicInteger();
-        for (String node : internalCluster().getNodeNames()) {
-            MockTransportService.getInstance(node)
-                .addRequestHandlingBehavior(ComputeService.DATA_ACTION_NAME, (handler, request, channel, task) -> {
-                    dataNodeRequests.incrementAndGet();
-                    handler.messageReceived(request, channel, task);
-                });
-        }
-        try {
-            assertInto("FROM " + SOURCE + " | KEEP k", 3);
-            assertThat(dataNodeRequests.get(), greaterThan(0));
-        } finally {
-            for (String node : internalCluster().getNodeNames()) {
-                MockTransportService.getInstance(node).clearAllRules();
-            }
-        }
-        assertReadBack("KEEP k | SORT k", List.of(List.of("a"), List.of("b"), List.of("c")));
-    }
-
     /**
-     * A shard failure must fail an INTO query even when partial results are allowed, since the
-     * rows of the other shards would otherwise be written while the query reports success.
+     * A shard failure must fail an INTO query even when partial results are allowed, since the rows of the other shards
+     * would otherwise be written while the query reports success. The failing shard has no {@code @timestamp}, so it
+     * is the first of the one batch at a time on its node, and no row of the other shard may be written after it.
      */
     public void testFromShardFailureFailsEvenWithPartialResults() {
-        createSource();
-        assertAcked(indicesAdmin().prepareCreate(FAILING_SOURCE).setMapping("""
+        String node = clusterService().state().nodes().getDataNodes().values().iterator().next().getName();
+        Settings.Builder onNode = indexSettings(1, 0).put("index.routing.allocation.require._name", node);
+        assertAcked(indicesAdmin().prepareCreate(FAILING_SOURCE).setSettings(onNode).setMapping("""
             {
               "runtime": {
                 "fail_me": { "type": "long", "script": { "source": "", "lang": "failing_field" } }
@@ -196,61 +171,38 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
             }
             """));
         indexRandom(true, client().prepareIndex(FAILING_SOURCE).setSource("k", "boom"));
+        createSource(onNode, MAPPING.replace("\"k\":", "\"@timestamp\": { \"type\": \"date\" }, \"k\":"));
         EsqlQueryRequest request = syncEsqlQueryRequest(
             "FROM " + SOURCE + "," + FAILING_SOURCE + " | EVAL l = COALESCE(fail_me, l) | KEEP k, l | INTO " + DESTINATION
-        ).allowPartialResults(true);
-        // One shard at a time, so the failing shard fails alone and would be reported as a partial result
-        request.pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_CONCURRENT_SHARDS_PER_NODE.getKey(), 1).build()));
-        request.acceptedPragmaRisks(true);
+        ).allowPartialResults(true)
+            .pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_CONCURRENT_SHARDS_PER_NODE.getKey(), 1).build()))
+            .acceptedPragmaRisks(true);
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> run(request).close());
         assertThat(e.getMessage(), equalTo("Accessing failing field"));
+        assertReadBack(List.of());
     }
 
     /**
-     * A shard copy that fails after its writer has sent a bulk must fail the query. Retrying the shard on
-     * another copy would write the rows of the first attempt again.
+     * A shard copy that fails after its writer has sent a bulk must fail the query. Retrying the shard on another copy
+     * would write the rows of the first attempt again. The destination's strict mapping refuses {@code extra}, so
+     * the bulk writes {@code a} and fails on {@code b}.
      */
     public void testShardFailureAfterBulkIsNotRetried() {
         assertAcked(indicesAdmin().prepareCreate(RETRY_SOURCE).setSettings(indexSettings(1, 1)).setMapping("""
-            {
-              "runtime": {
-                "fail_once": { "type": "long", "script": { "source": "", "lang": "fail_once" } }
-              },
-              "properties": { "k": { "type": "keyword" } }
-            }
+            { "properties": { "k": { "type": "keyword" }, "extra": { "type": "keyword" } } }
             """));
         indexRandom(
             true,
             client().prepareIndex(RETRY_SOURCE).setSource("k", "a"),
-            client().prepareIndex(RETRY_SOURCE).setSource("k", "b"),
-            client().prepareIndex(RETRY_SOURCE).setSource("k", "c")
+            client().prepareIndex(RETRY_SOURCE).setSource("k", "b", "extra", "boom")
         );
         ensureGreen(RETRY_SOURCE);
-        FailOnceFieldPlugin.CALLS.set(0);
-        EsqlQueryRequest request = syncEsqlQueryRequest("FROM " + RETRY_SOURCE + " | EVAL l = fail_once | KEEP k, l | INTO " + DESTINATION);
-        // One row per page and one driver, so the first row is bulked before the second row fails
-        request.pragmas(
-            new QueryPragmas(
-                Settings.builder()
-                    .put(QueryPragmas.PAGE_SIZE.getKey(), 1)
-                    .put(QueryPragmas.DATA_PARTITIONING.getKey(), "shard")
-                    .put(QueryPragmas.TASK_CONCURRENCY.getKey(), 1)
-                    .build()
-            )
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> run("FROM " + RETRY_SOURCE + " | KEEP k, extra | INTO " + DESTINATION).close()
         );
-        request.acceptedPragmaRisks(true);
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> run(request).close());
-        assertThat(e.getMessage(), equalTo("Failing once"));
-        assertReadBack("STATS c = COUNT(*) BY k | WHERE c > 1", List.of());
-    }
-
-    public void testUnsupportedSourcesAreRejected() {
-        String error = "INTO currently only supports ROW or local FROM as a source, without FORK";
-        VerificationException e = expectThrows(
-            VerificationException.class,
-            () -> run("FROM " + DESTINATION + " | FORK (WHERE true) (WHERE false) | INTO " + DESTINATION).close()
-        );
-        assertThat(e.getMessage(), containsString(error));
+        assertThat(e.getMessage(), containsString("extra"));
+        assertReadBack("KEEP k", List.of(List.of("a")));
     }
 
     public void testAllowPartialResultsDoesNotBypassRowFailure() {
@@ -264,6 +216,11 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testIntoRunsOnCoordinatorWithoutDataNodeRequests() {
+        assertThat(countDataNodeRequests(() -> assertInto("ROW k = [\"r1\", \"r2\"] | MV_EXPAND k", 2)), equalTo(0));
+        assertReadBack("KEEP k | SORT k", List.of(List.of("r1"), List.of("r2")));
+    }
+
+    private int countDataNodeRequests(Runnable action) {
         AtomicInteger dataNodeRequests = new AtomicInteger();
         for (String node : internalCluster().getNodeNames()) {
             MockTransportService.getInstance(node)
@@ -273,18 +230,21 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
                 });
         }
         try {
-            assertInto("ROW k = [\"r1\", \"r2\"] | MV_EXPAND k", 2);
-            assertThat(dataNodeRequests.get(), equalTo(0));
+            action.run();
         } finally {
             for (String node : internalCluster().getNodeNames()) {
                 MockTransportService.getInstance(node).clearAllRules();
             }
         }
-        assertReadBack("KEEP k | SORT k", List.of(List.of("r1"), List.of("r2")));
+        return dataNodeRequests.get();
     }
 
     private void createSource() {
-        assertAcked(indicesAdmin().prepareCreate(SOURCE).setSettings(indexSettings(between(2, 5), 0)).setMapping(MAPPING));
+        createSource(indexSettings(between(2, 5), 0), MAPPING);
+    }
+
+    private void createSource(Settings.Builder settings, String mapping) {
+        assertAcked(indicesAdmin().prepareCreate(SOURCE).setSettings(settings).setMapping(mapping));
         indexRandom(
             true,
             client().prepareIndex(SOURCE)
@@ -313,51 +273,6 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
         String query = commands.isEmpty() ? "FROM " + DESTINATION : "FROM " + DESTINATION + " | " + commands;
         try (EsqlQueryResponse response = run(query)) {
             assertThat(getValuesList(response), equalTo(expected));
-        }
-    }
-
-    /** A {@code long} runtime field that throws on its second evaluation in the JVM, and returns no value otherwise. */
-    public static class FailOnceFieldPlugin extends Plugin implements ScriptPlugin {
-        static final AtomicInteger CALLS = new AtomicInteger();
-
-        @Override
-        public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
-            return new ScriptEngine() {
-                @Override
-                public String getType() {
-                    return "fail_once";
-                }
-
-                @Override
-                @SuppressWarnings("unchecked") // the only supported context is LongFieldScript.CONTEXT
-                public <FactoryType> FactoryType compile(
-                    String name,
-                    String code,
-                    ScriptContext<FactoryType> context,
-                    Map<String, String> params
-                ) {
-                    LongFieldScript.Factory factory = (fieldName, scriptParams, searchLookup, onScriptError) -> ctx -> new LongFieldScript(
-                        fieldName,
-                        scriptParams,
-                        searchLookup,
-                        onScriptError,
-                        ctx
-                    ) {
-                        @Override
-                        public void execute() {
-                            if (CALLS.incrementAndGet() == 2) {
-                                throw new IllegalStateException("Failing once");
-                            }
-                        }
-                    };
-                    return (FactoryType) factory;
-                }
-
-                @Override
-                public Set<ScriptContext<?>> getSupportedContexts() {
-                    return Set.of(LongFieldScript.CONTEXT);
-                }
-            };
         }
     }
 }

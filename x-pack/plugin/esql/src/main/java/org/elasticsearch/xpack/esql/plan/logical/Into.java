@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
@@ -28,6 +27,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.BiConsumer;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
@@ -48,6 +48,8 @@ public class Into extends UnaryPlan
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Into", Into::new);
 
+    private static final Set<String> LOCAL_ONLY = Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+
     private final String destination;
     private final List<Attribute> output;
 
@@ -55,7 +57,7 @@ public class Into extends UnaryPlan
         this(source, child, destination, IntoStats.createAttributes(source));
     }
 
-    private Into(Source source, LogicalPlan child, String destination, List<Attribute> output) {
+    public Into(Source source, LogicalPlan child, String destination, List<Attribute> output) {
         super(source, child);
         this.destination = Objects.requireNonNull(destination);
         this.output = output;
@@ -108,7 +110,7 @@ public class Into extends UnaryPlan
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, Into::new, child(), destination);
+        return NodeInfo.create(this, Into::new, child(), destination, output);
     }
 
     @Override
@@ -159,8 +161,8 @@ public class Into extends UnaryPlan
     private static boolean isSupportedSource(LogicalPlan leaf) {
         return leaf instanceof Row
             || (leaf instanceof EsRelation relation
-                && relation.indexMode() != IndexMode.TIME_SERIES
-                && relation.originalIndices().keySet().stream().allMatch(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY::equals));
+                && relation.indexMode().isTsdb() == false
+                && LOCAL_ONLY.containsAll(relation.originalIndices().keySet()));
     }
 
     @Override
@@ -170,11 +172,11 @@ public class Into extends UnaryPlan
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), destination);
+        return Objects.hash(super.hashCode(), destination, output);
     }
 
     @Override
     public boolean equals(Object obj) {
-        return super.equals(obj) && destination.equals(((Into) obj).destination);
+        return super.equals(obj) && destination.equals(((Into) obj).destination) && output.equals(((Into) obj).output);
     }
 }

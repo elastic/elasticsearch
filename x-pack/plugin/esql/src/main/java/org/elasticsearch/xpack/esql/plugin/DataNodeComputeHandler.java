@@ -189,6 +189,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         ActionListener<ComputeResponse> outListener
     ) {
         Integer maxConcurrentNodesPerCluster = PlanConcurrencyCalculator.INSTANCE.calculateNodesConcurrency(dataNodePlan, configuration);
+        final boolean writesInto = writesInto(dataNodePlan);
 
         new DataNodeRequestSender(
             clusterService,
@@ -201,8 +202,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             PlannerUtils.sliceSelection(dataNodePlan),
             clusterAlias,
             configuration.allowPartialResults(),
-            // A failed attempt may already have written some rows, which a retry would write again
-            dataNodePlan.anyMatch(p -> p instanceof FragmentExec f && f.fragment().anyMatch(Into.class::isInstance)) == false,
             maxConcurrentNodesPerCluster == null ? -1 : maxConcurrentNodesPerCluster,
             configuration.pragmas().unavailableShardResolutionAttempts()
         ) {
@@ -219,7 +218,12 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 }
 
                 final AtomicLong pagesFetched = new AtomicLong();
-                var listener = ActionListener.wrap(nodeListener::onResponse, e -> nodeListener.onFailure(e, pagesFetched.get() > 0));
+                final AtomicBoolean requestSent = new AtomicBoolean();
+                // A node that was sent an INTO may have written rows before it failed, and another copy would write them again
+                var listener = ActionListener.wrap(
+                    nodeListener::onResponse,
+                    e -> nodeListener.onFailure(e, pagesFetched.get() > 0 || (writesInto && requestSent.get()))
+                );
                 final Transport.Connection connection;
                 try {
                     connection = transportService.getConnection(node);
@@ -283,6 +287,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                             ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
                             final var sinkPart = computeService.remoteSinkPart(computeService.queryId(parentTask), groupTask);
                             final var remoteSink = computeService.newRemoteSink(groupTask, childSessionId, connection, sinkPart);
+                            requestSent.set(true);
                             transportService.sendChildRequest(
                                 connection,
                                 ComputeService.DATA_ACTION_NAME,
@@ -672,6 +677,11 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         }
         return ExceptionsHelper.unwrap(failure, ConnectTransportException.class) != null
             || ExceptionsHelper.unwrap(failure, NodeClosedException.class) != null;
+    }
+
+    /** Whether the data nodes of this plan write the rows of an {@code INTO}, as opposed to only reading them. */
+    static boolean writesInto(PhysicalPlan plan) {
+        return plan.anyMatch(p -> p instanceof FragmentExec f && f.fragment().anyMatch(Into.class::isInstance));
     }
 
     /**
@@ -1733,8 +1743,9 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             request.requiredClusterStateVersion(),
             request.readerContextKeepAlive()
         );
-        // the sender doesn't support retry on shard failures, so we need to fail fast here.
-        final boolean failFastOnShardFailures = supportShardLevelRetryFailure(channelVersion) == false;
+        // the sender doesn't support retry on shard failures, so we need to fail fast here. Also when writing, since the other
+        // shards would otherwise keep writing for a query that is bound to fail.
+        final boolean failFastOnShardFailures = supportShardLevelRetryFailure(channelVersion) == false || writesInto(request.plan());
         final NodeFetchContexts fetchContexts = request.keepFetchContexts() ? newFetchContexts(task, request) : null;
         var computeSearchContexts = new AcquiredSearchContexts(request.shards().size());
         runComputeOnDataNode(

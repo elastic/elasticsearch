@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.into.IntoStats;
 
 import java.io.IOException;
-
-import static org.hamcrest.Matchers.equalTo;
+import java.util.List;
 
 public class IntoSerializationTests extends AbstractLogicalPlanSerializationTests<Into> {
     @Override
@@ -19,23 +19,19 @@ public class IntoSerializationTests extends AbstractLogicalPlanSerializationTest
         return new Into(randomSource(), randomChild(0), randomAlphaOfLength(10));
     }
 
-    /** The coordinator plan around a data-node {@code Into} refers to its output by id, so the ids must survive the wire. */
-    public void testOutputSurvivesTheWire() throws IOException {
-        Into original = createTestInstance();
-        Into roundTripped = copyInstance(original, TransportVersion.current());
-        assertThat(roundTripped.output(), equalTo(original.output()));
-    }
-
     @Override
     protected Into mutateInstance(Into instance) throws IOException {
         LogicalPlan child = instance.child();
         String destination = instance.destination();
-        switch (between(0, 1)) {
+        // The coordinator plan around a data-node Into refers to its output by id, so the ids must survive the wire
+        List<Attribute> output = instance.output();
+        switch (between(0, 2)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
             case 1 -> destination = randomValueOtherThan(destination, () -> randomAlphaOfLength(10));
+            case 2 -> output = IntoStats.createAttributes(instance.source());
             default -> throw new AssertionError("Unexpected case");
         }
-        return new Into(instance.source(), child, destination);
+        return new Into(instance.source(), child, destination, output);
     }
 
     @Override

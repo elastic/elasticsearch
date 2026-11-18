@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.junit.Before;
 
+import java.util.List;
+
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.containsString;
@@ -34,9 +36,10 @@ public class IntoAnalysisTests extends AnalyzerTestCase {
     }
 
     public void testNoImplicitLimitAdded() {
-        LogicalPlan plan = analyzer().query("ROW a = 1 | INTO dst");
-        Into into = as(plan, Into.class);
-        assertThat(into.collectFirstChildren(Limit.class::isInstance), empty());
+        for (String query : List.of("ROW a = 1 | INTO dst", "FROM employees | KEEP emp_no | INTO dst")) {
+            Into into = as(analyzer().addEmployees().query(query), Into.class);
+            assertThat(into.collectFirstChildren(Limit.class::isInstance), empty());
+        }
     }
 
     public void testDescribeAfterIntoIsRejected() {
@@ -60,11 +63,6 @@ public class IntoAnalysisTests extends AnalyzerTestCase {
         String error = "INTO must be the last command of the query";
         analyzer().stripErrorPrefix(true).error("ROW a = 1 | INTO dst | LIMIT 1", equalTo("1:13: " + error));
         analyzer().error("ROW a = 1 | FORK (INTO dst) (LIMIT 1)", containsString(error));
-    }
-
-    public void testFromSource() {
-        Into into = as(analyzer().addEmployees().query("FROM employees | KEEP emp_no | INTO dst"), Into.class);
-        assertThat(into.collectFirstChildren(Limit.class::isInstance), empty());
     }
 
     public void testUnsupportedSources() {

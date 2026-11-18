@@ -66,7 +66,7 @@ When a third-party service returns a transient failure code (for example, 429), 
 
 ### {{infer-cap}} HTTP Proxy settings [xpack-inference-http-proxy-settings]
 
-All requests of the inference API to external services will go through a proxy, if configured.
+All {{infer}} API requests to external services go through the proxy, if configured.
 
 `xpack.inference.http.proxy.host`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Specifies the address of the proxy server to use to connect to inference services.

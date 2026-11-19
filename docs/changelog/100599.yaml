@@ -1,0 +1,5 @@
+pr: 100599
+summary: Fix `DiskThresholdDecider` average disk usage with huge filesystems
+area: Allocation
+type: bug
+issues: []

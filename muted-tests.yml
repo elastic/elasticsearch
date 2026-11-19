@@ -245,6 +245,11 @@ tests:
   - :x-pack:plugin:ml:test
   method: test_scaleUp
   issue: https://github.com/elastic/elasticsearch/issues/166070
+- class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS1EnrichUnavailableRemotesIT
+  tasks:
+  - :x-pack:plugin:security:qa:multi-cluster:javaRestTest
+  method: testEsqlEnrichWithSkipUnavailable
+  issue: https://github.com/elastic/elasticsearch/issues/166601
 
 # Examples:
 #

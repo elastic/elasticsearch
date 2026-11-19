@@ -160,8 +160,8 @@ public class Verifier {
 
         Failures failures = new Failures();
 
-        // JOIN on a subquery parses but cannot be planned; its unresolved join keys would only add noise to this failure.
-        plan.forEachDown(SubqueryJoin.class, join -> failures.add(fail(join, "JOIN on a subquery is not supported yet")));
+        // Checked first: in these modes, the join keys may resolve in ways the join does not support, and add errors of their own.
+        checkSubqueryJoinUnmappedFields(plan, unmappedResolution, context, failures);
         if (failures.hasFailures()) {
             return failures.failures();
         }
@@ -678,6 +678,34 @@ public class Verifier {
             }
         }
         return false;
+    }
+
+    /**
+     * Rejects a {@code JOIN} on a subquery in a scope whose {@code unmapped_fields} is not the default. A view decides the mode of its
+     * own body, as in {@link #checkLoadRestrictions}.
+     */
+    private static void checkSubqueryJoinUnmappedFields(
+        LogicalPlan plan,
+        UnmappedResolution resolution,
+        AnalyzerContext context,
+        Failures failures
+    ) {
+        if (plan instanceof BranchPlan branchPlan) {
+            List<LogicalPlan> children = branchPlan.children();
+            for (int i = 0; i < children.size(); i++) {
+                UnmappedResolution childResolution = branchPlan.isViewBranch(i)
+                    ? ViewQuerySettings.forView(branchPlan.branchIdentity(i).settingsViewName(), context.viewSettings()).unmappedFields()
+                    : resolution;
+                checkSubqueryJoinUnmappedFields(children.get(i), childResolution, context, failures);
+            }
+            return;
+        }
+        if (plan instanceof SubqueryJoin join && resolution != UnmappedResolution.DEFAULT) {
+            failures.add(fail(join, "JOIN on a subquery is not supported with unmapped_fields=\"{}\"", resolution.settingValue()));
+        }
+        for (LogicalPlan child : plan.children()) {
+            checkSubqueryJoinUnmappedFields(child, resolution, context, failures);
+        }
     }
 
     /**

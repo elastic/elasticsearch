@@ -305,6 +305,10 @@ Keep in mind that taking the log() of 0, or the square root of a negative number
 
 Decay functions score a document with a function that decays depending on the distance of a numeric field value of the document from a user given origin. This is similar to a range query, but with smooth edges instead of boxes.
 
+:::{tip}
+To score by distance in {{esql}}, use the [`DECAY`](/reference/query-languages/esql/functions-operators/search-functions/decay.md) function. Refer to [Score by distance with `DECAY`](/reference/query-languages/esql/esql-decay-scoring.md).
+:::
+
 To use distance scoring on a query that has numerical fields, the user has to define an `origin` and a `scale` for each field. The `origin` is needed to define the central point from which the distance is calculated, and the `scale` to define the rate of decay. The decay function is specified as
 
 ```js

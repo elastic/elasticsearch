@@ -8,3 +8,6 @@ mapped_pages:
 
 :::{include} ../../_snippets/generated/x-pack-esql/functions/layout/decay.md
 :::
+
+For a guide to the decay curves and to combining `DECAY` with search relevance, refer to
+[Score by distance with `DECAY`](/reference/query-languages/esql/esql-decay-scoring.md).

@@ -463,6 +463,7 @@ toc:
           - file: esql/esql-enrich-data.md
           - file: esql/esql-lookup-join.md
           - file: esql/esql-runtime-search.md
+          - file: esql/esql-decay-scoring.md
       - file: esql/esql-types-and-fields.md
         children:
           - file: esql/esql-implicit-casting.md

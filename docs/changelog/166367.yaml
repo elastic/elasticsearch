@@ -1,0 +1,5 @@
+area: Columnar
+issues: []
+pr: 166367
+summary: Parse float vector elements as floats in ESCF
+type: enhancement

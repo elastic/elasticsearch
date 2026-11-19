@@ -16,6 +16,7 @@ import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.sourcebatch.ArrayReader;
 import org.elasticsearch.sourcebatch.SourceRowToXContent;
 import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.test.ESTestCase;
@@ -28,6 +29,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Round-trip tests for {@link EscfEncoder}: encode JSON documents into an {@link EscfBatch}, then
@@ -254,6 +256,78 @@ public class EscfEncoderTests extends ESTestCase {
         }
     }
 
+    /**
+     * The number elements of an array at a float element path are parsed straight to float, on either encode path: the column
+     * holds the float the text rounds to, widened exactly, where parsing to double and narrowing would round the midpoint text of
+     * https://github.com/elastic/elasticsearch/issues/165790 to the other float. Other paths keep their doubles.
+     */
+    public void testFloatElementPaths() throws IOException {
+        String midpointText = "1.0000001788139343261718749";
+        String doc = "{\"obj\":{\"vec\":[0.1," + midpointText + ",3,-2.5e-3]},\"vec\":[0.1],\"other\":[0.1," + midpointText + "]}";
+        for (boolean allowSimd : simdModes()) {
+            try (EscfBatch batch = encode(List.of(new BytesArray(doc)), allowSimd, Set.of("obj.vec"))) {
+                EscfColumn vec = column(batch, "obj.vec");
+                assertEquals(EscfColumnKind.ARRAY, vec.kind());
+                assertArrayEquals(new float[] { 0.1f, Float.parseFloat(midpointText), 3f, -2.5e-3f }, vec.numericArrayAsFloats(0), 0f);
+                ArrayReader elements = vec.getArrayValue(0);
+                assertTrue(elements.next());
+                assertEquals((double) 0.1f, elements.doubleValue(), 0d);
+                assertTrue(elements.next());
+                assertEquals((double) Math.nextUp(1f), elements.doubleValue(), 0d);
+
+                // same leaf name at another path, and another field: parsed as doubles
+                ArrayReader rootVec = column(batch, "vec").getArrayValue(0);
+                assertTrue(rootVec.next());
+                assertEquals(0.1d, rootVec.doubleValue(), 0d);
+                ArrayReader other = column(batch, "other").getArrayValue(0);
+                assertTrue(other.next());
+                assertEquals(0.1d, other.doubleValue(), 0d);
+                assertTrue(other.next());
+                assertEquals(Double.parseDouble(midpointText), other.doubleValue(), 0d);
+            }
+        }
+    }
+
+    /** Elements that are not numbers keep their types at a float element path, so the shard can reject them as before. */
+    public void testFloatElementPathKeepsNonNumbers() throws IOException {
+        String doc = "{\"vec\":[0.5,\"x\",null,[1]]}";
+        for (boolean allowSimd : simdModes()) {
+            try (EscfBatch batch = encode(List.of(new BytesArray(doc)), allowSimd, Set.of("vec"))) {
+                EscfColumn vec = column(batch, "vec");
+                assertNull(vec.numericArrayAsFloats(0));
+                ArrayReader elements = vec.getArrayValue(0);
+                assertTrue(elements.next());
+                assertEquals(SourceValueType.FLOAT, elements.type());
+                assertEquals(0.5f, elements.floatValue(), 0f);
+                assertTrue(elements.next());
+                assertEquals(SourceValueType.STRING, elements.type());
+                assertTrue(elements.next());
+                assertEquals(SourceValueType.NULL, elements.type());
+                assertTrue(elements.next());
+                assertEquals(SourceValueType.FIXED_ARRAY, elements.type());
+                assertFalse(elements.next());
+            }
+        }
+    }
+
+    /** Reusing the encoder's array buffers across documents and arrays of different lengths keeps every array intact. */
+    public void testArrayScratchReuse() throws IOException {
+        List<String> docs = new ArrayList<>();
+        for (int i = 0; i < 20; i++) {
+            StringBuilder json = new StringBuilder("{\"a\":[");
+            int length = randomIntBetween(0, 100);
+            for (int e = 0; e < length; e++) {
+                json.append(e > 0 ? "," : "").append(randomBoolean() ? "\"s" + e + "\"" : Integer.toString(e));
+            }
+            docs.add(json.append("],\"b\":[1,2]}").toString());
+        }
+        assertRoundTrip(docs.toArray(String[]::new));
+    }
+
+    private static List<Boolean> simdModes() {
+        return EscfEncoder.isSimdEnabled() ? List.of(false, true) : List.of(false);
+    }
+
     private static void assertRoundTrip(String... jsonDocs) throws IOException {
         List<BytesReference> sources = new ArrayList<>(jsonDocs.length);
         for (String doc : jsonDocs) {
@@ -296,6 +370,16 @@ public class EscfEncoderTests extends ESTestCase {
     private static EscfBatch encode(List<BytesReference> sources) throws IOException {
         Recycler<BytesRef> recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
         try (EscfEncoder encoder = new EscfEncoder(recycler)) {
+            for (BytesReference source : sources) {
+                encoder.addDocument(source, XContentType.JSON, 0);
+            }
+            return encoder.buildPartition(0);
+        }
+    }
+
+    private static EscfBatch encode(List<BytesReference> sources, boolean allowSimd, Set<String> floatElementPaths) throws IOException {
+        Recycler<BytesRef> recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
+        try (EscfEncoder encoder = new EscfEncoder(recycler, allowSimd, floatElementPaths)) {
             for (BytesReference source : sources) {
                 encoder.addDocument(source, XContentType.JSON, 0);
             }

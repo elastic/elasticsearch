@@ -9,19 +9,25 @@
 
 package org.elasticsearch.index.mapper.vectors;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.AbstractColumnarMapperCompatibilityTestCase;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.index.codec.vectors.VectorTestUtils.randomFloatVector;
 import static org.elasticsearch.index.codec.vectors.VectorTestUtils.randomNormalizedFloatVector;
@@ -190,7 +196,47 @@ public class DenseVectorFieldMapperColumnarCompatibilityTests extends AbstractCo
         );
     }
 
-    /** Whole-number elements reach the batch path as longs, and elements mixing whole and fractional numbers as a union. */
+    /**
+     * Elements whose text is within a hair of the midpoint between two floats, such as {@code 1.0000001788139343261718749} from
+     * https://github.com/elastic/elasticsearch/issues/165790: parsed to double and then narrowed, they would round to the other
+     * float than the row path, which parses them straight to float. The coordinating node parses the elements of a vector its
+     * mapping knows straight to float as well, on either encode path, so both index the same vector.
+     */
+    public void testElementsNearFloatMidpoints() throws IOException {
+        final List<Doc> docs = new ArrayList<>();
+        docs.add(doc("d0", 0, vectorDoc("[1.0000001788139343261718749, 1, 2, 3, 4, 5, 6, 7]")));
+        for (int i = 1; i < 20; i++) {
+            final StringBuilder json = new StringBuilder("[");
+            for (int d = 0; d < DIMS; d++) {
+                if (d > 0) {
+                    json.append(',');
+                }
+                json.append(nearFloatMidpoint());
+            }
+            docs.add(doc("d" + i, i, vectorDoc(json.append(']').toString())));
+        }
+        for (SourceEncoder encoder : SourceEncoder.available()) {
+            assertColumnarMatchesXContent(
+                vectorMapping(randomFrom("float", "bfloat16"), "l2_norm"),
+                vectordbColumnarSettings(),
+                encoder,
+                true,
+                batch("elements near float midpoints, " + encoder, 1L, docs.toArray(Doc[]::new))
+            );
+        }
+    }
+
+    /** A decimal text a few units of its 40th decimal digit off the midpoint between a random float and the next one. */
+    private static String nearFloatMidpoint() {
+        final float f = randomFloat() * 2 - 1;
+        final BigDecimal midpoint = new BigDecimal((double) f).add(new BigDecimal((double) Math.nextUp(f))).divide(BigDecimal.TWO);
+        return midpoint.add(BigDecimal.valueOf(randomIntBetween(-3, 3), 40)).toPlainString();
+    }
+
+    /**
+     * Whole-number elements reach the batch path as longs, and elements mixing whole and fractional numbers as a union, when the
+     * coordinating node does not know the vector; when it does, they reach it as floats.
+     */
     public void testIntegerAndMixedElements() throws IOException {
         assertColumnarMatchesXContent(
             vectorMapping("float", "l2_norm"),
@@ -198,6 +244,31 @@ public class DenseVectorFieldMapperColumnarCompatibilityTests extends AbstractCo
             batch("integer elements", 1L, doc("d1", 1L, vectorDoc("[1,2,3,4,5,6,7,8]")), doc("d2", 2L, vectorDoc("[0,0,0,0,0,0,0,1]"))),
             batch("mixed elements", 1L, doc("d1", 1L, vectorDoc("[1,0.5,3,-0.25,5,6.75,7,8]")))
         );
+    }
+
+    /** The paths the coordinating node parses as float elements: float and bfloat16 vectors, also under objects and nested. */
+    public void testFloatElementPaths() throws IOException {
+        Map<String, Object> mapping = XContentHelper.convertToMap(BytesReference.bytes(mapping(b -> {
+            b.startObject("plain").field("type", "dense_vector").field("dims", 3).endObject();
+            b.startObject("f").field("type", "dense_vector").field("element_type", "float").endObject();
+            b.startObject("bf").field("type", "dense_vector").field("element_type", "bfloat16").endObject();
+            b.startObject("b").field("type", "dense_vector").field("element_type", "byte").endObject();
+            b.startObject("bits").field("type", "dense_vector").field("element_type", "bit").endObject();
+            b.startObject("num").field("type", "float").endObject();
+            b.startObject("obj").startObject("properties");
+            {
+                b.startObject("v").field("type", "dense_vector").endObject();
+                b.startObject("inner").field("type", "nested").startObject("properties");
+                b.startObject("v").field("type", "dense_vector").endObject();
+                b.endObject().endObject();
+            }
+            b.endObject().endObject();
+            b.startObject("dotted.v").field("type", "dense_vector").endObject();
+        })), false, XContentType.JSON).v2();
+        @SuppressWarnings("unchecked") // the root of a mapping built by mapping(...) is {"_doc": {...}}
+        Map<String, Object> root = (Map<String, Object>) mapping.get("_doc");
+        assertEquals(Set.of("plain", "f", "bf", "obj.v", "obj.inner.v", "dotted.v"), DenseVectorFieldMapper.floatElementPaths(root));
+        assertEquals(Set.of(), DenseVectorFieldMapper.floatElementPaths(Map.of()));
     }
 
     public void testSupportedConfigurations() throws IOException {

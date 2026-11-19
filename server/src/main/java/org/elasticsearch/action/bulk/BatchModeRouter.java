@@ -398,7 +398,7 @@ final class BatchModeRouter implements Releasable {
             request.preRoutingProcess(routing);
             int shardId = BulkBatchEncoders.NOT_BATCHABLE;
             if (isBatchEnabledFor(concreteIndex, project)) {
-                shardId = encoders.tryEncodeAndRoute((IndexRequest) request, concreteIndex, routing);
+                shardId = encoders.tryEncodeAndRoute((IndexRequest) request, concreteIndex, routing, project);
             }
             if (shardId == BulkBatchEncoders.NOT_BATCHABLE) {
                 shardId = request.route(routing);

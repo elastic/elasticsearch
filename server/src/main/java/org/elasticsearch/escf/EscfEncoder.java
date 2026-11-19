@@ -38,6 +38,7 @@ import org.elasticsearch.xcontent.support.MapXContentParser;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Encodes XContentType documents into {@link EscfBatch}es (Elasticsearch Column Format), accumulating one
@@ -91,6 +92,16 @@ public final class EscfEncoder implements SourceBatchEncoder {
      */
     private byte[] scratch;
 
+    /**
+     * The full paths of the fields whose array elements are parsed straight to float (see
+     * {@link SourceBatchEncodeHelper#packArray(XContentParser, SourceBatchEncodeHelper.ArrayScratch, boolean)}); empty when the
+     * caller knows none, in which case paths are not tracked at all.
+     */
+    private final Set<String> floatElementPaths;
+
+    /** Element buffers reused by every top-level array this encoder packs on the Jackson path. */
+    private final SourceBatchEncodeHelper.ArrayScratch arrayScratch = new SourceBatchEncodeHelper.ArrayScratch();
+
     public EscfEncoder() {
         this(BytesRefRecycler.NON_RECYCLING_INSTANCE, true);
     }
@@ -104,8 +115,42 @@ public final class EscfEncoder implements SourceBatchEncoder {
      *                  to obtain a baseline for differential comparison
      */
     public EscfEncoder(Recycler<BytesRef> recycler, boolean allowSimd) {
+        this(recycler, allowSimd, Set.of());
+    }
+
+    /**
+     * @param floatElementPaths the full paths of the fields whose array elements the row path parses as floats, such as
+     *                          {@code float} {@code dense_vector}s. Their number elements are parsed straight to float, so that
+     *                          the batch carries the value the row path indexes instead of a double the shard would round a
+     *                          second time, and so that each element is parsed once.
+     */
+    public EscfEncoder(Recycler<BytesRef> recycler, Set<String> floatElementPaths) {
+        this(recycler, true, floatElementPaths);
+    }
+
+    /**
+     * @param allowSimd         pass {@code false} to force the Jackson path; used by tests and benchmarks
+     * @param floatElementPaths see {@link #EscfEncoder(Recycler, Set)}
+     */
+    public EscfEncoder(Recycler<BytesRef> recycler, boolean allowSimd, Set<String> floatElementPaths) {
         this.backend = new EscfBatchBuilder(recycler);
         this.docParser = allowSimd && isSimdEnabled() ? SimdJsonParserPool.getDefault().forCurrentThread() : null;
+        this.floatElementPaths = Set.copyOf(floatElementPaths);
+    }
+
+    /** The root path of {@link #flattenObject} when array paths are tracked, or {@code null} when no path needs them. */
+    @Nullable
+    private String rootPath() {
+        return floatElementPaths.isEmpty() ? null : "";
+    }
+
+    /** The full path of {@code fieldName} under {@code parentPath}, as a mapping names the field; {@code null} when not tracked. */
+    @Nullable
+    static String childPath(@Nullable String parentPath, String fieldName) {
+        if (parentPath == null) {
+            return null;
+        }
+        return parentPath.isEmpty() ? fieldName : parentPath + "." + fieldName;
     }
 
     /**
@@ -131,7 +176,7 @@ public final class EscfEncoder implements SourceBatchEncoder {
                 parser.allowDuplicateKeys(true);
             }
             parser.nextToken(); // START_OBJECT
-            flattenObject(row, parser, parser.nextToken(), sink);
+            flattenObject(row, parser, parser.nextToken(), sink, rootPath());
             XContentParser.Token trailing = parser.nextToken();
             if (trailing != null) {
                 throw new IllegalArgumentException("Malformed content, found extra data after parsing: " + trailing);
@@ -164,7 +209,7 @@ public final class EscfEncoder implements SourceBatchEncoder {
             )
         ) {
             parser.nextToken(); // START_OBJECT
-            flattenObject(row, parser, parser.nextToken(), sink);
+            flattenObject(row, parser, parser.nextToken(), sink, rootPath());
         }
         row.finishRow();
     }
@@ -197,7 +242,7 @@ public final class EscfEncoder implements SourceBatchEncoder {
         try {
             EscfRowBuffer row = backend.beginRow();
             boolean rawTextMode = sink != LeafSink.NO_OP && sink.passRawText();
-            EscfDocumentHandler handler = new EscfDocumentHandler(row, backend, sink, rawTextMode);
+            EscfDocumentHandler handler = new EscfDocumentHandler(row, backend, sink, rawTextMode, floatElementPaths);
             docParser.parseDocument(buf, offset, len, handler);
             row.finishRow();
             return true;
@@ -283,8 +328,16 @@ public final class EscfEncoder implements SourceBatchEncoder {
         }
     }
 
-    private void flattenObject(EscfRowBuffer row, XContentParser parser, XContentParser.Token firstToken, LeafSink sink)
-        throws IOException {
+    /**
+     * @param path the full path of the object being flattened, {@code ""} for the root; {@code null} when no path is tracked
+     */
+    private void flattenObject(
+        EscfRowBuffer row,
+        XContentParser parser,
+        XContentParser.Token firstToken,
+        LeafSink sink,
+        @Nullable String path
+    ) throws IOException {
         XContentParser.Token token = firstToken;
         while (token != XContentParser.Token.END_OBJECT) {
             if (token != XContentParser.Token.FIELD_NAME) {
@@ -301,7 +354,7 @@ public final class EscfEncoder implements SourceBatchEncoder {
                     row.emptyObject(fieldName);
                 } else {
                     row.startObject(fieldName);
-                    flattenObject(row, parser, inner, sink);
+                    flattenObject(row, parser, inner, sink, childPath(path, fieldName));
                     row.endObject();
                 }
                 token = parser.nextToken();
@@ -312,7 +365,8 @@ public final class EscfEncoder implements SourceBatchEncoder {
             final boolean rawTextMode = firePathSink && sink.passRawText();
             switch (token) {
                 case START_ARRAY -> {
-                    SourceBatchEncodeHelper.PackedArray arr = SourceBatchEncodeHelper.packArray(parser);
+                    final boolean floatElements = path != null && floatElementPaths.contains(childPath(path, fieldName));
+                    SourceBatchEncodeHelper.PackedArray arr = SourceBatchEncodeHelper.packArray(parser, arrayScratch, floatElements);
                     int colIdx = row.arrayField(fieldName, arr.arrayType(), arr.packed());
                     if (firePathSink) {
                         sink.onArrayLeaf(colIdx, backend.columnPath(colIdx));

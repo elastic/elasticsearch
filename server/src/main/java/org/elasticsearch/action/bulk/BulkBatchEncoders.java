@@ -14,13 +14,20 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.routing.RoutingExtractor;
+import org.elasticsearch.common.cache.Cache;
+import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.sourcebatch.LeafSink;
 import org.elasticsearch.sourcebatch.SourceBatch;
@@ -31,6 +38,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ExecutionException;
 
 /**
  * Per-bulk helper that performs single-pass {@code XContent → ESCF} encoding while shard routing is
@@ -66,6 +75,15 @@ final class BulkBatchEncoders implements Releasable {
 
     /** Sentinel returned from {@link #tryEncodeAndRoute} when the item cannot be batch-encoded. */
     static final int NOT_BATCHABLE = -1;
+
+    /**
+     * {@link DenseVectorFieldMapper#floatElementPaths} per mapping, keyed by the mapping's hash. Indices that share a mapping,
+     * such as the backing indices of a data stream, share an entry, and an updated mapping gets a new one. Reading the paths
+     * means decompressing and parsing the mapping, which this saves on every bulk.
+     */
+    private static final Cache<String, Set<String>> FLOAT_ELEMENT_PATHS = CacheBuilder.<String, Set<String>>builder()
+        .setMaximumWeight(1024)
+        .build();
 
     private static final class IndexState {
         final SourceBatchEncoder encoder;
@@ -141,13 +159,13 @@ final class BulkBatchEncoders implements Releasable {
      *         abandoned ({@link #disabled()} becomes true) and the caller must route the item via
      *         {@link IndexRouting#indexShard(IndexRequest)} on the inline source.
      */
-    int tryEncodeAndRoute(IndexRequest request, Index concreteIndex, IndexRouting indexRouting) {
+    int tryEncodeAndRoute(IndexRequest request, Index concreteIndex, IndexRouting indexRouting, ProjectMetadata project) {
         if (disabled) {
             return NOT_BATCHABLE;
         }
         IndexState state = indexStates.computeIfAbsent(
             concreteIndex,
-            idx -> new IndexState(new EscfEncoder(recycler), indexRouting.newRoutingExtractor())
+            idx -> new IndexState(new EscfEncoder(recycler, floatElementPaths(project.index(idx))), indexRouting.newRoutingExtractor())
         );
         if (state.extractor != null) {
             state.extractor.reset();
@@ -180,6 +198,29 @@ final class BulkBatchEncoders implements Releasable {
             throw new IllegalStateException("Failed to commit batch row for item to shard " + destShardId, e);
         }
         return shardIdInt;
+    }
+
+    /**
+     * The paths whose array elements the encoder for {@code indexMetadata} parses as floats: the {@code float} and
+     * {@code bfloat16} {@code dense_vector}s its mapping already has. A vector mapped only once the shard parses this bulk is
+     * missing here and is encoded as doubles, as are all vectors when the mapping cannot be read, which the shard then narrows.
+     * None are parsed as floats for an index whose {@code _source} may keep the text of its vectors
+     * ({@link DenseVectorFieldMapper#sourceMayKeepVectorText}).
+     */
+    static Set<String> floatElementPaths(@Nullable IndexMetadata indexMetadata) {
+        final MappingMetadata mapping = indexMetadata == null ? null : indexMetadata.mapping();
+        if (mapping == null || DenseVectorFieldMapper.sourceMayKeepVectorText(indexMetadata.getSettings())) {
+            return Set.of();
+        }
+        try {
+            return FLOAT_ELEMENT_PATHS.computeIfAbsent(
+                mapping.getSha256(),
+                sha -> Set.copyOf(DenseVectorFieldMapper.floatElementPaths(mapping.sourceAsMap()))
+            );
+        } catch (ExecutionException | RuntimeException e) {
+            logger.debug(() -> "cannot read the dense_vector paths of the mapping of [" + indexMetadata.getIndex() + "]", e);
+            return Set.of();
+        }
     }
 
     /**

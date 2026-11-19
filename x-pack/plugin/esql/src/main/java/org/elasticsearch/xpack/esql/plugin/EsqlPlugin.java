@@ -897,6 +897,11 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         // Streaming is unreleased: on release builds the route is not registered, as if it had never been added.
         if (RestEsqlStreamQueryAction.ENABLED) {
             handlers.add(new RestEsqlStreamQueryAction(capabilities));
+            // Reading a stream result needs the stored-results system index, so the route is registered only when that feature is on.
+            // It is inside this block so that a stream can only be read where a stream can be created.
+            if (EsqlStreamResultsIndexDescriptor.FEATURE_FLAG.isEnabled()) {
+                handlers.add(new RestEsqlGetStreamResultAction());
+            }
         }
         // Federation (external data sources) REST handlers are registered only when the feature is on. When it is
         // not available the routes are unregistered, so PUT/GET/DELETE of data sources and datasets return the
@@ -912,10 +917,6 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             handlers.add(new RestPutDatasetAction(dataSourceSecretSettingNames));
             handlers.add(new RestGetDatasetAction());
             handlers.add(new RestDeleteDatasetAction());
-        }
-        // Reading a stream result needs the stored-results system index, so the route is registered only when that feature is on.
-        if (EsqlStreamResultsIndexDescriptor.FEATURE_FLAG.isEnabled()) {
-            handlers.add(new RestEsqlGetStreamResultAction());
         }
         return handlers;
     }

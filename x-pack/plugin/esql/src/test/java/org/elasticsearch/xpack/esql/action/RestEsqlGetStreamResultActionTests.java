@@ -48,7 +48,7 @@ public class RestEsqlGetStreamResultActionTests extends ESTestCase {
 
     public void testDefaults() {
         GetStreamResultRequest get = RestEsqlGetStreamResultAction.parseRequest(request(Map.of()));
-        assertThat(get.id(), equalTo("the-id"));
+        assertThat(get.streamId(), equalTo("the-id"));
         assertThat(get.offset(), equalTo(0L));
         assertThat("no max_rows means no limit", get.hasRowLimit(), equalTo(false));
         assertThat("no max_bytes means no limit", get.hasByteLimit(), equalTo(false));

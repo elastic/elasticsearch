@@ -38,15 +38,15 @@ public class StreamResultsService {
 
     public void retrieveResult(CancellableTask task, GetStreamResultRequest request, ActionListener<GetStreamResultResponse> listener) {
         StreamStorage store = storage;
-        String id = request.id();
+        String streamId = request.streamId();
         // A "not found" of the storage itself must look like the one of the checks below. Only the storage call is wrapped: a failure
         // produced further down, such as the stored failure of a query that failed with a "not found" of its own, is passed on as is.
-        store.getMetadata(id, StreamTaskManagementService.uniformNotFound(id, listener.delegateFailureAndWrap((l, metadata) -> {
+        store.getMetadata(streamId, StreamTaskManagementService.uniformNotFound(streamId, listener.delegateFailureAndWrap((l, metadata) -> {
             // Security and expiry are checked once, up front, before any wait or page read.
             // TODO: this compares the caller with the security headers stored in the metadata, but nothing stores them yet: the stream
             // POST does not call StreamStorage#create. When it does, it must pass the security headers of the request that started the
             // query. Empty headers mean "created with security off" and let every caller read the stream. See StreamSearchSecurity.
-            StreamMetadata checked = security.getStreamAndCheckAuthentication(id, metadata, System.currentTimeMillis());
+            StreamMetadata checked = security.getStreamAndCheckAuthentication(streamId, metadata, System.currentTimeMillis());
             if (request.statusOnly()) {
                 respond(request, new StreamPages(checked, List.of()), l);
                 return;
@@ -55,7 +55,7 @@ public class StreamResultsService {
                 threadPool,
                 task,
                 store,
-                id,
+                streamId,
                 // the metadata that was just checked serves the first read, so it is not read twice in a row
                 checked,
                 request.offset(),

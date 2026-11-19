@@ -43,7 +43,7 @@ public class GetStreamResultRequestTests extends ESTestCase {
         long maxBytes = randomLongBetween(1, 1_000_000);
         TimeValue wait = TimeValue.timeValueMillis(randomLongBetween(1, 10_000));
         GetStreamResultRequest request = new GetStreamResultRequest("id", offset, maxRows, maxBytes, wait);
-        assertThat(request.id(), equalTo("id"));
+        assertThat(request.streamId(), equalTo("id"));
         assertThat(request.offset(), equalTo(offset));
         assertThat(request.maxRows(), equalTo(maxRows));
         assertThat(request.maxBytes(), equalTo(maxBytes));

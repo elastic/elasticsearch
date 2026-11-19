@@ -32,11 +32,13 @@ import org.elasticsearch.xpack.esql.streaming.StreamMetadata;
 import org.elasticsearch.xpack.esql.streaming.StreamPages;
 
 import java.io.IOException;
-import java.io.OutputStream;
 import java.time.ZoneOffset;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
+
+import static org.elasticsearch.xpack.esql.action.NdjsonRowWriter.NDJSON_CONTENT_TYPE;
+import static org.elasticsearch.xpack.esql.action.NdjsonRowWriter.NEWLINE;
 
 /**
  * Writes the result of a stream read as NDJSON, one line per logical unit:
@@ -60,8 +62,6 @@ import java.util.List;
 public final class StreamNdjsonBody implements Releasable {
 
     private static final Logger logger = LogManager.getLogger(StreamNdjsonBody.class);
-    private static final String NDJSON_CONTENT_TYPE = "application/x-ndjson";
-    private static final byte[] NEWLINE = new byte[] { '\n' };
 
     private final RestChannel channel;
     private final GetStreamResultRequest request;
@@ -106,6 +106,20 @@ public final class StreamNdjsonBody implements Releasable {
         return (request.hasRowLimit() && rowsWritten >= request.maxRows())
             || (request.hasByteLimit() && bytesWritten >= request.maxBytes());
     }
+
+    /** Counts the rows and their bytes as they are written, and stops the rows of a page when a limit is reached. */
+    private final NdjsonRowWriter.RowLimit limit = new NdjsonRowWriter.RowLimit() {
+        @Override
+        public boolean reached() {
+            return limitReached();
+        }
+
+        @Override
+        public void rowWritten(int bytes) {
+            rowsWritten++;
+            bytesWritten += bytes;
+        }
+    };
 
     /** Produces the part after the one just written: the next page, or the last line when no page is left or a limit was reached. */
     private void next(ActionListener<ChunkedRestResponseBodyPart> listener) {
@@ -209,7 +223,7 @@ public final class StreamNdjsonBody implements Releasable {
         @Override
         void writeLine(XContentBuilder builder) throws IOException {
             builder.startObject();
-            builder.field("id", request.id());
+            builder.field("id", request.streamId());
             builder.startArray("columns");
             for (ColumnInfoImpl column : columns) {
                 column.toXContent(builder, channel.request());
@@ -253,7 +267,13 @@ public final class StreamNdjsonBody implements Releasable {
                 && nextOffset < totalRows) {
                 failure = new StreamMetadata.StreamFailure(
                     ElasticsearchException.getExceptionName(new IllegalStateException()),
-                    "stream [" + request.id() + "] is complete with [" + totalRows + "] rows but only has rows up to [" + nextOffset + "]",
+                    "stream ["
+                        + request.streamId()
+                        + "] is complete with ["
+                        + totalRows
+                        + "] rows but only has rows up to ["
+                        + nextOffset
+                        + "]",
                     RestStatus.INTERNAL_SERVER_ERROR
                 );
             }
@@ -296,13 +316,13 @@ public final class StreamNdjsonBody implements Releasable {
 
     private final class PagePart implements ChunkedRestResponseBodyPart {
         private final Page page;
-        private PositionToXContent[] converters;
-        private BytesRef scratch;
-        private int nextRow = 0;
+        private final NdjsonRowWriter rows;
         private boolean encoded = false;
 
         PagePart(Page page) {
             this.page = page;
+            // The time zone of the query is not stored with the stream, so dates are written in UTC.
+            this.rows = new NdjsonRowWriter(page, columns, null, ZoneOffset.UTC);
         }
 
         @Override
@@ -323,45 +343,17 @@ public final class StreamNdjsonBody implements Releasable {
         @Override
         public ReleasableBytesReference encodeChunk(int sizeHint, Recycler<BytesRef> recycler) throws IOException {
             final RecyclerBytesStreamOutput chunkStream = new RecyclerBytesStreamOutput(recycler);
-            // Closing a builder closes its stream, but the chunk must stay open until it is turned into the bytes of the response.
-            final OutputStream out = Streams.noCloseStream(chunkStream);
             try {
-                final int rowCount = page.getPositionCount();
-                final int colCount = columns.size();
-                if (converters == null) {
-                    scratch = new BytesRef();
-                    converters = new PositionToXContent[colCount];
-                    for (int c = 0; c < colCount; c++) {
-                        // The time zone of the query is not stored with the stream, so dates are written in UTC.
-                        converters[c] = PositionToXContent.positionToXContent(columns.get(c), page.getBlock(c), ZoneOffset.UTC, scratch);
-                    }
-                }
                 // Rows are written until the chunk reaches sizeHint or a limit is reached. The limits are checked before each row
                 // for max_rows and after each row for max_bytes, so at least one row is written whenever no limit is reached yet.
-                while (nextRow < rowCount && limitReached() == false) {
-                    int before = chunkStream.size();
-                    try (XContentBuilder builder = XContentFactory.jsonBuilder(out)) {
-                        builder.startArray();
-                        for (int col = 0; col < colCount; col++) {
-                            converters[col].positionToXContent(builder, channel.request(), nextRow);
-                        }
-                        builder.endArray();
-                    }
-                    chunkStream.write(NEWLINE);
-                    nextRow++;
-                    rowsWritten++;
-                    bytesWritten += chunkStream.size() - before;
-                    if (chunkStream.size() >= sizeHint) {
-                        break;
-                    }
-                }
-                if (nextRow == rowCount || limitReached()) {
+                rows.writeRows(chunkStream, channel.request(), sizeHint, limit);
+                if (rows.allRowsWritten() || limitReached()) {
                     // Rows after a reached limit are dropped with the page.
                     encoded = true;
                 }
                 return chunkStream.moveToBytesReference();
             } catch (Exception e) {
-                logger.warn(() -> Strings.format("failure encoding a page of stream [%s]", request.id()), e);
+                logger.warn(() -> Strings.format("failure encoding a page of stream [%s]", request.streamId()), e);
                 encoded = true;
                 IOUtils.closeWhileHandlingException(chunkStream);
                 throw e;

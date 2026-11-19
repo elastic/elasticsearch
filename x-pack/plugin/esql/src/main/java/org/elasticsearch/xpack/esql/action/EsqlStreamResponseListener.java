@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.esql.plugin.TransportEsqlStreamQueryAction;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.nio.charset.StandardCharsets;
 import java.time.ZoneId;
 import java.util.Iterator;
 import java.util.List;
@@ -48,6 +47,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE;
+import static org.elasticsearch.xpack.esql.action.NdjsonRowWriter.NDJSON_CONTENT_TYPE;
+import static org.elasticsearch.xpack.esql.action.NdjsonRowWriter.NEWLINE;
 
 /**
  * REST listener for the streaming ES|QL query endpoint. Subscribes to a {@link PageStreamPublisher}
@@ -86,8 +87,6 @@ import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK
 public class EsqlStreamResponseListener implements ActionListener<ActionResponse.Empty> {
 
     private static final Logger logger = LogManager.getLogger(EsqlStreamResponseListener.class);
-    private static final String NDJSON_CONTENT_TYPE = "application/x-ndjson";
-    private static final byte[] NEWLINE = "\n".getBytes(StandardCharsets.UTF_8);
 
     private final RestChannel channel;
     private final ThreadContext threadContext;
@@ -448,35 +447,13 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
 
     private class NdjsonPageBodyPart implements ChunkedRestResponseBodyPart {
         private final Page page;
-        private final List<ColumnInfoImpl> cols;
-        private final boolean[] nullColumns;
-        private final ZoneId zoneId;
-
-        // Resume state across encodeChunk calls.
-        // target is the current chunk's output stream; set at the top of each encodeChunk and nulled
-        // before returning so that out never writes to a stream that has already been moved/closed.
-        private RecyclerBytesStreamOutput target;
-        private final OutputStream out = new OutputStream() {
-            @Override
-            public void write(int b) throws IOException {
-                target.write(b);
-            }
-
-            @Override
-            public void write(byte[] b, int off, int len) throws IOException {
-                target.write(b, off, len);
-            }
-        };
-        private PositionToXContent[] converters;   // built once on the first encodeChunk
-        private BytesRef scratch;                  // built once on the first encodeChunk
-        private int nextRow = 0;                   // resume cursor into the page
+        // Holds the resume state across encodeChunk calls: the converters and the next row of the page.
+        private final NdjsonRowWriter rows;
         private boolean encoded = false;           // true only after the last row has been written
 
         NdjsonPageBodyPart(Page page, List<ColumnInfoImpl> cols, boolean[] nullColumns, ZoneId zoneId) {
             this.page = page;
-            this.cols = cols;
-            this.nullColumns = nullColumns;
-            this.zoneId = zoneId;
+            this.rows = new NdjsonRowWriter(page, cols, nullColumns, zoneId);
         }
 
         @Override
@@ -500,56 +477,17 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
                 throw new IllegalStateException("in-flight page was already released; the response is torn down");
             }
             final RecyclerBytesStreamOutput chunkStream = new RecyclerBytesStreamOutput(recycler);
-            target = chunkStream;
             try {
-                final int rowCount = page.getPositionCount();
-                final int colCount = cols.size();
-                if (converters == null) {
-                    // First chunk: build the converters once; they are reused for every row of the page.
-                    scratch = new BytesRef();
-                    converters = new PositionToXContent[colCount];
-                    for (int c = 0; c < colCount; c++) {
-                        if (nullColumns == null || nullColumns[c] == false) {
-                            converters[c] = PositionToXContent.positionToXContent(cols.get(c), page.getBlock(c), zoneId, scratch);
-                        }
-                    }
-                }
-                // Emit rows until the chunk reaches sizeHint. Each row is its own JSON value followed by a
-                // newline, so it gets its own builder (a builder cannot write two top-level values without
-                // a separator). Closing it flushes Jackson's internal write buffer through out into
-                // chunkStream, so size() is accurate to the row just written; without that it would only
-                // advance in ~8 KB steps. Measuring after the row (not before) guarantees at least one row
-                // per call, so a part with a tiny sizeHint still makes forward progress.
-                int rowsInChunk = 0;
-                while (nextRow < rowCount) {
-                    try (XContentBuilder builder = XContentFactory.jsonBuilder(out)) {
-                        builder.startArray();
-                        for (int col = 0; col < colCount; col++) {
-                            if (converters[col] != null) {
-                                converters[col].positionToXContent(builder, channel.request(), nextRow);
-                            }
-                        }
-                        builder.endArray();
-                    }
-                    chunkStream.write(NEWLINE);
-                    nextRow++;
-                    rowsInChunk++;
-                    if (chunkStream.size() >= sizeHint) {
-                        break;
-                    }
-                }
-                rowsWritten.addAndGet(rowsInChunk);
-                if (nextRow == rowCount) {
+                // Rows are written until the chunk reaches sizeHint, at least one row per call.
+                rowsWritten.addAndGet(rows.writeRows(chunkStream, channel.request(), sizeHint, NdjsonRowWriter.RowLimit.NONE));
+                if (rows.allRowsWritten()) {
                     encoded = true;
                 }
-                final var result = chunkStream.moveToBytesReference();
-                target = null;
-                return result;
+                return chunkStream.moveToBytesReference();
             } catch (Exception e) {
                 logger.error("failure encoding page chunk", e);
                 encoded = true; // part is dead; never re-enter it
                 IOUtils.closeWhileHandlingException(chunkStream);
-                target = null;
                 releasePage();
                 throw e;
             } finally {

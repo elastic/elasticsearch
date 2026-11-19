@@ -73,7 +73,7 @@ public class RestEsqlGetStreamResultAction extends BaseRestHandler {
      * limit. A zero or negative {@code wait_timeout} means no wait, as for the async API.
      */
     static GetStreamResultRequest parseRequest(RestRequest request) {
-        String id = request.param("id");
+        String streamId = request.param("id");
         long offset = request.paramAsLong("offset", 0L);
         long maxRows = GetStreamResultRequest.NO_LIMIT;
         if (request.hasParam("max_rows")) {
@@ -91,7 +91,7 @@ public class RestEsqlGetStreamResultAction extends BaseRestHandler {
             }
         }
         TimeValue waitTimeout = request.hasParam("wait_timeout") ? request.paramAsTime("wait_timeout", TimeValue.MINUS_ONE) : null;
-        return new GetStreamResultRequest(id, offset, maxRows, maxBytes, waitTimeout);
+        return new GetStreamResultRequest(streamId, offset, maxRows, maxBytes, waitTimeout);
     }
 
     /** Sends the NDJSON body, or the error when the read failed before the first line. */

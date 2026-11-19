@@ -18,6 +18,7 @@ import org.apache.lucene.util.RamUsageEstimator;
 public final class FloatVectorFixedBuilder implements FloatVector.FixedBuilder {
     private final BlockFactory blockFactory;
     private final float[] values;
+    private final int size;
     private final long preAdjustedBytes;
     /**
      * The next value to write into. {@code -1} means the vector has already
@@ -31,6 +32,7 @@ public final class FloatVectorFixedBuilder implements FloatVector.FixedBuilder {
         preAdjustedBytes = ramBytesUsed(size);
         blockFactory.adjustBreaker(preAdjustedBytes);
         this.blockFactory = blockFactory;
+        this.size = size;
         this.values = new float[size];
     }
 
@@ -56,7 +58,7 @@ public final class FloatVectorFixedBuilder implements FloatVector.FixedBuilder {
 
     @Override
     public long estimatedBytes() {
-        return ramBytesUsed(values.length);
+        return ramBytesUsed(size);
     }
 
     @Override
@@ -64,13 +66,13 @@ public final class FloatVectorFixedBuilder implements FloatVector.FixedBuilder {
         if (closed) {
             throw new IllegalStateException("already closed");
         }
-        closed = true;
         FloatVector vector;
-        if (values.length == 1) {
+        if (size == 1) {
             vector = blockFactory.newConstantFloatVector(values[0], 1, preAdjustedBytes);
         } else {
-            vector = blockFactory.newFloatArrayVector(values, values.length, preAdjustedBytes);
+            vector = blockFactory.newFloatArrayVector(values, size, preAdjustedBytes);
         }
+        closed = true;
         assert vector.ramBytesUsed() == preAdjustedBytes : "fixed Builders should estimate the exact ram bytes used";
         return vector;
     }

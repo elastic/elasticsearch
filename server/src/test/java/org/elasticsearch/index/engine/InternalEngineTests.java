@@ -146,6 +146,7 @@ import org.elasticsearch.sourcebatch.MappedColumns;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -393,6 +394,39 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
+    public void testMergedSegmentWarmerRunsBeforeMergeIsCommitted() throws Exception {
+        final int numSegments = between(2, 5);
+        final AtomicInteger warmedSegments = new AtomicInteger();
+        final AtomicInteger warmedMaxDoc = new AtomicInteger();
+        final AtomicInteger segmentsVisibleToWriterWhenWarming = new AtomicInteger();
+        final AtomicReference<InternalEngine> engineRef = new AtomicReference<>();
+        try (Store store = createStore()) {
+            final EngineConfig config = EngineConfig.builder(config(defaultSettings, store, createTempDir(), new TieredMergePolicy()))
+                .mergedSegmentWarmer(reader -> {
+                    warmedSegments.incrementAndGet();
+                    warmedMaxDoc.set(reader.maxDoc());
+                    // the merge has not been committed yet, so the merged segment is not visible to the writer
+                    segmentsVisibleToWriterWhenWarming.set(engineRef.get().segments().size());
+                })
+                .build();
+            try (InternalEngine engine = createEngine(config)) {
+                engineRef.set(engine);
+                for (int i = 0; i < numSegments; i++) {
+                    indexDoc(engine, indexForDoc(testParsedDocument(Integer.toString(i), null, testDocument(), B_1)));
+                    engine.flush();
+                }
+                assertThat(warmedSegments.get(), equalTo(0));
+
+                engine.forceMerge(true, 1, false, UUIDs.randomBase64UUID());
+
+                assertThat(warmedSegments.get(), greaterThanOrEqualTo(1));
+                assertThat(warmedMaxDoc.get(), equalTo(numSegments));
+                assertThat(segmentsVisibleToWriterWhenWarming.get(), equalTo(numSegments));
+                assertThat(engine.segments().size(), equalTo(1));
+            }
+        }
+    }
+
     public void testSegmentsWithMergeFlag() throws Exception {
         try (Store store = createStore(); Engine engine = createEngine(defaultSettings, store, createTempDir(), new TieredMergePolicy())) {
             ParsedDocument doc = testParsedDocument("1", null, testDocument(), B_1);
@@ -633,9 +667,15 @@ public class InternalEngineTests extends EngineTestCase {
         indexDoc(engine, indexForDoc(doc));
         engine.close();
 
-        engine = new InternalEngine(engine.config());
-        expectThrows(IllegalStateException.class, engine::ensureCanFlush);
-        expectThrows(IllegalStateException.class, () -> engine.flush(true, true));
+        final RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        engine = new InternalEngine(EngineConfig.builder(engine.config()).flushMetrics(new FlushMetrics(meterRegistry)).build());
+        expectThrows(PendingTranslogRecoveryException.class, engine::ensureCanFlush);
+        expectThrows(PendingTranslogRecoveryException.class, () -> engine.flush(true, true));
+        assertThat(
+            "a pending translog recovery is not a flush failure",
+            meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, FlushMetrics.FLUSH_UNEXPECTED_FAILURE_TOTAL),
+            empty()
+        );
         if (randomBoolean()) {
             recoverFromTranslog(engine, translogHandler, Long.MAX_VALUE);
         } else {
@@ -645,6 +685,34 @@ public class InternalEngineTests extends EngineTestCase {
         doc = testParsedDocument("2", null, testDocumentWithTextField(), SOURCE);
         indexDoc(engine, indexForDoc(doc));
         engine.flush();
+    }
+
+    public void testFlushListenerCompletesWhenReportingFlushFailureFails() throws IOException {
+        engine.close();
+        final AtomicBoolean rethrowFlushFailure = new AtomicBoolean();
+        final FlushMetrics failingMetrics = new FlushMetrics(TelemetryProvider.NOOP.getMeterRegistry()) {
+            @Override
+            public void onFailure(IndexMode indexMode, Throwable error) {
+                if (rethrowFlushFailure.get()) {
+                    // the flush failure below is unchecked
+                    throw (RuntimeException) error;
+                }
+                throw new IllegalStateException("simulated metrics failure");
+            }
+        };
+        engine = new InternalEngine(EngineConfig.builder(engine.config()).flushMetrics(failingMetrics).build()) {
+            @Override
+            protected void ensureCanFlush() {
+                throw new IllegalArgumentException("simulated flush failure");
+            }
+        };
+
+        for (boolean rethrow : new boolean[] { false, true }) {
+            rethrowFlushFailure.set(rethrow);
+            final PlainActionFuture<Engine.FlushResult> future = new PlainActionFuture<>();
+            engine.flush(true, true, future);
+            assertThat(expectThrows(IllegalArgumentException.class, future::actionGet).getMessage(), equalTo("simulated flush failure"));
+        }
     }
 
     public void testTranslogMultipleOperationsSameDocument() throws IOException {

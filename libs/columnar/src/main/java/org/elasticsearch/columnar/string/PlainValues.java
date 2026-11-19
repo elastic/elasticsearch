@@ -149,11 +149,14 @@ final class PlainValues {
         private boolean previousNull;
         /** Whether values come through {@link #transfer}, which keeps no {@link #previous}; a column takes one or the other. */
         private Boolean transferred;
+        private final boolean tracksOwnerChunk;
         private int ownerChunk;
 
         /**
-         * @param constantLength the length every value has, which the caller knows before writing any of them,
-         *                       or {@code -1}; a column with one keeps no lengths
+         * @param constantLength   the length every value has, which the caller knows before writing any of them,
+         *                         or {@code -1}; a column with one keeps no lengths
+         * @param tracksOwnerChunk whether the caller reads {@link #ownerChunk}, which only a column that captures
+         *                         bounds does
          */
         Writer(
             ChunkCodec codec,
@@ -162,9 +165,11 @@ final class PlainValues {
             int lengthBlockSize,
             long numValues,
             int constantLength,
-            ColumnOutputs outputs
+            ColumnOutputs outputs,
+            boolean tracksOwnerChunk
         ) {
             assert valuesPerBlock <= lengthBlockSize : valuesPerBlock + " > " + lengthBlockSize;
+            this.tracksOwnerChunk = tracksOwnerChunk;
             this.chunks = new ChunkedBytesWriter(codec, bounds, outputs.data(), outputs.navigation());
             this.constantLength = constantLength;
             if (constantLength >= 0) {
@@ -195,7 +200,7 @@ final class PlainValues {
             }
             final boolean repeat = count > 0 && previousNull == false && previous.get().bytesEquals(value);
             startSlot();
-            ownerChunk = chunks.chunkBeingFilled();
+            recordOwnerChunk();
             if (lengths != null && repeat && count % lengthBlockSize != 0) {
                 lengths.add(REPEAT);
             } else {
@@ -228,7 +233,7 @@ final class PlainValues {
             }
             assert repeat == false || (count > 0 && previousNull == false) : "only a value can be repeated";
             startSlot();
-            ownerChunk = chunks.chunkBeingFilled();
+            recordOwnerChunk();
             if (lengths != null && repeat && count % lengthBlockSize != 0) {
                 lengths.add(REPEAT);
             } else {
@@ -259,7 +264,7 @@ final class PlainValues {
                 throw new IllegalStateException("a null in a column counted as holding none");
             }
             startSlot();
-            ownerChunk = chunks.chunkBeingFilled();
+            recordOwnerChunk();
             lengths.add(NULL_CODE);
             if (count == 0 || previousNull == false) {
                 runs++;
@@ -268,9 +273,19 @@ final class PlainValues {
             count++;
         }
 
-        /** The chunk that owns the slot just written: the one holding its first byte, or the one being filled if it has none. */
+        /**
+         * The chunk that owns the slot just written: the one holding its first byte, or the one being filled if it has none.
+         * Valid only if the writer was built with {@code tracksOwnerChunk}.
+         */
         int ownerChunk() {
+            assert tracksOwnerChunk : "the writer was not asked to track the chunk that owns a slot";
             return ownerChunk;
+        }
+
+        private void recordOwnerChunk() {
+            if (tracksOwnerChunk) {
+                ownerChunk = chunks.chunkBeingFilled();
+            }
         }
 
         private void startSlot() throws IOException {

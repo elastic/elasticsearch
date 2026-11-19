@@ -14,6 +14,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.sourcebatch.ArrayReader;
 import org.elasticsearch.sourcebatch.SourceValueType;
+import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.XContentString;
 
 import java.util.Arrays;
@@ -105,7 +106,9 @@ public final class EscfColumnTransforms {
      * Returns a cursor that stringifies every present value to its UTF-8 keyword form. Nested and
      * flat arrays are flattened to one tuple per leaf element (same doc-id repeated); absent rows
      * and empty arrays emit nothing. JSON null emits a tuple with {@code value()==null}.
-     * Numbers use canonical {@code toString}; BINARY and KEY_VALUE throw.
+     * Numbers render as {@code Long.toString} / {@code Double.toString}, except that a value in a dense DOUBLE
+     * column that was stored with its spelling yields that spelling (see {@link EscfColumnData#lexicalForms()}).
+     * BINARY and KEY_VALUE throw.
      *
      * @param column the source ESCF column
      * @param retainValues {@code false} when each value is consumed before the next {@link
@@ -116,137 +119,228 @@ public final class EscfColumnTransforms {
      * @return a forward-only cursor over stringified values
      */
     public static ObjectTupleCursor<BytesRef> utf8Cursor(EscfColumn column, boolean retainValues) {
-        // STRING columns have a native BytesRef cursor with no per-row dispatch needed.
+        return typedUtf8Cursor(column, retainValues);
+    }
+
+    /** A {@link #utf8Cursor} that also reports each value's source type, to tell the string {@code "123"} from the number {@code 123}. */
+    public abstract static class TypedUtf8Cursor extends ObjectTupleCursor<BytesRef> {
+        /** The {@link SourceValueType} of the current value. */
+        public abstract byte valueType();
+
+        /** The current value, when {@link #valueType()} is {@code INT} or {@code LONG}. */
+        public abstract long longValue();
+
+        /** The current value, when {@link #valueType()} is {@code FLOAT} or {@code DOUBLE}. */
+        public abstract double doubleValue();
+    }
+
+    /** Like {@link #utf8Cursor}, but also exposes {@link TypedUtf8Cursor#valueType()}. */
+    public static TypedUtf8Cursor typedUtf8Cursor(EscfColumn column, boolean retainValues) {
         if (column.kind() == EscfColumnKind.STRING) {
-            return column.bytesRefCursor(retainValues);
+            final ObjectTupleCursor<BytesRef> strings = column.bytesRefCursor(retainValues);
+            return new TypedUtf8Cursor() {
+                @Override
+                public int nextDoc() {
+                    return strings.nextDoc();
+                }
+
+                @Override
+                public BytesRef value() {
+                    return strings.value();
+                }
+
+                @Override
+                public byte valueType() {
+                    return SourceValueType.STRING;
+                }
+
+                @Override
+                public long longValue() {
+                    throw new IllegalStateException("value is a STRING, not a number");
+                }
+
+                @Override
+                public double doubleValue() {
+                    throw new IllegalStateException("value is a STRING, not a number");
+                }
+            };
         }
-        return new ObjectTupleCursor<>() {
+        return new StringifyingCursor(column);
+    }
 
-            private final PresentDocIterator present = column.presentDocs();
-            private int currentDoc = -1;
-            private BytesRef currentValue = null;
-            // Stack of active array readers; grows on nested arrays, shrinks on exhaustion.
-            private ArrayReader[] arStack = null;
-            private int arDepth = 0;
+    private static final class StringifyingCursor extends TypedUtf8Cursor {
 
-            @Override
-            public int nextDoc() {
-                if (arDepth > 0 && advanceArray()) {
-                    return currentDoc;
-                }
-                int doc;
-                while ((doc = present.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
-                    currentDoc = doc;
-                    byte t = column.typeByteForPresent(doc);
-                    switch (t) {
-                        case SourceValueType.NULL -> {
-                            currentValue = null;
-                            return doc;
-                        }
-                        case SourceValueType.TRUE -> {
-                            currentValue = BOOLEAN_TRUE;
-                            return doc;
-                        }
-                        case SourceValueType.FALSE -> {
-                            currentValue = BOOLEAN_FALSE;
-                            return doc;
-                        }
-                        case SourceValueType.LONG -> {
-                            currentValue = new BytesRef(Long.toString(column.getLongValue(doc)));
-                            return doc;
-                        }
-                        case SourceValueType.DOUBLE -> {
-                            currentValue = new BytesRef(Double.toString(column.getDoubleValue(doc)));
-                            return doc;
-                        }
-                        case SourceValueType.STRING -> {
-                            currentValue = column.getBinaryValue(doc);
-                            return doc;
-                        }
-                        case SourceValueType.FIXED_ARRAY, SourceValueType.UNION_ARRAY -> {
-                            pushArray(column.getArrayValue(doc));
-                            if (advanceArray()) {
-                                return doc;
-                            }
-                            // empty array: fall through to the next present doc
-                        }
-                        // Unsupported scalar type bytes. BINARY and KEY_VALUE are structurally
-                        // incompatible with keyword conversion. INT and FLOAT are never written
-                        // as scalar UNION type bytes by EscfColumnBuilder (only LONG/DOUBLE are);
-                        // they only appear as element type bytes inside inline array payloads.
-                        default -> throw new UnsupportedOperationException(
-                            "utf8Cursor: unsupported ESCF value type [" + SourceValueType.name(t) + "] for string conversion"
-                        );
-                    }
-                }
-                return DocIdSetIterator.NO_MORE_DOCS;
+        private final EscfColumn column;
+        private final PresentDocIterator present;
+        private int currentDoc = -1;
+        private BytesRef currentValue = null;
+        // Stack of active array readers; grows on nested arrays, shrinks on exhaustion.
+        private ArrayReader[] arStack = null;
+        private int arDepth = 0;
+        // The source type of the value last returned.
+        private byte valueType = SourceValueType.NULL;
+        // The number last returned, for longValue() and doubleValue().
+        private long currentLong;
+        private double currentDouble;
+
+        StringifyingCursor(EscfColumn column) {
+            this.column = column;
+            this.present = column.presentDocs();
+        }
+
+        @Override
+        public byte valueType() {
+            return valueType;
+        }
+
+        @Override
+        public long longValue() {
+            assert valueType == SourceValueType.INT || valueType == SourceValueType.LONG : SourceValueType.name(valueType);
+            return currentLong;
+        }
+
+        @Override
+        public double doubleValue() {
+            assert valueType == SourceValueType.FLOAT || valueType == SourceValueType.DOUBLE : SourceValueType.name(valueType);
+            return currentDouble;
+        }
+
+        @Override
+        public int nextDoc() {
+            if (arDepth > 0 && advanceArray()) {
+                return currentDoc;
             }
-
-            /** Returns true with {@link #currentValue} set at the next leaf; false when drained. */
-            private boolean advanceArray() {
-                while (arDepth > 0) {
-                    ArrayReader cur = arStack[arDepth - 1];
-                    if (cur.next() == false) {
-                        arDepth--;
-                        continue;
-                    }
-                    if (cur.isNull()) {
+            int doc;
+            while ((doc = present.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                currentDoc = doc;
+                byte t = column.typeByteForPresent(doc);
+                valueType = t;
+                switch (t) {
+                    case SourceValueType.NULL -> {
                         currentValue = null;
+                        return doc;
+                    }
+                    case SourceValueType.TRUE -> {
+                        currentValue = BOOLEAN_TRUE;
+                        return doc;
+                    }
+                    case SourceValueType.FALSE -> {
+                        currentValue = BOOLEAN_FALSE;
+                        return doc;
+                    }
+                    case SourceValueType.LONG -> {
+                        currentLong = column.getLongValue(doc);
+                        currentValue = new BytesRef(Long.toString(currentLong));
+                        return doc;
+                    }
+                    case SourceValueType.DOUBLE -> {
+                        currentDouble = column.getDoubleValue(doc);
+                        // A dense DOUBLE column renders the double, or returns its stored spelling when it has
+                        // one.
+                        // TODO: a union row has no spelling and renders canonically.
+                        currentValue = column.kind() == EscfColumnKind.DOUBLE
+                            ? utf8(column.getStringValue(doc))
+                            : new BytesRef(Double.toString(currentDouble));
+                        return doc;
+                    }
+                    case SourceValueType.STRING -> {
+                        currentValue = column.getBinaryValue(doc);
+                        return doc;
+                    }
+                    case SourceValueType.FIXED_ARRAY, SourceValueType.UNION_ARRAY -> {
+                        pushArray(column.getArrayValue(doc));
+                        if (advanceArray()) {
+                            return doc;
+                        }
+                        // empty array: fall through to the next present doc
+                    }
+                    // Unsupported scalar type bytes. BINARY and KEY_VALUE are structurally
+                    // incompatible with keyword conversion. INT and FLOAT are never written
+                    // as scalar UNION type bytes by EscfColumnBuilder (only LONG/DOUBLE are);
+                    // they only appear as element type bytes inside inline array payloads.
+                    default -> throw new UnsupportedOperationException(
+                        "utf8Cursor: unsupported ESCF value type [" + SourceValueType.name(t) + "] for string conversion"
+                    );
+                }
+            }
+            return DocIdSetIterator.NO_MORE_DOCS;
+        }
+
+        /** Returns true with {@link #currentValue} set at the next leaf; false when drained. */
+        private boolean advanceArray() {
+            while (arDepth > 0) {
+                ArrayReader cur = arStack[arDepth - 1];
+                if (cur.next() == false) {
+                    arDepth--;
+                    continue;
+                }
+                if (cur.isNull()) {
+                    currentValue = null;
+                    valueType = SourceValueType.NULL;
+                    return true;
+                }
+                byte elemType = cur.type();
+                valueType = elemType;
+                switch (elemType) {
+                    case SourceValueType.FIXED_ARRAY, SourceValueType.UNION_ARRAY -> pushArray(cur.nestedArray());
+                    case SourceValueType.TRUE -> {
+                        currentValue = BOOLEAN_TRUE;
                         return true;
                     }
-                    byte elemType = cur.type();
-                    switch (elemType) {
-                        case SourceValueType.FIXED_ARRAY, SourceValueType.UNION_ARRAY -> pushArray(cur.nestedArray());
-                        case SourceValueType.TRUE -> {
-                            currentValue = BOOLEAN_TRUE;
-                            return true;
-                        }
-                        case SourceValueType.FALSE -> {
-                            currentValue = BOOLEAN_FALSE;
-                            return true;
-                        }
-                        case SourceValueType.INT -> {
-                            currentValue = new BytesRef(Integer.toString(cur.intValue()));
-                            return true;
-                        }
-                        case SourceValueType.LONG -> {
-                            currentValue = new BytesRef(Long.toString(cur.longValue()));
-                            return true;
-                        }
-                        case SourceValueType.FLOAT -> {
-                            currentValue = new BytesRef(Float.toString(cur.floatValue()));
-                            return true;
-                        }
-                        case SourceValueType.DOUBLE -> {
-                            currentValue = new BytesRef(Double.toString(cur.doubleValue()));
-                            return true;
-                        }
-                        case SourceValueType.STRING -> {
-                            XContentString.UTF8Bytes text = cur.textValue().bytes();
-                            currentValue = new BytesRef(text.bytes(), text.offset(), text.length());
-                            return true;
-                        }
-                        default -> throw new UnsupportedOperationException(
-                            "utf8Cursor: unsupported ESCF array element type [" + SourceValueType.name(elemType) + "] for string conversion"
-                        );
+                    case SourceValueType.FALSE -> {
+                        currentValue = BOOLEAN_FALSE;
+                        return true;
                     }
+                    case SourceValueType.INT -> {
+                        currentLong = cur.intValue();
+                        currentValue = new BytesRef(Integer.toString(cur.intValue()));
+                        return true;
+                    }
+                    case SourceValueType.LONG -> {
+                        currentLong = cur.longValue();
+                        currentValue = new BytesRef(Long.toString(currentLong));
+                        return true;
+                    }
+                    case SourceValueType.FLOAT -> {
+                        currentDouble = cur.floatValue();
+                        currentValue = new BytesRef(Float.toString(cur.floatValue()));
+                        return true;
+                    }
+                    case SourceValueType.DOUBLE -> {
+                        currentDouble = cur.doubleValue();
+                        currentValue = new BytesRef(Double.toString(currentDouble));
+                        return true;
+                    }
+                    case SourceValueType.STRING -> {
+                        XContentString.UTF8Bytes text = cur.textValue().bytes();
+                        currentValue = new BytesRef(text.bytes(), text.offset(), text.length());
+                        return true;
+                    }
+                    default -> throw new UnsupportedOperationException(
+                        "utf8Cursor: unsupported ESCF array element type [" + SourceValueType.name(elemType) + "] for string conversion"
+                    );
                 }
-                return false;
             }
+            return false;
+        }
 
-            private void pushArray(ArrayReader reader) {
-                if (arStack == null) {
-                    arStack = new ArrayReader[4];
-                } else if (arDepth == arStack.length) {
-                    arStack = Arrays.copyOf(arStack, arStack.length * 2);
-                }
-                arStack[arDepth++] = reader;
+        private void pushArray(ArrayReader reader) {
+            if (arStack == null) {
+                arStack = new ArrayReader[4];
+            } else if (arDepth == arStack.length) {
+                arStack = Arrays.copyOf(arStack, arStack.length * 2);
             }
+            arStack[arDepth++] = reader;
+        }
 
-            @Override
-            public BytesRef value() {
-                return currentValue;
-            }
-        };
+        @Override
+        public BytesRef value() {
+            return currentValue;
+        }
+    }
+
+    private static BytesRef utf8(Text text) {
+        XContentString.UTF8Bytes bytes = text.bytes();
+        return new BytesRef(bytes.bytes(), bytes.offset(), bytes.length());
     }
 }

@@ -238,8 +238,9 @@ EXPORT void vec_doti7u_bulk_masked_2(
     const int32_t mask,
     const int32_t count,
     f32_t* results) {
+    const int32_t block_mask = clamp_mask(mask, count);
     dot7u_bulk_avx512<int8_t, masked_mapper, 4, 1, masked_output>(
-        a, b, dims, pitch, &mask, __builtin_popcount((uint32_t)mask), results);
+        a, b, dims, pitch, &block_mask, __builtin_popcount((uint32_t)block_mask), results);
 }
 
 EXPORT void vec_doti7u_bulk_sparse_2(

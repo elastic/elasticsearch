@@ -115,6 +115,13 @@ setup:
               f: { type: rank_feature }
   - do:
       indices.create:
+        index: lenient_rank_features
+        body:
+          mappings:
+            properties:
+              f: { type: rank_features }
+  - do:
+      indices.create:
         index: lenient_rank_kw
         body:
           mappings:
@@ -171,6 +178,8 @@ setup:
           - { "id": 7, "metric": 9 }
           - { "index": { "_index": "lenient_rank" } }
           - { "f": 1.0 }
+          - { "index": { "_index": "lenient_rank_features" } }
+          - { "f": { "a": 1.0 } }
           - { "index": { "_index": "lenient_rank_kw" } }
           - { "f": "plain" }
           - { "index": { "_index": "lenient_unmapped_f" } }
@@ -686,6 +695,18 @@ setup:
   - match: { columns.1.type: "ip" }
   - match: { values.0: ["lenient_rank", null] }
   - match: { values.1: ["lenient_unmapped_f", "10.0.0.9"] }
+  - do:
+      warnings:
+        - "Field [f] of type [rank_feature] in [lenient_rank], [rank_features] in [lenient_rank_features] cannot be converted to [IP] and will be null in those indices."
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM lenient_rank,lenient_rank_features,lenient_unmapped_f METADATA _index | EVAL x = f::ip | KEEP _index, x | SORT _index'
+  - length: { values: 3 }
+  - match: { values.0: ["lenient_rank", null] }
+  - match: { values.1: ["lenient_rank_features", null] }
+  - match: { values.2: ["lenient_unmapped_f", "10.0.0.9"] }
 
 ---
 "impossible cast of an aggregate returns null":

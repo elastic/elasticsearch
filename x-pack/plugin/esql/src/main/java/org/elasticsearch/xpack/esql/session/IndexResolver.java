@@ -661,12 +661,12 @@ public class IndexResolver {
             if (trackUnmappedFieldIndices) {
                 Set<String> mappedIndices = collectedFieldCaps.fieldToMappedIndices.getOrDefault(fullName, Set.of());
                 if (firstUnsupportedParent == null
-                    && field instanceof UnsupportedEsField unsupported
+                    && field instanceof UnsupportedEsField
                     && mappedIndices.isEmpty() == false
                     && mappedIndices.size() < numberOfIndices
                     && supportsLenientUnionCasts(fieldsInfo)
                     && hasSubFields(fieldsCaps.keySet(), fullName) == false) {
-                    field = potentiallyUnmappedUnsupported(name, unsupported, mappedIndices, indexDedupCache);
+                    field = potentiallyUnmappedUnsupported(name, fullName, fieldsInfo, indexDedupCache);
                 } else {
                     field = wrapIfPartiallyUnmapped(field, name, fullName, mappedIndices, numberOfIndices, indexDedupCache);
                 }
@@ -951,12 +951,17 @@ public class IndexResolver {
      */
     private static EsField potentiallyUnmappedUnsupported(
         String name,
-        UnsupportedEsField unsupported,
-        Set<String> mappedIndices,
+        String fullName,
+        FieldsInfo fieldsInfo,
         @Nullable Map<Set<String>, Set<String>> indexDedupCache
     ) {
         Map<String, Set<String>> unsupportedTypesToIndices = new TreeMap<>();
-        unsupportedTypesToIndices.put(String.join(", ", unsupported.getOriginalTypes()), new TreeSet<>(mappedIndices));
+        for (FieldCapabilitiesIndexResponse ir : fieldsInfo.caps().getIndexResponses()) {
+            IndexFieldCapabilities fc = ir.get().get(fullName);
+            if (fc != null && isLeaf(fc, fieldsInfo)) {
+                unsupportedTypesToIndices.computeIfAbsent(originalType(fc), _key -> new TreeSet<>()).add(ir.getIndexName());
+            }
+        }
         return indexDedupCache == null
             ? InvalidMappedField.potentiallyUnmapped(name, new TreeMap<>(), unsupportedTypesToIndices)
             : CompactInvalidMappedField.potentiallyUnmapped(name, new TreeMap<>(), unsupportedTypesToIndices, indexDedupCache);

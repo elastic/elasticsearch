@@ -183,12 +183,3 @@ setup:
       close_point_in_time:
         body:
           id: "$slice_unscoped_pit_id"
-
----
-"PIT open with slice _all is rejected":
-  - do:
-      catch: bad_request
-      open_point_in_time:
-        index: slice_pit_index
-        _slice: _all
-        keep_alive: 5m

@@ -70,16 +70,6 @@ import static org.hamcrest.Matchers.empty;
  * <p>Every exclusion decision is reported in the post-run {@link #logColumnarSummary()} line, so
  * lost coverage is never silent.
  *
- * <p>One family of {@code skip_columnar:} directives is permanent by design and should not be
- * revisited: tests that combine {@code SET unmapped_fields="load"} with a {@code dynamic: false}
- * dataset. Strict columnar disables generic {@code _ignored_source}
- * ({@code DocumentParserContext#canAddIgnoredField} ends with {@code isStrictColumnar() == false}),
- * so a field the mapping does not declare is discarded while the document is parsed rather than
- * captured. Nothing at query time can recover it &mdash; not synthetic source, and not
- * {@code _source.mode: columnar_stored}, whose blob is itself rebuilt from doc values. This is
- * documented user-facing behaviour, see {@code docs/reference/elasticsearch/columnar/index.md}
- * ("{@code dynamic: false} and {@code enabled: false} are lossy").
- *
  * <h2>Mapping sanitisation</h2>
  *
  * <p>The {@link ColumnarStrategy} sanitises each mapping before creating the index: it removes
@@ -150,51 +140,28 @@ public class CsvColumnarIT extends CsvIT {
         "partial_mapping_no_source_sample_data",
         "partial_mapping_mv_no_source_sample_data",
         "partial_mapping_excluded_source_sample_data",
-        // LOAD_ALL / LOAD from source loads unmapped fields directly from the stored _source.
-        // In columnar mode _source is synthetic, so fields absent from the mapping are gone. Nearly
-        // every test reaching these two datasets exercises exactly that, so a per-test directive
-        // would mean ~230 of them; the dataset-level exclusion stays.
+        // Everything from here to the normalizer entries below is dynamic:false, which strict columnar indices reject at creation
+        // (IndexVersions.COLUMNAR_REJECTS_DYNAMIC_FALSE), so these datasets cannot be created in columnar mode at all.
         "partial_mapping_sample_data",
         "partial_mapping_mv_sample_data",
-        // Has no explicit mapping at all, so every field is unmapped and the same reasoning applies.
         "no_mapping_sample_data",
-        // Same reason, for the LOAD_ALL fixtures: all of these are dynamic:false and deliberately leave
-        // everything but the mapped keys in _source / _ignored_source, which strict columnar drops at
-        // ingest. synthetic_source_partial_mapping reuses mapping-partial_mapping_sample_data.json.
-        // Measured: un-excluding all seven adds 37 tests, of which 36 fail and 1 is already skipped,
-        // so not one test is recovered. The failures are the reason itself — the unmapped column is
-        // absent from the result rather than merely wrong. Unlike the airports entries above, the
-        // blast radius here is exactly the genuine-failure set, so dataset level is the right
-        // granularity. No need to re-measure.
         "unmapped_multi_stored_foo",
         "unmapped_multi_stored_bar",
         "unmapped_multi_synthetic",
         "unmapped_multi_stored_mixed",
         "unmapped_array_data",
         "unmapped_object_data",
-        // mv_expand_unmapped is dynamic:false and read for the tags and deep.items leaves its mapping does not declare, which strict
-        // columnar drops at ingest; mv_expand_mapped only exists to be read alongside it.
         "mv_expand_mapped",
         "mv_expand_unmapped",
-        // change_point_mapped carries unmapped leaves (type, pvalue, ...) and change_point_unmapped maps only id, so strict columnar drops
-        // what the tests read at ingest.
         "change_point_mapped",
         "change_point_unmapped",
-        // Both are dynamic:false and are read for the fields their mapping does not declare, which strict columnar drops at ingest.
         "flattened_paths_mapped",
         "flattened_paths_unmapped",
-        // dynamic:false, read for the undeclared leaves under a nested parent, which strict columnar drops at ingest. The mapped index also
-        // nests parts inside items, and columnar supports only a single level of nesting, so index creation fails outright.
         "nested_paths_mapped",
         "nested_paths_unmapped",
-        // dynamic:false and read for the leaves its mapping does not declare, which strict columnar drops at ingest.
         "unmapped_compound_outputs",
-        // Same again: every field but id is unmapped, so strict columnar drops it at ingest.
         "unmapped_compound_inputs",
         "synthetic_source_partial_mapping",
-        // unmapped_source_* family: dynamic:false with only id mapped; everything else lives in
-        // _source / _ignored_source, which strict columnar drops at ingest. unmapped_source_disabled
-        // additionally sets _source: {enabled: false}, which columnar index modes do not permit at all.
         "unmapped_source_stored",
         "unmapped_source_synthetic",
         "unmapped_source_synth_keep_arrays",
@@ -202,13 +169,22 @@ public class CsvColumnarIT extends CsvIT {
         "unmapped_source_excludes",
         "unmapped_source_includes",
         "unmapped_source_subobjects_false",
-        // The partial_mapping fixture again under index.mode=logsdb. Re-moding it to columnar would both defeat the point of the dataset
-        // (it exists to exercise logsdb) and hit the same dynamic:false loss as partial_mapping_sample_data above.
         "logsdb_partial_mapping",
-        // all_types_unmapped* drop every typed column from mapping-all-types.json so each type lands in _source only - dynamic:false
-        // again, so strict columnar discards them at ingest
         "all_types_unmapped",
         "all_types_unmapped_synthetic",
+        "employees_no_names",
+        "employees_no_gender",
+        "all_types_no_short",
+        "no_mapping_date_extract_fields",
+        "unmapped_source_mapped",
+        "cross_mapping_a",
+        "cross_mapping_b",
+        "no_message_sample_data",
+        "addresses_no_continent",
+        "text_state_unmapped",
+        "text_state_nonexistent",
+        "dense_vector_unmapped",
+        "colors_unmapped",
         // Keyword fields with a normalizer (e.g. test_lowercase) store only the normalised form
         // in doc values, losing the original value. Columnar mode therefore cannot reconstruct
         // the original _source for these fields and rejects index creation with

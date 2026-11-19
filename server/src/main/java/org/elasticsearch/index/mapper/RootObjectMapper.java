@@ -720,7 +720,7 @@ public class RootObjectMapper extends ObjectMapper {
                 Boolean enabled = null;
                 Object dynamicVal = facets.get("dynamic");
                 if (dynamicVal != null) {
-                    dynamic = parsePrefixDynamic(prefix, dynamicVal);
+                    dynamic = parsePrefixDynamic(prefix, dynamicVal, parserContext);
                 }
                 Object passthroughVal = facets.get("passthrough");
                 if (passthroughVal != null) {
@@ -784,9 +784,10 @@ public class RootObjectMapper extends ObjectMapper {
     /**
      * Parses a {@code dynamic} value for use in {@code prefix_properties.<prefix>.dynamic}.
      * Accepts {@code true}, {@code false}, and {@code strict} (case-insensitive).
-     * {@code runtime} is explicitly rejected because it is not supported in strict columnar mode.
+     * {@code runtime} is explicitly rejected because it is not supported in strict columnar mode, and {@code false} on the indices
+     * that reject it at the object level (see {@link ObjectMapper.TypeParser#rejectsDynamicFalse}).
      */
-    private static Dynamic parsePrefixDynamic(String key, Object value) {
+    private static Dynamic parsePrefixDynamic(String key, Object value, MappingParserContext parserContext) {
         if (value instanceof String == false) {
             throw new MapperParsingException("[prefix_properties." + key + ".dynamic] must be a string value");
         }
@@ -797,6 +798,9 @@ public class RootObjectMapper extends ObjectMapper {
         // Dynamic.FLATTENED is accepted only at the root (see ObjectMapper.TypeParser), never per prefix (Dynamic.valueOf would accept it).
         if (str.equalsIgnoreCase("flattened")) {
             throw new MapperParsingException("[prefix_properties." + key + ".dynamic] does not support [flattened]");
+        }
+        if (str.equalsIgnoreCase("false") && ObjectMapper.TypeParser.rejectsDynamicFalse(parserContext)) {
+            throw new MapperParsingException("[prefix_properties." + key + ".dynamic] does not support [false]");
         }
         try {
             return Dynamic.valueOf(str.toUpperCase(Locale.ROOT));

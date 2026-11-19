@@ -92,7 +92,7 @@ The `dynamic` parameter controls whether new fields are added dynamically, and a
 :   New fields are ignored and will not be indexed or searchable. These fields will not be added to the mapping, and any new fields must be added explicitly. For non-columnar indices, these fields will still appear in the `_source` field of returned hits.
 
 :::{warning}
-If you configure `"dynamic": false` on a [columnar](/reference/elasticsearch/columnar/index.md) index, new fields are not stored at all and will be lost.
+{applies_to}`stack: preview 9.7` {applies_to}`serverless: preview` [Columnar](/reference/elasticsearch/columnar/index.md) indices reject `"dynamic": false`. In columnar indices created before 9.7, new fields are not stored at all and will be lost.
 :::
 
 `strict`

@@ -298,7 +298,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
                 b.startObject("resource.attributes").field("type", "passthrough").field("priority", 10);
                 b.startObject("properties").startObject("host.name").field("type", "keyword").endObject().endObject();
                 b.endObject();
-                b.startObject("plain").field("dynamic", false);
+                b.startObject("plain").field("dynamic", "strict");
                 b.startObject("properties").startObject("field").field("type", "keyword").endObject().endObject();
                 b.endObject();
                 b.endObject();

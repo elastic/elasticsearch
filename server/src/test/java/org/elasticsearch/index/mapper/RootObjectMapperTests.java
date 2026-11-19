@@ -16,8 +16,11 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
@@ -711,6 +714,82 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
         }
     }
 
+    /**
+     * Strict columnar indices created on or after {@link IndexVersions#COLUMNAR_REJECTS_DYNAMIC_FALSE} reject {@code dynamic: false} on the
+     * root, on sub-objects and in {@code prefix_properties}, whatever the source mode.
+     */
+    public void testStrictColumnarModesRejectDynamicFalse() {
+        Settings settings = randomStrictColumnarSettings();
+        Object dynamicFalse = randomBoolean() ? (Object) false : "false";
+
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(settings, topMapping(b -> b.field("dynamic", dynamicFalse)))
+        );
+        assertThat(e.getMessage(), containsString("dynamic [false] is not supported in strict columnar mode"));
+
+        e = expectThrows(MapperParsingException.class, () -> createMapperService(settings, mapping(b -> {
+            b.startObject("attributes").field("dynamic", dynamicFalse);
+            b.startObject("properties").startObject("host").field("type", "keyword").endObject().endObject();
+            b.endObject();
+        })));
+        assertThat(e.getMessage(), containsString("dynamic [false] is not supported in strict columnar mode"));
+
+        e = expectThrows(MapperParsingException.class, () -> createMapperService(settings, mapping(b -> {
+            b.startObject("events").field("type", "nested").field("dynamic", dynamicFalse);
+            b.startObject("properties").startObject("host").field("type", "keyword").endObject().endObject();
+            b.endObject();
+        })));
+        assertThat(e.getMessage(), containsString("dynamic [false] is not supported in strict columnar mode"));
+
+        e = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(
+                settings,
+                topMapping(
+                    b -> b.startObject("prefix_properties").startObject("attributes").field("dynamic", "false").endObject().endObject()
+                )
+            )
+        );
+        assertThat(e.getMessage(), containsString("[prefix_properties.attributes.dynamic] does not support [false]"));
+    }
+
+    /**
+     * Strict columnar indices created before {@link IndexVersions#COLUMNAR_REJECTS_DYNAMIC_FALSE} keep accepting {@code dynamic: false}, so
+     * their stored mappings still load and can still be updated after an upgrade.
+     */
+    public void testStrictColumnarModesAcceptDynamicFalseOnOlderIndices() throws IOException {
+        IndexVersion version = IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_REJECTS_DYNAMIC_FALSE);
+        MapperService mapperService = createMapperService(version, randomStrictColumnarSettings(), topMapping(b -> {
+            b.field("dynamic", false);
+            b.startObject("prefix_properties").startObject("resource").field("dynamic", "false").endObject().endObject();
+            b.startObject("properties");
+            b.startObject("attributes").field("dynamic", false);
+            b.startObject("properties").startObject("host").field("type", "keyword").endObject().endObject();
+            b.endObject();
+            b.endObject();
+        }));
+        merge(mapperService, mapping(b -> {
+            b.startObject("labels").field("dynamic", false);
+            b.startObject("properties").startObject("env").field("type", "keyword").endObject().endObject();
+            b.endObject();
+        }));
+        RootObjectMapper root = mapperService.documentMapper().mapping().getRoot();
+        assertEquals(ObjectMapper.Dynamic.FALSE, root.dynamic());
+        assertEquals(ObjectMapper.Dynamic.FALSE, root.getPrefixProperties().get("attributes").dynamic());
+        assertEquals(ObjectMapper.Dynamic.FALSE, root.getPrefixProperties().get("resource").dynamic());
+        assertEquals(ObjectMapper.Dynamic.FALSE, root.getPrefixProperties().get("labels").dynamic());
+    }
+
+    private static Settings randomStrictColumnarSettings() {
+        IndexMode mode = randomFrom(Arrays.stream(IndexMode.availableModes()).filter(IndexMode::isStrictColumnar).toList());
+        SourceFieldMapper.Mode sourceMode = randomFrom(SourceFieldMapper.Mode.SYNTHETIC, SourceFieldMapper.Mode.COLUMNAR_STORED);
+        return Settings.builder()
+            .put(IndexSettings.MODE.getKey(), mode.getName())
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), sourceMode.toString())
+            .build();
+    }
+
     private Settings sliceEnabledSettings() {
         return Settings.builder()
             .put(getIndexSettings())
@@ -766,7 +845,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
             MapperService mapperService = createMapperService(settings, mapping(b -> {
                 b.startObject("attributes");
                 {
-                    b.field("dynamic", "false");
+                    b.field("dynamic", "true");
                     b.startObject("properties");
                     b.startObject("host").field("type", "keyword").endObject();
                     b.endObject();
@@ -793,12 +872,12 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
             // The stored mapping must contain prefix_properties in the expected prefix-keyed shape
             assertThat(mappingJson1, containsString("prefix_properties"));
             assertThat(mappingJson1, containsString("\"prefix_properties\":{\"attributes\":{"));
-            assertThat(mappingJson1, containsString("\"dynamic\":\"false\""));
+            assertThat(mappingJson1, containsString("\"dynamic\":\"true\""));
             assertThat(mappingJson1, containsString("\"dynamic\":\"strict\""));
 
             // The prefixProperties map must be populated on re-parsed root
             RootObjectMapper root2 = mapperService2.mappingLookup().getMapping().getRoot();
-            assertEquals(ObjectMapper.Dynamic.FALSE, root2.getPrefixProperties().get("attributes").dynamic());
+            assertEquals(ObjectMapper.Dynamic.TRUE, root2.getPrefixProperties().get("attributes").dynamic());
             assertEquals(ObjectMapper.Dynamic.STRICT, root2.getPrefixProperties().get("resource").dynamic());
         }
     }
@@ -806,11 +885,11 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
     public void testDynamicByPrefixMergeAddNewPrefix() throws Exception {
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
-            // Initial mapping: attributes dynamic=false
+            // Initial mapping: attributes dynamic=true
             MapperService mapperService = createMapperService(settings, mapping(b -> {
                 b.startObject("attributes");
                 {
-                    b.field("dynamic", "false");
+                    b.field("dynamic", "true");
                     b.startObject("properties");
                     b.startObject("host").field("type", "keyword").endObject();
                     b.endObject();
@@ -831,7 +910,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
             }));
 
             RootObjectMapper root = mapperService.documentMapper().mapping().getRoot();
-            assertEquals(ObjectMapper.Dynamic.FALSE, root.getPrefixProperties().get("attributes").dynamic());
+            assertEquals(ObjectMapper.Dynamic.TRUE, root.getPrefixProperties().get("attributes").dynamic());
             assertEquals(ObjectMapper.Dynamic.STRICT, root.getPrefixProperties().get("resource").dynamic());
         }
     }
@@ -839,11 +918,11 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
     public void testDynamicByPrefixMergeUpdateExistingPrefix() throws Exception {
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
-            // Initial mapping: attributes dynamic=false
+            // Initial mapping: attributes dynamic=true
             MapperService mapperService = createMapperService(settings, mapping(b -> {
                 b.startObject("attributes");
                 {
-                    b.field("dynamic", "false");
+                    b.field("dynamic", "true");
                     b.startObject("properties");
                     b.startObject("host").field("type", "keyword").endObject();
                     b.endObject();
@@ -997,7 +1076,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
             MapperService mapperService = createMapperService(settings, mapping(b -> {
                 b.startObject("attributes");
                 {
-                    b.field("dynamic", "false");
+                    b.field("dynamic", "strict");
                     b.startObject("properties");
                     b.startObject("host").field("type", "keyword").endObject();
                     b.endObject();
@@ -1013,7 +1092,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
             assertEquals(mappingJson, mapperService2.documentMapper().mappingSource().string());
 
             RootObjectMapper root = mapperService.mappingLookup().getMapping().getRoot();
-            assertEquals(ObjectMapper.Dynamic.FALSE, root.getPrefixProperties().get("attributes").dynamic());
+            assertEquals(ObjectMapper.Dynamic.STRICT, root.getPrefixProperties().get("attributes").dynamic());
             assertEquals(Boolean.FALSE, root.getPrefixProperties().get("disabled").enabled());
             // Facets are independent — dynamic prefix has no enabled entry, disabled prefix has no dynamic entry
             assertNull(root.getPrefixProperties().get("attributes").enabled());

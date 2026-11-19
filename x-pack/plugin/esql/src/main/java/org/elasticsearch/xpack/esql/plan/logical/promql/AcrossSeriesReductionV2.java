@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.TemporaryNameGenerat
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContextV2.IntermediateResult;
 
@@ -121,8 +122,9 @@ final class AcrossSeriesReductionV2 {
                     false
                 )
             );
-            plan = new Eval(source, plan, List.of(partition));
-            groupings.add(partition.toAttribute());
+            PackDims pack = TranslationContextV2.packLabels(source, new Eval(source, plan, List.of(partition)), partition.toAttribute());
+            plan = pack;
+            groupings.add(pack.packed());
         }
         return new TopNBy(source, plan, order != null ? List.of(order) : List.of(), k, groupings);
     }

@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.TemporaryNameGenerator;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlLogicalPlanBuilder;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -302,6 +303,17 @@ public record TranslationContextV2(
             List.of(value.toAttribute(), step, unpacked)
         );
         return new IntermediateResult(plan, value.toAttribute(), unpacked, step, input.pendingFilter(), Kind.AFTER_INITIAL_AGGREGATE);
+    }
+
+    /**
+     * {@code plan} with the label container {@code labels} packed into one key, for a join or a ranking. Every node but the
+     * time-series aggregate keys by a container through a pack: a label of several values keys as a whole, as it does in the
+     * container, and scalarization only substitutes what the pack reads.
+     */
+    public static PackDims packLabels(Source source, LogicalPlan plan, Attribute labels) {
+        // Named apart from a key packed below: the key stays in the output of the node it keys.
+        String name = TemporaryNameGenerator.locallyUniqueTemporaryName(PackDims.PACKED_FIELD_NAME);
+        return new PackDims(source, plan, List.of(labels), new ReferenceAttribute(source, null, name, DataType.KEYWORD));
     }
 
     private @Nullable Alias labelsKey(@Nullable Expression labels) {

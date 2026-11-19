@@ -133,19 +133,24 @@ public abstract class AbstractPromqlPlanOptimizerTests extends AbstractLogicalPl
     }
 
     /**
-     * The labels {@code plan} keys by through {@code key}: the labels packed into it, the labels written into it where it is a typed
-     * label container keyed whole (in name order), or the key itself.
+     * The labels {@code plan} keys by through {@code key}: the labels of what is packed into it, the labels written into it where
+     * it is a typed label container packed whole (in name order), none where it is a constant, or the key itself.
      */
     protected static List<String> keyLabels(LogicalPlan plan, Attribute key) {
         for (PackDims pack : plan.collect(PackDims.class)) {
             if (pack.packed().id().equals(key.id())) {
-                return pack.dims().stream().map(Attribute::name).toList();
+                var labels = new ArrayList<String>();
+                pack.dims().forEach(dim -> labels.addAll(keyLabels(plan, dim)));
+                return labels;
             }
         }
         for (Eval eval : plan.collect(Eval.class)) {
             for (Alias field : eval.fields()) {
                 if (field.id().equals(key.id()) && field.child() instanceof TimeSeriesMetadataSet) {
                     return writtenLabels(field.child());
+                }
+                if (field.id().equals(key.id()) && field.child() instanceof Literal) {
+                    return List.of();
                 }
             }
         }

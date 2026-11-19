@@ -79,7 +79,7 @@ public class FlushMetricsIT extends ESIntegTestCase {
             flushFailure.set(null);
         }
 
-        final List<Measurement> measurements = plugin.getLongCounterMeasurement(FlushMetrics.FLUSH_FAILURE_TOTAL);
+        final List<Measurement> measurements = plugin.getLongCounterMeasurement(FlushMetrics.FLUSH_UNEXPECTED_FAILURE_TOTAL);
         assertThat(measurements, hasSize(1));
         assertThat(measurements.getFirst().getLong(), equalTo(1L));
         assertThat(

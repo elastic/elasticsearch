@@ -1964,7 +1964,7 @@ public class IndexShardTests extends IndexShardTestCase {
     }
 
     private List<Measurement> flushFailureMeasurements() {
-        return flushMeterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, FlushMetrics.FLUSH_FAILURE_TOTAL);
+        return flushMeterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, FlushMetrics.FLUSH_UNEXPECTED_FAILURE_TOTAL);
     }
 
     private void assertFlushFailureCount(long failed) {

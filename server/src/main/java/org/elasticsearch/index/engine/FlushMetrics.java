@@ -23,8 +23,8 @@ import java.util.Map;
  */
 public class FlushMetrics {
 
-    public static final String FLUSH_FAILURE_TOTAL = "es.flush.failure.total";
-    public static final String FLUSH_FAILURE_BLOBSTORE_TRANSIENT_TOTAL = "es.flush.failure.blobstore_transient.total";
+    public static final String FLUSH_UNEXPECTED_FAILURE_TOTAL = "es.flush.unexpected_failure.total";
+    public static final String FLUSH_UNEXPECTED_FAILURE_BLOBSTORE_TRANSIENT_TOTAL = "es.flush.unexpected_failure.blobstore_transient.total";
     public static final FlushMetrics NOOP = new FlushMetrics(TelemetryProvider.NOOP.getMeterRegistry());
 
     private final LongCounter flushFailures;
@@ -32,15 +32,16 @@ public class FlushMetrics {
 
     public FlushMetrics(MeterRegistry meterRegistry) {
         flushFailures = meterRegistry.registerLongCounter(
-            FLUSH_FAILURE_TOTAL,
+            FLUSH_UNEXPECTED_FAILURE_TOTAL,
             "Number of flushes that failed for a reason not expected during normal operation; "
                 + "flushes rejected because the shard, engine, index writer or translog is already closed, "
                 + "or because of a pending translog recovery, are not counted",
             "unit"
         );
         flushBlobStoreTransientFailures = meterRegistry.registerLongCounter(
-            FLUSH_FAILURE_BLOBSTORE_TRANSIENT_TOTAL,
-            "Number of flushes that failed because the blob store was unreachable or closed; also counted in " + FLUSH_FAILURE_TOTAL,
+            FLUSH_UNEXPECTED_FAILURE_BLOBSTORE_TRANSIENT_TOTAL,
+            "Number of flushes that failed because the blob store was unreachable or closed; also counted in "
+                + FLUSH_UNEXPECTED_FAILURE_TOTAL,
             "unit"
         );
     }

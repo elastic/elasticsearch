@@ -42,8 +42,8 @@ public class FlushMetricsTests extends ESTestCase {
 
         metrics.onFailure(indexMode, new FlushFailedEngineException(new ShardId("index", "_na_", 0), cacheError));
 
-        Measurement failure = single(FlushMetrics.FLUSH_FAILURE_TOTAL);
-        Measurement blobStoreFailure = single(FlushMetrics.FLUSH_FAILURE_BLOBSTORE_TRANSIENT_TOTAL);
+        Measurement failure = single(FlushMetrics.FLUSH_UNEXPECTED_FAILURE_TOTAL);
+        Measurement blobStoreFailure = single(FlushMetrics.FLUSH_UNEXPECTED_FAILURE_BLOBSTORE_TRANSIENT_TOTAL);
         assertThat(blobStoreFailure.attributes(), equalTo(failure.attributes()));
         assertThat(failure.attributes().get(MetricAttributes.ES_INDEX_MODE), equalTo(indexMode.getName()));
         assertThat(failure.attributes().get(MetricAttributes.ERROR_TYPE), equalTo("IOException"));
@@ -55,9 +55,10 @@ public class FlushMetricsTests extends ESTestCase {
             new FlushFailedEngineException(new ShardId("index", "_na_", 0), new IOException("disk failure"))
         );
 
-        single(FlushMetrics.FLUSH_FAILURE_TOTAL);
+        single(FlushMetrics.FLUSH_UNEXPECTED_FAILURE_TOTAL);
         assertThat(
-            registry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, FlushMetrics.FLUSH_FAILURE_BLOBSTORE_TRANSIENT_TOTAL),
+            registry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_COUNTER, FlushMetrics.FLUSH_UNEXPECTED_FAILURE_BLOBSTORE_TRANSIENT_TOTAL),
             hasSize(0)
         );
     }

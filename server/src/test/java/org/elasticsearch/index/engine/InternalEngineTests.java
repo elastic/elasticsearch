@@ -640,7 +640,7 @@ public class InternalEngineTests extends EngineTestCase {
         expectThrows(PendingTranslogRecoveryException.class, () -> engine.flush(true, true));
         assertThat(
             "a pending translog recovery is not a flush failure",
-            meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, FlushMetrics.FLUSH_FAILURE_TOTAL),
+            meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, FlushMetrics.FLUSH_UNEXPECTED_FAILURE_TOTAL),
             empty()
         );
         if (randomBoolean()) {

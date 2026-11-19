@@ -95,6 +95,7 @@ import org.elasticsearch.xpack.esql.datasources.ExternalSourceSpec;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.eql.EqlPageConverter;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
+import org.elasticsearch.xpack.esql.expression.NullCast;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.AggregateMetricDoubleNativeSupport;
@@ -5579,15 +5580,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     /**
-     * Handle union types in UnionAll:
-     * <ol>
-     * <li>Push down explicit conversion functions into the UnionAll branches</li>
-     * <li>Replace the explicit conversion functions with the corresponding attributes in the UnionAll output</li>
-     * <li>Implicitly cast the outputs of the UnionAll branches to the common type, this applies to date and date_nanos types only</li>
-     * <li>Update the attributes referencing the updated UnionAll output. FORK {@code datetime} null-fillers are promoted to
-     * {@code date_nanos} here when a subquery UnionAll sibling was widened; FORK-only queries are not implicitly cast</li>
-     * </ol>
+     * Whether the conversion parses strings, like {@code TO_LONG(x, base)} and {@code TO_INTEGER(x, base)}. These reject other types on
+     * purpose, so they stay strict instead of returning {@code null}, and don't accept union-typed fields: {@code x::string} first does.
      */
+    private static boolean parsesOnlyStrings(ConvertFunction convert) {
+        return (convert instanceof ToLongSurrogate || convert instanceof ToIntegerSurrogate)
+            && ((Expression) convert).children().size() > 1;
+    }
+
     /**
      * A cast whose input has a single type the cast doesn't accept, like {@code ip_field::long}, {@code (a + b)::ip} or
      * {@code true::ip}, is {@code null}, with a warning, instead of failing the query. This matches the lenient casts of union-typed
@@ -5599,117 +5599,44 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * {@code TO_INTEGER(x, base)}, and inputs of types a query can't return, like {@code date_period}, keep their errors.
      * </p>
      */
-    /**
-     * Whether the conversion parses strings, like {@code TO_LONG(x, base)} and {@code TO_INTEGER(x, base)}. These reject other types on
-     * purpose, so they stay strict instead of returning {@code null}, and don't accept union-typed fields: {@code x::string} first does.
-     */
-    private static boolean parsesOnlyStrings(ConvertFunction convert) {
-        return (convert instanceof ToLongSurrogate || convert instanceof ToIntegerSurrogate)
-            && ((Expression) convert).children().size() > 1;
-    }
-
     private static class ResolveImpossibleCasts extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
         @Override
         public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
             if (context.minimumVersion().supports(ESQL_LENIENT_UNION_CAST) == false) {
                 return plan;
             }
-            // An aggregate that becomes a constant isn't an aggregate anymore, so it moves after the aggregation, which the
-            // optimizer then folds when nothing else is left to aggregate.
-            LogicalPlan moved = plan.transformDown(LogicalPlan.class, p -> switch (p) {
-                case InlineStats inlineStats -> moveConstantAggregates(inlineStats, context);
-                case TimeSeriesAggregate timeSeriesAggregate -> timeSeriesAggregate;
-                case Aggregate aggregate -> moveConstantAggregates(aggregate, context);
-                default -> p;
-            });
-            return moved.transformUp(LogicalPlan.class, p -> p.transformExpressionsOnly(Expression.class, e -> {
-                List<String> warnings = new ArrayList<>();
-                Expression replaced = replaceImpossibleCast(e, warnings);
-                context.deferredHeaderWarnings().addAll(warnings);
-                return replaced;
-            }));
-        }
-
-        private static LogicalPlan moveConstantAggregates(Aggregate aggregate, AnalyzerContext context) {
-            List<NamedExpression> kept = new ArrayList<>();
-            List<Alias> constants = new ArrayList<>();
-            splitConstantAggregates(aggregate, kept, constants, context);
-            if (constants.isEmpty()) {
-                return aggregate;
-            }
-            LogicalPlan aggregation = aggregate.with(aggregate.child(), aggregate.groupings(), kept);
-            return new Project(aggregate.source(), new Eval(aggregate.source(), aggregation, constants), aggregate.output());
-        }
-
-        private static LogicalPlan moveConstantAggregates(InlineStats inlineStats, AnalyzerContext context) {
-            Aggregate aggregate = inlineStats.aggregate();
-            List<NamedExpression> kept = new ArrayList<>();
-            List<Alias> constants = new ArrayList<>();
-            splitConstantAggregates(aggregate, kept, constants, context);
-            if (constants.isEmpty()) {
-                return inlineStats;
-            }
-            LogicalPlan base;
-            if (kept.stream().anyMatch(Alias.class::isInstance)) {
-                base = new InlineStats(inlineStats.source(), aggregate.with(aggregate.child(), aggregate.groupings(), kept));
-            } else {
-                // Nothing left to aggregate: each row keeps its own grouping values.
-                List<Alias> groupings = aggregate.groupings().stream().filter(Alias.class::isInstance).map(Alias.class::cast).toList();
-                base = groupings.isEmpty() ? aggregate.child() : new Eval(inlineStats.source(), aggregate.child(), groupings);
-            }
-            return new Project(inlineStats.source(), new Eval(inlineStats.source(), base, constants), inlineStats.output());
-        }
-
-        /**
-         * Splits the aggregates into those that stay in the aggregation and those that become a constant once their impossible casts
-         * are null.
-         */
-        private static void splitConstantAggregates(
-            Aggregate aggregate,
-            List<NamedExpression> kept,
-            List<Alias> constants,
-            AnalyzerContext context
-        ) {
-            List<? extends NamedExpression> aggregates = aggregate.aggregates();
-            // The last aggregates are the groupings, which stay.
-            int aggregateFunctions = aggregates.size() - aggregate.groupings().size();
-            for (int i = 0; i < aggregates.size(); i++) {
-                NamedExpression aggregateExpression = aggregates.get(i);
-                if (i < aggregateFunctions && aggregateExpression instanceof Alias alias) {
-                    List<String> warnings = new ArrayList<>();
-                    Expression replaced = alias.child().transformUp(Expression.class, e -> replaceImpossibleCast(e, warnings));
-                    if (warnings.isEmpty() == false && replaced.foldable()) {
-                        context.deferredHeaderWarnings().addAll(warnings);
-                        constants.add(alias.replaceChild(replaced));
-                        continue;
-                    }
-                }
-                kept.add(aggregateExpression);
-            }
+            return plan.transformUp(
+                LogicalPlan.class,
+                p -> p.transformExpressionsOnly(Expression.class, e -> replaceImpossibleCast(e, context))
+            );
         }
 
         /**
          * The typed {@code null} for an impossible cast, adding its warning, or the expression itself.
          */
-        private static Expression replaceImpossibleCast(Expression e, List<String> warnings) {
+        private static Expression replaceImpossibleCast(Expression e, AnalyzerContext context) {
             if (e instanceof ConvertFunction convert && e instanceof FoldablesConvertFunction == false) {
                 String inputType = impossibleInputType(convert);
                 if (inputType != null) {
                     Expression input = convert.field();
-                    warnings.add(
-                        Strings.format(
-                            "[%s] of type [%s] cannot be converted to [%s] and will be null.",
-                            // A cast pushed into a subquery branch has the source of the branch, not of the field.
-                            switch (input) {
-                                case FieldAttribute field -> field.fieldName().string();
-                                case Attribute attribute -> attribute.name();
-                                default -> input.sourceText();
-                            },
-                            inputType,
-                            e.dataType().nameUpper()
-                        )
-                    );
-                    return new Literal(e.source(), null, e.dataType());
+                    context.deferredHeaderWarnings()
+                        .add(
+                            Strings.format(
+                                "[%s] of type [%s] cannot be converted to [%s] and will be null.",
+                                // A cast pushed into a subquery branch has the source of the branch, not of the field.
+                                switch (input) {
+                                    case FieldAttribute field -> field.fieldName().string();
+                                    case Attribute attribute -> attribute.name();
+                                    default -> input.sourceText();
+                                },
+                                inputType,
+                                e.dataType().nameUpper()
+                            )
+                        );
+                    // Over an aggregate function, a constant isn't valid in STATS: keep an expression over the aggregation.
+                    return input.anyMatch(AggregateFunction.class::isInstance)
+                        ? new NullCast(e.source(), input, e.dataType())
+                        : new Literal(e.source(), null, e.dataType());
                 }
             }
             return e;
@@ -5765,6 +5692,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         return withAcceptedInput.resolved() ? null : withAcceptedInput;
     }
 
+    /**
+     * Handle union types in UnionAll:
+     * <ol>
+     * <li>Push down explicit conversion functions into the UnionAll branches</li>
+     * <li>Replace the explicit conversion functions with the corresponding attributes in the UnionAll output</li>
+     * <li>Implicitly cast the outputs of the UnionAll branches to the common type, this applies to date and date_nanos types only</li>
+     * <li>Update the attributes referencing the updated UnionAll output. FORK {@code datetime} null-fillers are promoted to
+     * {@code date_nanos} here when a subquery UnionAll sibling was widened; FORK-only queries are not implicitly cast</li>
+     * </ol>
+     */
     private static class ResolveUnionTypesInUnionAll extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
 
         @Override

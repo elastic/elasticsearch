@@ -77,6 +77,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceCountFieldWit
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceDeferredRegex;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceLimitAndSortAsTopN;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceLimitByExpressionWithEval;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceNullCastWithNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceOrderByExpressionWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceRegexMatch;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceRowAsLocalRelation;
@@ -249,6 +250,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new CombineProjections(),
             new CombineEvals(),
             new PropagateEmptyRelation(),
+            new ReplaceNullCastWithNull(),
             new FoldNull(),
             new SplitInWithFoldableValue(),
             new PropagateEvalFoldables(),

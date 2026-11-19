@@ -64,6 +64,7 @@ import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
+import org.elasticsearch.xpack.esql.expression.NullCast;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
@@ -6598,26 +6599,38 @@ public class AnalyzerTests extends AnalyzerTestCase {
     }
 
     /**
-     * An aggregate that becomes a constant moves after the aggregation, and the other aggregates and groupings stay.
+     * Over an aggregate, the cast stays an expression over the aggregation, which the optimizer moves after it and replaces with null.
      */
-    public void testImpossibleCastOfAggregateMovesAfterStats() {
+    public void testImpossibleCastOfAggregateIsANullCast() {
         LogicalPlan plan = defaultMapping().minimumTransportVersion(TransportVersion.current())
             .query("FROM test | STATS x = COUNT(*)::ip, y = MAX(salary) BY languages");
         assertWarnings("[COUNT(*)] of type [long] cannot be converted to [IP] and will be null.");
-        Project project = as(as(plan, Limit.class).child(), Project.class);
-        assertThat(Expressions.names(project.projections()), equalTo(List.of("x", "y", "languages")));
-        Eval eval = as(project.child(), Eval.class);
-        assertNullLiteral(eval.fields().get(0).child(), IP);
-        Aggregate aggregate = as(eval.child(), Aggregate.class);
-        assertThat(Expressions.names(aggregate.aggregates()), equalTo(List.of("y", "languages")));
+        Aggregate aggregate = as(as(plan, Limit.class).child(), Aggregate.class);
+        assertThat(Expressions.names(aggregate.aggregates()), equalTo(List.of("x", "y", "languages")));
+        NullCast nullCast = as(as(aggregate.aggregates().get(0), Alias.class).child(), NullCast.class);
+        assertThat(nullCast.dataType(), equalTo(IP));
+        as(nullCast.child(), Count.class);
     }
 
-    public void testImpossibleCastOfAggregateInInlineStats() {
+    public void testImpossibleCastOfAggregateInInlineStatsIsANullCast() {
         LogicalPlan plan = defaultMapping().minimumTransportVersion(TransportVersion.current())
             .query("FROM test | INLINE STATS x = COUNT(*)::ip BY languages | KEEP emp_no, languages, x");
         assertWarnings("[COUNT(*)] of type [long] cannot be converted to [IP] and will be null.");
-        assertFalse(plan.anyMatch(InlineStats.class::isInstance));
+        assertTrue(
+            plan.anyMatch(
+                p -> p instanceof InlineStats
+                    && p.anyMatch(q -> q.expressions().stream().anyMatch(e -> e.anyMatch(NullCast.class::isInstance)))
+            )
+        );
         assertThat(Expressions.names(plan.output()), equalTo(List.of("emp_no", "languages", "x")));
+    }
+
+    /**
+     * Without an aggregate, the cast is a constant, which STATS rejects like any other.
+     */
+    public void testImpossibleCastWithoutAggregateInStatsFails() {
+        defaultMapping().minimumTransportVersion(TransportVersion.current())
+            .error("FROM test | STATS x = salary::ip", containsString("expected an aggregate function but found [salary::ip]"));
     }
 
     private static void assertNullLiteral(Expression expression, DataType type) {

@@ -1814,11 +1814,7 @@ public abstract class Rounding implements Writeable {
 
     public Interval getInterval() {
         return switch (this) {
-            case Rounding.TimeIntervalRounding interval -> {
-                var timeValue = TimeValue.parseTimeValue(TimeValue.timeValueMillis(interval.interval).toString(), "interval");
-                var unit = timeValue.timeUnit().name();
-                yield new Interval(timeValue.duration(), Strings.toLowercaseAscii(unit.substring(0, unit.length() - 1)));
-            }
+            case Rounding.TimeIntervalRounding interval -> fixedInterval(interval.interval);
             case Rounding.TimeUnitRounding unit -> {
                 // The MONTHS_OF_YEAR and YEARS_OF_CENTURY units store their short name as a plural noun
                 // ("months", "years"); pair the multiplier with the singular form so the interval reads
@@ -1833,6 +1829,22 @@ public abstract class Rounding implements Writeable {
             case Rounding.ToUpperRounding upper -> upper.next.getInterval();
             default -> throw new RuntimeException("Unexpected Rounding implementation: " + getClass().getName());
         };
+    }
+
+    private static final List<TimeUnit> FIXED_INTERVAL_UNITS = List.of(TimeUnit.DAYS, TimeUnit.HOURS, TimeUnit.MINUTES, TimeUnit.SECONDS);
+
+    /**
+     * A fixed interval in the largest unit that divides it, so that 90 minutes stays {@code (90, minute)}.
+     */
+    private static Interval fixedInterval(long millis) {
+        for (TimeUnit unit : FIXED_INTERVAL_UNITS) {
+            long unitMillis = unit.toMillis(1);
+            if (millis % unitMillis == 0) {
+                String name = unit.name();
+                return new Interval(millis / unitMillis, Strings.toLowercaseAscii(name.substring(0, name.length() - 1)));
+            }
+        }
+        return new Interval(millis, "millisecond");
     }
 
     public record Interval(long size, String unit) {}

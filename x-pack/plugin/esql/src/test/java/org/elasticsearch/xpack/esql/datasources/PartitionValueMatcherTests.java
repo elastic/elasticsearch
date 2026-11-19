@@ -97,6 +97,20 @@ public class PartitionValueMatcherTests extends ESTestCase {
         assertTrue(keep[1]);
     }
 
+    public void testJavaOnlyNumberSpellingsAreTextWhenComparedToANumber() {
+        assertNotEquals(0, PartitionValueMatcher.compareValues(10, "10D"));
+        assertNotEquals(0, PartitionValueMatcher.compareValues("10d", 10));
+        assertNotEquals(0, PartitionValueMatcher.compareValues(8, "0x1p3"));
+        assertNotEquals(0, PartitionValueMatcher.compareValues(123, "١٢٣"));
+        assertEquals(0, PartitionValueMatcher.compareValues(10, "10"));
+    }
+
+    public void testJavaOnlySpellingFolderIsNotPrunedAwayFromItsOwnText() {
+        boolean[] keep = PartitionValueMatcher.matchesFolders(Arrays.asList("10D", "abc"), List.of(hint("code", Operator.EQUALS, "10D")));
+        assertTrue(keep[0]);
+        assertFalse(keep[1]);
+    }
+
     // -- signed zero: the engine compares doubles with ==, under which -0.0 and 0.0 are equal --
 
     public void testNegativeZeroFolderIsNotPrunedByEqualsZero() {

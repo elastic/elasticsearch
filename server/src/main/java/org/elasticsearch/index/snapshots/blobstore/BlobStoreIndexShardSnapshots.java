@@ -122,6 +122,22 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
     }
 
     /**
+     * The total length of the data blobs that the retained snapshots of this shard reference. A blob that several snapshots share counts
+     * once, and a file whose contents are inlined in the metadata has no blob and counts for nothing.
+     *
+     * @throws ArithmeticException if the total does not fit in a {@code long}, rather than reporting a wrapped, wrong size
+     */
+    public long retainedBlobBytes() {
+        long total = 0;
+        for (FileInfo fileInfo : files.values()) {
+            if (fileInfo.metadata().hashEqualsContents() == false) {
+                total = Math.addExact(total, fileInfo.length());
+            }
+        }
+        return total;
+    }
+
+    /**
      * Returns list of snapshots
      *
      * @return list of snapshots

@@ -4188,7 +4188,9 @@ public class InternalEngine extends Engine {
             }
         } catch (Exception inner) {
             // must not stop the flush listener from completing
-            inner.addSuppressed(e);
+            if (inner != e) {
+                inner.addSuppressed(e);
+            }
             logger.warn("failed to report flush failure", inner);
         }
     }

@@ -656,9 +656,14 @@ public class InternalEngineTests extends EngineTestCase {
 
     public void testFlushListenerCompletesWhenReportingFlushFailureFails() throws IOException {
         engine.close();
+        final AtomicBoolean rethrowFlushFailure = new AtomicBoolean();
         final FlushMetrics failingMetrics = new FlushMetrics(TelemetryProvider.NOOP.getMeterRegistry()) {
             @Override
             public void onFailure(IndexMode indexMode, Throwable error) {
+                if (rethrowFlushFailure.get()) {
+                    // the flush failure below is unchecked
+                    throw (RuntimeException) error;
+                }
                 throw new IllegalStateException("simulated metrics failure");
             }
         };
@@ -669,9 +674,12 @@ public class InternalEngineTests extends EngineTestCase {
             }
         };
 
-        final PlainActionFuture<Engine.FlushResult> future = new PlainActionFuture<>();
-        engine.flush(true, true, future);
-        assertThat(expectThrows(IllegalArgumentException.class, future::actionGet).getMessage(), equalTo("simulated flush failure"));
+        for (boolean rethrow : new boolean[] { false, true }) {
+            rethrowFlushFailure.set(rethrow);
+            final PlainActionFuture<Engine.FlushResult> future = new PlainActionFuture<>();
+            engine.flush(true, true, future);
+            assertThat(expectThrows(IllegalArgumentException.class, future::actionGet).getMessage(), equalTo("simulated flush failure"));
+        }
     }
 
     public void testTranslogMultipleOperationsSameDocument() throws IOException {

@@ -44,7 +44,7 @@ import java.util.List;
 import java.util.Map;
 
 /// An action that waits until a given cluster state version is fully applied on each target [DiscoveryNode], including waiting for all
-/// async appliers (which today means [IndicesClusterStateService]).
+/// async appliers (which today means `IndicesClusterStateService`).
 ///
 /// Old nodes that do not support this action (transport version below [#AWAIT_CLUSTER_STATE_VERSION_APPLIED_ACTION])
 /// are filtered out in [#resolveRequest] and never receive the request.

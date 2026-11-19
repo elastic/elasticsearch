@@ -2889,7 +2889,8 @@ public class IndexShardTests extends IndexShardTestCase {
                 new RemoteTransportException("simulated", new IndexShardClosedException(new ShardId(indexName, indexUuid, 1)))
             ),
             new IndexShardClosedException(new ShardId(indexName, randomUUID(), 1)),
-            new ElasticsearchException("simulated")
+            new ElasticsearchException("simulated"),
+            new AlreadyClosedException("simulated")
         );
 
         final var shard = newShard(

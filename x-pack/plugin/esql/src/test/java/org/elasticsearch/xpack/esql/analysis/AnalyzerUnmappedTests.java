@@ -1159,6 +1159,43 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     /**
+     * A cast that rewrites a node rebuilds the nodes above it, and the cast above must still use the view's mode. Under load,
+     * TO_DEGREES of the partially unmapped [foo] is rejected; the caller's default mode would convert it.
+     */
+    public void testUnionTypeCastAboveRewrittenNodeInsideLoadViewUsesTheViewsMode() {
+        partiallyUnmappedFoo().addView("v", """
+            SET unmapped_fields="load";
+            FROM idx* | EVAL s = TO_STRING(foo) | EVAL d = TO_DEGREES(foo)
+            """).statementError("FROM v", allOf(containsString("line 2:59 (in view [v])"), containsString(AMBIGUOUS_FOO)));
+    }
+
+    /**
+     * The view's load mode reaches the subquery side of an IN inside the view, even when casts on both sides rebuild the join
+     * and the subquery nodes above them.
+     */
+    public void testUnionTypeCastInInSubqueryInsideLoadViewUsesTheViewsMode() {
+        partiallyUnmappedFoo().addView("v", """
+            SET unmapped_fields="load";
+            FROM idx* | EVAL s = TO_STRING(foo) | WHERE k IN (FROM idx* | EVAL s = TO_STRING(foo) | EVAL d = TO_DEGREES(foo) | KEEP k)
+            """).statementError("FROM v", allOf(containsString("line 2:109 (in view [v])"), containsString(AMBIGUOUS_FOO)));
+    }
+
+    private static final String AMBIGUOUS_FOO = "Cannot use field [foo] due to ambiguities";
+
+    /** [foo] is double in idx1, long in idx2 and unmapped in idx3; [k] is keyword everywhere. */
+    private TestAnalyzer partiallyUnmappedFoo() {
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("idx1", fieldResponseMap(Map.of("foo", "double", "k", "keyword"))),
+                fieldCapabilitiesIndexResponse("idx2", fieldResponseMap(Map.of("foo", "long", "k", "keyword"))),
+                fieldCapabilitiesIndexResponse("idx3", fieldResponseMap("k", "keyword"))
+            ),
+            List.of()
+        );
+        return analyzer().addIndex("idx*", mergedResolution("idx*", caps, true));
+    }
+
+    /**
      * A caller SET keeps the view as its own branch. A bare time-series aggregation in that view only gets its implicit
      * {@code _timeseries} column after the branch's columns are determined, and the view must still return it, in the same
      * position as the view queried without SET, or its body run directly.

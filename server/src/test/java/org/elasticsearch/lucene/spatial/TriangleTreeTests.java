@@ -33,6 +33,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.nullValue;
 
 public class TriangleTreeTests extends ESTestCase {
@@ -144,7 +145,7 @@ public class TriangleTreeTests extends ESTestCase {
         assertNotNull(extent);
     }
 
-    public void testPointAutoSelectsLegacyFormat() throws IOException {
+    public void testPointUsesV2PointsLayout() throws IOException {
         Point point = new Point(5.0, 10.0);
         GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, "test");
         Geometry normalized = indexer.normalize(point);
@@ -153,22 +154,32 @@ public class TriangleTreeTests extends ESTestCase {
         CentroidCalculator centroidCalculator = new CentroidCalculator();
         centroidCalculator.add(point);
 
-        // write() should auto-select legacy format for points
         BytesRef bytesRef = GeometryDocValueWriter.write(fieldList, CoordinateEncoder.GEO, centroidCalculator, List.of(point));
+        BytesRef legacyBytes = GeometryDocValueWriter.writeLegacy(fieldList, CoordinateEncoder.GEO, centroidCalculator);
+        assertThat(bytesRef.length, lessThan(legacyBytes.length));
 
         GeometryDocValueReader reader = new GeometryDocValueReader();
         reader.reset(bytesRef);
 
-        assertFalse(reader.isV2Format());
+        assertTrue(reader.isV2Format());
         assertThat(reader.getDimensionalShapeType(), equalTo(DimensionalShapeType.POINT));
+        assertThat(reader.getSumCentroidWeight(), equalTo(1.0));
+        assertThat(reader.getVertexTable().size(), equalTo(1));
 
-        // Geometry reconstruction should still work via tree traversal
         Geometry reconstructed = reader.getGeometry(CoordinateEncoder.GEO);
-        assertNotNull(reconstructed);
         assertThat(reconstructed.type(), equalTo(normalized.type()));
+        Point expected = new Point(
+            CoordinateEncoder.GEO.decodeX(CoordinateEncoder.GEO.encodeX(point.getX())),
+            CoordinateEncoder.GEO.decodeY(CoordinateEncoder.GEO.encodeY(point.getY()))
+        );
+        assertThat(reconstructed, equalTo(expected));
+
+        TriangleCounterVisitor counter = new TriangleCounterVisitor();
+        reader.visit(counter);
+        assertThat(counter.counter, equalTo(1));
     }
 
-    public void testMultiPointAutoSelectsLegacyFormat() throws IOException {
+    public void testMultiPointUsesV2PointsLayout() throws IOException {
         MultiPoint multiPoint = new MultiPoint(List.of(new Point(0, 0), new Point(5, 5), new Point(10, 10)));
         GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, "test");
         Geometry normalized = indexer.normalize(multiPoint);
@@ -177,19 +188,33 @@ public class TriangleTreeTests extends ESTestCase {
         CentroidCalculator centroidCalculator = new CentroidCalculator();
         centroidCalculator.add(multiPoint);
 
-        // write() should auto-select legacy format for multipoints
         BytesRef bytesRef = GeometryDocValueWriter.write(fieldList, CoordinateEncoder.GEO, centroidCalculator, List.of(multiPoint));
 
         GeometryDocValueReader reader = new GeometryDocValueReader();
         reader.reset(bytesRef);
 
-        assertFalse(reader.isV2Format());
+        assertTrue(reader.isV2Format());
         assertThat(reader.getDimensionalShapeType(), equalTo(DimensionalShapeType.POINT));
+        assertThat(reader.getSumCentroidWeight(), equalTo(3.0));
 
         // Geometry reconstruction should produce a MultiPoint with all 3 points
         Geometry reconstructed = reader.getGeometry(CoordinateEncoder.GEO);
-        assertNotNull(reconstructed);
         assertThat(reconstructed.type(), equalTo(normalized.type()));
+        assertThat(((MultiPoint) reconstructed).size(), equalTo(3));
+    }
+
+    public void testDegenerateLineStoresWeightAsCount() throws IOException {
+        Line line = new Line(new double[] { 1, 1, 1 }, new double[] { 1, 1, 1 });
+        GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, "test");
+        List<IndexableField> fieldList = indexer.getIndexableFields(indexer.normalize(line));
+        CentroidCalculator centroidCalculator = new CentroidCalculator();
+        centroidCalculator.add(line);
+        assertThat(centroidCalculator.getDimensionalShapeType(), equalTo(DimensionalShapeType.POINT));
+
+        GeometryDocValueReader reader = new GeometryDocValueReader();
+        reader.reset(GeometryDocValueWriter.write(fieldList, CoordinateEncoder.GEO, centroidCalculator, List.of(line)));
+        assertThat(reader.getSumCentroidWeight(), equalTo(centroidCalculator.sumWeight()));
+        assertThat(reader.getSumCentroidWeight(), equalTo(2.0));
     }
 
     public void testDegenerateLineUsesV2NotLegacy() throws IOException {

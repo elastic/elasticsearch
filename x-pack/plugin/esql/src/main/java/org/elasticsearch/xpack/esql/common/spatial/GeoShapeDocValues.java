@@ -33,7 +33,9 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
  * reads on the WKB path in {@link #from}.
  * <p>
  * Both doc-value formats are supported: the legacy tree with inline coordinate deltas, and the V2 tree whose nodes
- * reference a vertex table (which also backs geometry reconstruction). Grid functions only traverse the tree.
+ * reference a vertex table (which also backs geometry reconstruction). V2 values made only of points have no tree
+ * (a zero tree length), and their points are visited straight from the vertex table. Grid functions only traverse
+ * the tree.
  */
 public class GeoShapeDocValues {
     private final ByteArrayStreamInput input;
@@ -98,10 +100,27 @@ public class GeoShapeDocValues {
             if (v2TreeLength < 0) {
                 input.setPosition(treeOffset);
                 TriangleTreeReader.visit(input, visitor, extent.maxX(), extent.maxY());
+            } else if (v2TreeLength == 0) {
+                visitPoints(visitor);
             } else {
                 VertexLookupTable vertices = vertices();
                 input.setPosition(treeOffset);
                 V2TriangleTreeReader.visit(input, visitor, extent.maxX(), extent.maxY(), vertices);
+            }
+        }
+    }
+
+    /** A V2 value made only of points is just a vertex table of the points after the zero tree length. */
+    private void visitPoints(TriangleTreeVisitor visitor) throws IOException {
+        if (vertices == null) {
+            input.setPosition(treeOffset);
+            vertices = VertexLookupTable.readPointsFrom(input, bytes, extent);
+        }
+        for (int i = 0; i < vertices.size(); i++) {
+            long xy = vertices.getXY(i);
+            visitor.visitPoint((int) (xy >>> 32), (int) xy);
+            if (visitor.push() == false) {
+                return;
             }
         }
     }

@@ -32,11 +32,16 @@ import java.util.List;
  * centroid-x(4) | centroid-y(4) | DimensionalShapeType(1, 0x80 set) | sumWeight(VLong) | extent |
  * treeLength(VInt) | tree(vertex ordinals) | connectivityLength(VInt) | connectivity | vertexTable
  * </pre>
+ * or, for values made only of points:
+ * <pre>
+ * centroid-x(4) | centroid-y(4) | DimensionalShapeType(1, 0x80 set) | sumWeight(VLong) | extent |
+ * treeLength(VInt, 0) | vertexTable(points)
+ * </pre>
  *
- * <p>The layout is detected from the {@link DimensionalShapeType} high bit after
- * {@link #reset(BytesRef)}. That bit is required even inside a V2-capable index, because
- * point/multipoint values keep the legacy layout while other shapes use V2. Reading the
- * centroid or extent never loads the vertex table, keeping analytics-only access paths fast.
+ * <p>The format is detected from the {@link DimensionalShapeType} high bit after
+ * {@link #reset(BytesRef)}, and a V2 value made only of points from its zero tree length. In V2,
+ * the sum of weights of a {@link DimensionalShapeType#POINT} value is stored as the number of points.
+ * Reading the centroid or extent never loads the vertex table, keeping analytics-only access paths fast.
  * The tree and connectivity length prefixes allow the reader to skip to the vertex table at
  * the end (loaded lazily on first tree visit or geometry reconstruction).
  */
@@ -50,6 +55,12 @@ public class GeometryDocValueReader {
     /** True if the doc value uses the V2 format with vertex table and connectivity. */
     private boolean v2Format;
 
+    /**
+     * True for V2 {@link DimensionalShapeType#POINT} values, whose sum of weights is stored as a count of points. Only
+     * these can be made only of points, so lines and polygons never check for the points-only layout.
+     */
+    private boolean v2PointType;
+
     /** True once extent has been parsed. */
     private boolean extentLoaded;
 
@@ -58,7 +69,7 @@ public class GeometryDocValueReader {
 
     /** Offset of the tree data within the byte array. Set after extent is loaded (V2: after treeLength; legacy: right after extent). */
     private int treeOffset;
-    /** Length of the tree data in bytes (V2 only). */
+    /** Length of the tree data in bytes (V2 only). Zero for values made only of points, which have no tree. */
     private int treeLength;
 
     /** Lazily loaded vertex table (V2 only). Null until first needed. */
@@ -87,7 +98,9 @@ public class GeometryDocValueReader {
         connectivityOffset = 0;
         // Detect format from the DimensionalShapeType byte (offset 8)
         input.setPosition(docValueOffset + 8);
-        v2Format = DimensionalShapeType.isV2Format(input.readByte());
+        byte shapeType = input.readByte();
+        v2Format = DimensionalShapeType.isV2Format(shapeType);
+        v2PointType = DimensionalShapeType.isV2Point(shapeType);
     }
 
     // ---- Centroid header: accessible at fixed offsets, no parsing needed ----
@@ -109,7 +122,8 @@ public class GeometryDocValueReader {
 
     public double getSumCentroidWeight() throws IOException {
         input.setPosition(docValueOffset + 9);
-        return Double.longBitsToDouble(input.readVLong());
+        long sumWeight = input.readVLong();
+        return v2PointType ? sumWeight : Double.longBitsToDouble(sumWeight);
     }
 
     // ---- Extent: parsed once, does NOT load vertex table ----
@@ -148,6 +162,11 @@ public class GeometryDocValueReader {
             if (v2Format == false) {
                 throw new UnsupportedOperationException("Vertex table is not available in legacy doc-value format");
             }
+            if (v2PointType && treeLength == 0) {
+                input.setPosition(treeOffset);
+                vertexTable = VertexLookupTable.readPointsFrom(input, bytesRef.bytes, extent);
+                return;
+            }
             // V2 layout after tree: connectivityLength(VInt) | connectivity | vertexTable
             input.setPosition(treeOffset + treeLength);
             int connectivityLength = input.readVInt();
@@ -169,7 +188,8 @@ public class GeometryDocValueReader {
 
     /**
      * Visit the triangle tree with the provided visitor.
-     * For V2 format, the vertex table is loaded on first call (lazy).
+     * For V2 format, the vertex table is loaded on first call (lazy). V2 values made only of points have no
+     * tree, so their points are visited from the vertex table, skipping blocks of points the visitor rejects.
      * For legacy format, coordinates are read inline from the tree.
      */
     public void visit(TriangleTreeVisitor visitor) throws IOException {
@@ -182,6 +202,10 @@ public class GeometryDocValueReader {
             return;
         }
         if (v2Format) {
+            if (v2PointType && treeLength == 0) {
+                visitPoints(visitor);
+                return;
+            }
             ensureVertexTableLoaded();
             input.setPosition(treeOffset);
             V2TriangleTreeReader.visit(input, visitor, thisMaxX, thisMaxY, vertexTable);
@@ -191,12 +215,24 @@ public class GeometryDocValueReader {
         }
     }
 
+    private void visitPoints(TriangleTreeVisitor visitor) throws IOException {
+        if (isSinglePoint()) {
+            visitor.visitPoint(extent.minX(), extent.minY());
+            visitor.push();
+        } else {
+            ensureVertexTableLoaded();
+            vertexTable.visitPoints(visitor, extent.maxX(), extent.maxY());
+        }
+    }
+
     // ---- Geometry reconstruction ----
 
     /**
      * Reconstructs the original geometry from the doc-value.
      *
-     * <p>For V2 format, reads from the connectivity section.
+     * <p>For V2 format, reads from the connectivity section. V2 values made only of points
+     * are read from the vertex table, as a Point if there is one point and as a MultiPoint
+     * otherwise, with the points in the order they are stored (Morton order).
      * For legacy format, point-only geometries (Point, MultiPoint) are reconstructed
      * by visiting the triangle tree, since vertex ordering is irrelevant for points.
      * Returns null for legacy format with non-point geometries.
@@ -206,6 +242,12 @@ public class GeometryDocValueReader {
      */
     public Geometry getGeometry(CoordinateEncoder encoder) throws IOException {
         if (v2Format) {
+            if (v2PointType) {
+                ensureExtentLoaded();
+                if (treeLength == 0) {
+                    return reconstructPoints(encoder);
+                }
+            }
             ensureVertexTableLoaded();
             input.setPosition(connectivityOffset);
             return GeometryConnectivityReader.readGeometry(input, vertexTable, encoder);
@@ -215,6 +257,30 @@ public class GeometryDocValueReader {
             return reconstructPointsFromTree(encoder);
         }
         return null;
+    }
+
+    /**
+     * Whether a V2 value made only of points holds a single point, which is stored as just the count 1, since the point
+     * is the minimum of the extent. Avoids building a vertex table for the most common points value.
+     */
+    private boolean isSinglePoint() {
+        return bytesRef.bytes[treeOffset] == 1;
+    }
+
+    private Geometry reconstructPoints(CoordinateEncoder encoder) throws IOException {
+        if (isSinglePoint()) {
+            return new Point(encoder.decodeX(extent.minX()), encoder.decodeY(extent.minY()));
+        }
+        ensureVertexTableLoaded();
+        int numPoints = vertexTable.size();
+        double[] x = new double[numPoints];
+        double[] y = new double[numPoints];
+        vertexTable.decode(0, numPoints, encoder, x, y, 0);
+        List<Point> points = new ArrayList<>(numPoints);
+        for (int i = 0; i < numPoints; i++) {
+            points.add(new Point(x[i], y[i]));
+        }
+        return new MultiPoint(points);
     }
 
     /**

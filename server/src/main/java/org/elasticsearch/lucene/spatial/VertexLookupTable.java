@@ -45,6 +45,9 @@ import java.util.Arrays;
  * Each directory entry is the block minimum x and y, the x and y bit widths (one byte each), and the byte
  * offset of the block's data from the start of the packed data ({@code offsetWidth} bytes, big-endian).
  * Each block's data holds, per vertex, the x offset followed by the y offset, packed most significant bit first.
+ *
+ * <p>Values made only of points have no triangle tree or connectivity, and store just the points in this table
+ * (see {@link Builder#writePointsTo}). A single point stores only {@code numVertices}, as it is the extent minimum.
  */
 public class VertexLookupTable {
 
@@ -224,6 +227,36 @@ public class VertexLookupTable {
         return numVertices;
     }
 
+    /**
+     * Visits every vertex as a point, for values made only of points, skipping whole blocks whose bounding box the
+     * visitor rejects. A block's box is its minimum plus the largest offset its bit widths can hold, capped at the
+     * maximum of the value's extent: a superset of the real box, which is safe for the subtree checks
+     * {@link TriangleTreeVisitor#pushX}, {@link TriangleTreeVisitor#pushY} and {@link TriangleTreeVisitor#push(int, int)}.
+     *
+     * @param extentMaxX the maximum x of the value's extent
+     * @param extentMaxY the maximum y of the value's extent
+     */
+    void visitPoints(TriangleTreeVisitor visitor, int extentMaxX, int extentMaxY) {
+        final int numBlocks = numBlocks(numVertices);
+        for (int block = 0; block < numBlocks; block++) {
+            loadBlock(block);
+            int maxX = (int) Math.min(extentMaxX, (long) blockMinX + ((1L << blockBitsX) - 1));
+            int maxY = (int) Math.min(extentMaxY, (long) blockMinY + ((1L << blockBitsY) - 1));
+            if (visitor.pushX(blockMinX) && visitor.pushY(blockMinY) && visitor.push(maxX, maxY)) {
+                int end = Math.min(numVertices, (block + 1) << BLOCK_SHIFT);
+                for (int ordinal = block << BLOCK_SHIFT; ordinal < end; ordinal++) {
+                    long xy = getXY(ordinal);
+                    visitor.visitPoint((int) (xy >>> 32), (int) xy);
+                    if (visitor.push() == false) {
+                        return;
+                    }
+                }
+            } else if (visitor.push() == false) {
+                return;
+            }
+        }
+    }
+
     private static int numBlocks(int numVertices) {
         return (numVertices + BLOCK_MASK) >>> BLOCK_SHIFT;
     }
@@ -241,6 +274,30 @@ public class VertexLookupTable {
         if (size == 0) {
             return new VertexLookupTable(bytes, input.getPosition(), input.getPosition(), 0, 0, 0, 0, 0, 0, input.getPosition());
         }
+        return readVertices(input, bytes, extent, size);
+    }
+
+    /**
+     * Reads the vertex table of a value made only of points, as written by {@link Builder#writePointsTo}. A single
+     * point is not stored at all, since it is the minimum of the extent.
+     *
+     * @param input the stream positioned at the start of the table
+     * @param bytes the underlying byte array backing the stream (typically {@code BytesRef.bytes})
+     * @param extent the extent of the same doc value
+     */
+    public static VertexLookupTable readPointsFrom(ByteArrayStreamInput input, byte[] bytes, Extent extent) throws IOException {
+        int size = input.readVInt();
+        if (size == 1) {
+            // A single block with zero bit widths: every read returns the block minimum, which is the extent minimum.
+            return new VertexLookupTable(SINGLE_VERTEX, 0, 2, 1, extent.minX(), extent.minY(), 0, 0, 0, 2);
+        }
+        return readVertices(input, bytes, extent, size);
+    }
+
+    /** A directory entry with zero block minimum offsets and zero bit widths, padded for whole-long reads. */
+    private static final byte[] SINGLE_VERTEX = new byte[Long.BYTES];
+
+    private static VertexLookupTable readVertices(ByteArrayStreamInput input, byte[] bytes, Extent extent, int size) throws IOException {
         int layout = input.readByte() & 0xFF;
         int numBlocks = numBlocks(size);
         int offsetWidth = numBlocks > 1 ? input.readByte() & 0xFF : 0;
@@ -353,6 +410,14 @@ public class VertexLookupTable {
             return ordinal;
         }
 
+        /**
+         * Appends a vertex at the next ordinal without making it findable by {@link #addVertex}, for tables of
+         * points that have no triangle tree to resolve vertices.
+         */
+        public int appendUnindexed(int x, int y) {
+            return append(x, y);
+        }
+
         private int append(int x, int y) {
             int ordinal = nextOrdinal++;
             if (ordinal == xs.length) {
@@ -378,6 +443,22 @@ public class VertexLookupTable {
             if (nextOrdinal == 0) {
                 return;
             }
+            writeVertices(out, extent);
+        }
+
+        /**
+         * Serializes the table of a value made only of points, which must hold at least one vertex, for
+         * {@link #readPointsFrom}. A single point is written as just the count, since it is the minimum of {@code extent}.
+         */
+        public void writePointsTo(StreamOutput out, Extent extent) throws IOException {
+            assert nextOrdinal > 0 : "a points table needs at least one point";
+            out.writeVInt(nextOrdinal);
+            if (nextOrdinal > 1) {
+                writeVertices(out, extent);
+            }
+        }
+
+        private void writeVertices(StreamOutput out, Extent extent) throws IOException {
             final int numBlocks = numBlocks(nextOrdinal);
             final int[] minXs = new int[numBlocks];
             final int[] minYs = new int[numBlocks];

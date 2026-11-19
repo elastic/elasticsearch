@@ -29,8 +29,8 @@ import static org.hamcrest.Matchers.not;
 
 /**
  * {@link GeoShapeDocValues} must read both doc-value formats written by the server: the legacy triangle tree with
- * inline coordinates, and the V2 tree that references a vertex table. The same geometry written in each format must
- * produce identical headers, intersections and grid cells.
+ * inline coordinates, and the V2 tree that references a vertex table, or for points just the vertex table. The same
+ * geometry written in each format must produce identical headers, intersections and grid cells.
  */
 public class GeoShapeDocValuesTests extends ESTestCase {
     private static final GeoShapeIndexer INDEXER = new GeoShapeIndexer(Orientation.CCW, "test");
@@ -42,6 +42,21 @@ public class GeoShapeDocValuesTests extends ESTestCase {
         centroid.add(geometry);
         BytesRef legacyBytes = GeometryDocValueWriter.writeLegacy(fields, CoordinateEncoder.GEO, centroid);
         BytesRef v2Bytes = GeometryDocValueWriter.writeV2(fields, CoordinateEncoder.GEO, centroid, List.of(geometry));
+        assertFormatsAgree(legacyBytes, v2Bytes);
+    }
+
+    /** Points and multipoints are written in V2 as just a vertex table, with no triangle tree. */
+    public void testLegacyAndV2PointsFormatsAgree() throws IOException {
+        Geometry geometry = randomBoolean() ? GeometryTestUtils.randomPoint(false) : GeometryTestUtils.randomMultiPoint(false);
+        List<IndexableField> fields = INDEXER.indexShape(geometry);
+        CentroidCalculator centroid = new CentroidCalculator();
+        centroid.add(geometry);
+        BytesRef legacyBytes = GeometryDocValueWriter.writeLegacy(fields, CoordinateEncoder.GEO, centroid);
+        BytesRef v2Bytes = GeometryDocValueWriter.write(fields, CoordinateEncoder.GEO, centroid, List.of(geometry));
+        assertFormatsAgree(legacyBytes, v2Bytes);
+    }
+
+    private static void assertFormatsAgree(BytesRef legacyBytes, BytesRef v2Bytes) throws IOException {
         assertThat(v2Bytes, not(equalTo(legacyBytes)));
 
         GeoShapeDocValues legacy = GeoShapeDocValues.fromDocValue(legacyBytes);

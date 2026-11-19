@@ -125,41 +125,44 @@ public class GeometryDocValueBenchmark {
         System.out.println("  Triangles:    " + tessellatedFields.size());
         System.out.println("  Legacy bytes: " + legacyBytes.length);
         System.out.println("  V2 bytes:     " + v2Bytes.length);
-        System.out.println("  Auto bytes:   " + autoBytes.length + " (" + (autoBytes.length == legacyBytes.length ? "legacy" : "V2") + ")");
+        reader.reset(autoBytes);
+        System.out.println("  Auto bytes:   " + autoBytes.length + " (" + (reader.isV2Format() ? "V2" : "legacy") + ")");
         System.out.println("  WKT chars:    " + wktString.length());
         System.out.println("  WKB bytes:    " + wkbBytes.length);
 
-        // V2 component-level breakdown
-        if (autoBytes.length != legacyBytes.length) {
-            reportV2Breakdown();
+        if (reader.isV2Format()) {
+            reportV2Breakdown(autoBytes);
         }
     }
 
-    private void reportV2Breakdown() throws IOException {
+    private void reportV2Breakdown(BytesRef bytes) throws IOException {
         // Walk the V2 layout: centroid(8) | type(1) | sumWeight(VLong) | extent | treeLength(VInt) | tree |
         // connectivityLength(VInt) | connectivity | numVertices(VInt) | vertices
+        // Values made only of points have a zero tree length, followed by just the vertex table.
         ByteArrayStreamInput input = new ByteArrayStreamInput();
-        input.reset(v2Bytes.bytes, v2Bytes.offset, v2Bytes.length);
+        input.reset(bytes.bytes, bytes.offset, bytes.length);
         input.skipBytes(9);
         input.readVLong();
         Extent.readFromCompressed(input, new Extent());
-        int headerSize = input.getPosition() - v2Bytes.offset;
+        int headerSize = input.getPosition() - bytes.offset;
         int treeLength = input.readVInt();
         input.skipBytes(treeLength);
         int connectivityStart = input.getPosition();
-        int connectivityLength = input.readVInt();
-        input.skipBytes(connectivityLength);
+        if (treeLength > 0) {
+            int connectivityLength = input.readVInt();
+            input.skipBytes(connectivityLength);
+        }
         int vertexTableStart = input.getPosition();
         int numVertices = input.readVInt();
-        int vertexTableSize = v2Bytes.offset + v2Bytes.length - vertexTableStart;
+        int vertexTableSize = bytes.offset + bytes.length - vertexTableStart;
 
-        System.out.println("  --- V2 breakdown ---");
+        System.out.println("  --- V2 breakdown" + (treeLength == 0 ? " (points only)" : "") + " ---");
         System.out.println("  Header+extent bytes:  " + headerSize);
-        System.out.println("  Tree bytes:           " + (connectivityStart - v2Bytes.offset - headerSize));
+        System.out.println("  Tree bytes:           " + (connectivityStart - bytes.offset - headerSize));
         System.out.println("  Connectivity bytes:   " + (vertexTableStart - connectivityStart));
         System.out.println("  Vertices:             " + numVertices);
         System.out.println("  Vertex table bytes:   " + vertexTableSize);
-        System.out.printf("  V2/Legacy:            %.1f%%%n", (double) v2Bytes.length / legacyBytes.length * 100);
+        System.out.printf("  V2/Legacy:            %.1f%%%n", (double) bytes.length / legacyBytes.length * 100);
     }
 
     // ---- Doc-value write benchmarks ----
@@ -204,6 +207,15 @@ public class GeometryDocValueBenchmark {
     @Benchmark
     public void visitTreeV2(Blackhole bh) throws IOException {
         reader.reset(v2Bytes);
+        CountingVisitor visitor = new CountingVisitor();
+        reader.visit(visitor);
+        bh.consume(visitor.count);
+    }
+
+    /** Visits the layout that {@link #writeAuto} selects, which for points has no triangle tree. */
+    @Benchmark
+    public void visitTreeAuto(Blackhole bh) throws IOException {
+        reader.reset(autoBytes);
         CountingVisitor visitor = new CountingVisitor();
         reader.visit(visitor);
         bh.consume(visitor.count);

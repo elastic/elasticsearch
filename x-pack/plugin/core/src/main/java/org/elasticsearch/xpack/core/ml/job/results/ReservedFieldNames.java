@@ -36,6 +36,13 @@ public final class ReservedFieldNames {
     private static final Pattern DOT_PATTERN = Pattern.compile("\\.");
 
     /**
+     * Left over from the removed ES|QL datafeed source checkpoint. Results indices created while the mapping was at version 3
+     * map it as "long", and a mapping update cannot change that. Reserving it keeps an input field of this name from being
+     * copied as a string into that "long" field. It is no longer in the results mapping for new indices.
+     */
+    public static final String LEGACY_SOURCE_END_MS = "source_end_ms";
+
+    /**
      * This array should be updated to contain all the field names that appear
      * in any documents we store in our results index.  (The reason it's any
      * documents we store and not just results documents is that Elasticsearch
@@ -216,10 +223,7 @@ public final class ReservedFieldNames {
         DatafeedTimingStats.TOTAL_SEARCH_TIME_MS.getPreferredName(),
         DatafeedTimingStats.EXPONENTIAL_AVG_CALCULATION_CONTEXT.getPreferredName(),
 
-        // Left over from the removed ES|QL datafeed source checkpoint. Results indices created while the mapping was at version 3
-        // map it as "long", and a mapping update cannot change that. Reserving it keeps an input field of this name from being
-        // copied as a string into that "long" field.
-        "source_end_ms",
+        LEGACY_SOURCE_END_MS,
 
         ExponentialAverageCalculationContext.INCREMENTAL_METRIC_VALUE_MS.getPreferredName(),
         ExponentialAverageCalculationContext.LATEST_TIMESTAMP.getPreferredName(),

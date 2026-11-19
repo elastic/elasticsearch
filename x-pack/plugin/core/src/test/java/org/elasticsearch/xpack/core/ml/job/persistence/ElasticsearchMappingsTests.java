@@ -88,7 +88,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
 
     // Reserved but no longer in the results mapping: existing version-3 indices still map "source_end_ms" as "long", so an input
     // field of that name must not be copied into results as a string.
-    private static final List<String> LEGACY_RESERVED_FIELDS = List.of("source_end_ms");
+    private static final List<String> LEGACY_RESERVED_FIELDS = List.of(ReservedFieldNames.LEGACY_SOURCE_END_MS);
 
     public void testResultsMappingReservedFields() throws Exception {
         Set<String> overridden = new HashSet<>(KEYWORDS);

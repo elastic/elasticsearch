@@ -72,6 +72,7 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
     private final TransportService transportService;
     private final ClusterService clusterService;
     private final ProjectResolver projectResolver;
+    private final GetVirtualBatchedCompoundCommitChunkMetrics metrics;
 
     @Inject
     public TransportGetVirtualBatchedCompoundCommitChunkAction(
@@ -82,9 +83,11 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
         ClusterService clusterService,
         GetVirtualBatchedCompoundCommitChunksPressure vbccChunksPressure,
         StatelessCommitServiceProvider statelessCommitServiceProvider,
-        ProjectResolver projectResolver
+        ProjectResolver projectResolver,
+        GetVirtualBatchedCompoundCommitChunkMetrics metrics
     ) {
         super(NAME, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        this.metrics = metrics;
         this.indicesService = indicesService;
         this.transportService = transportService;
         this.clusterService = clusterService;
@@ -125,7 +128,7 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
         ActionListener<GetVirtualBatchedCompoundCommitChunkResponse> listener
     ) {
         assert transportService.getLocalNode().hasRole(DiscoveryNodeRole.SEARCH_ROLE.roleName()) : "not a search node";
-        ActionListener.run(listener, l -> {
+        ActionListener.run(metricsListener(listener, true), l -> {
             if (task != null) {
                 request.setParentTask(clusterService.localNode().getId(), task.getId());
             }
@@ -185,9 +188,11 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
     private void sendRequestToPrimaryNode(
         DiscoveryNode discoveryNode,
         GetVirtualBatchedCompoundCommitChunkRequest request,
-        ActionListener<GetVirtualBatchedCompoundCommitChunkResponse> listener
+        ActionListener<GetVirtualBatchedCompoundCommitChunkResponse> outerListener
     ) {
         assert discoveryNode != null : request;
+        // Measure the time between sending the request and receiving its response, before the response is used by the caller
+        final var listener = metricsListener(outerListener, false);
         transportService.sendRequest(
             discoveryNode,
             transportPrimaryAction,
@@ -272,4 +277,34 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
             }
         });
     }
+
+    /**
+     * Wraps the listener so that the time elapsed since this method was called is recorded in the metrics when the listener completes,
+     * before the response (or failure) is passed to the wrapped listener.
+     *
+     * @param listener       the listener to wrap
+     * @param includeRetries {@code false} to measure a single request sent to the indexing node, {@code true} to measure the whole action
+     *                       execution including retries
+     */
+    private ActionListener<GetVirtualBatchedCompoundCommitChunkResponse> metricsListener(
+        final ActionListener<GetVirtualBatchedCompoundCommitChunkResponse> listener,
+        final boolean includeRetries
+    ) {
+        final ThreadPool threadPool = transportService.getThreadPool();
+        final long startTimeInNanos = threadPool.relativeTimeInNanos();
+        return new ActionListener<>() {
+            @Override
+            public void onResponse(GetVirtualBatchedCompoundCommitChunkResponse response) {
+                metrics.record(includeRetries, true, threadPool.relativeTimeInNanos() - startTimeInNanos);
+                listener.onResponse(response);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                metrics.record(includeRetries, false, threadPool.relativeTimeInNanos() - startTimeInNanos);
+                listener.onFailure(e);
+            }
+        };
+    }
+
 }

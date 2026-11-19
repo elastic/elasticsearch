@@ -423,7 +423,7 @@ setup:
   - match: { values.2: ["2", null] }
 
 ---
-"An unsupported child type only fails when a query reads it":
+"A wildcard keeps supported and unsupported children together":
   - do:
       indices.create:
         index: ne_geo
@@ -439,22 +439,24 @@ setup:
                     type: long
                   loc:
                     type: geo_point
+                  span:
+                    type: integer_range
   - do:
       bulk:
         refresh: true
         body:
           - { "index": { "_index": "ne_geo", "_id": "a" } }
-          - { "items": [ { "qty": 1, "loc": "POINT (1 2)" } ] }
+          - { "items": [ { "qty": 1, "loc": "POINT (1 2)", "span": { "gte": 1, "lte": 3 } } ] }
   - do:
       esql.query:
         body:
-          query: 'FROM ne_geo | NESTED_EXPAND items | KEEP items.qty | LIMIT 10'
-  - match: { values.0: [1] }
-  - do:
-      catch: /NESTED_EXPAND does not support child type \[GEO_POINT\] for \[items\.loc\]/
-      esql.query:
-        body:
-          query: 'FROM ne_geo | NESTED_EXPAND items | KEEP items.qty, items.loc | LIMIT 10'
+          query: 'FROM ne_geo | NESTED_EXPAND items | KEEP items.* | LIMIT 10'
+  - match: { columns.0.name: items.loc }
+  - match: { columns.0.type: geo_point }
+  - match: { columns.1.name: items.qty }
+  - match: { columns.2.name: items.span }
+  - match: { columns.2.type: unsupported }
+  - match: { values.0: ["POINT (1.0 2.0)", 1, null] }
 
 ---
 "An implicit HIGHLIGHT borrows the WHERE before NESTED_EXPAND":
@@ -496,7 +498,7 @@ setup:
   - match: { values.1: [2, "the quick <em>fox</em>"] }
 
 ---
-"A flattened key under a nested object is not an ordinary column":
+"A key of a flattened field under a nested object resolves inside the expansion only":
   - requires:
       test_runner_features: [capabilities]
       capabilities:
@@ -532,10 +534,17 @@ setup:
           - { "index": { "_index": "ne_flattened", "_id": "a" } }
           - { "items": [ { "qty": 1, "attrs": { "color": "red" } } ], "other": [ { "attrs": { "size": "L" } } ] }
   - do:
-      catch: /Unknown column \[items\.attrs\.color\]/
       esql.query:
         body:
           query: 'FROM ne_flattened | NESTED_EXPAND items | KEEP items.qty, items.attrs.color | LIMIT 10'
+  - match: { columns.1.name: items.attrs.color }
+  - match: { columns.1.type: keyword }
+  - match: { values.0: [1, "red"] }
+  - do:
+      catch: /Unknown column \[items\.attrs\.color\]/
+      esql.query:
+        body:
+          query: 'FROM ne_flattened | KEEP items.attrs.color | LIMIT 10'
   # Nor is one of another nested collection, which this query does not expand
   - do:
       catch: /Unknown column \[other\.attrs\.size\]/
@@ -1376,7 +1385,7 @@ setup:
   - match: { values.1: ["B", "B"] }
 
 ---
-"A key of a flattened field in another index is no value of a column the first index declares":
+"A key of a flattened field in another index converts to the type another index declares":
   - requires:
       test_runner_features: [capabilities]
       capabilities:
@@ -1437,21 +1446,26 @@ setup:
           - { "index": { "_index": "ne_attrs_keyword", "_id": "1" } }
           - { "items": [ { "attrs": { "score": "7" } } ] }
           - { "index": { "_index": "ne_attrs_flattened", "_id": "1" } }
-          - { "items": [ { "attrs": { "score": "42" } } ] }
+          - { "items": [ { "attrs": { "score": "42" } }, { "attrs": { "score": "not-a-number" } } ] }
   - do:
+      allowed_warnings_regex:
+        - "Line -1:-1: evaluation of \\[\\] failed, treating result as null. Only first 20 failures recorded."
+        - "Line -1:-1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \\[not-a-number\\]"
       esql.query:
         body:
           query: 'FROM ne_attrs_long, ne_attrs_flattened | NESTED_EXPAND items | KEEP items.attrs.score | SORT items.attrs.score | LIMIT 10'
-  - length: { values: 2 }
+  - length: { values: 3 }
   - match: { values.0: [7] }
-  - match: { values.1: [null] }
+  - match: { values.1: [42] }
+  - match: { values.2: [null] }
   - do:
       esql.query:
         body:
           query: 'FROM ne_attrs_keyword, ne_attrs_flattened | NESTED_EXPAND items | KEEP items.attrs.score | SORT items.attrs.score | LIMIT 10'
-  - length: { values: 2 }
-  - match: { values.0: ["7"] }
-  - match: { values.1: [null] }
+  - length: { values: 3 }
+  - match: { values.0: ["42"] }
+  - match: { values.1: ["7"] }
+  - match: { values.2: ["not-a-number"] }
 
 ---
 "An object in one index and a leaf of the same name in another give a column each":

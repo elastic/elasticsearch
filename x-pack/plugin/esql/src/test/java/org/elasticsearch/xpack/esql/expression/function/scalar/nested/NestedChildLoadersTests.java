@@ -33,6 +33,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.compute.test.NoOpReleasable;
 import org.elasticsearch.core.IOUtils;
@@ -46,12 +47,14 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.expression.function.BlockLoaderWarnings;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
+import org.elasticsearch.xpack.esql.plugin.EsqlSearchExecutionContext;
 import org.junit.After;
 
 import java.io.IOException;
@@ -59,6 +62,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -82,6 +86,7 @@ public class NestedChildLoadersTests extends ComputeTestCase {
     private DirectoryReader reader;
     private EsPhysicalOperationProviders.DefaultShardContext shard;
     private int[] parentDocs;
+    private boolean flattenedKeys;
 
     @After
     public void closeIndex() throws IOException {
@@ -204,13 +209,50 @@ public class NestedChildLoadersTests extends ComputeTestCase {
         }
     }
 
-    public void testUndeclaredFlattenedKeyIsNullWhateverTheColumnType() throws IOException {
-        for (DataType type : List.of(DataType.LONG, DataType.INTEGER, DataType.KEYWORD)) {
+    public void testFlattenedKeyReadsThroughTheCastToTheColumnType() throws IOException {
+        flattenedKeys = true;
+        String documents = """
+            {"items": [{"attrs": {"score": "42"}}, {"attrs": {"score": "not-a-number"}}]}""";
+        assertThat(
+            readChildren(Settings.EMPTY, flattenedMapping(), List.of(documents), List.of("attrs.score"), List.of(DataType.LONG)),
+            equalTo(List.of(row(0, 42L), row(0, (Object) null)))
+        );
+        closeIndexForNextRun();
+        assertThat(
+            readChildren(Settings.EMPTY, flattenedMapping(), List.of(documents), List.of("attrs.score"), List.of(DataType.INTEGER)),
+            equalTo(List.of(row(0, 42), row(0, (Object) null)))
+        );
+        closeIndexForNextRun();
+        assertThat(
+            readChildren(Settings.EMPTY, flattenedMapping(), List.of(documents), List.of("attrs.score"), List.of(DataType.KEYWORD)),
+            equalTo(List.of(row(0, "42"), row(0, "not-a-number")))
+        );
+    }
+
+    public void testFlattenedKeyIsNullWhereTheShardDoesNotReadKeys() throws IOException {
+        for (DataType type : List.of(DataType.LONG, DataType.KEYWORD)) {
             List<List<Object>> rows = readChildren(Settings.EMPTY, flattenedMapping(), List.of("""
-                {"items": [{"attrs": {"score": "42"}}, {"attrs": {"score": "not-a-number"}}]}"""), List.of("attrs.score"), List.of(type));
-            assertThat(type.toString(), rows, equalTo(List.of(row(0, (Object) null), row(0, (Object) null))));
+                {"items": [{"attrs": {"score": "42"}}]}"""), List.of("attrs.score"), List.of(type));
+            assertThat(type.toString(), rows, equalTo(List.of(row(0, (Object) null))));
             closeIndexForNextRun();
         }
+    }
+
+    public void testUnsupportedChildIsNullWhereItsMapperCannotLoadBlocks() throws IOException {
+        List<List<Object>> rows = readChildren(
+            Settings.EMPTY,
+            """
+                {"_doc": {"properties": {"items": {"type": "nested", "properties": {
+                  "qty": {"type": "long"},
+                  "span": {"type": "integer_range"}
+                }}}}}
+                """,
+            List.of("""
+                {"items": [{"qty": 1, "span": {"gte": 1, "lte": 3}}, {"qty": 2}]}"""),
+            List.of("qty", "span"),
+            List.of(DataType.LONG, DataType.UNSUPPORTED)
+        );
+        assertThat(rows, equalTo(List.of(row(0, 1L, null), row(0, 2L, null))));
     }
 
     public void testDeclaredSubfieldOfAnObjectStillReads() throws IOException {
@@ -521,7 +563,8 @@ public class NestedChildLoadersTests extends ComputeTestCase {
             paths,
             types,
             Collections.nCopies(paths.size(), (UnionTypeEsField) null),
-            PlannerSettings.DEFAULTS
+            PlannerSettings.DEFAULTS,
+            EsqlTestUtils.TEST_CFG
         );
         BlockFactory blockFactory = blockFactory();
         DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
@@ -563,6 +606,9 @@ public class NestedChildLoadersTests extends ComputeTestCase {
         reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(directory), new ShardId(mapperService.index(), 0));
         assertThat(reader.leaves().size(), equalTo(1));
         SearchExecutionContext context = mapperHelper.createSearchExecutionContext(mapperService, newSearcher(reader, false));
+        if (flattenedKeys) {
+            context = new EsqlSearchExecutionContext(context, QueryWarnings.EMIT, Set.of(), true);
+        }
         shard = new EsPhysicalOperationProviders.DefaultShardContext(0, new NoOpReleasable(), context, AliasFilter.EMPTY);
     }
 

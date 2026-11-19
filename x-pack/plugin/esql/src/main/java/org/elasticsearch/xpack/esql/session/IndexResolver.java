@@ -713,7 +713,12 @@ public class IndexResolver {
                     false,
                     indexDedupCache,
                     true
-                )
+                ),
+                fieldsInfo.keyNames(),
+                (name, fields) -> {
+                    IndexFieldCapabilities root = flattenedRoot(fields, name);
+                    return root != null && NestedScopeField.inNestedScope(root, fields) ? key(name, root) : null;
+                }
             )
             : null;
         if (nestedNamespace != null) {

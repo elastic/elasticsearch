@@ -33,6 +33,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.asLimit;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerNestedExpandTests.nestedAnalyzer;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -173,13 +174,11 @@ public class NestedExpandOptimizerTests extends AbstractLogicalPlanOptimizerTest
         assertThat(expand.paths(), empty());
     }
 
-    /** The {@code geo_point} child only fails when the query reads it, which pruning decides. */
-    public void testUnsupportedChildTypeOnlyWhenRead() {
-        nestedPlan("FROM ne | NESTED_EXPAND items | KEEP items.qty");
-        assertThat(
-            error("FROM ne | NESTED_EXPAND items | KEEP items.qty, items.loc"),
-            containsString("NESTED_EXPAND does not support child type [GEO_POINT] for [items.loc]")
-        );
+    public void testChildOfAnyTypeIsAColumn() {
+        LogicalPlan plan = nestedPlan("FROM ne | NESTED_EXPAND items | KEEP items.qty, items.loc");
+        var project = as(plan, Project.class);
+        var expand = as(asLimit(project.child(), 1000).child(), NestedExpand.class);
+        assertThat(names(expand.expanded()), containsInAnyOrder("items.qty", "items.loc"));
     }
 
     /** The filter on a child column keeps the limit from reaching the SORT, so nothing bounds it. */

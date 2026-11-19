@@ -967,6 +967,31 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         }
 
         /**
+         * Reads the child field {@code name}, a key of a {@code flattened} field loaded as the keyword {@code keys}, as a top-level
+         * column reads a key: through the cast to {@code type}, or through the one {@code unionTypes} holds where indices map the
+         * name with different types, and as nulls where there is none.
+         */
+        public ValuesSourceReaderOperator.LoaderAndConverter convertedNestedKey(
+            @Nullable UnionTypeEsField unionTypes,
+            String name,
+            DataType type,
+            BlockLoader keys,
+            Configuration configuration
+        ) {
+            ReferenceAttribute keyword = new ReferenceAttribute(
+                org.elasticsearch.xpack.esql.core.tree.Source.EMPTY,
+                name,
+                DataType.KEYWORD
+            );
+            AbstractConvertFunction cast = unionTypes == null
+                ? EsqlDataTypeConverter.castFromKeyword(type, keyword, configuration)
+                : keywordConversion(unionTypes, keyword);
+            return cast == null
+                ? ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS
+                : ValuesSourceReaderOperator.loadAndConvert(keys, new TypeConverter((EsqlScalarFunction) cast));
+        }
+
+        /**
          * Loads a field under a nested object from the hidden child documents. A runtime field runs on the parent document and
          * reads the parent's {@code _source} through its mapper, as it does for a top-level field, rather than the
          * {@code _ignored_source} that synthetic source keeps.

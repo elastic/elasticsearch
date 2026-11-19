@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.test.TestDriverRunner;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
@@ -35,7 +36,8 @@ public class NestedExpandOperatorTests extends NestedIndexOperatorTestCase {
             List.of("price", "note"),
             List.of(DataType.LONG, DataType.TEXT),
             Collections.nCopies(2, (UnionTypeEsField) null),
-            PlannerSettings.DEFAULTS
+            PlannerSettings.DEFAULTS,
+            EsqlTestUtils.TEST_CFG
         );
         return new NestedExpandOperator.Factory(0, children, "items", List.of(DataType.LONG, DataType.TEXT));
     }
@@ -131,7 +133,8 @@ public class NestedExpandOperatorTests extends NestedIndexOperatorTestCase {
             List.of(),
             List.of(),
             List.of(),
-            PlannerSettings.DEFAULTS
+            PlannerSettings.DEFAULTS,
+            EsqlTestUtils.TEST_CFG
         );
         int parents = 20;
         Page input = parents(context.blockFactory(), 0, parents);

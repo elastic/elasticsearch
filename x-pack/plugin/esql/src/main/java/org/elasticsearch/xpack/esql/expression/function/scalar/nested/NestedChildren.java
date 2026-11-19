@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.expression.function.BlockLoaderWarnings;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -88,7 +89,8 @@ public final class NestedChildren implements Releasable {
         List<String> paths,
         List<DataType> types,
         List<UnionTypeEsField> unionTypes,
-        PlannerSettings settings
+        PlannerSettings settings,
+        Configuration configuration
     ) {
         List<String> fields = paths.stream().map(p -> path + "." + p).toList();
         IndexedByShardId<Shard> shards = shardContexts.map(shard -> {
@@ -116,10 +118,13 @@ public final class NestedChildren implements Releasable {
             UnionTypeEsField union = unionTypes.get(f);
             infos.add(new ValuesSourceReaderOperator.FieldInfo(name, PlannerUtils.toElementType(type), false, (driverContext, shard) -> {
                 var context = (EsPhysicalOperationProviders.DefaultShardContext) shardContexts.get(shard);
+                if (type == DataType.UNSUPPORTED) {
+                    // As for a top-level column, an unsupported child reads as nulls without asking its mapper for a loader
+                    return ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS;
+                }
                 MappedFieldType fieldType = context.fieldType(name);
                 if (fieldType instanceof FlattenedFieldMapper.KeyedFlattenedFieldType) {
-                    // A key of a flattened field is no field of the nested object: the query reads the names its mappings declare
-                    return ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS;
+                    return keyChild(context, driverContext, name, type, union, settings, configuration);
                 }
                 BlockLoader loader = context.nestedChildBlockLoader(
                     name,
@@ -179,6 +184,34 @@ public final class NestedChildren implements Releasable {
                 () -> 0
             )
         );
+    }
+
+    /**
+     * Reads {@code name} as the key of a {@code flattened} field, a {@code keyword}, as a top-level column does: a column of another
+     * type, or one that indices map with different types, reads it through a cast, and a shard that does not read keys gives nulls.
+     */
+    private static ValuesSourceReaderOperator.LoaderAndConverter keyChild(
+        EsPhysicalOperationProviders.DefaultShardContext context,
+        DriverContext driverContext,
+        String name,
+        DataType type,
+        @Nullable UnionTypeEsField union,
+        PlannerSettings settings,
+        Configuration configuration
+    ) {
+        if (context.readsKey(name) == false) {
+            return ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS;
+        }
+        BlockLoader keys = context.nestedChildBlockLoader(
+            name,
+            new BlockLoaderWarnings(driverContext, Source.EMPTY),
+            settings.blockLoaderSizeOrdinals(),
+            settings.blockLoaderSizeScript()
+        );
+        if (union == null && DataType.isString(type)) {
+            return ValuesSourceReaderOperator.load(keys);
+        }
+        return context.convertedNestedKey(union, name, type, keys, configuration);
     }
 
     private final DriverContext context;

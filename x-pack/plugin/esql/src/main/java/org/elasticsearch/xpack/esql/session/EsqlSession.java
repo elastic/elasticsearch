@@ -45,7 +45,6 @@ import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.iplocation.api.IpDataLookupInfo;
 import org.elasticsearch.iplocation.api.IpLocationConsumer;
 import org.elasticsearch.iplocation.api.IpLocationService;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
@@ -506,28 +505,6 @@ public class EsqlSession {
         planningCpu.meteredCpu(() -> doExecute(request, executionInfo, planRunner, listener));
     }
 
-    /**
-     * The settings step of {@link #doExecute}, shared with callers that parse a query without running it (ES|QL datafeeds): the in-query
-     * SET wins over the request body, the request body over the cluster, the cluster over the default. The parse step is
-     * {@link EsqlQueryRequest#parse}.
-     */
-    public static ResolvedSettings resolveSettings(
-        ClusterService clusterService,
-        EsqlQueryRequest request,
-        EsqlStatement statement,
-        SettingsValidationContext validationContext,
-        XPackLicenseState licenseState
-    ) {
-        return QuerySettings.resolve(
-            clusterService.state().metadata().settings(),
-            clusterService.getSettings(),
-            request.requestSettings(),
-            statement,
-            validationContext,
-            licenseState
-        );
-    }
-
     private void doExecute(
         EsqlQueryRequest request,
         EsqlExecutionInfo executionInfo,
@@ -580,9 +557,10 @@ public class EsqlSession {
         // supplied, before any view-resolution work. An operator's cluster default can never fail a query here: if it
         // is no longer usable the setting falls back to its built-in default, and the operator is warned on the
         // settings-update or license-transition path rather than in the request.
-        ResolvedSettings resolved = resolveSettings(
-            clusterService,
-            request,
+        ResolvedSettings resolved = QuerySettings.resolve(
+            clusterService.state().metadata().settings(),
+            clusterService.getSettings(),
+            request.requestSettings(),
             statement,
             SettingsValidationContext.from(crossProjectModeDecider),
             verifier.licenseState()

@@ -81,7 +81,6 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
-import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.view.ViewService;
 import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryParser;
 import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryWithParams;
@@ -106,7 +105,7 @@ import static org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.E
 /**
  * {@link EsqlQueryParser} for ES|QL datafeeds, backed by {@link EsqlParser}. It parses only: nothing is resolved against mappings.
  * Parsing and settings resolution are the steps {@code EsqlSession} runs first for a query ({@link EsqlQueryRequest#parse} and
- * {@link EsqlSession#resolveSettings}); the parser uses the services of the {@link EsqlPlugin} that provides it.
+ * {@code QuerySettings#resolve}); the parser uses the services of the {@link EsqlPlugin} that provides it.
  */
 public class EsqlDatafeedQueryParser implements EsqlQueryParser {
 
@@ -124,8 +123,7 @@ public class EsqlDatafeedQueryParser implements EsqlQueryParser {
     /**
      * Commands that give the same rows for a time window whichever other rows are in it, so they may be anywhere in the query. A
      * datafeed runs the query once per chunk of its time window, and the chunk can be made smaller and retried; a command whose
-     * output depends on the other rows of the window would give different results for each chunking. {@code SAMPLE} keeps each
-     * row independently, so the distribution stays the same; a retry or a preview can still sample other rows.
+     * output depends on the other rows of the window would give different results for each chunking.
      */
     static final Set<Class<? extends LogicalPlan>> ANYWHERE = Set.of(
         UnresolvedRelation.class,
@@ -144,7 +142,6 @@ public class EsqlDatafeedQueryParser implements EsqlQueryParser {
         RegisteredDomain.class,
         UserAgent.class,
         UnresolvedIpLocation.class,
-        Sample.class,
         Highlight.class,
         FillNull.class,
         Aggregate.class,
@@ -153,30 +150,24 @@ public class EsqlDatafeedQueryParser implements EsqlQueryParser {
     );
 
     /**
-     * Commands whose output depends on the other rows of the time window, with their names. They are accepted only after the last
-     * {@code STATS} (or {@code INLINE STATS}), where they shape the output, and in a query without {@code STATS}.
+     * Commands whose output depends on the other rows of the time window, with their names. Only {@code LIMIT} is accepted: after the
+     * last {@code STATS} (or {@code INLINE STATS}), where it shapes the output, and in a query without {@code STATS}.
      */
-    static final Map<Class<? extends LogicalPlan>, String> AFTER_LAST_STATS = Map.of(
-        Limit.class,
-        "LIMIT",
-        LimitBy.class,
-        "LIMIT BY",
-        Dedup.class,
-        "DEDUP",
-        ChangePoint.class,
-        "CHANGE_POINT",
-        Fuse.class,
-        "FUSE",
-        MMR.class,
-        "MMR"
-    );
+    static final Map<Class<? extends LogicalPlan>, String> AFTER_LAST_STATS = Map.of(Limit.class, "LIMIT");
 
     /**
      * Commands datafeeds do not support, with their names: the ones whose result columns cannot be traced to the source, the ones
-     * that do not read index rows, and the ones that call an inference endpoint for every row.
+     * that do not read index rows, the ones that call an inference endpoint for every row, and the ones whose result depends on how
+     * the time window is chunked or sampled ({@code SAMPLE} gives counts the delayed data check cannot match).
      */
     static final Map<Class<? extends LogicalPlan>, String> REJECTED = Map.ofEntries(
         Map.entry(Fork.class, "FORK"),
+        Map.entry(LimitBy.class, "LIMIT BY"),
+        Map.entry(Dedup.class, "DEDUP"),
+        Map.entry(ChangePoint.class, "CHANGE_POINT"),
+        Map.entry(Fuse.class, "FUSE"),
+        Map.entry(MMR.class, "MMR"),
+        Map.entry(Sample.class, "SAMPLE"),
         Map.entry(UnionAll.class, "FROM with several subqueries"),
         Map.entry(Rename.class, "RENAME"),
         Map.entry(MvExpand.class, "MV_EXPAND"),
@@ -233,7 +224,15 @@ public class EsqlDatafeedQueryParser implements EsqlQueryParser {
             services.inferenceService().inferenceSettings(),
             new EsqlFlags(clusterService.getClusterSettings())
         );
-        ResolvedSettings settings = EsqlSession.resolveSettings(clusterService, request, statement, validation, services.licenseState());
+        // The same call as EsqlSession#doExecute, so the datafeed resolves settings as a query does.
+        ResolvedSettings settings = QuerySettings.resolve(
+            clusterService.state().metadata().settings(),
+            clusterService.getSettings(),
+            request.requestSettings(),
+            statement,
+            validation,
+            services.licenseState()
+        );
         // The probe sets column_metadata itself, and the last SET of a setting wins.
         if (statement.settings().stream().anyMatch(setting -> QuerySettings.COLUMN_METADATA.name().equals(setting.name()))) {
             throw new ParsingException(

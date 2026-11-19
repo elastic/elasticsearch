@@ -535,40 +535,44 @@ public class EsqlDatafeedQueryParserTests extends ESTestCase {
         assertThat(parse("FROM logs | STATS c = COUNT(*)").indexPatterns(), contains("logs"));
     }
 
-    public void testCommandsThatDependOnOtherRowsShouldBeRejectedBelowStats() {
+    public void testLimitShouldBeRejectedBelowStats() {
+        for (String stats : List.of("STATS c = COUNT(*) BY h", "INLINE STATS c = COUNT(*) BY h")) {
+            ParsingException e = expectThrows(ParsingException.class, () -> parse("FROM a | LIMIT 10 | " + stats));
+            assertThat(e.getMessage(), containsString("[LIMIT] before ["));
+        }
+    }
+
+    public void testLimitShouldBeAcceptedAfterTheLastStats() {
+        parse("FROM a | STATS c = COUNT(*) BY h | LIMIT 10");
+        parse("FROM a | LIMIT 10");
+    }
+
+    public void testCommandsThatDependOnTheChunkingShouldBeRejected() {
         Map<String, String> commands = Map.of(
-            "LIMIT 10",
-            "LIMIT",
             "LIMIT 10 BY host",
             "LIMIT BY",
             "DEDUP",
             "DEDUP",
             "CHANGE_POINT v ON t",
-            "CHANGE_POINT"
+            "CHANGE_POINT",
+            "SAMPLE 0.5",
+            "SAMPLE"
         );
         for (Map.Entry<String, String> command : commands.entrySet()) {
-            for (String stats : List.of("STATS c = COUNT(*) BY h", "INLINE STATS c = COUNT(*) BY h")) {
-                ParsingException e = expectThrows(ParsingException.class, () -> parse("FROM a | " + command.getKey() + " | " + stats));
-                assertThat(e.getMessage(), containsString("[" + command.getValue() + "] before ["));
+            for (String query : List.of(
+                "FROM a | " + command.getKey(),
+                "FROM a | " + command.getKey() + " | STATS c = COUNT(*) BY h",
+                "FROM a | STATS c = COUNT(*) BY h | " + command.getKey()
+            )) {
+                ParsingException e = expectThrows(ParsingException.class, () -> parse(query));
+                assertThat(query, e.getMessage(), containsString("[" + command.getValue() + "] is not supported in ES|QL datafeeds"));
             }
         }
-    }
-
-    public void testCommandsThatDependOnOtherRowsShouldBeAcceptedAfterTheLastStats() {
-        parse("FROM a | STATS c = COUNT(*) BY h | LIMIT 10 BY h | DEDUP | CHANGE_POINT c ON h");
-        parse("FROM a | LIMIT 10 BY h | DEDUP");
-        // LIMIT BY and DEDUP do not cap the output; only a plain LIMIT does.
-        assertThat(parse("FROM a | STATS c = COUNT(*) BY h | LIMIT 10 BY h | DEDUP").outputLimit(), equalTo(OptionalInt.empty()));
     }
 
     public void testLimitBeforeInlineStatsShouldBeRejected() {
         ParsingException e = expectThrows(ParsingException.class, () -> parse("FROM a | LIMIT 10 | INLINE STATS c = COUNT(*)"));
         assertThat(e.getMessage(), containsString("[LIMIT] before [INLINE STATS] is not supported in ES|QL datafeeds"));
-    }
-
-    public void testSampleShouldBeAcceptedBelowStats() {
-        ParsedEsqlQuery query = parse("FROM a | SAMPLE 0.5 | STATS c = COUNT(*) BY b = BUCKET(@timestamp, 1 hour)");
-        assertThat(query.isAggregating(), is(true));
     }
 
     public void testRowLocalCommandsShouldBeAcceptedBelowStats() {

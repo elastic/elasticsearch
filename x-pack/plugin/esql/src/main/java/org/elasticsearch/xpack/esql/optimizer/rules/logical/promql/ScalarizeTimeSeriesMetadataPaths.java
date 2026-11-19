@@ -137,12 +137,6 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
                     return new ToString(at, whole, context.configuration());
                 }
 
-                /** A typed container compares whole: the promoted labels it does not hold written back. */
-                @Override
-                Expression compared(Parts parts, Source at) {
-                    return whole(parts, at);
-                }
-
                 @Override
                 boolean keysWhole() {
                     return true;

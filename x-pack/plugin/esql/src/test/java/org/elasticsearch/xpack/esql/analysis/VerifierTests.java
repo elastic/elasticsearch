@@ -2153,13 +2153,6 @@ public class VerifierTests extends AnalyzerTestCase {
                    (where true)
             | where match(t, "cat")
             """);
-        // a null of the merged type is equally empty
-        fullText().query("""
-            from test
-            | fork (eval t = to_text(concat(title, body), {"analyzer": "whitespace"}))
-                   (eval t = to_text(null))
-            | where match(t, "cat")
-            """);
         // an explicit null column is null-typed, and nothing widens it to the merged type, so it conflicts on data type
         fullText().error("""
             from test

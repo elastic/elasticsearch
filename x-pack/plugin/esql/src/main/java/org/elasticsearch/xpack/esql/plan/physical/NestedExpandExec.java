@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plan.physical;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -26,7 +27,7 @@ import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutp
 /**
  * Physical form of {@link NestedExpand}: appends one column per child field and repeats each parent once per object.
  */
-public final class NestedExpandExec extends UnaryExec {
+public final class NestedExpandExec extends UnaryExec implements EstimatesRowSize {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         PhysicalPlan.class,
         "NestedExpandExec",
@@ -36,12 +37,22 @@ public final class NestedExpandExec extends UnaryExec {
     private final String path;
     private final List<Attribute> expanded;
     private final List<String> paths;
+    @Nullable
+    private final Integer estimatedRowSize;
 
-    public NestedExpandExec(Source source, PhysicalPlan child, String path, List<Attribute> expanded, List<String> paths) {
+    public NestedExpandExec(
+        Source source,
+        PhysicalPlan child,
+        String path,
+        List<Attribute> expanded,
+        List<String> paths,
+        @Nullable Integer estimatedRowSize
+    ) {
         super(source, child);
         this.path = path;
         this.expanded = List.copyOf(expanded);
         this.paths = List.copyOf(paths);
+        this.estimatedRowSize = estimatedRowSize;
     }
 
     private NestedExpandExec(StreamInput in) throws IOException {
@@ -50,7 +61,8 @@ public final class NestedExpandExec extends UnaryExec {
             in.readNamedWriteable(PhysicalPlan.class),
             in.readString(),
             in.readNamedWriteableCollectionAsList(Attribute.class),
-            in.readStringCollectionAsList()
+            in.readStringCollectionAsList(),
+            in.readOptionalVInt()
         );
     }
 
@@ -62,6 +74,7 @@ public final class NestedExpandExec extends UnaryExec {
         out.writeString(path);
         out.writeNamedWriteableCollection(expanded);
         out.writeStringCollection(paths);
+        out.writeOptionalVInt(estimatedRowSize);
     }
 
     @Override
@@ -81,6 +94,26 @@ public final class NestedExpandExec extends UnaryExec {
         return paths;
     }
 
+    /**
+     * Estimated size of a row of the pages this emits, including the columns operators after it add, or {@code null}
+     * before {@link #estimateRowSize} has run.
+     */
+    @Nullable
+    public Integer estimatedRowSize() {
+        return estimatedRowSize;
+    }
+
+    /**
+     * The pages this emits hold the columns it outputs plus those later operators load into them, such as parent fields
+     * extracted after the expansion. The pages it reads hold only the columns loaded before it, so it consumes the state.
+     */
+    @Override
+    public PhysicalPlan estimateRowSize(State state) {
+        state.add(false, output());
+        int size = Math.max(state.consumeAllFields(true), 1);
+        return Objects.equals(estimatedRowSize, size) ? this : new NestedExpandExec(source(), child(), path, expanded, paths, size);
+    }
+
     @Override
     protected AttributeSet computeReferences() {
         // The operator reads child documents through the parent _doc, which is not one of its output columns.
@@ -94,17 +127,17 @@ public final class NestedExpandExec extends UnaryExec {
 
     @Override
     protected NodeInfo<NestedExpandExec> info() {
-        return NodeInfo.create(this, NestedExpandExec::new, child(), path, expanded, paths);
+        return NodeInfo.create(this, NestedExpandExec::new, child(), path, expanded, paths, estimatedRowSize);
     }
 
     @Override
     public NestedExpandExec replaceChild(PhysicalPlan newChild) {
-        return new NestedExpandExec(source(), newChild, path, expanded, paths);
+        return new NestedExpandExec(source(), newChild, path, expanded, paths, estimatedRowSize);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(child(), path, expanded, paths);
+        return Objects.hash(child(), path, expanded, paths, estimatedRowSize);
     }
 
     @Override
@@ -116,6 +149,10 @@ public final class NestedExpandExec extends UnaryExec {
             return false;
         }
         NestedExpandExec other = (NestedExpandExec) obj;
-        return child().equals(other.child()) && path.equals(other.path) && expanded.equals(other.expanded) && paths.equals(other.paths);
+        return child().equals(other.child())
+            && path.equals(other.path)
+            && expanded.equals(other.expanded)
+            && paths.equals(other.paths)
+            && Objects.equals(estimatedRowSize, other.estimatedRowSize);
     }
 }

@@ -31,7 +31,14 @@ public class NestedExpandExecSerializationTests extends AbstractPhysicalPlanSeri
         Source source = randomSource();
         PhysicalPlan child = randomChild(0);
         int size = between(0, 3);
-        return new NestedExpandExec(source, child, randomAlphaOfLength(5), randomExpanded(size), randomPaths(size));
+        return new NestedExpandExec(
+            source,
+            child,
+            randomAlphaOfLength(5),
+            randomExpanded(size),
+            randomPaths(size),
+            randomEstimatedRowSize()
+        );
     }
 
     @Override
@@ -40,19 +47,24 @@ public class NestedExpandExecSerializationTests extends AbstractPhysicalPlanSeri
         String path = instance.path();
         List<Attribute> expanded = instance.expanded();
         List<String> paths = instance.paths();
+        Integer estimatedRowSize = instance.estimatedRowSize();
         int size = paths.size();
-        switch (size == 0 ? between(0, 2) : between(0, 4)) {
+        switch (size == 0 ? between(0, 3) : between(0, 5)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
             case 1 -> path = randomValueOtherThan(path, () -> randomAlphaOfLength(5));
             case 2 -> {
                 expanded = randomExpanded(size + 1);
                 paths = randomPaths(size + 1);
             }
-            case 3 -> expanded = randomValueOtherThan(expanded, () -> randomExpanded(size));
-            case 4 -> paths = randomValueOtherThan(paths, () -> randomPaths(size));
+            case 3 -> estimatedRowSize = randomValueOtherThan(
+                estimatedRowSize,
+                AbstractPhysicalPlanSerializationTests::randomEstimatedRowSize
+            );
+            case 4 -> expanded = randomValueOtherThan(expanded, () -> randomExpanded(size));
+            case 5 -> paths = randomValueOtherThan(paths, () -> randomPaths(size));
             default -> throw new UnsupportedOperationException();
         }
-        return new NestedExpandExec(instance.source(), child, path, expanded, paths);
+        return new NestedExpandExec(instance.source(), child, path, expanded, paths, estimatedRowSize);
     }
 
     @Override
@@ -70,7 +82,14 @@ public class NestedExpandExecSerializationTests extends AbstractPhysicalPlanSeri
 
     public void testRoundTripsAChildTheExpansionConverts() throws IOException {
         NestedExpand logical = analyzedExpand("FROM ne_types | NESTED_EXPAND items | EVAL x = TO_LONG(items.v) | KEEP x | LIMIT 10");
-        NestedExpandExec exec = new NestedExpandExec(logical.source(), randomChild(0), logical.path(), logical.expanded(), logical.paths());
+        NestedExpandExec exec = new NestedExpandExec(
+            logical.source(),
+            randomChild(0),
+            logical.path(),
+            logical.expanded(),
+            logical.paths(),
+            randomEstimatedRowSize()
+        );
         Attribute converted = exec.expanded().stream().filter(a -> a.name().contains("converted_to")).findFirst().orElseThrow();
         assertThat(((FieldAttribute) converted).field(), instanceOf(UnionTypeEsField.class));
         SerializationTestUtils.assertSerialization(exec);

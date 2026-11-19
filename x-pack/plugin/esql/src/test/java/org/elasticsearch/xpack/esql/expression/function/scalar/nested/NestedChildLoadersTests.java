@@ -27,8 +27,6 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
@@ -37,6 +35,7 @@ import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.compute.test.NoOpReleasable;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
@@ -119,7 +118,10 @@ public class NestedChildLoadersTests extends ComputeTestCase {
             {"items": [{"qty": 3, "calc": 9}]}""", """
             {"items": []}""", """
             {"items": [{"qty": 4, "calc": 7}]}"""), List.of("qty", "calc"), List.of(DataType.LONG, DataType.LONG));
-        assertThat(rows, equalTo(List.of(row(0, 1L, List.of(3L, 4L)), row(0, 2L, List.of(3L, 4L)), row(1, 3L, 9L), row(3, 4L, 7L))));
+        assertThat(
+            rows,
+            equalTo(List.of(row(0, 1L, List.of(3L, 4L)), row(0, 2L, List.of(3L, 4L)), row(1, 3L, 9L), row(2, null, null), row(3, 4L, 7L)))
+        );
     }
 
     public void testRuntimeFieldOfAParentWithoutTheValueIsNull() throws IOException {
@@ -569,18 +571,26 @@ public class NestedChildLoadersTests extends ComputeTestCase {
         BlockFactory blockFactory = blockFactory();
         DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
         List<List<Object>> rows = new ArrayList<>();
-        try (NestedChildren children = factory.get(driverContext); DocBlock parents = parents(blockFactory, parentDocs)) {
-            children.read(parents.asVector(), position -> true, page -> {
-                IntVector parentPositions = page.<IntBlock>getBlock(0).asVector();
-                for (int p = 0; p < page.getPositionCount(); p++) {
-                    List<Object> row = new ArrayList<>();
-                    row.add(parentPositions.getInt(p));
-                    for (int b = 1; b < page.getBlockCount(); b++) {
-                        row.add(normalize(BlockUtils.toJavaObject(page.<Block>getBlock(b), p)));
+        try (
+            NestedChildren children = factory.get(driverContext);
+            DocBlock parents = parents(blockFactory, parentDocs);
+            NestedChildren.Expansion expansion = children.expand(parents.asVector(), between(1, 4))
+        ) {
+            while (expansion.hasNext()) {
+                NestedChildren.Rows page = expansion.next();
+                try {
+                    for (int r = 0; r < page.count(); r++) {
+                        List<Object> row = new ArrayList<>();
+                        row.add(page.positions()[page.offset() + r]);
+                        for (Block field : page.fields()) {
+                            row.add(normalize(BlockUtils.toJavaObject(field, r)));
+                        }
+                        rows.add(row);
                     }
-                    rows.add(row);
+                } finally {
+                    Releasables.closeExpectNoException(page.fields());
                 }
-            });
+            }
         }
         assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
         return rows;

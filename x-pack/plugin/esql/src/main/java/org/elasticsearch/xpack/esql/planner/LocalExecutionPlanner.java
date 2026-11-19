@@ -2989,9 +2989,8 @@ public class LocalExecutionPlanner {
             context.plannerSettings,
             configuration
         );
-        int rowSize = Math.max(1, expand.output().stream().mapToInt(attribute -> attribute.dataType().estimatedSize()).sum());
         return source.with(
-            new NestedExpandOperator.Factory(docChannel, children, expand.path(), context.pageSize(expand, rowSize)),
+            new NestedExpandOperator.Factory(docChannel, children, expand.path(), context.pageSize(expand, expand.estimatedRowSize())),
             layout.build()
         );
     }

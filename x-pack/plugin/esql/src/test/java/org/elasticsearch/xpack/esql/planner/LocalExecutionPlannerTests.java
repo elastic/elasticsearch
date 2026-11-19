@@ -83,6 +83,7 @@ import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -122,6 +123,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.TableCatalog;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedExpandOperator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
@@ -132,6 +134,7 @@ import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.inference.embedding.EmbeddingOperator;
 import org.elasticsearch.xpack.esql.inference.textembedding.TextEmbeddingOperator;
+import org.elasticsearch.xpack.esql.optimizer.TestPlannerOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
@@ -149,6 +152,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
+import org.elasticsearch.xpack.esql.plan.physical.NestedExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.StreamingOutputExec;
@@ -178,12 +182,14 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOf;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerNestedExpandTests.nestedAnalyzer;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -1242,6 +1248,48 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         var fieldInfo = ((ValuesSourceReaderOperator.Factory) p.intermediateOperatorFactories.get(0)).fields().get(0);
         DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TestBlockFactory.getNonBreakingInstance(), null);
         return fieldInfo.buildLoader().build(driverContext, 0);
+    }
+
+    /**
+     * NESTED_EXPAND sizes its pages by the rows they end up holding. A parent field read after the expansion is loaded
+     * by a {@link FieldExtractExec} above it into those pages, so it makes them smaller, as it does when loaded below.
+     */
+    public void testNestedExpandPageSizeCountsParentFieldsLoadedAfterIt() throws IOException {
+        assumeTrue("NESTED_EXPAND is snapshot-only", EsqlCapabilities.Cap.NESTED_EXPAND.isEnabled());
+        int childOnly = nestedExpandPageSize("FROM ne | NESTED_EXPAND items | KEEP items.sku | LIMIT 10");
+        int parentAfter = nestedExpandPageSize("FROM ne | NESTED_EXPAND items | KEEP id, items.sku | LIMIT 10");
+        int parentBefore = nestedExpandPageSize(
+            "FROM ne | EVAL x = CONCAT(id, \"-\") | NESTED_EXPAND items | KEEP id, x, items.sku | LIMIT 10"
+        );
+        assertThat(parentAfter, lessThan(childOnly));
+        assertThat(parentBefore, lessThan(childOnly));
+    }
+
+    private int nestedExpandPageSize(String query) throws IOException {
+        Configuration config = config();
+        var analyzer = nestedAnalyzer(TransportVersion.current()).configuration(config).buildAnalyzer();
+        PhysicalPlan plan = new TestPlannerOptimizer(config, analyzer).plan(query);
+        NestedExpandExec expand = plan.collect(NestedExpandExec.class).getFirst();
+        if (query.contains("KEEP id")) {
+            boolean idLoadedBelow = expand.anyMatch(
+                p -> p instanceof FieldExtractExec extract && extract.attributesToExtract().stream().anyMatch(a -> a.name().equals("id"))
+            );
+            assertThat(idLoadedBelow, equalTo(query.contains("EVAL")));
+        }
+        LocalExecutionPlanner.LocalExecutionPlan local = planner().plan(
+            "test",
+            FoldContext.small(),
+            PlannerSettings.DEFAULTS,
+            expand,
+            EmptyIndexedByShardId.instance(),
+            false
+        );
+        return local.driverFactories.stream()
+            .flatMap(d -> d.driverSupplier().physicalOperation().intermediateOperatorFactories.stream())
+            .filter(f -> f instanceof NestedExpandOperator.Factory)
+            .map(f -> ((NestedExpandOperator.Factory) f).pageSize())
+            .findFirst()
+            .orElseThrow();
     }
 
     private int randomEstimatedRowSize(boolean huge) {

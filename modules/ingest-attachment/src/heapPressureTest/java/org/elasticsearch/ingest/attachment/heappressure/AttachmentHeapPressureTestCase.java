@@ -50,10 +50,6 @@ public abstract class AttachmentHeapPressureTestCase extends HeapPressureTestCas
     protected static final String PIPELINE = "attachment";
     protected static final String INDEX = "attachments";
 
-    // Set this to true to turn the breakers off and check that a scenario expecting a breaker rejection runs the node out of memory
-    // instead.
-    private static final boolean VALIDATE_OOM = false;
-
     /**
      * The scenarios are calibrated against this heap, scaled down from the 1 GB of the smallest serverless indexing nodes to keep the
      * documents small.
@@ -75,12 +71,6 @@ public abstract class AttachmentHeapPressureTestCase extends HeapPressureTestCas
         // raised here to let the documents reach the processor and complete their pipeline.
         .setting("indexing_pressure.memory.limit", "90%")
         .setting("indexing_pressure.memory.max_operation_size", "90%")
-        .apply(c -> {
-            if (VALIDATE_OOM) {
-                c.setting("indices.breaker.request.limit", "-1");
-                c.setting("indices.breaker.total.limit", "100gb");
-            }
-        })
         .build();
 
     @Override

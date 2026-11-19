@@ -533,8 +533,8 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         /**
          * Populates the cache unless another thread is already building the same entry, or the search's circuit breaker refuses the
          * heap the entry takes to build, in which case this returns {@code null} and the caller runs the query uncached for this
-         * leaf, as {@link LRUQueryCache} does whenever population is skipped. An {@link OptionalCachingWeight} decides for itself
-         * which thread populates the cache and what the others do, so it is left to its own gate.
+         * leaf, as {@link LRUQueryCache} does whenever population is skipped. An {@link OptionalCachingWeight} additionally decides
+         * which of the threads running the same search populates the cache, but only once no other search is building the entry.
          */
         @Override
         protected CacheAndCount tryPopulateCache(
@@ -543,16 +543,6 @@ public class IndicesQueryCache implements QueryCache, Closeable {
             ScorerSupplier scorerSupplier,
             LeafReaderContext context
         ) throws IOException {
-            if (weight instanceof OptionalCachingWeight cachingWeight) {
-                try (Releasable onComplete = cachingWeight.startCaching(context)) {
-                    if (onComplete != null) {
-                        return super.tryPopulateCache(cacheKey, weight, scorerSupplier, context);
-                    } else {
-                        return null;
-                    }
-                }
-            }
-
             // Only let one thread build a cache entry for the same query at a time.
             // The loser does not wait for the winner: a blocked search thread holds a search pool slot, the winner may be
             // cancelled or fail.
@@ -561,19 +551,41 @@ public class IndicesQueryCache implements QueryCache, Closeable {
                 return null;
             }
             try {
-                // Account for the cost of the query cache entry in the search circuit breaker. If the breaker trips,
-                // skip the cache and run the query uncached.
-                if (weight instanceof CachePopulationAccountingWeight accounting) {
-                    final long bytes = new QueryCacheEntryCostEstimator(scorerSupplier.cost(), context.reader().maxDoc()).estimate();
-                    if (accounting.chargeCachePopulation(context, bytes) == false) {
-                        logger.trace("skipping population of [{}] bytes for query [{}]: circuit breaker refused", bytes, weight.getQuery());
-                        return null;
+                // An OptionalCachingWeight is only asked once the entry is ours to build: a search that loses to another one
+                // leaves its own gate untouched, so its other threads neither wait for it nor give up populating the leaf.
+                if (weight instanceof OptionalCachingWeight cachingWeight) {
+                    try (Releasable onComplete = cachingWeight.startCaching(context)) {
+                        if (onComplete == null) {
+                            return null;
+                        }
+                        return chargeAndPopulate(cacheKey, cachingWeight.wrapped(), weight, scorerSupplier, context);
                     }
                 }
-                return super.tryPopulateCache(cacheKey, weight, scorerSupplier, context);
+                return chargeAndPopulate(cacheKey, weight, weight, scorerSupplier, context);
             } finally {
                 inFlightPopulations.remove(populationKey);
             }
+        }
+
+        /**
+         * Builds the entry for {@code weight}, after reserving its heap on the search's circuit breaker if {@code accountingCandidate}
+         * is a {@link CachePopulationAccountingWeight}. If the breaker refuses, returns {@code null} so the leaf runs uncached.
+         */
+        private CacheAndCount chargeAndPopulate(
+            IndexReader.CacheHelper cacheKey,
+            Weight accountingCandidate,
+            Weight weight,
+            ScorerSupplier scorerSupplier,
+            LeafReaderContext context
+        ) throws IOException {
+            if (accountingCandidate instanceof CachePopulationAccountingWeight accounting) {
+                final long bytes = new QueryCacheEntryCostEstimator(scorerSupplier.cost(), context.reader().maxDoc()).estimate();
+                if (accounting.chargeCachePopulation(context, bytes) == false) {
+                    logger.trace("skipping population of [{}] bytes for query [{}]: circuit breaker refused", bytes, weight.getQuery());
+                    return null;
+                }
+            }
+            return super.tryPopulateCache(cacheKey, weight, scorerSupplier, context);
         }
     }
 
@@ -582,6 +594,8 @@ public class IndicesQueryCache implements QueryCache, Closeable {
      * This is useful when multiple threads query different ranges of the same segment concurrently;
      * ideally only one thread populates the cache while others fall back to uncached iteration
      * or wait for caching to complete and then use the cached result.
+     * The cache only asks this weight once no other search is building the same entry; if one is, the
+     * leaf runs uncached without calling {@link #startCaching}.
      */
     public abstract static class OptionalCachingWeight extends FilterWeight {
         protected OptionalCachingWeight(Weight weight) {
@@ -594,6 +608,13 @@ public class IndicesQueryCache implements QueryCache, Closeable {
          * or {@code null} if another thread is already caching this segment.
          */
         protected abstract Releasable startCaching(LeafReaderContext leaf);
+
+        /**
+         * The weight this one wraps.
+         */
+        public final Weight wrapped() {
+            return in;
+        }
     }
 
     /**

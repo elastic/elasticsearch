@@ -24,6 +24,8 @@ import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
@@ -35,6 +37,7 @@ import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.ConfigurationBuilder;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.Period;
@@ -212,16 +215,85 @@ public class DateFunctionComparisonRewriterTests extends ESTestCase {
     /**
      * Declines rather than folds. Each of these would make the fold disagree with what {@code ToDatetime} evaluates,
      * and a hint that disagrees prunes folders the query would have read - a silent short read, which is worse than
-     * listing too much. A numeric argument is a fold gap, not a disagreement: evaluation converts it, so the only
-     * cost of declining is that no hint is emitted.
+     * listing too much.
      */
     public void testToDatetimeDeclinesWhatItCannotFoldExactly() {
         assertUnchanged("TO_DATETIME", List.of(keyword("not-a-date")), utc());
         assertUnchanged("TO_DATETIME", List.of(keyword("1964-06-02 00:00:00")), utc());
         assertUnchanged("TO_DATETIME", List.of(new Literal(SRC, null, DataType.KEYWORD)), utc());
-        assertUnchanged("TO_DATETIME", List.of(new Literal(SRC, 1700000000000L, DataType.LONG)), utc());
+        assertUnchanged("TO_DATETIME", List.of(new Literal(SRC, 1.7e12, DataType.DOUBLE)), utc());
         assertUnchanged("TO_DATETIME", List.of(new UnresolvedAttribute(SRC, "start")), utc());
         assertUnchanged("TO_DATETIME", List.of(keyword("2026-07-13"), keyword("extra")), utc());
+    }
+
+    /** A whole number counts the milliseconds since the epoch, which is what {@code ToDatetime} evaluates it to. */
+    public void testToDatetimeFoldsEpochMillis() {
+        Literal folded = foldLiteral("TO_DATETIME", List.of(new Literal(SRC, JULY_13_2026_UTC, DataType.LONG)), utc());
+        assertEquals(DataType.DATETIME, folded.dataType());
+        assertEquals(JULY_13_2026_UTC, folded.value());
+    }
+
+    public void testNowFoldsToTheTimeOfTheQuery() {
+        Configuration config = utc();
+        Literal folded = foldLiteral("NOW", List.of(), config);
+        assertEquals(DataType.DATETIME, folded.dataType());
+        assertEquals(config.now().toEpochMilli(), folded.value());
+    }
+
+    public void testToDateNanos() {
+        Literal folded = foldLiteral("TO_DATE_NANOS", List.of(keyword("2026-07-13T00:00:00.000000001Z")), utc());
+        assertEquals(DataType.DATE_NANOS, folded.dataType());
+        assertEquals(DateUtils.toNanoSeconds(JULY_13_2026_UTC) + 1, folded.value());
+
+        folded = foldLiteral("TO_DATE_NANOS", List.of(new Literal(SRC, JULY_13_2026_UTC, DataType.DATETIME)), utc());
+        assertEquals(DateUtils.toNanoSeconds(JULY_13_2026_UTC), folded.value());
+
+        // Nanosecond dates do not go back beyond the epoch: the conversion fails, and so the call is left to it.
+        assertUnchanged("TO_DATE_NANOS", List.of(new Literal(SRC, -1L, DataType.LONG)), utc());
+        assertUnchanged("TO_DATE_NANOS", List.of(new Literal(SRC, -1L, DataType.DATETIME)), utc());
+        assertUnchanged("TO_DATE_NANOS", List.of(keyword("not-a-date")), utc());
+    }
+
+    public void testDateParse() {
+        Literal folded = foldLiteral("DATE_PARSE", List.of(keyword("yyyy/MM/dd"), keyword("2026/07/13")), utc());
+        assertEquals(DataType.DATETIME, folded.dataType());
+        assertEquals(JULY_13_2026_UTC, folded.value());
+        assertEquals(JULY_13_2026_UTC, foldLiteral("DATE_PARSE", List.of(keyword("2026-07-13T00:00:00Z")), utc()).value());
+
+        assertUnchanged("DATE_PARSE", List.of(keyword("yyyy/MM/dd"), keyword("13.07.2026")), utc());
+        assertUnchanged("DATE_PARSE", List.of(keyword("yyyy/MM/dd"), new UnresolvedAttribute(SRC, "day")), utc());
+    }
+
+    /** The shapes that a constant date is built from fold inside-out, to what the query evaluates. */
+    public void testFoldConstants() {
+        Configuration config = utc();
+        long now = config.now().toEpochMilli();
+        Literal day = new Literal(SRC, Duration.ofDays(1), DataType.TIME_DURATION);
+        Expression nowCall = new UnresolvedFunction(SRC, "NOW", List.of());
+
+        Expression folded = DateFunctionComparisonRewriter.foldConstants(new Sub(SRC, nowCall, day, config), config, REGISTRY);
+        assertEquals(new Literal(SRC, now - Duration.ofDays(1).toMillis(), DataType.DATETIME), folded);
+
+        folded = DateFunctionComparisonRewriter.foldConstants(new Add(SRC, day, nowCall, config), config, REGISTRY);
+        assertEquals(new Literal(SRC, now + Duration.ofDays(1).toMillis(), DataType.DATETIME), folded);
+
+        // A string next to a time span is the date that the analyzer casts it to.
+        folded = DateFunctionComparisonRewriter.foldConstants(new Sub(SRC, keyword("2026-07-14T00:00:00Z"), day, config), config, REGISTRY);
+        assertEquals(new Literal(SRC, JULY_13_2026_UTC, DataType.DATETIME), folded);
+
+        Literal nanos = new Literal(SRC, DateUtils.toNanoSeconds(JULY_13_2026_UTC) + 1, DataType.DATE_NANOS);
+        folded = DateFunctionComparisonRewriter.foldConstants(new Add(SRC, nanos, day, config), config, REGISTRY);
+        assertEquals(
+            new Literal(SRC, DateUtils.toNanoSeconds(JULY_13_2026_UTC + Duration.ofDays(1).toMillis()) + 1, DataType.DATE_NANOS),
+            folded
+        );
+
+        // A time span is not subtracted from, and a column is not a constant.
+        Expression spanMinusDate = new Sub(SRC, day, nowCall, config);
+        folded = DateFunctionComparisonRewriter.foldConstants(spanMinusDate, config, REGISTRY);
+        assertEquals(new Sub(SRC, day, new Literal(SRC, now, DataType.DATETIME), config), folded);
+        Expression onColumn = new Sub(SRC, new UnresolvedAttribute(SRC, "ts"), day, config);
+        assertSame(onColumn, DateFunctionComparisonRewriter.foldConstants(onColumn, config, REGISTRY));
     }
 
     public void testToDatetimeDeclinesAMultivaluedLiteral() {

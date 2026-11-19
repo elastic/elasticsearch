@@ -308,6 +308,10 @@ rules:
           - Watcher
 # Bundle configuration (profiles and defaults)
 bundle:
+  # Trace a backport PR to the original pull request when bundling a commit range
+  backports:
+    labels:
+      - backport
   # Input directory containing changelog YAML files
   directory: docs/changelog
   # Output directory for bundled changelog files

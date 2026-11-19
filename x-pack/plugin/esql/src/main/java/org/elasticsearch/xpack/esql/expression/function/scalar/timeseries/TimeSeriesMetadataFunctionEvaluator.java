@@ -23,19 +23,25 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper.ToEvaluator;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels;
 
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.SortedMap;
+import java.util.TreeMap;
 
 /**
- * Evaluates reads and rewrites of labels in a typed label container. The label container is the canonical JSON object
- * {@code TimeSeriesMetadataConverter} loads - labels sorted by name - so every operation streams over it: a read stops at its label,
- * and a rewrite copies the labels it keeps in their order, writing a set label at its sorted position, which keeps the
- * result canonical. Label names are folded once.
+ * Evaluates reads and rewrites of labels in a label container. A typed label container is the canonical JSON object - labels
+ * sorted by name - so every operation streams over it: a read stops at its label, and a rewrite copies the labels it keeps in
+ * their order, writing a set label at its sorted position, which keeps the result canonical. A keyword {@code _timeseries} is
+ * the JSON object of a series' dimensions as the source holds them, so it is first read into the canonical form
+ * (see {@link #canonical}); a rewrite of it is canonical too. Label names are folded once.
  */
 public final class TimeSeriesMetadataFunctionEvaluator implements ExpressionEvaluator {
     enum Operation {
@@ -49,6 +55,8 @@ public final class TimeSeriesMetadataFunctionEvaluator implements ExpressionEval
 
     private final Operation operation;
     private final ExpressionEvaluator labelContainer;
+    /** Whether the label container is a keyword {@code _timeseries}, read into the canonical form first. */
+    private final boolean keyword;
     private final List<String> names;
     /** The value {@link Operation#SET} writes, null for the other operations. */
     private final @Nullable ExpressionEvaluator value;
@@ -57,12 +65,14 @@ public final class TimeSeriesMetadataFunctionEvaluator implements ExpressionEval
     private TimeSeriesMetadataFunctionEvaluator(
         Operation operation,
         ExpressionEvaluator labelContainer,
+        boolean keyword,
         List<String> names,
         @Nullable ExpressionEvaluator value,
         DriverContext context
     ) {
         this.operation = operation;
         this.labelContainer = labelContainer;
+        this.keyword = keyword;
         this.names = names;
         this.value = value;
         this.context = context;
@@ -76,7 +86,8 @@ public final class TimeSeriesMetadataFunctionEvaluator implements ExpressionEval
             names[i] = ((BytesRef) arguments.get(i + 1).fold(toEvaluator.foldCtx())).utf8ToString();
         }
         ExpressionEvaluator.Factory value = operation == Operation.SET ? toEvaluator.apply(arguments.getLast()) : null;
-        return new Factory(operation, toEvaluator.apply(arguments.getFirst()), List.of(names), value);
+        boolean keyword = arguments.getFirst().dataType() == DataType.KEYWORD;
+        return new Factory(operation, toEvaluator.apply(arguments.getFirst()), keyword, List.of(names), value);
     }
 
     @Override
@@ -90,7 +101,8 @@ public final class TimeSeriesMetadataFunctionEvaluator implements ExpressionEval
         BytesRef scratch = new BytesRef();
         try (
             BytesRefBlock.Builder result = context.blockFactory().newBytesRefBlockBuilder(positions);
-            BreakingBytesRefBuilder buffer = new BreakingBytesRefBuilder(context.breaker(), "ts_metadata")
+            BreakingBytesRefBuilder buffer = new BreakingBytesRefBuilder(context.breaker(), "ts_metadata");
+            BreakingBytesRefBuilder canonical = keyword ? new BreakingBytesRefBuilder(context.breaker(), "ts_metadata_source") : null
         ) {
             for (int p = 0; p < positions; p++) {
                 BytesRef encoded = null;
@@ -99,6 +111,9 @@ public final class TimeSeriesMetadataFunctionEvaluator implements ExpressionEval
                         throw new IllegalArgumentException("The label container must be single-valued");
                     }
                     encoded = ((BytesRefBlock) block).getBytesRef(block.getFirstValueIndex(p), scratch);
+                    if (canonical != null) {
+                        encoded = canonical(encoded, canonical);
+                    }
                 }
                 try {
                     switch (operation) {
@@ -249,6 +264,79 @@ public final class TimeSeriesMetadataFunctionEvaluator implements ExpressionEval
     }
 
     /**
+     * The label container of the JSON object {@code source} of a series' dimensions, written to {@code scratch}: labels named as
+     * PromQL names them, sorted by name, each holding its non-empty values in source order, one value written as a string and
+     * several as an array. Equal label sets get equal bytes, so the result can key joins and groups.
+     * <p>
+     * TODO: an empty value is left out, so a series whose label is empty and one that lacks the label have the same label
+     * container. Prometheus has no empty label, so data written by it never holds such a pair.
+     */
+    static BytesRef canonical(BytesRef source, BreakingBytesRefBuilder scratch) {
+        scratch.clear();
+        try (XContentBuilder builder = jsonBuilder(scratch)) {
+            builder.startObject();
+            for (var label : readSource(source).entrySet()) {
+                write(builder, label.getKey(), label.getValue());
+            }
+            builder.endObject();
+        } catch (IOException e) {
+            throw new UncheckedIOException("Invalid label container", e);
+        }
+        return scratch.bytesRefView();
+    }
+
+    private static SortedMap<String, List<String>> readSource(BytesRef source) throws IOException {
+        try (XContentParser parser = parser(source)) {
+            var labels = new TreeMap<String, List<String>>();
+            readSourceObject(parser, "", labels);
+            end(parser);
+            return labels;
+        }
+    }
+
+    private static void readSourceObject(XContentParser parser, String prefix, Map<String, List<String>> labels) throws IOException {
+        for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
+            String field = prefix + parser.currentName();
+            token = parser.nextToken();
+            if (token == XContentParser.Token.START_OBJECT) {
+                readSourceObject(parser, field + ".", labels);
+                continue;
+            }
+            var values = new ArrayList<String>();
+            if (token == XContentParser.Token.START_ARRAY) {
+                while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                    readSourceValue(parser, token, field, values);
+                }
+            } else {
+                readSourceValue(parser, token, field, values);
+            }
+            String label = PromqlLabels.labelName(field);
+            if (label.isEmpty()) {
+                throw new IllegalArgumentException("time-series label names must be non-empty");
+            }
+            if (labels.containsKey(label)) {
+                throw new IllegalArgumentException("multiple dimension fields resolve to time-series label [" + label + "]");
+            }
+            if (values.isEmpty() == false) {
+                labels.put(label, values);
+            }
+        }
+    }
+
+    /** Scalars keep their source text; null and empty values are left out. */
+    private static void readSourceValue(XContentParser parser, XContentParser.Token token, String field, List<String> values)
+        throws IOException {
+        if (token.isValue()) {
+            String value = parser.text();
+            if (value.isEmpty() == false) {
+                values.add(value);
+            }
+        } else if (token != XContentParser.Token.VALUE_NULL) {
+            throw new IllegalArgumentException("time-series dimension [" + field + "] must contain values");
+        }
+    }
+
+    /**
      * A JSON builder writing into breaker-accounted {@code buffer}; {@code TimeSeriesMetadataConverter} loads the canonical form
      * with it.
      */
@@ -294,12 +382,19 @@ public final class TimeSeriesMetadataFunctionEvaluator implements ExpressionEval
 
     @Override
     public String toString() {
-        return describe(operation, names, labelContainer, value);
+        return describe(operation, keyword, names, labelContainer, value);
     }
 
-    private static String describe(Operation operation, List<String> names, Object labelContainer, @Nullable Object value) {
+    private static String describe(
+        Operation operation,
+        boolean keyword,
+        List<String> names,
+        Object labelContainer,
+        @Nullable Object value
+    ) {
         return "TimeSeriesMetadataFunctionEvaluator[operation="
             + operation
+            + (keyword ? ", keyword" : "")
             + ", names="
             + names
             + ", labelContainer="
@@ -311,6 +406,7 @@ public final class TimeSeriesMetadataFunctionEvaluator implements ExpressionEval
     record Factory(
         Operation operation,
         ExpressionEvaluator.Factory labelContainer,
+        boolean keyword,
         List<String> names,
         @Nullable ExpressionEvaluator.Factory value
     ) implements ExpressionEvaluator.Factory {
@@ -319,6 +415,7 @@ public final class TimeSeriesMetadataFunctionEvaluator implements ExpressionEval
             return new TimeSeriesMetadataFunctionEvaluator(
                 operation,
                 labelContainer.get(context),
+                keyword,
                 names,
                 value == null ? null : value.get(context),
                 context
@@ -327,7 +424,7 @@ public final class TimeSeriesMetadataFunctionEvaluator implements ExpressionEval
 
         @Override
         public String toString() {
-            return describe(operation, names, labelContainer, value);
+            return describe(operation, keyword, names, labelContainer, value);
         }
     }
 }

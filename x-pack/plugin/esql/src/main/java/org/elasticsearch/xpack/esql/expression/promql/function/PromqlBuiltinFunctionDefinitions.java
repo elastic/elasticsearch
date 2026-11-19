@@ -71,8 +71,8 @@ public class PromqlBuiltinFunctionDefinitions {
         .example("topk(3, http_requests_total)")
         .stack(PromqlFunctionDefinition.STACK_GA_9_6)
         .stdDivergence(
-            "`without(...)`, such as `topk without (instance) (1, x)`, and a `k` that isn't a number literal, such as "
-                + "`topk(scalar(a), b)`, aren't supported yet. "
+            "{applies_to}`stack: ga =9.6` `without(...)`, such as `topk without (instance) (1, x)`, isn't supported yet.\n\n"
+                + "A `k` that isn't a number literal, such as `topk(scalar(a), b)`, isn't supported yet. "
                 + "A `k` close to `Integer.MAX_VALUE` can trip {{es}}'s circuit breaker (the execution engine allocates a "
                 + "buffer sized to `k`, not to the number of matching series), whereas {{prom}} has no equivalent limit. "
                 + "A `NaN` value ranks above `+Inf` rather than last, so a series whose value is `NaN` wins a slot ahead "
@@ -95,7 +95,7 @@ public class PromqlBuiltinFunctionDefinitions {
         .example("bottomk(3, http_requests_total)")
         .stack(PromqlFunctionDefinition.STACK_GA_9_6)
         .stdDivergence(
-            "`without(...)`, such as `bottomk without (instance) (1, x)`, isn't supported yet. "
+            "{applies_to}`stack: ga =9.6` `without(...)`, such as `bottomk without (instance) (1, x)`, isn't supported yet.\n\n"
                 + "A `k` close to `Integer.MAX_VALUE` can trip {{es}}'s circuit breaker (the execution engine allocates a "
                 + "buffer sized to `k`, not to the number of matching series), whereas {{prom}} has no equivalent limit."
         )
@@ -114,7 +114,7 @@ public class PromqlBuiltinFunctionDefinitions {
         .example("limitk(3, http_requests_total)")
         .stack(PromqlFunctionDefinition.STACK_GA_9_6)
         .stdDivergence(
-            "`without(...)`, such as `limitk without (instance) (1, x)`, isn't supported yet. "
+            "{applies_to}`stack: ga =9.6` `without(...)`, such as `limitk without (instance) (1, x)`, isn't supported yet.\n\n"
                 + "Within a shard, elements follow storage order (first-k) rather than truly arbitrary order. "
                 + "Across shards the merge keeps k of those partials with no global tsid sort, so the subset is not "
                 + "stable. "
@@ -134,7 +134,7 @@ public class PromqlBuiltinFunctionDefinitions {
         .example("limit_ratio(0.5, http_requests_total)")
         .stack(PromqlFunctionDefinition.STACK_GA_9_6)
         .stdDivergence(
-            "`without(...)`, such as `limit_ratio without (instance) (0.5, x)`, isn't supported yet. "
+            "{applies_to}`stack: ga =9.6` `without(...)`, such as `limit_ratio without (instance) (0.5, x)`, isn't supported yet.\n\n"
                 + "Series are kept by hashing the series identity rather than the {{prom}} label serialization, "
                 + "so the kept subset has the same statistical properties but is generally a different subset than "
                 + "the one {{prom}} keeps. `by` is a membership no-op as in "

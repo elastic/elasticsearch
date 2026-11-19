@@ -281,12 +281,22 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
         );
     }
 
-    public void testNestedWithoutOverWithoutIsRejectedByVerifier() {
-        VerificationException e = assertThrows(
-            VerificationException.class,
-            () -> planPromql("PROMQL index=k8s step=1h result=(sum without (region) (sum without (pod) (network.cost)))")
-        );
-        assertThat(e.getMessage(), containsString("nested WITHOUT over WITHOUT is not supported at this time"));
+    /**
+     * The outer without's packing is derived from the inner one's after the per-series aggregate, so the source loads one
+     * {@code _timeseries}; that takes the container functions.
+     */
+    public void testNestedWithoutOverWithout() {
+        String query = "PROMQL index=k8s step=1h result=(sum without (region) (sum without (pod) (network.cost)))";
+        if (containerFunctions() == false) {
+            VerificationException e = assertThrows(VerificationException.class, () -> planPromql(query));
+            assertThat(e.getMessage(), containsString("nested WITHOUT over WITHOUT is not supported at this time"));
+            return;
+        }
+        LogicalPlan analyzed = planPromql(query, false);
+        EsRelation esRelation = analyzed.collect(EsRelation.class).getFirst();
+        var tsmaList = esRelation.expressions().stream().filter(field -> field instanceof TimeSeriesMetadataAttribute).toList();
+        assertThat(tsmaList, hasSize(1));
+        assertEquals(((TimeSeriesMetadataAttribute) tsmaList.getFirst()).excludedFields(), Set.of("pod"));
     }
 
     public void testNestedWithoutOverPartialByProducesConcreteOutput() {
@@ -305,14 +315,15 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
         assertThat(plan.output().stream().map(Attribute::name).toList(), hasItem("step"));
     }
 
-    public void testWithoutOverByOverWithoutIsRejectedByVerifier() {
-        VerificationException e = assertThrows(
-            VerificationException.class,
-            () -> planPromql(
-                "PROMQL index=k8s step=1h result=(sum without (region) (sum by (cluster, region) (sum without (pod) (network.cost))))"
-            )
-        );
-        assertThat(e.getMessage(), containsString("nested WITHOUT over WITHOUT is not supported at this time"));
+    public void testWithoutOverByOverWithout() {
+        String query =
+            "PROMQL index=k8s step=1h result=(sum without (region) (sum by (cluster, region) (sum without (pod) (network.cost))))";
+        if (containerFunctions() == false) {
+            VerificationException e = assertThrows(VerificationException.class, () -> planPromql(query));
+            assertThat(e.getMessage(), containsString("nested WITHOUT over WITHOUT is not supported at this time"));
+            return;
+        }
+        assertThat(planPromql(query).output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step", "cluster")));
     }
 
     public void testByOverWithoutOverByProducesExactOutput() {
@@ -412,10 +423,11 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
                 .toList(),
             hasSize(1)
         );
-        // TimeSeriesMetadataAttribute shouldn't be getting created if without has no label
+        // without () keeps one row per series, so the inner aggregate groups by the whole _timeseries
         EsRelation esRelation = analyzed.collect(EsRelation.class).getFirst();
         var tsmaList = esRelation.expressions().stream().filter(field -> field instanceof TimeSeriesMetadataAttribute).toList();
-        assertThat(tsmaList, hasSize(0));
+        assertThat(tsmaList, hasSize(1));
+        assertEquals(((TimeSeriesMetadataAttribute) tsmaList.getFirst()).excludedFields(), Set.of());
     }
 
     public void testScalarOverMaxOfWithoutProducesScalarOutput() {

@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.hamcrest.Matcher;
 
 import java.time.Instant;
@@ -52,6 +53,11 @@ public abstract class AbstractPromqlPlanOptimizerTests extends AbstractLogicalPl
             .addEmptyIndex()
             .unmappedResolution(UnmappedResolution.NULLIFY)
             .minimumTransportVersion(minimumVersionAtLeast(TimeSeriesCollapse.TS_COLLAPSE));
+    }
+
+    /** Whether every node of the test's minimum version knows the label container functions, which some PromQL shapes take. */
+    protected boolean containerFunctions() {
+        return PromqlCommand.containerFunctions(minimumVersionAtLeast(TimeSeriesCollapse.TS_COLLAPSE));
     }
 
     protected LogicalPlan planPromql(String query) {

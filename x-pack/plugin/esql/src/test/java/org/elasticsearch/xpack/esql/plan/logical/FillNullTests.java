@@ -170,7 +170,12 @@ public class FillNullTests extends ESTestCase {
     public void testNumericFillLeavesTypesThatCannotTakeItUnchanged() {
         for (DataType type : UNFILLABLE_TYPES) {
             Attribute column = getFieldAttribute("c", type);
-            for (Literal fill : List.of(new Literal(Source.EMPTY, 0, DataType.INTEGER), new Literal(Source.EMPTY, 0.0, DataType.DOUBLE))) {
+            List<Literal> fills = List.of(
+                new Literal(Source.EMPTY, 0, DataType.INTEGER),
+                new Literal(Source.EMPTY, 0L, DataType.LONG),
+                new Literal(Source.EMPTY, 0.0, DataType.DOUBLE)
+            );
+            for (Literal fill : fills) {
                 FillNull fillNull = new FillNull(Source.EMPTY, childWith(List.of(column)), fill, List.of(column));
                 FillNull materialized = materialize(fillNull, List.of(column), TEST_CFG);
                 assertTrue(fill + " is not converted into " + type, materialized.fillAliases().isEmpty());

@@ -32,7 +32,7 @@ import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheFileReader;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
-import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.TimestampFieldValueRange;
@@ -444,7 +444,7 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
         BlobCacheMetrics blobCacheMetrics,
         @Nullable Releasable releasable
     ) {
-        var blobFile = blobFileRanges.blobLocation().blobFile();
+        var blobFile = blobFileRanges.blobLocation().bccBlob();
         var reader = new CacheFileReader(
             getCacheFile(blobFileRanges),
             getCacheBlobReader(name, blobFile),
@@ -489,19 +489,19 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
      * Returns a CacheBlobReader for reading a specific file from the blob store.
      *
      * @param fileName the name of the file to be read
-     * @param blobFile the blob file
+     * @param bccBlob the blob file
      * @return a CacheBlobReader for reading the specified file
      */
-    protected abstract CacheBlobReader getCacheBlobReader(String fileName, BlobFile blobFile);
+    protected abstract CacheBlobReader getCacheBlobReader(String fileName, BccBlob bccBlob);
 
     /**
      * Returns a CacheBlobReader for reading a specific file from the blob store
      * for warming purposes.
      *
-     * @param blobFile the blob file
+     * @param bccBlob the blob file
      * @return a CacheBlobReader for reading the specified file
      */
-    public abstract CacheBlobReader getCacheBlobReaderForWarming(BlobFile blobFile);
+    public abstract CacheBlobReader getCacheBlobReaderForWarming(BccBlob bccBlob);
 
     @Override
     public void close() throws IOException {

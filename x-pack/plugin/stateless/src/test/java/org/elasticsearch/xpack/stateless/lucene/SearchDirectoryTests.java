@@ -50,7 +50,7 @@ import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
 import org.elasticsearch.xpack.stateless.cache.reader.MutableObjectStoreUploadTracker;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
-import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.InternalFilesReplicatedRanges;
@@ -712,10 +712,10 @@ public class SearchDirectoryTests extends ESTestCase {
             )
         ) {
             final var searchDirectory = SearchDirectory.unwrapDirectory(node.searchStore.directory());
-            BlobFile blobFile = new BlobFile("stateless_commit_1", new PrimaryTermAndGeneration(1, 1));
+            BccBlob bccBlob = new BccBlob("stateless_commit_1", new PrimaryTermAndGeneration(1, 1));
             var compoundCommit = TestUtils.getCommitWithInternalFilesReplicatedRanges(
                 searchDirectory.shardId,
-                blobFile,
+                bccBlob,
                 "_na_",
                 0,
                 regionSize.getBytes()
@@ -1011,7 +1011,7 @@ public class SearchDirectoryTests extends ESTestCase {
                 true,
                 Map.of(
                     metadataBlobName,
-                    new BlobFileRanges(new BlobLocation(new BlobFile(metadataBlobName, metadataTermAndGen), 0L, regionSize.getBytes()))
+                    new BlobFileRanges(new BlobLocation(new BccBlob(metadataBlobName, metadataTermAndGen), 0L, regionSize.getBytes()))
                 ),
                 regionSize.getBytes()
             );
@@ -1374,7 +1374,7 @@ public class SearchDirectoryTests extends ESTestCase {
         int length = randomIntBetween(10, 200);  // some small file length initially
         for (int i = 0; i < n; i++) {
             var termAndGeneration = new PrimaryTermAndGeneration(1, BatchedCompoundCommit.parseGenerationFromBlobName(blobName));
-            locations.add(new BlobLocation(new BlobFile(blobName, termAndGeneration), offset, length));
+            locations.add(new BlobLocation(new BccBlob(blobName, termAndGeneration), offset, length));
             offset += length;
             // randomly increase next file length a bit
             length += randomIntBetween(50, 200);

@@ -14,11 +14,11 @@ import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import java.io.IOException;
 
 /// Represents a [BatchedCompoundCommit] blob stored in the object store.
-public record BlobFile(String blobName, PrimaryTermAndGeneration termAndGeneration) implements Blob {
+public record BccBlob(String blobName, PrimaryTermAndGeneration termAndGeneration) implements Blob {
 
     /// @throws IllegalArgumentException if the blob name does not start with [BatchedCompoundCommit#PREFIX], if the generation in the blob
     /// name is not a number, or if it differs from the generation of the given term and generation
-    public BlobFile {
+    public BccBlob {
         if (termAndGeneration.generation() != parseGenerationOrThrow(blobName)) {
             throw new IllegalArgumentException("generation mismatch: " + termAndGeneration + " vs " + blobName);
         }
@@ -31,7 +31,7 @@ public record BlobFile(String blobName, PrimaryTermAndGeneration termAndGenerati
     /// @param primaryTerm the primary term of the container the blob is stored in
     /// @throws IllegalArgumentException if the blob name does not start with [BatchedCompoundCommit#PREFIX] or if the generation in the
     /// blob name is not a number
-    public BlobFile(String blobName, long primaryTerm) {
+    public BccBlob(String blobName, long primaryTerm) {
         this(blobName, new PrimaryTermAndGeneration(primaryTerm, parseGenerationOrThrow(blobName)));
     }
 
@@ -48,18 +48,18 @@ public record BlobFile(String blobName, PrimaryTermAndGeneration termAndGenerati
     /// they are consistent with the name.
     ///
     /// @throws IOException if the blob name is not well-formed, or if the term/generation does not match the name
-    static BlobFile readFrom(String blobName, StreamInput in) throws IOException {
+    static BccBlob readFrom(String blobName, StreamInput in) throws IOException {
         final var termAndGeneration = new PrimaryTermAndGeneration(in);
-        final BlobFile blobFile;
+        final BccBlob bccBlob;
         try {
-            blobFile = new BlobFile(blobName, termAndGeneration.primaryTerm());
+            bccBlob = new BccBlob(blobName, termAndGeneration.primaryTerm());
         } catch (IllegalArgumentException e) {
             throw new IOException("malformed blob name [" + blobName + ']', e);
         }
-        if (blobFile.termAndGeneration().equals(termAndGeneration) == false) {
+        if (bccBlob.termAndGeneration().equals(termAndGeneration) == false) {
             throw new IOException("term/generation mismatch: " + termAndGeneration + " vs " + blobName);
         }
-        return blobFile;
+        return bccBlob;
     }
 
     public long primaryTerm() {
@@ -73,7 +73,7 @@ public record BlobFile(String blobName, PrimaryTermAndGeneration termAndGenerati
 
     @Override
     public String toString() {
-        return "BlobFile[term=" + primaryTerm() + ", name=" + blobName() + ']';
+        return "BccBlob[term=" + primaryTerm() + ", name=" + blobName() + ']';
     }
 
     /// Parses the generation from the name of a [BatchedCompoundCommit] blob, and throws an [IllegalArgumentException] if the blob name is

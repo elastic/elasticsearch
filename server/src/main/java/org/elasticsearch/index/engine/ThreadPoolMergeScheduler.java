@@ -535,6 +535,13 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
 
                 return new RateLimitedIndexOutput(mergeTask.rateLimiter, in.createOutput(name, context));
             }
+
+            @Override
+            public IndexOutput createTempOutput(String prefix, String suffix, IOContext context) throws IOException {
+                ensureOpen();
+                // rate limit temp outputs too, so that they are also checked for aborted merges
+                return new RateLimitedIndexOutput(mergeTask.rateLimiter, in.createTempOutput(prefix, suffix, context));
+            }
         };
     }
 

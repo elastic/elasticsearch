@@ -1892,8 +1892,8 @@ public class IndexShardTests extends IndexShardTestCase {
 
     /**
      * The failure is thrown from {@code ensureCanFlush()} so that it surfaces inside the engine's flush, where failures are counted.
-     * A pending translog recovery is expected and must not count. An {@link AlreadyClosedException} while the engine is not closing
-     * can only come from a tragically closed index writer or translog, so it counts like any other failure.
+     * A pending translog recovery is expected and must not count. An {@link AlreadyClosedException} must not count either, because the
+     * index writer or translog was closed by something other than this flush.
      */
     public void testFlushFailureClassification() throws IOException {
         AtomicReference<RuntimeException> engineFailure = new AtomicReference<>();
@@ -1911,53 +1911,21 @@ public class IndexShardTests extends IndexShardTestCase {
         flushFailure(shard);
         assertFlushFailureCount(0L);
 
-        engineFailure.set(new AlreadyClosedException("index writer closed while the engine is open"));
+        engineFailure.set(new AlreadyClosedException("index writer closed by another thread"));
         flushFailure(shard);
-        assertFlushFailureCount(1L);
+        assertFlushFailureCount(0L);
 
         engineFailure.set(new IllegalStateException("unexpected"));
         flushFailure(shard);
-        assertFlushFailureCount(2L);
+        assertFlushFailureCount(1L);
         final Measurement lastFailure = flushFailureMeasurements().getLast();
         assertThat(lastFailure.attributes().get(MetricAttributes.ERROR_TYPE), equalTo("IllegalStateException"));
         assertThat(lastFailure.attributes().get(MetricAttributes.ES_INDEX_MODE), equalTo(IndexMode.STANDARD.getName()));
 
         engineFailure.set(null);
         flushShard(shard);
-        assertFlushFailureCount(2L);
-        closeShards(shard);
-    }
-
-    /**
-     * Closing a shard with a flush puts its engine into the closing state before the final flush, as on relocation or shutdown, so a
-     * failure of that flush is reported as a clean close. An {@link AlreadyClosedException} is then expected and must not count, but
-     * any other failure must still count.
-     */
-    public void testFlushFailureDuringCleanCloseClassification() throws IOException {
-        failFinalFlushOnClose(new AlreadyClosedException("engine is closing"));
-        assertFlushFailureCount(0L);
-
-        failFinalFlushOnClose(new IllegalStateException("unexpected"));
         assertFlushFailureCount(1L);
-    }
-
-    private void failFinalFlushOnClose(RuntimeException failure) throws IOException {
-        AtomicReference<RuntimeException> engineFailure = new AtomicReference<>();
-        IndexShard shard = newStartedShard(true, Settings.EMPTY, config -> new InternalEngine(config) {
-            @Override
-            protected void ensureCanFlush() {
-                super.ensureCanFlush();
-                RuntimeException e = engineFailure.getAndSet(null);
-                if (e != null) {
-                    throw e;
-                }
-            }
-        });
-        indexDoc(shard, "_doc", "1");
-        engineFailure.set(failure);
-
-        IOUtils.close(() -> flushAndCloseShardNoCheck(shard), shard.store());
-        assertThat("the final flush must reach the engine", engineFailure.get(), nullValue());
+        closeShards(shard);
     }
 
     private Exception flushFailure(IndexShard shard) {

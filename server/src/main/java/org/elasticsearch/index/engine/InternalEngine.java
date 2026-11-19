@@ -4177,15 +4177,13 @@ public class InternalEngine extends Engine {
     }
 
     /**
-     * Counts a flush failure unless it is expected during normal operation: a pending translog recovery, or an
-     * {@link AlreadyClosedException} while the engine is closing cleanly (relocation, shutdown). An {@link AlreadyClosedException}
-     * on an engine that has not failed and is not closing comes from a tragically closed index writer or translog and is counted.
+     * Counts a flush failure unless it is a pending translog recovery or an {@link AlreadyClosedException}. A flush that fails the
+     * index writer or translog itself surfaces the original exception, so an {@link AlreadyClosedException} means that something else
+     * closed them first: a clean close, or an engine failure that is reported where it happened.
      */
     private void reportFlushFailure(Exception e) {
         try {
-            final boolean closedCleanly = failedEngine.get() == null && (isClosed.get() || isClosing());
-            final boolean expectedClose = closedCleanly && e instanceof AlreadyClosedException;
-            if (expectedClose == false && e instanceof PendingTranslogRecoveryException == false) {
+            if (e instanceof AlreadyClosedException == false && e instanceof PendingTranslogRecoveryException == false) {
                 engineConfig.getFlushMetrics().onFailure(engineConfig.getIndexSettings().getMode(), e);
             }
         } catch (Exception inner) {

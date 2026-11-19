@@ -34,7 +34,8 @@ public class FlushMetrics {
         flushFailures = meterRegistry.registerLongCounter(
             FLUSH_FAILURE_TOTAL,
             "Number of flushes that failed for a reason not expected during normal operation; "
-                + "flushes rejected due to a cleanly closing shard or engine, or a pending translog recovery, are not counted",
+                + "flushes rejected because the shard, engine, index writer or translog is already closed, "
+                + "or because of a pending translog recovery, are not counted",
             "unit"
         );
         flushBlobStoreTransientFailures = meterRegistry.registerLongCounter(

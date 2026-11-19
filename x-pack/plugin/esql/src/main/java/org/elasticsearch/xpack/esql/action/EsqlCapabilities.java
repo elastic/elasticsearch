@@ -1683,6 +1683,13 @@ public class EsqlCapabilities {
         WHERE_IN_SUBQUERY_WITH_EQUALS_NOT_EQUALS,
 
         /**
+         * Union-type conversions are scoped to their own side of an {@code IN} subquery. Before, a cast after an {@code IN} whose
+         * subquery ran {@code STATS} failed with "Cannot use field [...] due to ambiguities", and casts after the {@code IN} were
+         * loaded by the subquery's index too.
+         */
+        WHERE_IN_SUBQUERY_UNION_TYPES_SCOPE_FIX,
+
+        /**
          * Support multi-column IN subqueries in WHERE: WHERE (field1, field2) IN (FROM index | KEEP field1, field2).
          */
         WHERE_IN_MULTI_COLUMN_SUBQUERY,

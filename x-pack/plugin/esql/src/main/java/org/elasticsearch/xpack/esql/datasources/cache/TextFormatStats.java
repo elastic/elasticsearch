@@ -157,8 +157,10 @@ public final class TextFormatStats {
      * column — a withheld end is answered by a scan, and a fold marks that end unservable rather than
      * answer it from the reads that did publish one.
      * <p>
-     * Shared by {@link #harvested} and {@link #build}, so it filters a stored entry on read-back too: a
-     * wide extremum already in the store stops being served, though nothing here rewrites it.
+     * This is the publish side. {@link #build} calls its parameter {@code cachedStats}, but what it is
+     * handed is a measurement the current read just made; a retained record is read back through
+     * {@code SourceStatisticsSerializer}'s flat map, which does not come through here. So a wide extremum
+     * already in the store is served until its entry turns over.
      */
     static Object publishable(Object extremum) {
         return extremum instanceof BytesRef bytes && bytes.length > MAX_EXTREMUM_BYTES ? null : extremum;

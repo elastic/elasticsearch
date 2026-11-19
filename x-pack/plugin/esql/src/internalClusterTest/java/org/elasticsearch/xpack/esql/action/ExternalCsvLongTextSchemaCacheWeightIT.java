@@ -28,6 +28,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQuery
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 
 /**
  * End-to-end guard: after a MIN/MAX harvest over CSV files whose
@@ -39,6 +40,8 @@ public class ExternalCsvLongTextSchemaCacheWeightIT extends AbstractExternalData
 
     private static final int FILE_COUNT = 8;
     private static final int VALUE_CHARS = 1_000_000;
+    /** The one file whose {@code note} is narrow enough to publish. Neither the minimum nor the maximum. */
+    private static final int NARROW_NOTE_FILE = 3;
 
     @Override
     protected Collection<Class<? extends Plugin>> formatPlugins() {
@@ -60,9 +63,13 @@ public class ExternalCsvLongTextSchemaCacheWeightIT extends AbstractExternalData
         // numeric `id`, so nothing here would exercise a narrow TEXT extremum surviving the cap.
         String expectedTagMin = "tag-0";
         String expectedTagMax = "tag-" + (FILE_COUNT - 1);
+        // One file's note is narrow, and it is neither end of the column. With every file withholding both
+        // ends the fold has no candidate, so a fold that SKIPPED a withheld file rather than marking its
+        // column unservable would answer identically; with a candidate present, that fold serves it.
+        String narrowNote = "a" + NARROW_NOTE_FILE + "-short";
         for (int i = 0; i < FILE_COUNT; i++) {
             Path file = dir.resolve("part" + i + ".csv");
-            String note = "a" + i + "-" + pad;
+            String note = i == NARROW_NOTE_FILE ? narrowNote : "a" + i + "-" + pad;
             Files.writeString(file, "id,tag,note\n" + i + ",tag-" + i + "," + note + "\n");
         }
         String dataset = registerLocalFileDataset("wide_text", StoragePath.fileUri(dir) + "/*.csv", Map.of("format", "csv"));
@@ -124,6 +131,12 @@ public class ExternalCsvLongTextSchemaCacheWeightIT extends AbstractExternalData
                 "a warm MAX over a withheld extremum must still be the file's true maximum",
                 rows.get(0).get(1),
                 equalTo(expectedMax)
+            );
+            assertThat("and neither end is the one narrow note", rows.get(0).get(0), not(equalTo(narrowNote)));
+            assertThat(
+                "the column is unservable, so the answer comes from a scan rather than the record",
+                response.documentsFound(),
+                equalTo((long) FILE_COUNT)
             );
         }
 

@@ -86,6 +86,25 @@ score = ln(score), if score < 0
 
     Applies the specified [boolean query filter](/reference/query-languages/query-dsl/query-dsl-bool-query.md) to the child  `retriever`. If the child retriever already specifies any filters, then this top-level filter is applied in conjunction with the filter defined in the child retriever.
 
+`allow_rerank_failures` {applies_to}`stack: beta 9.1-9.6, ga 9.7+` {applies_to}`serverless: ga`
+:   (Optional, `boolean`, default `false`)
+
+    If `true`, the search returns the hits of the child `retriever` in their original order when re-ranking fails, for example because the inference endpoint is unavailable. If `false`, a re-ranking failure fails the search.
+
+    {applies_to}`stack: ga 9.7+`  When re-ranking fails and this option is `true`, the search response contains a top-level `phase_failures` array. Each entry names the failed `phase` and gives the failure in `reason`. The array is not present when no phase failed. For example:
+
+    ```json
+    "phase_failures": [
+      {
+        "phase": "rank-feature",
+        "reason": {
+          "type": "resource_not_found_exception",
+          "reason": "Inference endpoint not found [my-rerank-model]"
+        }
+      }
+    ]
+    ```
+
 `chunk_rescorer` {applies_to}`stack: beta 9.2-9.3, ga 9.4+` {applies_to}`serverless: ga`
 :   (Optional, `object`)
 

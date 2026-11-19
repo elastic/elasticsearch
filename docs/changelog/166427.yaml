@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 166427
+summary: Keep a file's statistics cached when one text column is too wide to publish
+type: bug

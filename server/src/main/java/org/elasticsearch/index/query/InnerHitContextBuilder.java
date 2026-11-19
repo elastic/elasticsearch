@@ -39,7 +39,7 @@ public abstract class InnerHitContextBuilder {
     }
 
     public final void build(SearchContext parentSearchContext, InnerHitsContext innerHitsContext) throws IOException {
-        long innerResultWindow = innerHitBuilder.getFrom() + innerHitBuilder.getSize();
+        long innerResultWindow = (long) innerHitBuilder.getFrom() + innerHitBuilder.getSize();
         int maxInnerResultWindow = parentSearchContext.getSearchExecutionContext().getIndexSettings().getMaxInnerResultWindow();
         if (innerResultWindow > maxInnerResultWindow) {
             throw new IllegalArgumentException(

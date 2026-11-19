@@ -30,7 +30,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.test.FakeStatelessNode;
@@ -101,7 +101,7 @@ public class MetadataSnapshotBlobStoreDirectoryTests extends ESTestCase {
                     blobLocations.put(
                         fileName,
                         new BlobLocation(
-                            new BlobFile(fileBlobName, new PrimaryTermAndGeneration(primaryTerm, fileGeneration)),
+                            new BccBlob(fileBlobName, new PrimaryTermAndGeneration(primaryTerm, fileGeneration)),
                             0,
                             fileLength
                         )
@@ -157,7 +157,7 @@ public class MetadataSnapshotBlobStoreDirectoryTests extends ESTestCase {
             // Build the full blob: padding + file1 + file2 + ...
             var baos = new ByteArrayOutputStream();
             baos.write(paddingBytes);
-            final var blobFile = new BlobFile(blobName, new PrimaryTermAndGeneration(primaryTerm, generation));
+            final var blobFile = new BccBlob(blobName, new PrimaryTermAndGeneration(primaryTerm, generation));
             for (String fileName : localDir.listAll()) {
                 long fileLength = localDir.fileLength(fileName);
                 if (fileLength == 0) {

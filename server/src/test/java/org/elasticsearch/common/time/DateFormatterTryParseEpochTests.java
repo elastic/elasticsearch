@@ -206,10 +206,14 @@ public class DateFormatterTryParseEpochTests extends ESTestCase {
                         continue;
                     }
                     long epochDay = LocalDate.of(year, month, day).toEpochDay();
-                    assertEquals(year + "-" + month + "-" + day, epochDay * 86_400_000L, parsedMillis);
+                    long expectedMillis = epochDay * 86_400_000L;
                     long parsedNanos = nanos.tryParseNanos(b, 0, 10);
                     long expectedNanos = epochDay >= 0 && epochDay <= maxNanosDay ? epochDay * 86_400_000_000_000L : DateFormatter.DECLINED;
-                    assertEquals(year + "-" + month + "-" + day, expectedNanos, parsedNanos);
+                    if (expectedMillis != parsedMillis || expectedNanos != parsedNanos) {
+                        String input = new String(b, StandardCharsets.UTF_8);
+                        assertEquals(input + " millis", expectedMillis, parsedMillis);
+                        assertEquals(input + " nanos", expectedNanos, parsedNanos);
+                    }
                 }
             }
         }
@@ -222,8 +226,16 @@ public class DateFormatterTryParseEpochTests extends ESTestCase {
             for (int hours = 0; hours <= 23; hours++) {
                 for (int minutes = 0; minutes <= 59; minutes++) {
                     String input = String.format(Locale.ROOT, "2024-01-15T10:11:12.123%c%02d:%02d", sign, hours, minutes);
-                    boolean fits = hours * 60 + minutes <= 18 * 60;
-                    assertEquals(input, fits, assertMatches(formatter, input));
+                    byte[] bytes = bytes(input);
+                    long expectedMillis = DateFormatter.DECLINED;
+                    long expectedNanos = DateFormatter.DECLINED;
+                    if (hours * 60 + minutes <= 18 * 60) {
+                        Instant instant = DateFormatters.from(formatter.parse(input), formatter.locale()).toInstant();
+                        expectedMillis = DateUtils.toLongMillis(instant);
+                        expectedNanos = DateUtils.toLong(instant);
+                    }
+                    assertEquals(input, expectedMillis, formatter.tryParseMillis(bytes, 0, bytes.length));
+                    assertEquals(input, expectedNanos, formatter.tryParseNanos(bytes, 0, bytes.length));
                 }
             }
         }

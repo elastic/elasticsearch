@@ -571,13 +571,15 @@ class FastDateTimeParser implements DateTimeParser {
             if (defaults.isEmpty() == false
                 || len < 10
                 || maxAllowedField == ChronoField.YEAR
-                || maxAllowedField == ChronoField.MONTH_OF_YEAR) {
+                || maxAllowedField == ChronoField.MONTH_OF_YEAR
+                || b[off + 4] != '-'
+                || b[off + 7] != '-') {
                 return declined;
             }
             int year = digits(b, off, 4);
             int month = digits(b, off + 5, 2);
             int day = digits(b, off + 8, 2);
-            if (year < 0 || month < 1 || month > 12 || day < 1 || b[off + 4] != '-' || b[off + 7] != '-') {
+            if (year < 0 || month < 1 || month > 12 || day < 1) {
                 return declined;
             }
             if (day > lengthOfMonth(year, month)) {

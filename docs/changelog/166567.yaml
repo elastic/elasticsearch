@@ -1,6 +1,6 @@
 area: ES|QL
 issues:
- - 159746
+ - 161746
 pr: 166567
 summary: Keep live `_score` across FORK merges
 type: bug

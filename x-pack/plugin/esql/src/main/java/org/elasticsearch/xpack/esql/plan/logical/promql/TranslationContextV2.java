@@ -53,8 +53,10 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
 import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContextV2.IntermediateResult.Kind;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -248,21 +250,44 @@ public record TranslationContextV2(
         );
     }
 
-    /** Regroups a collapsed table by {@code labels}, the label container of each result series; null groups by step alone. */
+    /**
+     * Regroups a collapsed table by {@code labels}, the label container of each result series; null groups by step alone. The
+     * container keys packed, so a label of several values keys as a whole, and is unpacked above the aggregate under the key's
+     * own id.
+     */
     public IntermediateResult emitAggregate(IntermediateResult input, @Nullable Expression labels, Expression function) {
         assert input.kind().afterInitialAggregation : "invariant: a emitAggregate takes a collapsed table";
+        Source source = cmd.source();
         Alias value = new Alias(function.source(), cmd.valueColumnName(), function);
         Alias key = labelsKey(labels);
         Attribute step = input.step();
-        LogicalPlan plan = new Aggregate(cmd.source(), input.plan(), groupings(step, key), aggregates(value, step, key));
-        return new IntermediateResult(
-            plan,
-            value.toAttribute(),
-            key == null ? null : key.toAttribute(),
-            step,
-            input.pendingFilter(),
-            Kind.AFTER_INITIAL_AGGREGATE
+        if (key == null) {
+            LogicalPlan plan = new Aggregate(source, input.plan(), groupings(step, null), aggregates(value, step, null));
+            return new IntermediateResult(plan, value.toAttribute(), null, step, input.pendingFilter(), Kind.AFTER_INITIAL_AGGREGATE);
+        }
+        PackDims pack = new PackDims(
+            source,
+            new Eval(source, input.plan(), List.of(key)),
+            List.of(key.toAttribute()),
+            PackDims.newPackedAttribute(source)
         );
+        Alias packed = PackDims.newPackedGrouping(source, pack.packed());
+        Aggregate aggregate = new Aggregate(source, pack, groupings(step, packed), aggregates(value, step, packed));
+        Attribute unpacked = new ReferenceAttribute(
+            key.source(),
+            null,
+            key.name(),
+            DataType.TIME_SERIES_METADATA_DATA_TYPE,
+            Nullability.TRUE,
+            key.id(),
+            false
+        );
+        LogicalPlan plan = new Project(
+            source,
+            new UnpackDims(source, aggregate, packed.toAttribute(), List.of(unpacked)),
+            List.of(value.toAttribute(), step, unpacked)
+        );
+        return new IntermediateResult(plan, value.toAttribute(), unpacked, step, input.pendingFilter(), Kind.AFTER_INITIAL_AGGREGATE);
     }
 
     private @Nullable Alias labelsKey(@Nullable Expression labels) {

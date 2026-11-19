@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Into;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -78,6 +79,10 @@ public class IntoAnalysisTests extends AnalyzerTestCase {
         Into into = as(plan, Into.class);
         assertThat(into.child().anyMatch(LocalRelation.class::isInstance), equalTo(true));
         assertThat(into.child().anyMatch(Row.class::isInstance), equalTo(false));
+
+        Into fromInto = as(analyzer().addEmployees().query("FROM employees | DESCRIBE | INTO dst"), Into.class);
+        assertThat(fromInto.child().anyMatch(LocalRelation.class::isInstance), equalTo(true));
+        assertThat(fromInto.child().anyMatch(EsRelation.class::isInstance), equalTo(false));
 
         String error = Into.UNSUPPORTED_SOURCE;
         analyzer().addIndex("remote:employees", "mapping-default.json")

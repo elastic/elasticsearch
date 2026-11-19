@@ -204,8 +204,9 @@ required_capability: describe_command
 required_capability: describe_interval
 
 FROM k8s
-| EVAL lo = "2024-05-10T00:00:00Z", hi = "2024-05-11T00:00:00Z"
-| STATS c = COUNT(*) BY by_count = BUCKET(@timestamp, 20, "2024-05-10T00:00:00Z", "2024-05-11T00:00:00Z"), by_aliased_count = BUCKET(@timestamp, 20, lo, hi), by_null_bound = BUCKET(@timestamp, 20, null, hi)
+| EVAL lo = "2024-05-10T00:00:00Z", hi = "2024-05-11T00:00:00Z", start = lo
+| RENAME hi AS end
+| STATS c = COUNT(*) BY by_count = BUCKET(@timestamp, 20, "2024-05-10T00:00:00Z", "2024-05-11T00:00:00Z"), by_aliased_count = BUCKET(@timestamp, 20, lo, end), by_renamed_count = BUCKET(@timestamp, 20, start, end), by_null_bound = BUCKET(@timestamp, 20, null, end)
 | DESCRIBE
 | KEEP name, role, interval, time_zone
 ;
@@ -214,6 +215,7 @@ name:keyword     | role:keyword | interval:keyword | time_zone:keyword
 c                | null         | null             | null
 by_count         | time         | 3 hours          | UTC
 by_aliased_count | time         | 3 hours          | UTC
+by_renamed_count | time         | 3 hours          | UTC
 by_null_bound    | time         | null             | null
 ;
 
@@ -240,9 +242,9 @@ required_capability: describe_command
 required_capability: describe_interval
 
 FROM k8s
-| FORK (EVAL same = DATE_TRUNC(1 hour, @timestamp), day = DATE_TRUNC(1 day, @timestamp))
-       (EVAL same = DATE_TRUNC(1 hour, @timestamp), day = DATE_TRUNC(24 hours, @timestamp))
-| KEEP same, day
+| FORK (EVAL same = DATE_TRUNC(1 hour, @timestamp), day = DATE_TRUNC(1 day, @timestamp), months = DATE_TRUNC(2 months, @timestamp))
+       (EVAL same = DATE_TRUNC(1 hour, @timestamp), day = DATE_TRUNC(24 hours, @timestamp), months = DATE_TRUNC(6 months, @timestamp))
+| KEEP same, day, months
 | DESCRIBE
 | KEEP name, role, interval, time_zone
 ;
@@ -250,6 +252,7 @@ FROM k8s
 name:keyword | role:keyword | interval:keyword | time_zone:keyword
 same         | time         | 1 hour           | UTC
 day          | time         | null             | null
+months       | time         | null             | null
 ;
 
 describeIntervalOfOtherDates

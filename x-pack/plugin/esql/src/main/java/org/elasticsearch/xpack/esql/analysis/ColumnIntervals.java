@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
@@ -39,9 +40,10 @@ public final class ColumnIntervals {
     public record Interval(String interval, String timeZone) {}
 
     /**
-     * The rounding of a bucket, which tells a fixed {@code 24 hours} from a calendar {@code 1 day}.
+     * The rounding of a bucket, which tells a fixed {@code 24 hours} from a calendar {@code 1 day}, and its
+     * interval, which tells {@code 2 months} from {@code 6 months}.
      */
-    private record Bucketing(Rounding rounding, String timeZone) {}
+    private record Bucketing(Rounding rounding, Rounding.Interval interval, String timeZone) {}
 
     private ColumnIntervals() {}
 
@@ -51,7 +53,7 @@ public final class ColumnIntervals {
      * folded with {@code foldContext}.
      */
     public static Map<NameId, Interval> collect(LogicalPlan plan, FoldContext foldContext) {
-        Map<NameId, Expression> constants = new HashMap<>();
+        Map<NameId, Literal> constants = new HashMap<>();
         Map<NameId, Bucketing> buckets = new HashMap<>();
         plan.forEachUp(node -> {
             node.forEachExpression(Alias.class, alias -> {
@@ -60,11 +62,18 @@ public final class ColumnIntervals {
                     if (bucketing != null) {
                         buckets.put(alias.id(), bucketing);
                     }
+                    Literal constant = constants.get(source.id());
+                    if (constant != null) {
+                        constants.put(alias.id(), constant);
+                    }
                     return;
                 }
-                Expression child = alias.child().transformUp(ReferenceAttribute.class, r -> constants.getOrDefault(r.id(), r));
+                Expression child = alias.child().transformUp(ReferenceAttribute.class, r -> {
+                    Literal constant = constants.get(r.id());
+                    return constant != null ? constant : r;
+                });
                 if (child.foldable()) {
-                    constants.put(alias.id(), child);
+                    constants.put(alias.id(), Literal.of(foldContext, child));
                 }
                 Bucketing bucketing = of(child, foldContext);
                 if (bucketing != null) {
@@ -76,7 +85,7 @@ public final class ColumnIntervals {
             }
         });
         Map<NameId, Interval> intervals = new HashMap<>();
-        buckets.forEach((id, b) -> intervals.put(id, new Interval(format(b.rounding().getInterval()), b.timeZone())));
+        buckets.forEach((id, b) -> intervals.put(id, new Interval(format(b.interval()), b.timeZone())));
         return intervals;
     }
 
@@ -111,7 +120,7 @@ public final class ColumnIntervals {
             return null;
         }
         ZoneId zone = QuerySettings.TIME_ZONE.get(bucket.configuration().resolvedSettings());
-        return new Bucketing(rounding, zone.equals(ZoneOffset.UTC) ? "UTC" : zone.getId());
+        return new Bucketing(rounding, rounding.getInterval(), zone.equals(ZoneOffset.UTC) ? "UTC" : zone.getId());
     }
 
     /**

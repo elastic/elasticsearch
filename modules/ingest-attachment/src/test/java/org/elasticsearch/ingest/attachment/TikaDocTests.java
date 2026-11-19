@@ -11,13 +11,21 @@ package org.elasticsearch.ingest.attachment;
 
 import org.apache.lucene.tests.util.LuceneTestCase.SuppressFileSystems;
 import org.apache.lucene.tests.util.TestUtil;
+import org.apache.tika.Tika;
+import org.apache.tika.langdetect.tika.LanguageIdentifier;
 import org.apache.tika.metadata.Metadata;
+import org.apache.tika.metadata.TikaCoreProperties;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.ByteArrayInputStream;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 /**
  * Evil test-coverage cheat, we parse a bunch of docs from tika
@@ -51,9 +59,29 @@ public class TikaDocTests extends ESTestCase {
     void assertParseable(Path fileName) throws Exception {
         try {
             byte bytes[] = Files.readAllBytes(fileName);
-            String parsedContent = TikaImpl.parse(bytes, new Metadata(), -1);
-            assertNotNull(parsedContent);
-            assertFalse(parsedContent.isEmpty());
+            ChunkedTextWriter writer = new ChunkedTextWriter(randomFrom(1, between(2, 100), ChunkedTextWriter.DEFAULT_CHUNK_SIZE));
+            Metadata metadata = new Metadata();
+            TikaImpl.parse(bytes, metadata, -1, writer);
+            assertThat(writer.length(), greaterThan(0L));
+
+            // text, length, language and metadata must match Tika's own parseToString
+            Metadata expectedMetadata = new Metadata();
+            String expected = new Tika(TikaImpl.PARSER_INSTANCE.getDetector(), TikaImpl.PARSER_INSTANCE).parseToString(
+                new ByteArrayInputStream(bytes),
+                expectedMetadata,
+                -1
+            );
+            assertThat(writer.length(), equalTo((long) expected.length()));
+            assertThat(AttachmentProcessor.detectLanguage(writer, -1), equalTo(new LanguageIdentifier(expected).getLanguage()));
+            String parsedContent = writer.toTrimmedString();
+            assertThat(parsedContent, equalTo(expected.trim()));
+            assertThat(metadata.names(), arrayContainingInAnyOrder(expectedMetadata.names()));
+            for (String name : expectedMetadata.names()) {
+                // recorded embedded exceptions include stack traces, which differ between calls
+                if (name.startsWith(TikaCoreProperties.TIKA_META_EXCEPTION_PREFIX) == false) {
+                    assertThat(name, metadata.getValues(name), equalTo(expectedMetadata.getValues(name)));
+                }
+            }
             logger.debug("extracted content: {}", parsedContent);
         } catch (Exception e) {
             throw new RuntimeException("parsing of filename: " + fileName.getFileName() + " failed", e);

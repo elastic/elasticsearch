@@ -346,6 +346,14 @@ Returns this:
 % TESTRESPONSE[s/"_seq_no": \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
 
 
+## Limit the text used for language detection [attachment-language-detection-limit]
+```{applies_to}
+stack: ga 9.7
+```
+
+By default, the `language` property is detected from all of the extracted text. To process large attachments faster and with less load on the node, set the static node setting `ingest.attachment.language_detection.max_chars` to detect the language from only the first that many characters. The default, `-1`, uses all of the text. All of the text is still extracted and indexed. For attachments in a single language, the result is usually the same; for attachments that mix languages, the detected language reflects the beginning of the attachment.
+
+
 ## Using the attachment processor with arrays [attachment-with-arrays]
 
 To use the attachment processor within an array of attachments the [foreach processor](/reference/ingest-processor/foreach-processor.md) is required. This enables the attachment processor to be run on the individual elements of the array.

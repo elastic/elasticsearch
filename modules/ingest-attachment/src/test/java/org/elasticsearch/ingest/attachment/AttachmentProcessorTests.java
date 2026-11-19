@@ -11,6 +11,7 @@ package org.elasticsearch.ingest.attachment;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.lucene.util.SetOnce;
+import org.apache.tika.langdetect.tika.LanguageIdentifier;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -20,6 +21,7 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.monitor.jvm.SunThreadInfo;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
@@ -46,6 +48,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -70,6 +73,7 @@ public class AttachmentProcessorTests extends ESTestCase {
             -1,
             new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
             "",
+            -1,
             new SetOnce<>()
         );
     }
@@ -129,6 +133,7 @@ public class AttachmentProcessorTests extends ESTestCase {
             -1,
             new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
             "",
+            -1,
             new SetOnce<>()
         );
 
@@ -390,6 +395,7 @@ public class AttachmentProcessorTests extends ESTestCase {
             -1,
             new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
             "",
+            -1,
             new SetOnce<>()
         );
         processor.execute(ingestDocument);
@@ -413,6 +419,7 @@ public class AttachmentProcessorTests extends ESTestCase {
             -1,
             new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
             "",
+            -1,
             new SetOnce<>()
         );
         processor.execute(ingestDocument);
@@ -439,6 +446,7 @@ public class AttachmentProcessorTests extends ESTestCase {
             -1,
             new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
             "",
+            -1,
             new SetOnce<>()
         );
         Exception exception = expectThrows(Exception.class, () -> processor.execute(ingestDocument));
@@ -462,6 +470,7 @@ public class AttachmentProcessorTests extends ESTestCase {
             -1,
             new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
             "",
+            -1,
             new SetOnce<>()
         );
         Exception exception = expectThrows(Exception.class, () -> processor.execute(ingestDocument));
@@ -513,6 +522,7 @@ public class AttachmentProcessorTests extends ESTestCase {
             -1,
             new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
             "",
+            -1,
             new SetOnce<>()
         );
 
@@ -538,6 +548,7 @@ public class AttachmentProcessorTests extends ESTestCase {
             -1,
             new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
             "",
+            -1,
             new SetOnce<>()
         );
 
@@ -582,6 +593,7 @@ public class AttachmentProcessorTests extends ESTestCase {
             -1,
             new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
             "",
+            -1,
             new SetOnce<>()
         );
 
@@ -640,6 +652,7 @@ public class AttachmentProcessorTests extends ESTestCase {
                 -1,
                 new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
                 "",
+                -1,
                 new SetOnce<>()
             );
             Map<String, Object> document = new HashMap<>();
@@ -665,6 +678,7 @@ public class AttachmentProcessorTests extends ESTestCase {
             randomIntBetween(1, 4),
             new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
             "",
+            -1,
             new SetOnce<>()
         );
         ElasticsearchParseException ex = expectThrows(
@@ -690,6 +704,7 @@ public class AttachmentProcessorTests extends ESTestCase {
             100,
             new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
             "",
+            -1,
             new SetOnce<>()
         );
         // Each "QQ==" is four bytes and decodes to two bytes; raw field size exceeds the cap while decoded size stays modest.
@@ -719,6 +734,7 @@ public class AttachmentProcessorTests extends ESTestCase {
             100,
             new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
             "",
+            -1,
             new SetOnce<>()
         );
         Map<String, Object> document = new HashMap<>();
@@ -747,6 +763,7 @@ public class AttachmentProcessorTests extends ESTestCase {
             8,
             new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
             "",
+            -1,
             new SetOnce<>()
         );
         // 8 characters is exactly at the limit (and decodes to just 6 bytes)
@@ -791,6 +808,7 @@ public class AttachmentProcessorTests extends ESTestCase {
             randomIntBetween(100000, 200000),
             new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
             "",
+            -1,
             new SetOnce<>()
         );
         final var attachmentData = parseDocument("text-in-english.txt", processor);
@@ -818,6 +836,7 @@ public class AttachmentProcessorTests extends ESTestCase {
             bytes,
             nodeLimit,
             "",
+            -1,
             new SetOnce<>()
         );
 
@@ -977,6 +996,7 @@ public class AttachmentProcessorTests extends ESTestCase {
             -1,
             new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
             "",
+            -1,
             metricsRef
         );
         int bytes = randomIntBetween(1, 100);
@@ -1003,6 +1023,7 @@ public class AttachmentProcessorTests extends ESTestCase {
             -1,
             new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
             "",
+            -1,
             metricsRef
         );
         int bytes = 1_048_576;
@@ -1029,6 +1050,7 @@ public class AttachmentProcessorTests extends ESTestCase {
             -1,
             new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
             "",
+            -1,
             metricsRef
         );
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
@@ -1063,6 +1085,7 @@ public class AttachmentProcessorTests extends ESTestCase {
             0,
             new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
             "",
+            -1,
             metricsRef
         );
 
@@ -1095,6 +1118,7 @@ public class AttachmentProcessorTests extends ESTestCase {
             -1,
             new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
             "",
+            -1,
             metricsRef
         );
         expectThrows(ElasticsearchParseException.class, () -> parseDocument("encrypted.pdf", processor));
@@ -1165,6 +1189,7 @@ public class AttachmentProcessorTests extends ESTestCase {
             -1,
             new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
             "",
+            -1,
             new SetOnce<>()
         );
 
@@ -1174,5 +1199,176 @@ public class AttachmentProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
         assertThat(e.getMessage(), equalTo("path [a..b] is not valid"));
+    }
+
+    /** If setting the target field fails, the source field must still be there for on_failure handlers. */
+    public void testRemoveBinaryKeepsSourceFieldWhenSettingTargetFails() throws Exception {
+        Processor processor = newProcessor("a..b", EnumSet.allOf(AttachmentProcessor.Property.class), 10000, true, -1);
+        Map<String, Object> document = new HashMap<>();
+        Object source = getAsBinaryOrBase64("text-in-english.txt");
+        document.put("source_field", source);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
+        assertThat(ingestDocument.getFieldValue("source_field", Object.class), equalTo(source));
+    }
+
+    public void testRemoveBinaryWithContent() throws Exception {
+        Processor processor = newProcessor("target_field", EnumSet.allOf(AttachmentProcessor.Property.class), 10000, true, -1);
+        Map<String, Object> attachmentData = parseDocument("text-in-english.txt", processor);
+        assertThat(attachmentData.get("content"), is("\"God Save the Queen\" (alternatively \"God Save the King\""));
+        assertThat(attachmentData.get("language"), is("en"));
+    }
+
+    /** With the default {@code indexed_chars}, the language is detected from exactly the 100000 extracted chars, untrimmed. */
+    public void testLanguageOfLargeDocumentIsDetectedFromExtractedChars() throws Exception {
+        Processor processor = newProcessor("target_field", EnumSet.allOf(AttachmentProcessor.Property.class), 100000, false, -1);
+        String english = "God Save the Queen, alternatively God Save the King. ";
+        // ASCII only, so that Tika does not have to guess the charset
+        String french = "Allons enfants de la Patrie, le jour de gloire est arrive. Contre nous de la tyrannie. ";
+        String text = english.repeat(100_000 / english.length() - 10) + french.repeat(1000);
+        Map<String, Object> attachmentData = parseText(text, processor);
+
+        String extracted = text.substring(0, 100000);
+        assertThat(attachmentData.get("content_length"), is(100000L));
+        assertThat(attachmentData.get("content"), is(extracted.trim()));
+        assertThat(attachmentData.get("language"), is(new LanguageIdentifier(extracted).getLanguage()));
+    }
+
+    public void testLanguageDetectionMaxChars() throws Exception {
+        String english = "God Save the Queen, alternatively God Save the King. ";
+        // ASCII only, so that Tika does not have to guess the charset
+        String french = "Allons enfants de la Patrie, le jour de gloire est arrive. Contre nous de la tyrannie. ";
+        String text = english.repeat(20) + french.repeat(200);
+
+        Processor wholeText = newProcessor("target_field", EnumSet.allOf(AttachmentProcessor.Property.class), -1, false, -1);
+        Map<String, Object> attachmentData = parseText(text, wholeText);
+        assertThat(attachmentData.get("language"), is("fr"));
+
+        int maxChars = english.length() * 20;
+        Processor prefix = new AttachmentProcessor.Factory(
+            Settings.builder().put(AttachmentProcessor.LANGUAGE_DETECTION_MAX_CHARS_SETTING.getKey(), maxChars).build(),
+            new SetOnce<>()
+        ).create(
+            null,
+            randomAlphaOfLength(10),
+            null,
+            new HashMap<>(Map.of("field", "source_field", "target_field", "target_field", "indexed_chars", -1, "remove_binary", false)),
+            null
+        );
+        attachmentData = parseText(text, prefix);
+        assertThat(attachmentData.get("language"), is("en"));
+        // only language detection uses the prefix, the full text is still extracted
+        assertThat(attachmentData.get("content"), is(text.trim()));
+        // Tika ends the text with a newline
+        assertThat(attachmentData.get("content_length"), is(text.length() + 1L));
+    }
+
+    public void testLanguageDetectionMaxCharsSetting() {
+        assertThat(AttachmentProcessor.LANGUAGE_DETECTION_MAX_CHARS_SETTING.get(Settings.EMPTY), is(-1));
+        for (int invalid : new int[] { 0, -2 }) {
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> AttachmentProcessor.LANGUAGE_DETECTION_MAX_CHARS_SETTING.get(
+                    Settings.builder().put(AttachmentProcessor.LANGUAGE_DETECTION_MAX_CHARS_SETTING.getKey(), invalid).build()
+                )
+            );
+        }
+    }
+
+    /**
+     * Guards against redundant copies of the extracted text, which show up deterministically in allocations (heap pressure tests cover
+     * the peak). Excludes language detection, which allocates a {@code String} per letter.
+     * <p>
+     * Allocated bytes per text byte for 5M chars (Latin-1 / UTF-16): 8.0 / 6.6 before chunking, 4.6 / 2.8 after. The budget sits in
+     * between, failing if a full copy comes back while tolerating JDK differences.
+     */
+    public void testAllocationsPerExtractedByte() throws Exception {
+        assumeTrue(
+            "needs per-thread allocation counters",
+            SunThreadInfo.INSTANCE.isThreadAllocatedMemorySupported() && SunThreadInfo.INSTANCE.isThreadAllocatedMemoryEnabled()
+        );
+        boolean latin1 = randomBoolean();
+        String text = randomWords(5_000_000, latin1);
+        long textBytes = latin1 ? text.length() : 2L * text.length();
+
+        Processor processor = newProcessor(
+            "target_field",
+            EnumSet.of(AttachmentProcessor.Property.CONTENT, AttachmentProcessor.Property.CONTENT_LENGTH),
+            -1,
+            true,
+            -1
+        );
+        // warm up, so Tika's class initialization isn't measured
+        parseText(randomWords(1000, latin1), processor);
+
+        Map<String, Object> document = new HashMap<>();
+        document.put("source_field", Base64.getEncoder().encodeToString(text.getBytes(StandardCharsets.UTF_8)));
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+
+        long threadId = Thread.currentThread().threadId();
+        long before = SunThreadInfo.INSTANCE.getThreadAllocatedBytes(threadId);
+        processor.execute(ingestDocument);
+        long allocated = SunThreadInfo.INSTANCE.getThreadAllocatedBytes(threadId) - before;
+
+        String content = ingestDocument.getFieldValue("target_field.content", String.class);
+        assertThat(content.length(), equalTo(text.trim().length()));
+        double ratio = (double) allocated / textBytes;
+        logger.info(
+            "allocated [{}] bytes for [{}] bytes of {} text, [{}] per byte",
+            allocated,
+            textBytes,
+            latin1 ? "Latin-1" : "UTF-16",
+            ratio
+        );
+        assertThat(ratio, lessThanOrEqualTo(latin1 ? 6.0 : 4.5));
+    }
+
+    /** Space-separated words of ASCII letters, with one {@code €} near the start unless {@code latin1}. */
+    private static String randomWords(int length, boolean latin1) {
+        StringBuilder sb = new StringBuilder(length);
+        if (latin1 == false) {
+            sb.append("€ ");
+        }
+        while (sb.length() < length) {
+            sb.append(randomAlphaOfLengthBetween(1, 10)).append(' ');
+        }
+        sb.setLength(length - 1);
+        return sb.append('.').toString();
+    }
+
+    private Map<String, Object> parseText(String text, Processor processor) throws Exception {
+        Map<String, Object> document = new HashMap<>();
+        document.put("source_field", Base64.getEncoder().encodeToString(text.getBytes(StandardCharsets.UTF_8)));
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        processor.execute(ingestDocument);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> attachmentData = (Map<String, Object>) ingestDocument.getSource().get("target_field");
+        return attachmentData;
+    }
+
+    private static Processor newProcessor(
+        String targetField,
+        Set<AttachmentProcessor.Property> properties,
+        int indexedChars,
+        boolean removeBinary,
+        int languageDetectionMaxChars
+    ) {
+        return new AttachmentProcessor(
+            randomAlphaOfLength(10),
+            null,
+            "source_field",
+            targetField,
+            properties,
+            indexedChars,
+            false,
+            null,
+            null,
+            removeBinary,
+            -1,
+            new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
+            "",
+            languageDetectionMaxChars,
+            new SetOnce<>()
+        );
     }
 }

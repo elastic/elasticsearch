@@ -26,7 +26,11 @@ public class IngestAttachmentPlugin extends Plugin implements IngestPlugin {
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(AttachmentProcessor.MAX_FIELD_SIZE_SETTING, AttachmentProcessor.MAX_FIELD_SIZE_MESSAGE_SUFFIX_SETTING);
+        return List.of(
+            AttachmentProcessor.MAX_FIELD_SIZE_SETTING,
+            AttachmentProcessor.MAX_FIELD_SIZE_MESSAGE_SUFFIX_SETTING,
+            AttachmentProcessor.LANGUAGE_DETECTION_MAX_CHARS_SETTING
+        );
     }
 
     @Override

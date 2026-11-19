@@ -57,28 +57,8 @@ public class DeterministicTaskQueue {
 
     private final List<RunnableTask> runnableTasks = new ArrayList<>();
 
-    public enum TaskSelectionPolicy {
-        /**
-         * Pick uniformly. A task is delayed by {@code m} tasks with probability {@code 2^-m}.
-         */
-        UNIFORM,
-        /**
-         * Pick the highest of priorities drawn when tasks became runnable. A task is delayed by {@code m} tasks with
-         * probability {@code 1/(m+1)}. BasicPOS from
-         * <a href="https://www.cs.columbia.edu/~junfeng/papers/pos-cav18.pdf">Yuan, Yang, Gu, CAV 2018</a>.
-         */
-        RANDOM_PRIORITY
-    }
-
-    // package-private so that tests can choose priorities
-    sealed interface TaskSelector {
-        record Uniform() implements TaskSelector {}
-
-        // separate from random, so that priority draws leave its sequence unchanged and work on any thread
-        record RandomPriority(Random priorityRandom) implements TaskSelector {}
-    }
-
-    private final TaskSelector selector;
+    // separate from random, so that priority draws leave its sequence unchanged and work on any thread
+    private final Random priorityRandom;
 
     private final Random random;
     private List<DeferredTask> deferredTasks = new ArrayList<>();
@@ -87,24 +67,14 @@ public class DeterministicTaskQueue {
     private long executionDelayVariabilityMillis;
     private long latestDeferredExecutionTime;
 
-    public DeterministicTaskQueue(Random random, TaskSelectionPolicy selectionPolicy) {
-        this(random, switch (selectionPolicy) {
-            case UNIFORM -> new TaskSelector.Uniform();
-            case RANDOM_PRIORITY -> new TaskSelector.RandomPriority(new Random(random.nextLong()));
-        });
-    }
-
-    DeterministicTaskQueue(Random random, TaskSelector selector) {
-        this.random = random;
-        this.selector = selector;
-    }
-
-    public DeterministicTaskQueue(TaskSelectionPolicy selectionPolicy) {
-        this(ESTestCase.random(), selectionPolicy);
-    }
-
     public DeterministicTaskQueue(Random random) {
-        this(random, TaskSelectionPolicy.UNIFORM);
+        this(random, new Random(random.nextLong()));
+    }
+
+    // package-private so that tests can choose priorities
+    DeterministicTaskQueue(Random random, Random priorityRandom) {
+        this.random = random;
+        this.priorityRandom = priorityRandom;
     }
 
     public DeterministicTaskQueue() {
@@ -188,14 +158,13 @@ public class DeterministicTaskQueue {
     }
 
     /**
-     * Runs an arbitrary runnable task.
+     * Runs the runnable task with the highest priority. Each task draws a random priority when it becomes runnable, so a task is
+     * delayed by {@code m} tasks with probability {@code 1/(m+1)}. BasicPOS from
+     * <a href="https://www.cs.columbia.edu/~junfeng/papers/pos-cav18.pdf">Yuan, Yang, Gu, CAV 2018</a>.
      */
     public void runRandomTask() {
         assert hasRunnableTasks();
-        switch (selector) {
-            case TaskSelector.Uniform u -> runTask(RandomNumbers.randomIntBetween(random, 0, runnableTasks.size() - 1));
-            case TaskSelector.RandomPriority p -> runTask(pickByPriority());
-        }
+        runTask(pickByPriority());
     }
 
     private int pickByPriority() {
@@ -209,11 +178,7 @@ public class DeterministicTaskQueue {
     }
 
     private void addRunnable(final Runnable task) {
-        final double priority = switch (selector) {
-            case TaskSelector.Uniform u -> 0.0;
-            case TaskSelector.RandomPriority p -> p.priorityRandom().nextDouble();
-        };
-        runnableTasks.add(new RunnableTask(task, priority));
+        runnableTasks.add(new RunnableTask(task, priorityRandom.nextDouble()));
     }
 
     private void runTask(final int index) {

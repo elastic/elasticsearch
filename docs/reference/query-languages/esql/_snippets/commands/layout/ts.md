@@ -50,7 +50,14 @@ or [`TS_INFO`](/reference/query-languages/esql/commands/ts-info.md).
 ::::{note}
 If a query is missing an inner (time series) aggregation function,
 [`LAST_OVER_TIME()`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions/last_over_time.md)
-is assumed and used implicitly. For example, two equivalent queries that return the average of the last memory usage values per time series are shown in [Aggregate with implicit LAST_OVER_TIME](#aggregate-with-implicit-last_over_time). To calculate the average memory usage across per-time-series averages, refer to [Calculate the average of per-time-series averages](#calculate-the-average-of-per-time-series-averages).
+is assumed and used implicitly.
+[`FIRST()`](/reference/query-languages/esql/functions-operators/aggregation-functions/first.md),
+[`LAST()`](/reference/query-languages/esql/functions-operators/aggregation-functions/last.md),
+[`EARLIEST()`](/reference/query-languages/esql/functions-operators/aggregation-functions/earliest.md), and
+[`LATEST()`](/reference/query-languages/esql/functions-operators/aggregation-functions/latest.md)
+are an exception. They take the first or last sample of each time series for every field type, histograms included,
+and return the same values as outside of `TS`.
+For example, two equivalent queries that return the average of the last memory usage values per time series are shown in [Aggregate with implicit LAST_OVER_TIME](#aggregate-with-implicit-last_over_time). To calculate the average memory usage across per-time-series averages, refer to [Calculate the average of per-time-series averages](#calculate-the-average-of-per-time-series-averages).
 ::::
 
 You can use [time series aggregation functions](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md)

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.rank.rrf;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -30,6 +31,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 
+@LuceneTestCase.SuppressCodecs("*")
 public class RRFRankSingleShardIT extends ESSingleNodeTestCase {
 
     @Override

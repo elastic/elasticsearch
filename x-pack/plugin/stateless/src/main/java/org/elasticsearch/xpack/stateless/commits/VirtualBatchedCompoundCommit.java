@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.ReadOnceHint;
@@ -915,9 +916,14 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
 
     @Override
     protected void closeInternal() {
-        IOUtils.closeWhileHandlingException(pendingCompoundCommits);
-        if (localFileRefs != null) {
-            Releasables.close(localFileRefs);
+        // release localFileRefs before pendingCompoundCommits because only the latter have a store ref, which could cause
+        // the store to be closed when dropped and trigger AlreadyClosedException when localFileRefs close if they close after commits.
+        try {
+            if (localFileRefs != null) {
+                Releasables.close(localFileRefs);
+            }
+        } finally {
+            IOUtils.closeWhileHandlingException(pendingCompoundCommits);
         }
     }
 
@@ -1223,13 +1229,17 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
     private record InternalFileReader(String filename, Directory directory) implements InternalDataReader {
 
         /**
-         * Acquires a local file reference (via {@link IndexDirectory#tryAcquireLocalFileRef}) if {@link #directory} is an
+         * Acquires a local file reference (via {@link IndexDirectory#tryAcquireLocalFileRef}) if {@link #directory} is, or wraps, an
          * {@link IndexDirectory}. This keeps the file on disk even after {@code markAsUploaded} is called, so that
          * {@link Directory#openInput} with {@link IndexDirectory.PreferLocalHint} can serve reads from local disk during the
          * search-tier notification window.
          */
         Releasable acquireLocalRef() {
-            if (directory instanceof IndexDirectory indexDir) {
+            Directory dir = directory;
+            while (dir instanceof IndexDirectory == false && dir instanceof FilterDirectory filterDirectory) {
+                dir = filterDirectory.getDelegate();
+            }
+            if (dir instanceof IndexDirectory indexDir) {
                 return indexDir.tryAcquireLocalFileRef(filename);
             }
             return () -> {};

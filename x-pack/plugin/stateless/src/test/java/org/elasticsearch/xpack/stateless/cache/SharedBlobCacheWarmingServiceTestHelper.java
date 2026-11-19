@@ -54,7 +54,8 @@ public final class SharedBlobCacheWarmingServiceTestHelper {
                 threadPool,
                 clusterSettings,
                 onlyRole(DiscoveryNodeRole.SEARCH_ROLE),
-                ByteSizeValue.ZERO
+                ByteSizeValue.ZERO,
+                TelemetryProvider.NOOP
             )
         ) {
             @Override

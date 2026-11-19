@@ -46,7 +46,7 @@ import java.util.TreeSet;
  * {@code PLAIN} column. Non-source values are read one document at a time: a single-valued field's
  * blob is the value itself, and otherwise the slots are decoded from the binary payload.
  */
-public final class ColumnarStringAnyOfQuery extends Query {
+public final class ColumnarStringAnyOfQuery extends Query implements ColumnarScanQuery {
 
     private final String field;
     private final NavigableSet<BytesRef> terms;

@@ -46,7 +46,7 @@ import java.util.Objects;
  * one: an updated field is read as an overlay of its layers, which is no column, and then the values are
  * read a document at a time like any binary doc values.
  */
-public final class ColumnarStringTermQuery extends Query {
+public final class ColumnarStringTermQuery extends Query implements ColumnarScanQuery {
 
     /** Where in a value the bytes have to sit for it to match. */
     private enum Where {

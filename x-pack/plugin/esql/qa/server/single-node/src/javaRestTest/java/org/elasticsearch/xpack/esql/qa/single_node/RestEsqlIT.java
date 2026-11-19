@@ -1494,6 +1494,79 @@ public class RestEsqlIT extends RestEsqlTestCase {
         }
     }
 
+    /**
+     * {@code LOAD_ALL} and {@code LOAD} read {@code _source} for the fields that are not mapped, and the profile counts what they read.
+     * A {@code KEEP} with a wildcard makes {@code LOAD_ALL} build the {@code _unmapped_fields} column, which reads the whole
+     * {@code _source} of each document, while naming the field reads just that field, so the first reads far more. The counters
+     * must not stay at zero if the column stops being backed by {@code _source}.
+     */
+    public void testSourceLoadCountersForUnmappedFields() throws IOException {
+        String index = "source_load_counters";
+        int docs = 100;
+        int fields = 100;
+        Request create = new Request("PUT", index);
+        create.setJsonEntity("""
+            {
+              "settings": { "index": { "number_of_shards": 1 } },
+              "mappings": { "dynamic": false, "properties": { "mapped": { "type": "keyword" } } }
+            }""");
+        client().performRequest(create);
+        try {
+            StringBuilder bulk = new StringBuilder();
+            for (int d = 0; d < docs; d++) {
+                bulk.append("{\"create\":{\"_index\":\"").append(index).append("\"}}\n{\"mapped\":\"m").append(d).append('"');
+                for (int f = 0; f < fields; f++) {
+                    bulk.append(String.format(Locale.ROOT, ",\"u%03d\":\"value-%d-%03d\"", f, d, f));
+                }
+                bulk.append("}\n");
+            }
+            Request bulkRequest = new Request("POST", "/_bulk");
+            bulkRequest.addParameter("refresh", "true");
+            bulkRequest.setJsonEntity(bulk.toString());
+            client().performRequest(bulkRequest);
+
+            // Naming the field reads only that field. The wildcard reads the whole _source, though it matches the same field.
+            Map<String, Object> named = sourceReadProfile("load_all", index, "KEEP mapped, u099");
+            Map<String, Object> wildcard = sourceReadProfile("load_all", index, "KEEP mapped, u099*");
+            Map<String, Object> load = sourceReadProfile("load", index, "KEEP mapped, u099");
+
+            assertThat(sourceCounter(named, "source_docs_loaded"), equalTo((long) docs));
+            assertThat(sourceCounter(named, "source_bytes_loaded"), greaterThan(0L));
+            assertThat(sourceCounter(wildcard, "source_docs_loaded"), equalTo((long) docs));
+            // One read of _source per document, whatever the number of fields in it: it does not scale with them.
+            assertThat(sourceCounter(wildcard, "source_field_reads"), equalTo((long) docs));
+            assertThat(
+                "the wildcard reads the whole _source, the named field only itself",
+                sourceCounter(wildcard, "source_bytes_loaded"),
+                greaterThan(10 * sourceCounter(named, "source_bytes_loaded"))
+            );
+            assertThat(sourceCounter(load, "source_docs_loaded"), equalTo((long) docs));
+            assertThat(sourceCounter(load, "source_bytes_loaded"), greaterThan(0L));
+        } finally {
+            client().performRequest(new Request("DELETE", index));
+        }
+    }
+
+    /** Runs a query under {@code unmapped_fields}, pins what the profile reports for the setting, and returns its {@code data} reader. */
+    private Map<String, Object> sourceReadProfile(String setting, String index, String projection) throws IOException {
+        RequestObjectBuilder builder = requestObjectBuilder().query(
+            "SET unmapped_fields=\"" + setting.toUpperCase(Locale.ROOT) + "\"; FROM " + index + " | " + projection + " | LIMIT 1000"
+        ).profile(true);
+        builder.pragmas(Settings.builder().put("data_partitioning", "shard").build());
+        builder.pragmasOk();
+        Map<String, Object> result = runEsql(builder);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> profile = (Map<String, Object>) result.get("profile");
+        assertThat(profile.get("unmapped_fields"), equalTo(setting));
+        return findSingleReaderProfile("data", result);
+    }
+
+    private static long sourceCounter(Map<String, Object> reader, String name) {
+        @SuppressWarnings("unchecked")
+        Map<String, Object> status = (Map<String, Object>) reader.get("status");
+        return ((Number) status.get(name)).longValue();
+    }
+
     private Map<String, Object> findSingleReaderProfile(String driverDescription, Map<String, Object> result) {
         Map<String, Object> reader = null;
         @SuppressWarnings("unchecked")

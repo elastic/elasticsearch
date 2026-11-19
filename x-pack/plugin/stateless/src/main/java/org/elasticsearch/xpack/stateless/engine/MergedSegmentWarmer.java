@@ -47,9 +47,9 @@ public class MergedSegmentWarmer implements IndexWriter.IndexReaderWarmer {
 
     private final ShardId shardId;
     private final MergedSegmentListener listener;
-    // the running merges and the waits of their merge threads, by id of the merged segment
+    // the running merges, and the listeners that their merge threads wait for, by id of the merged segment
     private final Map<String, MergePolicy.OneMerge> merges = ConcurrentCollections.newConcurrentMap();
-    private final Map<String, PlainActionFuture<Void>> waiting = ConcurrentCollections.newConcurrentMap();
+    private final Map<String, PlainActionFuture<Void>> pendingListeners = ConcurrentCollections.newConcurrentMap();
 
     public MergedSegmentWarmer(ShardId shardId, MergedSegmentListener listener) {
         this.shardId = Objects.requireNonNull(shardId);
@@ -70,13 +70,13 @@ public class MergedSegmentWarmer implements IndexWriter.IndexReaderWarmer {
 
     /// Whether the warmer still tracks any merge, or any merge thread waiting for the listener.
     boolean hasTrackedMerges() {
-        return merges.isEmpty() == false || waiting.isEmpty() == false;
+        return merges.isEmpty() == false || pendingListeners.isEmpty() == false;
     }
 
     /// Called when the merge is aborted, e.g. when the index writer is rolled back on engine close. The merge thread stops waiting
     /// for the listener, which may still be pending, and the merge is aborted.
     public void onMergeAborted(SegmentCommitInfo mergedSegment) {
-        final var future = waiting.get(segmentId(mergedSegment.info));
+        final var future = pendingListeners.get(segmentId(mergedSegment.info));
         if (future != null) {
             future.onFailure(mergeAborted(mergedSegment.info.name));
         }
@@ -99,10 +99,10 @@ public class MergedSegmentWarmer implements IndexWriter.IndexReaderWarmer {
         final var merge = merges.get(segmentId);
         final BooleanSupplier isAborted = merge != null ? merge::isAborted : () -> false;
         final var future = new PlainActionFuture<Void>();
-        final var previous = waiting.put(segmentId, future);
+        final var previous = pendingListeners.put(segmentId, future);
         assert previous == null : "segment [" + segmentName + "] is already being warmed";
         try {
-            // checked once waiting is registered, so an abort either is seen here or fails the future
+            // checked once the pending listener is registered, so an abort either is seen here or fails the future
             if (isAborted.getAsBoolean()) {
                 throw mergeAborted(segmentName);
             }
@@ -130,7 +130,7 @@ public class MergedSegmentWarmer implements IndexWriter.IndexReaderWarmer {
         } catch (Exception e) {
             logger.warn(() -> format("%s failed to process the merged segment [%s], continuing with the merge", shardId, segmentName), e);
         } finally {
-            final var removed = waiting.remove(segmentId);
+            final var removed = pendingListeners.remove(segmentId);
             assert removed == future : "segment [" + segmentName + "] was not being warmed";
         }
     }

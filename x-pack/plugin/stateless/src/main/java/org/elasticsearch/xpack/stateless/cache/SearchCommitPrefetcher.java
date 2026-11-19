@@ -350,6 +350,7 @@ public class SearchCommitPrefetcher {
                         executor,
                         forcePrefetch,
                         timestampMillis,
+                        false,
                         refCountingListener.acquire().map(populated -> {
                             if (populated) {
                                 var offsetAfterPopulation = maxPrefetchedOffset.accumulateAndGet(

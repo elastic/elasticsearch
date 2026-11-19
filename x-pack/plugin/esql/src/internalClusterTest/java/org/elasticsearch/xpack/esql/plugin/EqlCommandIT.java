@@ -249,7 +249,13 @@ public class EqlCommandIT extends AbstractEsqlIntegTestCase {
 
     public void testRequestFilterAppliesBeforeTheEqlResultSize() {
         QueryBuilder filter = new RangeQueryBuilder("@timestamp").lte("2026-07-22T10:00:01Z");
-        assertSingleProcessName(syncEsqlQueryRequest("EQL " + INDEX + " \"process where true\" | LIMIT 1").filter(filter), "cmd.exe");
+        QueryBuilder afterFirstEvent = new RangeQueryBuilder("@timestamp").gte("2026-07-22T10:00:01Z");
+        assertSingleProcessName(
+            syncEsqlQueryRequest("EQL " + INDEX + " \"process where true\" WITH {\"result_position\": \"head\"} | LIMIT 1").filter(
+                afterFirstEvent
+            ),
+            "powershell.exe"
+        );
         assertSingleProcessName(
             syncEsqlQueryRequest("EQL " + INDEX + " \"process where true\" WITH {\"size\": 1}").filter(filter),
             "cmd.exe"

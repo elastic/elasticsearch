@@ -255,11 +255,10 @@ EQL my_remote:logs-endpoint "process where process.name == \"regsvr32.exe\"" WIT
   still a column, `null` on every row. Each EQL search resolves relative dates such as `now-15m` itself, so the
   EQL searches of one query (one per `FORK` branch, for example) can resolve them slightly apart.
 * **A view applies the request `filter` to its output.** When the EQL command is in the body of a view,
-  {{esql}} does not pass the filter to the EQL search. A `LIMIT` then no longer reaches the command, so
-  the EQL search returns up to the result-truncation limit of events (by default the most recent ones) before
-  the filter applies, and a time range that excludes them can return fewer rows than expected, or none. A
-  `sequence` or `sample` view can return partial matches, keeping the events that pass the filter and dropping
-  the rest.
+  {{esql}} does not pass the filter to the EQL search. The search then returns up to `size` matches (10 by default:
+  the most recent events or sequences, or the first samples) before the filter applies, so a time range that
+  excludes them can return fewer rows than expected, or none. Raise `size` in the view body to keep more. A `sequence` or `sample` view can return
+  partial matches, keeping the events that pass the filter and dropping the rest.
 * **With older nodes, the request `filter` goes to an EQL search inside a view.** During a rolling
   upgrade, or when a remote cluster in a cross-cluster search runs an earlier version, a node can be too old
   to filter a view's output. No view then applies the filter to its output: it is passed to the EQL search

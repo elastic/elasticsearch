@@ -361,20 +361,15 @@ public class EqlCompositionIT extends AbstractEsqlIntegTestCase {
         );
     }
 
-    public void testRequestFilterOnEqlViewAppliesAfterTheTruncationCap() {
-        createEqlView();
+    public void testRequestFilterOnEqlViewAppliesAfterTheEqlResultSize() {
+        createView(EQL_VIEW, "EQL " + INDEX + " \"process where true\" WITH {\"size\": 1}");
         QueryBuilder beforeLastEvent = new RangeQueryBuilder("@timestamp").lte("2026-07-22T10:00:01Z");
-        updateClusterSettings(Settings.builder().put("esql.query.result_truncation_max_size", 1));
-        try {
-            assertProcessNames(
-                "EQL " + INDEX + " \"process where true\" | WHERE process.pid > 0 | KEEP process.name",
-                beforeLastEvent,
-                List.of("cmd.exe")
-            );
-            assertProcessNames("FROM " + EQL_VIEW + " | KEEP process.name", beforeLastEvent, List.of());
-        } finally {
-            updateClusterSettings(Settings.builder().putNull("esql.query.result_truncation_max_size"));
-        }
+        assertProcessNames(
+            "EQL " + INDEX + " \"process where true\" WITH {\"size\": 1} | KEEP process.name",
+            beforeLastEvent,
+            List.of("cmd.exe")
+        );
+        assertProcessNames("FROM " + EQL_VIEW + " | KEEP process.name", beforeLastEvent, List.of());
     }
 
     public void testRequestFilterOnEqlSequenceViewKeepsPartialMatch() {

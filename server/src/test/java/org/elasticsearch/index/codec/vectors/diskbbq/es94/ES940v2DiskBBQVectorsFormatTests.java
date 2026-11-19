@@ -101,4 +101,11 @@ public class ES940v2DiskBBQVectorsFormatTests extends ESBaseKnnVectorsFormatTest
         // TODO re-enable with hierarchical IVF, clustering as it is is flaky
     }
 
+    @Override
+    protected boolean mergeIsStable() {
+        // Merge rebuilds hierarchical k-means over the raw vectors rather than reusing the
+        // flushed clusters, so clivf/cenivf sizes are not required to match the original segment.
+        return false;
+    }
+
 }

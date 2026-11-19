@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -18,6 +18,7 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -58,6 +59,7 @@ public class StreamEsqlGetResultActionIT extends AbstractEsqlIntegTestCase {
 
     @BeforeClass
     public static void onlyWhereTheEndpointExists() {
+        assumeTrue("the stream GET is registered only where streams can be created", RestEsqlStreamQueryAction.ENABLED);
         assumeTrue("the stream GET is registered with this feature flag", EsqlStreamResultsIndexDescriptor.FEATURE_FLAG.isEnabled());
     }
 
@@ -73,7 +75,9 @@ public class StreamEsqlGetResultActionIT extends AbstractEsqlIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        // the stream GET reads from the in-memory storage, through a plugin that replaces its transport action
+        // The stream GET reads from the in-memory storage, through StreamTestEsqlPlugin, which replaces its transport action.
+        // StreamTestEsqlPlugin extends EsqlPluginWithEnterpriseOrTrialLicense. Both would register the ES|QL settings and actions,
+        // so the parent has to come out.
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.remove(EsqlPluginWithEnterpriseOrTrialLicense.class);
         plugins.add(StreamTestEsqlPlugin.class);
@@ -95,12 +99,15 @@ public class StreamEsqlGetResultActionIT extends AbstractEsqlIntegTestCase {
     @After
     public void tearDownStreams() throws IOException {
         for (String id : streams) {
-            PlainActionFuture<Void> future = new PlainActionFuture<>();
-            store.delete(id, future);
-            future.actionGet();
+            awaitVoid(l -> store.delete(id, l));
         }
         restClient.close();
         assertThat("every page was released", pageFactory.breaker().getUsed(), equalTo(0L));
+    }
+
+    /** Runs one storage call and fails the test if it does not complete, or completes with a failure. */
+    private static void awaitVoid(CheckedConsumer<ActionListener<Void>, ?> call) {
+        safeAwait(call);
     }
 
     private final class Writer {
@@ -120,25 +127,19 @@ public class StreamEsqlGetResultActionIT extends AbstractEsqlIntegTestCase {
             Page page = new Page(pageFactory.newLongArrayVector(values, pageRows).asBlock());
             // shallow copies of the stored page are read on several threads, which needs thread safe reference counts
             page.allowPassingToDifferentDriver();
-            PlainActionFuture<Void> future = new PlainActionFuture<>();
-            store.appendPage(id, rows, page, future);
-            future.actionGet();
+            awaitVoid(l -> store.appendPage(id, rows, page, l));
             rows += pageRows;
             pages++;
             return this;
         }
 
         Writer complete() {
-            PlainActionFuture<Void> future = new PlainActionFuture<>();
-            store.markComplete(id, false, rows, pages, future);
-            future.actionGet();
+            awaitVoid(l -> store.markComplete(id, false, rows, pages, l));
             return this;
         }
 
         Writer fail(Exception e) {
-            PlainActionFuture<Void> future = new PlainActionFuture<>();
-            store.markFailed(id, e, future);
-            future.actionGet();
+            awaitVoid(l -> store.markFailed(id, e, l));
             return this;
         }
     }
@@ -146,9 +147,9 @@ public class StreamEsqlGetResultActionIT extends AbstractEsqlIntegTestCase {
     private Writer createStream(String id) {
         streams.add(id);
         List<ColumnInfo> columns = List.of(new ColumnInfoImpl("n", "long", null));
-        PlainActionFuture<Void> future = new PlainActionFuture<>();
-        store.create(id, new TaskId("node", 1), Map.of(), columns, System.currentTimeMillis() + TimeUnit.HOURS.toMillis(1), future);
-        future.actionGet();
+        awaitVoid(
+            l -> store.create(id, new TaskId("node", 1), Map.of(), columns, System.currentTimeMillis() + TimeUnit.HOURS.toMillis(1), l)
+        );
         return new Writer(id);
     }
 
@@ -229,9 +230,7 @@ public class StreamEsqlGetResultActionIT extends AbstractEsqlIntegTestCase {
         assertThat(get("basic", "offset", "5", "max_rows", "3").values(), equalTo(range(5, 8)));
 
         // deleted: no longer found
-        PlainActionFuture<Void> deleted = new PlainActionFuture<>();
-        store.delete("basic", deleted);
-        deleted.actionGet();
+        awaitVoid(l -> store.delete("basic", l));
         ResponseException e = expectThrows(ResponseException.class, () -> get("basic"));
         assertThat(status(e), equalTo(404));
     }
@@ -381,9 +380,7 @@ public class StreamEsqlGetResultActionIT extends AbstractEsqlIntegTestCase {
         createStream("expiring").append(3).complete();
         assertThat(get("expiring").values(), equalTo(range(0, 3)));
         // move the expiration into the past, instead of waiting for a short one to pass
-        PlainActionFuture<Void> expired = new PlainActionFuture<>();
-        store.extendTtl("expiring", System.currentTimeMillis() - 1, expired);
-        expired.actionGet();
+        awaitVoid(l -> store.extendTtl("expiring", System.currentTimeMillis() - 1, l));
         assertThat(status(expectThrows(ResponseException.class, () -> get("expiring"))), equalTo(404));
     }
 }

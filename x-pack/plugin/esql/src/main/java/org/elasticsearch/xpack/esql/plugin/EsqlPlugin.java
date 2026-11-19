@@ -931,10 +931,6 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             handlers.add(new RestGetDatasetAction());
             handlers.add(new RestDeleteDatasetAction());
         }
-        // Reading a stream result needs the stored-results system index, so the route is registered only when that feature is on.
-        if (EsqlStreamResultsIndexDescriptor.FEATURE_FLAG.isEnabled()) {
-            handlers.add(new RestEsqlGetStreamResultAction());
-        }
         return handlers;
     }
 

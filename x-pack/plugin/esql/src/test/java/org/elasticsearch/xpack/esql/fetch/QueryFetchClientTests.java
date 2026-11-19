@@ -175,6 +175,9 @@ public class QueryFetchClientTests extends ComputeTestCase {
         assertThat(request.attributes(), equalTo(attributes));
     }
 
+    /**
+     * The drivers count before the fetch operator hears of the response, so they all counted once it heard from every request.
+     */
     public void testAResponseCountsItsDrivers() {
         FetchResponse response = new FetchResponse(List.of(), FETCH_DRIVERS, 0, 0);
         try {
@@ -183,9 +186,10 @@ public class QueryFetchClientTests extends ComputeTestCase {
                 NODE,
                 List.of(SHARD),
                 List.of(),
-                ActionListener.assertOnce(ActionListener.wrap(received::add, e -> {
-                    throw new AssertionError(e);
-                }))
+                ActionListener.assertOnce(ActionListener.wrap(r -> {
+                    assertThat(drivers.completed, contains(FETCH_DRIVERS));
+                    received.add(r);
+                }, e -> { throw new AssertionError(e); }))
             );
             assertThat(received, contains(sameInstance(response)));
             assertThat(drivers.completed, contains(FETCH_DRIVERS));
@@ -201,7 +205,11 @@ public class QueryFetchClientTests extends ComputeTestCase {
             NODE,
             List.of(SHARD),
             List.of(),
-            ActionListener.assertOnce(ActionListener.wrap(r -> fail("unexpected response"), failures::add))
+            ActionListener.assertOnce(ActionListener.wrap(r -> fail("unexpected response"), e -> {
+                // before the fetch operator hears of the failure, like a response
+                assertThat(drivers.completed, contains(DriverCompletionInfo.EMPTY));
+                failures.add(e);
+            }))
         );
         assertThat(failures, contains(sameInstance(rejected)));
         assertThat(drivers.completed, contains(DriverCompletionInfo.EMPTY));

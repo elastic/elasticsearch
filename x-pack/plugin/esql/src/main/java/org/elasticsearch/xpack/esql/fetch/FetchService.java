@@ -411,7 +411,7 @@ public final class FetchService {
                 fail(e);
                 return;
             }
-            // the coordinator checks that every document has a row
+            // the coordinator places the rows of the response by their position, so every document needs one row
             assert response.rows() == request.totalDocs()
                 : "fetched [" + response.rows() + "] rows for [" + request.totalDocs() + "] documents";
             logger.debug(

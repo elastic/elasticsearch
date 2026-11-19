@@ -97,7 +97,8 @@ public final class QueryFetchClient {
 
     /**
      * Loads {@code attributes} for the documents of {@code shards} from {@code node}, a node of the local cluster. The
-     * listener runs on another thread, and must take the pages of the response before it returns.
+     * listener runs on another thread, and must take the pages of the response before it returns. The drivers of the
+     * request completed by then, so they all count once the fetch operator heard from every request.
      */
     void fetch(
         DiscoveryNode node,
@@ -118,20 +119,20 @@ public final class QueryFetchClient {
             @Override
             public void onResponse(FetchResponse response) {
                 try {
+                    drivers.onResponse(response.completionInfo());
+                } finally {
                     scope.fetchContexts().freedByTheirNode(freedByTheNode(shards));
                     listener.onResponse(response);
-                } finally {
-                    drivers.onResponse(response.completionInfo());
                 }
             }
 
             @Override
             public void onFailure(Exception e) {
                 try {
-                    listener.onFailure(e);
-                } finally {
                     // the failure fails the query through the fetch operator, so the drivers complete without counters
                     drivers.onResponse(DriverCompletionInfo.EMPTY);
+                } finally {
+                    listener.onFailure(e);
                 }
             }
         });

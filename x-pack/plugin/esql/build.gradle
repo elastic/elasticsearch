@@ -210,6 +210,8 @@ tasks.named("forbiddenPatterns").configure {
   exclude '**/*.avro'
   exclude '**/.*.crc'
   exclude '**/*.mmdb'
+  // Go's RE2 test data, compressed
+  exclude '**/*.bz2'
 }
 
 tasks.named("test").configure {

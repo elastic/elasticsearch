@@ -26,6 +26,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.ElasticsearchException;
@@ -80,6 +81,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -90,8 +92,11 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.EngineTestCase;
+import org.elasticsearch.index.engine.FlushFailedEngineException;
+import org.elasticsearch.index.engine.FlushMetrics;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.InternalEngineFactory;
+import org.elasticsearch.index.engine.PendingTranslogRecoveryException;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
@@ -138,6 +143,10 @@ import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
+import org.elasticsearch.telemetry.metric.MetricAttributes;
 import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.FieldMaskingReader;
@@ -152,6 +161,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.Assert;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -163,6 +173,7 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -226,6 +237,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.spy;
 
@@ -233,6 +245,13 @@ import static org.mockito.Mockito.spy;
  * Simple unit-test IndexShard related operations.
  */
 public class IndexShardTests extends IndexShardTestCase {
+
+    private final RecordingMeterRegistry flushMeterRegistry = new RecordingMeterRegistry();
+
+    @Before
+    public void useRecordingFlushMetrics() {
+        flushMetrics = new FlushMetrics(flushMeterRegistry);
+    }
 
     public static ShardStateMetadata load(Logger logger, Path... shardPaths) throws IOException {
         return ShardStateMetadata.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, shardPaths);
@@ -1768,6 +1787,190 @@ public class IndexShardTests extends IndexShardTestCase {
         }
     }
 
+    /**
+     * Lucene fails to sync the files of a new commit during the flush the engine runs itself after a force merge. The failure must be
+     * counted. A failed commit fails the engine, so a later flush is rejected up front and must not count the same incident again.
+     */
+    public void testRealLuceneCommitFailureInEngineInternalFlushIsCountedOnce() throws IOException {
+        allowShardFailures();
+        AtomicBoolean failSync = new AtomicBoolean();
+        IndexShard shard = newStartedShardWithDirectory(directory -> new FilterDirectory(directory) {
+            @Override
+            public void sync(Collection<String> names) throws IOException {
+                if (failSync.get()) {
+                    throw new IOException("simulated disk failure on sync");
+                }
+                super.sync(names);
+            }
+        });
+        indexDoc(shard, "_doc", "1");
+        failSync.set(true);
+
+        Exception failure = expectThrows(
+            FlushFailedEngineException.class,
+            () -> shard.forceMerge(new ForceMergeRequest().maxNumSegments(1).flush(true))
+        );
+        assertThat(ExceptionsHelper.unwrap(failure, IOException.class).getMessage(), equalTo("simulated disk failure on sync"));
+        assertFlushFailureCount(1L);
+
+        assertThat(flushFailure(shard), instanceOf(AlreadyClosedException.class));
+        assertFlushFailureCount(1L);
+        IOUtils.close(() -> closeShardNoCheck(shard), shard.store());
+    }
+
+    /**
+     * Lucene fails to write a new segment during a shard flush. The failure must be counted. A failed commit fails the engine, so a
+     * later flush is rejected up front and must not count the same incident again.
+     */
+    public void testRealLuceneSegmentWriteFailureInShardFlushIsCountedOnce() throws IOException {
+        allowShardFailures();
+        AtomicBoolean failSegmentWrites = new AtomicBoolean();
+        IndexShard shard = newStartedShardWithDirectory(directory -> new FilterDirectory(directory) {
+            @Override
+            public IndexOutput createOutput(String name, IOContext context) throws IOException {
+                if (failSegmentWrites.get() && name.startsWith("_")) {
+                    throw new IOException("simulated disk failure writing [" + name + "]");
+                }
+                return super.createOutput(name, context);
+            }
+        });
+        indexDoc(shard, "_doc", "1");
+        failSegmentWrites.set(true);
+
+        Exception failure = flushFailure(shard);
+        assertThat(failure, instanceOf(FlushFailedEngineException.class));
+        assertThat(ExceptionsHelper.unwrap(failure, IOException.class).getMessage(), startsWith("simulated disk failure writing"));
+        assertFlushFailureCount(1L);
+        assertThat(flushFailureMeasurements().getLast().attributes().get(MetricAttributes.ERROR_TYPE), equalTo("IOException"));
+
+        assertThat(flushFailure(shard), instanceOf(AlreadyClosedException.class));
+        assertFlushFailureCount(1L);
+        IOUtils.close(() -> closeShardNoCheck(shard), shard.store());
+    }
+
+    /**
+     * Starts a primary shard on a real file system directory, wrapped by the given function so that tests can make Lucene fail.
+     */
+    private IndexShard newStartedShardWithDirectory(Function<Directory, Directory> directoryWrapper) throws IOException {
+        final ShardId shardId = new ShardId("index", "_na_", 0);
+        final ShardRouting shardRouting = shardRoutingBuilder(shardId, "node", true, ShardRoutingState.INITIALIZING).withRecoverySource(
+            RecoverySource.EmptyStoreRecoverySource.INSTANCE
+        ).build();
+        final NodeEnvironment.DataPath dataPath = new NodeEnvironment.DataPath(createTempDir());
+        final ShardPath shardPath = new ShardPath(false, dataPath.resolve(shardId), dataPath.resolve(shardId), shardId);
+        final Settings settings = indexSettings(IndexVersion.current(), 1, 0).build();
+        final IndexMetadata metadata = IndexMetadata.builder(shardRouting.getIndexName()).settings(settings).primaryTerm(0, 1).build();
+        final Store store = createStore(
+            shardId,
+            new IndexSettings(metadata, Settings.EMPTY),
+            directoryWrapper.apply(newFSDirectory(shardPath.resolveIndex()))
+        );
+        final IndexShard shard = newShard(
+            shardRouting,
+            null,
+            shardPath,
+            metadata,
+            i -> store,
+            null,
+            new InternalEngineFactory(),
+            NOOP_GCP_SYNCER,
+            RetentionLeaseSyncer.EMPTY,
+            IndexEventListener.NOOP
+        );
+        recoverShardFromStore(shard);
+        return shard;
+    }
+
+    public void testFlushOnClosedShardIsNotCountedAsFailure() throws IOException {
+        IndexShard shard = newStartedShard(true);
+        closeShards(shard);
+
+        assertThat(flushFailure(shard), instanceOf(IndexShardClosedException.class));
+
+        assertFlushFailureCount(0L);
+    }
+
+    /**
+     * The failure is thrown from {@code ensureCanFlush()} so that it surfaces inside the engine's flush, where failures are counted.
+     * A pending translog recovery is expected and must not count. An {@link AlreadyClosedException} must not count either, because the
+     * index writer or translog was closed by something other than this flush.
+     */
+    public void testFlushFailureClassification() throws IOException {
+        AtomicReference<RuntimeException> engineFailure = new AtomicReference<>();
+        IndexShard shard = newStartedShard(true, Settings.EMPTY, config -> new InternalEngine(config) {
+            @Override
+            protected void ensureCanFlush() {
+                super.ensureCanFlush();
+                if (engineFailure.get() != null) {
+                    throw engineFailure.get();
+                }
+            }
+        });
+
+        engineFailure.set(new PendingTranslogRecoveryException("pending translog recovery"));
+        flushFailure(shard);
+        assertFlushFailureCount(0L);
+
+        engineFailure.set(new AlreadyClosedException("index writer closed by another thread"));
+        flushFailure(shard);
+        assertFlushFailureCount(0L);
+
+        engineFailure.set(new IllegalStateException("unexpected"));
+        flushFailure(shard);
+        assertFlushFailureCount(1L);
+        final Measurement lastFailure = flushFailureMeasurements().getLast();
+        assertThat(lastFailure.attributes().get(MetricAttributes.ERROR_TYPE), equalTo("IllegalStateException"));
+        assertThat(lastFailure.attributes().get(MetricAttributes.ES_INDEX_MODE), equalTo(IndexMode.STANDARD.getName()));
+
+        engineFailure.set(null);
+        flushShard(shard);
+        assertFlushFailureCount(1L);
+        closeShards(shard);
+    }
+
+    /**
+     * The final flush when a shard closes, as on relocation or shutdown, completes a no-op listener, so the metric is the only signal
+     * that it failed.
+     */
+    public void testFinalFlushFailureOnCloseIsCounted() throws IOException {
+        AtomicReference<RuntimeException> engineFailure = new AtomicReference<>();
+        IndexShard shard = newStartedShard(true, Settings.EMPTY, config -> new InternalEngine(config) {
+            @Override
+            protected void ensureCanFlush() {
+                super.ensureCanFlush();
+                RuntimeException e = engineFailure.getAndSet(null);
+                if (e != null) {
+                    throw e;
+                }
+            }
+        });
+        indexDoc(shard, "_doc", "1");
+        engineFailure.set(new IllegalStateException("unexpected"));
+
+        IOUtils.close(() -> flushAndCloseShardNoCheck(shard), shard.store());
+
+        assertThat("the final flush must reach the engine", engineFailure.get(), nullValue());
+        assertFlushFailureCount(1L);
+    }
+
+    private Exception flushFailure(IndexShard shard) {
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        shard.flush(
+            new FlushRequest().force(true).waitIfOngoing(true),
+            ActionListener.wrap(result -> fail("flush must fail"), failure::set)
+        );
+        assertThat(failure.get(), notNullValue());
+        return failure.get();
+    }
+
+    private List<Measurement> flushFailureMeasurements() {
+        return flushMeterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, FlushMetrics.FLUSH_UNEXPECTED_FAILURE_TOTAL);
+    }
+
+    private void assertFlushFailureCount(long failed) {
+        assertThat(flushFailureMeasurements().stream().mapToLong(m -> m.getLong()).sum(), equalTo(failed));
+    }
+
     public void testIndexingErrors() throws IOException {
         AtomicBoolean throwOnIndex = new AtomicBoolean();
         IndexShard shard = newStartedShard(randomBoolean(), Settings.EMPTY, config -> new InternalEngine(config) {
@@ -2497,6 +2700,42 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
+    public void testActivelyRelocatingPrimaryIgnoresStaleAttempts() throws IOException {
+        final IndexShard indexShard = newStartedShard(true);
+        try {
+            assertFalse(indexShard.isActivelyRelocatingPrimary());
+            final long staleVersion = randomLongBetween(1, 100);
+            final long newerVersion = staleVersion + randomLongBetween(1, 100);
+
+            // The stale attempt starts first, the newer one takes over and the stale completion is a no-op.
+            final var staleAttempt = indexShard.markActivelyRelocatingPrimary(staleVersion);
+            assertTrue(indexShard.isActivelyRelocatingPrimary());
+            final var newerAttempt = indexShard.markActivelyRelocatingPrimary(newerVersion);
+            staleAttempt.close();
+            assertTrue(indexShard.isActivelyRelocatingPrimary());
+            newerAttempt.close();
+            assertFalse(indexShard.isActivelyRelocatingPrimary());
+
+            // A stale attempt that only starts after a newer one completed is ignored.
+            final var lateStaleAttempt = indexShard.markActivelyRelocatingPrimary(staleVersion);
+            assertFalse(indexShard.isActivelyRelocatingPrimary());
+            lateStaleAttempt.close();
+            assertFalse(indexShard.isActivelyRelocatingPrimary());
+
+            // A newer attempt that completes before a stale one clears the marker, even though the stale one is still unwinding.
+            final long latestVersion = newerVersion + randomLongBetween(1, 100);
+            final var latestAttempt = indexShard.markActivelyRelocatingPrimary(latestVersion);
+            final var staleAfterLatest = indexShard.markActivelyRelocatingPrimary(newerVersion);
+            assertTrue(indexShard.isActivelyRelocatingPrimary());
+            latestAttempt.close();
+            assertFalse(indexShard.isActivelyRelocatingPrimary());
+            staleAfterLatest.close();
+            assertFalse(indexShard.isActivelyRelocatingPrimary());
+        } finally {
+            closeShards(indexShard);
+        }
+    }
+
     public void testRecoverFromStoreWithOutOfOrderDelete() throws IOException {
         /*
          * The flow of this test:
@@ -2853,7 +3092,8 @@ public class IndexShardTests extends IndexShardTestCase {
                 new RemoteTransportException("simulated", new IndexShardClosedException(new ShardId(indexName, indexUuid, 1)))
             ),
             new IndexShardClosedException(new ShardId(indexName, randomUUID(), 1)),
-            new ElasticsearchException("simulated")
+            new ElasticsearchException("simulated"),
+            new AlreadyClosedException("simulated")
         );
 
         final var shard = newShard(
@@ -3919,6 +4159,7 @@ public class IndexShardTests extends IndexShardTestCase {
     public void testRequestRecoveryCancellationThrowsWhenShardHasAlreadyStarted() throws IOException {
         final IndexShard shard = newStartedShard();
         expectThrows(IndexShardNotRecoveringException.class, shard::requestRecoveryCancellation);
+        assertFalse(shard.isRecoveryCancellationRequested());
         shard.ensureRecoveryNotCancelled();
         closeShards(shard);
     }
@@ -3928,6 +4169,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(shard.state(), equalTo(IndexShardState.CREATED));
         shard.requestRecoveryCancellation();
         shard.markAsRecovering("store");
+        assertTrue(shard.isRecoveryCancellationRequested());
         expectThrows(RecoveryCancelledException.class, shard::ensureRecoveryNotCancelled);
         closeShards(shard);
     }
@@ -3936,6 +4178,7 @@ public class IndexShardTests extends IndexShardTestCase {
         final IndexShard shard = reinitShard(newStartedShard(true));
         shard.markAsRecovering("store");
         shard.requestRecoveryCancellation();
+        assertTrue(shard.isRecoveryCancellationRequested());
         expectThrows(RecoveryCancelledException.class, shard::ensureRecoveryNotCancelled);
         closeShards(shard);
     }
@@ -3946,6 +4189,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
         shard.requestRecoveryCancellation();
         shard.markAsRecovering("store");
+        assertTrue(shard.isRecoveryCancellationRequested());
         expectThrows(RecoveryCancelledException.class, shard::ensureRecoveryNotCancelled);
         closeShards(shard);
     }
@@ -3957,6 +4201,7 @@ public class IndexShardTests extends IndexShardTestCase {
         final IndexShard replica = newShard(primary.shardId(), false, "node2", metadata, null);
         replica.markAsRecovering("peer");
         replica.requestRecoveryCancellation();
+        assertTrue(replica.isRecoveryCancellationRequested());
         expectThrows(RecoveryCancelledException.class, replica::ensureRecoveryNotCancelled);
         closeShards(primary, replica);
     }
@@ -3970,6 +4215,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
         replica.requestRecoveryCancellation();
         replica.markAsRecovering("peer");
+        assertTrue(replica.isRecoveryCancellationRequested());
         expectThrows(RecoveryCancelledException.class, replica::ensureRecoveryNotCancelled);
 
         closeShards(primary, replica);

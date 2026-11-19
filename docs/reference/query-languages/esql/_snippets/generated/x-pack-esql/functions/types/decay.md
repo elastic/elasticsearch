@@ -5,7 +5,9 @@
 | value | origin | scale | options | result |
 | --- | --- | --- | --- | --- |
 | cartesian_point | cartesian_point | double | named parameters | double |
+| date | date | date_period | named parameters | double |
 | date | date | time_duration | named parameters | double |
+| date_nanos | date_nanos | date_period | named parameters | double |
 | date_nanos | date_nanos | time_duration | named parameters | double |
 | double | double | double | named parameters | double |
 | geo_point | geo_point | keyword | named parameters | double |

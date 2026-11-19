@@ -76,6 +76,7 @@ import java.util.TreeMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.IntPredicate;
 
@@ -294,6 +295,7 @@ public class ParquetRowGroupFilterPreWarmGateTests extends ESTestCase {
 
     private static int drain(CloseableIterator<Page> iter) {
         int rows = 0;
+        long lastPage = System.nanoTime();
         while (true) {
             SubscribableListener<Void> ready = iter.waitForReady();
             if (ready.isDone() == false) {
@@ -302,17 +304,16 @@ public class ParquetRowGroupFilterPreWarmGateTests extends ESTestCase {
             }
             Page page = iter.tryAdvance();
             if (page == null) {
-                if (iter.waitForReady().isDone() == false) {
-                    continue;
-                }
-                page = iter.tryAdvance();
-                if (page == null) {
-                    if (iter.waitForReady().isDone() == false) {
-                        continue;
-                    }
+                if (iter.waitForReady().isDone() && iter.isExhausted()) {
                     return rows;
                 }
+                // retried without a count, so a stuck iterator is bounded by time
+                if (System.nanoTime() - lastPage > TimeUnit.SECONDS.toNanos(30)) {
+                    throw new AssertionError("no page and no end of stream for 30s after " + rows + " rows");
+                }
+                continue;
             }
+            lastPage = System.nanoTime();
             rows += page.getPositionCount();
             page.releaseBlocks();
         }

@@ -113,6 +113,8 @@ public class ParquetPreWarmReleaseTests extends ESTestCase {
     private static final List<String> CATEGORY = List.of("category");
     /** {@code id} is projection-only and much larger than the predicate column, so the iterator reads in two phases. */
     private static final List<String> CATEGORY_AND_ID = List.of("category", "id");
+    /** A ready, empty iterator that is not exhausted is retried without a count, so a stuck one is bounded by time. */
+    private static final long NO_PAGE_TIMEOUT_NANOS = TimeUnit.SECONDS.toNanos(30);
 
     private ExecutorService asyncIo;
     private LimitedBreaker breaker;
@@ -396,6 +398,47 @@ public class ParquetPreWarmReleaseTests extends ESTestCase {
         assertLedgerClear(watermark, budget);
     }
 
+    /**
+     * An iterator that is ready but empty twice in a row has not ended: only {@link CloseableIterator#isExhausted()} says so.
+     */
+    public void testReadyButEmptyTwiceIsNotEndOfStream() throws Exception {
+        AtomicIntegerArray rows = new AtomicIntegerArray(1);
+        consume(readyButEmptyTwice(), rows, new AtomicLongArray(1), false, 0, new AtomicBoolean(), new AtomicLong(), "scripted");
+        assertEquals(EXPECTED_ROWS, rows.get(0));
+        assertEquals(EXPECTED_ROWS, drain(readyButEmptyTwice()).rows());
+        consumeOnePage(readyButEmptyTwice());
+    }
+
+    /** Always ready; the third {@code tryAdvance()} returns the only page, of {@link #EXPECTED_ROWS} rows. */
+    private static CloseableIterator<Page> readyButEmptyTwice() {
+        return new CloseableIterator<>() {
+            private int advances;
+
+            @Override
+            public Page tryAdvance() {
+                return ++advances == 3 ? new Page(EXPECTED_ROWS) : null;
+            }
+
+            @Override
+            public boolean isExhausted() {
+                return advances >= 3;
+            }
+
+            @Override
+            public boolean hasNext() {
+                throw new AssertionError("drain loops must not call hasNext");
+            }
+
+            @Override
+            public Page next() {
+                throw new AssertionError("drain loops must not call next");
+            }
+
+            @Override
+            public void close() {}
+        };
+    }
+
     private record RunResult(
         boolean completed,
         String outcome,
@@ -589,6 +632,7 @@ public class ParquetPreWarmReleaseTests extends ESTestCase {
     private static DrainResult drain(CloseableIterator<Page> iter, boolean sumId) {
         int rows = 0;
         long idSum = 0L;
+        long lastPage = System.nanoTime();
         while (true) {
             SubscribableListener<Void> ready = iter.waitForReady();
             if (ready.isDone() == false) {
@@ -600,8 +644,10 @@ public class ParquetPreWarmReleaseTests extends ESTestCase {
                 if (iter.waitForReady().isDone() && iter.isExhausted()) {
                     return new DrainResult(rows, idSum);
                 }
+                failIfNoPageFor30s(lastPage, rows);
                 continue;
             }
+            lastPage = System.nanoTime();
             rows += page.getPositionCount();
             if (sumId) {
                 idSum += sumIdColumn(page);
@@ -619,6 +665,7 @@ public class ParquetPreWarmReleaseTests extends ESTestCase {
     }
 
     private static void consumeOnePage(CloseableIterator<Page> iter) {
+        long start = System.nanoTime();
         while (true) {
             SubscribableListener<Void> ready = iter.waitForReady();
             if (ready.isDone() == false) {
@@ -630,10 +677,17 @@ public class ParquetPreWarmReleaseTests extends ESTestCase {
                 if (iter.waitForReady().isDone() && iter.isExhausted()) {
                     throw new AssertionError("expected at least one page");
                 }
+                failIfNoPageFor30s(start, 0);
                 continue;
             }
             page.releaseBlocks();
             return;
+        }
+    }
+
+    private static void failIfNoPageFor30s(long lastPageNanos, int rowsSoFar) {
+        if (System.nanoTime() - lastPageNanos > NO_PAGE_TIMEOUT_NANOS) {
+            throw new AssertionError("no page and no end of stream for 30s after " + rowsSoFar + " rows");
         }
     }
 

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
@@ -87,15 +86,12 @@ public class ExternalStatsCaptureWhenCacheDisabledIT extends AbstractExternalDat
 
     /**
      * A parsing coordinator is built only above parallelism 1, and the marker is written by a coordinator — so the
-     * early-close arms pin it. Release builds reject pragmas at request validation, which is why this guards rather
-     * than returning the setting unconditionally; there, parallelism falls back to the runner's processor count and
-     * those arms assume it is above one.
+     * early-close arms pin it rather than depending on the runner's processor count. A release build rejects
+     * pragmas at request validation unless the request opts in, which {@link #scan} does, so this holds in both
+     * build types and neither arm has to be skipped.
      */
     @Override
     protected QueryPragmas getPragmas() {
-        if (canUseQueryPragmas() == false) {
-            return new QueryPragmas(Settings.EMPTY);
-        }
         return new QueryPragmas(Settings.builder().put("external_parsing_parallelism", 4).build());
     }
 
@@ -155,10 +151,6 @@ public class ExternalStatsCaptureWhenCacheDisabledIT extends AbstractExternalDat
      * satisfied, which is the non-clean close a coordinator answers with its marker.
      */
     private void assertEarlyCloseMarkerOnlyWhenEnabled(String format) throws Exception {
-        assumeTrue(
-            "the marker is written by a parsing coordinator, which is built only above parallelism 1",
-            canUseQueryPragmas() || EsExecutors.allocatedProcessors(Settings.EMPTY) > 1
-        );
         String tail = "| EVAL doubled = value * 2 | WHERE doubled > 1 | LIMIT 5";
         try {
             setCacheEnabled(true);
@@ -230,7 +222,10 @@ public class ExternalStatsCaptureWhenCacheDisabledIT extends AbstractExternalDat
 
         try (
             EsqlQueryResponse response = run(
-                syncEsqlQueryRequest("FROM " + dataset + " " + tail).pragmas(getPragmas()).profile(true),
+                // acceptedPragmaRisks because a release build otherwise rejects the parallelism pragma at request
+                // validation, and skipping the arms there would drop the marker coverage on exactly the
+                // runners most likely to have one processor.
+                syncEsqlQueryRequest("FROM " + dataset + " " + tail).pragmas(getPragmas()).acceptedPragmaRisks(true).profile(true),
                 TimeValue.timeValueMinutes(5)
             )
         ) {

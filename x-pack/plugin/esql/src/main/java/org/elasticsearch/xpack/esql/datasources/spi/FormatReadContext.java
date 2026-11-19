@@ -284,7 +284,7 @@ public record FormatReadContext(
         private List<String> fileHeaderColumns = null;
         private boolean statsFileFinal = false;
         private StripeColumnScope statsColumnScope = StripeColumnScope.PROJECTED;
-        private int statsMaxExtremumBytes = -1;
+        private int statsMaxExtremumBytes = DEFAULT_MAX_EXTREMUM_BYTES;
         @Nullable
         private StripeStatsSink statsStripeSink = null;
         @Nullable
@@ -379,11 +379,11 @@ public record FormatReadContext(
 
         /**
          * The widest text extremum this read may publish. Negative leaves the default; zero withholds every
-         * text extremum. Orthogonal to {@link #statsColumnScope}, which decides which columns are harvested
+         * text extremum that has any bytes. Orthogonal to {@link #statsColumnScope}, which decides which columns are harvested
          * at all rather than how much of one is kept.
          */
         public Builder statsMaxExtremumBytes(int statsMaxExtremumBytes) {
-            this.statsMaxExtremumBytes = statsMaxExtremumBytes;
+            this.statsMaxExtremumBytes = statsMaxExtremumBytes < 0 ? DEFAULT_MAX_EXTREMUM_BYTES : statsMaxExtremumBytes;
             return this;
         }
 

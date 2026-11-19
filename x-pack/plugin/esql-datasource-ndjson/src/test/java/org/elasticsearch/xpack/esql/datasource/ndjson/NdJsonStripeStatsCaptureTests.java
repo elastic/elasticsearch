@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.ndjson;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -197,6 +198,64 @@ public class NdJsonStripeStatsCaptureTests extends ESTestCase {
      * rowLimit must publish no stripe stats (safe-miss), never harvest and risk the assert. Proven to harvest
      * (non-null publish) without the {@code rowLimit == NO_LIMIT} conjunct.
      */
+    /**
+     * The stripe rail's own hop: the width reaches {@code StripeStatsHarvester} through the page iterator, not
+     * only the whole-file publish. The same five-byte extremum is harvested at the default and withheld at four.
+     */
+    public void testTheWidthSettingReachesTheStripeHarvest() throws Exception {
+        byte[] bytes = ndjsonKeyword(6);
+
+        Map<String, Object> atDefault = stripeMetadata(bytes, FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES);
+        assertEquals(
+            "a five-byte extremum is harvested under the default",
+            new BytesRef("k0"),
+            SourceStatisticsSerializer.extractColumnMin(atDefault, "k")
+        );
+
+        Map<String, Object> narrowed = stripeMetadata(bytes, 1);
+        assertNull("one byte withholds it", SourceStatisticsSerializer.extractColumnMin(narrowed, "k"));
+        assertNull("one byte withholds it", SourceStatisticsSerializer.extractColumnMax(narrowed, "k"));
+        assertEquals("and the row count survives", 6L, ((Number) narrowed.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
+    }
+
+    /** {"a":N,"k":"kN"} — a LONG beside a two-byte KEYWORD. */
+    private static byte[] ndjsonKeyword(int count) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < count; i++) {
+            sb.append("{\"a\":").append(i).append(",\"k\":\"k").append(i).append("\"}\n");
+        }
+        return sb.toString().getBytes(StandardCharsets.UTF_8);
+    }
+
+    private Map<String, Object> stripeMetadata(byte[] bytes, int maxExtremumBytes) throws Exception {
+        StorageObject o = memoryObject(bytes);
+        FormatReadContext ctx = FormatReadContext.builder()
+            .projectedColumns(List.of("a", "k"))
+            .batchSize(1000)
+            .recordAligned(true)
+            .firstSplit(true)
+            .lastSplit(true)
+            .stats(0, 4096, true)
+            .statsMaxExtremumBytes(maxExtremumBytes)
+            .build();
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        try (
+            var handle = ExternalStatsCapture.bind(sink);
+            CloseableIterator<Page> it = new NdJsonFormatReader(null, blockFactory).read(o, ctx)
+        ) {
+            while (it.hasNext()) {
+                it.next().releaseBlocks();
+            }
+        }
+        List<Map<String, Object>> raw = sink.get(o.path().toString());
+        assertNotNull("the read must publish a contribution", raw);
+        return reconcileToMetadata(raw, List.of(longCol("a"), keywordCol("k")));
+    }
+
+    private static Attribute keywordCol(String name) {
+        return new ReferenceAttribute(Source.EMPTY, null, name, DataType.KEYWORD, Nullability.TRUE, null, false);
+    }
+
     public void testRowLimitDisablesStripeCapture() throws Exception {
         byte[] bytes = ndjson(0, 20);
         StorageObject o = memoryObject(bytes);

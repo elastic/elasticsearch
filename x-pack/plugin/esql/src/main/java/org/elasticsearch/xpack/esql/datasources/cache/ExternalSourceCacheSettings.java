@@ -191,11 +191,13 @@ public final class ExternalSourceCacheSettings {
      * <p>
      * Unlike {@link #STRIPE_SIZE} this does NOT participate in stripe identity, so changing it does not
      * invalidate anything: a cached wide extremum is a TRUE extremum, and the cap is about footprint rather
-     * than correctness. The store is on-heap and this is read at startup, so a node never serves an entry
-     * measured under a width other than its own; only a cluster part-way through a restart mixes the two,
-     * and either width yields a true extremum or a miss. Raising it does not leave a column stuck: the next
-     * scan that projects the column re-measures it and the value merges into the same record. It stays
-     * unanswerable only where a fold wrote an unservable marker, which outlives the value.
+     * than correctness. Restart-only and cluster-uniform, like {@link #STRIPE_SIZE}: a data node's
+     * contribution rides back to the coordinator, which merges it into its own store, so under a
+     * heterogeneous setting the narrowest node decides what every coordinator can serve. Nothing enforces
+     * that — {@code NodeScope} is per node — and the cost is a miss rather than a wrong answer either way.
+     * Raising it does not make a withheld column answerable again in the general case: a fold over more than
+     * one piece writes an unservable marker, and the marker outlives every later measurement. Only a file
+     * read whole as a single piece re-measures cleanly.
      * Restart-only for the reason {@link #STRIPE_COLUMNS} is: its consumer reads it from the node's startup
      * {@code Settings}, so declaring it Dynamic would accept a runtime update and silently never observe it.
      */

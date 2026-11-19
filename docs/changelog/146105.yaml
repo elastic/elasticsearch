@@ -1,0 +1,5 @@
+title: "Fix _field_caps returning parent object types by default"
+type: bug
+area: Search
+pr: 146105
+issues: [109797]

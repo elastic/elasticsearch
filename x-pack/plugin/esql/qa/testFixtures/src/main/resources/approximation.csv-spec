@@ -1744,6 +1744,29 @@ one:long | sum:long            | _approximation_confidence_interval(one):long | 
 ;
 
 
+Chained stats on approximated value without buckets
+required_capability: approximation_v7
+required_capability: approximation_chained_stats
+request_stored: skip
+
+SET approximation={"rows":10000}\;
+FROM many_numbers
+| STATS avg = AVG(sv)
+| EVAL str = TO_STRING(avg)
+| EVAL from_str = str::DOUBLE
+| STATS total = SUM(from_str)
+;
+
+documents_found: 8000..12000
+approximation_applied: true
+
+// The string conversion drops the buckets of avg, so the uncertainty of from_str is unknown.
+// Therefore, total must not get a confidence interval, instead of a zero-width one.
+total:double
+450.0..485.0
+;
+
+
 Chained approximate stats by
 required_capability: approximation_v7
 required_capability: approximation_chained_stats

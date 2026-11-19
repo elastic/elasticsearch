@@ -391,6 +391,11 @@ public class ApproximationPlan {
         // is rewritten to AVG::double = SUM::double / COUNT::long.
         Map<NameId, Attribute> notRoundedExpressions = new HashMap<>();
 
+        // The IDs of the fields after the first STATS that don't depend on sampling: the grouping
+        // keys of the first STATS, and the fields computed from those only. Aggregations in chained
+        // STATS only get buckets if they aggregate exact fields or fields with buckets.
+        Set<NameId> exactFields = new HashSet<>();
+
         Holder<Integer> sampleProbabilityId = new Holder<>(0);
 
         // Add sampling and the buckets to the plan used for confidence interval computation.
@@ -415,6 +420,7 @@ public class ApproximationPlan {
                         sampleProbability,
                         fieldBuckets,
                         notRoundedExpressions,
+                        exactFields,
                         hasChainedStats
                     );
                     if (isLastStatsPlan) {
@@ -427,7 +433,7 @@ public class ApproximationPlan {
                 // After the first STATS command, any processing of fields that have buckets, should
                 // also process the buckets, so that confidence intervals for the dependent fields
                 // can be computed.
-                plan = planIncludingBuckets(plan, fieldBuckets, notRoundedExpressions);
+                plan = planIncludingBuckets(plan, fieldBuckets, notRoundedExpressions, exactFields);
                 if (isLastStatsPlan) {
                     plan = filterBySampleSize(plan);
                 }
@@ -482,8 +488,14 @@ public class ApproximationPlan {
         Expression sampleProbability,
         Map<NameId, List<Attribute>> fieldBuckets,
         Map<NameId, Attribute> notRoundedExpressions,
+        Set<NameId> exactFields,
         boolean hasChainedStats
     ) {
+        // The grouping keys are computed from the original rows, so they're exact.
+        for (Expression grouping : aggregate.groupings()) {
+            exactFields.add(Expressions.attribute(grouping).id());
+        }
+
         Expression randomBucketId = new Random(Source.EMPTY, Literal.integer(Source.EMPTY, BUCKET_COUNT));
         Expression bucketIds = randomBucketId;
         for (int trialId = 1; trialId < TRIAL_COUNT; trialId++) {
@@ -692,13 +704,14 @@ public class ApproximationPlan {
     private static LogicalPlan planIncludingBuckets(
         LogicalPlan plan,
         Map<NameId, List<Attribute>> fieldBuckets,
-        Map<NameId, Attribute> notRoundedExpressions
+        Map<NameId, Attribute> notRoundedExpressions,
+        Set<NameId> exactFields
     ) {
         return switch (plan) {
-            case Eval eval -> evalIncludingBuckets(eval, fieldBuckets, notRoundedExpressions);
-            case Aggregate aggregate -> aggregateIncludingBuckets(aggregate, fieldBuckets);
-            case Project project -> projectIncludingBuckets(project, fieldBuckets, notRoundedExpressions);
-            case MvExpand mvExpand -> mvExpandIncludingBuckets(mvExpand, fieldBuckets);
+            case Eval eval -> evalIncludingBuckets(eval, fieldBuckets, notRoundedExpressions, exactFields);
+            case Aggregate aggregate -> aggregateIncludingBuckets(aggregate, fieldBuckets, exactFields);
+            case Project project -> projectIncludingBuckets(project, fieldBuckets, notRoundedExpressions, exactFields);
+            case MvExpand mvExpand -> mvExpandIncludingBuckets(mvExpand, fieldBuckets, exactFields);
             case MergePlan mergePlan -> mergePlanIncludingBuckets(mergePlan, fieldBuckets);
             default -> plan;
         };
@@ -713,8 +726,15 @@ public class ApproximationPlan {
     private static LogicalPlan evalIncludingBuckets(
         Eval eval,
         Map<NameId, List<Attribute>> fieldBuckets,
-        Map<NameId, Attribute> notRoundedExpressions
+        Map<NameId, Attribute> notRoundedExpressions,
+        Set<NameId> exactFields
     ) {
+        for (Alias field : eval.fields()) {
+            if (isExact(field.child(), exactFields)) {
+                exactFields.add(field.id());
+            }
+        }
+
         List<Alias> fields = new ArrayList<>(eval.fields());
         if (fieldBuckets != null) {
             for (Alias field : eval.fields()) {
@@ -781,7 +801,17 @@ public class ApproximationPlan {
      * For a grouped STATS, also sum the sample size of the input groups, so that groups with too
      * few sampled rows can be filtered out in the end.
      */
-    private static LogicalPlan aggregateIncludingBuckets(Aggregate aggregate, Map<NameId, List<Attribute>> fieldBuckets) {
+    private static LogicalPlan aggregateIncludingBuckets(
+        Aggregate aggregate,
+        Map<NameId, List<Attribute>> fieldBuckets,
+        Set<NameId> exactFields
+    ) {
+        for (Expression grouping : aggregate.groupings()) {
+            if (isExact(grouping, exactFields)) {
+                exactFields.add(Expressions.attribute(grouping).id());
+            }
+        }
+
         List<NamedExpression> aggregateAggregates = new ArrayList<>(aggregate.aggregates());
         Attribute sampleSize = getSampleSize(aggregate.child(), null);
         if (sampleSize != null && aggregate.groupings().isEmpty() == false) {
@@ -806,6 +836,14 @@ public class ApproximationPlan {
                 // and for the data types that confidence intervals can be computed for.
                 if (ApproximationVerifier.SUPPORTED_SINGLE_VALUED_AGGS.contains(aggFn.getClass()) == false
                     || aggFn.anyMatch(expr -> MULTIVALUED_OUTPUT_FUNCTIONS.contains(expr.getClass()))) {
+                    continue;
+                }
+                // Only create buckets if all aggregated fields are exact or have buckets themselves.
+                // Other fields can be approximations with an unknown uncertainty (e.g. because they
+                // lost their buckets by converting to a string and back).
+                if (aggFn.references()
+                    .stream()
+                    .anyMatch(field -> fieldBuckets.containsKey(field.id()) == false && exactFields.contains(field.id()) == false)) {
                     continue;
                 }
 
@@ -853,8 +891,15 @@ public class ApproximationPlan {
     private static LogicalPlan projectIncludingBuckets(
         Project project,
         Map<NameId, List<Attribute>> fieldBuckets,
-        Map<NameId, Attribute> notRoundedExpressions
+        Map<NameId, Attribute> notRoundedExpressions,
+        Set<NameId> exactFields
     ) {
+        for (NamedExpression projection : project.projections()) {
+            if (isExact(projection, exactFields)) {
+                exactFields.add(projection.id());
+            }
+        }
+
         Attribute sampleSize = getSampleSize(project.child(), null);
         if (sampleSize != null) {
             List<NamedExpression> projections = new ArrayList<>(project.projections());
@@ -920,7 +965,14 @@ public class ApproximationPlan {
      * do anything and the buckets of the expanded field are the same as those
      * of the target field.
      */
-    private static LogicalPlan mvExpandIncludingBuckets(MvExpand mvExpand, Map<NameId, List<Attribute>> fieldBuckets) {
+    private static LogicalPlan mvExpandIncludingBuckets(
+        MvExpand mvExpand,
+        Map<NameId, List<Attribute>> fieldBuckets,
+        Set<NameId> exactFields
+    ) {
+        if (isExact(mvExpand.target(), exactFields)) {
+            exactFields.add(mvExpand.expanded().id());
+        }
         if (fieldBuckets != null && fieldBuckets.containsKey(mvExpand.target().id())) {
             fieldBuckets.put(mvExpand.expanded().id(), fieldBuckets.get(mvExpand.target().id()));
         }
@@ -1063,6 +1115,13 @@ public class ApproximationPlan {
             }
         }
         return null;
+    }
+
+    /**
+     * Returns whether the expression only depends on exact fields.
+     */
+    private static boolean isExact(Expression expression, Set<NameId> exactFields) {
+        return expression.references().stream().allMatch(field -> exactFields.contains(field.id()));
     }
 
     /**

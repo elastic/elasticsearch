@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
+import java.io.EOFException;
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -67,6 +68,7 @@ public class PublishIndexingOperationsHeapMemoryRequirementsRequestSerialization
                 assertThat(read.getMinimumRequiredHeapInBytes(), equalTo(heap));
                 assertThat(read.hasLargestOperationSize(), is(false));
                 assertThat(read.getLargestOperationSizeInBytes(), equalTo(0L));
+                expectThrows(EOFException.class, in::readByte);
             }
         }
     }

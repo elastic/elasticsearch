@@ -62,6 +62,11 @@ public class EsqlDataExtractor implements DataExtractor {
         return EsqlQueryClauseScanner.hasAggregation(esqlQuery);
     }
 
+    /** Whether datafeed rows carry one timestamp per grouping bucket (aggregating ES|QL) rather than source timestamps. */
+    public static boolean rowsAreBucketStamped(@Nullable String esqlQuery) {
+        return esqlQuery != null && hasAggregation(esqlQuery);
+    }
+
     private final Client client;
     private final EsqlDataExtractorContext context;
     private final DatafeedTimingStatsReporter timingStatsReporter;

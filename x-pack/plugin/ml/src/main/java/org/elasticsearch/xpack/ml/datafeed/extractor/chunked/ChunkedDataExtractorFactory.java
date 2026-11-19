@@ -77,7 +77,7 @@ public class ChunkedDataExtractorFactory implements DataExtractorFactory {
         if (esqlQuery == null) {
             return timeAligner.alignToCeil(start);
         }
-        return EsqlDataExtractor.hasAggregation(esqlQuery) ? timeAligner.alignToFloor(start) : start;
+        return EsqlDataExtractor.rowsAreBucketStamped(esqlQuery) ? timeAligner.alignToFloor(start) : start;
     }
 
     @Override

@@ -362,13 +362,14 @@ public class DatafeedJobBuilderTests extends ESTestCase {
 
     /**
      * Asserts the resume point the builder computes, then feeds it to a real {@link ChunkedDataExtractorFactory} the way
-     * {@link DatafeedJob} does ({@code lastEndTimeMs + 1}) and asserts the start of the first search the extractor issues.
+     * {@link DatafeedJob} does ({@code lastEndTimeMs + 1}) and asserts the start of the summary query. That is the first query
+     * the chunked extractor issues, and it runs from the aligned window start.
      */
     private void assertEsqlLastEndTimeOnBothBuildPaths(
         String esqlQuery,
         RestartTimeInfo restartTimeInfo,
         long expectedLastEndTimeMs,
-        long expectedFirstSearchStartMs
+        long expectedWindowStartMs
     ) throws Exception {
         assumeTrue("Only relevant when the ES|QL datafeeds feature flag is on", MachineLearning.ESQL_DATAFEEDS_FEATURE_FLAG.isEnabled());
         DataDescription.Builder dataDescription = new DataDescription.Builder();
@@ -412,7 +413,7 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         long resumeStart = expectedLastEndTimeMs + 1;
         long windowEnd = resumeStart + TimeValue.timeValueHours(5).millis();
         new ChunkedDataExtractorFactory(datafeedConfig, job, xContentRegistry(), delegate).newExtractor(resumeStart, windowEnd).next();
-        verify(delegate).newExtractor(eq(expectedFirstSearchStartMs), anyLong());
+        verify(delegate).newExtractor(eq(expectedWindowStartMs), anyLong());
     }
 
     public void testBuildGivenEsqlDatafeedShouldSucceed() throws Exception {

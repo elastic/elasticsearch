@@ -728,29 +728,29 @@ public class DatafeedJobTests extends ESTestCase {
         verify(client, never()).execute(same(PersistJobAction.INSTANCE), any());
     }
 
-    public void testEsqlLookBackAfterRevertShouldReplayFromRevertedResumePoint() throws Exception {
+    public void testEsqlLookBackFromResumePointShouldStartRightAfterIt() throws Exception {
         long hour = 3_600_000L;
         currentTime = 20 * hour;
         long queryDelayMs = 500;
-        // Resume point DatafeedJobBuilder computes for an aggregating query after a revert to a snapshot whose latest record is 06:00.
-        long revertedResumeEnd = 7 * hour - 1;
+        // Either a bucket-boundary resume point (aggregating query) or a raw row resume point: DatafeedJob does not branch on it.
+        long resumeEnd = randomFrom(7 * hour - 1, 6 * hour + 30 * 60_000L);
 
-        DatafeedJob datafeedJob = createDatafeedJob(1000, queryDelayMs, -1, revertedResumeEnd, true);
+        DatafeedJob datafeedJob = createDatafeedJob(1000, queryDelayMs, -1, resumeEnd, true);
         datafeedJob.runLookBack(0L, null);
 
-        verify(dataExtractorFactory).newExtractor(7 * hour, currentTime - queryDelayMs);
+        verify(dataExtractorFactory).newExtractor(resumeEnd + 1, currentTime - queryDelayMs);
     }
 
-    public void testEsqlRealtimeAfterRestartShouldStartAfterLastEndTime() throws Exception {
+    public void testEsqlRealtimeFromResumePointShouldStartRightAfterIt() throws Exception {
         long hour = 3_600_000L;
         currentTime = 20 * hour;
         long queryDelayMs = 500;
-        long resumeEnd = 7 * hour - 1;
+        long resumeEnd = randomFrom(7 * hour - 1, 6 * hour + 30 * 60_000L);
 
         DatafeedJob datafeedJob = createDatafeedJob(1000, queryDelayMs, -1, resumeEnd, true);
         datafeedJob.runRealtime();
 
-        verify(dataExtractorFactory).newExtractor(7 * hour, (currentTime - queryDelayMs) / 1000 * 1000);
+        verify(dataExtractorFactory).newExtractor(resumeEnd + 1, (currentTime - queryDelayMs) / 1000 * 1000);
     }
 
     public void testEsqlLookBackWithEmptyWindowShouldAdvanceLastEndTimeToWindowEnd() throws Exception {
@@ -762,31 +762,6 @@ public class DatafeedJobTests extends ESTestCase {
         expectThrows(DatafeedJob.EmptyDataCountException.class, () -> datafeedJob.runLookBack(0L, 10 * hour));
 
         assertThat(datafeedJob.lastEndTimeMs(), equalTo(10 * hour - 1));
-    }
-
-    public void testEsqlLookBackFromRawRowResumePointShouldStartRightAfterLatestRow() throws Exception {
-        long hour = 3_600_000L;
-        currentTime = 20 * hour;
-        long queryDelayMs = 500;
-        // Raw FROM keeps source timestamps: the resume point is the latest posted row, not a bucket boundary.
-        long latestRow = 6 * hour + 30 * 60_000L;
-
-        DatafeedJob datafeedJob = createDatafeedJob(1000, queryDelayMs, -1, latestRow, true);
-        datafeedJob.runLookBack(0L, null);
-
-        verify(dataExtractorFactory).newExtractor(latestRow + 1, currentTime - queryDelayMs);
-    }
-
-    public void testEsqlRealtimeFromRawRowResumePointShouldStartRightAfterLatestRow() throws Exception {
-        long hour = 3_600_000L;
-        currentTime = 20 * hour;
-        long queryDelayMs = 500;
-        long latestRow = 6 * hour + 30 * 60_000L;
-
-        DatafeedJob datafeedJob = createDatafeedJob(1000, queryDelayMs, -1, latestRow, true);
-        datafeedJob.runRealtime();
-
-        verify(dataExtractorFactory).newExtractor(latestRow + 1, (currentTime - queryDelayMs) / 1000 * 1000);
     }
 
     public void testEsqlRealtimeAfterLookBackShouldContinueAtLookBackWindowEnd() throws Exception {

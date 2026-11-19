@@ -2739,7 +2739,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
             useDirectBlockPlain,
             useDirectBlockQuoted,
             context.splitStartByte(),
-            chunkMode ? context.statsStripeSize() : -1L,
+            // Self-gated on the scope as NdJsonPageIterator does, so the grid and the scope cannot disagree:
+            // the factory resolves the two independently, and cache-on with stripe.columns=none hands this
+            // reader a positive grid under NONE. Without this term it would build a harvester, and take the
+            // offset-tracking read route, with nothing to consume either.
+            chunkMode && context.statsColumnScope() != StripeColumnScope.NONE ? context.statsStripeSize() : -1L,
             context.statsFileFinal(),
             context.statsColumnScope(),
             context.statsStripeSink(),
@@ -4569,6 +4573,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
             this.statsColumnScope = statsColumnScope != null ? statsColumnScope : StripeColumnScope.PROJECTED;
             this.statsFileFinal = statsFileFinal;
             this.stripeHarvester = statsStripeSize > 0 ? new StripeStatsHarvester(statsStripeSize, statsFileFinal, statsStripeSink) : null;
+            // A read that measures nothing must reach none of the statistics machinery, so the two states that
+            // would betray it are asserted rather than left to a reader of the gates: a live grid, and the
+            // inline per-cell fold below. Both are off in production, so these cost nothing there and every
+            // capture test exercises them.
+            assert this.statsColumnScope != StripeColumnScope.NONE || this.stripeHarvester == null : "stripe grid active under NONE";
             // Same fallback as SkipWarnings, so a read context without a sink (tests, benchmarks) does not silence one
             // read-time channel while the other still reaches HeaderWarning. Production read paths always supply one.
             this.warningSink = warningSink != null ? warningSink : message -> HeaderWarning.addWarning(message);
@@ -5508,6 +5517,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     columnStats = ColumnStatsAccumulator.forProjectedAttributes(projectedAttrs);
                     accumulateDirectStats = columnStats.isEmpty() == false;
                 }
+                assert statsColumnScope != StripeColumnScope.NONE || accumulateDirectStats == false
+                    : "direct-path column fold active under NONE";
             }
         }
 

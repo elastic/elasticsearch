@@ -39,7 +39,9 @@ public class TextFormatStatsTests extends ESTestCase {
     private static final List<Attribute> SCHEMA = List.of(
         attribute("n", DataType.LONG),
         attribute("k", DataType.KEYWORD),
-        attribute("t", DataType.TEXT)
+        attribute("t", DataType.TEXT),
+        attribute("b", DataType.BOOLEAN),
+        attribute("d", DataType.DOUBLE)
     );
 
     public void testAKeywordExtremumWiderThanTheLimitIsWithheldAndItsCountsSurvive() {
@@ -81,6 +83,28 @@ public class TextFormatStatsTests extends ESTestCase {
             "a value over the byte limit is withheld however few characters it has",
             SourceStatisticsSerializer.extractColumnMax(published, "k")
         );
+    }
+
+    /**
+     * The cap reads {@link BytesRef#length}, so a text value is the only kind that can reach it. The other
+     * carriers a harvest tracks are fixed width and publish untouched.
+     */
+    public void testAFixedWidthExtremumIsPublishedUntouched() {
+        Map<String, Object> published = publish(
+            1,
+            Map.of(
+                "b", new ExternalStats.ColumnStats(0, 1, Boolean.FALSE, Boolean.TRUE),
+                "n", new ExternalStats.ColumnStats(0, 1, 1L, 9L),
+                "d", new ExternalStats.ColumnStats(0, 1, -0.5d, 0.5d)
+            )
+        );
+
+        assertEquals("a boolean min is not text", Boolean.FALSE, SourceStatisticsSerializer.extractColumnMin(published, "b"));
+        assertEquals("a boolean max is not text", Boolean.TRUE, SourceStatisticsSerializer.extractColumnMax(published, "b"));
+        assertEquals("a long min is not text", Long.valueOf(1L), SourceStatisticsSerializer.extractColumnMin(published, "n"));
+        assertEquals("a long max is not text", Long.valueOf(9L), SourceStatisticsSerializer.extractColumnMax(published, "n"));
+        assertEquals("a double min is not text", Double.valueOf(-0.5d), SourceStatisticsSerializer.extractColumnMin(published, "d"));
+        assertEquals("a double max is not text", Double.valueOf(0.5d), SourceStatisticsSerializer.extractColumnMax(published, "d"));
     }
 
     public void testAnExtremumAtTheWidthLimitIsPublished() {

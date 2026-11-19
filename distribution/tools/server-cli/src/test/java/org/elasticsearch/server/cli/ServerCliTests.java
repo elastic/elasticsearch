@@ -34,6 +34,8 @@ import org.junit.Before;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -320,6 +322,78 @@ public class ServerCliTests extends CommandTestCase {
         argsValidator = args -> prepareLaunchCalled.set(true);
         assertOk();
         assertThat(prepareLaunchCalled.get(), is(true));
+    }
+
+    public void testGlibcEnvironmentPassthrough() throws Exception {
+        Map<String, String> environment = new HashMap<>(Map.of("MALLOC_ARENA_MAX", "4"));
+        ServerCli.addGlibcEnvironment(
+            terminal,
+            List.of("-Xmx1g", "-Des.glibc.env.MALLOC_ARENA_MAX=96", "-Des.other=1", "-Des.glibc.env.MALLOC_MMAP_MAX_=0"),
+            environment
+        );
+        assertThat(environment, equalTo(Map.of("MALLOC_ARENA_MAX", "96", "MALLOC_MMAP_MAX_", "0")));
+        assertThat(terminal.getOutput(), containsString("MALLOC_ARENA_MAX=96"));
+        assertThat(terminal.getErrorOutput(), emptyString());
+    }
+
+    public void testGlibcEnvironmentRejectsUnsupportedVariable() {
+        assertGlibcEnvironmentRejected("-Des.glibc.env.MALLOC_ARENA_MX=96", "unsupported environment variable [MALLOC_ARENA_MX]");
+        assertGlibcEnvironmentRejected("-Des.glibc.env.GLIBC_TUNABLES=glibc.malloc.arena_max=96", "unsupported environment variable");
+    }
+
+    public void testGlibcEnvironmentRejectsNonDecimalValue() {
+        String trimThresholdMessage =
+            "System property [es.glibc.env.MALLOC_TRIM_THRESHOLD_] must be a decimal number between [0] and [9223372036854775807]";
+        assertGlibcEnvironmentRejected("-Des.glibc.env.MALLOC_TRIM_THRESHOLD_=4m", trimThresholdMessage);
+        assertGlibcEnvironmentRejected("-Des.glibc.env.MALLOC_TRIM_THRESHOLD_=0x100000", trimThresholdMessage);
+    }
+
+    public void testGlibcEnvironmentRejectsValueOutOfRange() {
+        assertGlibcEnvironmentRejected(
+            "-Des.glibc.env.MALLOC_MMAP_THRESHOLD_=33554433",
+            "System property [es.glibc.env.MALLOC_MMAP_THRESHOLD_] must be a decimal number between [0] and [33554432]"
+        );
+        String arenaMaxMessage =
+            "System property [es.glibc.env.MALLOC_ARENA_MAX] must be a decimal number between [1] and [9223372036854775807]";
+        assertGlibcEnvironmentRejected("-Des.glibc.env.MALLOC_ARENA_MAX=0", arenaMaxMessage);
+        assertGlibcEnvironmentRejected("-Des.glibc.env.MALLOC_ARENA_MAX=-1", arenaMaxMessage);
+        assertGlibcEnvironmentRejected(
+            "-Des.glibc.env.MALLOC_TRIM_THRESHOLD_=99999999999999999999",
+            "System property [es.glibc.env.MALLOC_TRIM_THRESHOLD_] must be a decimal number between [0] and [9223372036854775807]"
+        );
+    }
+
+    public void testGlibcEnvironmentAcceptsLargestMmapThreshold() throws Exception {
+        Map<String, String> environment = new HashMap<>();
+        ServerCli.addGlibcEnvironment(
+            terminal,
+            List.of("-Des.glibc.env.MALLOC_MMAP_THRESHOLD_=33554432", "-Des.glibc.env.MALLOC_TRIM_THRESHOLD_=4194304"),
+            environment
+        );
+        assertThat(environment, equalTo(Map.of("MALLOC_MMAP_THRESHOLD_", "33554432", "MALLOC_TRIM_THRESHOLD_", "4194304")));
+        assertThat(terminal.getErrorOutput(), emptyString());
+    }
+
+    public void testGlibcEnvironmentWarnsWhenOnlyOneThresholdIsSet() throws Exception {
+        ServerCli.addGlibcEnvironment(terminal, List.of("-Des.glibc.env.MALLOC_TRIM_THRESHOLD_=4194304"), new HashMap<>());
+        assertThat(terminal.getErrorOutput(), containsString("[MALLOC_MMAP_THRESHOLD_] stays at its glibc default"));
+
+        terminal.reset();
+        // a threshold already in the environment counts as set
+        ServerCli.addGlibcEnvironment(
+            terminal,
+            List.of("-Des.glibc.env.MALLOC_TRIM_THRESHOLD_=4194304"),
+            new HashMap<>(Map.of("MALLOC_MMAP_THRESHOLD_", "1048576"))
+        );
+        assertThat(terminal.getErrorOutput(), emptyString());
+    }
+
+    private void assertGlibcEnvironmentRejected(String jvmOption, String expectedMessage) {
+        Map<String, String> environment = new HashMap<>();
+        UserException e = expectThrows(UserException.class, () -> ServerCli.addGlibcEnvironment(terminal, List.of(jvmOption), environment));
+        assertThat(e.exitCode, equalTo(ExitCodes.CONFIG));
+        assertThat(e.getMessage(), containsString(expectedMessage));
+        assertThat(environment, equalTo(Map.of()));
     }
 
     public void testSecureSettingsLoaderChoice() throws Exception {

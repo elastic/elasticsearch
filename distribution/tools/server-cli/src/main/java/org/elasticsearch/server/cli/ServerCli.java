@@ -40,6 +40,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.TreeSet;
 
 /**
  * The main CLI for preparing the Elasticsearch server launch.
@@ -51,6 +52,54 @@ import java.util.Map;
  * preparer's stdout pipe, then spawns the actual server process.
  */
 class ServerCli extends EnvironmentAwareCommand {
+
+    /**
+     * The inclusive range of values glibc accepts for one malloc environment variable.
+     */
+    record GlibcEnvLimits(long min, long max) {
+        boolean isInRange(String value) {
+            try {
+                long parsed = Long.parseLong(value);
+                return parsed >= min && parsed <= max;
+            } catch (NumberFormatException e) {
+                return false;
+            }
+        }
+    }
+
+    /**
+     * Prefix of the system properties that are passed to the server process as environment variables:
+     * {@code -Des.glibc.env.MALLOC_ARENA_MAX=96} sets {@code MALLOC_ARENA_MAX=96}.
+     *
+     * <p> glibc reads its malloc parameters ({@code MALLOC_ARENA_MAX}, {@code MALLOC_MMAP_THRESHOLD_},
+     * {@code MALLOC_TRIM_THRESHOLD_}, ...) from the environment when the process starts, so they cannot be changed from inside
+     * the server once it runs. Passing them as system properties lets this launcher set them on the server process environment.
+     * Only the names in {@link #GLIBC_MALLOC_ENV_VARS} are accepted.
+     */
+    static final String GLIBC_ENV_SYSPROP_PREFIX = "es.glibc.env.";
+
+    private static final String MALLOC_MMAP_THRESHOLD = "MALLOC_MMAP_THRESHOLD_";
+    private static final String MALLOC_TRIM_THRESHOLD = "MALLOC_TRIM_THRESHOLD_";
+
+    /**
+     * The glibc malloc environment variables that can be set through {@link #GLIBC_ENV_SYSPROP_PREFIX}, with the values glibc
+     * accepts for each. glibc silently ignores an unknown variable or a value out of range, which would leave the process with
+     * the default behaviour while looking configured, so we reject both instead.
+     */
+    static final Map<String, GlibcEnvLimits> GLIBC_MALLOC_ENV_VARS = Map.of(
+        "MALLOC_ARENA_MAX",
+        new GlibcEnvLimits(1, Long.MAX_VALUE),
+        "MALLOC_ARENA_TEST",
+        new GlibcEnvLimits(1, Long.MAX_VALUE),
+        MALLOC_MMAP_THRESHOLD,
+        new GlibcEnvLimits(0, 32L * 1024 * 1024),
+        MALLOC_TRIM_THRESHOLD,
+        new GlibcEnvLimits(0, Long.MAX_VALUE),
+        "MALLOC_TOP_PAD_",
+        new GlibcEnvLimits(0, Long.MAX_VALUE),
+        "MALLOC_MMAP_MAX_",
+        new GlibcEnvLimits(0, Integer.MAX_VALUE)
+    );
 
     private final OptionSpecBuilder versionOption;
     private final OptionSpecBuilder daemonizeOption;
@@ -295,28 +344,61 @@ class ServerCli extends EnvironmentAwareCommand {
     }
 
     /**
-     * Prefix of the system properties that are passed to the server process as environment variables:
-     * {@code -Des.glibc.env.MALLOC_ARENA_MAX=96} sets {@code MALLOC_ARENA_MAX=96}.
-     *
-     * <p> glibc reads its malloc parameters ({@code MALLOC_ARENA_MAX}, {@code MALLOC_MMAP_THRESHOLD_},
-     * {@code MALLOC_TRIM_THRESHOLD_}, {@code GLIBC_TUNABLES}) from the environment when the process starts, so they cannot
-     * be changed from inside the server once it runs. Passing them as system properties let this launcher set them on the
-     * server process environment.
-     */
-    static final String GLIBC_ENV_SYSPROP_PREFIX = "es.glibc.env.";
-
-    /**
      * Adds an environment variable to {@code environment} for each {@link #GLIBC_ENV_SYSPROP_PREFIX} system property in
      * {@code jvmOptions}, overriding any variable of the same name. Prints each one so that the log shows what was set.
+     *
+     * @throws UserException if a variable is not in {@link #GLIBC_MALLOC_ENV_VARS}, or its value is not a decimal number in
+     *                       the accepted range
      */
-    static void addGlibcEnvironment(Terminal terminal, List<String> jvmOptions, Map<String, String> environment) {
-        JvmErgonomics.extractSystemProperties(jvmOptions).forEach((key, value) -> {
-            if (key.startsWith(GLIBC_ENV_SYSPROP_PREFIX)) {
-                String name = key.substring(GLIBC_ENV_SYSPROP_PREFIX.length());
-                environment.put(name, value);
-                terminal.println("Setting environment variable [" + name + "=" + value + "] from system property [" + key + "]");
+    static void addGlibcEnvironment(Terminal terminal, List<String> jvmOptions, Map<String, String> environment) throws UserException {
+        boolean thresholdSet = false;
+        for (Map.Entry<String, String> property : JvmErgonomics.extractSystemProperties(jvmOptions).entrySet()) {
+            String key = property.getKey();
+            if (key.startsWith(GLIBC_ENV_SYSPROP_PREFIX) == false) {
+                continue;
             }
-        });
+            String name = key.substring(GLIBC_ENV_SYSPROP_PREFIX.length());
+            String value = property.getValue();
+            validateGlibcEnvironmentVariable(key, name, value);
+            environment.put(name, value);
+            thresholdSet |= name.equals(MALLOC_MMAP_THRESHOLD) || name.equals(MALLOC_TRIM_THRESHOLD);
+            terminal.println("Setting environment variable [" + name + "=" + value + "] from system property [" + key + "]");
+        }
+        // Setting either threshold turns off glibc's dynamic adjustment of both; the one left unset stays at its default.
+        if (thresholdSet && environment.containsKey(MALLOC_MMAP_THRESHOLD) != environment.containsKey(MALLOC_TRIM_THRESHOLD)) {
+            String unset = environment.containsKey(MALLOC_MMAP_THRESHOLD) ? MALLOC_TRIM_THRESHOLD : MALLOC_MMAP_THRESHOLD;
+            terminal.errorPrintln(
+                "Warning: setting only one of ["
+                    + MALLOC_MMAP_THRESHOLD
+                    + "] and ["
+                    + MALLOC_TRIM_THRESHOLD
+                    + "] fixes both, and ["
+                    + unset
+                    + "] stays at its glibc default; set both explicitly"
+            );
+        }
+    }
+
+    private static void validateGlibcEnvironmentVariable(String key, String name, String value) throws UserException {
+        GlibcEnvLimits limits = GLIBC_MALLOC_ENV_VARS.get(name);
+        if (limits == null) {
+            throw new UserException(
+                ExitCodes.CONFIG,
+                "System property ["
+                    + key
+                    + "] sets unsupported environment variable ["
+                    + name
+                    + "]; supported variables are "
+                    + new TreeSet<>(GLIBC_MALLOC_ENV_VARS.keySet())
+            );
+        }
+
+        if (limits.isInRange(value) == false) {
+            throw new UserException(
+                ExitCodes.CONFIG,
+                "System property [" + key + "] must be a decimal number between [" + limits.min() + "] and [" + limits.max() + "]"
+            );
+        }
     }
 
     protected static byte[] serializeServerArgs(ServerArgs args) throws IOException {

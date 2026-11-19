@@ -72,14 +72,6 @@ public class TargetRelocationSlotsEstimator {
             : Math.min(maxRecoveries, relocationsInFlight);
     }
 
-    /// Like [#knownAvailableSlots(ClusterState, int)], but trusts the settings without the check of the cluster state. For the callers
-    /// for which shards that are not relocating yet are expected, as the ones that wait on the target for the relocations of shutting-down
-    /// nodes.
-    public int knownAvailableSlots(final int relocationsInFlight) {
-        final int maxRecoveries = maxConcurrentNonCriticalRecoveries;
-        return dataNodeRecoveryThrottlingEnabled(maxRecoveries) ? maxRecoveries : Math.min(maxRecoveries, relocationsInFlight);
-    }
-
     /// Whether the data nodes throttle the relocations, and not the master, see [#dataNodeRecoveryThrottlingEnabled(int)].
     public boolean dataNodeRecoveryThrottlingEnabled() {
         return dataNodeRecoveryThrottlingEnabled(maxConcurrentNonCriticalRecoveries);

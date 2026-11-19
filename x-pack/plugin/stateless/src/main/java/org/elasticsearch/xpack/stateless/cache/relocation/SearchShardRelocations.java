@@ -9,41 +9,47 @@ package org.elasticsearch.xpack.stateless.cache.relocation;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 
+import java.util.Optional;
 import java.util.function.Predicate;
 
 /// Counts the search shards relocating to a node, as seen from the `RoutingNode` of the target, where they are the shards initializing
-/// with their source set.
+/// with their source set, and the search shards of a node that are yet to start relocating.
 final class SearchShardRelocations {
 
     private SearchShardRelocations() {}
 
     /// The relocations from the node `sourceNodeId` to `targetNodeId`.
     static int countBetween(ClusterState state, String sourceNodeId, String targetNodeId) {
-        return countToFromSourcesMatching(state, targetNodeId, sourceNodeId::equals);
+        return countRelocationsToTarget(state, targetNodeId, sourceNodeId::equals);
     }
 
     /// The relocations to `targetNodeId` from all the nodes marked for removal.
     static int countFromShuttingDownNodesTo(ClusterState state, String targetNodeId) {
         final var nodeShutdowns = state.metadata().nodeShutdowns();
-        return countToFromSourcesMatching(state, targetNodeId, nodeShutdowns::isNodeMarkedForRemoval);
+        return countRelocationsToTarget(state, targetNodeId, nodeShutdowns::isNodeMarkedForRemoval);
     }
 
     /// The relocations to `targetNodeId` from the nodes that are not marked for removal.
     static int countFromNodesNotShuttingDownTo(ClusterState state, String targetNodeId) {
         final var nodeShutdowns = state.metadata().nodeShutdowns();
-        return countToFromSourcesMatching(state, targetNodeId, sourceNodeId -> nodeShutdowns.isNodeMarkedForRemoval(sourceNodeId) == false);
+        return countRelocationsToTarget(state, targetNodeId, sourceNodeId -> nodeShutdowns.isNodeMarkedForRemoval(sourceNodeId) == false);
+    }
+
+    /// The search shards started on `nodeId`, which have not begun to relocate yet.
+    static int countPendingRelocationsOn(ClusterState state, String nodeId) {
+        return searchRoutingNode(state, nodeId).map(node -> node.numberOfShardsWithState(ShardRoutingState.STARTED)).orElse(0);
     }
 
     /// The relocations to `targetNodeId` from the nodes that match `sourceNodeFilter`.
-    private static int countToFromSourcesMatching(ClusterState state, String targetNodeId, Predicate<String> sourceNodeFilter) {
-        final var discoveryNode = state.nodes().get(targetNodeId);
-        final var targetNode = state.getRoutingNodes().node(targetNodeId);
-        // a search node only holds search shards, as a promotable shard is only allowed on an index node
-        if (discoveryNode == null || discoveryNode.hasRole(DiscoveryNodeRole.SEARCH_ROLE.roleName()) == false || targetNode == null) {
-            return 0;
-        }
+    private static int countRelocationsToTarget(ClusterState state, String targetNodeId, Predicate<String> sourceNodeFilter) {
+        return searchRoutingNode(state, targetNodeId).map(node -> countInitializingRelocations(node, sourceNodeFilter)).orElse(0);
+    }
+
+    private static int countInitializingRelocations(RoutingNode targetNode, Predicate<String> sourceNodeFilter) {
         int count = 0;
         for (final ShardRouting shard : targetNode.initializing()) {
             final String sourceNodeId = shard.relocatingNodeId();
@@ -52,5 +58,13 @@ final class SearchShardRelocations {
             }
         }
         return count;
+    }
+
+    /// The `RoutingNode` of `nodeId` if it is a search node in the cluster. A search node only holds search shards, as a promotable shard
+    /// is only allowed on an index node.
+    private static Optional<RoutingNode> searchRoutingNode(ClusterState state, String nodeId) {
+        return Optional.ofNullable(state.nodes().get(nodeId))
+            .filter(discoveryNode -> discoveryNode.hasRole(DiscoveryNodeRole.SEARCH_ROLE.roleName()))
+            .map(discoveryNode -> state.getRoutingNodes().node(nodeId));
     }
 }

@@ -152,6 +152,24 @@ public class SearchShardRelocationsTests extends ESTestCase {
         assertThat(SearchShardRelocations.countFromNodesNotShuttingDownTo(state, "no-such-node"), equalTo(0));
     }
 
+    public void testPendingRelocationsCountsOnlyTheStartedSearchShardsOfTheNode() {
+        final var state = clusterState(
+            // a relocating shard is not pending, it is already counted as a relocation
+            List.of(new Relocation(SOURCE_A, TARGET)),
+            // a shard that can be promoted to primary only lives on an index node, which is not a search node
+            List.of(new Relocation(PRIMARY_NODE, INDEX_TARGET)),
+            Map.of(),
+            List.of(SOURCE_A, SOURCE_A, SOURCE_B)
+        );
+
+        assertThat(SearchShardRelocations.countPendingRelocationsOn(state, SOURCE_A), equalTo(2));
+        assertThat(SearchShardRelocations.countPendingRelocationsOn(state, SOURCE_B), equalTo(1));
+        assertThat(SearchShardRelocations.countPendingRelocationsOn(state, SOURCE_C), equalTo(0));
+        assertThat(SearchShardRelocations.countPendingRelocationsOn(state, TARGET), equalTo(0));
+        assertThat(SearchShardRelocations.countPendingRelocationsOn(state, PRIMARY_NODE), equalTo(0));
+        assertThat(SearchShardRelocations.countPendingRelocationsOn(state, "no-such-node"), equalTo(0));
+    }
+
     private static DiscoveryNode searchNode(String nodeId) {
         return DiscoveryNodeUtils.builder(nodeId).roles(Set.of(DiscoveryNodeRole.SEARCH_ROLE)).build();
     }
@@ -164,7 +182,17 @@ public class SearchShardRelocationsTests extends ESTestCase {
         List<Relocation> promotableRelocations,
         Map<String, SingleNodeShutdownMetadata.Type> shutdowns
     ) {
-        final int numShards = searchRelocations.size() + promotableRelocations.size();
+        return clusterState(searchRelocations, promotableRelocations, shutdowns, List.of());
+    }
+
+    /// As above, with one more search replica started on the node, per entry of `startedSearchShardNodes`.
+    private static ClusterState clusterState(
+        List<Relocation> searchRelocations,
+        List<Relocation> promotableRelocations,
+        Map<String, SingleNodeShutdownMetadata.Type> shutdowns,
+        List<String> startedSearchShardNodes
+    ) {
+        final int numShards = searchRelocations.size() + promotableRelocations.size() + startedSearchShardNodes.size();
         final var index = new Index("index", IndexMetadata.INDEX_UUID_NA_VALUE);
         final var indexMetadata = IndexMetadata.builder(index.getName())
             .settings(indexSettings(IndexVersion.current(), index.getUUID(), numShards, 1))
@@ -189,6 +217,16 @@ public class SearchShardRelocationsTests extends ESTestCase {
                 .withRole(ShardRouting.Role.INDEX_ONLY)
                 .build();
             routingBuilder.addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(primary));
+        }
+        for (final var nodeId : startedSearchShardNodes) {
+            final var shardId = new ShardId(index, shard++);
+            final var primary = TestShardRouting.shardRoutingBuilder(shardId, PRIMARY_NODE, true, STARTED)
+                .withRole(ShardRouting.Role.INDEX_ONLY)
+                .build();
+            final var replica = TestShardRouting.shardRoutingBuilder(shardId, nodeId, false, STARTED)
+                .withRole(ShardRouting.Role.SEARCH_ONLY)
+                .build();
+            routingBuilder.addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(primary).addShard(replica));
         }
 
         final var shutdownMetadata = new HashMap<String, SingleNodeShutdownMetadata>();

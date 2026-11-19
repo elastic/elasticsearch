@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.stateless.cache.relocation;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -73,6 +71,7 @@ public class RelocationOtherNodeShutdownTimeouts {
         // added to the competing shards (+1) below, and left out of the "other" relocations here.
         final int otherRelocationsToTarget = Math.max(0, SearchShardRelocations.countFromNodesNotShuttingDownTo(state, targetNodeId) - 1);
         final int slots = targetRelocationSlotsEstimator.knownAvailableSlots(
+            state,
             SearchShardRelocations.countFromShuttingDownNodesTo(state, targetNodeId)
         );
         final long now = threadPool.absoluteTimeInMillis();
@@ -154,7 +153,9 @@ public class RelocationOtherNodeShutdownTimeouts {
 
     /// Counts the search shards of `nodeId` that may relocate to `targetNodeId`: already relocating to it and not relocating yet.
     private static long countShardsPotentiallyRelocatingToTarget(ClusterState state, String nodeId, String targetNodeId) {
-        return SearchShardRelocations.countBetween(state, nodeId, targetNodeId) + countPendingSearchShardsOnNode(state, nodeId);
+        final int relocating = SearchShardRelocations.countBetween(state, nodeId, targetNodeId);
+        final int pending = SearchShardRelocations.countPendingRelocationsOn(state, nodeId);
+        return relocating + pending;
     }
 
     /// The share of the target's `slots` that the `shardsCompetingForTarget` shards get, when `otherRelocationsToTarget`
@@ -182,15 +183,6 @@ public class RelocationOtherNodeShutdownTimeouts {
         double equalShareMs() {
             return timePerShardMs() * slotShare;
         }
-    }
-
-    private static int countPendingSearchShardsOnNode(ClusterState state, String nodeId) {
-        final var discoveryNode = state.nodes().get(nodeId);
-        final var routingNode = state.getRoutingNodes().node(nodeId);
-        if (discoveryNode == null || discoveryNode.hasRole(DiscoveryNodeRole.SEARCH_ROLE.roleName()) == false || routingNode == null) {
-            return 0;
-        }
-        return routingNode.numberOfShardsWithState(ShardRoutingState.STARTED);
     }
 
     /// The shutdowns of the nodes marked for removal that are still in the cluster. Shutdown metadata outlives the node until it is

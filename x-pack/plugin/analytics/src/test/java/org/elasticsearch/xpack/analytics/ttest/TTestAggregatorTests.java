@@ -707,6 +707,53 @@ public class TTestAggregatorTests extends AggregatorTestCase {
         }
     }
 
+    public void testFilteredAsSubAggWithSegmentMatchingOnlyB() throws IOException {
+        TTestType tTestType = randomFrom(TTestType.HOMOSCEDASTIC, TTestType.HETEROSCEDASTIC);
+        MappedFieldType fieldType1 = new NumberFieldMapper.NumberFieldType("h", NumberFieldMapper.NumberType.INTEGER);
+        MappedFieldType fieldType2 = new NumberFieldMapper.NumberFieldType("a", NumberFieldMapper.NumberType.INTEGER);
+        MappedFieldType fieldType3 = new NumberFieldMapper.NumberFieldType("b", NumberFieldMapper.NumberType.INTEGER);
+        TTestAggregationBuilder ttestAggregationBuilder = new TTestAggregationBuilder("t_test").a(
+            new MultiValuesSourceFieldConfig.Builder().setFieldName("a").setFilter(QueryBuilders.termQuery("b", 1)).build()
+        )
+            .b(new MultiValuesSourceFieldConfig.Builder().setFieldName("a").setFilter(QueryBuilders.termQuery("b", 2)).build())
+            .testType(tTestType);
+        int tails = randomIntBetween(1, 2);
+        if (tails == 1 || randomBoolean()) {
+            ttestAggregationBuilder.tails(tails);
+        }
+        HistogramAggregationBuilder aggregationBuilder = new HistogramAggregationBuilder("h").field("h")
+            .interval(1)
+            .subAggregation(ttestAggregationBuilder);
+        int buckets = randomIntBetween(2, 10);
+        testCase(iw -> {
+            for (int i = 0; i < buckets; i++) {
+                iw.addDocument(asList(new NumericDocValuesField("h", i), new NumericDocValuesField("a", 102), new IntPoint("b", 1)));
+                iw.addDocument(asList(new NumericDocValuesField("h", i), new NumericDocValuesField("a", 99), new IntPoint("b", 1)));
+                iw.addDocument(asList(new NumericDocValuesField("h", i), new NumericDocValuesField("a", 111), new IntPoint("b", 1)));
+                iw.addDocument(asList(new NumericDocValuesField("h", i), new NumericDocValuesField("a", 97), new IntPoint("b", 1)));
+                iw.addDocument(asList(new NumericDocValuesField("h", i), new NumericDocValuesField("a", 101), new IntPoint("b", 1)));
+                iw.addDocument(asList(new NumericDocValuesField("h", i), new NumericDocValuesField("a", 99), new IntPoint("b", 1)));
+            }
+            // put the b docs in their own segment, so that segment has several buckets with values for b and none for a
+            iw.commit();
+            for (int i = 0; i < buckets; i++) {
+                iw.addDocument(asList(new NumericDocValuesField("h", i), new NumericDocValuesField("a", 89), new IntPoint("b", 2)));
+                iw.addDocument(asList(new NumericDocValuesField("h", i), new NumericDocValuesField("a", 93), new IntPoint("b", 2)));
+                iw.addDocument(asList(new NumericDocValuesField("h", i), new NumericDocValuesField("a", 72), new IntPoint("b", 2)));
+                iw.addDocument(asList(new NumericDocValuesField("h", i), new NumericDocValuesField("a", 98), new IntPoint("b", 2)));
+                iw.addDocument(asList(new NumericDocValuesField("h", i), new NumericDocValuesField("a", 102), new IntPoint("b", 2)));
+                iw.addDocument(asList(new NumericDocValuesField("h", i), new NumericDocValuesField("a", 98), new IntPoint("b", 2)));
+            }
+        }, (Consumer<InternalHistogram>) histogram -> {
+            assertEquals(buckets, histogram.getBuckets().size());
+            for (int i = 0; i < buckets; i++) {
+                InternalTTest ttest = histogram.getBuckets().get(i).getAggregations().get("t_test");
+                double expected = tTestType == TTestType.HOMOSCEDASTIC ? 0.03928288693 : 0.04538666214;
+                assertEquals(expected * tails, ttest.getValue(), 0.00001);
+            }
+        }, new AggTestConfig(aggregationBuilder, fieldType1, fieldType2, fieldType3).withSplitLeavesIntoSeperateAggregators(true));
+    }
+
     public void testFilterByFilterOrScript() throws IOException {
         boolean fieldInA = randomBoolean();
         TTestType tTestType = randomFrom(TTestType.HOMOSCEDASTIC, TTestType.HETEROSCEDASTIC);

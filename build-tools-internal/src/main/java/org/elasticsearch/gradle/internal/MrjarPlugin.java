@@ -98,6 +98,11 @@ public class MrjarPlugin implements Plugin<Project> {
                 testSourceSets.add(testSourceSetName);
                 createTestTask(project, buildParams, testSourceSet, javaVersion, mainSourceSets);
             }
+        } else {
+            // We still need to configure IDE to ignore preview warnings
+            project.getTasks().withType(JavaCompile.class).configureEach(compileTask -> {
+                compileTask.getOptions().getCompilerArgs().add("-Xlint:-preview");
+            });
         }
 
         configureMrjar(project);

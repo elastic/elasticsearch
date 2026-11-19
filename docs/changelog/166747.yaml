@@ -1,0 +1,6 @@
+area: Cluster Coordination
+issues:
+ - 166596
+pr: 166747
+summary: Detect re-election without no-master state
+type: bug

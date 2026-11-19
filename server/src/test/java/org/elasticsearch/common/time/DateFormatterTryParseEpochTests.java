@@ -25,10 +25,7 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.not;
 
-/**
- * Checks {@link DateFormatter#tryParseMillis} and {@link DateFormatter#tryParseNanos} against the String parse. Whenever the
- * fast path returns a value, the String parse must succeed with the same value.
- */
+/** Checks that the millis and nanos fast paths agree with the String parser whenever they succeed. */
 public class DateFormatterTryParseEpochTests extends ESTestCase {
 
     private static final List<String> FORMATS = List.of(
@@ -136,10 +133,7 @@ public class DateFormatterTryParseEpochTests extends ESTestCase {
         }
     }
 
-    /**
-     * Runs the same check on {@link FastDateTimeParser} with random settings. These include settings no named format uses, such
-     * as a time capped at the hour, defaults or a zone.
-     */
+    /** Exercises parser settings beyond those used by named formats. */
     public void testRandomParserSettings() {
         List<ChronoField> fieldOrder = List.of(
             ChronoField.MONTH_OF_YEAR,
@@ -191,10 +185,7 @@ public class DateFormatterTryParseEpochTests extends ESTestCase {
         assertThat(accepted, not(0));
     }
 
-    /**
-     * Every date from 0000-01-01 to 9999-12-31 parses to {@link LocalDate#toEpochDay}, and every day past the end of a month
-     * declines.
-     */
+    /** Checks calendar arithmetic against {@link LocalDate#toEpochDay} across all four-digit years. */
     public void testEveryDate() {
         DateFormatter millis = DateFormatter.forPattern("strict_date_optional_time");
         DateFormatter nanos = DateFormatter.forPattern("strict_date_optional_time_nanos");
@@ -266,9 +257,7 @@ public class DateFormatterTryParseEpochTests extends ESTestCase {
         assertTrue(assertMatches(DateFormatter.forPattern(format), input));
     }
 
-    /**
-     * Asserts the fast path either declines or agrees with the String parse, in millis and nanos. Returns whether it accepted.
-     */
+    /** Checks accepted values against the String parser and reports whether either fast path succeeded. */
     private static boolean assertMatches(DateFormatter formatter, String input) {
         byte[] utf8 = bytes(input);
         int offset = randomIntBetween(0, 4);

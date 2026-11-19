@@ -125,9 +125,7 @@ public final class Shapes {
         );
     }
 
-    /**
-     * Four {@code date} fields with the default format, sent as ISO strings with millis and {@code Z}.
-     */
+    /** Four default-format dates sent as ISO strings with millis and {@code Z}. */
     private static BenchShape dateStrings() {
         String[] names = { "received", "ingested", "observed" };
         return new BenchShape(

@@ -42,20 +42,15 @@ public interface DateFormatter {
     @Nullable
     TemporalAccessor tryParse(String input);
 
-    /** Returned by {@link #tryParseMillis} and {@link #tryParseNanos} when the formatter has no fast path for the input. */
+    /** Signals that the input needs the String parser. */
     long DECLINED = Long.MIN_VALUE;
 
-    /**
-     * Parses UTF-8 bytes to millis since the epoch without building a String. Returns {@link #DECLINED} for input without a
-     * fast path, valid or not; parse the String to get the result or the error.
-     */
+    /** Parses a UTF-8 slice to epoch millis or returns {@link #DECLINED} to defer to {@link #parse(String)}. */
     default long tryParseMillis(byte[] bytes, int offset, int length) {
         return DECLINED;
     }
 
-    /**
-     * Parses UTF-8 bytes to nanos since the epoch, like {@link #tryParseMillis}. Also declines dates outside the nanos range.
-     */
+    /** Like {@link #tryParseMillis}, in epoch nanos. Returns {@link #DECLINED} for out-of-range dates too. */
     default long tryParseNanos(byte[] bytes, int offset, int length) {
         return DECLINED;
     }

@@ -661,9 +661,7 @@ public final class DateFieldMapper extends FieldMapper {
             return dateMathParser;
         }
 
-        /**
-         * Parses UTF-8 bytes like {@link #parse(String)}, without building a String when the formatter has a fast path.
-         */
+        /** Parses UTF-8 like {@link #parse(String)}, avoiding a String allocation on the fast path. */
         public long parse(BytesRef value) {
             long parsed = switch (resolution) {
                 case MILLISECONDS -> dateTimeFormatter().tryParseMillis(value.bytes, value.offset, value.length);

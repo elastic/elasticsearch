@@ -127,13 +127,7 @@ class FastDateTimeParser implements DateTimeParser {
         return parser.tryParse(str, timezone);
     }
 
-    /**
-     * Parses UTF-8 bytes to an epoch value without building a String or java.time objects. Handles a full date with an optional
-     * time to the second, fraction, and {@code Z} or {@code +hh:mm} offset. Returns {@link DateFormatter#DECLINED} for any other
-     * input.
-     *
-     * @param nanosResolution {@code true} for nanos since the epoch, {@code false} for millis
-     */
+    /** Tries full UTF-8 dates and timestamps with seconds, returning epoch millis, nanos, or {@link DateFormatter#DECLINED}. */
     long tryParseEpoch(byte[] bytes, int offset, int length, boolean nanosResolution) {
         return timezone == null ? parser.tryParseEpoch(bytes, offset, length, nanosResolution) : DateFormatter.DECLINED;
     }
@@ -561,7 +555,7 @@ class FastDateTimeParser implements DateTimeParser {
             return ParseResult.error(pos);
         }
 
-        /** Accepts only input that {@link #parse} accepts, with the same result. Keep it in step when {@link #parse} changes. */
+        /** Fast path for a subset of {@link #parse}. Keep their parsing rules in sync. */
         long tryParseEpoch(byte[] b, int off, int len, boolean nanosResolution) {
             final long declined = DateFormatter.DECLINED;
             if (defaults.isEmpty() == false
@@ -693,7 +687,7 @@ class FastDateTimeParser implements DateTimeParser {
         }
 
         /**
-         * Returns the days since 1970-01-01 for a valid proleptic Gregorian date. See
+         * Proleptic Gregorian epoch day using
          * <a href="https://howardhinnant.github.io/date_algorithms.html#days_from_civil">days_from_civil</a>.
          */
         private static long epochDay(int year, int month, int day) {

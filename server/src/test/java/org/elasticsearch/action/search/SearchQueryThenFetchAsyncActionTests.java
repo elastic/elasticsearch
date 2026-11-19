@@ -1576,13 +1576,6 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         return reported;
     }
 
-    private static void spin(long nanos) {
-        long start = System.nanoTime();
-        while (System.nanoTime() - start < nanos) {
-            Thread.onSpinWait();
-        }
-    }
-
     private RecordingChannel runBatchedNodeQuery(
         TransportVersion channelVersion,
         CircuitBreakerService breakerService,

@@ -40,6 +40,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rank.context.QueryPhaseRankCoordinatorContext;
+import org.elasticsearch.search.scheduling.QueryLoad;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
@@ -74,7 +75,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
 
     private final Executor executor;
     /** Where the time spent merging results is charged, or {@code null}. */
-    private volatile TaskLoadAttribution.Target mergeLoad;
+    private volatile QueryLoad.Charging mergeLoad;
     /** The docs each shard matched, recorded only while {@link #mergeLoad} is set. */
     private final Map<ShardId, Long> docsMatched = new ConcurrentHashMap<>();
     /** Whether a shard did not count the docs it matched, so that every shard counts as one result instead. */
@@ -156,7 +157,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     /**
      * Charges the time spent merging results to {@code mergeLoad}.
      */
-    public void mergeLoad(TaskLoadAttribution.Target mergeLoad) {
+    public void mergeLoad(QueryLoad.Charging mergeLoad) {
         this.mergeLoad = mergeLoad;
     }
 
@@ -176,7 +177,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
      * Where the time spent merging results is charged, or {@code null} when it is not charged.
      */
     @Nullable
-    TaskLoadAttribution.Target mergeLoad() {
+    QueryLoad.Charging mergeLoad() {
         return mergeLoad;
     }
 
@@ -829,7 +830,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         executor.execute(new AbstractRunnable() {
             @Override
             protected void doRun() {
-                TaskLoadAttribution.Target load = mergeLoad;
+                QueryLoad.Charging load = mergeLoad;
                 if (load != null) {
                     TaskLoadAttribution.attribute(load);
                 }

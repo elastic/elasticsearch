@@ -243,10 +243,10 @@ public class DriverContextTests extends ESTestCase {
             pool.execute(ActionRunnable.supply(chargedOnReturn, () -> {
                 TaskLoadAttribution.attribute(target);
                 driverContext.meteredCpu(() -> {
-                    spin();
+                    spin(1_000);
                     driverContext.removeAsyncAction();
                     chargedOnRemoval.onResponse(charged.get());
-                    spin();
+                    spin(1_000);
                 });
                 return charged.get();
             }));
@@ -255,14 +255,6 @@ public class DriverContextTests extends ESTestCase {
             assertThat(chargedOnReturn.get(10, TimeUnit.SECONDS), greaterThan(onRemoval));
         } finally {
             ThreadPool.terminate(pool, 10, TimeUnit.SECONDS);
-        }
-    }
-
-    /** Spins for a microsecond, so the time charged for it is never zero. */
-    private static void spin() {
-        long start = System.nanoTime();
-        while (System.nanoTime() - start < 1_000) {
-            Thread.onSpinWait();
         }
     }
 

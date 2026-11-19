@@ -219,13 +219,6 @@ public class DriverTests extends ESTestCase {
         }
     }
 
-    private static void spin(long nanos) {
-        long start = System.nanoTime();
-        while (System.nanoTime() - start < nanos) {
-            Thread.onSpinWait();
-        }
-    }
-
     /**
      * A source that reads several shards counts the rows it emitted from each, and shares the time between them by those rows.
      */

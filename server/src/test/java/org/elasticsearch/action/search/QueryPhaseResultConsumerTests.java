@@ -55,6 +55,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.scheduling.QueryLoad;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestEsExecutors;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -637,7 +638,7 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
                 }
             )
         ) {
-            consumer.mergeLoad((nanos, cpuNanos, finishNanos) -> {});
+            consumer.mergeLoad(new QueryLoad().charging((nanos, cpuNanos, finishNanos) -> {}));
             long[] counts = new long[shards];
             for (int i = 0; i < shards; i++) {
                 counts[i] = randomLongBetween(0, 1000);

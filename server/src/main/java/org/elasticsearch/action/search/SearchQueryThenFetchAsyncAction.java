@@ -967,7 +967,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         private final TransportChannel channel;
         private volatile BottomSortValuesCollector bottomSortCollector;
         private final NamedWriteableRegistry namedWriteableRegistry;
-        /** When the part of building the response not charged yet started. */
+        /** Start of the time spent building the response that isn't charged yet. */
         private long mergeStartNanos;
 
         private QueryPerNodeState(
@@ -1000,7 +1000,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 new ChannelActionListener<>(channel)
             );
             final BytesTransportResponse response;
-            TaskLoadAttribution.Target mergeLoad = queryPhaseResultConsumer.mergeLoad();
+            QueryLoad.Charging mergeLoad = queryPhaseResultConsumer.mergeLoad();
             if (mergeLoad != null) {
                 // the merge task that completed the last shard already reduced shard results
                 TaskLoadAttribution.chargeSoFar(mergeLoad, System.nanoTime());
@@ -1027,7 +1027,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
          * completed last.
          */
         private void chargeMerge() {
-            TaskLoadAttribution.Target mergeLoad = queryPhaseResultConsumer.mergeLoad();
+            QueryLoad.Charging mergeLoad = queryPhaseResultConsumer.mergeLoad();
             if (mergeLoad != null) {
                 long finishNanos = System.nanoTime();
                 TaskLoadAttribution.charge(mergeLoad, finishNanos - mergeStartNanos, finishNanos);
@@ -1036,10 +1036,11 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         }
 
         /**
-         * The load of merging the shard results, reported with one of them.
+         * Charges merging the shard results so far and returns its load, reported with one of them.
          */
-        private DirectoryMetrics mergeMetrics() {
-            if (queryPhaseResultConsumer.mergeLoad() instanceof QueryLoad.Charging mergeLoad) {
+        private DirectoryMetrics chargeMergeSoFar() {
+            QueryLoad.Charging mergeLoad = queryPhaseResultConsumer.mergeLoad();
+            if (mergeLoad != null) {
                 chargeMerge();
                 return SearchLoadMetrics.of(mergeLoad.load());
             }
@@ -1103,7 +1104,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 }
             }
             final int resultCount = queryPhaseResultConsumer.getNumShards();
-            DirectoryMetrics mergeMetrics = mergeMetrics();
+            DirectoryMetrics mergeMetrics = chargeMergeSoFar();
             out.writeVInt(resultCount);
             for (int i = 0; i < resultCount; i++) {
                 var result = queryPhaseResultConsumer.results.get(i);

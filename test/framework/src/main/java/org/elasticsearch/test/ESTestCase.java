@@ -1803,6 +1803,16 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
+     * Keeps the current thread running for at least {@code nanos}, so the time charged for it is never zero.
+     */
+    public static void spin(long nanos) {
+        long start = System.nanoTime();
+        while (System.nanoTime() - start < nanos) {
+            Thread.onSpinWait();
+        }
+    }
+
+    /**
      * Runs the code block for 10 seconds waiting for no assertion to trip. Retries on {@link AssertionError} with
      * exponential backoff, sleeping on the test thread between attempts.
      * <p>

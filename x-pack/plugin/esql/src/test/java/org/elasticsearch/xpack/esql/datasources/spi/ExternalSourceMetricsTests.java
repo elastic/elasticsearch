@@ -283,7 +283,7 @@ public class ExternalSourceMetricsTests extends ESTestCase {
         for (QueryMetric client : QueryMetric.values()) {
             String expected = switch (client) {
                 case KIBANA -> ExternalSourceMetrics.CLIENT_KIBANA;
-                case REST -> ExternalSourceMetrics.CLIENT_NONE;
+                case REST_ORIGIN -> ExternalSourceMetrics.CLIENT_NONE;
                 case FLEET, LOGSTASH, OBSERVABILITY, CONNECTORS, ELASTIC_SYNTHETICS, OTHER -> ExternalSourceMetrics.CLIENT_OTHER;
             };
             assertThat(client.toString(), ExternalSourceMetrics.client(client), equalTo(expected));

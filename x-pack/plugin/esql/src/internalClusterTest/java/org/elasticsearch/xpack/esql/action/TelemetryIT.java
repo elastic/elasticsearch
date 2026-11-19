@@ -421,7 +421,7 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
 
         String origin = randomFrom("", "kibana", "logstash-output-elasticsearch", "my-app");
         String expectedClient = switch (origin) {
-            case "" -> "rest";
+            case "" -> "rest_origin";
             case "kibana" -> "kibana";
             case "logstash-output-elasticsearch" -> "logstash";
             case "my-app" -> "other";
@@ -502,6 +502,8 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
         long expectedFailed = success ? 0 : successIterations;
         assertCounterDelta(statsBefore, statsAfter, "queries." + expectedClient + ".total", successIterations);
         assertCounterDelta(statsBefore, statsAfter, "queries." + expectedClient + ".failed", expectedFailed);
+        assertCounterDelta(statsBefore, statsAfter, "queries.rest.total", successIterations);
+        assertCounterDelta(statsBefore, statsAfter, "queries.rest.failed", expectedFailed);
     }
 
     private static Counters esqlStats() {

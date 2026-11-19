@@ -45,6 +45,11 @@ public class Metrics {
     }
 
     protected static final String QUERIES_PREFIX = "queries.";
+    /**
+     * Key under {@link #QUERIES_PREFIX} that counts every query whatever its client, so it always equals {@code _all}. Queries
+     * without an {@code X-elastic-product-origin} header are counted under {@link QueryMetric#REST_ORIGIN}.
+     */
+    static final String LEGACY_REST = "rest";
     protected static final String FEATURES_PREFIX = "features.";
     protected static final String SETTINGS_PREFIX = "settings.";
     protected static final String RESOLVED_SETTINGS_PREFIX = "resolved_settings.";
@@ -53,7 +58,7 @@ public class Metrics {
     protected static final String FUNC_PREFIX = "functions.";
     protected static final String TOOK_PREFIX = "took.";
 
-    // map that holds total/failed counters for each client type (each known Elastic product, other, rest)
+    // map that holds total/failed counters for each client type (each known Elastic product, other, rest_origin)
     private final Map<QueryMetric, Map<OperationType, CounterMetric>> opsByTypeMetrics;
     // map that holds one counter per esql query "feature" (eval, sort, limit, where....)
     private final Map<FeatureMetric, CounterMetric> featuresMetrics;
@@ -244,6 +249,7 @@ public class Metrics {
 
                 counters.inc(QUERIES_PREFIX + metricName + "." + operationTypeName, metricCounter);
                 counters.inc(QUERIES_PREFIX + "_all." + operationTypeName, metricCounter);
+                counters.inc(QUERIES_PREFIX + LEGACY_REST + "." + operationTypeName, metricCounter);
             }
         }
 

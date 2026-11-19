@@ -676,7 +676,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
     }
 
     public void testClientFromProductOrigin() throws Exception {
-        assertClientCounted(null, QueryMetric.REST);
+        assertClientCounted(null, QueryMetric.REST_ORIGIN);
         assertClientCounted("kibana", QueryMetric.KIBANA);
         assertClientCounted("fleet", QueryMetric.FLEET);
         assertClientCounted("logstash-output-elasticsearch", QueryMetric.LOGSTASH);
@@ -701,6 +701,8 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 assertThat(stats.get("queries." + client + ".total"), equalTo(client == expectedClient ? 1L : 0L));
                 assertThat(stats.get("queries." + client + ".failed"), equalTo(0L));
             }
+            assertThat(stats.get("queries.rest.total"), equalTo(1L));
+            assertThat(stats.get("queries.rest.failed"), equalTo(0L));
             assertThat(stats.get("queries._all.total"), equalTo(1L));
         }
     }
@@ -719,8 +721,10 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             Counters stats = planExecutor.metrics().stats();
             assertThat(stats.get("queries.kibana.total"), equalTo(1L));
             assertThat(stats.get("queries.kibana.failed"), equalTo(1L));
-            assertThat(stats.get("queries.rest.total"), equalTo(0L));
-            assertThat(stats.get("queries.rest.failed"), equalTo(0L));
+            assertThat(stats.get("queries.rest_origin.total"), equalTo(0L));
+            assertThat(stats.get("queries.rest_origin.failed"), equalTo(0L));
+            assertThat(stats.get("queries.rest.total"), equalTo(1L));
+            assertThat(stats.get("queries.rest.failed"), equalTo(1L));
         }
     }
 
@@ -757,13 +761,15 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 measurements.stream().map(Measurement::attributes).toList(),
                 containsInAnyOrder(
                     Map.of(PlanTelemetryManager.CLIENT, "kibana", PlanTelemetryManager.QUERY_SUCCESS, true),
-                    Map.of(PlanTelemetryManager.CLIENT, "rest", PlanTelemetryManager.QUERY_SUCCESS, false)
+                    Map.of(PlanTelemetryManager.CLIENT, "rest_origin", PlanTelemetryManager.QUERY_SUCCESS, false)
                 )
             );
             Counters stats = planExecutor.metrics().stats();
             assertThat(stats.get("queries.kibana.total"), equalTo(1L));
             assertThat(stats.get("queries.kibana.failed"), equalTo(0L));
-            assertThat(stats.get("queries.rest.total"), equalTo(1L));
+            assertThat(stats.get("queries.rest_origin.total"), equalTo(1L));
+            assertThat(stats.get("queries.rest_origin.failed"), equalTo(1L));
+            assertThat(stats.get("queries.rest.total"), equalTo(2L));
             assertThat(stats.get("queries.rest.failed"), equalTo(1L));
         }
     }
@@ -796,14 +802,14 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             );
             assertThat(failure.get(), instanceOf(IllegalStateException.class));
             Counters stats = planExecutor.metrics().stats();
-            assertThat(stats.get("queries.rest.total"), equalTo(1L));
-            assertThat(stats.get("queries.rest.failed"), equalTo(1L));
+            assertThat(stats.get("queries.rest_origin.total"), equalTo(1L));
+            assertThat(stats.get("queries.rest_origin.failed"), equalTo(1L));
             List<Measurement> measurements = meterRegistry.getRecorder()
                 .getMeasurements(InstrumentType.LONG_COUNTER, PlanTelemetryManager.QUERY_METRICS);
             assertThat(measurements, hasSize(1));
             assertThat(
                 measurements.get(0).attributes(),
-                equalTo(Map.of(PlanTelemetryManager.CLIENT, "rest", PlanTelemetryManager.QUERY_SUCCESS, false))
+                equalTo(Map.of(PlanTelemetryManager.CLIENT, "rest_origin", PlanTelemetryManager.QUERY_SUCCESS, false))
             );
         }
     }

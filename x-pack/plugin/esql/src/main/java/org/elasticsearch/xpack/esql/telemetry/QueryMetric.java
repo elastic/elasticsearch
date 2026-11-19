@@ -12,7 +12,7 @@ import org.elasticsearch.telemetry.metric.MetricAttributes;
 /**
  * Who sent an ES|QL query, a closed set derived by {@link QueryCallerClassifier} from the {@code X-elastic-product-origin} header:
  * one value per Elastic product in {@link MetricAttributes#KNOWN_PRODUCT_ORIGINS}, labelled with that origin, {@link #OTHER} for any
- * other origin, and {@link #REST} for a request without the header.
+ * other origin, and {@link #REST_ORIGIN} for a request without the header.
  */
 public enum QueryMetric {
     KIBANA("kibana"),
@@ -22,7 +22,7 @@ public enum QueryMetric {
     CONNECTORS("connectors"),
     ELASTIC_SYNTHETICS("elastic-synthetics"),
     OTHER("other"),
-    REST("rest");
+    REST_ORIGIN("rest_origin");
 
     private final String label;
 

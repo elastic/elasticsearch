@@ -4981,8 +4981,7 @@ public class EsqlCapabilities {
 
         /**
          * The usage information for ESQL counts queries by the Elastic product in {@code X-elastic-product-origin}: one
-         * {@code queries.<product>} per known product origin, {@code queries.other} for any other origin, and {@code queries.rest}
-         * for a request without the header. Before this, every query was counted as {@code rest}.
+         * {@code queries.<product>} per known product origin and {@code queries.other} for any other origin.
          */
         USAGE_QUERIES_BY_CLIENT,
 
@@ -5010,6 +5009,12 @@ public class EsqlCapabilities {
          * was the earliest. {@code LAST} and {@code LATEST} on histogram fields returned all histograms of the series merged.
          */
         FIX_TS_FIRST_LAST_SAMPLES,
+
+        /**
+         * The usage information for ESQL counts a request without {@code X-elastic-product-origin} as {@code queries.rest_origin},
+         * and {@code queries.rest} counts every query, whatever its client.
+         */
+        USAGE_QUERIES_REST_ORIGIN,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

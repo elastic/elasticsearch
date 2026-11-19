@@ -213,3 +213,15 @@ If these default values are not suitable, you can edit them:
 
 The values [`networkaddress.cache.ttl=<timeout>`](https://docs.oracle.com/javase/8/docs/technotes/guides/net/properties.md) and [`networkaddress.cache.negative.ttl=<timeout>`](https://docs.oracle.com/javase/8/docs/technotes/guides/net/properties.md) in the [Java security policy](https://docs.oracle.com/javase/8/docs/technotes/guides/security/PolicyFiles.md) are ignored by {{es}} unless you remove the settings for `es.networkaddress.cache.ttl` and `es.networkaddress.cache.negative.ttl`.
 
+## glibc malloc settings [glibc-malloc-settings]
+
+On Linux with glibc, you can tune native memory allocation with environment variables such as `MALLOC_ARENA_MAX`, but glibc reads them only at process start.
+{{es}} allows you to set them as JVM options (e.g. from `jvm.options` or `ES_JAVA_OPTS`) with prefix `es.glibc.env.` (e.g. `es.glibc.env.MALLOC_ARENA_MAX`). The {{es}} launcher will set the corresponding variable in the environment of the server process. For example:
+
+```
+-Des.glibc.env.MALLOC_ARENA_MAX=96
+```
+
+Supported variables: `MALLOC_ARENA_MAX`, `MALLOC_ARENA_TEST`, `MALLOC_MMAP_THRESHOLD_` (at most 33554432, corresponding to 32MB), `MALLOC_TRIM_THRESHOLD_`, `MALLOC_TOP_PAD_` and `MALLOC_MMAP_MAX_`. {{es}} fails to start if the name is not supported or the value is not a decimal number in the allowed range.
+
+Setting either threshold turns off glibc's automatic adjustment of both, so it is advisable to set `MALLOC_MMAP_THRESHOLD_` and `MALLOC_TRIM_THRESHOLD_` together.

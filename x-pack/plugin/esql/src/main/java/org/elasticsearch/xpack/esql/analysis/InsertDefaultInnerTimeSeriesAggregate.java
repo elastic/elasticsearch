@@ -17,11 +17,13 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DefaultTimeSeriesAggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Earliest;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.First;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FirstOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Last;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Latest;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.MaxOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.MinOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
@@ -52,6 +54,12 @@ import java.util.List;
  *
  * FIRST(field, @timestamp) ->
  * FIRST(FIRST_OVER_TIME(field), MIN_OVER_TIME(@timestamp))
+ *
+ * LATEST(field) ->
+ * LATEST(LAST_OVER_TIME(field), MAX_OVER_TIME(@timestamp))
+ *
+ * EARLIEST(field) ->
+ * EARLIEST(FIRST_OVER_TIME(field), MIN_OVER_TIME(@timestamp))
  * </pre>
  */
 public class InsertDefaultInnerTimeSeriesAggregate extends Rule<LogicalPlan, LogicalPlan> {
@@ -100,23 +108,36 @@ public class InsertDefaultInnerTimeSeriesAggregate extends Rule<LogicalPlan, Log
                 // Last/First have a sort parameter that must also be wrapped so TranslateTimeSeriesAggregate
                 // handles it during the two-phase split. Field and sort use correlated over-time functions
                 // to ensure they pick from the same document within a _tsid group.
-                case Last last when last.sort() instanceof TimeSeriesAggregateFunction == false -> wrapSortedAgg(
+                // Latest/Earliest sort by the implicit @timestamp, so they need the same wrapping. The generic
+                // branch below would wrap both their arguments in LAST_OVER_TIME, which makes EARLIEST return the
+                // last value of the series whose last sample is the earliest.
+                case Last last when last.sort() instanceof TimeSeriesAggregateFunction == false -> wrapLast(
                     last,
+                    last.field(),
                     last.sort(),
                     timestamp,
-                    changed,
-                    new DefaultTimeSeriesAggregateFunction(last.field(), timestamp),
-                    MaxOverTime::new,
-                    LastOverTime::new
+                    changed
                 );
-                case First first when first.sort() instanceof TimeSeriesAggregateFunction == false -> wrapSortedAgg(
+                case Latest latest when latest.timestamp() instanceof TimeSeriesAggregateFunction == false -> wrapLast(
+                    latest,
+                    latest.field(),
+                    latest.timestamp(),
+                    timestamp,
+                    changed
+                );
+                case First first when first.sort() instanceof TimeSeriesAggregateFunction == false -> wrapFirst(
                     first,
+                    first.field(),
                     first.sort(),
                     timestamp,
-                    changed,
-                    new FirstOverTime(first.field().source(), first.field(), timestamp, Literal.TRUE, AggregateFunction.NO_WINDOW),
-                    MinOverTime::new,
-                    FirstOverTime::new
+                    changed
+                );
+                case Earliest earliest when earliest.timestamp() instanceof TimeSeriesAggregateFunction == false -> wrapFirst(
+                    earliest,
+                    earliest.field(),
+                    earliest.timestamp(),
+                    timestamp,
+                    changed
                 );
                 case AggregateFunction af -> {
                     List<Expression> newFields = new ArrayList<>(af.fields());
@@ -144,6 +165,51 @@ public class InsertDefaultInnerTimeSeriesAggregate extends Rule<LogicalPlan, Log
                 }
             };
         });
+    }
+
+    /**
+     * Wraps the arguments of {@link Last} or {@link Latest} so the second pass picks the value of the series with the latest sample.
+     * The field uses {@link LastOverTime} for every type, histograms included, so the result is a real sample like outside of
+     * {@code TS}. The default inner aggregate would merge all histograms of a series instead.
+     */
+    private static Expression wrapLast(
+        AggregateFunction agg,
+        Expression field,
+        Expression sort,
+        Expression timestamp,
+        Holder<Boolean> changed
+    ) {
+        return wrapSortedAgg(
+            agg,
+            sort,
+            timestamp,
+            changed,
+            new LastOverTime(field.source(), field, timestamp, Literal.TRUE, AggregateFunction.NO_WINDOW),
+            MaxOverTime::new,
+            LastOverTime::new
+        );
+    }
+
+    /**
+     * Wraps the arguments of {@link First} or {@link Earliest} so the second pass picks the value of the series with the earliest
+     * sample. Like {@link #wrapLast}, it keeps a real sample for every type, histograms included.
+     */
+    private static Expression wrapFirst(
+        AggregateFunction agg,
+        Expression field,
+        Expression sort,
+        Expression timestamp,
+        Holder<Boolean> changed
+    ) {
+        return wrapSortedAgg(
+            agg,
+            sort,
+            timestamp,
+            changed,
+            new FirstOverTime(field.source(), field, timestamp, Literal.TRUE, AggregateFunction.NO_WINDOW),
+            MinOverTime::new,
+            FirstOverTime::new
+        );
     }
 
     /**

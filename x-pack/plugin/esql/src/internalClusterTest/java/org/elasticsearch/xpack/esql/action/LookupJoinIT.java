@@ -426,7 +426,8 @@ public class LookupJoinIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testExpressionJoinOnAliasKeyStreamingDisabled() {
-        assertExpressionJoinStreamingDisabled("ip_real", "ip_real", "type=keyword", "ip", "type=alias,path=ip_real");
+        // without doc values term queries find nothing, so only seeking the terms of the alias's target passes
+        assertExpressionJoinStreamingDisabled("ip_real", "ip_real", "type=keyword,doc_values=false", "ip", "type=alias,path=ip_real");
     }
 
     private void assertExpressionJoinStreamingDisabled(String indexedAs, String... keyMapping) {

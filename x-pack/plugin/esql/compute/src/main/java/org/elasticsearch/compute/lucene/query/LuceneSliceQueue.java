@@ -38,12 +38,10 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.BiFunction;
@@ -898,63 +896,41 @@ public final class LuceneSliceQueue {
     }
 
     static final class TimeSeriesPartitioner {
+        private static final int NO_MORE_PREFIXES = Integer.MAX_VALUE;
+        private static final int NUM_METRICS = 1 << Byte.SIZE;
 
-        private static class PrefixGroup {
-            final List<PartialLeafReaderContext> leaves;
-            int numDocs = 0;
+        private static final class LeafPartitions {
+            final LeafReaderContext leaf;
+            final int[] prefixes;
+            final int[] startDocs;
+            final int numPartitions;
+            final int[] metricStarts = new int[NUM_METRICS + 1];
+            int sliceStart;
+            int next;
+            int metricEnd;
 
-            PrefixGroup(int size) {
-                leaves = new ArrayList<>(size);
-            }
-
-            void add(LeafReaderContext context, int minDoc, int maxDoc) {
-                leaves.add(new PartialLeafReaderContext(context, minDoc, maxDoc));
-                numDocs += (maxDoc - minDoc);
-            }
-        }
-
-        List<List<PartialLeafReaderContext>> partition(List<LeafReaderContext> leaves, int taskConcurrency, int maxDocsPerLeave)
-            throws IOException {
-            int prefixBitsShift = -1;
-            final Map<Integer, Map<Integer, PrefixGroup>> firstByteGroups = new TreeMap<>();
-            PartitionedDocValues.PrefixPartitions prefixPartitions = null;
-            for (LeafReaderContext leaf : leaves) {
-                var tsidValues = leaf.reader().getSortedDocValues(TimeSeriesIdFieldMapper.NAME);
-                if (tsidValues == null) {
-                    continue; // empty
-                }
-                var partitionedDV = (PartitionedDocValues) tsidValues;
-                if (prefixBitsShift == -1) {
-                    prefixBitsShift = partitionedDV.prefixPartitionBits() - Byte.SIZE;
-                }
-                prefixPartitions = partitionedDV.prefixPartitions(prefixPartitions);
-                assert prefixPartitions != null;
-                int pendingPrefix = -1;
-                int pendingStartDoc = -1;
-                int numPartitions = prefixPartitions.numPartitions();
-                final int shift = prefixBitsShift;
-                for (int i = 0; i < numPartitions; i++) {
-                    int startDoc = prefixPartitions.startDocs()[i];
-                    int prefix = prefixPartitions.prefixes()[i];
-                    if (pendingPrefix != -1) {
-                        firstByteGroups.computeIfAbsent(pendingPrefix >>> shift, k -> new TreeMap<>())
-                            .computeIfAbsent(pendingPrefix, k -> new PrefixGroup(leaves.size()))
-                            .add(leaf, pendingStartDoc, startDoc);
+            LeafPartitions(LeafReaderContext leaf, PartitionedDocValues.PrefixPartitions partitions, int shift) {
+                this.leaf = leaf;
+                this.prefixes = partitions.prefixes();
+                this.startDocs = partitions.startDocs();
+                this.numPartitions = partitions.numPartitions();
+                int partition = 0;
+                for (int metric = 0; metric < NUM_METRICS; metric++) {
+                    metricStarts[metric] = partition;
+                    while (partition < numPartitions && prefixes[partition] >>> shift == metric) {
+                        partition++;
                     }
-                    pendingStartDoc = startDoc;
-                    pendingPrefix = prefix;
                 }
-                if (pendingPrefix >= 0) {
-                    firstByteGroups.computeIfAbsent(pendingPrefix >>> shift, k -> new TreeMap<>())
-                        .computeIfAbsent(pendingPrefix, k -> new PrefixGroup(leaves.size()))
-                        .add(leaf, pendingStartDoc, leaf.reader().maxDoc());
-                }
+                metricStarts[NUM_METRICS] = numPartitions;
             }
-            List<List<PartialLeafReaderContext>> results = new ArrayList<>();
-            for (Map<Integer, PrefixGroup> prefixGroups : firstByteGroups.values()) {
-                results.addAll(combineSlices(prefixGroups.values().stream().toList(), taskConcurrency, maxDocsPerLeave));
+
+            int nextPrefix() {
+                return next < metricEnd ? prefixes[next] : NO_MORE_PREFIXES;
             }
-            return results;
+
+            int startDoc(int partition) {
+                return partition < numPartitions ? startDocs[partition] : leaf.reader().maxDoc();
+            }
         }
 
         /**
@@ -964,37 +940,78 @@ public final class LuceneSliceQueue {
          * single leaf within a slice reaches {@code maxDocsPerLeave} docs to bound per-leaf
          * processing cost.
          */
-        private List<List<PartialLeafReaderContext>> combineSlices(List<PrefixGroup> slices, int taskConcurrency, int maxDocsPerLeave) {
-            final int totalDocs = slices.stream().mapToInt(s -> s.numDocs).sum();
-            final int docsPerSlice = Math.max(Math.ceilDiv(totalDocs, taskConcurrency), maxDocsPerLeave);
-            Map<LeafReaderContext, PartialLeafReaderContext> current = new IdentityHashMap<>();
-            List<List<PartialLeafReaderContext>> results = new ArrayList<>();
-            int pendingDocs = 0;
-            boolean anyLeafExceedsMaxDocs = false;
-            for (PrefixGroup slice : slices) {
-                if (pendingDocs >= docsPerSlice || anyLeafExceedsMaxDocs) {
-                    results.add(current.values().stream().toList());
-                    current.clear();
-                    pendingDocs = 0;
-                    anyLeafExceedsMaxDocs = false;
+        List<List<PartialLeafReaderContext>> partition(List<LeafReaderContext> leaves, int taskConcurrency, int maxDocsPerLeave)
+            throws IOException {
+            final LeafPartitions[] partitions = loadPartitions(leaves);
+            final List<List<PartialLeafReaderContext>> slices = new ArrayList<>();
+            for (int metric = 0; metric < NUM_METRICS; metric++) {
+                int metricDocs = 0;
+                int prefix = NO_MORE_PREFIXES;
+                for (LeafPartitions leaf : partitions) {
+                    assert leaf.next == leaf.metricStarts[metric];
+                    leaf.metricEnd = leaf.metricStarts[metric + 1];
+                    metricDocs += leaf.startDoc(leaf.metricEnd) - leaf.startDoc(leaf.next);
+                    prefix = Math.min(prefix, leaf.nextPrefix());
                 }
-                for (PartialLeafReaderContext leaf : slice.leaves) {
-                    final LeafReaderContext ctx = leaf.leafReaderContext();
-                    current.merge(ctx, leaf, (curr, next) -> {
-                        assert curr.maxDoc() == leaf.minDoc() : "current=" + curr + "; next=" + leaf;
-                        return new PartialLeafReaderContext(ctx, curr.minDoc(), next.maxDoc());
-                    });
-                    PartialLeafReaderContext merged = current.get(ctx);
-                    if ((merged.maxDoc() - merged.minDoc()) >= maxDocsPerLeave) {
-                        anyLeafExceedsMaxDocs = true;
+                final int docsPerSlice = Math.max(Math.ceilDiv(metricDocs, taskConcurrency), maxDocsPerLeave);
+                int pendingDocs = 0;
+                while (prefix != NO_MORE_PREFIXES) {
+                    boolean anyLeafExceedsMaxDocs = false;
+                    int nextPrefix = NO_MORE_PREFIXES;
+                    for (LeafPartitions leaf : partitions) {
+                        if (leaf.nextPrefix() == prefix) {
+                            final int startDoc = leaf.startDocs[leaf.next++];
+                            final int endDoc = leaf.startDoc(leaf.next);
+                            pendingDocs += endDoc - startDoc;
+                            if (endDoc - leaf.startDocs[leaf.sliceStart] >= maxDocsPerLeave) {
+                                anyLeafExceedsMaxDocs = true; // only flush after have included all paritions for this prefix
+                            }
+                        }
+                        nextPrefix = Math.min(nextPrefix, leaf.nextPrefix());
                     }
+                    if (anyLeafExceedsMaxDocs || pendingDocs >= docsPerSlice) {
+                        flushSlice(partitions, slices);
+                        pendingDocs = 0;
+                    }
+                    prefix = nextPrefix;
                 }
-                pendingDocs += slice.numDocs;
+                flushSlice(partitions, slices);
             }
-            if (current.isEmpty() == false) {
-                results.add(current.values().stream().toList());
+            return slices;
+        }
+
+        static LeafPartitions[] loadPartitions(List<LeafReaderContext> leaves) throws IOException {
+            int prefixBitsShift = -1;
+            final List<LeafPartitions> leafPartitions = new ArrayList<>(leaves.size());
+            for (LeafReaderContext leaf : leaves) {
+                var tsidValues = leaf.reader().getSortedDocValues(TimeSeriesIdFieldMapper.NAME);
+                if (tsidValues == null) {
+                    continue; // empty
+                }
+                var partitionedDV = (PartitionedDocValues) tsidValues;
+                if (prefixBitsShift == -1) {
+                    prefixBitsShift = partitionedDV.prefixPartitionBits() - Byte.SIZE;
+                } else {
+                    assert prefixBitsShift == partitionedDV.prefixPartitionBits() - Byte.SIZE;
+                }
+                var prefixPartitions = partitionedDV.prefixPartitions(null);
+                assert prefixPartitions != null;
+                leafPartitions.add(new LeafPartitions(leaf, prefixPartitions, prefixBitsShift));
             }
-            return results;
+            return leafPartitions.toArray(LeafPartitions[]::new);
+        }
+
+        private static void flushSlice(LeafPartitions[] partitions, List<List<PartialLeafReaderContext>> slices) {
+            final List<PartialLeafReaderContext> slice = new ArrayList<>(partitions.length);
+            for (LeafPartitions leaf : partitions) {
+                if (leaf.next > leaf.sliceStart) {
+                    slice.add(new PartialLeafReaderContext(leaf.leaf, leaf.startDocs[leaf.sliceStart], leaf.startDoc(leaf.next)));
+                    leaf.sliceStart = leaf.next;
+                }
+            }
+            if (slice.isEmpty() == false) {
+                slices.add(slice);
+            }
         }
     }
 }

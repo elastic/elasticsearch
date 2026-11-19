@@ -37,7 +37,7 @@ import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.SequentialRangeMissingHandler;
-import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitCleaner;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
@@ -146,7 +146,7 @@ public class StatelessBlobCacheServiceIT extends AbstractStatelessPluginIntegTes
             // let's have an empty cache
             cacheService.forceEvict(key -> true);
             FileCacheKey cacheKey = new FileCacheKey(indexShard.shardId(), maxBlobLocation.primaryTerm(), maxBlobLocation.blobName());
-            CacheBlobReader blobReader = searchDirectory.getCacheBlobReaderForWarming(maxBlobLocation.blobFile());
+            CacheBlobReader blobReader = searchDirectory.getCacheBlobReaderForWarming(maxBlobLocation.bccBlob());
             // aligning the writer offset to be a factor of page size when writing to the cache
             int writerOffset = randomFrom(PAGE_SIZE, 2 * PAGE_SIZE, 3 * PAGE_SIZE);
             logger.info("-> writer offset: {}, blob file: {}", writerOffset, maxBlobLocation);
@@ -337,7 +337,7 @@ public class StatelessBlobCacheServiceIT extends AbstractStatelessPluginIntegTes
                     StatelessCompoundCommit commit,
                     BlobStoreCacheDirectory directory,
                     WarmingRatioProvider warmingRatioProvider,
-                    @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
+                    @Nullable Map<BccBlob, WarmTarget> endTargetsToWarm,
                     boolean preWarmForIdLookup,
                     ActionListener<Void> listener
                 ) {

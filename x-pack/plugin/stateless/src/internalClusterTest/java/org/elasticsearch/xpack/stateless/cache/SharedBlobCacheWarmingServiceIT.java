@@ -82,7 +82,7 @@ import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAc
 import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeout.TimeoutContext;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.Type;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
-import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
@@ -2109,7 +2109,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             new CopyOnWriteArrayList<>();
         private final CopyOnWriteArrayList<Consumer<Type>> beforeWarmingStartsListeners = new CopyOnWriteArrayList<>();
 
-        private final CopyOnWriteArrayList<Set<BlobFile>> bccHeaderReadWarmedBlobs = new CopyOnWriteArrayList<>();
+        private final CopyOnWriteArrayList<Set<BccBlob>> bccHeaderReadWarmedBlobs = new CopyOnWriteArrayList<>();
 
         private volatile boolean awaitWarmingForSearchRecovery = false;
         private volatile boolean awaitWarmingForIndexingRecovery = false;
@@ -2147,7 +2147,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         }
 
         /** The blobs whose region 0 was prewarmed before reading BCC headers, one entry per prewarm. */
-        List<Set<BlobFile>> bccHeaderReadWarmedBlobs() {
+        List<Set<BccBlob>> bccHeaderReadWarmedBlobs() {
             return List.copyOf(bccHeaderReadWarmedBlobs);
         }
 
@@ -2155,7 +2155,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         public void warmCacheForBCCHeadersRead(
             IndexShard indexShard,
             BlobStoreCacheDirectory directory,
-            Set<BlobFile> lastCommitBlobs,
+            Set<BccBlob> lastCommitBlobs,
             ActionListener<Void> listener
         ) {
             bccHeaderReadWarmedBlobs.add(lastCommitBlobs);
@@ -2203,7 +2203,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             StatelessCompoundCommit commit,
             BlobStoreCacheDirectory directory,
             WarmingRatioProvider warmingRatioProvider,
-            @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
+            @Nullable Map<BccBlob, WarmTarget> endTargetsToWarm,
             boolean preWarmForIdLookup,
             ActionListener<Void> listener
         ) {
@@ -2239,7 +2239,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             StatelessCompoundCommit commit,
             BlobStoreCacheDirectory directory,
             WarmingRatioProvider warmingRatioProvider,
-            @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
+            @Nullable Map<BccBlob, WarmTarget> endTargetsToWarm,
             SourceShardWarmingInfo sourceShardWarmingInfo,
             ActionListener<Void> resumeRecoveryListener
         ) {
@@ -2370,7 +2370,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             StatelessCompoundCommit commit,
             BlobStoreCacheDirectory directory,
             WarmingRatioProvider warmingRatioProvider,
-            @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
+            @Nullable Map<BccBlob, WarmTarget> endTargetsToWarm,
             boolean preWarmForIdLookup,
             ActionListener<Void> listener
         ) {

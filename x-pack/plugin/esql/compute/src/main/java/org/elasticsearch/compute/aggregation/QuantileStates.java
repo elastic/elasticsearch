@@ -36,9 +36,14 @@ public final class QuantileStates {
 
     private QuantileStates() {}
 
-    private static Double percentileParam(double p) {
+    private static Double percentileParam(double p, boolean allowNonFinite) {
         // Percentile must be a double between 0 and 100 inclusive
         // If percentile parameter is wrong, the aggregation will return NULL
+        if (allowNonFinite && (p < 0 || p > 100)) {
+            // PromQL defines a φ outside [0, 1] as ∓Inf rather than an error, so the non-finite mode keeps
+            // the raw value; the evaluate methods emit the matching infinity once the state holds observations.
+            return p;
+        }
         return 0 <= p && p <= 100 ? p : null;
     }
 
@@ -170,7 +175,7 @@ public final class QuantileStates {
         SingleState(CircuitBreaker breaker, double percentile, double tDigestStateCompression, boolean allowNonFinite) {
             this.breaker = breaker;
             this.digest = TDigestState.create(breaker, tDigestStateCompression);
-            this.percentile = percentileParam(percentile);
+            this.percentile = percentileParam(percentile, allowNonFinite);
             this.allowNonFinite = allowNonFinite;
         }
 
@@ -232,6 +237,14 @@ public final class QuantileStates {
             if (percentile == null || (digest.size() == 0 && nanCount == 0 && negInfCount == 0 && posInfCount == 0)) {
                 return blockFactory.newConstantNullBlock(1);
             }
+            // Only the non-finite mode can hold a percentile outside [0, 100] here; PromQL defines such a φ
+            // as ∓Inf for every step with observations, while an empty state stays null.
+            if (percentile < 0) {
+                return blockFactory.newConstantDoubleBlockWith(Double.NEGATIVE_INFINITY, 1);
+            }
+            if (percentile > 100) {
+                return blockFactory.newConstantDoubleBlockWith(Double.POSITIVE_INFINITY, 1);
+            }
             double result = quantile(percentile / 100, digest, nanCount, negInfCount, posInfCount);
             return blockFactory.newConstantDoubleBlockWith(result, 1);
         }
@@ -278,7 +291,7 @@ public final class QuantileStates {
             this.breaker = breaker;
             this.bigArrays = bigArrays;
             this.digests = bigArrays.newObjectArray(1);
-            this.percentile = percentileParam(percentile);
+            this.percentile = percentileParam(percentile, allowNonFinite);
             this.tDigestStateCompression = tDigestStateCompression;
             this.allowNonFinite = allowNonFinite;
         }
@@ -433,6 +446,10 @@ public final class QuantileStates {
                     long posInf = nonFiniteCount(si, POS_INF_OFFSET);
                     if (digest.size() == 0 && nan == 0 && negInf == 0 && posInf == 0) {
                         builder.appendNull();
+                    } else if (percentile < 0 || percentile > 100) {
+                        // PromQL defines a φ outside [0, 1] as ∓Inf for each group with observations;
+                        // only the non-finite mode can hold such a percentile, since strict mode nulls it.
+                        builder.appendDouble(percentile < 0 ? Double.NEGATIVE_INFINITY : Double.POSITIVE_INFINITY);
                     } else {
                         // A group observing only non-finite values still holds a value; nulling it would drop the series.
                         builder.appendDouble(quantile(percentile / 100, digest, nan, negInf, posInf));

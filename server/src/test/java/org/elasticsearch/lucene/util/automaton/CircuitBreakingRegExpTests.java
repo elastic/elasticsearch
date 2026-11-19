@@ -279,6 +279,18 @@ public class CircuitBreakingRegExpTests extends ESTestCase {
         assertEquals(0L, breaker.getUsed());
     }
 
+    /** A written-out concatenation is costed piece by piece, not by the closed form a repeat uses, and takes the same walk. */
+    public void testConcatenationOfEmptyStringsCountsItsWalkAsWork() {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofGb(1));
+        expectThrows(
+            TooComplexToDeterminizeException.class,
+            () -> new CircuitBreakingRegExp("(a{0})".repeat(20000), FLAGS, 0).toAutomaton(breaker, "test", 100_000_000)
+        );
+        assertEquals(0L, breaker.getUsed());
+        new CircuitBreakingRegExp("(a{1})".repeat(20000), FLAGS, 0).toAutomaton(breaker, "test", 100_000_000);
+        assertEquals(0L, breaker.getUsed());
+    }
+
     /**
      * An intersection's size is only known once it is built, so it is refused as soon as it outgrows the work left, even
      * when the breaker would let it continue. The limit is lowered to keep the refused product small.

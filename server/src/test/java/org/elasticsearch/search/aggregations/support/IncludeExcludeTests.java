@@ -11,6 +11,7 @@ package org.elasticsearch.search.aggregations.support;
 
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.tests.util.automaton.AutomatonTestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongBitSet;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
@@ -42,6 +43,7 @@ import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class IncludeExcludeTests extends ESTestCase {
@@ -304,6 +306,49 @@ public class IncludeExcludeTests extends ESTestCase {
             assertTrue(filter.accept(new BytesRef("application")));
             assertFalse(filter.accept(new BytesRef("apple")));
         }
+    }
+
+    /**
+     * The same check over random patterns. {@code randomRegexp} rarely writes a {@code ~} of its own, so two of the three
+     * shapes add one. A pattern the parsed side refuses must be refused after the round trip too.
+     */
+    public void testRandomRegexpsFilterAlikeAfterSerialization() throws IOException {
+        int checked = 0;
+        for (int i = 0; i < 300; i++) {
+            String operand = "(" + AutomatonTestUtil.randomRegexp(random()) + ")";
+            String pattern = switch (between(0, 2)) {
+                case 0 -> operand;
+                case 1 -> "~" + operand;
+                case 2 -> operand + "&~(" + AutomatonTestUtil.randomRegexp(random()) + ")";
+                default -> throw new AssertionError();
+            };
+            IncludeExclude original = new IncludeExclude(pattern, null, null, null);
+            IncludeExclude copy = copyWriteable(original, writableRegistry(), IncludeExclude::new);
+            StringFilter expected;
+            try {
+                expected = original.convertToStringFilter(DocValueFormat.RAW, DEFAULT_MAX_REGEX_LENGTH, BREAKER);
+            } catch (IllegalArgumentException e) {
+                expectThrows(
+                    IllegalArgumentException.class,
+                    () -> copy.convertToStringFilter(DocValueFormat.RAW, DEFAULT_MAX_REGEX_LENGTH, BREAKER)
+                );
+                continue;
+            }
+            StringFilter actual = copy.convertToStringFilter(DocValueFormat.RAW, DEFAULT_MAX_REGEX_LENGTH, BREAKER);
+            for (int j = 0; j < 20; j++) {
+                // half the terms reuse the pattern's own characters, so its literals have a chance to match
+                BytesRef term = new BytesRef(randomBoolean() ? randomAlphaOfLengthBetween(0, 8) : randomSubsequence(pattern));
+                assertEquals("[" + pattern + "] on [" + term.utf8ToString() + "]", expected.accept(term), actual.accept(term));
+            }
+            checked++;
+        }
+        assertThat(checked, greaterThanOrEqualTo(100));
+    }
+
+    private static String randomSubsequence(String text) {
+        StringBuilder term = new StringBuilder();
+        text.codePoints().filter(c -> randomBoolean()).forEach(term::appendCodePoint);
+        return term.toString();
     }
 
     public void testRegexIncludeAndExclude() throws IOException {

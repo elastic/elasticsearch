@@ -1748,7 +1748,7 @@ tx:integer | pod:keyword
 // EARLIEST and LATEST must match FIRST and LAST sorted by @timestamp
 tsEarliestAndLatestMatchFirstAndLast
 required_capability: ts_command_v0
-required_capability: fix_ts_earliest
+required_capability: fix_ts_first_last_samples
 
 TS k8s
 | STATS earliest_cost = EARLIEST(network.cost), first_cost = FIRST(network.cost, @timestamp),

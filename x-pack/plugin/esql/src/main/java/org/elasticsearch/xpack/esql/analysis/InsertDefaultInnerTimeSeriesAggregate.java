@@ -169,6 +169,8 @@ public class InsertDefaultInnerTimeSeriesAggregate extends Rule<LogicalPlan, Log
 
     /**
      * Wraps the arguments of {@link Last} or {@link Latest} so the second pass picks the value of the series with the latest sample.
+     * The field uses {@link LastOverTime} for every type, histograms included, so the result is a real sample like outside of
+     * {@code TS}. The default inner aggregate would merge all histograms of a series instead.
      * If sort isn't resolved yet, returns the node unchanged so the Verifier can report a proper resolution failure instead of
      * {@link #wrapSortedAgg} blowing up on an unresolved attribute (via {@link Expression#semanticEquals}).
      */
@@ -187,7 +189,7 @@ public class InsertDefaultInnerTimeSeriesAggregate extends Rule<LogicalPlan, Log
             sort,
             timestamp,
             changed,
-            new DefaultTimeSeriesAggregateFunction(field, timestamp),
+            new LastOverTime(field.source(), field, timestamp, Literal.TRUE, AggregateFunction.NO_WINDOW),
             MaxOverTime::new,
             LastOverTime::new
         );
@@ -195,7 +197,8 @@ public class InsertDefaultInnerTimeSeriesAggregate extends Rule<LogicalPlan, Log
 
     /**
      * Wraps the arguments of {@link First} or {@link Earliest} so the second pass picks the value of the series with the earliest
-     * sample. An unresolved sort is left untouched for the same reason as in {@link #wrapLast}.
+     * sample. Like {@link #wrapLast}, it keeps a real sample for every type, histograms included. An unresolved sort is left
+     * untouched for the same reason as in {@link #wrapLast}.
      */
     private static Expression wrapFirst(
         AggregateFunction agg,

@@ -196,6 +196,63 @@ setup:
   - match: { _slice: tenant-b }
 
 ---
+"Reindex all source slices into a single destination slice":
+  - do:
+      indices.create:
+        index: sliced_source_single
+        body:
+          settings:
+            index.slice.enabled: true
+  - do:
+      index:
+        index:  sliced_source_single
+        id:     "1"
+        _slice: tenant-a
+        body:   { "company": "cat" }
+  - do:
+      index:
+        index:  sliced_source_single
+        id:     "2"
+        _slice: tenant-b
+        body:   { "company": "dog" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      indices.create:
+        index: sliced_dest_single
+        body:
+          settings:
+            index.slice.enabled: true
+
+  - do:
+      reindex:
+        refresh: true
+        body:
+          source:
+            index: sliced_source_single
+          dest:
+            index: sliced_dest_single
+            _slice: tenant-c
+  - match: {created: 2}
+  - match: {noops: 0}
+
+  # every document now lives in the destination slice, whatever slice it was read from
+  - do:
+      search:
+        index: sliced_dest_single
+        _slice: tenant-c
+        body: { query: { match_all: {} } }
+  - match: { hits.total.value: 2 }
+
+  - do:
+      search:
+        index: sliced_dest_single
+        _slice: tenant-a
+        body: { query: { match_all: {} } }
+  - match: { hits.total.value: 0 }
+
+---
 "Reindex a source slice into a slice index preserving the slice when destination slice is omitted":
   - do:
       indices.create:

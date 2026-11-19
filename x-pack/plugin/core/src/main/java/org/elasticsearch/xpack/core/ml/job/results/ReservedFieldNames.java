@@ -36,9 +36,10 @@ public final class ReservedFieldNames {
     private static final Pattern DOT_PATTERN = Pattern.compile("\\.");
 
     /**
-     * Left over from the removed ES|QL datafeed source checkpoint. Results indices created while the mapping was at version 3
-     * map it as "long", and a mapping update cannot change that. Reserving it keeps an input field of this name from being
-     * copied as a string into that "long" field. It is no longer in the results mapping for new indices.
+     * Left over from the removed ES|QL datafeed source checkpoint. It was removed from the bundled results mapping, but the
+     * template version is unchanged, so an already installed template, and the indices created from it or from a version 3
+     * mapping, can still map it as "long". A mapping update cannot change that. Reserving it keeps an input field of this name
+     * from being copied as a string into that "long" field.
      */
     public static final String LEGACY_SOURCE_END_MS = "source_end_ms";
 

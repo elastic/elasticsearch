@@ -32,6 +32,7 @@ import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 
 /**
@@ -186,6 +187,36 @@ public class SharedSynonymsIT extends ESSingleNodeTestCase {
         createIndex("b", inlineWithPathIndex("two.txt"));
         assertThat(analyze("a", "hello"), contains("hello", "hi"));
         assertThat(analyze("b", "hello"), contains("hello", "hey"));
+    }
+
+    /**
+     * The {@code NodeConstruction} wiring: a cluster-settings update, not a direct registry call, stops and resumes analyzer sharing.
+     */
+    public void testSharingEscapeHatchWiredToClusterSettings() {
+        assumeTrue("analyzer sharing feature flag disabled", AnalysisRegistry.SHARED_ANALYZERS_FEATURE_FLAG.isEnabled());
+        AnalysisRegistry registry = getInstanceFromNode(AnalysisRegistry.class);
+        Settings recipe = Settings.builder()
+            .put("index.analysis.analyzer.my_analyzer.tokenizer", "standard")
+            .putList("index.analysis.analyzer.my_analyzer.filter", "lowercase")
+            .build();
+
+        createIndex("a", recipe);
+        createIndex("b", recipe);
+        assertThat(registry.cacheHits(), greaterThan(0L));
+
+        try {
+            updateClusterSettings(Settings.builder().put(AnalysisRegistry.SHARED_ANALYZERS_ENABLED_SETTING.getKey(), false).build());
+            // Baseline after disabling, so background index creation cannot race it.
+            long hitsAfterDisable = registry.cacheHits();
+            createIndex("c", recipe);
+            assertEquals(hitsAfterDisable, registry.cacheHits());
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(AnalysisRegistry.SHARED_ANALYZERS_ENABLED_SETTING.getKey()).build());
+        }
+
+        long hitsAfterEnable = registry.cacheHits();
+        createIndex("d", recipe);
+        assertThat(registry.cacheHits(), greaterThan(hitsAfterEnable));
     }
 
     private static Settings inlineWithPathIndex(String path) {

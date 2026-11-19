@@ -385,7 +385,7 @@ public class StatelessPreFlushRelocationIT extends AbstractStatelessPluginIntegT
             if (TransportStatelessPrimaryRelocationPrewarmAction.PREWARM_RELOCATION_ACTION_NAME.equals(action)) {
                 preFlushDoneAtPrewarmSend.set(preFlush.result().isDone());
                 prewarmedBccGeneration.set(
-                    ((TransportStatelessPrimaryRelocationPrewarmAction.Request) request).latestBccBlob().blobFile().generation()
+                    ((TransportStatelessPrimaryRelocationPrewarmAction.Request) request).latestBccBlob().bccBlob().generation()
                 );
             }
             connection.sendRequest(requestId, action, request, options);

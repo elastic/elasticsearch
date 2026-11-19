@@ -43,7 +43,7 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.stateless.cache.WarmingRatioProvider;
 import org.elasticsearch.xpack.stateless.cache.WarmingRatioProviderFactory;
-import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
@@ -227,7 +227,7 @@ public final class TransportGetShardWarmingInfoAction extends TransportAction<
         long nowMillis
     ) {
         // Use timestamp range to identify commits. It's the best we have, and it's acceptable if there is a clash.
-        record CommitInBlob(BlobFile blobFile, @Nullable StatelessCompoundCommit.TimestampFieldValueRange timestampRange) {}
+        record CommitInBlob(BccBlob bccBlob, @Nullable StatelessCompoundCommit.TimestampFieldValueRange timestampRange) {}
         record Extent(long start, long end) {
             Extent union(Extent other) {
                 return new Extent(Math.min(start, other.start), Math.max(end, other.end));
@@ -236,12 +236,12 @@ public final class TransportGetShardWarmingInfoAction extends TransportAction<
         Map<CommitInBlob, Extent> commits = new HashMap<>();
         for (BlobFileRanges range : ranges) {
             commits.merge(
-                new CommitInBlob(range.blobLocation().blobFile(), range.timestampRange()),
+                new CommitInBlob(range.blobLocation().bccBlob(), range.timestampRange()),
                 new Extent(range.fileOffset(), range.fileOffset() + range.fileLength()),
                 Extent::union
             );
         }
-        Map<BlobFile, Long> warmEndPerBlob = new HashMap<>();
+        Map<BccBlob, Long> warmEndPerBlob = new HashMap<>();
         for (var commit : commits.entrySet()) {
             var timestampRange = commit.getKey().timestampRange();
             double ratio = ratioProvider.getWarmingRatio(timestampRange, resolveTimestamp.applyAsLong(timestampRange), nowMillis);
@@ -251,7 +251,7 @@ public final class TransportGetShardWarmingInfoAction extends TransportAction<
             Extent extent = commit.getValue();
             long size = extent.end() - extent.start();
             long warmEnd = extent.start() + Math.min(size, Math.round(size * ratio));
-            warmEndPerBlob.merge(commit.getKey().blobFile(), warmEnd, Math::max);
+            warmEndPerBlob.merge(commit.getKey().bccBlob(), warmEnd, Math::max);
         }
         return warmEndPerBlob.values().stream().mapToLong(Long::longValue).sum();
     }

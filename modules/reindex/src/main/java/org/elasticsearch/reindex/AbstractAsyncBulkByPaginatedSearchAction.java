@@ -1041,6 +1041,9 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         int totalBatchSize = totalBatchSizeInSinglePaginatedSearchResponse.getAndSet(0);
         // The previous page released its charge before this method reserved another. One worker, one reservation.
         TimeValue extraKeepAlive = worker.throttleWaitTime(thisBatchStartTimeNS, System.nanoTime(), totalBatchSize);
+        // The wait below holds no page bytes, but the lambda keeps this response alive. Every hit is already released, so drop the
+        // list now or the finished page stays reachable and uncharged until the reserve succeeds.
+        asyncResponse.dropHits();
         reservePageThen(() -> asyncResponse.done(extraKeepAlive));
     }
 
@@ -1774,7 +1777,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
      */
     static class PaginatedSearchConsumableHitsResponse {
         private final PaginatedHitSource.AsyncResponse asyncResponse;
-        private final List<? extends PaginatedHitSource.Hit> hits;
+        private volatile List<? extends PaginatedHitSource.Hit> hits;
         /**
          * Volatile for cross-thread visibility when {@link #remainingHits()} / {@link #hasRemainingHits()}
          * are read while another thread updates this field. {@link #consumeHits} uses a non-atomic
@@ -1885,6 +1888,17 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
             // Dropping the page drops its charge, including when the page held no hits.
             closeChargeOnce.close();
             asyncResponse.response().closeBodyReleasable();
+        }
+
+        /**
+         * Drops this page's hit list, and the one on the underlying response, so a finished page that is still referenced does not
+         * keep its hits reachable. Call only once every hit has been consumed and released.
+         */
+        void dropHits() {
+            // Swap the list before resetting the offset so a concurrent reader never sees a stale list with a fresh offset.
+            hits = List.of();
+            consumedOffset = 0;
+            asyncResponse.response().dropHits();
         }
 
         void done(TimeValue extraKeepAlive) {

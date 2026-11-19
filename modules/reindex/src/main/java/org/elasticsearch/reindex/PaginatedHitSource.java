@@ -206,7 +206,7 @@ public abstract class PaginatedHitSource {
         private final boolean timedOut;
         private final List<PaginatedSearchFailure> failures;
         private final long totalHits;
-        private final List<? extends Hit> hits;
+        private List<? extends Hit> hits;
         private final String scrollId;
         private final Object[] searchAfterValues;
         private final BytesReference pitId;
@@ -315,6 +315,15 @@ public abstract class PaginatedHitSource {
          */
         public List<? extends Hit> getHits() {
             return hits;
+        }
+
+        /**
+         * Forgets the hits of this batch so they can be garbage collected while something still holds the response.
+         * Only call this once every hit has been released and nothing needs to read the hits again. The scroll id,
+         * search-after values and PIT id are kept because the next search still needs them.
+         */
+        public void dropHits() {
+            hits = List.of();
         }
 
         /**

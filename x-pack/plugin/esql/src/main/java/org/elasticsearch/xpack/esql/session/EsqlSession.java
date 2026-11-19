@@ -2031,7 +2031,13 @@ public class EsqlSession {
         assert planningCpu.isMeteringCurrentThread() : "analyzedPlanAfterDatasetResolution reached on an unmetered thread";
         // The time range that the query itself restricts each index pattern to prunes index resolution like the request filter
         // does, and next to it: both must match, and the query is often narrower than the time picker.
-        Map<IndexPattern, QueryBuilder> queryTimeFilters = queryTimeFilters(rewritten, unmappedResolution, viewSettings, configuration);
+        Map<IndexPattern, QueryBuilder> queryTimeFilters = queryTimeFilters(
+            rewritten,
+            unmappedResolution,
+            viewSettings,
+            configuration,
+            functionRegistry
+        );
         LogicalPlan parsed = scopeEqlIndexPatterns(rewritten, requestFilter, queryTimeFilters.keySet());
         TimeSpanMarker preAnalysisProfile = executionInfo.queryProfile().preAnalysis();
         preAnalysisProfile.start();
@@ -2104,7 +2110,8 @@ public class EsqlSession {
         LogicalPlan parsed,
         UnmappedResolution unmappedResolution,
         Map<String, ViewQuerySettings> viewSettings,
-        Configuration configuration
+        Configuration configuration,
+        EsqlFunctionRegistry functionRegistry
     ) {
         if (unmappedResolution.loadsUnmappedFields()) {
             return Map.of();
@@ -2114,7 +2121,7 @@ public class EsqlSession {
                 return Map.of();
             }
         }
-        return QueryTimeRangeExtractor.extract(parsed, configuration);
+        return QueryTimeRangeExtractor.extract(parsed, configuration, functionRegistry);
     }
 
     /**

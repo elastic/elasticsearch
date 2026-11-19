@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
@@ -160,7 +161,7 @@ public class QueryTimeRangeExtractorViewTests extends ESTestCase {
     private void assertRanges(String query, Map<String, TimeRange> expected) {
         for (ViewBoundaryPreservation boundaryPreservation : ViewBoundaryPreservation.values()) {
             Map<String, TimeRange> ranges = new HashMap<>();
-            QueryTimeRangeExtractor.ranges(replaceViews(query, boundaryPreservation), TEST_CFG)
+            QueryTimeRangeExtractor.ranges(replaceViews(query, boundaryPreservation), TEST_CFG, new EsqlFunctionRegistry())
                 .forEach((pattern, range) -> ranges.merge(pattern.indexPattern(), range, TimeRange::cover));
             assertThat(query + " with " + boundaryPreservation, ranges, equalTo(expected));
         }

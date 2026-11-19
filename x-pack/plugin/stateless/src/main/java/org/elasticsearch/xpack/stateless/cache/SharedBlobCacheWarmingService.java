@@ -460,6 +460,13 @@ public class SharedBlobCacheWarmingService {
     private volatile int warmByteRangePerFileConcurrency;
     private final SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService;
 
+    /// Shards whose search recovery is currently blocked waiting for offline warming (see [#searchRecoveryWarmingListener]). Offline
+    /// warming only honours a direct recovery cancellation for these shards: once the recovery has resumed (warming completed, timed out
+    /// or failed) it may no longer notice a cancellation, so a late one must not leave the shard that goes on to start with a colder cache.
+    /// Held in the service rather than passed down so as not to change the signatures of the many `warmCache` overrides.
+    // package-private for tests
+    final Set<IndexShard> shardsAwaitingRecoveryWarming = ConcurrentCollections.newConcurrentSet();
+
     public SharedBlobCacheWarmingService(
         StatelessSharedBlobCacheService cacheService,
         ThreadPool threadPool,
@@ -1080,6 +1087,10 @@ public class SharedBlobCacheWarmingService {
         // - warming completing (the listener returned to warmCache): completes it with WARMING_COMPLETE
         final SubscribableListener<SearchRecoveryWaitOutcome> recoveryWait = new SubscribableListener<>();
 
+        // Registered before the caller enqueues any warming, and deregistered however the wait ends.
+        shardsAwaitingRecoveryWarming.add(indexShard);
+        recoveryWait.addListener(ActionListener.running(() -> shardsAwaitingRecoveryWarming.remove(indexShard)));
+
         final var timeoutTask = new ReevaluatingTimeoutTask(
             clusterStateSupplier,
             indexShard,
@@ -1361,6 +1372,7 @@ public class SharedBlobCacheWarmingService {
             try (
                 var warmer = new BlobByteRangeWarmer(
                     warmingRun,
+                    indexShard,
                     bccBlob,
                     byteRangeToWarm,
                     blobSize,
@@ -1691,6 +1703,7 @@ public class SharedBlobCacheWarmingService {
      * The caller must ensure that the {@link ByteRange} is inside the limits of the blob file.
      */
     private class BlobByteRangeWarmer extends SharedBlobCacheWarmingService.AbstractWarmer {
+        private final IndexShard indexShard;
         private final BccBlob bccBlob;
         private final ByteRange byteRangeToWarm;
         private final long blobSize;
@@ -1698,6 +1711,7 @@ public class SharedBlobCacheWarmingService {
 
         BlobByteRangeWarmer(
             SharedBlobCacheWarmingService.WarmingRun warmingRun,
+            IndexShard indexShard,
             BccBlob bccBlob,
             ByteRange byteRangeToWarm,
             long blobSize,
@@ -1707,6 +1721,7 @@ public class SharedBlobCacheWarmingService {
             ActionListener<Void> listener
         ) {
             super(warmingRun, isStoreClosing, directory, listener);
+            this.indexShard = indexShard;
             this.bccBlob = bccBlob;
             this.byteRangeToWarm = byteRangeToWarm;
             this.blobSize = blobSize;
@@ -1717,6 +1732,17 @@ public class SharedBlobCacheWarmingService {
             scheduleWarmingTask(
                 new WarmBlobByteRangeTask(warmingRun.type, bccBlob, byteRangeToWarm, blobSize, timestampMillis, listeners.acquire())
             );
+        }
+
+        @Override
+        protected boolean isCancelled() {
+            // A direct recovery cancellation does not close the store, so also stop warming once one has been requested, otherwise the
+            // recovery cannot notice it until warming completes or times out. Only while the recovery is waiting on this warming though:
+            // afterwards it may no longer check for cancellation, and the shard can go on to start despite the request. Stopping early is
+            // only safe because TransportStatelessUnpromotableRelocationAction#doExecute calls ensureRecoveryNotCancelled() straight after
+            // the wait on warming, failing the recovery instead of letting the shard start with a partially warmed cache.
+            return super.isCancelled()
+                || (indexShard.isRecoveryCancellationRequested() && shardsAwaitingRecoveryWarming.contains(indexShard));
         }
 
         @Override

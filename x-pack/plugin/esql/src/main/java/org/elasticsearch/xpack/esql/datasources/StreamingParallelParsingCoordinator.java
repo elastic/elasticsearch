@@ -22,6 +22,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
+import org.elasticsearch.xpack.esql.datasources.cache.StripeStatsStaging;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
@@ -703,6 +704,13 @@ public final class StreamingParallelParsingCoordinator {
         /** How much per-stripe statistics each chunk harvests (row count only / + projected / + all / nothing). */
         private final StripeColumnScope statsColumnScope;
         /**
+         * Where the chunks of this read hand their pieces of a stripe, so a stripe several chunks observed is
+         * staged once rather than once per chunk. {@code null} when there is no sink to stage into or no stripe
+         * grid to address pieces on, and each chunk then publishes its own pieces. Shared across parser threads.
+         */
+        @Nullable
+        private final StripeStatsStaging stripeStaging;
+        /**
          * Grow-loop bound. In production it comes from the {@code external_max_record_size} pragma (default
          * {@link SegmentableFormatReader#DEFAULT_MAX_RECORD_BYTES}); overridable for tests.
          */
@@ -936,6 +944,7 @@ public final class StreamingParallelParsingCoordinator {
             this.maxRecordBytes = maxRecordBytes;
             this.captureSink = captureSink;
             this.statsStripeSize = statsStripeSize;
+            this.stripeStaging = captureSink != null && statsStripeSize > 0 ? new StripeStatsStaging(captureSink) : null;
             this.statsColumnScope = statsColumnScope != null ? statsColumnScope : StripeColumnScope.PROJECTED;
             this.warningSinks = warningSinks;
             this.bufferPoolSize = parallelism + 1;
@@ -1637,6 +1646,7 @@ public final class StreamingParallelParsingCoordinator {
                 .maxRecordBytes(maxRecordBytes)
                 .stats(chunkFileGlobalStart, statsStripeSize, chunk.last())
                 .statsColumnScope(statsColumnScope)
+                .statsStripeSink(stripeStaging)
                 .informationalWarningSink(warningSinks.informationalWarningSink())
                 .readCounters(formatCounters)
                 .build();
@@ -2512,6 +2522,14 @@ public final class StreamingParallelParsingCoordinator {
                     Thread.currentThread().interrupt();
                 }
                 drainAllQueues();
+            }
+            // Stage whatever stripes this read left partly covered, for the coordinator's interval cover —
+            // the only place that can tell whether another read completes them. The wait above USUALLY means
+            // every parser has finished, but it can time out and leave one running, so a piece may arrive after
+            // this and never be staged. That costs coverage, not correctness, and only on a path that has
+            // already failed cleanCompletion and poisons the file anyway.
+            if (stripeStaging != null) {
+                stripeStaging.flush();
             }
             // Backstop for never-started (no-op while the stream is still null) and for any path that
             // did not closeStream itself. Skip-CAS-when-null lets a racing segmentator still close

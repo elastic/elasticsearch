@@ -12,7 +12,6 @@ import io.opentelemetry.proto.metrics.v1.HistogramDataPoint;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Types;
 import org.elasticsearch.exponentialhistogram.BucketIterator;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
@@ -33,6 +32,7 @@ import java.util.function.Supplier;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.xpack.oteldata.otlp.datapoint.ExponentialHistogramToExponentialHistogramConverterTests.renderExponentialHistogram;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -77,34 +77,43 @@ public class HistogramToExponentialHistogramConverterTests extends ESTestCase {
     }
 
     public void testExponentialHistograms() throws IOException {
-        try (var builder = JsonXContent.contentBuilder()) {
-            // add a value to the scratch buffer to ensure it is properly cleared
-            scratchBuffer.append(-42, 1L);
-            scratchBuffer.append(42, 1L);
+        // add a value to the scratch buffer to ensure it is properly cleared
+        scratchBuffer.append(-42, 1L);
+        scratchBuffer.append(42, 1L);
 
-            ExponentialHistogramConverter.buildExponentialHistogram(dataPoint, temporality, builder, scratchBuffer);
-            String json = Strings.toString(builder);
-            ExponentialHistogram parsed;
-            try (var parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, json)) {
-                parsed = ExponentialHistogramXContent.parseForTesting(parser);
-            }
-            assertBucketsSorted(json);
-            assertBucketsCloseTo(parsed, expectedBucketCenters, expectedBucketCounts);
-            if (expectedSum != null) {
-                assertThat(parsed.sum(), equalTo(expectedSum));
-            } else {
-                assertThat(json, not(containsString("sum")));
-            }
-            if (expectedMin != null) {
-                assertThat(parsed.min(), equalTo(expectedMin));
-            } else {
-                assertThat(json, not(containsString("min")));
-            }
-            if (expectedMax != null) {
-                assertThat(parsed.max(), equalTo(expectedMax));
-            } else {
-                assertThat(json, not(containsString("max")));
-            }
+        String json = randomBoolean()
+            ? renderExponentialHistogram(
+                (batchBuilder, schema) -> ExponentialHistogramConverter.writeExponentialHistogram(
+                    dataPoint,
+                    temporality,
+                    batchBuilder,
+                    schema,
+                    scratchBuffer
+                )
+            )
+            : renderExponentialHistogram(
+                builder -> ExponentialHistogramConverter.buildExponentialHistogram(dataPoint, temporality, builder, scratchBuffer)
+            );
+        ExponentialHistogram parsed;
+        try (var parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, json)) {
+            parsed = ExponentialHistogramXContent.parseForTesting(parser);
+        }
+        assertBucketsSorted(json);
+        assertBucketsCloseTo(parsed, expectedBucketCenters, expectedBucketCounts);
+        if (expectedSum != null) {
+            assertThat(parsed.sum(), equalTo(expectedSum));
+        } else {
+            assertThat(json, not(containsString("sum")));
+        }
+        if (expectedMin != null) {
+            assertThat(parsed.min(), equalTo(expectedMin));
+        } else {
+            assertThat(json, not(containsString("min")));
+        }
+        if (expectedMax != null) {
+            assertThat(parsed.max(), equalTo(expectedMax));
+        } else {
+            assertThat(json, not(containsString("max")));
         }
     }
 

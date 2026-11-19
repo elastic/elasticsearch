@@ -90,9 +90,6 @@ tests:
 - class: org.elasticsearch.xpack.eql.qa.ccs_rolling_upgrade.EqlCcsRollingUpgradeIT
   method: testSequences
   issue: https://github.com/elastic/elasticsearch/issues/150762
-- class: org.elasticsearch.xpack.stateless.cluster.coordination.TransportConsistentClusterStateReadIT
-  method: testWaitsUntilTheNodeRejoinsTheClusterToReturnAValidClusterState
-  issue: https://github.com/elastic/elasticsearch/issues/151402
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {yaml=aggregations/terms/Double test}
   issue: https://github.com/elastic/elasticsearch/issues/151793
@@ -242,9 +239,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {yaml=aggregations/terms/Basic test}
   issue: https://github.com/elastic/elasticsearch/issues/161650
-- class: org.elasticsearch.xpack.stateless.commits.StatelessCommitNotificationsIT
-  method: testVbccRemainsServableUntilSearchTierNotificationCompletes
-  issue: https://github.com/elastic/elasticsearch/issues/161667
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardDisruptionIT
   method: testReshardWithDisruption
   issue: https://github.com/elastic/elasticsearch/issues/161494
@@ -401,6 +395,7 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/164484
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   tasks:
+  - :qa:mixed-cluster:v9.4.10#yamlRestTest
   - :qa:mixed-cluster:v9.5.7#yamlRestTest
   issue: https://github.com/elastic/elasticsearch/issues/163053
 - class: org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitsIT
@@ -432,11 +427,6 @@ tests:
   tasks:
   - :qa:smoke-test-multinode:yamlRestTest
   issue: https://github.com/elastic/elasticsearch/issues/164771
-- class: org.elasticsearch.index.codec.vectors.ash.AsymmetricHashingQuantizerTests
-  tasks:
-  - :server:test
-  method: testReconstructedDotProductApproximatesTrueDotProduct
-  issue: https://github.com/elastic/elasticsearch/issues/164839
 - class: org.elasticsearch.xpack.esql.qa.single_node.PushQueriesStringIT
   tasks:
   - :x-pack:plugin:esql:qa:server:single-node:javaRestTest
@@ -497,11 +487,6 @@ tests:
   - :x-pack:plugin:esql:internalClusterTest
   method: test {csv-spec:unmapped-type-conflicts.typeConflictPartiallyUnmappedTextFieldNotLoadedWithDrop}
   issue: https://github.com/elastic/elasticsearch/issues/165306
-- class: org.elasticsearch.xpack.stateless.objectstore.gc.StaleIndicesGCIT
-  tasks:
-  - :x-pack:plugin:stateless:internalClusterTest
-  method: testIsolatedNodeRunningGCDoesNotDeleteNewIndexData
-  issue: https://github.com/elastic/elasticsearch/issues/165370
 - class: org.elasticsearch.xpack.esql.qa.mixed.FieldExtractorIT
   tasks:
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.0.8#javaRestTest
@@ -530,11 +515,6 @@ tests:
   - :x-pack:plugin:esql:compute:test
   method: testSourcesFinishedUnregistersSink
   issue: https://github.com/elastic/elasticsearch/issues/165591
-- class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceIT
-  tasks:
-  - :x-pack:plugin:stateless:internalClusterTest
-  method: testRelocationSourceWaitsForEarlyPrewarmBeforeHandoff
-  issue: https://github.com/elastic/elasticsearch/issues/165656
 - class: org.elasticsearch.multi_cluster.MultiClusterWithSecurityYamlTestSuiteIT
   tasks:
   - :x-pack:plugin:transform:yamlRestTest
@@ -653,3 +633,104 @@ tests:
   - :server:internalClusterTest
   method: testTopHitsReleasedAfterSuccessfulHighlight
   issue: https://github.com/elastic/elasticsearch/issues/166292
+- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
+  tasks:
+  - :x-pack:qa:multi-project:core-rest-tests-with-multiple-projects:yamlRestTest
+  method: test {yaml=data_stream/150_tsdb/dynamic templates with incremental indexing}
+  issue: https://github.com/elastic/elasticsearch/issues/166322
+- class: org.elasticsearch.xpack.esql.action.SubPlanResultLimitIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testOversizedInSubqueryFailsBeforeReadingAllInput
+  issue: https://github.com/elastic/elasticsearch/issues/166371
+- class: org.elasticsearch.index.mapper.KeywordFieldMapperColumnarCompatibilityTests
+  tasks:
+  - :server:test
+  method: testRequiredFieldWithOnlyEmptyStringsIsIgnored
+  issue: https://github.com/elastic/elasticsearch/issues/166431
+- class: org.elasticsearch.index.mapper.KeywordFieldMapperColumnarCompatibilityTests
+  tasks:
+  - :server:test
+  method: testRequiredFieldWithoutValueIsIgnored
+  issue: https://github.com/elastic/elasticsearch/issues/166429
+- class: org.elasticsearch.xpack.search.AsyncSearchActionIT
+  tasks:
+  - :x-pack:plugin:async-search:internalClusterTest
+  method: testUpdateStoreKeepAlive
+  issue: https://github.com/elastic/elasticsearch/issues/166452
+- class: org.elasticsearch.xpack.esql.action.ExternalAsyncStopAndCancelIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testSyncTaskCancelHardFailsWithNoRows
+  issue: https://github.com/elastic/elasticsearch/issues/166559
+- class: org.elasticsearch.xpack.esql.plugin.EsqlQueryMetricsCollectorIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testFailedQueryMidScanIsMetered
+  issue: https://github.com/elastic/elasticsearch/issues/166565
+- class: org.elasticsearch.search.heappressure.ManyBitsetClausesHeapPressureIT
+  method: testIpTermsClauses
+  issue: https://github.com/elastic/elasticsearch/issues/166396
+- class: org.elasticsearch.search.heappressure.ManyBitsetClausesHeapPressureIT
+  method: testLongTermsClauses
+  issue: https://github.com/elastic/elasticsearch/issues/166396
+- class: org.elasticsearch.search.heappressure.ManyBitsetClausesHeapPressureIT
+  method: testGeoDistanceClauses
+  issue: https://github.com/elastic/elasticsearch/issues/166396
+- class: org.elasticsearch.search.heappressure.ManyBitsetClausesHeapPressureIT
+  method: testGeoShapeOnGeoPointClauses
+  issue: https://github.com/elastic/elasticsearch/issues/166396
+- class: org.elasticsearch.search.heappressure.ManyBitsetClausesHeapPressureIT
+  method: testLongRangeFieldClauses
+  issue: https://github.com/elastic/elasticsearch/issues/166396
+- class: org.elasticsearch.search.heappressure.AggregationBitsetHeapPressureIT
+  method: testSignificantTermsBackgroundFilters
+  issue: https://github.com/elastic/elasticsearch/issues/166396
+- class: org.elasticsearch.search.heappressure.AggregationBitsetHeapPressureIT
+  method: testTermsIncludeLists
+  issue: https://github.com/elastic/elasticsearch/issues/166396
+- class: org.elasticsearch.join.heappressure.HasChildHeapPressureIT
+  method: testHasChildClausesWithoutScores
+  issue: https://github.com/elastic/elasticsearch/issues/166396
+- class: org.elasticsearch.join.heappressure.HasChildHeapPressureIT
+  method: testHasChildClausesWithAvgScores
+  issue: https://github.com/elastic/elasticsearch/issues/166396
+- class: org.elasticsearch.index.query.bitmapterms.heappressure.BitmapTermsHeapPressureIT
+  method: testBitmapTermsClauses
+  issue: https://github.com/elastic/elasticsearch/issues/166396
+- class: org.elasticsearch.xpack.spatial.heappressure.GeoShapeHeapPressureIT
+  method: testIntersectsPolygonClauses
+  issue: https://github.com/elastic/elasticsearch/issues/166396
+- class: org.elasticsearch.xpack.spatial.heappressure.GeoShapeHeapPressureIT
+  method: testContainsPointClauses
+  issue: https://github.com/elastic/elasticsearch/issues/166396
+- class: org.elasticsearch.action.bulk.ShardBatchMapperParseTests
+  tasks:
+  - :server:test
+  method: testRequiredFieldWithoutValueCausesColumnarFallback
+  issue: https://github.com/elastic/elasticsearch/issues/166579
+- class: org.elasticsearch.action.bulk.ShardBatchMapperParseTests
+  tasks:
+  - :server:test
+  method: testRequiredFieldWithoutValueAppearsInIgnoredOnIgnoreFailure
+  issue: https://github.com/elastic/elasticsearch/issues/166451
+- class: org.elasticsearch.snapshots.SnapshotResiliencyTests
+  tasks:
+  - :server:test
+  method: testSnapshotDeleteWithMasterFailover
+  issue: https://github.com/elastic/elasticsearch/issues/166596
+- class: org.elasticsearch.xpack.stateless.StatelessComponentsOrderIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testClosingNodeShouldWaitForOngoingMerge
+  issue: https://github.com/elastic/elasticsearch/issues/166623
+- class: org.elasticsearch.indices.recovery.RetryRecoveryIT
+  tasks:
+  - :server:internalClusterTest
+  method: testDontRetryAfterShardClosedDuringRecoveryFromEmptyStore
+  issue: https://github.com/elastic/elasticsearch/issues/166633
+- class: org.elasticsearch.xpack.search.AsyncSearchAggregationChargeIT
+  tasks:
+  - :x-pack:plugin:async-search:internalClusterTest
+  method: testChargeIsReleasedOnceTheTaskStoredItsResponse
+  issue: https://github.com/elastic/elasticsearch/issues/166638

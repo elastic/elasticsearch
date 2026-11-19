@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
+import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
@@ -103,6 +104,42 @@ public class FieldNameUtils {
     }
 
     public static PreAnalysisResult resolveFieldNames(LogicalPlan parsed, boolean hasEnriches, boolean includePrefixFields) {
+        return addNestedExpand(parsed, collectFieldNames(parsed, hasEnriches, includePrefixFields));
+    }
+
+    /**
+     * A {@code NESTED_EXPAND} needs the nested field's mapping, which field caps otherwise drops. The result's
+     * {@link PreAnalysisResult#nestedScope()} tells the resolution of the main source to keep those fields in a private schema
+     * instead of turning them into ordinary columns.
+     */
+    private static PreAnalysisResult addNestedExpand(LogicalPlan parsed, PreAnalysisResult result) {
+        Set<String> collections = new HashSet<>();
+        parsed.forEachDown(NestedExpand.class, expand -> {
+            if (expand.bound() == false && expand.target() != null) {
+                // TODO: When collection aliases/references are supported, resolve their owning
+                // source and mapped path here; the target name may be an alias in the query.
+                collections.add(expand.target().name());
+            }
+        });
+        if (collections.isEmpty()) {
+            return result;
+        }
+        if (result.fieldNames().contains(WILDCARD)) {
+            return new PreAnalysisResult(result.fieldNames(), result.parentPaths(), true, result.wildcardJoinIndices());
+        }
+        Set<String> fieldNames = new HashSet<>(result.fieldNames());
+        for (String name : result.fieldNames()) {
+            fieldNames.addAll(parentPrefixes(name));
+        }
+        for (String collection : collections) {
+            fieldNames.add(collection);
+            fieldNames.add(collection + ".*");
+            fieldNames.addAll(parentPrefixes(collection));
+        }
+        return new PreAnalysisResult(fieldNames, result.parentPaths(), true, result.wildcardJoinIndices());
+    }
+
+    private static PreAnalysisResult collectFieldNames(LogicalPlan parsed, boolean hasEnriches, boolean includePrefixFields) {
 
         // The EQL command's output is the whole mapping: its query references fields the ES|QL field-name walk
         // cannot see, and a narrow set risks a zero-column schema for `EQL x "q" | STATS COUNT(*)`, so resolve all
@@ -458,7 +495,7 @@ public class FieldNameUtils {
             allFields.add(MetadataAttribute.INDEX);
             Set<String> onlyParentPaths = onlyParentPaths(parentPaths, allFields);
             allFields.addAll(parentPaths);
-            return new PreAnalysisResult(allFields, onlyParentPaths, wildcardJoinIndices);
+            return new PreAnalysisResult(allFields, onlyParentPaths, false, wildcardJoinIndices);
         }
     }
 
@@ -612,6 +649,7 @@ public class FieldNameUtils {
             || p instanceof Keep
             || p instanceof Limit
             || p instanceof MvExpand
+            || p instanceof NestedExpand
             || p instanceof OrderBy
             || p instanceof Project
             || p instanceof RegexExtract

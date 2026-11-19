@@ -338,9 +338,13 @@ public class ParsedContentReservationTests extends ESTestCase {
         assertThat(tight.getTrippedCount(), equalTo(2L));
         assertThat(tight.getUsed(), equalTo(0L));
 
-        // A request that must not trip the breaker does not trip it for what is parsed on its behalf either.
+        // A request that must not trip the breaker does not trip it for what is parsed on its behalf either, within its allowance. The
+        // document charges more than the tight breaker would allow, and less than the allowance for any type, since YAML charges the most.
+        BytesReference withinAllowance = document(type, 10_000);
+        assertThat(expectedCharge(type, withinAllowance), greaterThan(2 * ChargingXContentParser.CHUNK_BYTES));
+        assertThat(expectedCharge(type, withinAllowance), lessThan(ParsedContentReservation.NON_TRIPPING_ALLOWANCE_BYTES));
         try (ParsedContentReservation reservation = new ParsedContentReservation(tight, false)) {
-            try (XContentParser parser = reservation.trackWhileParsing(parser(type, document(type, 20_000)))) {
+            try (XContentParser parser = reservation.trackWhileParsing(parser(type, withinAllowance))) {
                 readAllTokens(parser);
                 assertThat(tight.getUsed(), greaterThan(2 * ChargingXContentParser.CHUNK_BYTES));
             }

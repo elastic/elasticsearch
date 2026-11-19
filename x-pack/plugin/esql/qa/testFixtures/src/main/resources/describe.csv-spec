@@ -240,6 +240,7 @@ by_count     | time         | 1 hour           | UTC
 describeIntervalThroughFork
 required_capability: describe_command
 required_capability: describe_interval
+required_capability: fork_v9
 
 FROM k8s
 | FORK (EVAL same = DATE_TRUNC(1 hour, @timestamp), day = DATE_TRUNC(1 day, @timestamp), months = DATE_TRUNC(2 months, @timestamp))

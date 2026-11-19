@@ -37,6 +37,8 @@ import org.elasticsearch.xpack.oteldata.otlp.tsid.ResourceTsidFunnel;
 import org.elasticsearch.xpack.oteldata.otlp.tsid.ScopeTsidFunnel;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -123,6 +125,14 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
         for (ResourceGroup resourceGroup : resourceGroups.values()) {
             resourceGroup.forEach(consumer);
         }
+    }
+
+    /**
+     * Returns a live, unmodifiable view of the resource groups of this context. Use instead of {@link #forEachGroup}
+     * when the caller benefits from knowing which data point groups share a resource and scope.
+     */
+    public Collection<ResourceGroup> resourceGroups() {
+        return Collections.unmodifiableCollection(resourceGroups.values());
     }
 
     /**
@@ -243,7 +253,8 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
         return resourceGroup;
     }
 
-    class ResourceGroup {
+    /** The data point groups of a single resource, split by scope. */
+    public class ResourceGroup {
         private final Resource resource;
         private final ByteString resourceSchemaUrl;
         private final TsidBuilder resourceTsidBuilder;
@@ -268,6 +279,18 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
             return scopeGroup;
         }
 
+        public Resource resource() {
+            return resource;
+        }
+
+        public ByteString resourceSchemaUrl() {
+            return resourceSchemaUrl;
+        }
+
+        public Collection<ScopeGroup> scopes() {
+            return scopes.values();
+        }
+
         public <E extends Exception> void forEach(CheckedConsumer<DataPointGroup, E> consumer) throws E {
             for (ScopeGroup scopeGroup : scopes.values()) {
                 scopeGroup.forEach(consumer);
@@ -275,7 +298,8 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
         }
     }
 
-    class ScopeGroup {
+    /** The data point groups of a single scope within a {@link ResourceGroup}. */
+    public class ScopeGroup {
 
         private final ResourceGroup resourceGroup;
         private final InstrumentationScope scope;
@@ -349,6 +373,14 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
                 dataPointGroups.put(dataPointGroupHash, dataPointGroup);
             }
             return dataPointGroup;
+        }
+
+        public InstrumentationScope scope() {
+            return scope;
+        }
+
+        public ByteString scopeSchemaUrl() {
+            return scopeSchemaUrl;
         }
 
         public <E extends Exception> void forEach(CheckedConsumer<DataPointGroup, E> consumer) throws E {

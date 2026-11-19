@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.stateless.memory;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -22,6 +25,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -45,6 +49,8 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.inference.IngestModelMemoryProvider;
@@ -59,6 +65,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -1157,6 +1164,49 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
 
         now.addAndGet(StatelessMemoryMetricsService.DEFAULT_INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY.nanos() + 1);
         assertThat(timed.minimumRequiredHeapForAcceptingLargeIndexingOps(), equalTo(0L));
+    }
+
+    public void testMasterOperationKeepsRawSizeAndIgnoresPrecomputedHeap() throws Exception {
+        final AtomicLong now = new AtomicLong(0L);
+        final long operationSize = 1_000L;
+        final long precomputedHeap = 1_000_000L;
+        final StatelessMemoryMetricsService raw = new StatelessMemoryMetricsService(now::get, clusterService);
+        publish(
+            raw,
+            new TransportPublishIndexingOperationsHeapMemoryRequirements.Request(precomputedHeap, operationSize)
+        );
+        assertThat(raw.minimumRequiredHeapForAcceptingLargeIndexingOps(), equalTo(operationSize * 10));
+
+        final long legacyHeap = 777L;
+        final StatelessMemoryMetricsService legacy = new StatelessMemoryMetricsService(now::get, clusterService);
+        publish(legacy, new TransportPublishIndexingOperationsHeapMemoryRequirements.Request(legacyHeap));
+        assertThat(legacy.minimumRequiredHeapForAcceptingLargeIndexingOps(), equalTo(legacyHeap));
+    }
+
+    private void publish(StatelessMemoryMetricsService metrics, TransportPublishIndexingOperationsHeapMemoryRequirements.Request request)
+        throws Exception {
+        TransportService transportService = MockTransportService.createNewService(
+            Settings.EMPTY,
+            VersionInformation.CURRENT,
+            TransportVersion.current(),
+            threadPool
+        );
+        try {
+            var action = new TransportPublishIndexingOperationsHeapMemoryRequirements(
+                transportService,
+                clusterService,
+                threadPool,
+                new ActionFilters(Set.of()),
+                metrics
+            );
+            AtomicReference<Exception> failure = new AtomicReference<>();
+            action.masterOperation(null, request, ClusterState.EMPTY_STATE, ActionListener.wrap(response -> {}, failure::set));
+            if (failure.get() != null) {
+                throw failure.get();
+            }
+        } finally {
+            transportService.close();
+        }
     }
 
     public void testPercentageLimitIsTenTimesTheOperationAndAbsoluteLimitIsNotAHeapRequirement() {

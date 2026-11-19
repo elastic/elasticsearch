@@ -68,8 +68,8 @@ public final class AnalysisRegistry implements Closeable {
     public static final String INDEX_ANALYSIS_TOKENIZER = "index.analysis.tokenizer";
     /**
      * Prefix of the name given to analysis components that are defined inline in a request (for example in an
-     * {@code _analyze} request) rather than in index settings. Factories can use it to apply stricter validation to
-     * such definitions.
+     * {@code _analyze} request) rather than in index settings. Index settings don't reserve this prefix, so factories
+     * must not use it to detect inline definitions; implement {@link DefinitionValidatingFactory} instead.
      */
     public static final String ANONYMOUS_COMPONENT_PREFIX = "__anonymous__";
 
@@ -265,7 +265,7 @@ public final class AnalysisRegistry implements Closeable {
         Function<String, AnalysisProvider<T>> prebuiltComponentProvider,
         BiFunction<String, IndexSettings, AnalysisProvider<T>> indexComponentProvider
     ) throws IOException {
-        if (nod.definition != null) {
+        if (nod.isInline()) {
             // custom component, so we build it from scratch
             String type = nod.definition.get("type");
             if (type == null) {
@@ -278,7 +278,10 @@ public final class AnalysisRegistry implements Closeable {
             if (settings == null) {
                 settings = NO_INDEX_SETTINGS;
             }
-            return factory.get(settings, environment, ANONYMOUS_COMPONENT_PREFIX + type, nod.definition);
+            return validateInlineDefinition(
+                factory.get(settings, environment, ANONYMOUS_COMPONENT_PREFIX + type, nod.definition),
+                settings
+            );
         }
         if (settings == null) {
             // no index provided, so we use prebuilt analysis components
@@ -298,8 +301,22 @@ public final class AnalysisRegistry implements Closeable {
                 throw new IllegalArgumentException("failed to find " + componentType + " under [" + nod.name + "]");
             }
             Settings s = getSettingsFromIndexSettings(settings, "index.analysis." + componentType + "." + nod.name);
-            return factory.get(settings, environment, nod.name, s);
+            return validateIndexDefinition(factory.get(settings, environment, nod.name, s), settings);
         }
+    }
+
+    private static <T> T validateIndexDefinition(T component, IndexSettings settings) {
+        if (component instanceof DefinitionValidatingFactory v) {
+            v.validateIndexDefinition(settings);
+        }
+        return component;
+    }
+
+    private static <T> T validateInlineDefinition(T component, IndexSettings settings) {
+        if (component instanceof DefinitionValidatingFactory v) {
+            v.validateInlineDefinition(settings);
+        }
+        return component;
     }
 
     /**
@@ -807,7 +824,7 @@ public final class AnalysisRegistry implements Closeable {
             if (type == null) {
                 throw new IllegalArgumentException("Unknown " + component + " type [" + typeName + "] for [" + name + "]");
             }
-            final T factory = type.get(settings, environment, name, currentSettings);
+            final T factory = validateIndexDefinition(type.get(settings, environment, name, currentSettings), settings);
             factories.put(name, factory);
 
         }

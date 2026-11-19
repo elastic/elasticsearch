@@ -19,7 +19,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
-import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.analysis.DefinitionValidatingFactory;
 import org.elasticsearch.index.analysis.MinHashIndexParamBounds;
 
 import java.util.HashMap;
@@ -29,7 +29,7 @@ import java.util.Map;
  * TokenFilterFactoryAdapter for {@link MinHashFilterFactory}
  *
  */
-public class MinHashTokenFilterFactory extends AbstractTokenFilterFactory {
+public class MinHashTokenFilterFactory extends AbstractTokenFilterFactory implements DefinitionValidatingFactory {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(MinHashTokenFilterFactory.class);
 
@@ -46,37 +46,19 @@ public class MinHashTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final MinHashFilterFactory minHashFilterFactory;
     private final Object sharingKey;
+    private final Settings settings;
+    private final int hashCount;
+    private final int bucketCount;
+    private final int hashSetSize;
 
     MinHashTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(name);
-        int hashCount = settings.getAsInt("hash_count", MinHashFilter.DEFAULT_HASH_COUNT);
-        int bucketCount = settings.getAsInt("bucket_count", MinHashFilter.DEFAULT_BUCKET_COUNT);
-        int hashSetSize = settings.getAsInt("hash_set_size", MinHashFilter.DEFAULT_HASH_SET_SIZE);
-        if (name.startsWith(AnalysisRegistry.ANONYMOUS_COMPONENT_PREFIX)) {
-            validateInlineDefinition(indexSettings, settings, hashCount, bucketCount, hashSetSize);
-        } else if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.MIN_HASH_INDEX_PARAM_BOUNDS)) {
-            String violation = MinHashIndexParamBounds.violation(hashCount, bucketCount, hashSetSize);
-            if (violation != null) {
-                throw new IllegalArgumentException(violation);
-            }
-        } else {
-            // Indices created before the bounds were introduced keep working, but the same configuration
-            // can't be used for a new index (e.g. a reindex destination), so warn about it.
-            String violation = MinHashIndexParamBounds.violation(hashCount, bucketCount, hashSetSize);
-            if (violation != null) {
-                deprecationLogger.warn(
-                    DeprecationCategory.ANALYSIS,
-                    // Include the index and filter in the key so that the rate limiter doesn't hide the warning for other indices.
-                    "min_hash_index_param_bounds_" + indexSettings.getIndex().getName() + "_" + name,
-                    "[min_hash] filter [{}] on index [{}]: {} This configuration is allowed on this index, but can't be used "
-                        + "on new indices. Lower these parameters in the settings of any new index, for example a reindex "
-                        + "destination; note that this changes the hashes the filter produces.",
-                    name,
-                    indexSettings.getIndex().getName(),
-                    violation
-                );
-            }
-        }
+        // Validation depends on where the filter is defined, so AnalysisRegistry runs it after construction through
+        // DefinitionValidatingFactory. Construction doesn't allocate hash buffers; MinHashFilter does that in create().
+        this.settings = settings;
+        this.hashCount = settings.getAsInt("hash_count", MinHashFilter.DEFAULT_HASH_COUNT);
+        this.bucketCount = settings.getAsInt("bucket_count", MinHashFilter.DEFAULT_BUCKET_COUNT);
+        this.hashSetSize = settings.getAsInt("hash_set_size", MinHashFilter.DEFAULT_HASH_SET_SIZE);
         minHashFilterFactory = new MinHashFilterFactory(convertSettings(settings));
         // MinHashFilterFactory hides its parsed settings, so derive them here the way it does: with_rotation
         // is parsed leniently (anything but a case-insensitive "true" is false) and defaults to whether there
@@ -88,16 +70,38 @@ public class MinHashTokenFilterFactory extends AbstractTokenFilterFactory {
     }
 
     /**
+     * Checks a filter defined in index settings against fixed bounds that don't depend on any dynamic setting.
+     */
+    @Override
+    public void validateIndexDefinition(IndexSettings indexSettings) {
+        String violation = MinHashIndexParamBounds.violation(hashCount, bucketCount, hashSetSize);
+        if (violation == null) {
+            return;
+        }
+        if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.MIN_HASH_INDEX_PARAM_BOUNDS)) {
+            throw new IllegalArgumentException(violation);
+        }
+        // Indices created before the bounds were introduced keep working, but the same configuration
+        // can't be used for a new index (e.g. a reindex destination), so warn about it.
+        deprecationLogger.warn(
+            DeprecationCategory.ANALYSIS,
+            // Include the index and filter in the key so that the rate limiter doesn't hide the warning for other indices.
+            "min_hash_index_param_bounds_" + indexSettings.getIndex().getName() + "_" + name(),
+            "[min_hash] filter [{}] on index [{}]: {} This configuration is allowed on this index, but can't be used "
+                + "on new indices. Lower these parameters in the settings of any new index, for example a reindex "
+                + "destination; note that this changes the hashes the filter produces.",
+            name(),
+            indexSettings.getIndex().getName(),
+            violation
+        );
+    }
+
+    /**
      * Checks a filter defined inline in a request, such as {@code _analyze}. These definitions are built per
      * request, so they are bounded by the request's {@code index.analyze.max_token_count}.
      */
-    private static void validateInlineDefinition(
-        IndexSettings indexSettings,
-        Settings settings,
-        int hashCount,
-        int bucketCount,
-        int hashSetSize
-    ) {
+    @Override
+    public void validateInlineDefinition(IndexSettings indexSettings) {
         validateParamBound("hash_count", hashCount, MAX_HASH_COUNT, settings);
         validateParamBound("bucket_count", bucketCount, MAX_BUCKET_COUNT, settings);
         validateParamBound("hash_set_size", hashSetSize, MAX_HASH_SET_SIZE, settings);

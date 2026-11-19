@@ -230,6 +230,33 @@ public class MinHashFilterFactoryTests extends ESTokenStreamTestCase {
         assertNotNull(buildFromIndexSettings(version, lowMaxTokenCount, 1, 512, 20));
     }
 
+    public void testIndexFilterWithAnonymousPrefixUsesIndexBounds() throws IOException {
+        // The name of a filter defined in index settings can start with the prefix that inline definitions get. It must
+        // still get the index bounds, not the inline checks, which depend on index.analyze.max_token_count.
+        IndexVersion version = IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.MIN_HASH_INDEX_PARAM_BOUNDS);
+        Settings.Builder lowMaxTokenCount = Settings.builder().put("index.analyze.max_token_count", 1);
+        String name = AnalysisRegistry.ANONYMOUS_COMPONENT_PREFIX + "min_hash";
+        assertNotNull(buildFromIndexSettings(name, version, lowMaxTokenCount, 1, 512, 20));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> buildFromIndexSettings(name, version, Settings.builder(), 1, 512, 196)
+        );
+        assertThat(e.getMessage(), containsString("is [100352], which exceeds the limit [100000]"));
+    }
+
+    public void testIndexFilterReferencedByNameInRequestUsesIndexBounds() throws IOException {
+        // An _analyze request can refer to a filter defined in the index by name; that filter gets the index bounds.
+        IndexVersion version = IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.MIN_HASH_INDEX_PARAM_BOUNDS);
+        IndexSettings indexSettings = indexSettings(
+            version,
+            Settings.builder()
+                .put("index.analyze.max_token_count", 1)
+                .put("index.analysis.filter.test_min_hash.type", "min_hash")
+                .put("index.analysis.filter.test_min_hash.hash_set_size", 20)
+        );
+        assertNotNull(buildCustomAnalyzer(indexSettings, new NameOrDefinition("test_min_hash")));
+    }
+
     // ---- Filters defined in the settings of indices created before MIN_HASH_INDEX_PARAM_BOUNDS ----
 
     public void testLegacyIndexAboveBoundsStillBuilds() throws IOException {
@@ -268,15 +295,27 @@ public class MinHashFilterFactoryTests extends ESTokenStreamTestCase {
         int bucketCount,
         int hashSetSize
     ) throws IOException {
-        Settings settings = extraIndexSettings.put("index.analysis.filter.test_min_hash.type", "min_hash")
-            .put("index.analysis.filter.test_min_hash.hash_count", hashCount)
-            .put("index.analysis.filter.test_min_hash.bucket_count", bucketCount)
-            .put("index.analysis.filter.test_min_hash.hash_set_size", hashSetSize)
+        return buildFromIndexSettings("test_min_hash", version, extraIndexSettings, hashCount, bucketCount, hashSetSize);
+    }
+
+    private TokenFilterFactory buildFromIndexSettings(
+        String filterName,
+        IndexVersion version,
+        Settings.Builder extraIndexSettings,
+        int hashCount,
+        int bucketCount,
+        int hashSetSize
+    ) throws IOException {
+        String prefix = "index.analysis.filter." + filterName + ".";
+        Settings settings = extraIndexSettings.put(prefix + "type", "min_hash")
+            .put(prefix + "hash_count", hashCount)
+            .put(prefix + "bucket_count", bucketCount)
+            .put(prefix + "hash_set_size", hashSetSize)
             .put(IndexMetadata.SETTING_VERSION_CREATED, version)
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .build();
         ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisPlugin());
-        return analysis.tokenFilter.get("test_min_hash");
+        return analysis.tokenFilter.get(filterName);
     }
 
     /**
@@ -286,6 +325,10 @@ public class MinHashFilterFactoryTests extends ESTokenStreamTestCase {
     private NamedAnalyzer buildInline(IndexSettings indexSettings, Map<String, Integer> params) throws IOException {
         Map<String, Object> definition = new HashMap<>(params);
         definition.put("type", "min_hash");
+        return buildCustomAnalyzer(indexSettings, new NameOrDefinition(definition));
+    }
+
+    private NamedAnalyzer buildCustomAnalyzer(IndexSettings indexSettings, NameOrDefinition tokenFilter) throws IOException {
         Settings nodeSettings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
         AnalysisRegistry registry = new AnalysisModule(
             TestEnvironment.newEnvironment(nodeSettings),
@@ -298,7 +341,7 @@ public class MinHashFilterFactoryTests extends ESTokenStreamTestCase {
             false,
             new NameOrDefinition("whitespace"),
             List.of(),
-            List.of(new NameOrDefinition(definition))
+            List.of(tokenFilter)
         );
     }
 

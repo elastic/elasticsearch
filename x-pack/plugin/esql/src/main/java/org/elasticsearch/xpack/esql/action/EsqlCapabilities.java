@@ -5009,6 +5009,13 @@ public class EsqlCapabilities {
          */
         FIX_TS_FIRST_LAST_SAMPLES,
 
+        /**
+         * A query parameter with the value of the {@code param_any_value} setting (by default {@code "__ANY__"}) stands for "Any":
+         * it is recognized by the parser, and rejected with an error that says so, until later versions drop the part of the
+         * query that uses it or replace it with a condition that is always true. Snapshot-only while the setting is.
+         */
+        PARAM_ANY_VALUE_V1(Build.current().isSnapshot()),
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

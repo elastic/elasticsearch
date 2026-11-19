@@ -126,6 +126,7 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
         if (param == null) {
             throw new ParsingException(paramSource, "Parameter [{}] value not found", paramNode.getText());
         }
+        ExpressionBuilder.rejectAnyParam(params, param, paramSource, paramNode.getText());
         if (param.classification() == PATTERN) {
             throw new ParsingException(
                 paramSource,
@@ -443,6 +444,7 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
         if (param == null) {
             throw new ParsingException(source, "No value found for parameter [{}]", node.getText());
         }
+        ExpressionBuilder.rejectAnyParam(params, param, source, node.getText());
         if (param.type() != DataType.KEYWORD && param.type() != DataType.TEXT) {
             throw new ParsingException(
                 source,

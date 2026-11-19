@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.parser;
 
 import org.antlr.v4.runtime.Token;
+import org.elasticsearch.core.Nullable;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -24,6 +25,12 @@ public class QueryParams {
     private Map<Token, QueryParam> tokenToParam; // This is populated by EsqlParser, each parameter marker has an entry
     private List<ParsingException> parsingErrors;
     private final int paramsCount;
+    /**
+     * The value that stands for "Any" in the statement being parsed, set by the statement builder, which is also what applies
+     * a {@code SET param_any_value}. It lives here because the PromQL parser has the parameters, not the builder of the statement.
+     */
+    @Nullable
+    private String anyParamValue;
 
     public QueryParams() {
         this(null);
@@ -90,6 +97,33 @@ public class QueryParams {
 
     public void addParsingError(ParsingException e) {
         this.parsingErrors.add(e);
+    }
+
+    /** The value that stands for "Any" in the statement being parsed, or {@code null} if none is recognized. */
+    @Nullable
+    public String anyParamValue() {
+        return anyParamValue;
+    }
+
+    public void anyParamValue(@Nullable String anyParamValue) {
+        this.anyParamValue = anyParamValue;
+    }
+
+    /**
+     * Whether {@code param} stands for "Any": a string with the {@link #anyParamValue() reserved value}, or a list of just that
+     * one string. A list with more elements is a normal value, even if all are the reserved value. A parameter declared as a
+     * pattern is a normal one too, as the declaration says that the string is a pattern to match, and so is a literal of the
+     * reserved value in the query.
+     */
+    public boolean isAny(@Nullable QueryParam param) {
+        if (anyParamValue == null || param == null || param.classification() == ParserUtils.ParamClassification.PATTERN) {
+            return false;
+        }
+        Object value = param.value();
+        if (value instanceof List<?> list) {
+            value = list.size() == 1 ? list.getFirst() : null;
+        }
+        return anyParamValue.equals(value);
     }
 
     public List<QueryParam> params() {

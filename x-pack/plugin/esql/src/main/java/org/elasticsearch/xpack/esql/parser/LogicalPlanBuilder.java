@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.spi.ConfigKeyValidator;
 import org.elasticsearch.xpack.esql.eql.EqlRequests;
+import org.elasticsearch.xpack.esql.expression.AnyParam;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
@@ -1435,6 +1436,14 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         if (expressions.isEmpty()) {
             throw new ParsingException(source(ctx), "JOIN ON clause cannot be empty");
         }
+        for (Expression expression : expressions) {
+            // A join condition is not a filter that can drop a part, as the join keys are what the lookup is about
+            List<Expression> anyParams = expression.collect(AnyParam.class::isInstance);
+            if (anyParams.isEmpty() == false) {
+                AnyParam any = (AnyParam) anyParams.getFirst();
+                throw anyParamError(context.params(), any.source(), any.parameterText(), "in a LOOKUP JOIN condition");
+            }
+        }
 
         // Inspect the first expression to determine the type of join (field-based or expression-based)
         // We treat literals as field-based as it is more likely the user was trying to write a field name
@@ -2142,6 +2151,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             if (param == null) {
                 throw new ParsingException(source, "No value found for parameter [{}]", ctx.NAMED_OR_POSITIONAL_PARAM().getText());
             }
+            rejectAnyParam(context.params(), param, source, ctx.NAMED_OR_POSITIONAL_PARAM().getText());
             if (param.value() instanceof String s) {
                 promqlQuery = s;
             } else {
@@ -2379,6 +2389,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             if (param == null) {
                 throw new ParsingException(source(ctx), "No value found for parameter [{}]", ctx.NAMED_OR_POSITIONAL_PARAM().getText());
             }
+            rejectAnyParam(context.params(), param, source(ctx), ctx.NAMED_OR_POSITIONAL_PARAM().getText());
             return param.value().toString();
         } else if (ctx.QUOTED_IDENTIFIER() != null) {
             throw new ParsingException(source(ctx), "Parameter value [{}] must not be a quoted identifier", ctx.getText());
@@ -2403,6 +2414,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             if (param == null) {
                 throw new ParsingException(source(ctx), "No value found for parameter [{}]", ctx.NAMED_OR_POSITIONAL_PARAM().getText());
             }
+            rejectAnyParam(context.params(), param, source(ctx), ctx.NAMED_OR_POSITIONAL_PARAM().getText());
             if (param.value() instanceof String s) {
                 return new IndexPattern(source(ctx), s);
             }

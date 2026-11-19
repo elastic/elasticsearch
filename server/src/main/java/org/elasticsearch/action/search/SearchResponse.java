@@ -108,6 +108,10 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     @Nullable
     private transient Releasable coordinatorFetchCharge;
 
+    // Charge for the aggregations the coordinating node reduced, released when this response is.
+    @Nullable
+    private transient Releasable aggregationCharge;
+
     // Size of the aggregations as read off the wire, or -1 if unknown, so that they can be estimated without serializing them again.
     private transient long serializedAggregationsBytes = -1;
 
@@ -161,41 +165,6 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         }
     }
 
-    @Deprecated // use List<ShardSearchFailure> instead
-    public SearchResponse(
-        SearchHits hits,
-        InternalAggregations aggregations,
-        Suggest suggest,
-        boolean timedOut,
-        Boolean terminatedEarly,
-        SearchProfileResults profileResults,
-        int numReducePhases,
-        String scrollId,
-        int totalShards,
-        int successfulShards,
-        int skippedShards,
-        long tookInMillis,
-        ShardSearchFailure[] shardFailures,
-        Clusters clusters
-    ) {
-        this(
-            hits,
-            aggregations,
-            suggest,
-            timedOut,
-            terminatedEarly,
-            profileResults,
-            numReducePhases,
-            scrollId,
-            totalShards,
-            successfulShards,
-            skippedShards,
-            tookInMillis,
-            shardFailures != null ? List.of(shardFailures) : List.of(),
-            clusters
-        );
-    }
-
     public SearchResponse(
         SearchHits hits,
         InternalAggregations aggregations,
@@ -230,35 +199,6 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             null,
             null,
             null
-        );
-    }
-
-    @Deprecated // use List<ShardSearchFailure> instead
-    public SearchResponse(
-        SearchResponseSections searchResponseSections,
-        String scrollId,
-        int totalShards,
-        int successfulShards,
-        int skippedShards,
-        long tookInMillis,
-        ShardSearchFailure[] shardFailures,
-        Clusters clusters,
-        BytesReference pointInTimeId,
-        SearchSourceBuilder source,
-        String[] indices
-    ) {
-        this(
-            searchResponseSections,
-            scrollId,
-            totalShards,
-            successfulShards,
-            skippedShards,
-            tookInMillis,
-            shardFailures != null ? List.of(shardFailures) : List.of(),
-            clusters,
-            pointInTimeId,
-            source,
-            indices
         );
     }
 
@@ -384,7 +324,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                 hit.decRef();
             }
             hits.decRef();
-            Releasables.closeExpectNoException(coordinatorFetchCharge);
+            Releasables.closeExpectNoException(coordinatorFetchCharge, aggregationCharge);
             return true;
         }
         return false;
@@ -490,16 +430,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     /**
      * The failures that occurred during the search.
      */
-    // TODO: rename this method to replace getShardFailures
-    public List<ShardSearchFailure> shardFailuresList() {
-        return this.shardFailures;
-    }
-
-    /**
-     * The failures that occurred during the search.
-     */
-    public ShardSearchFailure[] getShardFailures() {
-        return this.shardFailures.toArray(ShardSearchFailure.EMPTY_ARRAY);
+    public List<ShardSearchFailure> getShardFailures() {
+        return shardFailures;
     }
 
     /**
@@ -566,6 +498,18 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
 
     boolean hasCoordinatorFetchCharge() {
         return coordinatorFetchCharge != null;
+    }
+
+    /**
+     * Takes the charge for the reduced aggregations, so it is held until this response is released and not until the search completes.
+     */
+    void adoptAggregationCharge(Releasable charge) {
+        assert aggregationCharge == null : "an aggregation charge was already adopted";
+        aggregationCharge = charge;
+    }
+
+    boolean hasAggregationCharge() {
+        return aggregationCharge != null;
     }
 
     /**
@@ -1333,9 +1277,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                 }
                 if (failures != null && failures.isEmpty() == false) {
                     builder.startArray(RestActions.FAILURES_FIELD.getPreferredName());
-                    ShardOperationFailedException[] groupedFailures = ExceptionsHelper.groupBy(
-                        failures.toArray(ShardSearchFailure.EMPTY_ARRAY)
-                    );
+                    List<ShardOperationFailedException> groupedFailures = ExceptionsHelper.groupBy(failures);
                     for (ShardOperationFailedException failure : groupedFailures) {
                         failure.toXContent(builder, params);
                     }

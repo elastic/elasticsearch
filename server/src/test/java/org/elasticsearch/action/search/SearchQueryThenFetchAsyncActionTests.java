@@ -36,7 +36,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -65,6 +64,7 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -104,7 +104,6 @@ import java.util.function.ToLongFunction;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -410,7 +409,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             SearchPhaseExecutionException e = (SearchPhaseExecutionException) failures.getFirst();
             assertThat(e.getPhaseName(), equalTo("query"));
             assertThat(e.getCause(), sameInstance(trip.get()));
-            assertThat(e.shardFailures(), emptyArray());
+            assertThat(e.shardFailures(), empty());
             // Shard 2 has a replica, but a retry would only add work to a search that has failed
             assertThat(requestsPerShard, equalTo(Map.of(0, 1, 1, 1, 2, 1)));
             assertThat(freedContexts, contains(new ShardSearchContextId("late", 1)));
@@ -519,7 +518,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             SearchPhaseExecutionException e = (SearchPhaseExecutionException) failures.getFirst();
             assertThat(e.getPhaseName(), equalTo("query"));
             assertThat(e.getCause(), sameInstance(trip));
-            assertThat(e.shardFailures(), emptyArray());
+            assertThat(e.shardFailures(), empty());
             assertThat("a shard was retried on another copy", retries.get(), equalTo(0));
         }
     }
@@ -1323,7 +1322,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             newLimitedBreakerService(ByteSizeValue.ofMb(10)),
             numShards,
             false,
-            (shardIds, weight) -> (nanos, finishNanos) -> {},
+            (shardIds, weight) -> (nanos, cpuNanos, finishNanos) -> {},
             new SearchSourceBuilder().size(1).sort(SortBuilders.fieldSort("timestamp")),
             result -> {
                 openedContexts.add(result.getContextId());
@@ -1447,7 +1446,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             newLimitedBreakerService(ByteSizeValue.ofMb(10)),
             shards,
             false,
-            (shardIds, weight) -> (nanos, finishNanos) -> {
+            (shardIds, weight) -> (nanos, cpuNanos, finishNanos) -> {
                 merged.addAndGet(nanos);
                 shardIds.forEach(shardId -> weights.put(shardId, weight.applyAsLong(shardId)));
             }
@@ -1466,7 +1465,13 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         int shards,
         boolean failWrites
     ) throws Exception {
-        return runBatchedNodeQuery(channelVersion, breakerService, shards, failWrites, (shardIds, weight) -> (nanos, finishNanos) -> {});
+        return runBatchedNodeQuery(
+            channelVersion,
+            breakerService,
+            shards,
+            failWrites,
+            (shardIds, weight) -> (nanos, cpuNanos, finishNanos) -> {}
+        );
     }
 
     /**
@@ -1560,12 +1565,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 };
             }
         };
-        ClusterService clusterService = new ClusterService(
-            Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            threadPool,
-            null
-        );
+        ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
         List<QuerySearchResult> resultsToRelease = Collections.synchronizedList(new ArrayList<>());
         SearchService searchService = new SearchService(
             clusterService,
@@ -1708,12 +1708,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             Collections.emptySet(),
             nodeId
         );
-        ClusterService clusterService = new ClusterService(
-            Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            threadPool,
-            null
-        );
+        ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
         List<QuerySearchResult> resultsToRelease = Collections.synchronizedList(new ArrayList<>());
         SearchService searchService = new SearchService(
             clusterService,
@@ -1729,7 +1724,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         ) {
             @Override
             public TaskLoadAttribution.Target searchLoad(List<ShardId> shardIds, ToLongFunction<ShardId> weight) {
-                return (nanos, finishNanos) -> {};
+                return (nanos, cpuNanos, finishNanos) -> {};
             }
 
             @Override
@@ -1753,12 +1748,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         // SearchContextId.decode throws IllegalArgumentException for unknown versions.
         TransportVersion futureVersion = TransportVersionUtils.getNextVersion(TransportVersion.current(), true);
         assertFalse("futureVersion must be unknown to this node", futureVersion.isKnown());
-        BytesReference encodedPit = SearchContextId.encode(
-            Collections.emptyMap(),
-            Collections.emptyMap(),
-            futureVersion,
-            ShardSearchFailure.EMPTY_ARRAY
-        );
+        BytesReference encodedPit = SearchContextId.encode(Collections.emptyMap(), Collections.emptyMap(), futureVersion, List.of());
         expectThrows(IllegalArgumentException.class, () -> SearchContextId.decode(new NamedWriteableRegistry(List.of()), encodedPit));
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> channelFailure = new AtomicReference<>();

@@ -42,7 +42,8 @@ import static org.hamcrest.Matchers.not;
 /**
  * One coordinating charge is enough for a batch that this node also writes as primary. A second update by query waits
  * while that charge is still held, and a reindex whose coordinating node is not the primary waits while replica bytes
- * sit near the limit.
+ * sit near the limit. Slices of one reindex share that budget. A page that fills it makes the other slice wait, and
+ * the task finishes with nothing still charged.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class ReindexIndexingPressureIT extends ESIntegTestCase {
@@ -56,8 +57,11 @@ public class ReindexIndexingPressureIT extends ESIntegTestCase {
     private static final long ONE_BATCH_BYTES = (long) DOC_CHARS * DOCS_PER_BATCH;
     private static final long TWO_BATCH_LIMIT = ONE_BATCH_BYTES + ONE_BATCH_BYTES / 2;
     private static final long ROOMY_LIMIT = 2L * 1024L * 1024L;
+    private static final long DEFAULT_REINDEX_ESTIMATE = IndexingPressure.REINDEX_BYTES_ESTIMATE_PER_DOCUMENT.getDefault(Settings.EMPTY)
+        .getBytes();
 
     private final AtomicLong memoryLimit = new AtomicLong(TWO_BATCH_LIMIT);
+    private final AtomicLong reindexEstimatePerDocument = new AtomicLong(DEFAULT_REINDEX_ESTIMATE);
     private final AtomicReference<CountDownLatch> releaseWrite = new AtomicReference<>();
 
     @Override
@@ -73,6 +77,7 @@ public class ReindexIndexingPressureIT extends ESIntegTestCase {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), memoryLimit.get() + "b")
+            .put(IndexingPressure.REINDEX_BYTES_ESTIMATE_PER_DOCUMENT.getKey(), reindexEstimatePerDocument.get() + "b")
             .put("thread_pool.write.size", 1)
             .put("thread_pool.write.queue_size", 1)
             .build();
@@ -85,6 +90,7 @@ public class ReindexIndexingPressureIT extends ESIntegTestCase {
             release.countDown();
         }
         BlockingIndexPlugin.PRE_INDEX.set((shardId, index) -> {});
+        reindexEstimatePerDocument.set(DEFAULT_REINDEX_ESTIMATE);
     }
 
     public void testSecondUpdateByQueryWaitsWhileOneBatchIsHeld() throws Exception {
@@ -150,6 +156,61 @@ public class ReindexIndexingPressureIT extends ESIntegTestCase {
             assertThat(waitingResponse.getUpdated(), equalTo((long) DOCS_PER_BATCH));
             blockingWrite.actionGet(TimeValue.timeValueSeconds(10));
             queuedWrite.actionGet(TimeValue.timeValueSeconds(10));
+            assertBusy(() -> assertThat(pressure.stats().getCurrentCoordinatingBytes(), equalTo(baseline)));
+        } finally {
+            release.countDown();
+            BlockingIndexPlugin.PRE_INDEX.set((shardId, index) -> {});
+        }
+    }
+
+    /**
+     * Two slices of one reindex share the coordinating budget. The first page fills it, so the other slice waits with
+     * no page of its own, and every document is written with the budget back to where it started.
+     */
+    public void testSlicedReindexWaitsWhileOnePageHoldsTheBudget() throws Exception {
+        // One page is a single document. The guess for that page is well above the document, and the budget fits that
+        // guess once, so the other slice cannot reserve while the page is held. Indexing one document stays under the
+        // same budget, which also has to admit the source writes.
+        int slices = 2;
+        int totalDocs = 16;
+        int docChars = 8_000;
+        long perDocument = 64L * 1024L;
+        reindexEstimatePerDocument.set(perDocument);
+        memoryLimit.set(perDocument + 4L * 1024L);
+        String node = internalCluster().startNode();
+        ensureStableCluster(1);
+        createIndex("source");
+        createIndex("dest");
+        indexDocuments("source", totalDocs, docChars);
+        refresh("source");
+
+        IndexingPressure pressure = internalCluster().getInstance(IndexingPressure.class, node);
+        long baseline = pressure.stats().getCurrentCoordinatingBytes();
+        long rejectionsBefore = pressure.stats().getCoordinatingRejections();
+        CountDownLatch inWrite = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        releaseWrite.set(release);
+        BlockingIndexPlugin.PRE_INDEX.set((shardId, index) -> {
+            if (shardId.getIndexName().equals("dest")) {
+                inWrite.countDown();
+                safeAwait(release);
+            }
+        });
+
+        ReindexRequestBuilder request = new ReindexRequestBuilder(client()).source("source").destination("dest").setSlices(slices);
+        request.source().setSize(1);
+        try {
+            ActionFuture<BulkByPaginatedSearchResponse> running = request.execute();
+            safeAwait(inWrite);
+            assertBusy(() -> {
+                assertFalse(running.isDone());
+                assertThat(pressure.stats().getCoordinatingRejections(), greaterThan(rejectionsBefore));
+                assertThat(pressure.stats().getCurrentCoordinatingBytes() - baseline, greaterThan((long) docChars));
+            });
+
+            release.countDown();
+            BulkByPaginatedSearchResponse response = running.actionGet(TimeValue.timeValueSeconds(60));
+            assertThat(response.getCreated(), equalTo((long) totalDocs));
             assertBusy(() -> assertThat(pressure.stats().getCurrentCoordinatingBytes(), equalTo(baseline)));
         } finally {
             release.countDown();
@@ -247,8 +308,12 @@ public class ReindexIndexingPressureIT extends ESIntegTestCase {
     }
 
     private static void indexBatch(String index) {
-        String source = "{\"t\":\"" + "x".repeat(DOC_CHARS) + "\"}";
-        for (int i = 0; i < DOCS_PER_BATCH; i++) {
+        indexDocuments(index, DOCS_PER_BATCH, DOC_CHARS);
+    }
+
+    private static void indexDocuments(String index, int count, int chars) {
+        String source = "{\"t\":\"" + "x".repeat(chars) + "\"}";
+        for (int i = 0; i < count; i++) {
             client().index(new IndexRequest(index).id(Integer.toString(i)).source(source, XContentType.JSON)).actionGet();
         }
     }
@@ -260,6 +325,7 @@ public class ReindexIndexingPressureIT extends ESIntegTestCase {
     }
 
     private static UpdateByQueryRequest heldRetry(UpdateByQueryRequest request) {
+        // The write pool is one thread and a queue of one, so the admitted bulk is rejected and has to retry.
         request.setRetryBackoffInitialTime(TimeValue.timeValueSeconds(5));
         request.setMaxRetries(10);
         return request;

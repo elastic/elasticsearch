@@ -549,7 +549,7 @@ public class DataStreamLifecycleDownsampleIT extends DownsamplingIntegTestCase {
         assertTrue(indexExists(backingIndex.getName()));
 
         // Maybe downsample further
-        if (true) {
+        if (randomBoolean()) {
             String downsampledIndex = "downsample-" + secondInterval + "-" + backingIndex.getName();
             putLifecycle(
                 dataStreamName,

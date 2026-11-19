@@ -808,6 +808,31 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         );
     }
 
+    @Override
+    public ParquetFormatReader withBlockFactory(@Nullable BlockFactory factory) {
+        if (factory == null || factory == blockFactory) {
+            return this;
+        }
+        // Footer caches, I/O watermark, and the heap buffer pool stay the node instances.
+        return new ParquetFormatReader(
+            factory,
+            pushedFilter,
+            pushedExpressions,
+            forceBaselinePath,
+            optimizedReader,
+            dynamicThreshold,
+            declaredDateFormats,
+            declaredTypeColumns,
+            footerBytes,
+            parsedFooters,
+            ioWatermark,
+            heapBufferPool,
+            maxFooterReadBytes,
+            schemaMaxFields,
+            externalIoThreads
+        );
+    }
+
     /**
      * Test-only: share a watermark across readers so node-wide admission can be asserted with a
      * tiny limit. Production readers keep the heap-derived instance from the root constructor.
@@ -4604,10 +4629,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             // response Warning, fail_fast fails the read (null sink from coercionWarnings()).
             DataType declared = info.esqlType();
             DataType fileType = info.fileEsqlType();
-            if (fileType != null
-                && declared != fileType
-                && DeclaredTypeCoercions.fusedInDecode(fileType, declared, info.dateFormatter() != null) == false
-                && DeclaredTypeCoercions.supports(fileType, declared)) {
+            if (DeclaredTypeCoercions.needsBlockCast(fileType, declared, info.dateFormatter() != null)) {
                 Block physical = readColumnBlock(cr, listReader, info.fileTyped(), rowsToRead, colIndex, null);
                 try {
                     return DeclaredTypeCoercions.castBlock(

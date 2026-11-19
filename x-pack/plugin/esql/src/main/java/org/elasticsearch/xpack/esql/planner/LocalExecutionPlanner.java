@@ -28,6 +28,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.TaskLoadAttribution;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
@@ -121,6 +122,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.useragent.api.UserAgentParser;
@@ -188,6 +190,9 @@ import org.elasticsearch.xpack.esql.inference.completion.CompletionOperator;
 import org.elasticsearch.xpack.esql.inference.embedding.EmbeddingOperator;
 import org.elasticsearch.xpack.esql.inference.rerank.RerankOperator;
 import org.elasticsearch.xpack.esql.inference.textembedding.TextEmbeddingOperator;
+import org.elasticsearch.xpack.esql.into.IntoMergeStatsOperator;
+import org.elasticsearch.xpack.esql.into.IntoOperator;
+import org.elasticsearch.xpack.esql.into.IntoPageWriter;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -219,6 +224,7 @@ import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.HighlightExec;
 import org.elasticsearch.xpack.esql.plan.physical.InsertEmptyBucketsExec;
+import org.elasticsearch.xpack.esql.plan.physical.IntoExec;
 import org.elasticsearch.xpack.esql.plan.physical.IpLocationExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitByExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
@@ -337,6 +343,28 @@ public class LocalExecutionPlanner {
     private final MatcherWatchdog grokMatcherWatchdog;
     /** The oldest transport version in this node's cluster, which decides how external text files bind; see FileSourceFactory. */
     private final TransportVersion minTransportVersion;
+    /**
+     * Query identity and optional load targets for federated source operators.
+     * {@link ExternalComputeContext#NONE} is identity: registry executors stay unwrapped and
+     * {@link SourceOperatorContext#queryId()} is unset.
+     */
+    private final ExternalComputeContext externalCompute;
+
+    /**
+     * Per-compute identity and load targets for federated (external) source operators.
+     *
+     * @param queryId  coordinator task of the query, or {@code null} when the caller did not supply one
+     * @param load     target that wraps the producer executor; {@code null} leaves it unwrapped
+     * @param ioTarget target that wraps the file-read executor; {@code null} leaves it unwrapped
+     */
+    public record ExternalComputeContext(
+        @Nullable TaskId queryId,
+        @Nullable TaskLoadAttribution.Target load,
+        @Nullable TaskLoadAttribution.Target ioTarget
+    ) {
+        /** Identity: no query id, registry executors unwrapped. */
+        public static final ExternalComputeContext NONE = new ExternalComputeContext(null, null, null);
+    }
 
     public LocalExecutionPlanner(
         String sessionId,
@@ -362,7 +390,8 @@ public class LocalExecutionPlanner {
         int esqlWorkerPoolSize,
         MatcherWatchdog grokMatcherWatchdog,
         TransportVersion minTransportVersion,
-        Client client
+        Client client,
+        ExternalComputeContext externalCompute
     ) {
 
         this.sessionId = sessionId;
@@ -392,6 +421,7 @@ public class LocalExecutionPlanner {
         this.grokMatcherWatchdog = grokMatcherWatchdog;
         this.minTransportVersion = minTransportVersion;
         this.client = client;
+        this.externalCompute = externalCompute;
     }
 
     /**
@@ -585,7 +615,9 @@ public class LocalExecutionPlanner {
             return planLookupJoin(join, context);
         }
         // output
-        else if (node instanceof StreamingOutputExec streamingOutput) {
+        else if (node instanceof IntoExec into) {
+            return planInto(into, context);
+        } else if (node instanceof StreamingOutputExec streamingOutput) {
             return planStreamingOutput(streamingOutput, context);
         } else if (node instanceof OutputExec outputExec) {
             return planOutput(outputExec, context);
@@ -960,7 +992,7 @@ public class LocalExecutionPlanner {
             deferredColumnTypes,
             capable::sourceExtractorsFor,
             capable.datasetLabel(),
-            operatorFactoryRegistry.fileReadExecutor()
+            attributedFileReadExecutor()
         );
         return source.with(factory, newLayout);
     }
@@ -973,7 +1005,7 @@ public class LocalExecutionPlanner {
             new OutputOperatorFactory(
                 Expressions.names(output),
                 alignPageToAttributes(output, source.layout),
-                outputExec.getPageConsumerFactory()
+                outputExec.getPageConsumer()
             ),
             source.layout
         );
@@ -1001,6 +1033,26 @@ public class LocalExecutionPlanner {
         } : Function.identity();
 
         return transformer;
+    }
+
+    private PhysicalOperation planInto(IntoExec into, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(into.child(), context);
+        Layout outputLayout = new Layout.Builder().append(into.output()).build();
+        return switch (into.mode()) {
+            case WRITE -> {
+                IntoPageWriter.Factory sink = IntoPageWriter.Factory.createFactory(
+                    client,
+                    into.destination(),
+                    into.sourceAttributes(),
+                    configuration.explainOnly() ? IntoPageWriter.Factory.Indexing.DISCARD : IntoPageWriter.Factory.Indexing.INDEX
+                );
+                yield source.with(
+                    new IntoOperator.Factory(sink, alignPageToAttributes(into.sourceAttributes(), source.layout)),
+                    outputLayout
+                );
+            }
+            case MERGE_STATS -> source.with(new IntoMergeStatsOperator.Factory(), outputLayout);
+        };
     }
 
     private PhysicalOperation planStreamingOutput(StreamingOutputExec exec, LocalExecutionPlannerContext context) {
@@ -1757,7 +1809,8 @@ public class LocalExecutionPlanner {
         PhysicalOperation source = plan(join.left(), context);
         int positionsChannel = source.layout.numberOfChannels();
         LocalSourceExec localSourceExec = (LocalSourceExec) join.joinData();
-        // The lookup operators copy the blocks they keep into each driver's breaker-tracked block factory
+        // The lookup operators never take ownership of these blocks: RowInTableLookupOperator builds its table from
+        // them without keeping them, and ColumnLoadOperator copies the values it keeps into each driver's block factory
         Page localData = localSourceExec.supplier().peek();
 
         // see {@link Mapper#JOIN_MARKER_PREFIX}
@@ -2471,8 +2524,9 @@ public class LocalExecutionPlanner {
             .batchSize(pageSize)
             .maxBufferSize(effectiveBufferSize)
             .rowLimit(pushedLimit)
-            .executor(operatorFactoryRegistry.executor())
-            .fileReadExecutor(operatorFactoryRegistry.fileReadExecutor())
+            .executor(attributedExecutor())
+            .fileReadExecutor(attributedFileReadExecutor())
+            .queryId(externalCompute.queryId())
             .config(externalSource.config())
             .declaredReadSpec(externalSource.declaredReadSpec())
             .sourceMetadata(externalSource.sourceMetadata())
@@ -2494,6 +2548,18 @@ public class LocalExecutionPlanner {
         annotateDatasetLabel(externalSource, factory);
         context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, instanceCount));
         return PhysicalOperation.fromSource(factory, layout.build());
+    }
+
+    private Executor attributedExecutor() {
+        return chargedOrSelf(operatorFactoryRegistry.executor(), externalCompute.load());
+    }
+
+    private Executor attributedFileReadExecutor() {
+        return chargedOrSelf(operatorFactoryRegistry.fileReadExecutor(), externalCompute.ioTarget());
+    }
+
+    private static Executor chargedOrSelf(Executor executor, @Nullable TaskLoadAttribution.Target target) {
+        return target == null ? executor : TaskLoadAttribution.charging(executor, target);
     }
 
     private static void annotateDatasetLabel(ExternalSourceExec externalSource, SourceOperator.SourceOperatorFactory factory) {
@@ -2537,10 +2603,7 @@ public class LocalExecutionPlanner {
                 // Bridge the enclosing ES|QL query's own contracts so an EQL source honors them like FROM does.
                 configuration.allowPartialResults(),
                 QuerySettings.PROJECT_ROUTING.get(configuration.resolvedSettings()),
-                // The out-of-band request filter is not yet bridged to the EQL delegate. A query that combines an EQL
-                // source with a request filter is rejected in EsqlSession, so the filter is never silently ignored;
-                // EnclosingQuery.filter stays null here until the coordinator-local execution context is built.
-                null
+                eqlSource.requestFilter()
             )
         );
         // Reuse the coordinator's already-fetched field-caps so the EQL engine skips its own resolution; a null carrier

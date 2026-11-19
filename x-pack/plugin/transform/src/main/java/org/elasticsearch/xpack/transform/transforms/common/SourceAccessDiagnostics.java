@@ -82,7 +82,7 @@ final class SourceAccessDiagnostics {
      * permissions on a specific index).
      */
     private static String findShardSecurityFailure(SearchResponse response) {
-        for (ShardSearchFailure failure : response.shardFailuresList()) {
+        for (ShardSearchFailure failure : response.getShardFailures()) {
             if (isSecurityFailure(failure)) {
                 String index = failure.index();
                 if (index != null) {

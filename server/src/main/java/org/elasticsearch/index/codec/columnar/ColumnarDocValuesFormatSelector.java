@@ -12,10 +12,12 @@ package org.elasticsearch.index.codec.columnar;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.columnar.ColumnarFieldTypeSelector;
+import org.elasticsearch.columnar.FormatVersion;
 import org.elasticsearch.columnar.numeric.NumericPipelineSelector;
 import org.elasticsearch.columnar.string.StringColumnOptionsSelector;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 
 /**
@@ -50,7 +52,23 @@ public final class ColumnarDocValuesFormatSelector {
         if (useColumnarCodec(indexSettings) == false) {
             return null;
         }
-        return new ColumNARDocValuesFormat(pipelines, fieldTypes, ColumNARDocValuesFormat.DEFAULT_BLOCK_SIZE, stringOptions);
+        return new ColumNARDocValuesFormat(
+            pipelines,
+            fieldTypes,
+            ColumNARDocValuesFormat.DEFAULT_BLOCK_SIZE,
+            stringOptions,
+            writeVersion(indexSettings.getIndexVersionCreated())
+        );
+    }
+
+    /**
+     * The layout new segments of an index are written in. An index created before {@link IndexVersions#COLUMNAR_PLAIN_SKIP_INDEX}
+     * keeps the layout its nodes could all read when it was created, so a node that does not know the newer one never receives it.
+     */
+    static FormatVersion writeVersion(final IndexVersion indexVersionCreated) {
+        return indexVersionCreated.onOrAfter(IndexVersions.COLUMNAR_PLAIN_SKIP_INDEX)
+            ? FormatVersion.VERSION_SKIP_INDEX_PLAIN
+            : FormatVersion.BASELINE;
     }
 
     /**

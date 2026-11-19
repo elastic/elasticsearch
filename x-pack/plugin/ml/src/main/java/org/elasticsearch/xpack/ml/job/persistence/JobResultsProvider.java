@@ -654,7 +654,7 @@ public class JobResultsProvider {
                         return;
                     }
                     SearchResponse searchResponse = itemResponse.getResponse();
-                    List<ShardSearchFailure> shardFailures = searchResponse.shardFailuresList();
+                    List<ShardSearchFailure> shardFailures = searchResponse.getShardFailures();
                     int unavailableShards = searchResponse.getTotalShards() - searchResponse.getSuccessfulShards();
                     if (shardFailures.isEmpty() == false) {
                         LOGGER.warn("[{}] Search request returned shard failures: {}", jobId, shardFailures);
@@ -838,7 +838,7 @@ public class JobResultsProvider {
                         return;
                     }
                     SearchResponse searchResponse = itemResponse.getResponse();
-                    List<ShardSearchFailure> shardFailures = searchResponse.shardFailuresList();
+                    List<ShardSearchFailure> shardFailures = searchResponse.getShardFailures();
                     int unavailableShards = searchResponse.getTotalShards() - searchResponse.getSuccessfulShards();
                     if (shardFailures.isEmpty() == false) {
                         LOGGER.warn("[{}] Search request returned shard failures: {}", jobId, shardFailures);

@@ -155,6 +155,20 @@ public class OrderBy extends UnaryPlan
                             )
                         )
                     );
+            } else if (p instanceof NestedExpand nestedExpand) {
+                nestedExpand.child()
+                    .forEachUp(
+                        OrderBy.class,
+                        orderBy -> failures.add(
+                            fail(
+                                nestedExpand,
+                                UNBOUNDED_SORT_NOT_SUPPORTED_FOR_COMMAND_MESSAGE,
+                                "NESTED_EXPAND",
+                                nestedExpand.sourceText(),
+                                orderBy.sourceText()
+                            )
+                        )
+                    );
             } else if (p instanceof AbstractSubqueryJoin subqueryJoin) {
                 subqueryJoin.right()
                     .forEachUp(

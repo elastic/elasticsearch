@@ -601,8 +601,12 @@ public class PromqlVerifierTests extends ESTestCase {
 
     /** A native histogram aggregated with {@code without} is rejected like classic buckets are. */
     public void testNativeHistogramOverWithoutIsRejected() {
+        // Only where a node does not know the label container functions.
         TestAnalyzer nativeHistograms = analyzer().addIndex("exp_histo", "exp_histo_sample-mappings.json", IndexMode.TIME_SERIES)
-            .stripErrorPrefix(true);
+            .stripErrorPrefix(true)
+            .minimumTransportVersion(
+                TransportVersionUtils.getPreviousVersion(AbstractTimeSeriesMetadataFunction.ESQL_TIMESERIES_METADATA_FUNCTIONS)
+            );
         for (String rejected : List.of(
             "histogram_quantile(0.5, sum without (instance) (responseTime))",
             "histogram_fraction(0, 0.2, sum without (instance) (responseTime))"
@@ -885,7 +889,7 @@ public class PromqlVerifierTests extends ESTestCase {
             "PROMQL index=test step=5m label_replace(sum by (host) (network.bytes_in) * 2, \"dst\", \"$1\", \"host\", \"(.+)\")",
             containsString("but was used as a top-level expression over a binary operator")
         );
-        tsdb.error(
+        mixedTsdb.error(
             "PROMQL index=test step=5m "
                 + "bottomk(2, label_replace(sum by (host) (network.bytes_in) * 2, \"dst\", \"$1\", \"host\", \"(.+)\"))",
             containsString("but was used under [bottomk] over a binary operator")
@@ -976,12 +980,13 @@ public class PromqlVerifierTests extends ESTestCase {
     public void testRelabelOverAggregatePrefixedDestinationComparedByLabelName() {
         // The analyzer and the translation treat a `labels.`-prefixed name as the same label as its bare form, so the
         // verifier must too: `labels.host` over `sum by (host)` overwrites `host` (and would otherwise silently replace the
-        // grouping column), and `labels.step` collides with the built-in step column.
-        tsdb.error(
+        // grouping column), and `labels.step` collides with the built-in step column. A relabel overwrites a label only
+        // where every node knows the label container functions.
+        mixedTsdb.error(
             "PROMQL index=test step=5m label_replace(sum by (host) (network.bytes_in), \"labels.host\", \"$1\", \"host\", \"(.+)\")",
             containsString("but destination [host] overwrites a label of the aggregation")
         );
-        tsdb.error(
+        mixedTsdb.error(
             "PROMQL index=test step=5m topk(3, label_join(sum by (host) (network.bytes_in), \"labels.host\", \"-\", \"host\"))",
             containsString("but destination [host] overwrites a label of the aggregation")
         );

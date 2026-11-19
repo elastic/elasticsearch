@@ -725,3 +725,8 @@ tests:
   - :x-pack:plugin:async-search:internalClusterTest
   method: testChargeIsReleasedOnceTheTaskStoredItsResponse
   issue: https://github.com/elastic/elasticsearch/issues/166638
+- class: org.elasticsearch.xpack.stateless.lucene.GenerationalDocValuesIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testSearchShardGenerationFilesRetention
+  issue: https://github.com/elastic/elasticsearch/issues/166692

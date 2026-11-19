@@ -84,8 +84,7 @@ public abstract class AbstractWireTestCase<T> extends ESTestCase {
 
     /**
      * A record's generated {@code equals} and {@code hashCode} already compare every component, so
-     * there is nothing for {@link #mutateInstance} to prove. javac still emits those methods, and
-     * marks them {@code final}; an explicit declaration is not final.
+     * there is nothing for {@link #mutateInstance} to prove
      */
     @SuppressForbidden(reason = "Class.getDeclaredMethod to see if this record declares equals or hashCode")
     private static boolean usesGeneratedRecordEquality(Class<?> clazz) {

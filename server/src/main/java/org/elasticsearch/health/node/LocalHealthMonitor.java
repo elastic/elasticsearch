@@ -166,7 +166,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
         DiscoveryNode currentHealthNode = HealthNode.findHealthNode(event.state());
         DiscoveryNode currentMasterNode = event.state().nodes().getMasterNode();
         boolean healthNodeChanged = hasHealthNodeChanged(currentHealthNode, event);
-        boolean masterNodeChanged = hasMasterNodeChanged(currentMasterNode, event);
+        boolean masterNodeChanged = event.masterChanged();
         if (healthNodeChanged || masterNodeChanged) {
             // On health node or on master node changes, the health node might be reset so the reported
             // health info gets reset to null, to ensure it will be resent.
@@ -197,14 +197,6 @@ public class LocalHealthMonitor implements ClusterStateListener {
         if (prerequisitesFulfilled) {
             startMonitoringIfNecessary();
         }
-    }
-
-    private static boolean hasMasterNodeChanged(DiscoveryNode currentMasterNode, ClusterChangedEvent event) {
-        DiscoveryNode previousMasterNode = event.previousState().nodes().getMasterNode();
-        if (currentMasterNode == null || previousMasterNode == null) {
-            return currentMasterNode != previousMasterNode;
-        }
-        return previousMasterNode.getEphemeralId().equals(currentMasterNode.getEphemeralId()) == false;
     }
 
     // We compare the current health node against both the last seen health node from this node and the

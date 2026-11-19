@@ -451,7 +451,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         final ClusterState state = event.state();
 
         final DiscoveryNode currentMaster = state.nodes().getMasterNode();
-        if (currentMaster != null && currentMaster.equals(event.previousState().nodes().getMasterNode()) == false) {
+        if (currentMaster != null && event.masterChanged()) {
             // master node changed, clear request deduplicator so we send out new state update requests right away without waiting for
             // the in-flight ones to fail first
             shardStateAction.clearRemoteShardRequestDeduplicator();

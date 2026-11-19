@@ -67,7 +67,7 @@ public final class ShardFollowTaskCleaner implements ClusterStateListener {
         final Metadata previousMetadata = event.previousState().metadata();
         if (metadata.getProject().indices() == event.previousState().getMetadata().getProject().indices()
             && persistentTasksMetadata == previousMetadata.getProject().custom(PersistentTasksCustomMetadata.TYPE)
-            && event.previousState().nodes().isLocalNodeElectedMaster()
+            && event.isNewMaster() == false
             && event.blocksChanged() == false) {
             // nothing of relevance changed
             return;

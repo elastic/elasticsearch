@@ -200,7 +200,7 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
         }
 
         final SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(event.state());
-        final boolean newMaster = event.previousState().nodes().isLocalNodeElectedMaster() == false;
+        final boolean newMaster = event.isNewMaster();
         if (newMaster || snapshotsInProgress != SnapshotsInProgress.get(event.previousState()) || event.routingTableChanged()) {
             if (snapshotsInProgress.asStream().anyMatch(SnapshotsInProgress.Entry::hasShardsInWaitingState)) {
                 cancelRecoveriesBlockingSnapshots();

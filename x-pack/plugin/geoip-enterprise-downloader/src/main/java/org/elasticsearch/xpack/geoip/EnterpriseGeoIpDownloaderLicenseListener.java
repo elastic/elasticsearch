@@ -32,7 +32,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xpack.core.XPackField;
 
-import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -91,10 +90,7 @@ public class EnterpriseGeoIpDownloaderLicenseListener implements LicenseStateLis
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        final boolean masterNodeChanged = Objects.equals(
-            event.state().nodes().getMasterNode(),
-            event.previousState().nodes().getMasterNode()
-        ) == false;
+        final boolean masterNodeChanged = event.masterChanged();
         final boolean isLocalNodeMaster = event.state().nodes().isLocalNodeElectedMaster();
         event.state().metadata().projects().values().forEach(projectMetadata -> {
             ProjectId projectId = projectMetadata.id();

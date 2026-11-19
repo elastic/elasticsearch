@@ -84,6 +84,8 @@ public class SnapshotLifecycleService implements Closeable, ClusterStateListener
         // track them here to avoid conditions where master listener events run after other
         // listeners that depend on what happened in the master listener
         final boolean prevIsMaster = this.isMaster;
+        // NB if re-elected in a new term without a not-master state we don't notice, but that's ok: the registration persists and
+        // scheduleSnapshotJobs() re-derives from the cluster state on every update.
         final boolean masterChanged = prevIsMaster != event.localNodeMaster();
         this.isMaster = event.localNodeMaster();
 

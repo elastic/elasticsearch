@@ -13,6 +13,8 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.coordination.CoordinationMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -32,6 +34,7 @@ import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileTime;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Semaphore;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
@@ -128,6 +131,37 @@ public class MasterNodeFileWatchingServiceTests extends ESTestCase {
         testService.clusterChanged(new ClusterChangedEvent("test", recoveredClusterState, notRecoveredClusterState));
         // just a master node isn't sufficient, cluster state also must be recovered
         assertThat(testService.watching(), is(true));
+    }
+
+    /// The local node can be re-elected in a new term without ever applying a state in which it was not the master. The watcher is then
+    /// restarted so that the file is processed again, as it would be after any other election, in case processing it in the previous term
+    /// failed to commit.
+    public void testReElectionInNewTermRestartsWatcher() {
+        final var processed = new Semaphore(0);
+        fileChangedCallback = file -> {
+            if (file.equals(watchedFile)) {
+                processed.release();
+            }
+        };
+
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).masterNodeId(localNode.getId()))
+            .build();
+        testService.clusterChanged(new ClusterChangedEvent("test", clusterState, ClusterState.EMPTY_STATE));
+        assertThat(testService.watching(), is(true));
+        safeAcquire(processed); // the file is processed when the watcher starts
+
+        ClusterState nextTermClusterState = ClusterState.builder(clusterState)
+            .metadata(
+                Metadata.builder(clusterState.metadata())
+                    .coordinationMetadata(
+                        CoordinationMetadata.builder(clusterState.coordinationMetadata()).term(clusterState.term() + 1).build()
+                    )
+            )
+            .build();
+        testService.clusterChanged(new ClusterChangedEvent("test", nextTermClusterState, clusterState));
+        assertThat(testService.watching(), is(true));
+        safeAcquire(processed); // the file is processed again by the restarted watcher
     }
 
     public void testChangingMasterStopsWatcher() {

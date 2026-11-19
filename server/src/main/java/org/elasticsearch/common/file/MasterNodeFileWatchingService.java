@@ -68,12 +68,20 @@ public abstract class MasterNodeFileWatchingService extends AbstractFileWatching
                     return;
                 }
                 if (watching()) {
-                    refreshExistingFileStateIfNeeded(clusterState);
-                    return;
+                    if (event.isNewMaster()) {
+                        // Re-elected in a new term without ever applying a state in which we were not master, so the watcher is still
+                        // running. Restart it, as would have happened across any other election, so that the file is processed again in
+                        // case processing it in the previous term failed to commit.
+                        stopWatcher();
+                    } else {
+                        refreshExistingFileStateIfNeeded(clusterState);
+                        return;
+                    }
                 }
                 startWatcher();
             }
         } else if (event.previousState().nodes().isLocalNodeElectedMaster()) {
+            // NB only reached on a state in which the local node is not master, or the cluster is not recovered
             stopWatcher();
         }
     }

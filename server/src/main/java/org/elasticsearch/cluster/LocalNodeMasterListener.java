@@ -15,20 +15,25 @@ package org.elasticsearch.cluster;
 public interface LocalNodeMasterListener extends ClusterStateListener {
 
     /**
-     * Called when local node is elected to be the master
+     * Called when the local node is elected to be the master.
      */
     void onMaster();
 
-    /**
-     * Called when the local node used to be the master, a new master was elected and it's no longer the local node.
-     */
+    /// Called when the local node has ceased to be the elected master of its term:
+    /// * there is currently no master, in the (typically brief) period before the next election completes.
+    /// * a new node was elected master and this node never applied a not-master state before it applied one from the new master.
+    /// * immediately before invoking [#onMaster()], if the local node is re-elected in a new term without having first applied a state in
+    ///   which it was not the master.
     void offMaster();
 
     @Override
     default void clusterChanged(ClusterChangedEvent event) {
         final boolean wasMaster = event.previousState().nodes().isLocalNodeElectedMaster();
         final boolean isMaster = event.localNodeMaster();
-        if (wasMaster == false && isMaster) {
+        if (event.isNewMaster()) {
+            if (wasMaster) {
+                offMaster();
+            }
             onMaster();
         } else if (wasMaster && isMaster == false) {
             offMaster();

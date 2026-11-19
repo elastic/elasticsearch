@@ -218,9 +218,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                 snapshotShutdownProgressTracker.onClusterStatePausingSetForAllShardSnapshots();
             }
 
-            String previousMasterNodeId = event.previousState().nodes().getMasterNodeId();
-            String currentMasterNodeId = event.state().nodes().getMasterNodeId();
-            if (currentMasterNodeId != null && currentMasterNodeId.equals(previousMasterNodeId) == false) {
+            if (event.state().nodes().getMasterNodeId() != null && event.masterChanged()) {
                 // Clear request deduplicator since we need to send all requests that were potentially not handled by the previous
                 // master again
                 remoteFailedRequestDeduplicator.clear();

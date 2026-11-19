@@ -57,8 +57,7 @@ public final class NodeSeenService implements ClusterStateListener {
             return;
         }
 
-        final boolean thisNodeJustBecameMaster = event.previousState().nodes().isLocalNodeElectedMaster() == false
-            && event.state().nodes().isLocalNodeElectedMaster();
+        final boolean thisNodeJustBecameMaster = event.isNewMaster();
         if ((event.nodesAdded() || thisNodeJustBecameMaster) == false) {
             // If there's both 1) no new nodes this cluster state update and 2) this node has not just become the master node, nothing to do
             return;

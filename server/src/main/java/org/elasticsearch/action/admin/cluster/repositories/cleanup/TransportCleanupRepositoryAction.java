@@ -100,7 +100,7 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
 
     private static void addClusterStateApplier(ClusterService clusterService) {
         clusterService.addStateApplier(event -> {
-            if (event.localNodeMaster() && event.previousState().nodes().isLocalNodeElectedMaster() == false) {
+            if (event.isNewMaster()) {
                 final RepositoryCleanupInProgress repositoryCleanupInProgress = RepositoryCleanupInProgress.get(event.state());
                 if (repositoryCleanupInProgress.hasCleanupInProgress() == false) {
                     return;
@@ -126,6 +126,8 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
     }
 
     private static ClusterState removeInProgressCleanup(final ClusterState currentState) {
+        // BUG: does not check the identity of the cleanup before removing it, so may remove a different one from the intended target
+        // (e.g. when this node is re-elected while a cleanup is still running).
         return RepositoryCleanupInProgress.get(currentState).hasCleanupInProgress()
             ? ClusterState.builder(currentState).putCustom(RepositoryCleanupInProgress.TYPE, RepositoryCleanupInProgress.EMPTY).build()
             : currentState;

@@ -169,6 +169,11 @@ tests:
   tasks:
   - :modules:reindex:javaRestTest
   issue: https://github.com/elastic/elasticsearch/issues/166264
+- class: org.elasticsearch.xpack.ilm.TimeSeriesDataStreamsIT
+  tasks:
+  - :x-pack:plugin:ilm:qa:multi-node:javaRestTest
+  method: testSearchableSnapshotAction
+  issue: https://github.com/elastic/elasticsearch/issues/160700
 
 # Examples:
 #

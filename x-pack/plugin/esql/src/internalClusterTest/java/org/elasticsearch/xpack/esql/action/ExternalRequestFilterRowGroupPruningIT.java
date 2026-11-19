@@ -137,6 +137,42 @@ public class ExternalRequestFilterRowGroupPruningIT extends AbstractExternalData
         assertThat("the range arm must still skip row groups", status.kept(), lessThan(status.total()));
     }
 
+    public void testPrefixBearingMvPatternSkipsRowGroups() throws Exception {
+        // mv_like / mv_rlike have no statistics form of their own; the range their literal prefix implies does, and is
+        // pushed beside them. Region is clustered, so the US and AP row groups cannot hold a value starting with "E".
+        String dataset = registerSortedDataset("rg_mv_pattern");
+        List<Long> expected = idsInRegion("EU");
+        for (String where : List.of("WHERE mv_like(region, \"E*\") | ", "WHERE mv_rlike(region, \"E.*\") | ")) {
+            Pruning status = runAndReadStatus(dataset, where, null, expected);
+            assertTrue(where + "the implied range must be pushed to the reader", status.pushdownUsed());
+            assertThat(where + "a selective prefix must skip row groups", status.kept(), lessThan(status.total()));
+        }
+    }
+
+    public void testNegatedMvPatternKeepsEveryRowGroup() throws Exception {
+        // Under NOT the implied range would be a superset negated into an under-match, so none is derived and the
+        // negated pattern, itself unpushable, leaves the reader without a predicate. The answer stays exact.
+        String dataset = registerSortedDataset("rg_mv_pattern_not");
+        List<Long> expected = new ArrayList<>();
+        for (long id = 0; id < ROWS; id++) {
+            if (regionOf(id).startsWith("E") == false) {
+                expected.add(id);
+            }
+        }
+        Pruning status = runAndReadStatus(dataset, "WHERE NOT mv_like(region, \"E*\") | ", null, expected);
+        assertNothingWasSkipped(status);
+    }
+
+    private static List<Long> idsInRegion(String region) {
+        List<Long> ids = new ArrayList<>();
+        for (long id = 0; id < ROWS; id++) {
+            if (regionOf(id).equals(region)) {
+                ids.add(id);
+            }
+        }
+        return ids;
+    }
+
     /**
      * Asserts the scan skipped no row group.
      *

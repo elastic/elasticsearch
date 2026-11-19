@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPatt
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
+import org.elasticsearch.xpack.esql.datasources.pushdown.PatternPrefixBound;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
@@ -58,6 +59,9 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvGrea
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLess;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvRLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvRegexMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
@@ -355,6 +359,38 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
         runDifferential(and(mvInRange(ID, DataType.LONG, 100L, 400L), like(URL, "*google*")));
     }
 
+    /**
+     * A prefix-bearing mv_like / mv_rlike beside the range it implies -- the conjunct pair PushFiltersToSource hands the
+     * reader. description is ordered by id within a row group, so the prefix prunes. Row 13 holds the derived upper
+     * bound itself ("..._row_13" for the prefix "..._row_12"): the range is pushed inclusive, a superset, and the row
+     * must not survive the pattern.
+     */
+    public void testMvPatternWithImpliedPrefixRangeKeepsEveryMatch() throws IOException {
+        String prefix = "padding_" + "p".repeat(50) + "_row_12";
+        runDifferential(withImpliedRange(mvLike(DESCRIPTION, prefix + "*")));
+        runDifferential(withImpliedRange(mvLike(DESCRIPTION, prefix + "*5")));
+        runDifferential(withImpliedRange(mvRLike(DESCRIPTION, prefix + ".*")));
+        runDifferential(withImpliedRange(mvLike(URL, "https://google*")));
+    }
+
+    /**
+     * The planner derives the implied range for top-level conjuncts only, so this shape is defensive: should a nested
+     * range ever be handed over, under OR it is the AND's translatable arm, and the OR of supersets is still a superset.
+     */
+    public void testMvPatternWithImpliedPrefixRangeUnderOr() throws IOException {
+        String prefix = "padding_" + "p".repeat(50) + "_row_12";
+        runDifferential(or(withImpliedRange(mvLike(DESCRIPTION, prefix + "*")), lt(ID, 10L, DataType.LONG)));
+    }
+
+    /**
+     * Defensive, as the planner never derives a range under NOT: should one be handed over, the superset range must
+     * build no statistics predicate, as it would become an under-match.
+     */
+    public void testNotOverMvPatternWithImpliedPrefixRangeKeepsEveryRow() throws IOException {
+        String prefix = "padding_" + "p".repeat(50) + "_row_12";
+        runDifferential(not(withImpliedRange(mvLike(DESCRIPTION, prefix + "*"))));
+    }
+
     public void testNotOverMvContainsDoesNotPush() throws IOException {
         // mv_ is absent from isExactlyTranslatable, so the Not branch builds no FilterPredicate. The conjunct is
         // still pushed as RECHECK and still evaluated by the retained filter — what is absent is the statistics
@@ -637,6 +673,12 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
             new MvInRange(Source.EMPTY, v, lit(2, DataType.INTEGER), lit(6, DataType.INTEGER)),
             Set.of(0L, 1L, 2L, 3L)
         );
+
+        // mv_like beside the range it implies, over the list column: rows 0 and 1 each hold a value starting with
+        // "Sen", and row 1 is multivalued. The list has no statistics and the row arms decline, so no row is lost
+        // inside the reader -- every row reaches the retained filter, which computes the any-value answer.
+        assertMvSurvivors(bytes, withImpliedRange(mvLike(tags, "Sen*")), Set.of(0L, 1L, 2L, 3L));
+        assertMvSurvivors(bytes, withImpliedRange(mvRLike(tags, "Sen.*")), Set.of(0L, 1L, 2L, 3L));
     }
 
     /**
@@ -1112,6 +1154,18 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
             Boolean lower = cmpOrdered(row, mvInRange.field(), mvInRange.lower(), 1, boundOption(mvInRange.options(), "include_lower"));
             Boolean upper = cmpOrdered(row, mvInRange.field(), mvInRange.upper(), -1, boundOption(mvInRange.options(), "include_upper"));
             return Boolean.TRUE.equals(lower) && Boolean.TRUE.equals(upper);
+        }
+        if (expr instanceof MvLike || expr instanceof MvRLike) {
+            // Two-valued like the other mv_ forms: a null column has no value to match, so FALSE rather than null.
+            MvRegexMatch match = (MvRegexMatch) expr;
+            Object v = row.get(((ReferenceAttribute) match.left()).name());
+            if (v == null) {
+                return Boolean.FALSE;
+            }
+            String pattern = ((BytesRef) ((Literal) match.right()).value()).utf8ToString();
+            // Only plain RLIKE patterns are used here, whose Lucene and Java regex syntaxes coincide.
+            String regex = expr instanceof MvLike ? new WildcardPattern(pattern).asJavaRegex() : pattern;
+            return Pattern.compile(regex).matcher((String) v).matches();
         }
         if (expr instanceof MvGreater mvGreater) {
             if (row.get(((ReferenceAttribute) mvGreater.field()).name()) == null) {
@@ -1616,6 +1670,21 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
             return (Boolean) literal.value();
         }
         return true;
+    }
+
+    private static Expression mvLike(ReferenceAttribute a, String pattern) {
+        return new MvLike(Source.EMPTY, a, lit(pattern, DataType.KEYWORD));
+    }
+
+    private static Expression mvRLike(ReferenceAttribute a, String pattern) {
+        return new MvRLike(Source.EMPTY, a, lit(pattern, DataType.KEYWORD));
+    }
+
+    /** {@code pattern} beside the range it implies, as {@code PushFiltersToSource} hands the pair to the reader. */
+    private static Expression withImpliedRange(Expression pattern) {
+        MvInRange bound = PatternPrefixBound.of(pattern);
+        assertNotNull(pattern + " must imply a range", bound);
+        return and(bound, pattern);
     }
 
     private static Expression mvGreater(ReferenceAttribute a, Object v, DataType t) {

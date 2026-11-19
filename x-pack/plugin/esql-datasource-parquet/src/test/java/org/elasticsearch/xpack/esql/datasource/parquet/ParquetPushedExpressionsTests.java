@@ -8,7 +8,9 @@
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.parquet.filter2.predicate.FilterApi;
 import org.apache.parquet.filter2.predicate.FilterPredicate;
+import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
@@ -25,13 +27,17 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.pushdown.PatternPrefixBound;
 import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownLiteralConversion;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
+import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvGreater;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLess;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvRLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
@@ -49,6 +55,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.junit.Before;
 
+import java.nio.charset.StandardCharsets;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
@@ -2952,6 +2959,47 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
                 )
             )
         );
+    }
+
+    /**
+     * A prefix-bearing {@code mv_like} / {@code mv_rlike} has no statistics form; the range it implies
+     * ({@link PatternPrefixBound}, pushed beside it) builds a two-sided bound over a non-repeated BINARY leaf, with the
+     * exclusive upper pushed inclusive as for every {@code mv_in_range}. The pattern itself is NO, so beside it the
+     * pushed predicate is the bound alone.
+     */
+    public void testImpliedPatternPrefixRangeBuildsATwoSidedRangeOnABinaryLeaf() {
+        MessageType schema = Types.buildMessage().required(BINARY).as(stringType()).named("region").named("test");
+        Attribute region = attr("region", DataType.KEYWORD);
+        FilterPredicate expected = FilterApi.and(
+            FilterApi.gtEq(FilterApi.binaryColumn("region"), Binary.fromConstantByteArray("abc".getBytes(StandardCharsets.UTF_8))),
+            FilterApi.ltEq(FilterApi.binaryColumn("region"), Binary.fromConstantByteArray("abd".getBytes(StandardCharsets.UTF_8)))
+        );
+        ParquetFilterPushdownSupport support = new ParquetFilterPushdownSupport();
+        for (Expression pattern : List.of(
+            new MvLike(Source.EMPTY, region, lit(new BytesRef("abc*xyz"), DataType.KEYWORD)),
+            new MvRLike(Source.EMPTY, region, lit(new BytesRef("abc.*xyz"), DataType.KEYWORD))
+        )) {
+            MvInRange bound = PatternPrefixBound.of(pattern);
+            assertNotNull(pattern + " has a prefix", bound);
+            assertEquals(FilterPushdownSupport.Pushability.RECHECK, support.canPush(bound));
+            assertEquals(FilterPushdownSupport.Pushability.NO, support.canPush(pattern));
+            assertEquals(expected.toString(), predicateFor(schema, bound).toString());
+            assertEquals(expected.toString(), new ParquetPushedExpressions(List.of(bound, pattern)).toFilterPredicate(schema).toString());
+        }
+    }
+
+    /** Statistics are only reachable at a non-repeated leaf, so over a list the implied range builds nothing. */
+    public void testImpliedPatternPrefixRangeBuildsNothingOverAList() {
+        MvInRange overList = PatternPrefixBound.of(
+            new MvLike(Source.EMPTY, attr("tags", DataType.KEYWORD), lit(new BytesRef("abc*"), DataType.KEYWORD))
+        );
+        assertNotNull(overList);
+        assertNull("3-level LIST", predicateFor(stringListSchema(), overList));
+        MvInRange overRepeated = PatternPrefixBound.of(
+            new MvRLike(Source.EMPTY, attr("String_list", DataType.KEYWORD), lit(new BytesRef("abc.*"), DataType.KEYWORD))
+        );
+        assertNotNull(overRepeated);
+        assertNull("2-level repeated leaf", predicateFor(repeatedStringSchema(), overRepeated));
     }
 
     public void testListValuedKeywordBoundIsNotRenderedAsAString() {

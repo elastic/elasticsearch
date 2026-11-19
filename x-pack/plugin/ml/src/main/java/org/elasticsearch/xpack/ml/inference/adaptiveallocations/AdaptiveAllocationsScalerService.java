@@ -434,6 +434,11 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
                     hasRecentObservedScaleUp.add(deploymentId);
                 }
             }
+            // A deployment without allocations has no node stats. Evaluate it with empty stats anyway, so
+            // that the scaler applies the minimum number of allocations (e.g. it was raised while at zero).
+            if (assignmentStats.getNodeStats().isEmpty()) {
+                recentStatsByDeployment.put(deploymentId, new Stats(0, 0, 0, 0.0));
+            }
         }
 
         if (statsTimeInterval == null) {
@@ -479,12 +484,12 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
 
     public boolean maybeStartAllocation(TrainedModelAssignment assignment) {
         if (assignment.getAdaptiveAllocationsSettings() != null
-            && assignment.getAdaptiveAllocationsSettings().getEnabled() == Boolean.TRUE
-            && (assignment.getAdaptiveAllocationsSettings().getMinNumberOfAllocations() == null
-                || assignment.getAdaptiveAllocationsSettings().getMinNumberOfAllocations() == 0)) {
+            && assignment.getAdaptiveAllocationsSettings().getEnabled() == Boolean.TRUE) {
 
+            // Scale up when no allocations are requested; otherwise, wait for them.
             // Prevent against a flurry of scale up requests.
-            if (deploymentIdsWithInFlightScaleFromZeroRequests.contains(assignment.getDeploymentId()) == false) {
+            if (assignment.getTaskParams().getNumberOfAllocations() == 0
+                && deploymentIdsWithInFlightScaleFromZeroRequests.contains(assignment.getDeploymentId()) == false) {
                 lastScaleUpTimesMillis.put(assignment.getDeploymentId(), System.currentTimeMillis());
                 var updateListener = updateAssigmentListener(assignment.getDeploymentId(), 1);
                 var cleanUpListener = ActionListener.runAfter(

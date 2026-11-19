@@ -49,8 +49,10 @@ import java.util.concurrent.atomic.AtomicLong;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.same;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -89,6 +91,14 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
     }
 
     private ClusterState getClusterState(int numAllocations, AssignmentState assignmentState) {
+        return getClusterState(numAllocations, assignmentState, new AdaptiveAllocationsSettings(true, null, null));
+    }
+
+    private ClusterState getClusterState(
+        int numAllocations,
+        AssignmentState assignmentState,
+        AdaptiveAllocationsSettings adaptiveAllocationsSettings
+    ) {
         ClusterState clusterState = mock(ClusterState.class);
         Metadata metadata = mock(Metadata.class);
         when(clusterState.metadata()).thenReturn(metadata);
@@ -109,7 +119,7 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
                             100_000_000,
                             100_000_000
                         ),
-                        new AdaptiveAllocationsSettings(true, null, null)
+                        adaptiveAllocationsSettings
                     ).setAssignmentState(assignmentState).build()
                 )
             )
@@ -137,29 +147,32 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
                     1024,
                     ByteSizeValue.ZERO,
                     Instant.now().minus(1, ChronoUnit.DAYS),
-                    List.of(
-                        AssignmentStats.NodeStats.forStartedState(
-                            randomBoolean() ? DiscoveryNodeUtils.create("node_1") : null,
-                            inferenceCount,
-                            latency,
-                            latency,
-                            0,
-                            0,
-                            0,
-                            0,
-                            0,
-                            Instant.now(),
-                            recentStartup ? Instant.now() : Instant.now().minus(1, ChronoUnit.HOURS),
-                            1,
-                            numAllocations,
-                            inferenceCount,
-                            inferenceCount,
-                            latency,
-                            0,
-                            0L,
-                            null
-                        )
-                    ),
+                    // a deployment without allocations has no node stats
+                    numAllocations == 0
+                        ? List.of()
+                        : List.of(
+                            AssignmentStats.NodeStats.forStartedState(
+                                randomBoolean() ? DiscoveryNodeUtils.create("node_1") : null,
+                                inferenceCount,
+                                latency,
+                                latency,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                Instant.now(),
+                                recentStartup ? Instant.now() : Instant.now().minus(1, ChronoUnit.HOURS),
+                                1,
+                                numAllocations,
+                                inferenceCount,
+                                inferenceCount,
+                                latency,
+                                0,
+                                0L,
+                                null
+                            )
+                        ),
                     Priority.NORMAL
                 ).setState(assignmentState)
             ),
@@ -473,6 +486,47 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
         service.stop();
     }
 
+    public void test_scaleUpToMinimum_whenZeroAllocationsAndMinimumIsAboveZero() throws Exception {
+        var settings = new AdaptiveAllocationsSettings(true, 2, null);
+        ClusterState clusterState = getClusterState(0, AssignmentState.STARTED, settings);
+        when(clusterService.state()).thenReturn(clusterState);
+
+        AdaptiveAllocationsScalerService service = new AdaptiveAllocationsScalerService(
+            threadPool,
+            clusterService,
+            client,
+            inferenceAuditor,
+            meterRegistry,
+            true,
+            ONE_SECOND,
+            SIXTY_SECONDS,
+            SIXTY_THOUSAND_MILLISECONDS
+        );
+        service.start();
+        reset(client, clusterService);
+
+        when(client.threadPool()).thenReturn(threadPool);
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            var listener = (ActionListener<GetDeploymentStatsAction.Response>) invocationOnMock.getArguments()[2];
+            listener.onResponse(getDeploymentStatsResponse(0, 0, 10.0, false, AssignmentState.STARTED));
+            return Void.TYPE;
+        }).when(client).execute(eq(GetDeploymentStatsAction.INSTANCE), eq(new GetDeploymentStatsAction.Request("test-deployment")), any());
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            var listener = (ActionListener<CreateTrainedModelAssignmentAction.Response>) invocationOnMock.getArguments()[2];
+            listener.onResponse(null);
+            return Void.TYPE;
+        }).when(client).execute(eq(UpdateTrainedModelDeploymentAction.INSTANCE), any(), any());
+
+        var updateRequest = new UpdateTrainedModelDeploymentAction.Request("test-deployment");
+        updateRequest.setNumberOfAllocations(2);
+        updateRequest.setSource(UpdateTrainedModelDeploymentAction.Request.Source.ADAPTIVE_ALLOCATIONS);
+        assertBusy(() -> verify(client, atLeastOnce()).execute(eq(UpdateTrainedModelDeploymentAction.INSTANCE), eq(updateRequest), any()));
+
+        service.stop();
+    }
+
     public void testMaybeStartAllocation() {
         AdaptiveAllocationsScalerService service = new AdaptiveAllocationsScalerService(
             threadPool,
@@ -495,17 +549,63 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
                 TrainedModelAssignment.Builder.empty(taskParams(1), new AdaptiveAllocationsSettings(Boolean.FALSE, 1, 2)).build()
             )
         );
-        // min allocations > 0
-        assertFalse(
+        verify(client, never()).execute(eq(UpdateTrainedModelDeploymentAction.INSTANCE), any(), any());
+
+        assertTrue(
             service.maybeStartAllocation(
-                TrainedModelAssignment.Builder.empty(taskParams(0), new AdaptiveAllocationsSettings(Boolean.TRUE, 1, 2)).build()
+                TrainedModelAssignment.Builder.empty(taskParams("d1", 0), new AdaptiveAllocationsSettings(Boolean.TRUE, 0, 2)).build()
+            )
+        );
+        var updateRequest = new UpdateTrainedModelDeploymentAction.Request("d1");
+        updateRequest.setNumberOfAllocations(1);
+        updateRequest.setSource(UpdateTrainedModelDeploymentAction.Request.Source.ADAPTIVE_ALLOCATIONS);
+        verify(client, times(1)).execute(eq(UpdateTrainedModelDeploymentAction.INSTANCE), eq(updateRequest), any());
+
+        assertTrue(
+            service.maybeStartAllocation(
+                TrainedModelAssignment.Builder.empty(taskParams("d2", 0), new AdaptiveAllocationsSettings(Boolean.TRUE, 2, 4)).build()
+            )
+        );
+        updateRequest = new UpdateTrainedModelDeploymentAction.Request("d2");
+        updateRequest.setNumberOfAllocations(1);
+        updateRequest.setSource(UpdateTrainedModelDeploymentAction.Request.Source.ADAPTIVE_ALLOCATIONS);
+        verify(client, times(1)).execute(eq(UpdateTrainedModelDeploymentAction.INSTANCE), eq(updateRequest), any());
+    }
+
+    public void testMaybeStartAllocation_waitsWithoutScaling_whenAllocationsAreAlreadyRequested() {
+        AdaptiveAllocationsScalerService service = new AdaptiveAllocationsScalerService(
+            threadPool,
+            clusterService,
+            client,
+            inferenceAuditor,
+            meterRegistry,
+            true,
+            ONE_SECOND,
+            SIXTY_SECONDS,
+            TWO_THOUSAND_MILLISECONDS
+        );
+
+        when(client.threadPool()).thenReturn(threadPool);
+
+        // Allocations are requested, but not started yet. The request should wait for them,
+        // also when the minimum has changed in the meantime, and the allocations should not be changed.
+        assertTrue(
+            service.maybeStartAllocation(
+                TrainedModelAssignment.Builder.empty(taskParams(2), new AdaptiveAllocationsSettings(Boolean.TRUE, 1, 4)).build()
             )
         );
         assertTrue(
             service.maybeStartAllocation(
-                TrainedModelAssignment.Builder.empty(taskParams(0), new AdaptiveAllocationsSettings(Boolean.TRUE, 0, 2)).build()
+                TrainedModelAssignment.Builder.empty(taskParams(3), new AdaptiveAllocationsSettings(Boolean.TRUE, 0, 4)).build()
             )
         );
+        assertTrue(
+            service.maybeStartAllocation(
+                TrainedModelAssignment.Builder.empty(taskParams(1), new AdaptiveAllocationsSettings(Boolean.TRUE, 2, 4)).build()
+            )
+        );
+
+        verify(client, never()).execute(eq(UpdateTrainedModelDeploymentAction.INSTANCE), any(), any());
     }
 
     public void testMaybeStartAllocation_BlocksMultipleRequests() throws Exception {
@@ -557,9 +657,13 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
     }
 
     private StartTrainedModelDeploymentAction.TaskParams taskParams(int numAllocations) {
+        return taskParams("foo", numAllocations);
+    }
+
+    private StartTrainedModelDeploymentAction.TaskParams taskParams(String deploymentId, int numAllocations) {
         return new StartTrainedModelDeploymentAction.TaskParams(
-            "foo",
-            "foo",
+            deploymentId,
+            deploymentId,
             1000L,
             numAllocations,
             1,

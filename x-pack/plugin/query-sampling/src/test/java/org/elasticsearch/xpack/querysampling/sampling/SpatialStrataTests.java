@@ -21,8 +21,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
@@ -169,7 +167,7 @@ public class SpatialStrataTests extends ESTestCase {
         assertFalse(Double.isNaN(strata.factor(old)));
     }
 
-    public void testWhatWaitsForTheFitIsBoundedInAllAndFreedWhenASpaceIsDropped() {
+    public void testWhatWaitsForTheFitIsBoundedInAllAndAWarmupCanStillFinish() {
         SpatialStrata strata = new SpatialStrata(16, 200, () -> new Random(7L));
         float[] vector = new float[4096]; // the same array again and again: only the count matters
         for (int i = 0; i < SpatialStrata.MAX_SPACES; i++) {
@@ -178,15 +176,10 @@ public class SpatialStrataTests extends ESTestCase {
             }
         }
         assertThat(strata.waitingFloats(), lessThanOrEqualTo(SpatialStrata.MAX_WAITING_FLOATS));
-        assertThat("it is used up", strata.waitingFloats(), greaterThan(SpatialStrata.MAX_WAITING_FLOATS - 4096));
 
-        AtomicReference<Stratum> left = new AtomicReference<>();
-        strata.assign("field0", vector, left::set);
-        assertNull("no room to wait, so no cluster", left.get());
-
-        strata.assign("beyond", new float[] { 1f }, stratum -> {}); // the space used least recently, field1, goes and gives back what it
-                                                                    // held
-        assertThat(strata.waitingFloats(), lessThan(SpatialStrata.MAX_WAITING_FLOATS - 100_000));
+        AtomicReference<Stratum> last = new AtomicReference<>();
+        strata.assign("field99", vector, last::set); // the 200th: the space used most recently was never made to give up its queries
+        assertNotNull("under pressure, one warm-up can still finish", last.get());
     }
 
     public void testTheFactorIsOneWithoutBalanceAClusterOrAKnownSpace() {

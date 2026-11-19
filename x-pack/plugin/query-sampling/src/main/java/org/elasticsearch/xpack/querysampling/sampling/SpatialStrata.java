@@ -56,7 +56,8 @@ public final class SpatialStrata {
     /**
      * What the spaces that wait for their fit hold in all, in floats (32 MiB). A field that is searched less than the warm-up
      * needs keeps its vectors until it is dropped, and without a bound 100 fields of 4096 dimensions would hold over 300 MiB.
-     * Beyond it a query that would wait is left without a cluster, which gives it a factor of 1.
+     * Beyond it the space that has waited longest is dropped, and the queries that waited in it are left without a cluster, which
+     * gives them a factor of 1.
      */
     static final long MAX_WAITING_FLOATS = 8L * 1024 * 1024;
 
@@ -65,7 +66,6 @@ public final class SpatialStrata {
     private final Supplier<Random> random;
     // in the order of use, the least recently used first
     private final Map<String, Space> spaces = new LinkedHashMap<>(16, 0.75f, true);
-    private long waitingFloats;
     private volatile double balance;
 
     /**
@@ -105,22 +105,34 @@ public final class SpatialStrata {
             if (spaces.size() >= MAX_SPACES) {
                 // the one that has not been used for the longest time makes room, so spaces of fields that are gone do not stay
                 Iterator<Space> leastRecentlyUsed = spaces.values().iterator();
-                waitingFloats -= leastRecentlyUsed.next().waitingFloats();
+                leastRecentlyUsed.next();
                 leastRecentlyUsed.remove();
             }
             space = new Space(clusters, vector.length, warmup);
             spaces.put(name, space);
         }
-        if (space.fitted == false && waitingFloats + vector.length > MAX_WAITING_FLOATS) {
-            return;
+        while (space.fitted == false && waitingFloats() + vector.length > MAX_WAITING_FLOATS) {
+            // the space used most recently keeps waiting, so at least one warm-up can finish; the one that waits longest gives up
+            Iterator<Space> waiting = spaces.values().iterator();
+            Space oldest = waiting.next();
+            while (oldest.fitted || oldest == space) {
+                if (waiting.hasNext() == false) {
+                    return;
+                }
+                oldest = waiting.next();
+            }
+            spaces.values().remove(oldest);
         }
-        long before = space.waitingFloats();
         space.add(name, vector, receiver, random);
-        waitingFloats += space.waitingFloats() - before;
     }
 
+    /** At most {@link #MAX_SPACES} to add up, and only when a query would have to wait. */
     long waitingFloats() {
-        return waitingFloats;
+        long sum = 0;
+        for (Space space : spaces.values()) {
+            sum += space.waitingFloats();
+        }
+        return sum;
     }
 
     public double factor(@Nullable Stratum stratum) {
@@ -136,6 +148,10 @@ public final class SpatialStrata {
         return Math.min(MAX_FACTOR, Math.pow(space.averageCount() / space.counts[stratum.cluster()], balance));
     }
 
+    /**
+     * The clusters of one space (a field and its dimensions). Until it has seen {@code warmup} vectors it only keeps them, and
+     * its queries have no cluster; then it fits the clusters once, and from then on each vector joins the nearest one.
+     */
     private static final class Space {
         private final float[][] centroids;
         private final long[] counts;

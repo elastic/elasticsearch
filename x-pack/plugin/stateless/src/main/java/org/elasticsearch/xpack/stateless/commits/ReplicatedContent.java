@@ -72,7 +72,7 @@ class ReplicatedContent {
      * @param startPositionInRegion         the position of the start of the blob (its header) relative to the start of its cache region,
      *                                      which is {@code 0} if the blob is stored on its own
      * @param estimatedMaxHeaderSizeInBytes an estimation of the size of the header, which is {@code 0} to replicate the content of all the
-     *                                      files, including those in the same region as the header
+     *                                      files when replication is needed, including those in the same region as the header
      */
     static ReplicatedContent create(
         SequencedCollection<InternalFile> internalFiles,

@@ -216,6 +216,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 }
 
                 final AtomicLong pagesFetched = new AtomicLong();
+                // TODO: once FROM supports INTO, do not retry requests whose writer has already sent a bulk
                 var listener = ActionListener.wrap(nodeListener::onResponse, e -> nodeListener.onFailure(e, pagesFetched.get() > 0));
                 final Transport.Connection connection;
                 try {
@@ -676,6 +677,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
      * fetched from this walk cannot be replayed, so a failure after the first page is terminal.
      */
     static boolean shouldRerouteExternalWorker(Exception failure, long pagesFetched, boolean hasNextWorker) {
+        // TODO: once FROM supports INTO, do not reroute external workers whose writer has already sent a bulk
         return hasNextWorker && pagesFetched == 0 && isRetryableExternalWorkerFailure(failure);
     }
 
@@ -1244,6 +1246,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
 
                 @Override
                 public void onFailure(Exception e) {
+                    // TODO: once FROM supports INTO, fail fast if a writer in this batch has already sent a bulk
                     if (pagesProduced.get() == 0 && failFastOnShardFailure == false) {
                         for (DataNodeRequest.Shard shard : batch) {
                             addShardLevelFailure(shard.shardId(), e);

@@ -146,8 +146,8 @@ public class TargetRelocationSlotsEstimatorTests extends ESTestCase {
             .build();
     }
 
-    /// The master settings default to throttling the recoveries, unless the `settings` set them. The data node settings are registered
-    /// only if `dataNodeSettingsRegistered`, as they only are by the stateless plugin.
+    /// Builds cluster settings for a master that does not throttle the recoveries and rebalances, unless the `settings` set them. The data
+    /// node settings are registered only if `dataNodeSettingsRegistered`, as they only are by the stateless plugin.
     private static ClusterSettings newClusterSettings(Settings settings, boolean dataNodeSettingsRegistered) {
         final Set<Setting<?>> registeredSettings = new HashSet<>(
             List.of(

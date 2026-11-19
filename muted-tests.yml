@@ -304,10 +304,6 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testSearchRecoveryContinuesWhenWarmingTimesOutWithDeferredWarmCache
   issue: https://github.com/elastic/elasticsearch/issues/163325
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIpTests
-  tasks:
-  - :x-pack:plugin:esql:test
-  issue: https://github.com/elastic/elasticsearch/issues/163299
 - class: org.elasticsearch.upgrades.UpgradeXpackClusterClientYamlTestSuiteIT
   tasks:
   - :x-pack:qa:rolling-upgrade:v9.0.8#yamlBwcTest
@@ -739,3 +735,8 @@ tests:
   - :server:internalClusterTest
   method: testRetryOnFailureOnRecoveryFromEmptyStoreRaceWithIndexDeletion
   issue: https://github.com/elastic/elasticsearch/issues/166644
+- class: org.elasticsearch.xpack.stateless.lucene.GenerationalDocValuesIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testSearchShardGenerationFilesRetention
+  issue: https://github.com/elastic/elasticsearch/issues/166692

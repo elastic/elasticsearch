@@ -39,16 +39,15 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
     }
 
     public static final class VersionLookup {
-        /// Tracks bytes used by current map, i.e. what is freed on refresh. For deletes, which are also added to tombstones,
-        /// we only account for the CHM entry here, and account for BytesRef/VersionValue against the tombstones, since refresh will not
-        /// clear tombstone version.
+        /// Bytes held by entries in this lookup. A refresh drops the lookup, so this is the RAM a refresh frees.
+        /// Deletes are not stored here. Tombstone bytes are tracked on the tombstone map, which a refresh does not clear.
         final AtomicLong ramBytesUsed = new AtomicLong();
 
         private static final VersionLookup EMPTY = new VersionLookup(Collections.emptyMap());
         private final Map<BytesRef, VersionValue> map;
 
         /// Each version lookup has a notion of being unsafe which means that a version was skipped and not added to it.
-        /// This is useful when using auto-generated document ids (e.g. storing metrics) because we know that there won't ever be
+        /// This is useful when using auto-generated document ids (e.g. logs) because we know that there won't ever be
         /// duplicate documents and as such we don't really need versions.
         ///
         /// An unsafe version lookup can be converted to safe using [#enforceSafeAccess] and performing a refresh.
@@ -157,9 +156,9 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
         /// Records the most recent writes (a change to a particular document).
         final VersionLookup current;
 
-        /// This lookup contains all versions that will be available using an internal searcher after the refresh.
-        /// But _during_ a refresh they are still needed, and we read from both `current` and `old`.
-        /// Once the refresh is complete `old` can be removed.
+        /// A state of `current` map captured before a refresh starts.
+        /// This is used to serve reads that happen _during_ an ongoing refresh, we read `current` first and then fall back to `old`.
+        /// See [beforeRefresh()].
         final VersionLookup old;
 
         // this is not volatile since we don't need to maintain a happens before relationship across doc IDs so it's enough to
@@ -449,7 +448,9 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
         // check if the value is old enough and safe to be removed
         final boolean isTooOld = versionValue.time < maxTimestampToPrune;
         final boolean isSafeToPrune = versionValue.seqNo <= maxSeqNoToPrune;
-        // Version value can't be removed if it was executed while the current map was active, meaning that it is not present in Lucene.
+        // Version value can't be removed if it is present in `current` or `old` lookups
+        // since that means that it is not refreshed in Lucene.
+        // If we remove such a tombstone we can wrongly treat a deleted document as alive.
         final boolean isNotTrackedByCurrentMaps = versionValue.time < maps.getMinDeleteTimestamp();
         final boolean isNotTrackedByArchive = versionValue.time < archive.getMinDeleteTimestamp();
         return isTooOld && isSafeToPrune && isNotTrackedByCurrentMaps && isNotTrackedByArchive;

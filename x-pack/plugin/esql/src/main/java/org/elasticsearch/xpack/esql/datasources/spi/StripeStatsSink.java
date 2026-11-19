@@ -8,9 +8,6 @@
 package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xpack.esql.core.expression.Attribute;
-
-import java.util.List;
 
 /**
  * Where the chunks of one read hand their pieces of a stripe, so that the pieces of a stripe become one
@@ -53,9 +50,8 @@ public interface StripeStatsSink {
      * @param atStripeEnd   whether its chunk covers the right grid line, or is the file-final chunk
      * @param eof           whether its chunk observed the end of the input and this is its last stripe
      * @param statistics    the piece's own statistics over the records attributed to this stripe, already
-     *                      filtered to {@code schema}, so a sink retains only what a published contribution
+     *                      filtered to the file schema, so a sink retains only what a published contribution
      *                      carries
-     * @param schema        the file's full schema, which the published contribution is serialized against
      */
     void contribute(
         String sourceLocation,
@@ -66,7 +62,6 @@ public interface StripeStatsSink {
         boolean atStripeStart,
         boolean atStripeEnd,
         boolean eof,
-        SourceStatistics statistics,
-        List<Attribute> schema
+        SourceStatistics statistics
     );
 }

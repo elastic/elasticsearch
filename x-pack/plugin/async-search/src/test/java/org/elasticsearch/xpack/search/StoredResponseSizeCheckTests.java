@@ -170,7 +170,7 @@ public class StoredResponseSizeCheckTests extends ESTestCase {
             }
         }
         long spread = samples.stream().mapToLong(sample -> sample.spread().size()).sum();
-        assertThat(spread, equalTo((hitCount + StoredResponseSizeCheck.SAMPLE_SHARE - 1) / StoredResponseSizeCheck.SAMPLE_SHARE));
+        assertThat(spread, equalTo((hitCount + StoredResponseSizeCheck.SAMPLE_SHARE / 2 - 1) / StoredResponseSizeCheck.SAMPLE_SHARE));
         assertThat(samples.stream().mapToLong(sample -> sample.runs().size()).sum(), equalTo(expectedInRuns));
         assertThat(
             samples.stream().mapToLong(StoredResponseSizeCheck.SharedSample::callsBytes).sum(),
@@ -271,8 +271,8 @@ public class StoredResponseSizeCheckTests extends ESTestCase {
     }
 
     /**
-     * Small calls share two samples. One takes every eighth hit across the calls, and the other the hits that start in the first
-     * {@link StoredResponseSizeCheck#MIN_SAMPLE_BYTES} of every eight times that.
+     * Small calls share two samples. One takes every eighth hit across the calls, starting with the fifth, and the other the hits that
+     * start in the first {@link StoredResponseSizeCheck#MIN_SAMPLE_BYTES} of every 512 KB.
      */
     public void testSmallCallsShareSamplesOfTheirHits() {
         StoredResponseSizeCheck.SmallCalls smallCalls = new StoredResponseSizeCheck.SmallCalls();
@@ -294,9 +294,9 @@ public class StoredResponseSizeCheckTests extends ESTestCase {
             assertThat(heapBytes(shared.spread()), greaterThanOrEqualTo(StoredResponseSizeCheck.MAX_SAMPLE_BYTES));
             assertThat(heapBytes(shared.runs()), greaterThanOrEqualTo(StoredResponseSizeCheck.MAX_SAMPLE_BYTES));
             for (SearchHit hit : shared.spread()) {
-                assertSame(allHits.get(spreadHits++ * 8), hit);
+                assertSame(allHits.get(spreadHits++ * 8 + 4), hit);
             }
-            assertThat(spreadHits, equalTo((allHits.size() - 1) / 8 + 1));
+            assertThat(spreadHits, equalTo((allHits.size() + 3) / 8));
             List<SearchHit> expectedRuns = new ArrayList<>();
             for (; position < allHits.size(); position++) {
                 if (isInRun(seenBytes)) {
@@ -444,15 +444,15 @@ public class StoredResponseSizeCheckTests extends ESTestCase {
 
     /**
      * Calls of about 90 KB, 1.3 MB and 9 MB of hits of 8 KB. The first is sampled whole, the second one hit in eight, and the third about
-     * one hit in 34, so the sample is capped.
+     * one hit in 34, so the sample is capped. The second and third start half a step in.
      */
     public void testSpreadSampleTakesSingleHitsAtEvenSteps() {
         assertThat(sampledPositions(10, i -> 8 * 1024, StoredResponseSizeCheck.Sample::spread), equalTo(range(0, 10, 1)));
-        assertThat(sampledPositions(150, i -> 8 * 1024, StoredResponseSizeCheck.Sample::spread), equalTo(range(0, 150, 8)));
+        assertThat(sampledPositions(150, i -> 8 * 1024, StoredResponseSizeCheck.Sample::spread), equalTo(range(4, 150, 8)));
         List<Integer> positions = sampledPositions(1000, i -> 8 * 1024, StoredResponseSizeCheck.Sample::spread);
-        int step = positions.get(1);
+        int step = positions.get(1) - positions.get(0);
         assertThat(step, both(greaterThanOrEqualTo(30)).and(lessThanOrEqualTo(36)));
-        assertThat(positions, equalTo(range(0, 1000, step)));
+        assertThat(positions, equalTo(range(step / 2, 1000, step)));
     }
 
     /**
@@ -471,15 +471,134 @@ public class StoredResponseSizeCheckTests extends ESTestCase {
     }
 
     /**
-     * Hits much larger than the others stop a sample at twice what it aims for, rather than let it take all of them.
+     * Calls of about 1 MB in two hits of 500 KB and in four of 250 KB have a step of eight, so half a step is past their hits. The
+     * spread sample takes the last hit instead.
      */
-    public void testSamplesOfMuchLargerHitsStopAtTwiceTheirSize() {
-        // Given as a call of the smallest sample, the sample aims for all of it, so the second 100 KB hit takes it past twice that.
+    public void testSpreadSampleOfFewerHitsThanHalfAStepTakesTheLast() {
+        assertThat(sampledPositions(2, i -> 500 * 1024, StoredResponseSizeCheck.Sample::spread), equalTo(List.of(1)));
+        assertThat(sampledPositions(4, i -> 250 * 1024, StoredResponseSizeCheck.Sample::spread), equalTo(List.of(3)));
+    }
+
+    /**
+     * A chunk of four incompressible hits of 250 KB has fewer hits than half a step of the spread sample, and is still projected over
+     * the limit.
+     */
+    public void testChunkOfFewLargeHitsFails() {
+        List<SearchHit> hits = hits(4, 250 * 1024, true);
+        long limit = 512 * 1024;
+        assertThat((double) storedBytes(hits), greaterThan(limit * StoredResponseSizeCheck.MARGIN));
+        StoredResponseSizeCheck check = new StoredResponseSizeCheck(() -> limit, () -> true);
+        expectThrows(IllegalArgumentException.class, () -> check.onHits(hits, heapBytes(hits)));
+    }
+
+    /**
+     * A hit of 600 KB among hits of 8 KB, at the first position of the spread sample and inside the first run, would take either sample
+     * past twice what it aims for, so both leave it out and take the hits after it instead.
+     */
+    public void testSamplesSkipMuchLargerHits() {
+        IntUnaryOperator sourceSize = i -> i == 4 ? 600 * 1024 : 8 * 1024;
+        assertThat(sampledPositions(150, sourceSize, StoredResponseSizeCheck.Sample::spread), equalTo(range(12, 150, 8)));
+        assertThat(
+            sampledPositions(150, sourceSize, StoredResponseSizeCheck.Sample::runs),
+            equalTo(
+                IntStream.concat(
+                    IntStream.of(0, 1, 2, 3, 5, 6, 7, 8),
+                    IntStream.of(50, 100).flatMap(start -> IntStream.range(start, start + 8))
+                ).boxed().toList()
+            )
+        );
+    }
+
+    /**
+     * Given as a call of the smallest sample, each sample aims for 64 KB and skips hits past 128 KB, which every 300 KB hit is over. So
+     * each takes the first hit alone.
+     */
+    public void testSamplesThatSkipEveryHitTakeTheFirst() {
         List<Integer> spread = new ArrayList<>();
-        StoredResponseSizeCheck.Sample.spread(recordingHits(10, i -> 100 * 1024, spread), StoredResponseSizeCheck.MIN_SAMPLE_BYTES);
-        assertThat(spread, equalTo(List.of(0, 1)));
-        // Each of four runs is a single hit of 300 KB, so the second one takes the sample past twice the largest one.
-        assertThat(sampledPositions(40, i -> 300 * 1024, StoredResponseSizeCheck.Sample::runs), equalTo(List.of(0, 10)));
+        StoredResponseSizeCheck.Sample.spread(recordingHits(10, i -> 300 * 1024, spread), StoredResponseSizeCheck.MIN_SAMPLE_BYTES);
+        assertThat(spread, equalTo(List.of(0)));
+        List<Integer> runs = new ArrayList<>();
+        StoredResponseSizeCheck.Sample.runs(recordingHits(10, i -> 300 * 1024, runs), StoredResponseSizeCheck.MIN_SAMPLE_BYTES);
+        assertThat(runs, equalTo(List.of(0)));
+    }
+
+    /**
+     * Each of four runs of a call of 300 KB hits is a single hit. The first fits, and every hit after it would take the sample past
+     * twice its aim of 256 KB, so the other runs take none.
+     */
+    public void testRunsSkipHitsThatWouldTakeThemPastTwiceTheirAim() {
+        assertThat(sampledPositions(40, i -> 300 * 1024, StoredResponseSizeCheck.Sample::runs), equalTo(List.of(0)));
+    }
+
+    /**
+     * Hits of 600 KB are over twice the largest aim, so samples that skip all of them are empty rather than taking one.
+     */
+    public void testSamplesOfHitsOverTwiceTheLargestAimAreEmpty() {
+        List<Integer> written = new ArrayList<>();
+        List<SearchHit> hits = recordingHits(10, i -> 600 * 1024, written);
+        assertThat(StoredResponseSizeCheck.Sample.spread(hits, heapBytes(hits)).hitsBytes(), equalTo(0L));
+        assertThat(StoredResponseSizeCheck.Sample.runs(hits, heapBytes(hits)).hitsBytes(), equalTo(0L));
+        assertThat(written, equalTo(List.of()));
+    }
+
+    /**
+     * A call of incompressible 600 KB hits stores in more than the margin over the limit, but its samples are empty, so it is left to
+     * the store.
+     */
+    public void testCallOfHitsOverTwiceTheLargestAimIsLeftToTheStore() {
+        List<SearchHit> hits = hits(4, 600 * 1024, true);
+        long limit = 1024 * 1024;
+        assertThat((double) storedBytes(hits), greaterThan(limit * StoredResponseSizeCheck.MARGIN));
+        assertThat(heapBytes(hits), greaterThan(limit));
+        new StoredResponseSizeCheck(() -> limit, () -> true).onHits(hits, heapBytes(hits));
+    }
+
+    /**
+     * A call whose fifth hit is 600 KB of random bytes, among 1 MB of zeros, stores in less than the limit. That hit is the first of the
+     * spread sample and inside the first run. If the samples took it, spread would be only that hit and the runs mostly that hit, and
+     * both would project the call at about twice the limit.
+     */
+    public void testCallWithALargeIncompressibleHitInBothSamplesPasses() {
+        List<SearchHit> hits = new ArrayList<>(hits(4, 8 * 1024, false));
+        hits.addAll(hits(1, 600 * 1024, true));
+        hits.addAll(hits(124, 8 * 1024, false));
+        long limit = 1024 * 1024;
+        assertThat(storedBytes(hits), lessThan(limit));
+        assertThat(heapBytes(hits), greaterThan(limit));
+        new StoredResponseSizeCheck(() -> limit, () -> true).onHits(hits, heapBytes(hits));
+    }
+
+    /**
+     * A call whose first hit is 384 KB of random bytes, one and a half times what its samples aim for, followed by 8 MB of zeros, stores
+     * in less than the limit. The hit fits in the runs, which project the call at several times the limit, but not in the spread sample,
+     * which starts half a step in, so it passes.
+     */
+    public void testCallWithAnIncompressibleFirstHitUnderTwiceTheAimPasses() {
+        List<SearchHit> hits = new ArrayList<>(hits(1, 384 * 1024, true));
+        hits.addAll(hits(1000, 8 * 1024, false));
+        long limit = 1024 * 1024;
+        assertThat(storedBytes(hits), lessThan(limit));
+        assertThat(heapBytes(hits), greaterThan(limit));
+        new StoredResponseSizeCheck(() -> limit, () -> true).onHits(hits, heapBytes(hits));
+    }
+
+    /**
+     * Small calls whose first hit is 60 KB of random bytes, followed by 120 calls of ten 2 KB hits of zeros, store in less than the limit.
+     * The hit is in the shared runs, which project the calls at more than the margin over the limit, but not in the shared spread sample,
+     * which starts half a step in, so they pass.
+     */
+    public void testSmallCallsWithAnIncompressibleFirstHitPass() {
+        List<List<SearchHit>> calls = new ArrayList<>();
+        calls.add(hits(1, 60 * 1024, true));
+        for (int i = 0; i < 120; i++) {
+            calls.add(hits(10, 2 * 1024, false));
+        }
+        long limit = 200 * 1024;
+        assertThat(storedBytes(calls.stream().flatMap(List::stream).toList()), lessThan(limit));
+        StoredResponseSizeCheck check = new StoredResponseSizeCheck(() -> limit, () -> true);
+        for (List<SearchHit> call : calls) {
+            check.onHits(call, heapBytes(call));
+        }
     }
 
     /**

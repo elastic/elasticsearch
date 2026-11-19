@@ -7,8 +7,14 @@
 
 package org.elasticsearch.compute.lucene.query;
 
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -38,12 +44,10 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.BiFunction;
@@ -568,6 +572,9 @@ public final class LuceneSliceQueue {
         },
         /**
          * Partition using the prefix of tsid
+         *
+         * <p>If the query requires a field, which is the metric that a time-series query reads, only the metrics that
+         * have docs with it are sliced. See {@link TimeSeriesPartitioner#requiredField}.
          */
         TIME_SERIES(3) {
             @Override
@@ -579,7 +586,13 @@ public final class LuceneSliceQueue {
                 int minDocsPerSlice
             ) {
                 try {
-                    return new TimeSeriesPartitioner().partition(searcher.getLeafContexts(), taskConcurrency, MAX_DOCS_PER_SLICE);
+                    final String requiredField = weight == null ? null : TimeSeriesPartitioner.requiredField(weight.getQuery());
+                    return new TimeSeriesPartitioner(requiredField).partition(
+                        searcher.getLeafContexts(),
+                        taskConcurrency,
+                        requiredField == null ? MAX_DOCS_PER_SLICE : minDocsPerSlice,
+                        MAX_DOCS_PER_SLICE
+                    );
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
@@ -898,103 +911,193 @@ public final class LuceneSliceQueue {
     }
 
     static final class TimeSeriesPartitioner {
+        private static final int NO_MORE_METRICS = Integer.MAX_VALUE;
 
-        private static class PrefixGroup {
-            final List<PartialLeafReaderContext> leaves;
-            int numDocs = 0;
+        /**
+         * The prefix cells of one leaf, sorted by prefix and contiguous in docs.
+         */
+        private static final class LeafCells {
+            final LeafReaderContext leaf;
+            final int[] prefixes;
+            final int[] startDocs;
+            final int numCells;
+            final DocIdSetIterator disi;
+            int sliceStart; // first cell of the open slice
+            int metricEnd; // first cell after the metric being sliced
 
-            PrefixGroup(int size) {
-                leaves = new ArrayList<>(size);
+            LeafCells(LeafReaderContext leaf, PartitionedDocValues.PrefixPartitions cells, DocIdSetIterator disi) {
+                this.leaf = leaf;
+                this.prefixes = cells.prefixes();
+                this.startDocs = cells.startDocs();
+                this.numCells = cells.numPartitions();
+                this.disi = disi;
             }
 
-            void add(LeafReaderContext context, int minDoc, int maxDoc) {
-                leaves.add(new PartialLeafReaderContext(context, minDoc, maxDoc));
-                numDocs += (maxDoc - minDoc);
+            int startDoc(int cell) {
+                return cell < numCells ? startDocs[cell] : leaf.reader().maxDoc();
+            }
+
+            /**
+             * The first cell, from the open slice on, whose prefix is at least {@code prefix}.
+             */
+            int firstCellFrom(int prefix) {
+                final int found = Arrays.binarySearch(prefixes, sliceStart, numCells, prefix);
+                return found >= 0 ? found : -found - 1;
+            }
+
+            /**
+             * Whether the cells of the metric being sliced hold a doc that can match the query.
+             */
+            boolean metricCanMatch() throws IOException {
+                if (sliceStart == metricEnd) {
+                    return false;
+                }
+                final int firstDoc = startDocs[sliceStart];
+                final int doc = disi.docID() < firstDoc ? disi.advance(firstDoc) : disi.docID();
+                return doc < startDoc(metricEnd);
             }
         }
 
-        List<List<PartialLeafReaderContext>> partition(List<LeafReaderContext> leaves, int taskConcurrency, int maxDocsPerLeave)
-            throws IOException {
-            int prefixBitsShift = -1;
-            final Map<Integer, Map<Integer, PrefixGroup>> firstByteGroups = new TreeMap<>();
-            PartitionedDocValues.PrefixPartitions prefixPartitions = null;
+        private final String requiredField;
+
+        TimeSeriesPartitioner(@Nullable String requiredField) {
+            this.requiredField = requiredField;
+        }
+
+        /**
+         * Combines the prefix cells of the leaves into slices, targeting at least {@code taskConcurrency} slices
+         * for each metric (indicated via the first prefix byte). Each slice contains at least
+         * {@code minDocsPerSlice} docs to avoid tiny slices, but is capped so that the largest leaf of the
+         * metric gives about {@code maxDocsPerLeave} docs to a slice, to bound per-leaf processing cost.
+         */
+        List<List<PartialLeafReaderContext>> partition(
+            List<LeafReaderContext> leaves,
+            int taskConcurrency,
+            int minDocsPerSlice,
+            int maxDocsPerLeave
+        ) throws IOException {
+            List<LeafCells> cells = new ArrayList<>(leaves.size());
+            int shift = 0;
             for (LeafReaderContext leaf : leaves) {
                 var tsidValues = leaf.reader().getSortedDocValues(TimeSeriesIdFieldMapper.NAME);
                 if (tsidValues == null) {
                     continue; // empty
                 }
                 var partitionedDV = (PartitionedDocValues) tsidValues;
-                if (prefixBitsShift == -1) {
-                    prefixBitsShift = partitionedDV.prefixPartitionBits() - Byte.SIZE;
-                }
-                prefixPartitions = partitionedDV.prefixPartitions(prefixPartitions);
+                shift = partitionedDV.prefixPartitionBits() - Byte.SIZE;
+                var prefixPartitions = partitionedDV.prefixPartitions(null);
                 assert prefixPartitions != null;
-                int pendingPrefix = -1;
-                int pendingStartDoc = -1;
-                int numPartitions = prefixPartitions.numPartitions();
-                final int shift = prefixBitsShift;
-                for (int i = 0; i < numPartitions; i++) {
-                    int startDoc = prefixPartitions.startDocs()[i];
-                    int prefix = prefixPartitions.prefixes()[i];
-                    if (pendingPrefix != -1) {
-                        firstByteGroups.computeIfAbsent(pendingPrefix >>> shift, k -> new TreeMap<>())
-                            .computeIfAbsent(pendingPrefix, k -> new PrefixGroup(leaves.size()))
-                            .add(leaf, pendingStartDoc, startDoc);
+                cells.add(new LeafCells(leaf, prefixPartitions, disiWithField(leaf, requiredField)));
+            }
+            assert shift >= 0 : "the prefix must cover the first byte of the tsid";
+            final int[] docsPerPrefix = new int[1 << shift];
+            List<List<PartialLeafReaderContext>> slices = new ArrayList<>();
+            for (int metric = nextMetric(cells, shift); metric != NO_MORE_METRICS; metric = nextMetric(cells, shift)) {
+                final int firstPrefix = metric << shift;
+                boolean canMatch = false;
+                for (LeafCells leaf : cells) {
+                    leaf.metricEnd = leaf.firstCellFrom(firstPrefix + docsPerPrefix.length);
+                    canMatch = canMatch || leaf.metricCanMatch();
+                }
+                if (canMatch == false) {
+                    for (LeafCells leaf : cells) {
+                        leaf.sliceStart = leaf.metricEnd;
                     }
-                    pendingStartDoc = startDoc;
-                    pendingPrefix = prefix;
+                    continue;
                 }
-                if (pendingPrefix >= 0) {
-                    firstByteGroups.computeIfAbsent(pendingPrefix >>> shift, k -> new TreeMap<>())
-                        .computeIfAbsent(pendingPrefix, k -> new PrefixGroup(leaves.size()))
-                        .add(leaf, pendingStartDoc, leaf.reader().maxDoc());
+                int metricDocs = 0;
+                int largestLeafDocs = 0;
+                Arrays.fill(docsPerPrefix, 0);
+                for (LeafCells leaf : cells) {
+                    int leafDocs = 0;
+                    for (int cell = leaf.sliceStart; cell < leaf.metricEnd; cell++) {
+                        final int docs = leaf.startDoc(cell + 1) - leaf.startDocs[cell];
+                        docsPerPrefix[leaf.prefixes[cell] - firstPrefix] += docs;
+                        leafDocs += docs;
+                    }
+                    metricDocs += leafDocs;
+                    largestLeafDocs = Math.max(largestLeafDocs, leafDocs);
+                }
+                final long docsPerSlice = Math.min(
+                    Math.max(Math.ceilDiv(metricDocs, taskConcurrency), minDocsPerSlice),
+                    (long) maxDocsPerLeave * metricDocs / largestLeafDocs
+                );
+                int sliceDocs = 0;
+                for (int p = 0; p < docsPerPrefix.length; p++) {
+                    sliceDocs += docsPerPrefix[p];
+                    if (sliceDocs >= docsPerSlice || (sliceDocs > 0 && p == docsPerPrefix.length - 1)) {
+                        slices.add(cutSlice(cells, firstPrefix + p));
+                        sliceDocs = 0;
+                    }
                 }
             }
-            List<List<PartialLeafReaderContext>> results = new ArrayList<>();
-            for (Map<Integer, PrefixGroup> prefixGroups : firstByteGroups.values()) {
-                results.addAll(combineSlices(prefixGroups.values().stream().toList(), taskConcurrency, maxDocsPerLeave));
-            }
-            return results;
+            return slices;
         }
 
         /**
-         * Combines prefix groups into slices, targeting at least {@code taskConcurrency} slices
-         * for each metric (indicated via the first prefix byte). Each slice contains at least
-         * {@code maxDocsPerLeave} docs to avoid tiny slices, but flushes early when any
-         * single leaf within a slice reaches {@code maxDocsPerLeave} docs to bound per-leaf
-         * processing cost.
+         * The smallest metric that still has cells outside a slice, so metrics without cells cost nothing.
          */
-        private List<List<PartialLeafReaderContext>> combineSlices(List<PrefixGroup> slices, int taskConcurrency, int maxDocsPerLeave) {
-            final int totalDocs = slices.stream().mapToInt(s -> s.numDocs).sum();
-            final int docsPerSlice = Math.max(Math.ceilDiv(totalDocs, taskConcurrency), maxDocsPerLeave);
-            Map<LeafReaderContext, PartialLeafReaderContext> current = new IdentityHashMap<>();
-            List<List<PartialLeafReaderContext>> results = new ArrayList<>();
-            int pendingDocs = 0;
-            boolean anyLeafExceedsMaxDocs = false;
-            for (PrefixGroup slice : slices) {
-                if (pendingDocs >= docsPerSlice || anyLeafExceedsMaxDocs) {
-                    results.add(current.values().stream().toList());
-                    current.clear();
-                    pendingDocs = 0;
-                    anyLeafExceedsMaxDocs = false;
+        private static int nextMetric(List<LeafCells> cells, int shift) {
+            int metric = NO_MORE_METRICS;
+            for (LeafCells leaf : cells) {
+                if (leaf.sliceStart < leaf.numCells) {
+                    metric = Math.min(metric, leaf.prefixes[leaf.sliceStart] >>> shift);
                 }
-                for (PartialLeafReaderContext leaf : slice.leaves) {
-                    final LeafReaderContext ctx = leaf.leafReaderContext();
-                    current.merge(ctx, leaf, (curr, next) -> {
-                        assert curr.maxDoc() == leaf.minDoc() : "current=" + curr + "; next=" + leaf;
-                        return new PartialLeafReaderContext(ctx, curr.minDoc(), next.maxDoc());
-                    });
-                    PartialLeafReaderContext merged = current.get(ctx);
-                    if ((merged.maxDoc() - merged.minDoc()) >= maxDocsPerLeave) {
-                        anyLeafExceedsMaxDocs = true;
+            }
+            return metric;
+        }
+
+        /**
+         * Closes the open slice after {@code lastPrefix}: one doc range for each leaf that has cells up to it.
+         */
+        private static List<PartialLeafReaderContext> cutSlice(List<LeafCells> cells, int lastPrefix) {
+            List<PartialLeafReaderContext> slice = new ArrayList<>(cells.size());
+            for (LeafCells leaf : cells) {
+                final int end = leaf.firstCellFrom(lastPrefix + 1);
+                if (end > leaf.sliceStart) {
+                    slice.add(new PartialLeafReaderContext(leaf.leaf, leaf.startDocs[leaf.sliceStart], leaf.startDoc(end)));
+                    leaf.sliceStart = end;
+                }
+            }
+            return slice;
+        }
+
+        static String requiredField(Query query) {
+            if (query instanceof FieldExistsQuery exists) {
+                return exists.getField();
+            }
+            if (query instanceof ConstantScoreQuery constantScore) {
+                return requiredField(constantScore.getQuery());
+            }
+            if (query instanceof BoostQuery boost) {
+                return requiredField(boost.getQuery());
+            }
+            if (query instanceof BooleanQuery bool) {
+                for (BooleanClause clause : bool) {
+                    if (clause.occur() == BooleanClause.Occur.MUST || clause.occur() == BooleanClause.Occur.FILTER) {
+                        String field = requiredField(clause.query());
+                        if (field != null) {
+                            return field;
+                        }
                     }
                 }
-                pendingDocs += slice.numDocs;
             }
-            if (current.isEmpty() == false) {
-                results.add(current.values().stream().toList());
+            return null;
+        }
+
+        static DocIdSetIterator disiWithField(LeafReaderContext leaf, @Nullable String metricField) throws IOException {
+            if (metricField == null) {
+                return DocIdSetIterator.all(leaf.reader().maxDoc());
             }
-            return results;
+            FieldInfo fieldInfo = leaf.reader().getFieldInfos().fieldInfo(metricField);
+            if (fieldInfo == null) {
+                return DocIdSetIterator.empty();
+            }
+            return switch (fieldInfo.getDocValuesType()) {
+                case NUMERIC -> leaf.reader().getNumericDocValues(metricField);
+                case SORTED_NUMERIC -> leaf.reader().getSortedNumericDocValues(metricField);
+                default -> DocIdSetIterator.all(leaf.reader().maxDoc());
+            };
         }
     }
 }

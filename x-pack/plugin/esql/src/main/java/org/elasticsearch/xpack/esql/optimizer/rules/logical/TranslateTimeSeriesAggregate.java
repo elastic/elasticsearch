@@ -213,16 +213,12 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
         Map<AggregateFunction, Alias> timeSeriesAggs = new HashMap<>();
         List<NamedExpression> firstPassAggs = new ArrayList<>();
         List<NamedExpression> secondPassAggs = new ArrayList<>();
-        Holder<Boolean> requiredTimeSeriesSource = new Holder<>(Boolean.FALSE);
         TemporaryNameGenerator internalNames = new TemporaryNameGenerator.Monotonic();
         for (NamedExpression agg : aggregate.aggregates()) {
             if (agg instanceof Alias alias && alias.child() instanceof Function function) {
                 // due to InsertDefaultInnerTimeSeriesAggregate, we'll always have a TimeSeriesAggregateFunction here
                 Expression outerAgg = function.transformDown(AggregateFunction.class, af -> {
                     if (af instanceof TimeSeriesAggregateFunction tsAgg) {
-                        if (tsAgg.requiredTimeSeriesSource()) {
-                            requiredTimeSeriesSource.set(Boolean.TRUE);
-                        }
                         AggregateFunction firstStageFn = tsAgg.perTimeSeriesAggregation();
                         Alias newAgg = timeSeriesAggs.computeIfAbsent(firstStageFn, k -> {
                             Alias firstStageAlias = new Alias(tsAgg.source(), internalNames.next(tsAgg.functionName()), firstStageFn);
@@ -346,9 +342,9 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
                 throw new EsqlIllegalArgumentException("expected named expression for grouping; got " + group);
             }
         }
-        // Inject _tsid (and adjust the index mode) only into the time-series source of this aggregate, again
+        // Inject _tsid only into the time-series source of this aggregate, again
         // without descending into nested sub-plans on the right-hand side of a join - see addTsidToTimeSeriesSource.
-        LogicalPlan newChild = addTsidToTimeSeriesSource(aggregate.child(), tsid.get(), requiredTimeSeriesSource.get());
+        LogicalPlan newChild = addTsidToTimeSeriesSource(aggregate.child(), tsid.get());
         Bucket userBucket = timeBucketSpecRef.get();
         if (userBucket == null) {
             userBucket = (Bucket) Alias.unwrap(timeBucket);
@@ -629,13 +625,12 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
      * scope of {@code findTimeSeriesSourceTsid}: it never descends into the right-hand side of a {@code BinaryPlan}, so nested subqueries
      * keep their own {@code _tsid} untouched.
      */
-    private static LogicalPlan addTsidToTimeSeriesSource(LogicalPlan plan, Attribute tsid, boolean requiredTimeSeriesSource) {
+    private static LogicalPlan addTsidToTimeSeriesSource(LogicalPlan plan, Attribute tsid) {
         return TranslateTimeSeriesUtils.transformTimeSeriesSource(plan, relation -> {
-            IndexMode indexMode = requiredTimeSeriesSource ? relation.indexMode() : IndexMode.STANDARD;
             if (relation.output().contains(tsid) == false) {
-                return relation.withIndexMode(indexMode).withAttributes(CollectionUtils.combine(relation.output(), tsid));
+                return relation.withAttributes(CollectionUtils.combine(relation.output(), tsid));
             }
-            return relation.withIndexMode(indexMode);
+            return relation;
         });
     }
 

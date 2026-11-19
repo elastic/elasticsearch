@@ -1147,6 +1147,10 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         timed.updateLargestIndexingOperationSize(Math.max(0L, operationSize - 1));
         assertThat(timed.minimumRequiredHeapForAcceptingLargeIndexingOps(), equalTo(operationSize * 10));
 
+        final long largerOperation = operationSize + randomLongBetween(1L, 1_000L);
+        timed.updateLargestIndexingOperationSize(largerOperation);
+        assertThat(timed.minimumRequiredHeapForAcceptingLargeIndexingOps(), equalTo(largerOperation * 10));
+
         final long legacyHeap = timed.minimumRequiredHeapForAcceptingLargeIndexingOps() + randomLongBetween(1L, 1_000L);
         timed.updateIndexingOperationsHeapMemoryRequirements(legacyHeap);
         assertThat(timed.minimumRequiredHeapForAcceptingLargeIndexingOps(), equalTo(legacyHeap));

@@ -95,6 +95,7 @@ public class RescoreKnnVectorQueryIT extends ESIntegTestCase {
         String type = randomFrom(
             Arrays.stream(VectorIndexType.values())
                 .filter(VectorIndexType::isQuantized)
+                .filter(t -> t != VectorIndexType.BBQ_DISK) // diskbbq needs a special plugin
                 .map(t -> t.name().toLowerCase(Locale.ROOT))
                 .toList()
         );

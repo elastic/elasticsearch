@@ -16,6 +16,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
@@ -69,6 +70,7 @@ import java.util.zip.GZIPInputStream;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.mockito.Mockito.mock;
 
+@LuceneTestCase.SuppressCodecs("*")
 public abstract class AbstractSemanticHighlighterTests extends MapperServiceTestCase {
     private static final String SEMANTIC_FIELD = "field-semantic";
     private static final String SEMANTIC_FIELD_DISK_BBQ = "field-semantic-disk_bbq";

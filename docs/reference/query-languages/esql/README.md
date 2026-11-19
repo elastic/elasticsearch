@@ -438,6 +438,14 @@ Inside `TS ... | STATS ...`, a bare field is implicitly wrapped in `last_over_ti
 ./gradlew :x-pack:plugin:esql:test --tests org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateKibanaDefinitionTests
 ```
 
+### Implicit union casts
+
+When a field is mapped as `aggregate_metric_double` in some indices and as a numeric in the others (the shape raw-versus-downsampled indices produce), field discovery reports the column as `unsupported` with both original types, but `avg`, `sum`, `min`, `max`, `count` and binary comparisons implicitly convert the field and run anyway; for example `AVG(metric)` reads the field as `double`. The conversions are published for Kibana in [`kibana/generated/x-pack-esql/definition/implicit_union_casts.json`](https://github.com/elastic/elasticsearch/blob/main/docs/reference/query-languages/esql/kibana/generated/x-pack-esql/definition/implicit_union_casts.json) as entries `{ function, inputType, unionType }`: an entry applies when its function is called on a field whose original types include `inputType` (`aggregate_metric_double`) and at least one numeric type; the field is then read as `unionType`. To regenerate, run:
+
+```
+./gradlew :x-pack:plugin:esql:test --tests org.elasticsearch.xpack.esql.expression.function.aggregate.ImplicitUnionCastKibanaDefinitionTests
+```
+
 ### Profile response schema
 
 The generated draft-7 schema for the ES|QL profile response is published for Kibana in

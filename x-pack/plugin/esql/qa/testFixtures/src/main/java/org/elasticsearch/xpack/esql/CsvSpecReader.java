@@ -558,9 +558,24 @@ public final class CsvSpecReader {
                 if (parser.nextToken() != null) {
                     throw new IllegalArgumentException(error);
                 }
+                checkFiniteNumbers(line, json);
                 return Strings.toString(builder);
             } catch (IOException | XContentParseException e) {
                 throw new IllegalArgumentException(error, e);
+            }
+        }
+
+        /**
+         * Rejects numbers that overflow a double, like {@code 1e309}: serialized again, they'd become the string
+         * {@code "Infinity"}.
+         */
+        private static void checkFiniteNumbers(String line, String json) throws IOException {
+            try (XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, json)) {
+                for (XContentParser.Token token = parser.nextToken(); token != null; token = parser.nextToken()) {
+                    if (token == XContentParser.Token.VALUE_NUMBER && Double.isFinite(parser.doubleValue()) == false) {
+                        throw new IllegalArgumentException("Invalid param [" + line + "]: numbers must be finite");
+                    }
+                }
             }
         }
     }

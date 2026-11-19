@@ -262,6 +262,13 @@ public class CsvSpecReaderTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("with a single JSON value"));
     }
 
+    public void testNonFiniteNumberParamRejected() {
+        for (String line : List.of("param: x = 1e309", "param: x = [1, -1e400]", "param: x = {\"value\": 1e309}")) {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> CsvSpecReader.specParser().parse(line));
+            assertThat(e.getMessage(), containsString("numbers must be finite"));
+        }
+    }
+
     public void testUnnamedObjectParamRejected() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,

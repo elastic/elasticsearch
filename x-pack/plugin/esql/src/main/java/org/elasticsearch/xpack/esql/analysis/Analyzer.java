@@ -82,6 +82,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedTsField;
 import org.elasticsearch.xpack.esql.core.type.MissingEsField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
+import org.elasticsearch.xpack.esql.core.type.NestedScopeField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedSingleTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
@@ -197,6 +198,7 @@ import org.elasticsearch.xpack.esql.plan.logical.MergeBranchAlignment;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
+import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
@@ -271,7 +273,6 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.GEO_MATCH_TYPE;
 import static org.elasticsearch.xpack.esql.capabilities.TranslationAware.translatable;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.keepExistingUnsupportedAttributes;
-import static org.elasticsearch.xpack.esql.core.expression.Expressions.toReferenceAttributesPreservingIds;
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
@@ -366,6 +367,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new Batch<>(
                 "Finish Analysis",
                 Limiter.ONCE,
+                new HideNestedScopeFields(),
                 // Before ResolveDescribe replaces a ROW producer with a LocalRelation.
                 new RejectUnsupportedIntoSource(),
                 new ResolveDescribe(),
@@ -495,10 +497,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<IndexResolution> resolutions = new ArrayList<>(context.indexResolution().values());
             resolutions.addAll(context.lookupResolution().values());
             Map<NameId, FieldSemantics> semantics = ColumnSemantics.collect(describe.child(), resolutions);
+            Map<NameId, Attribute> datasetColumns = ColumnSemantics.datasetColumns(describe.child());
             return describe.describe(
                 semantics,
-                ColumnSemantics.datasetColumns(describe.child()),
-                ColumnUnits.collect(describe.child(), semantics)
+                datasetColumns,
+                ColumnUnits.collect(describe.child(), semantics),
+                ColumnSemantics.timeColumns(describe.child(), semantics, datasetColumns)
             );
         }
 
@@ -658,7 +662,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     var carrier = new UnsupportedEsField(imtf.getName(), List.of(), null, imtf.getProperties());
                     attribute = new UnsupportedAttribute(source, name, carrier, imtf.errorMessage());
                 } else {
-                    attribute = new FieldAttribute(source, parentName, null, name, t);
+                    // Nested-scope fields exist only for NESTED_EXPAND. Marking them synthetic keeps them out of name
+                    // resolution and out of the query output.
+                    attribute = new FieldAttribute(source, parentName, null, name, t, t instanceof NestedScopeField);
                 }
                 // primitive branch
                 if (DataType.isPrimitive(type)) {
@@ -878,6 +884,27 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 esIndex.indexProperties(),
                 attributes.isEmpty() ? NO_FIELDS : attributes
             );
+        }
+    }
+
+    /**
+     * Drops the private nested schema from the relation once {@code NESTED_EXPAND} has bound its columns. The attributes
+     * are synthetic, so name resolution already ignores them; removing them keeps them from being extracted as parent columns.
+     */
+    private static class HideNestedScopeFields extends Rule<LogicalPlan, LogicalPlan> {
+        @Override
+        public LogicalPlan apply(LogicalPlan plan) {
+            if (plan.anyMatch(NestedExpand.class::isInstance) == false) {
+                return plan;
+            }
+            return plan.transformUp(EsRelation.class, relation -> {
+                List<Attribute> visible = relation.output().stream().filter(a -> isNestedScope(a) == false).toList();
+                return visible.size() == relation.output().size() ? relation : relation.withAttributes(visible);
+            });
+        }
+
+        private static boolean isNestedScope(Attribute attribute) {
+            return attribute instanceof FieldAttribute field && field.field() instanceof NestedScopeField;
         }
     }
 
@@ -1141,7 +1168,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 plan.hasExplicitLimit(),
                 finalOutput,
                 null,
-                context.eqlFieldCaps().get(plan.indexPattern())
+                context.eqlFieldCaps().get(plan.indexPattern()),
+                null
             );
         }
 
@@ -1306,7 +1334,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     enrichFields
                 );
             } else {
-                String error = context.enrichResolution().getError(plan.source());
+                // A policy failure would hide that a remote ENRICH after an EQL source is rejected wherever the policy lives.
+                String error = plan.mode() == Enrich.Mode.REMOTE ? Enrich.remoteEnrichAfterEqlError(plan.child()) : null;
+                if (error == null) {
+                    error = context.enrichResolution().getError(plan.source());
+                }
                 var policyNameExp = new UnresolvedAttribute(plan.policyName().source(), policyName, error);
                 return new Enrich(plan.source(), plan.child(), plan.mode(), policyNameExp, plan.matchField(), null, Map.of(), List.of());
             }
@@ -1751,6 +1783,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case Eval p -> resolveEval(p, childrenOutput);
                 case Enrich p -> resolveEnrich(p, childrenOutput);
                 case MvExpand p -> resolveMvExpand(p, childrenOutput);
+                case NestedExpand p -> resolveNestedExpand(p, childrenOutput);
                 case Lookup l -> resolveLookup(l, childrenOutput);
                 case LookupJoin j -> resolveLookupJoin(j, context);
                 case AbstractSubqueryJoin sj -> resolveSubqueryJoin(sj);
@@ -1764,6 +1797,140 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             };
 
             return resolved;
+        }
+
+        /**
+         * Binds {@code NESTED_EXPAND} to a mapped nested collection. An unknown name stays unresolved, so the verifier
+         * reports it like any other unknown column. A name that exists but is not nested fails here.
+         */
+        private LogicalPlan resolveNestedExpand(NestedExpand expand, List<Attribute> childrenOutput) {
+            if (expand.bound()) {
+                return expand;
+            }
+            NamedExpression target = expand.target();
+            String name = target.name();
+            String rootName = NestedScopeField.PREFIX + name;
+            FieldAttribute root = null;
+            Set<String> collections = new HashSet<>();
+            for (Attribute attribute : childrenOutput) {
+                if (attribute instanceof FieldAttribute field
+                    && field.field() instanceof NestedScopeField scope
+                    && scope.kind() == NestedScopeField.Kind.COLLECTION) {
+                    collections.add(scope.path());
+                    if (field.name().equals(rootName)) {
+                        root = field;
+                    }
+                }
+            }
+            if (root == null) {
+                if (childrenOutput.stream().anyMatch(a -> inNestedPath(a.name(), name) || inNestedPath(a.name(), rootName))) {
+                    throw nestedExpandError(target, "NESTED_EXPAND requires a mapped nested field, not [" + name + "]");
+                }
+                return resolveExpressions(expand, childrenOutput);
+            }
+            NestedScopeField scope = (NestedScopeField) root.field();
+            if (scope.conflict() != null) {
+                throw nestedExpandError(target, "NESTED_EXPAND cannot read [" + name + "]: " + scope.conflict());
+            }
+            String path = scope.path();
+            if (lookupSourced(expand.child(), root.id())) {
+                throw nestedExpandError(
+                    target,
+                    "NESTED_EXPAND cannot read [" + name + "] from a LOOKUP JOIN index; that index's documents are not the rows being read"
+                );
+            }
+            if (childrenOutput.stream().anyMatch(a -> a.synthetic() == false && a.name().equals(path))) {
+                throw nestedExpandError(target, "NESTED_EXPAND cannot use [" + path + "]: a column of that name replaces it here");
+            }
+            if (collections.stream().anyMatch(parent -> path.startsWith(parent + "."))) {
+                throw nestedExpandError(target, "NESTED_EXPAND supports one nesting level");
+            }
+            checkNestedExpandReadsIndexRows(expand.child(), target);
+            List<FieldAttribute> children = new ArrayList<>();
+            for (Attribute attribute : childrenOutput) {
+                if (attribute instanceof FieldAttribute field
+                    && field.field() instanceof NestedScopeField child
+                    && inNestedPath(field.name(), rootName)) {
+                    // A child that another index nests under a different path carries a conflict: one path is read for all indices
+                    if (child.conflict() != null) {
+                        String publicName = field.name().substring(NestedScopeField.PREFIX.length());
+                        throw nestedExpandError(target, "NESTED_EXPAND cannot read [" + publicName + "]: " + child.conflict());
+                    }
+                    if (child.kind() == NestedScopeField.Kind.VALUE && child.path().equals(path)) {
+                        children.add(field);
+                    }
+                }
+            }
+            children.sort(Comparator.comparing(FieldAttribute::name));
+            List<Attribute> expanded = new ArrayList<>();
+            List<String> paths = new ArrayList<>();
+            for (FieldAttribute child : children) {
+                String relative = child.name().substring(NestedScopeField.PREFIX.length() + path.length() + 1);
+                // TODO: A child keeps only its type here. Binding it as a FieldAttribute that holds NestedScopeField#leaf would let
+                // cast resolution see a type conflict, but that needs the conversion to belong to this NestedExpand rather than to the
+                // parent relation, the same conversion applied when the child is read, and ReplaceFieldWithConstantOrNull keeping the
+                // child (SearchContextStats#exists is false for nested subfields). To be done with the execution of NESTED_EXPAND.
+                expanded.add(new ReferenceAttribute(expand.source(), path + "." + relative, child.dataType()));
+                paths.add(relative);
+            }
+            return new NestedExpand(expand.source(), expand.child(), null, path, expanded, paths);
+        }
+
+        private static boolean inNestedPath(String attributeName, String path) {
+            return attributeName.equals(path) || attributeName.startsWith(path + ".");
+        }
+
+        /** The collection attribute comes from the right side of a LOOKUP JOIN, whose documents are not the input rows. */
+        private static boolean lookupSourced(LogicalPlan plan, NameId id) {
+            if (plan instanceof LookupJoin join) {
+                if (containsAttribute(join.right(), id)) {
+                    return true;
+                }
+                return containsAttribute(join.left(), id) && lookupSourced(join.left(), id);
+            }
+            if (plan instanceof EsRelation) {
+                return false;
+            }
+            for (LogicalPlan child : plan.children()) {
+                if (containsAttribute(child, id)) {
+                    return lookupSourced(child, id);
+                }
+            }
+            return false;
+        }
+
+        private static boolean containsAttribute(LogicalPlan plan, NameId id) {
+            if (plan instanceof EsRelation relation) {
+                for (Attribute attribute : relation.output()) {
+                    if (attribute.id().equals(id)) {
+                        return true;
+                    }
+                }
+            }
+            for (LogicalPlan child : plan.children()) {
+                if (containsAttribute(child, id)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /** Child documents belong to a parent row. A STATS replaces those rows with groups, which have none. */
+        private static void checkNestedExpandReadsIndexRows(LogicalPlan input, Expression at) {
+            LogicalPlan plan = input;
+            while (plan instanceof EsRelation == false && plan.children().isEmpty() == false) {
+                if (plan instanceof Aggregate) {
+                    throw nestedExpandError(
+                        at,
+                        "NESTED_EXPAND reads each row's nested documents, so it cannot follow [" + plan.sourceText() + "]"
+                    );
+                }
+                plan = plan instanceof Join join ? join.left() : plan.children().getFirst();
+            }
+        }
+
+        private static VerificationException nestedExpandError(Expression expression, String message) {
+            return new VerificationException(List.of(Failure.fail(expression, message)));
         }
 
         private LogicalPlan resolveAggregate(Aggregate aggregate, List<Attribute> childrenOutput) {
@@ -2477,15 +2644,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             // The output has to be populated even when no branch changes: view resolution builds a BranchPlan with an empty
             // output and relies on this rule to fill it in.
-            return mergePlan.replaceSubPlansAndOutput(
-                changed ? newSubPlans : mergePlan.children(),
-                unmappedResolution.loadsAllUnmappedFields()
-                    ? keepExistingUnsupportedAttributes(
-                        toReferenceAttributesPreservingIds(outputUnion, mergePlan.output()),
-                        mergePlan.output()
-                    )
-                    : toReferenceAttributesPreservingIds(outputUnion, mergePlan.output())
-            );
+            newSubPlans = changed ? newSubPlans : mergePlan.children();
+            List<Attribute> newOutput = mergePlan.mergesScoreAsMetadata()
+                ? MergePlan.toReferenceAttributesPreservingIds(newSubPlans, outputUnion, mergePlan.output())
+                : Expressions.toReferenceAttributesPreservingIds(outputUnion, mergePlan.output());
+            if (unmappedResolution.loadsAllUnmappedFields()) {
+                newOutput = keepExistingUnsupportedAttributes(newOutput, mergePlan.output());
+            }
+            return mergePlan.replaceSubPlansAndOutput(newSubPlans, newOutput);
         }
 
         /**

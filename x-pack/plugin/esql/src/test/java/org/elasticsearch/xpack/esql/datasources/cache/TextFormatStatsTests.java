@@ -93,9 +93,12 @@ public class TextFormatStatsTests extends ESTestCase {
         Map<String, Object> published = publish(
             1,
             Map.of(
-                "b", new ExternalStats.ColumnStats(0, 1, Boolean.FALSE, Boolean.TRUE),
-                "n", new ExternalStats.ColumnStats(0, 1, 1L, 9L),
-                "d", new ExternalStats.ColumnStats(0, 1, -0.5d, 0.5d)
+                "b",
+                new ExternalStats.ColumnStats(0, 1, Boolean.FALSE, Boolean.TRUE),
+                "n",
+                new ExternalStats.ColumnStats(0, 1, 1L, 9L),
+                "d",
+                new ExternalStats.ColumnStats(0, 1, -0.5d, 0.5d)
             )
         );
 

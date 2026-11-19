@@ -133,6 +133,22 @@ public class ConfigurationSerializationTests extends AbstractWireSerializingTest
         assertThat(QuerySettings.APPROXIMATION.get(roundTripped.resolvedSettings()), is(nullValue()));
     }
 
+    public void testParamAnyValueCrossesTheWireAndOldNodesFallBackToTheDefault() throws IOException {
+        // param_any_value has no legacy slot: it travels only in the resolvedSettings block, where a peer that predates it
+        // reads past it. Such a peer, and one that predates the block, get the default.
+        ResolvedSettings settings = ResolvedSettings.EMPTY.withOverride(QuerySettings.PARAM_ANY_VALUE, "custom");
+        Configuration configuration = new ConfigurationBuilder(randomConfiguration()).resolvedSettings(settings).build();
+
+        Configuration roundTripped = copyInstance(configuration, TransportVersion.current());
+        assertThat(QuerySettings.PARAM_ANY_VALUE.get(roundTripped.resolvedSettings()), equalTo("custom"));
+
+        TransportVersion preResolvedSettings = TransportVersionUtils.getPreviousVersion(
+            TransportVersion.fromName("esql_resolved_settings")
+        );
+        Configuration old = copyInstance(configuration, preResolvedSettings);
+        assertThat(QuerySettings.PARAM_ANY_VALUE.get(old.resolvedSettings()), equalTo("__ANY__"));
+    }
+
     public void testFlattenedKeys() throws IOException {
         Configuration configuration = randomConfiguration().withFlattenedKeys(true);
         assertThat(copyInstance(configuration, TransportVersion.current()).flattenedKeys(), is(true));

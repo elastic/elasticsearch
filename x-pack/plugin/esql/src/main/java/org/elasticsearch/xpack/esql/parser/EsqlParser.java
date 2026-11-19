@@ -17,6 +17,7 @@ import org.antlr.v4.runtime.TokenSource;
 import org.antlr.v4.runtime.VocabularyImpl;
 import org.antlr.v4.runtime.atn.PredictionMode;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -25,7 +26,9 @@ import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.PlanJsonLog;
 import org.elasticsearch.xpack.esql.plan.QuerySetting;
+import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 import org.elasticsearch.xpack.esql.plan.logical.Into;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -148,6 +151,7 @@ public class EsqlParser {
             null,
             QueryPragmas.EMPTY,
             EsqlFlags.DEFAULTS,
+            anyParamValue(Map.of()),
             EsqlBaseParser::singleStatement,
             AstBuilder::plan
         );
@@ -160,7 +164,15 @@ public class EsqlParser {
 
     // testing utility
     public EsqlStatement unvalidatedStatement(String query, QueryParams params) {
-        return createStatement(query, params, new InferenceSettings(Settings.EMPTY), null, QueryPragmas.EMPTY, EsqlFlags.DEFAULTS);
+        return createStatement(
+            query,
+            params,
+            new InferenceSettings(Settings.EMPTY),
+            null,
+            QueryPragmas.EMPTY,
+            EsqlFlags.DEFAULTS,
+            Map.of()
+        );
     }
 
     // testing utility
@@ -191,7 +203,22 @@ public class EsqlParser {
         QueryPragmas pragmas,
         EsqlFlags flags
     ) {
-        var parsed = createStatement(query, params, inferenceSettings, null, pragmas, flags);
+        return parse(query, params, inferenceSettings, pragmas, flags, Map.of());
+    }
+
+    /**
+     * Like {@link #parse(String, QueryParams, InferenceSettings, QueryPragmas, EsqlFlags)}, with the settings of the request, which
+     * the parser needs for the settings that change how it reads the query, as {@link QuerySettings#PARAM_ANY_VALUE} does.
+     */
+    public EsqlStatement parse(
+        String query,
+        QueryParams params,
+        InferenceSettings inferenceSettings,
+        QueryPragmas pragmas,
+        EsqlFlags flags,
+        Map<QuerySettingDef<?>, Object> requestSettings
+    ) {
+        var parsed = createStatement(query, params, inferenceSettings, null, pragmas, flags, requestSettings);
         if (log.isDebugEnabled()) {
             log.debug("Parsed logical plan:\n{}", parsed.plan());
             log.debug("Parsed settings:\n[{}]", parsed.settings().stream().map(QuerySetting::toString).collect(joining("; ")));
@@ -217,7 +244,7 @@ public class EsqlParser {
         QueryPragmas pragmas,
         EsqlFlags flags
     ) {
-        var parsed = createStatement(query, params, inferenceSettings, viewName, pragmas, flags);
+        var parsed = createStatement(query, params, inferenceSettings, viewName, pragmas, flags, Map.of());
         if (log.isDebugEnabled()) {
             log.debug("Parsed view '{}' logical plan:\n{}", viewName, parsed.plan());
             log.debug("Parsed settings:\n[{}]", parsed.settings().stream().map(QuerySetting::toString).collect(joining("; ")));
@@ -235,12 +262,44 @@ public class EsqlParser {
         InferenceSettings inferenceSettings,
         String viewName,
         QueryPragmas pragmas,
-        EsqlFlags flags
+        EsqlFlags flags,
+        Map<QuerySettingDef<?>, Object> requestSettings
     ) {
         if (log.isDebugEnabled()) {
             log.debug("Parsing as statement: {}", query);
         }
-        return invokeParser(query, params, inferenceSettings, viewName, pragmas, flags, EsqlBaseParser::statements, AstBuilder::statement);
+        return invokeParser(
+            query,
+            params,
+            inferenceSettings,
+            viewName,
+            pragmas,
+            flags,
+            anyParamValue(requestSettings),
+            EsqlBaseParser::statements,
+            AstBuilder::statement
+        );
+    }
+
+    /**
+     * The value of {@link QuerySettings#PARAM_ANY_VALUE} the parser starts with: the request's or the default, or {@code null}
+     * on release builds, where the setting is snapshot-only and the default must not be live. The rest of the settings are
+     * resolved after parsing, with the {@code SET}s of the statement, which the parser applies to this value as they come.
+     */
+    @Nullable
+    String anyParamValue(Map<QuerySettingDef<?>, Object> requestSettings) {
+        if (config.isDevVersion() == false) {
+            return null;
+        }
+        ResolvedSettings resolved = QuerySettings.resolve(
+            List.of(QuerySettings.PARAM_ANY_VALUE),
+            Settings.EMPTY,
+            Settings.EMPTY,
+            requestSettings,
+            null,
+            new SettingsValidationContext(false, true)
+        );
+        return QuerySettings.PARAM_ANY_VALUE.get(resolved);
     }
 
     private record ParserPipeline(CommonTokenStream tokenStream, EsqlBaseParser parser) {}
@@ -269,6 +328,7 @@ public class EsqlParser {
         String viewName,
         QueryPragmas pragmas,
         EsqlFlags flags,
+        @Nullable String anyParamValue,
         Function<EsqlBaseParser, ParserRuleContext> parseFunction,
         BiFunction<AstBuilder, ParserRuleContext, T> result
     ) {
@@ -303,7 +363,7 @@ public class EsqlParser {
             }
 
             return result.apply(
-                new AstBuilder(new ExpressionBuilder.ParsingContext(params, inferenceSettings, viewName, pragmas, flags)),
+                new AstBuilder(new ExpressionBuilder.ParsingContext(params, inferenceSettings, viewName, pragmas, flags, anyParamValue)),
                 tree
             );
         } catch (StackOverflowError e) { // TODO: unsafe - replace with manual depth tracking

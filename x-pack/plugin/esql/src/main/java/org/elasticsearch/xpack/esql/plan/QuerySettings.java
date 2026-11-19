@@ -327,6 +327,27 @@ public final class QuerySettings {
         .streamFormat((out, value) -> value.writeTo(out), ExemplarsSettings::new)
         .build();
 
+    /** The value of {@link #PARAM_ANY_VALUE} when no request or {@code SET} supplies one. */
+    public static final String PARAM_ANY_VALUE_DEFAULT = "__ANY__";
+
+    /**
+     * The reserved parameter value that stands for "Any": a parameter holding exactly this string, or a one-element list
+     * holding it, is not a value to compare with but a request to match everything. Snapshot-only for now: the default
+     * resolves on every build, so the parser decides whether to use it, see {@code EsqlParser}.
+     */
+    @Param(
+        name = "param_any_value",
+        type = { "keyword" },
+        description = "The value of a query parameter that stands for \"Any\", meaning that the parameter matches everything. "
+            + "Defaults to `__ANY__`."
+    )
+    public static final QuerySettingDef<String> PARAM_ANY_VALUE = QuerySettingDef.string("param_any_value")
+        .withDefault(PARAM_ANY_VALUE_DEFAULT)
+        .withValidator((value, ctx) -> value.isEmpty() ? "must not be empty" : null)
+        .withRequestBody()
+        .withSnapshotOnly()
+        .build();
+
     /**
      * The canonical, explicitly-enumerated set of all query settings. This is the single source of truth — the
      * request parser, the resolver, and telemetry all iterate this list. Add a new setting's constant here when
@@ -338,6 +359,7 @@ public final class QuerySettings {
         EXEMPLARS,
         WILDCARDS_MATCH_DATASETS,
         WILDCARDS_MATCH_VIEWS,
+        PARAM_ANY_VALUE,
         PROJECT_ROUTING,
         TIME_ZONE,
         TIME_SERIES_REDUCE_PER_INDEX,

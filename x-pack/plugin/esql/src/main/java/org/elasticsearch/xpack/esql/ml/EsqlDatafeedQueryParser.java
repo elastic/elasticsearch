@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MMR;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
+import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.RegisteredDomain;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
@@ -171,6 +172,7 @@ public class EsqlDatafeedQueryParser implements EsqlQueryParser {
         Map.entry(UnionAll.class, "FROM with several subqueries"),
         Map.entry(Rename.class, "RENAME"),
         Map.entry(MvExpand.class, "MV_EXPAND"),
+        Map.entry(NestedExpand.class, "NESTED_EXPAND"),
         Map.entry(LookupJoin.class, "LOOKUP JOIN"),
         Map.entry(Lookup.class, "LOOKUP"),
         Map.entry(PromqlCommand.class, "PROMQL"),

@@ -657,6 +657,8 @@ public class EsqlDatafeedQueryParserTests extends ESTestCase {
         "TopNPreFilter",
         "UnpackDims",
         "ViewShadowRelation",
+        // Built by view resolution, after parsing; a view named in FROM is rejected by name
+        "ViewSubquery",
         "fuse.FuseScoreEval",
         "join.AntiJoin",
         "join.HashJoin",

@@ -729,3 +729,8 @@ tests:
   - :server:internalClusterTest
   method: testDontRetryAfterShardClosedDuringRecoveryFromEmptyStore
   issue: https://github.com/elastic/elasticsearch/issues/166633
+- class: org.elasticsearch.xpack.search.AsyncSearchAggregationChargeIT
+  tasks:
+  - :x-pack:plugin:async-search:internalClusterTest
+  method: testChargeIsReleasedOnceTheTaskStoredItsResponse
+  issue: https://github.com/elastic/elasticsearch/issues/166638

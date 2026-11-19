@@ -31,7 +31,8 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.BccBlob;
+import org.elasticsearch.xpack.stateless.commits.Blob;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService.RecoveryInfoFromSource;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
@@ -156,10 +157,10 @@ public class TransportStatelessPrimaryRelocationHandoffAction extends TransportA
         private final Map<PrimaryTermAndGeneration, Set<String>> searchNodesPerCommit;
         @Nullable
         private final BlobFileWithLength latestBccBlob;
-        private final Set<BlobFile> otherBlobFiles;
+        private final Set<BccBlob> otherBccBlobs;
         private final boolean hasRecentIdLookup;
         @Nullable
-        private final Set<BlobFile> lastCommitBlobs;
+        private final Set<BccBlob> lastCommitBlobs;
         private final boolean lastCommitIsHollow;
         @Nullable
         private final HollowShardRecoveryState hollowRecoveryState;
@@ -171,9 +172,9 @@ public class TransportStatelessPrimaryRelocationHandoffAction extends TransportA
             RetentionLeases retentionLeases,
             Map<PrimaryTermAndGeneration, Set<String>> searchNodesPerCommit,
             BlobFileWithLength latestBccBlob,
-            Set<BlobFile> otherBlobFiles,
+            Set<BccBlob> otherBccBlobs,
             boolean hasRecentIdLookup,
-            Set<BlobFile> lastCommitBlobs,
+            Set<BccBlob> lastCommitBlobs,
             boolean lastCommitIsHollow,
             @Nullable HollowShardRecoveryState hollowRecoveryState
         ) {
@@ -183,7 +184,7 @@ public class TransportStatelessPrimaryRelocationHandoffAction extends TransportA
             this.retentionLeases = retentionLeases;
             this.searchNodesPerCommit = searchNodesPerCommit;
             this.latestBccBlob = latestBccBlob;
-            this.otherBlobFiles = otherBlobFiles;
+            this.otherBccBlobs = otherBccBlobs;
             this.hasRecentIdLookup = hasRecentIdLookup;
             this.lastCommitBlobs = lastCommitBlobs;
             this.lastCommitIsHollow = lastCommitIsHollow;
@@ -198,10 +199,10 @@ public class TransportStatelessPrimaryRelocationHandoffAction extends TransportA
             retentionLeases = new RetentionLeases(in);
             searchNodesPerCommit = in.readMap(PrimaryTermAndGeneration::new, in0 -> in0.readCollectionAsSet(StreamInput::readString));
             latestBccBlob = in.readOptionalWriteable(BlobFileWithLength::new);
-            otherBlobFiles = in.readCollectionAsSet(BlobFile::new);
+            otherBccBlobs = in.readCollectionAsSet(Blob.reader(BccBlob.class));
             hasRecentIdLookup = in.readBoolean();
             lastCommitBlobs = in.getTransportVersion().supports(STATELESS_PRIMARY_HANDOFF_LATEST_BLOBS)
-                ? in.readCollectionAsImmutableSet(BlobFile::new)
+                ? in.readCollectionAsImmutableSet(Blob.reader(BccBlob.class))
                 : Set.of();
             lastCommitIsHollow = in.getTransportVersion().supports(STATELESS_PRIMARY_HANDOFF_LATEST_BLOBS) && in.readBoolean();
             hollowRecoveryState = in.getTransportVersion().supports(HOLLOW_SHARD_RECOVERY_STATE)
@@ -222,7 +223,7 @@ public class TransportStatelessPrimaryRelocationHandoffAction extends TransportA
                 (out0, v) -> out0.writeCollection(v, StreamOutput::writeString)
             );
             out.writeOptionalWriteable(latestBccBlob);
-            out.writeCollection(otherBlobFiles);
+            out.writeCollection(otherBccBlobs);
             out.writeBoolean(hasRecentIdLookup);
             if (out.getTransportVersion().supports(STATELESS_PRIMARY_HANDOFF_LATEST_BLOBS)) {
                 out.writeCollection(lastCommitBlobs);
@@ -253,8 +254,8 @@ public class TransportStatelessPrimaryRelocationHandoffAction extends TransportA
             return searchNodesPerCommit;
         }
 
-        public Set<BlobFile> otherBlobFiles() {
-            return otherBlobFiles;
+        public Set<BccBlob> otherBlobFiles() {
+            return otherBccBlobs;
         }
 
         @Nullable
@@ -273,9 +274,9 @@ public class TransportStatelessPrimaryRelocationHandoffAction extends TransportA
             StatelessCommitService.SourceBlobsInfo sourceBlobsInfo = null;
             if (latestBccBlob != null) {
                 sourceBlobsInfo = new StatelessCommitService.SourceBlobsInfo(
-                    latestBccBlob.blobFile(),
+                    latestBccBlob.bccBlob(),
                     latestBccBlob.length(),
-                    otherBlobFiles
+                    otherBccBlobs
                 );
             }
             return new RecoveryInfoFromSource(sourceBlobsInfo, lastCommitBlobs, lastCommitIsHollow, hasRecentIdLookup, hollowRecoveryState);

@@ -1589,6 +1589,7 @@ null  |2        |null
 
 foldNullArgumentWithCaseSiblingAfterStats
 required_capability: fix_fold_null_arguments
+required_capability: fix_agg_on_null_by_replacing_with_eval
 
 FROM employees
 | STATS m = VALUES(null) BY gender
@@ -1647,6 +1648,7 @@ null
 
 foldCastCaseWithoutMatchArgument
 required_capability: fix_fold_null_arguments
+required_capability: spatial_grid_types
 
 ROW x = ST_GEOHASH(TO_GEOPOINT("POINT(1 2)"), CASE(false, 1)::integer)
 ;
@@ -1681,6 +1683,7 @@ null     |null
 
 foldCaseWithoutMatchArgumentWithOptions
 required_capability: fix_fold_null_arguments
+required_capability: date_parse_options
 
 ROW x = DATE_PARSE(CASE(false, "yyyy-MM-dd"), "2024-01-01", {"locale": "en-US"})
 ;
@@ -1691,6 +1694,7 @@ null
 
 foldNullArgumentsInManyFunctions
 required_capability: fix_fold_null_arguments
+required_capability: spatial_grid_types
 
 ROW n = COALESCE(null), nk = null::keyword, ni = null::integer, nd = null::double, d = TO_DATETIME("2024-01-01")
 | EVAL

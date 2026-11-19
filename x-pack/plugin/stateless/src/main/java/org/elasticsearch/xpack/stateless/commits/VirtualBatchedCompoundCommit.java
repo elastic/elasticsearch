@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.ReadOnceHint;
@@ -39,7 +40,7 @@ import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transports;
-import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.InternalFile;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.TimestampFieldValueRange;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
@@ -130,7 +131,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
     private final AtomicLong replicatedContentSizeBytes = new AtomicLong();
     private final AtomicLong copiedGenerationalFilesSizeBytes = new AtomicLong();
     private final AtomicReference<Thread> appendingCommitThread = new AtomicReference<>();
-    private final BlobFile blobFile;
+    private final BccBlob bccBlob;
     private final PrimaryTermAndGeneration primaryTermAndGeneration;
     private final long creationTimeInMillis;
     // VBCC can no longer be appended to once it is frozen
@@ -194,7 +195,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         this.uploadedBlobLocationsSupplier = uploadedBlobLocationsSupplier;
         this.pendingCompoundCommits = new ConcurrentSkipListSet<>();
         this.primaryTermAndGeneration = new PrimaryTermAndGeneration(primaryTerm, generation);
-        this.blobFile = new BlobFile(BatchedCompoundCommit.blobNameFromGeneration(generation), primaryTermAndGeneration);
+        this.bccBlob = new BccBlob(BatchedCompoundCommit.blobNameFromGeneration(generation), primaryTermAndGeneration);
         this.creationTimeInMillis = timeInMillisSupplier.getAsLong();
         this.notifiedSearchNodeIds = ConcurrentCollections.newConcurrentSet();
         this.cacheRegionSizeInBytes = cacheRegionSize;
@@ -385,7 +386,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
 
         final long sizeInBytes = headerLength + replicatedContentHeader.dataSizeInBytes() + internalFilesSize + extraContentSize;
         if (logger.isDebugEnabled()) {
-            var referencedBlobs = referencedFiles.values().stream().map(location -> location.blobFile().blobName()).distinct().count();
+            var referencedBlobs = referencedFiles.values().stream().map(location -> location.bccBlob().blobName()).distinct().count();
             logger.debug(
                 """
                     {}{} appending commit ({} bytes). References external {} files in {} other CCs and adds
@@ -438,7 +439,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
 
         for (var internalFile : internalFiles) {
             var fileLength = internalFile.length();
-            var blobLocation = new BlobLocation(blobFile, fileOffset, fileLength);
+            var blobLocation = new BlobLocation(bccBlob, fileOffset, fileLength);
 
             var previousFile = commitFiles.put(internalFile.name(), blobLocation);
             assert previousFile == null : internalFile.name();
@@ -461,7 +462,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             : Maps.newHashMapWithExpectedSize(extraContentFiles.size());
         for (var extraFile : extraContentFiles) {
             var fileLength = extraFile.length();
-            var blobLocation = new BlobLocation(blobFile, fileOffset, fileLength);
+            var blobLocation = new BlobLocation(bccBlob, fileOffset, fileLength);
 
             var previousFile = extraContent.put(extraFile.name(), blobLocation);
             assert previousFile == null : extraFile.name();
@@ -600,7 +601,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
                 })
                 .get();
             final var ccLocation = new BlobLocation(
-                maxBlobLocation.blobFile(),
+                maxBlobLocation.bccBlob(),
                 maxBlobLocation.offset() + maxBlobLocation.fileLength() - cc.sizeInBytes(),
                 cc.sizeInBytes()
             );
@@ -841,7 +842,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
     }
 
     public String getBlobName() {
-        return blobFile.blobName();
+        return bccBlob.blobName();
     }
 
     public ShardId getShardId() {
@@ -915,9 +916,14 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
 
     @Override
     protected void closeInternal() {
-        IOUtils.closeWhileHandlingException(pendingCompoundCommits);
-        if (localFileRefs != null) {
-            Releasables.close(localFileRefs);
+        // release localFileRefs before pendingCompoundCommits because only the latter have a store ref, which could cause
+        // the store to be closed when dropped and trigger AlreadyClosedException when localFileRefs close if they close after commits.
+        try {
+            if (localFileRefs != null) {
+                Releasables.close(localFileRefs);
+            }
+        } finally {
+            IOUtils.closeWhileHandlingException(pendingCompoundCommits);
         }
     }
 
@@ -959,10 +965,10 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         assert length >= 0 : "invalid length " + length;
         assert offset + length <= currentOffset.get() : "range [" + offset + ", " + length + "] more than " + currentOffset.get();
         assert ThreadPool.assertCurrentThreadPool(
-            StatelessPlugin.GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL,
-            StatelessPlugin.SHARD_WRITE_THREAD_POOL,
-            StatelessPlugin.PREWARM_THREAD_POOL,
-            StatelessPlugin.UPLOAD_PREWARM_THREAD_POOL
+            StatelessThreadPools.GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL,
+            StatelessThreadPools.SHARD_WRITE_THREAD_POOL,
+            StatelessThreadPools.PREWARM_THREAD_POOL,
+            StatelessThreadPools.UPLOAD_PREWARM_THREAD_POOL
         );
 
         if (tryIncRef()) {
@@ -1223,13 +1229,17 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
     private record InternalFileReader(String filename, Directory directory) implements InternalDataReader {
 
         /**
-         * Acquires a local file reference (via {@link IndexDirectory#tryAcquireLocalFileRef}) if {@link #directory} is an
+         * Acquires a local file reference (via {@link IndexDirectory#tryAcquireLocalFileRef}) if {@link #directory} is, or wraps, an
          * {@link IndexDirectory}. This keeps the file on disk even after {@code markAsUploaded} is called, so that
          * {@link Directory#openInput} with {@link IndexDirectory.PreferLocalHint} can serve reads from local disk during the
          * search-tier notification window.
          */
         Releasable acquireLocalRef() {
-            if (directory instanceof IndexDirectory indexDir) {
+            Directory dir = directory;
+            while (dir instanceof IndexDirectory == false && dir instanceof FilterDirectory filterDirectory) {
+                dir = filterDirectory.getDelegate();
+            }
+            if (dir instanceof IndexDirectory indexDir) {
                 return indexDir.tryAcquireLocalFileRef(filename);
             }
             return () -> {};

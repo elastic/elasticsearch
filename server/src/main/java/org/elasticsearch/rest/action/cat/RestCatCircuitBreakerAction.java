@@ -36,9 +36,21 @@ public class RestCatCircuitBreakerAction extends AbstractCatAction {
 
     private static final Set<String> RESPONSE_PARAMS = addToCopy(AbstractCatAction.RESPONSE_PARAMS, "circuit_breaker_patterns");
 
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS = addToCopy(COMMON_QUERY_PARAMETERS, "circuit_breaker_patterns");
+
     @Override
     public String getName() {
         return "cat_circuitbreaker_action";
+    }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return COMMON_QUERY_PARAMETERS;
+    }
+
+    @Override
+    public Set<String> allSupportedParameters() {
+        return ALL_SUPPORTED_PARAMETERS;
     }
 
     @Override

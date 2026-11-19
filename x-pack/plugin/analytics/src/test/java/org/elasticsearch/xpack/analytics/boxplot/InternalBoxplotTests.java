@@ -7,24 +7,37 @@
 
 package org.elasticsearch.xpack.analytics.boxplot;
 
+import org.apache.lucene.tests.util.RamUsageTester;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.metrics.HistogramUnionState;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static java.util.Collections.emptyMap;
+import static org.hamcrest.Matchers.both;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThan;
 
 public class InternalBoxplotTests extends InternalAggregationTestCase<InternalBoxplot> {
 
@@ -84,6 +97,45 @@ public class InternalBoxplotTests extends InternalAggregationTestCase<InternalBo
             default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalBoxplot(name, state, formatter, metadata);
+    }
+
+    /**
+     * A boxplot keeps a digest whose arrays are sized by its compression and not by the values it holds, so a coordinating node holding one
+     * per bucket has to charge for its heap and not for its serialized form.
+     */
+    public void testEstimateHeapBytesCountsTheDigest() {
+        assumeTrue("the object sizes assume compressed references", RamUsageEstimator.COMPRESSED_REFS_ENABLED);
+        int buckets = 100;
+        List<StringTerms.Bucket> list = new ArrayList<>(buckets);
+        for (int i = 0; i < buckets; i++) {
+            HistogramUnionState state = HistogramUnionState.create(HistogramUnionState.NOOP_BREAKER, 100);
+            for (int v = 0; v < 2000; v++) {
+                state.add(randomDouble() * 1000);
+            }
+            InternalAggregations sub = InternalAggregations.from(new InternalBoxplot("boxplot", state, DocValueFormat.RAW, null));
+            BytesRef key = new BytesRef(String.format(Locale.ROOT, "%032d", i).getBytes(StandardCharsets.UTF_8));
+            list.add(new StringTerms.Bucket(key, 1, sub, false, 0, DocValueFormat.RAW));
+        }
+        InternalAggregations aggregations = InternalAggregations.from(
+            new StringTerms(
+                "terms",
+                BucketOrder.key(true),
+                BucketOrder.count(false),
+                buckets,
+                1,
+                null,
+                DocValueFormat.RAW,
+                buckets,
+                false,
+                0,
+                list,
+                0L
+            )
+        );
+        long serialized = DelayableWriteable.getUncompressedSerializedSize(aggregations);
+        long heap = RamUsageTester.ramUsed(aggregations);
+        assertThat("the digests must be far larger than their serialized form", heap, greaterThan(5 * serialized));
+        assertThat("estimate over heap", (double) aggregations.estimateHeapBytes() / heap, both(greaterThan(0.8)).and(lessThan(1.3)));
     }
 
     public void testIQR() {

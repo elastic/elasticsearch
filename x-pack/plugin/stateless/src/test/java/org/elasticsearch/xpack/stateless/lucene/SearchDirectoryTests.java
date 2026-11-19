@@ -41,7 +41,7 @@ import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
@@ -50,7 +50,7 @@ import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
 import org.elasticsearch.xpack.stateless.cache.reader.MutableObjectStoreUploadTracker;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
-import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.InternalFilesReplicatedRanges;
@@ -219,7 +219,7 @@ public class SearchDirectoryTests extends ESTestCase {
                             }
                         },
                         System::nanoTime,
-                        threadPool.executor(StatelessPlugin.SHARD_READ_THREAD_POOL),
+                        threadPool.executor(StatelessThreadPools.SHARD_READ_THREAD_POOL),
                         new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
                     ) {
                         @Override
@@ -441,7 +441,8 @@ public class SearchDirectoryTests extends ESTestCase {
 
             {
                 searchDirectory.retainFiles(Set.of());
-                List<BlobLocation> blobLocations = createBlobLocations("blob1", 5);
+                final String blobName = BatchedCompoundCommit.blobNameFromGeneration(1);
+                List<BlobLocation> blobLocations = createBlobLocations(blobName, 5);
                 searchDirectory.updateCommit(
                     createCommit(
                         searchDirectory.shardId,
@@ -459,7 +460,7 @@ public class SearchDirectoryTests extends ESTestCase {
                 Collection<BlobFileRanges> blobFilesAndHighesRanges = searchDirectory.getHighestOffsetSegmentInfos();
                 assertEquals(1, blobFilesAndHighesRanges.size());
                 BlobFileRanges range = blobFilesAndHighesRanges.iterator().next();
-                assertEquals("blob1", range.blobName());
+                assertEquals(blobName, range.blobName());
                 assertEquals(blobLocations.getLast().offset(), range.blobLocation().offset());
             }
 
@@ -469,7 +470,7 @@ public class SearchDirectoryTests extends ESTestCase {
 
                 int numBlobs = randomIntBetween(2, 10);
                 for (int i = 0; i < numBlobs; i++) {
-                    String blobName = "blob_" + i;
+                    String blobName = BatchedCompoundCommit.blobNameFromGeneration(i + 1);
                     List<BlobLocation> blobLocations = createBlobLocations(blobName, 5);
                     expectedLocations.put(blobName, blobLocations.getFirst());
                     searchDirectory.updateCommit(
@@ -710,10 +711,10 @@ public class SearchDirectoryTests extends ESTestCase {
             )
         ) {
             final var searchDirectory = SearchDirectory.unwrapDirectory(node.searchStore.directory());
-            BlobFile blobFile = new BlobFile("stateless_commit_1", new PrimaryTermAndGeneration(1, 1));
+            BccBlob bccBlob = new BccBlob("stateless_commit_1", new PrimaryTermAndGeneration(1, 1));
             var compoundCommit = TestUtils.getCommitWithInternalFilesReplicatedRanges(
                 searchDirectory.shardId,
-                blobFile,
+                bccBlob,
                 "_na_",
                 0,
                 regionSize.getBytes()
@@ -1009,7 +1010,7 @@ public class SearchDirectoryTests extends ESTestCase {
                 true,
                 Map.of(
                     metadataBlobName,
-                    new BlobFileRanges(new BlobLocation(new BlobFile(metadataBlobName, metadataTermAndGen), 0L, regionSize.getBytes()))
+                    new BlobFileRanges(new BlobLocation(new BccBlob(metadataBlobName, metadataTermAndGen), 0L, regionSize.getBytes()))
                 ),
                 regionSize.getBytes()
             );
@@ -1371,7 +1372,8 @@ public class SearchDirectoryTests extends ESTestCase {
         int offset = randomIntBetween(0, 500);  // model some initial offset in the File
         int length = randomIntBetween(10, 200);  // some small file length initially
         for (int i = 0; i < n; i++) {
-            locations.add(new BlobLocation(new BlobFile(blobName, new PrimaryTermAndGeneration(1, -1)), offset, length));
+            var termAndGeneration = new PrimaryTermAndGeneration(1, BatchedCompoundCommit.parseGenerationFromBlobName(blobName));
+            locations.add(new BlobLocation(new BccBlob(blobName, termAndGeneration), offset, length));
             offset += length;
             // randomly increase next file length a bit
             length += randomIntBetween(50, 200);

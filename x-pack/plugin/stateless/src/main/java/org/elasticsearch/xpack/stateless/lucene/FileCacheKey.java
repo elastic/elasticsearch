@@ -9,14 +9,14 @@ package org.elasticsearch.xpack.stateless.lucene;
 
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.BccBlob;
 
 public record FileCacheKey(ShardId shardId, long primaryTerm, String fileName) implements SharedBlobCacheService.KeyBase {
     public FileCacheKey {
         assert shardId != null;
     }
 
-    public FileCacheKey(ShardId shardId, BlobFile blobFile) {
-        this(shardId, blobFile.primaryTerm(), blobFile.blobName());
+    public FileCacheKey(ShardId shardId, BccBlob bccBlob) {
+        this(shardId, bccBlob.primaryTerm(), bccBlob.blobName());
     }
 }

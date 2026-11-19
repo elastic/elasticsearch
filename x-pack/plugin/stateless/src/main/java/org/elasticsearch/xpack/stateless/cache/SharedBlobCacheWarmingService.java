@@ -460,6 +460,13 @@ public class SharedBlobCacheWarmingService {
     private volatile int warmByteRangePerFileConcurrency;
     private final SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService;
 
+    /// Shards whose search recovery is currently blocked waiting for offline warming (see [#searchRecoveryWarmingListener]). Offline
+    /// warming only honours a direct recovery cancellation for these shards: once the recovery has resumed (warming completed, timed out
+    /// or failed) it may no longer notice a cancellation, so a late one must not leave the shard that goes on to start with a colder cache.
+    /// Held in the service rather than passed down so as not to change the signatures of the many `warmCache` overrides.
+    // package-private for tests
+    final Set<IndexShard> shardsAwaitingRecoveryWarming = ConcurrentCollections.newConcurrentSet();
+
     public SharedBlobCacheWarmingService(
         StatelessSharedBlobCacheService cacheService,
         ThreadPool threadPool,
@@ -776,7 +783,7 @@ public class SharedBlobCacheWarmingService {
      * accessed first. It then tries to fetch every region to write them in cache. Note that regions are fetched completely, ie not only the
      * parts required for accessing one or more files. If the cache is under contention then one or more regions may be skipped and not
      * warmed up. If a region is pending to be written to cache by another thread, the warmer skips the region and starts warming the next
-     * one without waiting for the region to be available in cache.
+     * one; only {@link Type#SEARCH} warming waits for such regions before completing (see {@link AbstractWarmer#awaitPendingFills}).
      * </p>
      *
      * @param type a type of which warming this is (to distinguish between the many that may be performed in log messages)
@@ -921,6 +928,7 @@ public class SharedBlobCacheWarmingService {
             assert directory instanceof SearchDirectory || directory instanceof IndexBlobStoreCacheDirectory
                 : "wrong directory " + directory + ", need directory that cannot fail when store is closed";
             try (var listeners = new RefCountingListener(listener)) {
+                final boolean awaitPendingFills = type == Type.SEARCH;
                 // special search shard prewarming based on timestamp range of CCs (more recent data is warmed more)
                 final boolean isOfflineWarmingEnabled = searchOfflineWarmingEnabled;
                 if (type == Type.SEARCH && (prefetchCommitsForSearchShardRecovery || isOfflineWarmingEnabled)) {
@@ -1011,6 +1019,7 @@ public class SharedBlobCacheWarmingService {
                         commit.commitFiles(),
                         directory,
                         preWarmForIdLookupRequested && prewarmIndexShardForIdLookupsEnabled,
+                        awaitPendingFills,
                         listeners.acquire()
                     )
                 ) {
@@ -1079,6 +1088,10 @@ public class SharedBlobCacheWarmingService {
         // - timeout: the scheduled task (possibly re-evaluated) completes it with TIMEOUT
         // - warming completing (the listener returned to warmCache): completes it with WARMING_COMPLETE
         final SubscribableListener<SearchRecoveryWaitOutcome> recoveryWait = new SubscribableListener<>();
+
+        // Registered before the caller enqueues any warming, and deregistered however the wait ends.
+        shardsAwaitingRecoveryWarming.add(indexShard);
+        recoveryWait.addListener(ActionListener.running(() -> shardsAwaitingRecoveryWarming.remove(indexShard)));
 
         final var timeoutTask = new ReevaluatingTimeoutTask(
             clusterStateSupplier,
@@ -1330,6 +1343,7 @@ public class SharedBlobCacheWarmingService {
                         target.blobSize(),
                         target.timestampMillis(),
                         directory,
+                        true,
                         listeners.acquire()
                     );
                 }
@@ -1345,6 +1359,7 @@ public class SharedBlobCacheWarmingService {
         long blobSize,
         long timestampMillis,
         BlobStoreCacheDirectory directory,
+        boolean awaitPendingFills,
         ActionListener<Void> listener
     ) {
         final Store store = indexShard.store();
@@ -1361,12 +1376,14 @@ public class SharedBlobCacheWarmingService {
             try (
                 var warmer = new BlobByteRangeWarmer(
                     warmingRun,
+                    indexShard,
                     bccBlob,
                     byteRangeToWarm,
                     blobSize,
                     timestampMillis,
                     store::isClosing,
                     directory,
+                    awaitPendingFills,
                     listener
                 )
             ) {
@@ -1418,9 +1435,10 @@ public class SharedBlobCacheWarmingService {
             Map<String, BlobLocation> filesToWarm,
             BlobStoreCacheDirectory directory,
             boolean preWarmForIdLookup,
+            boolean awaitPendingFills,
             ActionListener<Void> listener
         ) {
-            super(warmingRun, isStoreClosing, directory, listener);
+            super(warmingRun, isStoreClosing, directory, awaitPendingFills, listener);
             this.indexShard = indexShard;
             this.filesToWarm = Collections.unmodifiableMap(filesToWarm);
             this.segmentCount = segmentCount(filesToWarm);
@@ -1636,7 +1654,7 @@ public class SharedBlobCacheWarmingService {
             BlobStoreCacheDirectory directory,
             ActionListener<Void> listener
         ) {
-            super(warmingRun, isStoreClosing, directory, listener);
+            super(warmingRun, isStoreClosing, directory, false, listener);
             this.locationsToWarm = filesToWarm.values();
             this.mergeCancelled = mergeCancelled;
             this.segmentCount = segmentCount;
@@ -1691,6 +1709,7 @@ public class SharedBlobCacheWarmingService {
      * The caller must ensure that the {@link ByteRange} is inside the limits of the blob file.
      */
     private class BlobByteRangeWarmer extends SharedBlobCacheWarmingService.AbstractWarmer {
+        private final IndexShard indexShard;
         private final BccBlob bccBlob;
         private final ByteRange byteRangeToWarm;
         private final long blobSize;
@@ -1698,15 +1717,18 @@ public class SharedBlobCacheWarmingService {
 
         BlobByteRangeWarmer(
             SharedBlobCacheWarmingService.WarmingRun warmingRun,
+            IndexShard indexShard,
             BccBlob bccBlob,
             ByteRange byteRangeToWarm,
             long blobSize,
             long timestampMillis,
             Supplier<Boolean> isStoreClosing,
             BlobStoreCacheDirectory directory,
+            boolean awaitPendingFills,
             ActionListener<Void> listener
         ) {
-            super(warmingRun, isStoreClosing, directory, listener);
+            super(warmingRun, isStoreClosing, directory, awaitPendingFills, listener);
+            this.indexShard = indexShard;
             this.bccBlob = bccBlob;
             this.byteRangeToWarm = byteRangeToWarm;
             this.blobSize = blobSize;
@@ -1717,6 +1739,17 @@ public class SharedBlobCacheWarmingService {
             scheduleWarmingTask(
                 new WarmBlobByteRangeTask(warmingRun.type, bccBlob, byteRangeToWarm, blobSize, timestampMillis, listeners.acquire())
             );
+        }
+
+        @Override
+        protected boolean isCancelled() {
+            // A direct recovery cancellation does not close the store, so also stop warming once one has been requested, otherwise the
+            // recovery cannot notice it until warming completes or times out. Only while the recovery is waiting on this warming though:
+            // afterwards it may no longer check for cancellation, and the shard can go on to start despite the request. Stopping early is
+            // only safe because TransportStatelessUnpromotableRelocationAction#doExecute calls ensureRecoveryNotCancelled() straight after
+            // the wait on warming, failing the recovery instead of letting the shard start with a partially warmed cache.
+            return super.isCancelled()
+                || (indexShard.isRecoveryCancellationRequested() && shardsAwaitingRecoveryWarming.contains(indexShard));
         }
 
         @Override
@@ -1758,7 +1791,7 @@ public class SharedBlobCacheWarmingService {
             BlobStoreCacheDirectory directory,
             ActionListener<Void> listener
         ) {
-            super(warmingRun, isStoreClosing, directory, listener);
+            super(warmingRun, isStoreClosing, directory, false, listener);
             this.indexShard = indexShard;
             this.bccBlobs = bccBlobs;
         }
@@ -1798,14 +1831,18 @@ public class SharedBlobCacheWarmingService {
         protected final RefCountingListener listeners;
         protected final AtomicLong tasksCount = new AtomicLong(0L);
         protected final AtomicLong totalBytesCopied = new AtomicLong(0L);
+        /// Whether a warming task must wait for a range that another caller is already filling.
+        protected final boolean awaitPendingFills;
 
         AbstractWarmer(
             WarmingRun warmingRun,
             Supplier<Boolean> isStoreClosing,
             BlobStoreCacheDirectory directory,
+            boolean awaitPendingFills,
             ActionListener<Void> listener
         ) {
             this.warmingRun = warmingRun;
+            this.awaitPendingFills = awaitPendingFills;
             this.isStoreClosing = isStoreClosing;
             this.directory = directory;
             this.listeners = new RefCountingListener(metering(logging(listener)));
@@ -1978,7 +2015,8 @@ public class SharedBlobCacheWarmingService {
                                 if (ExceptionsHelper.unwrap(e, ResourceAlreadyUploadedException.class) != null) {
                                     logger.debug(() -> "retrying " + blobLocation + " from object store", e);
                                     // retrying runs on {@link StatelessPlugin#FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL}
-                                    // threads, but that is OK because fetchRange doesn't block or wait for anything.
+                                    // threads, but that is OK because fetchRange never blocks the calling thread. For search warming it
+                                    // may wait for another caller's fill, but only by completing the listener later: no thread is held.
                                     maybeFetchBlobRange(item, cacheBlobReader, cacheKey, l);
                                 } else {
                                     l.onFailure(e);
@@ -2030,6 +2068,7 @@ public class SharedBlobCacheWarmingService {
                         ),
                         fetchExecutor,
                         item.timestampMillis(),
+                        awaitPendingFills,
                         l.map(ignored -> null)
                     );
                 });
@@ -2125,7 +2164,8 @@ public class SharedBlobCacheWarmingService {
                     if (ExceptionsHelper.unwrap(e, ResourceAlreadyUploadedException.class) != null) {
                         logger.debug(() -> "retrying " + bccBlob + " " + byteRangeToWarm + " from object store", e);
                         // retrying runs on {@link StatelessPlugin#FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL}
-                        // threads, but that is OK because fetchRange doesn't block or wait for anything.
+                        // threads, but that is OK because fetchRange never blocks the calling thread. For search warming it may wait for
+                        // another caller's fill, but only by completing the listener later: no thread is held.
                         fetchRange(cacheKey, cacheBlobReader, l);
                     } else {
                         l.onFailure(e);
@@ -2151,6 +2191,7 @@ public class SharedBlobCacheWarmingService {
                     perFileRunner.asExecutor(),
                     true,
                     timestampMillis,
+                    awaitPendingFills,
                     l
                 );
             }

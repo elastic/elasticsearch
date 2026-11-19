@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.logging.LogManager;
@@ -38,6 +37,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
 /**
@@ -915,41 +915,55 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
             if (decision.retry() == false) {
                 throw rethrow(e);
             }
-            closeQuietly(current);
+            closeQuietly(current); // abort, not drain: a small unread S3 tail would otherwise block resume/cancel
+            // abortStream sets aborted on another thread (parse close). Sleep and RetryPolicy.execute
+            // only poll StorageRetryCancellation; they would ignore aborted and sit out a 30s throttle
+            // hop. Nest abort into the ambient cancel signal so both sleeps see it. Compose with any
+            // producer cancel scope already on this thread. No join, no pool interrupt.
+            BooleanSupplier previous = StorageRetryCancellation.current();
             try {
-                // Cancellation-aware sleep: aborts a parked backoff if the query is cancelled before or
-                // during the delay, rather than sleeping through the remaining per-episode retry budget.
-                StorageRetryCancellation.sleepWithCancellationChecks(decision.delayMillis());
-            } catch (InterruptedException ie) {
-                Thread.currentThread().interrupt();
-                throw new IOException("interrupted while waiting to resume read of [" + delegate.path().objectName() + "]", ie);
+                StorageRetryCancellation.runWithCancellation(() -> aborted || (previous != null && previous.getAsBoolean()), () -> {
+                    try {
+                        StorageRetryCancellation.sleepWithCancellationChecks(decision.delayMillis());
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw new IOException("interrupted while waiting to resume read of [" + delegate.path().objectName() + "]", ie);
+                    }
+                    throwIfAborted(e);
+                    long resumeFrom = position + delivered;
+                    // Re-open the undelivered tail THROUGH the open-retry loop, so a transient failure to
+                    // re-open the range (not just to read it) is itself retried. A plain IOException inside
+                    // execute is not retryable, so an abort mid-open does not burn the open-retry budget.
+                    if (length == READ_TO_END) {
+                        // Open-ended (to-EOF) mode: re-open [resumeFrom, end] as an open-ended range; the
+                        // underlying stream's EOF marks completion. If the fault landed exactly at EOF, the
+                        // provider answers the past-the-end open-ended read with an empty stream.
+                        adoptResume(openResumeAdmitted(resumeFrom, READ_TO_END, "newStream(resume-open)"));
+                    } else {
+                        long remaining = length - delivered;
+                        // If everything was delivered, an empty stream is EOF.
+                        adoptResume(
+                            remaining > 0 ? openResumeAdmitted(resumeFrom, remaining, "newStream(resume)") : InputStream.nullInputStream()
+                        );
+                    }
+                    retryCounters.addRetry();
+                    failuresSinceProgress++;
+                    totalResumes++;
+                    logger.debug(
+                        "resuming read of [{}] from byte [{}] after transient fault (attempt [{}]): [{}]",
+                        delegate.path(),
+                        resumeFrom,
+                        failuresSinceProgress,
+                        e.getMessage()
+                    );
+                    ensureGenerationConsistent();
+                });
+            } catch (TaskCancelledException tce) {
+                if (aborted) {
+                    throw new IOException("read aborted", tce);
+                }
+                throw tce;
             }
-            throwIfAborted(e);
-            long resumeFrom = position + delivered;
-            // Re-open the undelivered tail THROUGH the open-retry loop, so a transient failure to re-open the
-            // range (not just to read it) is itself retried. A plain IOException inside execute is not
-            // retryable, so an abort mid-open does not burn the open-retry budget.
-            if (length == READ_TO_END) {
-                // Open-ended (to-EOF) mode: re-open [resumeFrom, end] as an open-ended range; the underlying
-                // stream's EOF marks completion. If the fault landed exactly at EOF, the provider answers the
-                // past-the-end open-ended read with an empty stream.
-                adoptResume(openResumeAdmitted(resumeFrom, READ_TO_END, "newStream(resume-open)"));
-            } else {
-                long remaining = length - delivered;
-                // If everything was delivered, an empty stream is EOF.
-                adoptResume(remaining > 0 ? openResumeAdmitted(resumeFrom, remaining, "newStream(resume)") : InputStream.nullInputStream());
-            }
-            retryCounters.addRetry();
-            failuresSinceProgress++;
-            totalResumes++;
-            logger.debug(
-                "resuming read of [{}] from byte [{}] after transient fault (attempt [{}]): [{}]",
-                delegate.path(),
-                resumeFrom,
-                failuresSinceProgress,
-                e.getMessage()
-            );
-            ensureGenerationConsistent();
         }
 
         /**
@@ -1111,9 +1125,15 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
         }
 
         private void closeQuietly(InputStream in) {
-            // Best-effort discard before re-opening a fresh range. Swallow both a checked IOException and an
-            // unchecked close failure (e.g. the AWS SDK's AbortedException) so a noisy close never masks the resume.
-            IOUtils.closeWhileHandlingException(in);
+            // Best-effort discard before re-opening a fresh range. abortStream, not close(): S3 close()
+            // drains a small unread tail and would park cancel before the abort-aware backoff. Swallow
+            // checked and unchecked failures (e.g. the AWS SDK's AbortedException) so a noisy abort
+            // never masks the resume.
+            try {
+                delegate.abortStream(in);
+            } catch (Exception e) {
+                // continue to resume
+            }
         }
 
         /**

@@ -6209,3 +6209,34 @@ FROM employees
 s1:long  | s2:long
 4824955  | 4825055
 ;
+
+stackedInlineStatsSameAggOverIdenticallyDefinedColumns
+required_capability: inline_stats
+required_capability: fix_deduplicate_aggs_over_aggregate_outputs
+
+ROW v = [1, 2]
+| MV_EXPAND v
+| INLINE STATS before = COUNT(*)
+| WHERE v == 1
+| INLINE STATS after = COUNT(*)
+| STATS before = MIN(before), after_min = MIN(after), after_max = MAX(after)
+;
+
+before:long | after_min:long | after_max:long
+2           | 1              | 1
+;
+
+// A multi-valued job_positions joins every group of the row, so a is multi-valued on those rows while z is not.
+inlineStatsRightSideEvalSameAggOverEqualLiteral
+required_capability: inline_stats
+required_capability: fix_deduplicate_aggs_over_aggregate_outputs
+
+FROM employees
+| INLINE STATS a = COUNT(*) WHERE false, m = MAX(salary) BY job_positions
+| EVAL z = 0::long
+| STATS ca = COUNT(a), cz = COUNT(z), mm = MAX(m)
+;
+
+ca:long | cz:long | mm:integer
+232     | 100     | 74999
+;

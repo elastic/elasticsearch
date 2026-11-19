@@ -54,6 +54,7 @@ import org.elasticsearch.index.engine.MergeMemoryEstimateProvider;
 import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.engine.SizeTrackingOneMerge;
 import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
+import org.elasticsearch.index.mapper.BatchMappingContext;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -339,6 +340,9 @@ public class IndexEngine extends InternalEngine {
                         assert timestampFieldMappedType.indexType().hasDocValuesSkipper();
                         try (var fieldsProducer = codec.docValuesFormat().fieldsProducer(segmentReadState)) {
                             var docValuesSkipper = fieldsProducer.getSkipper(timestampFieldInfo);
+                            if (docValuesSkipper == null || docValuesSkipper.docCount() == 0) {
+                                continue;
+                            }
                             segmentMinValue = docValuesSkipper.minValue();
                             segmentMaxValue = docValuesSkipper.maxValue();
                         }
@@ -380,7 +384,8 @@ public class IndexEngine extends InternalEngine {
                 }
             }
         }
-        if (found) {
+        // found already means min <= max today. The extra check keeps a future bug from failing the commit.
+        if (found && minTimestampValue <= maxTimestampValue) {
             if (timestampFieldMappedType.resolution() == DateFieldMapper.Resolution.MILLISECONDS) {
                 return new StatelessCompoundCommit.TimestampFieldValueRange(minTimestampValue, maxTimestampValue);
             } else {
@@ -576,12 +581,16 @@ public class IndexEngine extends InternalEngine {
     }
 
     @Override
+    public void onBatchParsingCompleted(BatchMappingContext context) {
+        documentParsingReporter.onBatchParsingCompleted(context.docCount(), context::normalizedSize, context::addColumn);
+    }
+
+    @Override
     public List<IndexResult> indexBatch(EngineBatch engineBatch) throws IOException {
         checkNoNewOperationsWhileHollow();
+        // parsing was reported for the whole chunk in onBatchParsingCompleted; indexing is still reported per row
+        // TODO: make onIndexingCompleted batch aware and avoid materializeIndexOps here
         List<Index> operations = engineBatch.batch().materializeIndexOps();
-        for (Index operation : operations) {
-            documentParsingReporter.onParsingCompleted(operation.parsedDoc());
-        }
         List<IndexResult> results = super.indexBatch(engineBatch);
         for (int i = 0; i < results.size(); i++) {
             if (results.get(i).getResultType() == Result.Type.SUCCESS) {

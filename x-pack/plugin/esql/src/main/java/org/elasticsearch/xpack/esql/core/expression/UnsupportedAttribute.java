@@ -123,12 +123,14 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
 
     @Override
     public FieldName fieldName() {
-        if (lazyFieldName == null) {
+        FieldName fieldName = lazyFieldName;
+        if (fieldName == null) {
             // The super fieldName uses parents to compute the path; this class ignores parents, so we need to rely on the name instead.
             // Using field().getName() would be wrong: for subfields like parent.subfield that would return only the last part, subfield.
-            lazyFieldName = new FieldName(name());
+            fieldName = new FieldName(name());
+            lazyFieldName = fieldName;
         }
-        return lazyFieldName;
+        return fieldName;
     }
 
     @Override

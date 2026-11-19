@@ -70,6 +70,7 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.ShutdownAwarePlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
@@ -318,6 +319,9 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedJobBuilder;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedRunner;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry;
+import org.elasticsearch.xpack.ml.datafeed.esql.UnavailableEsqlQueryParser;
+import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryParser;
+import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDatafeedQueryValidator;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsManager;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
@@ -592,6 +596,20 @@ public class MachineLearning extends Plugin
         if (machineLearningExtension.get() == null) {
             machineLearningExtension.set(new DefaultMachineLearningExtension());
         }
+        if (loader != null) {
+            List<EsqlQueryParser> providers = loader.loadExtensions(EsqlQueryParser.class);
+            // Instances of one class count as one; providers of different classes are a misconfiguration.
+            if (providers.stream().map(Object::getClass).distinct().count() > 1) {
+                throw new IllegalStateException("Expected one ES|QL query parser provider but found " + providers);
+            }
+            providers.stream().findFirst().ifPresent(esqlQueryParser::trySet);
+        }
+    }
+
+    /** The ES|QL query parser the ES|QL plugin provides, or one that rejects ES|QL datafeeds when there is none. */
+    EsqlQueryParser esqlQueryParser() {
+        EsqlQueryParser parser = esqlQueryParser.get();
+        return parser != null ? parser : new UnavailableEsqlQueryParser();
     }
 
     // This is not used in v8 and higher, but users are still prevented from setting it directly to avoid confusion
@@ -951,6 +969,7 @@ public class MachineLearning extends Plugin
     private final SetOnce<TrainedModelAssignmentClusterService> trainedModelAllocationClusterService = new SetOnce<>();
 
     private final SetOnce<MachineLearningExtension> machineLearningExtension = new SetOnce<>();
+    private final SetOnce<EsqlQueryParser> esqlQueryParser = new SetOnce<>();
 
     public MachineLearning(Settings settings) {
         this.settings = settings;
@@ -1186,7 +1205,13 @@ public class MachineLearning extends Plugin
             resultsPersisterService,
             anomalyDetectionAuditor
         );
-        JobConfigProvider jobConfigProvider = new JobConfigProvider(client, xContentRegistry);
+        JobConfigProvider jobConfigProvider = new JobConfigProvider(
+            client,
+            xContentRegistry,
+            () -> machineLearningExtension.get().getCloudCredentialManager(),
+            new CrossProjectModeDecider(settings),
+            new EsqlDatafeedQueryValidator()
+        );
         DatafeedConfigProvider datafeedConfigProvider = new DatafeedConfigProvider(client, xContentRegistry, clusterService);
         this.datafeedConfigProvider.set(datafeedConfigProvider);
         UpdateJobProcessNotifier notifier = new UpdateJobProcessNotifier(client, clusterService, threadPool);

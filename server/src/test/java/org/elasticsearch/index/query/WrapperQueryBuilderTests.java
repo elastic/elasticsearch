@@ -189,7 +189,11 @@ public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQuery
         assertThat("released once parsed", breaker.getUsed(), Matchers.equalTo(0L));
     }
 
-    public void testRewriteChargesTheReservationRatherThanTheContextsBreaker() throws IOException {
+    /**
+     * A shard request on the node that handles the REST request keeps its thread context, so its rewrite finds the request's reservation.
+     * Field caps checks an index filter on every shard of the node, so holding each parse would grow the request's charge with them.
+     */
+    public void testShardRewritesNextToTheRestRequestAreNotHeldByIt() throws IOException {
         BoolQueryBuilder inner = new BoolQueryBuilder();
         int clauses = between(1, 20);
         for (int i = 0; i < clauses; i++) {
@@ -197,30 +201,33 @@ public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQuery
         }
         WrapperQueryBuilder wrapper = new WrapperQueryBuilder(Strings.toString(inner));
         LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofMb(100));
-        // A shard request on the node that handles the REST request keeps its thread context, so its rewrite has both.
         SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(), breaker);
         ThreadContext threadContext = context.client.threadPool().getThreadContext();
         try (ParsedContentReservation reservation = new ParsedContentReservation(breaker, true)) {
             try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
                 threadContext.putTransient(ParsedContentReservation.TRANSIENT_NAME, reservation);
-                assertNotNull(wrapper.rewrite(context));
+                int shards = between(2, 5);
+                for (int i = 0; i < shards; i++) {
+                    assertNotNull(wrapper.rewrite(context));
+                    assertThat("released once parsed", breaker.getUsed(), Matchers.equalTo(0L));
+                }
             }
-            // Charged once, to the reservation, which holds it until the response, rather than released once parsed.
-            assertThat(reservation.reservedBytes(), Matchers.greaterThan(0L));
-            assertThat(breaker.getUsed(), Matchers.equalTo(reservation.reservedBytes()));
+            assertThat(reservation.reservedBytes(), Matchers.equalTo(0L));
         }
-        assertThat(breaker.getUsed(), Matchers.equalTo(0L));
     }
 
-    public void testRewriteChargesParsedContentReservation() throws IOException {
+    /**
+     * A reindex with PIT pagination, SQL paging or an EQL sequence query sends the original wrapper query with every search, so the
+     * coordinating node parses it again for each. Each parse is checked against the REST request's breaker, but none is held by the
+     * request, so its charge does not grow with the searches.
+     */
+    public void testRepeatedRewritesAreCheckedAgainstTheRestRequestButNotHeldByIt() throws IOException {
         BoolQueryBuilder inner = new BoolQueryBuilder();
-        int clauses = between(1, 20);
-        for (int i = 0; i < clauses; i++) {
+        // Charged over a chunk while parsed, so the breaker is checked while the source is parsed.
+        for (int i = 0; i < 5_000; i++) {
             inner.should(new TermQueryBuilder(TEXT_FIELD_NAME, "value-" + i));
         }
         WrapperQueryBuilder wrapper = new WrapperQueryBuilder(Strings.toString(inner));
-        LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofMb(100));
-        ParsedContentReservation reservation = new ParsedContentReservation(breaker, true);
         TestThreadPool threadPool = new TestThreadPool(getTestName());
         try {
             ThreadContext threadContext = threadPool.getThreadContext();
@@ -229,18 +236,41 @@ public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQuery
             // Without a reservation in the thread context, as on a node that got the request over the transport layer, it still parses.
             assertEquals(inner, wrapper.rewrite(context));
 
-            // The rewrite parses the wrapped query with a parser of its own, which has to charge the REST request's reservation.
-            try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
-                threadContext.putTransient(ParsedContentReservation.TRANSIENT_NAME, reservation);
-                assertEquals(inner, wrapper.rewrite(context));
+            LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofMb(100));
+            try (ParsedContentReservation reservation = new ParsedContentReservation(breaker, true)) {
+                try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+                    threadContext.putTransient(ParsedContentReservation.TRANSIENT_NAME, reservation);
+                    int searches = between(2, 5);
+                    for (int i = 0; i < searches; i++) {
+                        assertEquals(inner, wrapper.rewrite(context));
+                        assertThat("released once parsed", breaker.getUsed(), Matchers.equalTo(0L));
+                    }
+                }
+                assertThat(reservation.reservedBytes(), Matchers.equalTo(0L));
             }
-            assertThat(reservation.reservedBytes(), Matchers.greaterThan(0L));
-            assertThat(breaker.getUsed(), Matchers.equalTo(reservation.reservedBytes()));
+
+            LimitedBreaker tight = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofKb(512));
+            try (ParsedContentReservation reservation = new ParsedContentReservation(tight, true)) {
+                try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+                    threadContext.putTransient(ParsedContentReservation.TRANSIENT_NAME, reservation);
+                    // The bool parser wraps the trip, which is still a 429.
+                    XContentParseException e = expectThrows(XContentParseException.class, () -> wrapper.rewrite(context));
+                    assertThat(ExceptionsHelper.status(e), Matchers.equalTo(RestStatus.TOO_MANY_REQUESTS));
+                }
+            }
+            assertThat(tight.getUsed(), Matchers.equalTo(0L));
+
+            // A request that must not be rejected for the memory it uses is not rejected for what its work parses either.
+            try (ParsedContentReservation reservation = new ParsedContentReservation(tight, false)) {
+                try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+                    threadContext.putTransient(ParsedContentReservation.TRANSIENT_NAME, reservation);
+                    assertEquals(inner, wrapper.rewrite(context));
+                }
+            }
+            assertThat(tight.getUsed(), Matchers.equalTo(0L));
         } finally {
-            reservation.close();
             terminate(threadPool);
         }
-        assertThat(breaker.getUsed(), Matchers.equalTo(0L));
     }
 
     @Override

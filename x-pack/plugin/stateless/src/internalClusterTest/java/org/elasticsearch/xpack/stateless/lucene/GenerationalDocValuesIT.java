@@ -63,7 +63,7 @@ import org.elasticsearch.xpack.stateless.cache.reader.MutableObjectStoreUploadTr
 import org.elasticsearch.xpack.stateless.cache.reader.ObjectStoreCacheBlobReader;
 import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessClusterConsistencyService;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
-import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
@@ -303,12 +303,12 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
         }
 
         @Override
-        protected CacheBlobReader getCacheBlobReader(String fileName, BlobFile blobFile) {
+        protected CacheBlobReader getCacheBlobReader(String fileName, BccBlob bccBlob) {
             // Use the direct executor so we can use the thread name in testBackgroundMergeCanRetainDeletedGenerationalFile
             return new MeteringCacheBlobReader(
                 new ObjectStoreCacheBlobReader(
-                    getBlobContainer(blobFile.primaryTerm()),
-                    blobFile.blobName(),
+                    getBlobContainer(bccBlob.primaryTerm()),
+                    bccBlob.blobName(),
                     getCacheService().getRangeSize(),
                     EsExecutors.DIRECT_EXECUTOR_SERVICE
                 ) {

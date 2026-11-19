@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis.promql;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
@@ -1001,6 +1002,20 @@ public class PromqlVerifierTests extends ESTestCase {
             tsdb.query(
                 "PROMQL index=test step=5m label_replace(sum by (host) (network.bytes_in), \"labels.dst\", \"$1\", \"host\", \"(.+)\")"
             ).resolved()
+        );
+    }
+
+    public void testRelabelPrefixedDestinationCollidingWithBuiltInColumnRejectedOverLabelContainers() {
+        // A relabel may sit anywhere once every node knows the label container functions, but a `labels.`-prefixed
+        // destination still names the label of its bare form, which must not collide with a built-in output column.
+        tsdb.minimumTransportVersion(TransportVersion.current());
+        tsdb.error(
+            "PROMQL index=test step=5m label_replace(sum by (host) (network.bytes_in), \"labels.step\", \"$1\", \"host\", \"(.+)\")",
+            containsString("label [step] collides with the built-in [step] output column")
+        );
+        tsdb.error(
+            "PROMQL index=test step=5m result=(label_join(sum by (host) (network.bytes_in), \"labels.result\", \"-\", \"host\"))",
+            containsString("label [result] collides with the built-in [result] output column")
         );
     }
 

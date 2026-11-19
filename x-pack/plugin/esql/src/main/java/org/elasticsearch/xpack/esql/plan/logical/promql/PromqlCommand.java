@@ -664,7 +664,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
         if (containerFunctions) {
             // A relabel rewrites the label containers too, so it may sit anywhere and overwrite a label.
             p.forEachDown(MetadataManipulationFunction.class, relabel -> {
-                checkBuiltInColumnCollision(relabel, PromqlLabels.labelName(relabel.destination()), failures);
+                checkBuiltInColumnCollision(relabel, PromqlLabels.labelName(relabel.destination().name()), failures);
             });
         } else {
             verifyMetadataManipulationPlacement(p, null, failures);

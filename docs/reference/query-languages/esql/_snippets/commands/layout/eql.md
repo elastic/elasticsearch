@@ -246,6 +246,9 @@ EQL my_remote:logs-endpoint "process where process.name == \"regsvr32.exe\"" WIT
 * **Coordinator-bound compute.** The EQL source and everything downstream of it run on the coordinating
   node (see [Coordinator-only execution](#coordinator-only-execution)); there is no data-node parallelism.
   Bound the result set with `WITH { "size": … }`.
+* **No remote `ENRICH` after the command.** The EQL events arrive on the coordinating node even when the
+  pattern targets a remote cluster, so `ENRICH _remote:` after an `EQL` source is rejected. `LOOKUP JOIN`
+  and the other `ENRICH` modes use the lookup index or enrich policy of the coordinating cluster.
 * **Compute derived columns after the command, not inside it.** The EQL predicate matches against the index
   mapping; there is no way to define an {{esql}}-computed field for use inside it. Compute derived columns
   *after* the command with [`EVAL`](/reference/query-languages/esql/commands/eval.md).

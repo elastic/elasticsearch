@@ -986,6 +986,105 @@ public class EsqlSessionTests extends ESTestCase {
         }
     }
 
+    public void testComputeLookupJoinIndexScopeEqlSource() {
+        assumeTrue("Requires EQL in subqueries", EsqlCapabilities.Cap.EQL_IN_SUBQUERY.isEnabled());
+        assumeTrue("Requires WHERE IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
+
+        String local = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
+        for (String eqlPattern : List.of("events", "remote:events")) {
+            String eql = "EQL " + eqlPattern + " \"process where true\"";
+            var resolution = createIndexResolution(eqlPattern, "remote:index");
+            assertThat(
+                EsqlSession.computeLookupJoinIndexScope(TEST_PARSER.parseQuery(eql + " | LOOKUP JOIN lookup ON key"), "lookup", resolution),
+                equalTo(Set.of(local))
+            );
+            assertThat(
+                EsqlSession.computeLookupJoinIndexScope(
+                    TEST_PARSER.parseQuery("FROM remote:index, (" + eql + ") | LOOKUP JOIN lookup ON key"),
+                    "lookup",
+                    resolution
+                ),
+                equalTo(Set.of(local, "remote"))
+            );
+            assertThat(
+                EsqlSession.computeLookupJoinIndexScope(
+                    TEST_PARSER.parseQuery("FROM remote:index, (" + eql + " | LOOKUP JOIN lookup ON key)"),
+                    "lookup",
+                    resolution
+                ),
+                equalTo(Set.of(local))
+            );
+            assertThat(
+                EsqlSession.computeLookupJoinIndexScope(
+                    InSubqueryResolver.resolve(
+                        TEST_PARSER.parseQuery("FROM remote:index | WHERE key IN (" + eql + " | LOOKUP JOIN lookup ON key | KEEP key)")
+                    ),
+                    "lookup",
+                    resolution
+                ),
+                equalTo(Set.of(local))
+            );
+            assertThat(
+                EsqlSession.computeLookupJoinIndexScope(
+                    InSubqueryResolver.resolve(
+                        TEST_PARSER.parseQuery("FROM remote:index | WHERE key IN (" + eql + " | KEEP key) | LOOKUP JOIN lookup ON key")
+                    ),
+                    "lookup",
+                    resolution
+                ),
+                equalTo(Set.of("remote"))
+            );
+        }
+    }
+
+    public void testComputeEnrichScopeEqlSource() {
+        assumeTrue("Requires EQL in subqueries", EsqlCapabilities.Cap.EQL_IN_SUBQUERY.isEnabled());
+        assumeTrue("Requires WHERE IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
+
+        String local = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
+        for (String eqlPattern : List.of("events", "remote:events")) {
+            String eql = "EQL " + eqlPattern + " \"process where true\"";
+            var resolution = createIndexResolution(eqlPattern, "remote:index");
+            assertThat(
+                EsqlSession.computeEnrichScope(
+                    enrichNamed(TEST_PARSER.parseQuery(eql + " | ENRICH _remote:policy ON key"), "policy"),
+                    resolution
+                ),
+                equalTo(Set.of(local))
+            );
+            assertThat(
+                EsqlSession.computeEnrichScope(
+                    enrichNamed(TEST_PARSER.parseQuery("FROM remote:index, (" + eql + ") | ENRICH _remote:policy ON key"), "policy"),
+                    resolution
+                ),
+                equalTo(Set.of(local, "remote"))
+            );
+            assertThat(
+                EsqlSession.computeEnrichScope(
+                    enrichNamed(TEST_PARSER.parseQuery("FROM remote:index, (" + eql + " | ENRICH _remote:policy ON key)"), "policy"),
+                    resolution
+                ),
+                equalTo(Set.of(local))
+            );
+            String enrichInsideSubquery = "FROM remote:index | WHERE key IN (" + eql + " | ENRICH _remote:policy ON key | KEEP key)";
+            assertThat(
+                EsqlSession.computeEnrichScope(
+                    enrichNamed(InSubqueryResolver.resolve(TEST_PARSER.parseQuery(enrichInsideSubquery)), "policy"),
+                    resolution
+                ),
+                equalTo(Set.of(local))
+            );
+            String enrichAfterSubquery = "FROM remote:index | WHERE key IN (" + eql + " | KEEP key) | ENRICH _remote:policy ON key";
+            assertThat(
+                EsqlSession.computeEnrichScope(
+                    enrichNamed(InSubqueryResolver.resolve(TEST_PARSER.parseQuery(enrichAfterSubquery)), "policy"),
+                    resolution
+                ),
+                equalTo(Set.of("remote"))
+            );
+        }
+    }
+
     /**
      * Two distinct {@link Enrich} occurrences can share the exact same {@link Source} today: a view containing an ENRICH is
      * re-parsed independently every time it's referenced, so referencing it from two differently-scoped subquery branches

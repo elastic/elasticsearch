@@ -300,6 +300,111 @@ powershell.exe | 200      | fork2
 // csv-spec cluster does not provision views (the PUT /_query/view endpoint is unavailable there, so no view
 // loads), which would fail such a case rather than skip it.
 
+lookupJoinAfterEqlCommand
+required_capability: eql_command
+required_capability: join_lookup_v12
+required_capability: eql_command_lookup_join
+
+EQL eql_test "process where true" WITH {"event_category_field": "category"}
+| EVAL language_code = TO_INT(pid / 100)
+| LOOKUP JOIN languages_lookup ON language_code
+| KEEP name, pid, language_name
+| SORT name
+;
+
+name:keyword   | pid:long | language_name:keyword
+cmd.exe        | 100      | English
+powershell.exe | 200      | French
+;
+
+lookupJoinAfterEqlSequenceQuery
+required_capability: eql_command
+required_capability: join_lookup_v12
+required_capability: eql_command_lookup_join
+
+EQL eql_test "sequence by pid [process where true] [network where true]" WITH {"event_category_field": "category"}
+| EVAL language_code = TO_INT(pid / 100)
+| LOOKUP JOIN languages_lookup ON language_code
+| STATS events = COUNT(*), sequences = COUNT_DISTINCT(_sequence) BY language_name
+| SORT language_name
+;
+
+events:long | sequences:long | language_name:keyword
+2           | 1              | English
+2           | 1              | French
+;
+
+lookupJoinInsideWhereInEqlSubquery
+required_capability: eql_command
+required_capability: join_lookup_v12
+required_capability: where_in_subquery_without_view
+required_capability: eql_in_subquery
+required_capability: eql_command_lookup_join
+
+FROM eql_test
+| WHERE pid IN (EQL eql_test "process where true" WITH {"event_category_field": "category"}
+                | EVAL language_code = TO_INT(pid / 100)
+                | LOOKUP JOIN languages_lookup ON language_code
+                | WHERE language_name == "French"
+                | KEEP pid)
+| STATS count = COUNT(*)
+;
+
+count:long
+2
+;
+
+remoteEnrichAfterEqlInWhereInSubquery
+required_capability: eql_command
+required_capability: enrich_load
+required_capability: where_in_subquery_without_view
+required_capability: eql_in_subquery
+
+FROM eql_test
+| WHERE pid IN (EQL eql_test "process where pid == 200" WITH {"event_category_field": "category"} | KEEP pid)
+| EVAL language_code = TO_STRING(pid / 100)
+| ENRICH _remote:languages_policy ON language_code
+| KEEP category, pid, language_name
+| SORT category
+;
+
+category:keyword | pid:long | language_name:keyword
+network          | 200      | French
+process          | 200      | French
+;
+
+enrichAfterEqlCommand
+required_capability: eql_command
+required_capability: enrich_load
+
+EQL eql_test "process where true" WITH {"event_category_field": "category"}
+| EVAL language_code = TO_STRING(pid / 100)
+| ENRICH languages_policy ON language_code
+| KEEP name, pid, language_name
+| SORT name
+;
+
+name:keyword   | pid:long | language_name:keyword
+cmd.exe        | 100      | English
+powershell.exe | 200      | French
+;
+
+coordinatorEnrichAfterEqlCommand
+required_capability: eql_command
+required_capability: enrich_load
+
+EQL eql_test "process where true" WITH {"event_category_field": "category"}
+| EVAL language_code = TO_STRING(pid / 100)
+| ENRICH _coordinator:languages_policy ON language_code
+| KEEP name, pid, language_name
+| SORT name
+;
+
+name:keyword   | pid:long | language_name:keyword
+cmd.exe        | 100      | English
+powershell.exe | 200      | French
+;
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
 // EQL engine golden corpora, ported from the EQL project's own test_queries.toml / test_sample.toml for
 // differential validation of the EQL source command's typed pipeline. endgame-140 carries serial_event_id

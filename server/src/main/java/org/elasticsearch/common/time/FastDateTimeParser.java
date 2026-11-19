@@ -127,7 +127,11 @@ class FastDateTimeParser implements DateTimeParser {
         return parser.tryParse(str, timezone);
     }
 
-    /** Tries full UTF-8 dates and timestamps with seconds, returning epoch millis, nanos, or {@link DateFormatter#DECLINED}. */
+    /**
+     * Tries full UTF-8 dates and timestamps with seconds, returning epoch millis, nanos, or {@link DateFormatter#DECLINED}.
+     * Calendar conversion uses Howard Hinnant's
+     * <a href="https://howardhinnant.github.io/date_algorithms.html#days_from_civil">{@code days_from_civil}</a>.
+     */
     long tryParseEpoch(byte[] bytes, int offset, int length, boolean nanosResolution) {
         return timezone == null ? parser.tryParseEpoch(bytes, offset, length, nanosResolution) : DateFormatter.DECLINED;
     }

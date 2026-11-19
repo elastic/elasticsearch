@@ -74,6 +74,8 @@ import org.elasticsearch.xpack.ml.MachineLearningExtension;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.datafeed.CredentialTransitions.Change;
 import org.elasticsearch.xpack.ml.datafeed.esql.EsqlParserTestSupport;
+import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryParser;
+import org.elasticsearch.xpack.ml.datafeed.esql.spi.ParsedEsqlQuery;
 import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDatafeedQueryValidator;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
@@ -83,6 +85,7 @@ import org.junit.After;
 import org.mockito.Mockito;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
@@ -121,6 +124,9 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 public class DatafeedManagerTests extends ESTestCase {
+
+    /** The parser the manager under test uses; a test may replace it before building the manager. */
+    private EsqlQueryParser esqlParser = EsqlParserTestSupport.parser();
 
     private static final Date SCOPE_CHANGE_SIGNAL_DATA_ANCHOR = new Date(1_700_000_000_000L);
 
@@ -203,7 +209,7 @@ public class DatafeedManagerTests extends ESTestCase {
             auditor,
             annotationPersister,
             jobResultsProvider,
-            new EsqlDatafeedQueryValidator(EsqlParserTestSupport.parser())
+            new EsqlDatafeedQueryValidator(esqlParser)
         );
     }
 
@@ -763,6 +769,44 @@ public class DatafeedManagerTests extends ESTestCase {
         assertThat(((ElasticsearchStatusException) failure.get()).status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(failure.get().getMessage(), containsString("do not support remote cluster sources"));
         verifyNoInteractions(harness.datafeedConfigProvider(), harness.jobConfigProvider(), harness.client());
+    }
+
+    public void testPutEsqlDatafeedShouldNotDiscloseViewBeforeTheAccessProbe() {
+        // The full parse names a view; the parse before the probe must not. The probe defers on an unreadable or absent source alike.
+        esqlParser = new EsqlQueryParser() {
+            @Override
+            public ParsedEsqlQuery parse(String query) {
+                throw new ElasticsearchStatusException("[my_view] is a view", RestStatus.BAD_REQUEST);
+            }
+
+            @Override
+            public ParsedEsqlQuery parseWithoutViewCheck(String query) {
+                return EsqlParserTestSupport.parser().parse(query);
+            }
+        };
+        List<String> outcomes = new ArrayList<>();
+        for (String source : List.of("my_view", "absent")) {
+            SecurityEnabledPutHarness harness = newSecurityEnabledPutHarness(securityEnabledSettings());
+            when(harness.credentialManager().hasCloudManagedCredential(any())).thenReturn(false);
+            harness.stubSuccessfulPutPrerequisites();
+            harness.stubPutDatafeedConfigSuccess();
+            DatafeedConfig datafeed = new DatafeedConfig.Builder("test-datafeed", "test-job").setEsqlQuery("FROM " + source)
+                .setSourceTimeField("@timestamp")
+                .setGroupingInterval(TimeValue.timeValueHours(1))
+                .build();
+            AtomicReference<String> outcome = new AtomicReference<>();
+            harness.manager()
+                .putDatafeed(
+                    new PutDatafeedAction.Request(datafeed),
+                    mockClusterStateWithNoTasks(),
+                    mockSecurityContextWithUser("df-user"),
+                    harness.threadPool(),
+                    ActionListener.wrap(r -> outcome.set("created"), e -> outcome.set(e.getMessage()))
+                );
+            outcomes.add(outcome.get());
+        }
+        assertThat(outcomes.get(0), equalTo(outcomes.get(1)));
+        assertThat(outcomes.get(0), equalTo("created"));
     }
 
     public void testPutEsqlDatafeedWithNonUtcTimeZoneShouldRejectBeforeMintingCredential() {

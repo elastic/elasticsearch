@@ -1428,6 +1428,42 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(failure.get(), sameInstance(denied));
     }
 
+    public void testViewShouldBeRejectedBeforeMintOnceTheProbeSucceeds() {
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        new EsqlDatafeedQueryValidator(VIEW_REJECTING_PARSER, (client, query, filter, headers, projectRouting, params, listener) -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<RefCounted> refCountedListener = (ActionListener<RefCounted>) (ActionListener<?>) listener;
+            ActionListener.respondAndRelease(refCountedListener, buildResponse(List.of(mockColumn(TIME_FIELD, "date"))));
+        }).validateAccessForMint(
+            null,
+            Collections.emptyMap(),
+            ESQL_QUERY,
+            null,
+            ActionListener.wrap(ok -> fail("expected the view rejection"), failure::set),
+            "datafeed-1"
+        );
+
+        assertThat(failure.get().getMessage(), containsString("[my_view] is a view"));
+    }
+
+    public void testViewShouldNotBeDisclosedBeforeMintWhenTheSourceIsUnreadableOrAbsent() {
+        // ES|QL answers an unreadable and an absent source alike with an unknown-index error, which defers.
+        for (Exception unknownIndex : List.of(new VerificationException("Unknown index [my_view]"), new IndexNotFoundException("logs"))) {
+            AtomicBoolean deferred = new AtomicBoolean(false);
+            new EsqlDatafeedQueryValidator(VIEW_REJECTING_PARSER, (client, query, filter, headers, projectRouting, params, listener) -> {
+                listener.onFailure(unknownIndex);
+            }).validateAccessForMint(
+                null,
+                Collections.emptyMap(),
+                ESQL_QUERY,
+                null,
+                ActionListener.wrap(ok -> deferred.set(true), e -> fail("expected the same deferral for every unknown index")),
+                "datafeed-1"
+            );
+            assertThat(deferred.get(), is(true));
+        }
+    }
+
     public void testViewShouldBeRejectedOnceTheProbeSucceeds() {
         List<ColumnInfo> columns = List.of(mockColumn(TIME_FIELD, "date"));
         AtomicReference<Exception> failure = new AtomicReference<>();

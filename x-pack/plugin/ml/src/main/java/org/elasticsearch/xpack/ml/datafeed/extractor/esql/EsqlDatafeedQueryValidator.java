@@ -281,7 +281,8 @@ public class EsqlDatafeedQueryValidator {
 
     /**
      * {@code LIMIT 0} access probe before CPS credential mint. Defers when routing matched no project or the index is not
-     * known yet; fails on explicit project resolution errors and all other probe failures.
+     * known yet; fails on explicit project resolution errors and all other probe failures. Once the probe succeeds, a source that
+     * names a view is rejected.
      */
     public void validateAccessForMint(
         Client client,
@@ -293,7 +294,16 @@ public class EsqlDatafeedQueryValidator {
     ) {
         String limitZeroQuery = EsqlDatafeedQuery.limitZeroQuery(esqlQuery);
 
-        ActionListener<EsqlQueryResponse> responseListener = ActionListener.wrap(response -> listener.onResponse(null), e -> {
+        ActionListener<EsqlQueryResponse> responseListener = ActionListener.wrap(response -> {
+            try {
+                // The caller can read the source, so a view is rejected here, before a credential is minted for it.
+                EsqlDatafeedQuery.parse(parser, esqlQuery);
+            } catch (Exception e) {
+                listener.onFailure(e);
+                return;
+            }
+            listener.onResponse(null);
+        }, e -> {
             Throwable cause = ExceptionsHelper.unwrapCause(e);
             if (cause instanceof NoMatchingProjectException) {
                 if (isNoProjectAfterRouting(cause)) {

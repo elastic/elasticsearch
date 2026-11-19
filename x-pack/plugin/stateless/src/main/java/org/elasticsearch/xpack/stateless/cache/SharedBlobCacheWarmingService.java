@@ -460,8 +460,8 @@ public class SharedBlobCacheWarmingService {
     private volatile int warmByteRangePerFileConcurrency;
     private final SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService;
 
-    /// Shards whose search recovery is currently blocked waiting for offline warming (see [#searchRecoveryWarmingListener]). Offline
-    /// warming only honours a direct recovery cancellation for these shards: once the recovery has resumed (warming completed, timed out
+    /// Shards whose search recovery is currently blocked waiting for warming (see [#searchRecoveryWarmingListener]). The warming only
+    /// honours a direct recovery cancellation for these shards: once the recovery has resumed (warming completed, timed out
     /// or failed) it may no longer notice a cancellation, so a late one must not leave the shard that goes on to start with a colder cache.
     /// Held in the service rather than passed down so as not to change the signatures of the many `warmCache` overrides.
     // package-private for tests
@@ -1414,6 +1414,18 @@ public class SharedBlobCacheWarmingService {
         warmingTaskRunner.enqueueTask(warmTask);
     }
 
+    /// Whether warming for the shard should stop because a direct recovery cancellation has been requested while the recovery is
+    /// waiting on that warming (see [#shardsAwaitingRecoveryWarming]).
+    ///
+    /// A direct recovery cancellation does not close the store, so without this the recovery cannot notice the cancellation until
+    /// warming completes or times out. Only while the recovery is waiting on the warming though: afterwards it may no longer check for
+    /// cancellation, and the shard can go on to start despite the request. Stopping early is only safe because
+    /// `TransportStatelessUnpromotableRelocationAction#doExecute` calls `ensureRecoveryNotCancelled()` straight after the wait on
+    /// warming, failing the recovery instead of letting the shard start with a partially warmed cache.
+    private boolean isRecoveryCancelledWhileAwaitingWarming(IndexShard indexShard) {
+        return indexShard.isRecoveryCancellationRequested() && shardsAwaitingRecoveryWarming.contains(indexShard);
+    }
+
     private class ShardWarmer extends AbstractWarmer {
 
         private final ConcurrentMap<BlobRegion, BlobRangesQueue> queues = new ConcurrentHashMap<>();
@@ -1451,7 +1463,9 @@ public class SharedBlobCacheWarmingService {
             return super.isCancelled()
                 || (indexShard.state() != IndexShardState.RECOVERING
                     && warmingRun.type != Type.UNHOLLOWING
-                    && warmingRun.type != Type.HOLLOWING);
+                    && warmingRun.type != Type.HOLLOWING)
+                // for search recovery this warming is part of what the recovery waits on, together with the offline warming
+                || isRecoveryCancelledWhileAwaitingWarming(indexShard);
         }
 
         @Override
@@ -1736,13 +1750,7 @@ public class SharedBlobCacheWarmingService {
 
         @Override
         protected boolean isCancelled() {
-            // A direct recovery cancellation does not close the store, so also stop warming once one has been requested, otherwise the
-            // recovery cannot notice it until warming completes or times out. Only while the recovery is waiting on this warming though:
-            // afterwards it may no longer check for cancellation, and the shard can go on to start despite the request. Stopping early is
-            // only safe because TransportStatelessUnpromotableRelocationAction#doExecute calls ensureRecoveryNotCancelled() straight after
-            // the wait on warming, failing the recovery instead of letting the shard start with a partially warmed cache.
-            return super.isCancelled()
-                || (indexShard.isRecoveryCancellationRequested() && shardsAwaitingRecoveryWarming.contains(indexShard));
+            return super.isCancelled() || isRecoveryCancelledWhileAwaitingWarming(indexShard);
         }
 
         @Override

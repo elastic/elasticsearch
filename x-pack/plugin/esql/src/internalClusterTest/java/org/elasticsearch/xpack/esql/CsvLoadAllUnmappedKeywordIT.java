@@ -257,6 +257,9 @@ public class CsvLoadAllUnmappedKeywordIT extends CsvIT {
         if (testCase.datasetSources.isEmpty() == false) {
             return "dataset sources";
         }
+        if (testCase.hasParamsUsedAsNames()) {
+            return "query parameter used as a field name";
+        }
         if (testCase.requiredCapabilities.stream().anyMatch(c -> c.startsWith("optional_fields_load_all"))) {
             return "optional_fields_load_all capability";
         }
@@ -512,7 +515,7 @@ public class CsvLoadAllUnmappedKeywordIT extends CsvIT {
 
         private TestResults rewriteActualResults(CsvSpecReader.CsvTestCase testCase, TestResults expected, TestResults actual) {
             String removedField = removedFieldsByIndex.get(extractSingleFromIndex(testCase.query));
-            Pattern named = Pattern.compile("(?<![\\w*])" + Pattern.quote(removedField) + "(?![\\w*])");
+            Pattern named = Pattern.compile("(?<![\\w*?])" + Pattern.quote(removedField) + "(?![\\w*])");
             boolean namedInQuery = named.matcher(testCase.query).find();
             boolean rebuilt = false;
             List<String> names = new ArrayList<>(actual.columnNames());

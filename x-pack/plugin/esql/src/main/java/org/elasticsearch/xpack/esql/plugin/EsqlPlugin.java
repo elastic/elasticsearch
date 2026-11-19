@@ -161,11 +161,9 @@ import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.fetch.FetchOperator;
-import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.io.stream.ExpressionQueryBuilder;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamWrapperQueryBuilder;
-import org.elasticsearch.xpack.esql.ml.EsqlDatafeedQueryParser;
 import org.elasticsearch.xpack.esql.parser.EsqlConfig;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.PlanWritables;
@@ -396,9 +394,6 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     private final List<QueryMetricsListener> metricsCollectors = new ArrayList<>();
 
     private final SetOnce<EsqlCapabilities> capabilities = new SetOnce<>();
-    // TODO(https://github.com/elastic/elasticsearch/issues/166310): Tech Preview workaround for ML datafeeds, removed when ML builds on
-    // DESCRIBE.
-    private final SetOnce<EsqlDatafeedQueryParser.Services> datafeedParserServices = new SetOnce<>();
 
     /** Closed by {@link #close()} on node shutdown to release S3/Azure workload-identity resources. */
     private volatile DataSourceModule dataSourceModule;
@@ -653,20 +648,6 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             var request = PreparedEsqlQueryRequest.analyzeOnly(statement, "view [" + viewName + "]");
             services.client().execute(EsqlQueryAction.INSTANCE, request, listener.map(response -> null));
         });
-        // One instance for queries and datafeeds, so both read the inference settings the same way.
-        InferenceService inferenceService = new InferenceService(services.client(), services.clusterService());
-        // TODO(https://github.com/elastic/elasticsearch/issues/166310): see datafeedParserServices.
-        datafeedParserServices.set(
-            new EsqlDatafeedQueryParser.Services(
-                parser,
-                services.clusterService(),
-                services.projectResolver(),
-                viewService,
-                services.crossProjectModeDecider(),
-                inferenceService,
-                getLicenseState()
-            )
-        );
         DataSourceService dataSourceService = new DataSourceService(
             services.clusterService(),
             crudValidators,
@@ -718,7 +699,6 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             ),
             viewService,
             new MlAnomaliesView(viewService),
-            inferenceService,
             new FederationLicense(this::getLicenseState),
             dataSourceService,
             new DatasetService(services.clusterService(), crudValidators, dataSourceModule.externalSourceMetrics()),
@@ -1041,15 +1021,6 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 false
             )
         );
-    }
-
-    /** The services {@link EsqlDatafeedQueryParser} parses with. Available once {@code createComponents} has run. */
-    public EsqlDatafeedQueryParser.Services datafeedParserServices() {
-        EsqlDatafeedQueryParser.Services services = datafeedParserServices.get();
-        if (services == null) {
-            throw new IllegalStateException("the ES|QL plugin has not created its components yet");
-        }
-        return services;
     }
 
     @Override

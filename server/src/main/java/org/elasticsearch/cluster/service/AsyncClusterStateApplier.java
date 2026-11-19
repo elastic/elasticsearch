@@ -48,7 +48,7 @@ public class AsyncClusterStateApplier implements ClusterStateApplier {
     /// Accumulates listeners to notify at the end of the application of the last cluster state provided to [#applyClusterState] before
     /// the invocation of this method.
     ///
-    /// Complete if the applier is idle, exceptionally if a previous application failed.
+    /// Complete if the applier is idle, exceptionally if the last application failed.
     /// If the applier is active but [#pendingState] is `null` then it will be completed when the current application completes.
     /// If the applier is active and [#pendingState] is not `null` then it will be completed when the _next_ application completes.
     private volatile SubscribableListener<Void> listeners = SubscribableListener.nullSuccess();
@@ -94,12 +94,8 @@ public class AsyncClusterStateApplier implements ClusterStateApplier {
                 return;
             }
 
+            // Start a fresh application when idle, including after a failed application.
             assert listeners.isDone();
-            if (listeners.isSuccess() == false) {
-                // The delegate may have partially applied the failed state. Keep reporting the failure to future waiters.
-                return;
-            }
-
             isApplying = true;
             pendingState = newState;
             listeners = new SubscribableListener<>();

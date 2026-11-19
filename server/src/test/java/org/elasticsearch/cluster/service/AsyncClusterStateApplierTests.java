@@ -40,12 +40,17 @@ public class AsyncClusterStateApplierTests extends ESTestCase {
         final var initialState = ClusterState.EMPTY_STATE;
         final var failingState = ClusterState.builder(initialState).incrementVersion().build();
         final var stagedState = ClusterState.builder(failingState).incrementVersion().build();
+        final var laterState = ClusterState.builder(stagedState).incrementVersion().build();
         final var tasks = new ArrayDeque<Runnable>();
         final var applicationStarted = new SubscribableListener<Void>();
         final var failure = new IllegalStateException("simulated application failure");
         final var applier = new AsyncClusterStateApplier(event -> {
-            applicationStarted.onResponse(null);
-            throw failure;
+            if (event.state() == failingState) {
+                applicationStarted.onResponse(null);
+                throw failure;
+            }
+            assertSame(laterState, event.state());
+            assertSame(initialState, event.previousState());
         }, tasks::addLast);
 
         final var stagedWaiter = new PlainActionFuture<Void>();
@@ -61,17 +66,20 @@ public class AsyncClusterStateApplierTests extends ESTestCase {
         final var futureWaiter = new PlainActionFuture<Void>();
         applier.awaitCurrentStateApplication(futureWaiter);
 
-        final var laterState = ClusterState.builder(stagedState).incrementVersion().build();
-        applier.applyClusterState(new ClusterChangedEvent("publish after failure", laterState, stagedState));
-        final var laterWaiter = new PlainActionFuture<Void>();
-        applier.awaitCurrentStateApplication(laterWaiter);
-
-        for (var waiter : List.of(currentWaiter, stagedWaiter, futureWaiter, laterWaiter)) {
+        for (var waiter : List.of(currentWaiter, stagedWaiter, futureWaiter)) {
             assertTrue(waiter.isDone());
             assertSame(failure, expectThrows(IllegalStateException.class, waiter::actionGet));
         }
         assertTrue(tasks.isEmpty());
         assertEquals(initialState.version(), applier.appliedStateVersion());
+
+        applier.applyClusterState(new ClusterChangedEvent("publish after failure", laterState, stagedState));
+        final var laterWaiter = SubscribableListener.newForked(applier::awaitCurrentStateApplication);
+        assertFalse(laterWaiter.isDone());
+        tasks.removeFirst().run();
+        assertTrue(laterWaiter.isSuccess());
+        assertTrue(SubscribableListener.newForked(applier::awaitCurrentStateApplication).isSuccess());
+        assertEquals(laterState.version(), applier.appliedStateVersion());
     }
 
     public void testAwaitCurrentStateApplication() {

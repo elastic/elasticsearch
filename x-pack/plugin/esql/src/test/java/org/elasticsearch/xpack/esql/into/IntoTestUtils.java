@@ -40,8 +40,8 @@ import static org.hamcrest.Matchers.equalTo;
  * Shared test infrastructure for {@code INTO} operator tests.
  */
 class IntoTestUtils {
-    static final String DESTINATION = "dst";
-    static final ShardId SHARD = new ShardId(DESTINATION, "uuid", 0);
+    static final String DEST = "dst";
+    static final ShardId SHARD = new ShardId(DEST, "uuid", 0);
 
     enum Outcome {
         CREATED,
@@ -79,7 +79,7 @@ class IntoTestUtils {
                     case REFUSED -> BulkItemResponse.failure(
                         i,
                         opType,
-                        new BulkItemResponse.Failure(DESTINATION, "id-" + i, new IllegalArgumentException("mapper_parsing_exception"))
+                        new BulkItemResponse.Failure(DEST, "id-" + i, new IllegalArgumentException("mapper_parsing_exception"))
                     );
                 };
             }

@@ -64,7 +64,6 @@ public final class IntoPageWriter {
         private final String destination;
         private final List<String> columns;
         private final List<DataType> types;
-        private final Indexing indexing;
         @Nullable
         private final EscfBulkWriter writer;
         private final AtomicLong total = new AtomicLong();
@@ -105,7 +104,6 @@ public final class IntoPageWriter {
             this.destination = destination;
             this.columns = columns;
             this.types = types;
-            this.indexing = indexing;
             this.writer = indexing == Indexing.INDEX
                 ? bulks.newWriter(client, breaker, destination, POLICY, this::onResponse, this::onCapacity)
                 : null;

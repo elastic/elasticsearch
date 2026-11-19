@@ -35,9 +35,11 @@ import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 
 import java.io.IOException;
 import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -133,49 +135,26 @@ public class PageToEscfBatchTests extends ComputeTestCase {
     }
 
     public void testPageSpanningKeywordsAreCopied() throws IOException {
-        byte[] first = filled((byte) 'a', 20_000);
-        byte[] second = filled((byte) 'b', 20_000);
+        byte[] first = filled((byte) 'a');
+        byte[] second = filled((byte) 'b');
         try (
             BytesRefBlock.Builder left = blockFactory().newBytesRefBlockBuilder(1);
             BytesRefBlock.Builder right = blockFactory().newBytesRefBlockBuilder(1)
         ) {
             left.appendBytesRef(new BytesRef(first));
             right.appendBytesRef(new BytesRef(second));
-            assertThat(
-                rows(List.of(DataType.KEYWORD, DataType.KEYWORD), left.build(), right.build()),
-                equalTo(
-                    List.of(
-                        Map.of(
-                            "c0",
-                            new String(first, java.nio.charset.StandardCharsets.UTF_8),
-                            "c1",
-                            new String(second, java.nio.charset.StandardCharsets.UTF_8)
-                        )
-                    )
-                )
-            );
+            Map<String, String> c0 = Map.of("c0", string(first), "c1", string(second));
+            assertThat(rows(List.of(DataType.KEYWORD, DataType.KEYWORD), left.build(), right.build()), equalTo(List.of(c0)));
         }
         try (BytesRefBlock.Builder values = blockFactory().newBytesRefBlockBuilder(1)) {
             values.beginPositionEntry().appendBytesRef(new BytesRef(first)).appendBytesRef(new BytesRef(second)).endPositionEntry();
-            assertThat(
-                rows(List.of(DataType.KEYWORD), values.build()),
-                equalTo(
-                    List.of(
-                        Map.of(
-                            "c0",
-                            List.of(
-                                new String(first, java.nio.charset.StandardCharsets.UTF_8),
-                                new String(second, java.nio.charset.StandardCharsets.UTF_8)
-                            )
-                        )
-                    )
-                )
-            );
+            List<Map<String, List<String>>> c0 = List.of(Map.of("c0", List.of(string(first), string(second))));
+            assertThat(rows(List.of(DataType.KEYWORD), values.build()), equalTo(c0));
         }
     }
 
-    private static byte[] filled(byte value, int length) {
-        byte[] bytes = new byte[length];
+    private static byte[] filled(byte value) {
+        byte[] bytes = new byte[20000];
         java.util.Arrays.fill(bytes, value);
         return bytes;
     }
@@ -353,31 +332,29 @@ public class PageToEscfBatchTests extends ComputeTestCase {
 
     private List<Map<String, Object>> rows(List<DataType> types, Block... blocks) throws IOException {
         Page page = new Page(blocks);
-        List<String> names = new ArrayList<>(types.size());
-        for (int i = 0; i < types.size(); i++) {
-            names.add("c" + i);
-        }
+        List<String> names = IntStream.range(0, types.size()).mapToObj(i -> "c" + i).toList();
         try (EscfBatchBuilder builder = new EscfBatchBuilder(bigArrays.bytesRefRecycler())) {
             PageToEscfBatch.append(builder, page, names, types);
-            if (page.getPositionCount() == 0) {
-                return List.of();
-            }
-            try (EscfBatch batch = builder.buildPartition(0)) {
-                return toMaps(batch);
-            }
+            return page.getPositionCount() == 0 ? List.of() : toMaps(builder);
         } finally {
             page.releaseBlocks();
         }
     }
 
-    private static List<Map<String, Object>> toMaps(EscfBatch batch) throws IOException {
-        List<Map<String, Object>> result = new ArrayList<>();
-        for (int row = 0; row < batch.docCount(); row++) {
-            IndexSource src = new IndexSource();
-            src.setSourceRow(batch, row, XContentType.JSON);
-            src.ensureInlineSource();
-            result.add(XContentHelper.convertToMap(src.bytes(), false, XContentType.JSON).v2());
+    private static List<Map<String, Object>> toMaps(EscfBatchBuilder builder) throws IOException {
+        try (EscfBatch batch = builder.buildPartition(0)) {
+            List<Map<String, Object>> result = new ArrayList<>();
+            for (int row = 0; row < batch.docCount(); row++) {
+                IndexSource src = new IndexSource();
+                src.setSourceRow(batch, row, XContentType.JSON);
+                src.ensureInlineSource();
+                result.add(XContentHelper.convertToMap(src.bytes(), false, XContentType.JSON).v2());
+            }
+            return result;
         }
-        return result;
+    }
+
+    private static String string(byte[] first) {
+        return new String(first, StandardCharsets.UTF_8);
     }
 }

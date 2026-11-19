@@ -61,6 +61,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.xpack.esql.into.IntoPageWriter.Factory.Indexing.INDEX;
+import static org.elasticsearch.xpack.esql.into.IntoTestUtils.DEST;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.CREATED;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.REFUSED;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.bulks;
@@ -94,7 +95,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
         client = new IntoTestUtils.CapturingClient(threadPool);
         blockFactory = blockFactory();
         driverContext = new DriverContext(mockBigArrays(), blockFactory, null);
-        sink = IntoPageWriter.Factory.createFactory(bulks(), client, blockFactory.breaker(), IntoTestUtils.DESTINATION, COLUMNS, INDEX);
+        sink = IntoPageWriter.Factory.createFactory(bulks(), client, blockFactory.breaker(), DEST, COLUMNS, INDEX);
         writer = sink.create(driverContext);
     }
 
@@ -135,7 +136,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
         assertThat(client.bulks, hasSize(1));
         List<DocWriteRequest<?>> requests = client.bulks.getFirst().requests();
         assertThat(requests.stream().map(DocWriteRequest::opType).toList(), everyItem(equalTo(DocWriteRequest.OpType.CREATE)));
-        assertThat(requests.stream().map(DocWriteRequest::index).toList(), everyItem(equalTo(IntoTestUtils.DESTINATION)));
+        assertThat(requests.stream().map(DocWriteRequest::index).toList(), everyItem(equalTo(DEST)));
         assertThat(
             sources(client.bulks.getFirst()),
             equalTo(
@@ -145,14 +146,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
     }
 
     public void testEscfBatchProperties() throws IOException {
-        IntoPageWriter.Factory escfSink = IntoPageWriter.Factory.createFactory(
-            bulks(),
-            client,
-            blockFactory.breaker(),
-            IntoTestUtils.DESTINATION,
-            COLUMNS,
-            INDEX
-        );
+        var escfSink = IntoPageWriter.Factory.createFactory(bulks(), client, blockFactory.breaker(), DEST, COLUMNS, INDEX);
         IntoPageWriter escfWriter = escfSink.create(new DriverContext(mockBigArrays(), blockFactory, null));
         try (
             BytesRefBlock.Builder host = blockFactory.newBytesRefBlockBuilder(2);
@@ -182,14 +176,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
     public void testEscfBatchBytesIncludeRecyclerOverhead() {
         BlockFactory limited = blockFactory();
         DriverContext escfContext = new DriverContext(mockBigArrays(), limited, null);
-        IntoPageWriter.Factory escfSink = IntoPageWriter.Factory.createFactory(
-            bulks(),
-            client,
-            limited.breaker(),
-            IntoTestUtils.DESTINATION,
-            COLUMNS,
-            INDEX
-        );
+        var escfSink = IntoPageWriter.Factory.createFactory(bulks(), client, limited.breaker(), DEST, COLUMNS, INDEX);
         IntoPageWriter escfWriter = escfSink.create(escfContext);
         escfWriter.consume(page("h1"));
         long charged = escfContext.breaker().getUsed();
@@ -203,14 +190,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
         // One row charges more than a page. The trip must release that charge and send nothing.
         long pageSize = driverContext.bigArrays().bytesRefRecycler().pageSize();
         BlockFactory limited = blockFactory(ByteSizeValue.ofBytes(pageSize + 100));
-        IntoPageWriter.Factory escfSink = IntoPageWriter.Factory.createFactory(
-            bulks(),
-            client,
-            limited.breaker(),
-            IntoTestUtils.DESTINATION,
-            COLUMNS,
-            INDEX
-        );
+        var escfSink = IntoPageWriter.Factory.createFactory(bulks(), client, limited.breaker(), DEST, COLUMNS, INDEX);
         IntoPageWriter escfWriter = escfSink.create(new DriverContext(mockBigArrays(), limited, null));
         expectThrows(CircuitBreakingException.class, () -> escfWriter.consume(page("h1")));
         assertThat(limited.breaker().getUsed(), equalTo(0L));
@@ -253,14 +233,8 @@ public class IntoPageWriterTests extends ComputeTestCase {
         assertThat(oneRow, greaterThan(0L));
 
         BlockFactory limited = blockFactory(ByteSizeValue.ofBytes(oneRow));
-        IntoPageWriter limitedWriter = IntoPageWriter.Factory.createFactory(
-            bulks(),
-            client,
-            limited.breaker(),
-            IntoTestUtils.DESTINATION,
-            COLUMNS,
-            INDEX
-        ).create(new DriverContext(mockBigArrays(), limited, null));
+        var factory = IntoPageWriter.Factory.createFactory(bulks(), client, limited.breaker(), DEST, COLUMNS, INDEX);
+        var limitedWriter = factory.create(new DriverContext(mockBigArrays(), limited, null));
         expectThrows(CircuitBreakingException.class, () -> limitedWriter.consume(page("h1", "h2")));
         assertThat(client.bulks, empty());
         assertThat(limited.breaker().getUsed(), equalTo(0L));
@@ -268,14 +242,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
 
     public void testCrankyBreakerReleasesAndStatsMatchWrittenRows() {
         BlockFactory crankyFactory = crankyBlockFactory();
-        IntoPageWriter.Factory crankySink = IntoPageWriter.Factory.createFactory(
-            bulks(),
-            client,
-            crankyFactory.breaker(),
-            IntoTestUtils.DESTINATION,
-            COLUMNS,
-            INDEX
-        );
+        var crankySink = IntoPageWriter.Factory.createFactory(bulks(), client, crankyFactory.breaker(), DEST, COLUMNS, INDEX);
         IntoPageWriter crankyWriter = crankySink.create(new DriverContext(mockBigArrays(), crankyFactory, null));
         int written = 0;
         boolean tripped = false;
@@ -357,14 +324,8 @@ public class IntoPageWriterTests extends ComputeTestCase {
 
     public void testCloseAfterFailureReleasesTheAsyncAction() {
         Attribute column = new ReferenceAttribute(Source.EMPTY, "n", DataType.UNSIGNED_LONG);
-        IntoPageWriter exactWriter = IntoPageWriter.Factory.createFactory(
-            bulks(),
-            client,
-            driverContext.breaker(),
-            IntoTestUtils.DESTINATION,
-            List.of(column),
-            INDEX
-        ).create(driverContext);
+        var exactWriter = IntoPageWriter.Factory.createFactory(bulks(), client, driverContext.breaker(), DEST, List.of(column), INDEX)
+            .create(driverContext);
         expectThrows(EsqlIllegalArgumentException.class, () -> {
             try (LongBlock.Builder values = blockFactory.newLongBlockBuilder(1)) {
                 values.appendLong(NumericUtils.asLongUnsigned(BigInteger.TWO.pow(63).add(BigInteger.ONE)));
@@ -379,7 +340,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
     public void testCloseAndSettleReleaseTheAsyncActionOnce() {
         writer.consume(page("h1"));
         AtomicInteger completions = new AtomicInteger();
-        driverContext.waitForAsyncActions(ActionListener.running(() -> completions.incrementAndGet()));
+        driverContext.waitForAsyncActions(ActionListener.running(completions::incrementAndGet));
         writer.close();
         client.answer(CREATED);
         assertThat(completions.get(), equalTo(0));
@@ -421,14 +382,8 @@ public class IntoPageWriterTests extends ComputeTestCase {
     public void testUnsignedLongAboveLongMaxIsRejected() {
         BigInteger big = BigInteger.TWO.pow(63).add(BigInteger.ONE);
         Attribute column = new ReferenceAttribute(Source.EMPTY, "n", DataType.UNSIGNED_LONG);
-        IntoPageWriter exactWriter = IntoPageWriter.Factory.createFactory(
-            bulks(),
-            client,
-            driverContext.breaker(),
-            IntoTestUtils.DESTINATION,
-            List.of(column),
-            INDEX
-        ).create(driverContext);
+        var exactWriter = IntoPageWriter.Factory.createFactory(bulks(), client, driverContext.breaker(), DEST, List.of(column), INDEX)
+            .create(driverContext);
         EsqlIllegalArgumentException e = expectThrows(EsqlIllegalArgumentException.class, () -> {
             try (LongBlock.Builder values = blockFactory.newLongBlockBuilder(1)) {
                 values.appendLong(NumericUtils.asLongUnsigned(big));

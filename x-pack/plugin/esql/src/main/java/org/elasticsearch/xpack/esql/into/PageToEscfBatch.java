@@ -26,6 +26,7 @@ import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentString;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.action.ResponseValueUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -72,23 +73,20 @@ final class PageToEscfBatch {
         int start = block.getFirstValueIndex(position);
         if (count == 1) {
             writeScalar(row, name, type, block, start, scratch);
-            return;
+        } else {
+            writeArray(row, name, type, block, start, count, scratch);
         }
-        writeArray(row, name, type, block, start, count, scratch);
     }
 
     private static void writeScalar(EscfRowBuffer row, String name, DataType type, Block block, int index, BytesRef scratch) {
-        switch (type) {
-            case LONG, COUNTER_LONG -> row.longField(name, ((LongBlock) block).getLong(index));
-            case INTEGER, COUNTER_INTEGER -> row.longField(name, ((IntBlock) block).getInt(index));
-            case DOUBLE, COUNTER_DOUBLE -> row.doubleField(name, ((DoubleBlock) block).getDouble(index));
+        switch (toKind(type)) {
+            case LONG -> row.longField(name, ((LongBlock) block).getLong(index));
+            case INT -> row.longField(name, ((IntBlock) block).getInt(index));
+            case DOUBLE -> row.doubleField(name, ((DoubleBlock) block).getDouble(index));
             case DENSE_VECTOR -> row.doubleField(name, Double.parseDouble(Float.toString(((FloatBlock) block).getFloat(index))));
             case BOOLEAN -> row.booleanField(name, ((BooleanBlock) block).getBoolean(index));
             case UNSIGNED_LONG -> row.longField(name, unsignedLong(block, index));
-            case KEYWORD, TEXT, FLATTENED -> {
-                BytesRef ref = ((BytesRefBlock) block).getBytesRef(index, scratch);
-                row.stringField(name, copyUtf8(ref));
-            }
+            case KEYWORD -> row.stringField(name, copyUtf8(((BytesRefBlock) block).getBytesRef(index, scratch)));
             case SOURCE -> {
                 byte[] packed = keyValue(((BytesRefBlock) block).getBytesRef(index, scratch));
                 if (packed == null) {
@@ -96,8 +94,7 @@ final class PageToEscfBatch {
                 }
                 row.keyValueField(name, packed);
             }
-            case IP, VERSION, DATETIME, DATE_NANOS, GEO_POINT, GEO_SHAPE, CARTESIAN_POINT, CARTESIAN_SHAPE, GEOHASH, GEOTILE, GEOHEX,
-                AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, DATE_RANGE, DOUBLE_RANGE, HISTOGRAM, TSID_DATA_TYPE -> {
+            case STRINGIFIED -> {
                 String text = ResponseValueUtils.valueExtractorFor(type, ZoneOffset.UTC).extract(block, index, scratch).toString();
                 row.stringField(name, new XContentString.UTF8Bytes(text.getBytes(StandardCharsets.UTF_8)));
             }
@@ -108,29 +105,28 @@ final class PageToEscfBatch {
     private static void writeArray(EscfRowBuffer row, String name, DataType type, Block block, int start, int count, BytesRef scratch) {
         long[] numeric = new long[count];
         Object[] vars = new Object[count];
-        byte elemType;
         boolean mixed = false;
-        switch (type) {
-            case LONG, COUNTER_LONG -> {
-                elemType = SourceValueType.LONG;
+        Byte elemType = switch (toKind(type)) {
+            case LONG -> {
                 LongBlock longs = (LongBlock) block;
                 for (int i = 0; i < count; i++) {
                     numeric[i] = longs.getLong(start + i);
                 }
+                yield SourceValueType.LONG;
             }
-            case INTEGER, COUNTER_INTEGER -> {
-                elemType = SourceValueType.LONG;
+            case INT -> {
                 IntBlock ints = (IntBlock) block;
                 for (int i = 0; i < count; i++) {
                     numeric[i] = ints.getInt(start + i);
                 }
+                yield SourceValueType.LONG;
             }
-            case DOUBLE, COUNTER_DOUBLE -> {
-                elemType = SourceValueType.DOUBLE;
+            case DOUBLE -> {
                 DoubleBlock doubles = (DoubleBlock) block;
                 for (int i = 0; i < count; i++) {
                     numeric[i] = Double.doubleToRawLongBits(doubles.getDouble(start + i));
                 }
+                yield SourceValueType.DOUBLE;
             }
             case BOOLEAN -> {
                 BooleanBlock bools = (BooleanBlock) block;
@@ -139,51 +135,73 @@ final class PageToEscfBatch {
                     types[i] = bools.getBoolean(start + i) ? SourceValueType.TRUE : SourceValueType.FALSE;
                     mixed |= types[i] != types[0];
                 }
-                SourceBatchEncodeHelper.PackedArray packed = SourceBatchEncodeHelper.packAccumulatedElements(
-                    types,
-                    numeric,
-                    vars,
-                    count,
-                    mixed
-                );
+                var packed = SourceBatchEncodeHelper.packAccumulatedElements(types, numeric, vars, count, mixed);
                 row.arrayField(name, packed.arrayType(), packed.packed());
-                return;
+                yield null;
             }
             case UNSIGNED_LONG -> {
-                elemType = SourceValueType.LONG;
                 LongBlock longs = (LongBlock) block;
                 for (int i = 0; i < count; i++) {
                     numeric[i] = unsignedLong(longs, start + i);
                 }
+                yield SourceValueType.LONG;
             }
             case DENSE_VECTOR -> {
-                elemType = SourceValueType.DOUBLE;
                 FloatBlock floats = (FloatBlock) block;
                 for (int i = 0; i < count; i++) {
-                    double value = Double.parseDouble(Float.toString(floats.getFloat(start + i)));
-                    numeric[i] = Double.doubleToRawLongBits(value);
+                    numeric[i] = Double.doubleToRawLongBits(Double.parseDouble(Float.toString(floats.getFloat(start + i))));
                 }
+                yield SourceValueType.DOUBLE;
             }
-            case KEYWORD, TEXT, FLATTENED -> {
-                elemType = SourceValueType.STRING;
+            case KEYWORD -> {
                 BytesRefBlock refs = (BytesRefBlock) block;
                 for (int i = 0; i < count; i++) {
                     vars[i] = copyUtf8(refs.getBytesRef(start + i, scratch));
                 }
+                yield SourceValueType.STRING;
             }
             case SOURCE -> throw new EsqlIllegalArgumentException("INTO cannot write a multi-value SOURCE column");
-            case IP, VERSION, DATETIME, DATE_NANOS, GEO_POINT, GEO_SHAPE, CARTESIAN_POINT, CARTESIAN_SHAPE, GEOHASH, GEOTILE, GEOHEX,
-                AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, DATE_RANGE, DOUBLE_RANGE, HISTOGRAM, TSID_DATA_TYPE -> {
-                elemType = SourceValueType.STRING;
+            case STRINGIFIED -> {
                 ResponseValueUtils.BlockValueExtractor extractor = ResponseValueUtils.valueExtractorFor(type, ZoneOffset.UTC);
                 for (int i = 0; i < count; i++) {
-                    String text = extractor.extract(block, start + i, scratch).toString();
-                    vars[i] = new XContentString.UTF8Bytes(text.getBytes(StandardCharsets.UTF_8));
+                    vars[i] = new XContentString.UTF8Bytes(
+                        extractor.extract(block, start + i, scratch).toString().getBytes(StandardCharsets.UTF_8)
+                    );
                 }
+                yield SourceValueType.STRING;
             }
-            default -> throw EsqlIllegalArgumentException.illegalDataType(type);
+        };
+        if (elemType != null) {
+            row.arrayField(name, SourceValueType.FIXED_ARRAY, SourceBatchEncodeHelper.packFixedArray(elemType, numeric, vars, count));
         }
-        row.arrayField(name, SourceValueType.FIXED_ARRAY, SourceBatchEncodeHelper.packFixedArray(elemType, numeric, vars, count));
+    }
+
+    private enum Kind {
+        LONG,
+        INT,
+        DOUBLE,
+        DENSE_VECTOR,
+        BOOLEAN,
+        UNSIGNED_LONG,
+        KEYWORD,
+        SOURCE,
+        STRINGIFIED
+    }
+
+    private static Kind toKind(DataType type) {
+        return switch (type) {
+            case LONG, COUNTER_LONG -> Kind.LONG;
+            case INTEGER, COUNTER_INTEGER -> Kind.INT;
+            case DOUBLE, COUNTER_DOUBLE -> Kind.DOUBLE;
+            case DENSE_VECTOR -> Kind.DENSE_VECTOR;
+            case BOOLEAN -> Kind.BOOLEAN;
+            case UNSIGNED_LONG -> Kind.UNSIGNED_LONG;
+            case KEYWORD, TEXT, FLATTENED -> Kind.KEYWORD;
+            case SOURCE -> Kind.SOURCE;
+            case IP, VERSION, DATETIME, DATE_NANOS, GEO_POINT, GEO_SHAPE, CARTESIAN_POINT, CARTESIAN_SHAPE, GEOHASH, GEOTILE, GEOHEX,
+                AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, DATE_RANGE, DOUBLE_RANGE, HISTOGRAM, TSID_DATA_TYPE -> Kind.STRINGIFIED;
+            default -> throw EsqlIllegalArgumentException.illegalDataType(type);
+        };
     }
 
     private static XContentString.UTF8Bytes copyUtf8(BytesRef ref) {
@@ -209,7 +227,8 @@ final class PageToEscfBatch {
         try (
             XContentParser parser = XContentHelper.createParser(
                 XContentParserConfiguration.EMPTY,
-                new BytesArray(json.bytes, json.offset, json.length)
+                new BytesArray(json.bytes, json.offset, json.length),
+                XContentType.JSON
             )
         ) {
             if (parser.nextToken() != XContentParser.Token.START_OBJECT) {

@@ -55,7 +55,7 @@ public class IntoOperatorTests extends ComputeTestCase {
         bulks(),
         client,
         blockFactory.breaker(),
-        IntoTestUtils.DESTINATION,
+        IntoTestUtils.DEST,
         COLUMNS,
         INDEX
     );
@@ -132,7 +132,7 @@ public class IntoOperatorTests extends ComputeTestCase {
             bulks(),
             client,
             blockFactory.breaker(),
-            IntoTestUtils.DESTINATION,
+            IntoTestUtils.DEST,
             COLUMNS,
             DISCARD
         );

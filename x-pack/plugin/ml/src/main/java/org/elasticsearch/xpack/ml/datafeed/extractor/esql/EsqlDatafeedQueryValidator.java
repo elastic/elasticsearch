@@ -37,11 +37,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.OptionalInt;
+import java.util.Set;
 
 /**
  * Includes helper functions for validating the ESQL query provided to a datafeed.
  */
 public class EsqlDatafeedQueryValidator {
+
+    /** Routings answered by the origin project alone. */
+    private static final Set<String> ORIGIN_ONLY_ROUTINGS = Set.of("_origin", "_alias:_origin");
 
     private static final Logger logger = LogManager.getLogger(EsqlDatafeedQueryValidator.class);
 
@@ -280,13 +284,19 @@ public class EsqlDatafeedQueryValidator {
 
     /**
      * Rejects a source that names a view, once the caller's probe has succeeded, so the error tells them nothing they could not read.
-     * With a {@code project_routing} the probe may have been answered by a linked project, so a same-named view in the origin project
-     * is not known to be the source and is not looked up here; start and preview still reject it (a Tech Preview limitation).
+     * When {@code project_routing} can reach a linked project, that project may have answered the probe, so a same-named view in the
+     * origin project is not known to be the source and is not looked up here; start and preview still reject it (a Tech Preview
+     * limitation). A routing that names only the origin project is answered locally and is checked like no routing. Without CPS the
+     * callers pass no routing, because the datafeed config has cleared it.
      */
     private void rejectViewsAfterProbe(String esqlQuery, @Nullable String projectRouting) {
-        if (projectRouting == null) {
+        if (routingMayReachLinkedProject(projectRouting) == false) {
             EsqlDatafeedQuery.parse(parser, esqlQuery);
         }
+    }
+
+    private static boolean routingMayReachLinkedProject(@Nullable String projectRouting) {
+        return projectRouting != null && ORIGIN_ONLY_ROUTINGS.contains(projectRouting) == false;
     }
 
     /**

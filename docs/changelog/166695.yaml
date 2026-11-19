@@ -1,0 +1,5 @@
+area: CRUD
+issues: []
+pr: 166695
+summary: Fail delayed listeners on lease read failure
+type: bug

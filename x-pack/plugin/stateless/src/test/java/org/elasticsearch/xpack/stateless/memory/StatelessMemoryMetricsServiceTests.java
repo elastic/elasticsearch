@@ -1239,6 +1239,32 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         assertThat(merged.minimumRequiredHeapInBytes(), equalTo(legacyHeap));
     }
 
+    public void testValidRequirementsKeepTheExpiryOfTheWinningHeap() {
+        final long validityNanos = StatelessMemoryMetricsService.DEFAULT_INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY.nanos();
+        final AtomicLong now = new AtomicLong(0L);
+        final StatelessMemoryMetricsService rawWins = new StatelessMemoryMetricsService(now::get, clusterService);
+        rawWins.updateLargestIndexingOperationSize(10_000L);
+        final long rawDeadline = rawWins.getValidIndexingOperationsHeapMemoryRequirements().validUntil();
+        now.set(1_000L);
+        rawWins.updateIndexingOperationsHeapMemoryRequirements(1_000L);
+        final var rawWinner = rawWins.getValidIndexingOperationsHeapMemoryRequirements();
+        assertNotNull(rawWinner);
+        assertThat(rawWinner.minimumRequiredHeapInBytes(), equalTo(100_000L));
+        assertThat(rawWinner.validUntil(), equalTo(rawDeadline));
+
+        final StatelessMemoryMetricsService legacyWins = new StatelessMemoryMetricsService(now::get, clusterService);
+        now.set(0L);
+        legacyWins.updateIndexingOperationsHeapMemoryRequirements(100_000L);
+        final long legacyDeadline = legacyWins.getValidIndexingOperationsHeapMemoryRequirements().validUntil();
+        now.set(1_000L);
+        legacyWins.updateLargestIndexingOperationSize(100L);
+        final var legacyWinner = legacyWins.getValidIndexingOperationsHeapMemoryRequirements();
+        assertNotNull(legacyWinner);
+        assertThat(legacyWinner.minimumRequiredHeapInBytes(), equalTo(100_000L));
+        assertThat(legacyWinner.validUntil(), equalTo(legacyDeadline));
+        assertThat(legacyDeadline, equalTo(validityNanos));
+    }
+
     public void testLegacyIndexingHeapRequirementIsReturnedAsIs() {
         final long heap = randomLongBetween(1L, 50_000_000L);
         service.updateIndexingOperationsHeapMemoryRequirements(heap);

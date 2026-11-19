@@ -713,7 +713,8 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
 
     /**
      * Returns the current indexing operations heap memory requirements if they are still valid (not expired),
-     * or {@code null} if they are expired or not set.
+     * or {@code null} if they are expired or not set. When a raw operation and a legacy heap are both valid, the
+     * returned deadline is the one belonging to the larger heap.
      */
     public IndexingOperationsMemoryRequirements getValidIndexingOperationsHeapMemoryRequirements() {
         final long now = relativeTimeInNanos();
@@ -724,13 +725,17 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         if (legacyValid == false && rawValid == false) {
             return null;
         }
-        long heap = legacyValid ? legacy.minimumRequiredHeapInBytes() : 0L;
-        long validUntil = legacyValid ? legacy.validUntil() : Long.MIN_VALUE;
-        if (rawValid) {
-            heap = Math.max(heap, heapRequiredForOperation(clusterService.getSettings(), raw.operationSizeInBytes()));
-            validUntil = Math.max(validUntil, raw.validUntil());
+        if (rawValid == false) {
+            return legacy;
         }
-        return new IndexingOperationsMemoryRequirements(heap, validUntil);
+        final long converted = heapRequiredForOperation(clusterService.getSettings(), raw.operationSizeInBytes());
+        if (legacyValid == false || converted > legacy.minimumRequiredHeapInBytes()) {
+            return new IndexingOperationsMemoryRequirements(converted, raw.validUntil());
+        }
+        if (legacy.minimumRequiredHeapInBytes() > converted) {
+            return legacy;
+        }
+        return new IndexingOperationsMemoryRequirements(converted, Math.max(legacy.validUntil(), raw.validUntil()));
     }
 
     private record LargestIndexingOperation(long operationSizeInBytes, long validUntil) implements Comparable<LargestIndexingOperation> {

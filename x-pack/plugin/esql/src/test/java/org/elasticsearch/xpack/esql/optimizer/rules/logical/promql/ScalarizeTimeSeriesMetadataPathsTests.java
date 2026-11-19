@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -35,7 +36,9 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.PackDims;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContextV2;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -46,7 +49,9 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.sameInstance;
@@ -112,17 +117,21 @@ public class ScalarizeTimeSeriesMetadataPathsTests extends ESTestCase {
     }
 
     /**
-     * An aggregate keyed by a typed label container keys by the container whole: one value per row, the same for the same label
-     * set, so nothing is split or packed and a label of several values keys as a whole.
+     * An aggregate keyed by a typed label container is keyed by the container whole: one value per row, the same for the same
+     * label set, so the pack the translation puts under the aggregate and the unpack above it are gone.
      */
     public void testAggregateKeysByTheWholeContainer() {
-        Aggregate pushed = regroupedByPod(pushDown(regroupByPod()));
+        LogicalPlan plan = pushDown(regroupByPod());
+        Aggregate pushed = regroupedByPod(plan);
         assertThat(pushed.groupings(), hasSize(1));
         assertThat(pushed.groupings().getFirst().dataType(), sameInstance(DataType.TIME_SERIES_METADATA_DATA_TYPE));
-        assertThat(pushed.collect(PackDims.class), empty());
+        assertThat(plan.collect(PackDims.class), empty());
+        assertThat(plan.collect(UnpackDims.class), empty());
+        assertThat(as(plan, Project.class).projections().getLast(), equalTo(pushed.groupings().getFirst()));
     }
 
-    private Aggregate regroupByPod() {
+    /** An aggregate keyed by the source's labels kept to {@code pod}, as translation builds it: the key packed, then unpacked. */
+    private LogicalPlan regroupByPod() {
         Alias labels = sourceLabels();
         TimeSeriesAggregate aggregate = timeSeriesAggregate(labels, TimeSeriesAggregate.Origin.PROMQL_COMMAND);
         Alias key = new Alias(
@@ -130,12 +139,44 @@ public class ScalarizeTimeSeriesMetadataPathsTests extends ESTestCase {
             MetadataAttribute.TIMESERIES,
             new TimeSeriesMetadataFilter(SOURCE, labels.toAttribute(), List.of(Literal.keyword(SOURCE, "pod")), false)
         );
+        PackDims pack = new PackDims(
+            SOURCE,
+            new Eval(SOURCE, aggregate, List.of(key)),
+            List.of(key.toAttribute()),
+            PackDims.newPackedAttribute(SOURCE)
+        );
+        Alias packed = PackDims.newPackedGrouping(SOURCE, pack.packed());
         Alias sum = new Alias(SOURCE, "value", new Values(SOURCE, aggregate.aggregates().getFirst().toAttribute()));
-        return new Aggregate(SOURCE, aggregate, List.of(key), List.of(sum, key.toAttribute()));
+        Aggregate regrouped = new Aggregate(SOURCE, pack, List.of(packed), List.of(sum, packed.toAttribute()));
+        Attribute unpacked = new ReferenceAttribute(
+            SOURCE,
+            null,
+            key.name(),
+            DataType.TIME_SERIES_METADATA_DATA_TYPE,
+            Nullability.TRUE,
+            key.id(),
+            false
+        );
+        return new Project(
+            SOURCE,
+            new UnpackDims(SOURCE, regrouped, packed.toAttribute(), List.of(unpacked)),
+            List.of(sum.toAttribute(), unpacked)
+        );
     }
 
     private static Aggregate regroupedByPod(LogicalPlan plan) {
         return plan.collect(Aggregate.class).stream().filter(a -> a instanceof TimeSeriesAggregate == false).findFirst().get();
+    }
+
+    /** An aggregate, a join or a ranking outside the time-series aggregate keys by a label container only packed. */
+    public void testUnpackedKeyFails() {
+        Alias labels = sourceLabels();
+        TimeSeriesAggregate aggregate = timeSeriesAggregate(labels, TimeSeriesAggregate.Origin.PROMQL_COMMAND);
+        Alias sum = new Alias(SOURCE, "value", new Values(SOURCE, aggregate.aggregates().getFirst().toAttribute()));
+        LogicalPlan plan = new Aggregate(SOURCE, aggregate, List.of(labels.toAttribute()), List.of(sum, labels.toAttribute()));
+
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> pushDown(plan));
+        assertThat(e.getMessage(), containsString("[Aggregate] keys by the label container"));
     }
 
     /** A label container a user's time-series query computes is theirs: nothing is split. */
@@ -262,12 +303,6 @@ public class ScalarizeTimeSeriesMetadataPathsTests extends ESTestCase {
             @Override
             Expression render(Source at, Expression whole) {
                 return new ToString(at, whole, EsqlTestUtils.TEST_CFG);
-            }
-
-            /** A typed container compares whole: the promoted labels it does not hold written back. */
-            @Override
-            Expression compared(Parts parts, Source at) {
-                return whole(parts, at);
             }
 
             @Override

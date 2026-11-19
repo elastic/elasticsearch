@@ -48,7 +48,6 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -65,7 +64,7 @@ import java.util.TreeSet;
  *     <li>{@link TimeSeriesMetadataFilter} either keeps the labels it names, which reads each of them by name, or leaves the
  *     labels it names out;</li>
  *     <li>{@link TimeSeriesMetadataSet} writes one label;</li>
- *     <li>a grouping, a join key, a top-N key or the output uses the container as a whole.</li>
+ *     <li>a grouping of the time-series aggregate, a {@link PackDims} or the output uses the container as a whole.</li>
  * </ul>
  * In this model a container holds every label of its series. What the source loads holds the dimensions only, and reading a
  * label out of it row by row hurts the vectorized operator pipeline. So this rule replaces every read by name with a reference
@@ -73,9 +72,12 @@ import java.util.TreeSet;
  * the container without what nothing needs of it, or not at all. The plan is right only once no read by name of what the source
  * loads is left: a read the rule cannot replace fails the query.
  * <p>
- * A typed container is the same bytes for the same label set, so the rule never splits one that keys a group, a join or a
- * ranking: it keys by the container whole, its promoted labels written back, and the rewrite changes no answer. A label read
- * above an aggregate keyed by it reads off the key, which holds every label of the group.
+ * Outside the time-series aggregate the translation keys a group, a join or a ranking by a container packed, so a label of
+ * several values keys as a whole. The rule never packs: it substitutes what a pack reads and what an unpack returns. A typed
+ * container is the same bytes for the same label set and one value per row, so a pack takes it whole, its promoted labels
+ * written back, and a pack of one typed container is gone: the container keys as it is. A label read above an aggregate keyed
+ * by it reads off the key, which holds every label of the group. A keyword container cannot be written to: a pack takes its
+ * parts.
  * <p>
  * The rule knows the container by the calls above alone, not by how the translation uses them. It has two steps
  * ({@link Run}):
@@ -119,12 +121,6 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
             @Override
             Expression render(Source at, Expression whole) {
                 return new ToString(at, whole, context.configuration());
-            }
-
-            /** A typed container compares whole: the promoted labels it does not hold written back. */
-            @Override
-            Expression compared(Parts parts, Source at) {
-                return whole(parts, at);
             }
 
             @Override
@@ -218,17 +214,15 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
     }
 
     /**
-     * {@code child} with {@code labels} packed into one key, which {@code keys} gets; a label of several values keys as a whole.
-     * The key stays in the output of the node it keys, so it has a name of its own: a node above may pack a key too.
+     * Fails where {@code node}, any node but the time-series aggregate, keys by a label container itself: the translation packs
+     * every such key, so a label of several values keys as a whole, and the rule only substitutes what the pack reads.
      */
-    private static LogicalPlan pack(LogicalPlan child, List<Attribute> labels, List<? super Attribute> keys) {
-        if (labels.isEmpty()) {
-            return child;
+    private static void requirePacked(LogicalPlan node, List<? extends Expression> keys) {
+        for (Expression key : keys) {
+            if (isLabelContainer(key)) {
+                throw new IllegalStateException("[" + node.nodeName() + "] keys by the label container [" + key + "] unpacked");
+            }
         }
-        String name = TemporaryNameGenerator.locallyUniqueTemporaryName(PackDims.PACKED_FIELD_NAME);
-        Attribute packed = new ReferenceAttribute(child.source(), null, name, DataType.KEYWORD);
-        keys.add(packed);
-        return new PackDims(child.source(), child, labels, packed);
     }
 
     /**
@@ -247,6 +241,10 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
         private final Map<NameId, Parts> containers = new HashMap<>();
         /** The input of the time-series aggregate that loads each of these container attributes. */
         private final Map<NameId, LogicalPlan> sources = new HashMap<>();
+        /** Step 2: what a pack takes of each container it reads, in order: what an unpack above returns of the container. */
+        private final Map<NameId, List<Attribute>> packed = new HashMap<>();
+        /** Step 2: the typed container that keys as it is in place of a pack of it, by the id of what names the pack. */
+        private final Map<NameId, Attribute> keyed = new HashMap<>();
         /** The input of the time-series aggregate whose groupings are being rewritten: where the source's labels are read. */
         private LogicalPlan source;
 
@@ -264,14 +262,10 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
         /** {@code whole}, a container as a whole, rendered as the string a query asks for. */
         abstract Expression render(Source at, Expression whole);
 
-        /** The container as a join compares it. */
-        abstract Expression compared(Parts parts, Source at);
-
         /**
-         * Whether a container that keys a node keys it whole, as the one value {@link #compared} makes of it. A typed container
-         * is the same bytes for the same label set and one value per row, so it keys a group, a join or a ranking as it is, and
-         * a label read above an aggregate keyed by it reads off the key. A keyword container cannot be written to, so it keys by
-         * its parts instead, packed into one key: a label of several values keys as a whole.
+         * Whether a pack takes a container whole, the promoted labels it does not hold written back. A typed container is the same
+         * bytes for the same label set and one value per row, so it keys as it is, and a label read above an aggregate keyed by
+         * it reads off the key. A keyword container cannot be written to, so a pack takes its parts instead.
          */
         abstract boolean keysWhole();
 
@@ -311,16 +305,22 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
                     }
                     return;
                 }
+                switch (node) {
+                    case TimeSeriesAggregate ignored -> {
+                    }
+                    case Aggregate aggregate -> requirePacked(aggregate, aggregate.groupings());
+                    case TopNBy topNBy -> requirePacked(topNBy, topNBy.groupings());
+                    case HashJoin join -> {
+                        requirePacked(join, join.leftFields());
+                        requirePacked(join, join.rightFields());
+                    }
+                    default -> {
+                    }
+                }
                 // a key is compared: nothing of it may be missing
                 List<Expression> keys = switch (node) {
                     case Aggregate aggregate -> aggregate.groupings();
-                    case TopNBy topNBy -> topNBy.groupings();
                     case PackDims pack -> List.copyOf(pack.dims());
-                    case HashJoin join -> {
-                        var both = new ArrayList<Expression>(join.leftFields());
-                        both.addAll(join.rightFields());
-                        yield both;
-                    }
                     default -> List.of();
                 };
                 for (Expression key : keys) {
@@ -473,14 +473,18 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
             LogicalPlan rewritten = node instanceof UnionAll || children.equals(node.children())
                 ? node
                 : node.replaceChildrenSameSize(children);
+            if (keyed.isEmpty() == false && (rewritten instanceof Aggregate || rewritten instanceof UnpackDims) == false) {
+                // what names a pack that is gone names the container that keys in its place
+                rewritten = rewritten.transformExpressionsOnly(Attribute.class, a -> keyed.getOrDefault(a.id(), a));
+            }
             return switch (rewritten) {
                 case UnionAll union -> rewriteUnionAll(union, children);
                 case Aggregate aggregate -> rewriteAggregate(aggregate);
                 case Eval eval -> rewriteEval(eval);
                 case Project project -> rewriteProject(project);
                 case HashJoin join -> rewriteHashJoin(join);
-                case TopNBy topNBy -> rewriteTopNBy(topNBy);
                 case PackDims pack -> rewritePackDims(pack);
+                case UnpackDims unpack -> rewriteUnpackDims(unpack);
                 default -> rewritten.transformExpressionsOnlyUp(Expression.class, this::scalar);
             };
         }
@@ -596,74 +600,68 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
         }
 
         /**
-         * The aggregate keyed by the parts of its label containers: each container, and its promoted labels. The time-series
-         * aggregate keys by the labels as they are and its translation packs them. Any other aggregate keys by a typed container
-         * whole (see {@link #keysWhole}), and by the parts of a keyword one, packed: a label of several values keys as a whole.
+         * The time-series aggregate keyed by the parts of its label containers, as they are loaded: its translation packs them.
+         * Any other aggregate keys by a container packed (see {@link #rewritePackDims}).
          */
         private LogicalPlan rewriteAggregate(Aggregate aggregate) {
-            var evals = new ArrayList<Alias>();
+            if (aggregate instanceof TimeSeriesAggregate == false) {
+                return keyedInPlaceOfPacks(aggregate).transformExpressionsOnly(Expression.class, this::scalar);
+            }
             var groupings = new ArrayList<Expression>();
             var keys = new ArrayList<NameId>();
-            var packedLabels = new ArrayList<Attribute>();
-            var wholeKeys = new ArrayList<NameId>();
             source = promqlSource(aggregate);
             for (Expression grouping : aggregate.groupings()) {
-                if ((grouping instanceof NamedExpression key && isContainer(key)) == false) {
-                    groupings.add(grouping);
-                    continue;
-                }
-                NamedExpression key = (NamedExpression) grouping;
-                if (aggregate instanceof TimeSeriesAggregate == false && keysWhole()) {
-                    // A key whole holds every label it has: none is split out of it to key on its own.
-                    Parts parts = define(key.id(), key instanceof Alias alias ? alias.child() : key);
-                    // Above the aggregate the key is the container, whole: what reads its labels reads them off the key.
-                    Attribute keyed = attribute(compared(parts, key.source()), MetadataAttribute.TIMESERIES, evals);
-                    groupings.add(keyed);
-                    parts.container = keyed;
-                    // the key holds the labels written back into it, and is without the others the container was without
-                    parts.without.removeAll(parts.labels.keySet());
-                    parts.labels = new TreeMap<>();
-                    wholeKeys.add(key.id());
+                if (grouping instanceof NamedExpression key && isContainer(key)) {
+                    groupings.addAll(loadKey(defineKey(key)));
                     keys.add(key.id());
-                    continue;
-                }
-                Parts parts = defineKey(key);
-                if (aggregate instanceof TimeSeriesAggregate) {
-                    groupings.addAll(loadKey(parts));
                 } else {
-                    materialize(parts, evals);
-                    if (parts.container != null) {
-                        groupings.add(parts.container);
-                    }
-                    parts.labels.values().forEach(label -> addIfAbsent(packedLabels, (Attribute) label));
+                    groupings.add(grouping);
                 }
-                keys.add(key.id());
             }
             source = null;
             if (keys.isEmpty()) {
                 return aggregate.transformExpressionsOnly(Expression.class, this::scalar);
             }
-            LogicalPlan child = evaluate(aggregate.child(), evals);
-            // the aggregates, with each container key replaced by its parts; the packed labels leave with the packed key
+            // the aggregates, with each container key replaced by its parts
             var aggregates = new ArrayList<NamedExpression>();
             for (NamedExpression aggregateExpression : aggregate.aggregates()) {
-                NameId id = aggregateExpression.id();
-                if (keys.contains(id)) {
-                    Parts key = containers.get(id);
+                if (keys.contains(aggregateExpression.id())) {
+                    Parts key = containers.get(aggregateExpression.id());
                     if (key.container != null) {
                         addIfAbsent(aggregates, (Attribute) key.container);
                     }
-                    if (packedLabels.isEmpty()) {
-                        key.labels.values().forEach(label -> addIfAbsent(aggregates, (Attribute) label));
-                    }
-                } else if (packedLabels.stream().noneMatch(label -> label.id().equals(id))) {
+                    key.labels.values().forEach(label -> addIfAbsent(aggregates, (Attribute) label));
+                } else {
                     addIfAbsent(aggregates, (NamedExpression) scalar(aggregateExpression));
                 }
             }
-            if (packedLabels.isEmpty()) {
-                return readKeyLabels(aggregate.with(child, groupings, aggregates), wholeKeys);
+            return aggregate.with(aggregate.child(), groupings, aggregates);
+        }
+
+        /**
+         * {@code aggregate} keyed by the typed container that keys in place of a pack of it: the grouping that names the pack names
+         * the container, and so does what reads the grouping above.
+         */
+        private Aggregate keyedInPlaceOfPacks(Aggregate aggregate) {
+            var groupings = new ArrayList<Expression>();
+            for (Expression grouping : aggregate.groupings()) {
+                Attribute key = Alias.unwrap(grouping) instanceof Attribute pack ? keyed.get(pack.id()) : null;
+                if (key == null) {
+                    groupings.add(grouping);
+                    continue;
+                }
+                keyed.put(((NamedExpression) grouping).id(), key);
+                groupings.add(key);
             }
-            return readKeyLabels(unpack(aggregate, child, groupings, aggregates, keys, packedLabels), wholeKeys);
+            if (groupings.equals(aggregate.groupings())) {
+                return aggregate;
+            }
+            var aggregates = new ArrayList<NamedExpression>();
+            for (NamedExpression aggregateExpression : aggregate.aggregates()) {
+                Attribute key = aggregateExpression instanceof Attribute attribute ? keyed.get(attribute.id()) : null;
+                addIfAbsent(aggregates, key != null ? key : aggregateExpression);
+            }
+            return aggregate.with(aggregate.child(), groupings, aggregates);
         }
 
         /**
@@ -744,57 +742,6 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
         }
 
         /**
-         * {@code aggregate} grouped by {@code groupings} and the {@code packedLabels} packed into one key, which is unpacked
-         * above it. An unpacked label keeps its id: what reads it above the aggregate reads the unpacked attribute.
-         */
-        private LogicalPlan unpack(
-            Aggregate aggregate,
-            LogicalPlan child,
-            List<Expression> groupings,
-            List<NamedExpression> aggregates,
-            List<NameId> keys,
-            List<Attribute> packedLabels
-        ) {
-            Source at = aggregate.source();
-            PackDims pack = new PackDims(at, child, packedLabels, PackDims.newPackedAttribute(at));
-            Alias packed = PackDims.newPackedGrouping(at, pack.packed());
-            groupings.add(packed);
-            aggregates.add(packed.toAttribute());
-            Aggregate packedAggregate = aggregate.with(pack, groupings, aggregates);
-            var unpacked = new LinkedHashMap<NameId, Attribute>();
-            for (Attribute label : packedLabels) {
-                unpacked.put(
-                    label.id(),
-                    new ReferenceAttribute(
-                        label.source(),
-                        null,
-                        label.name(),
-                        label.dataType().noText(),
-                        Nullability.TRUE,
-                        label.id(),
-                        false
-                    )
-                );
-            }
-            var output = new ArrayList<NamedExpression>();
-            for (NamedExpression aggregateExpression : aggregate.aggregates()) {
-                NameId id = aggregateExpression.id();
-                if (keys.contains(id) == false) {
-                    Attribute label = unpacked.get(id);
-                    addIfAbsent(output, label != null ? label : aggregateExpression.toAttribute());
-                    continue;
-                }
-                Parts key = containers.get(id);
-                if (key.container != null) {
-                    addIfAbsent(output, (Attribute) key.container);
-                }
-                key.labels.replaceAll((name, label) -> unpacked.get(((Attribute) label).id()));
-                key.labels.values().forEach(label -> addIfAbsent(output, (Attribute) label));
-            }
-            return new Project(at, new UnpackDims(at, packedAggregate, packed.toAttribute(), List.copyOf(unpacked.values())), output);
-        }
-
-        /**
          * Each part of a label container is evaluated once, here, where the container is defined: what names the container above
          * names its parts. A container that is an attribute already is not evaluated again.
          */
@@ -852,58 +799,15 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
         }
 
         /**
-         * The join on the parts of its label container keys, packed into one key: each container whole where either side has
-         * one, its labels by name otherwise.
+         * The join with what it adds of its label containers replaced by their parts: under the container's name, so they cannot
+         * shadow the left side's labels, as the join merges its output by name. It keys by a container packed (see
+         * {@link #rewritePackDims}).
          */
         private LogicalPlan rewriteHashJoin(HashJoin join) {
-            var leftEvals = new ArrayList<Alias>();
-            var rightEvals = new ArrayList<Alias>();
-            var leftLabels = new ArrayList<Attribute>();
-            var rightLabels = new ArrayList<Attribute>();
-            var leftFields = new ArrayList<Attribute>();
-            var rightFields = new ArrayList<Attribute>();
-            for (int i = 0; i < join.leftFields().size(); i++) {
-                Attribute left = join.leftFields().get(i);
-                Attribute right = join.rightFields().get(i);
-                if ((isContainer(left) && isContainer(right)) == false) {
-                    leftFields.add(left);
-                    rightFields.add(right);
-                    continue;
-                }
-                Parts l = record(left);
-                Parts r = record(right);
-                if (keysWhole()) {
-                    // each side keys by its container whole: the same label set is the same value on both sides
-                    Expression leftKey = compared(l, left.source());
-                    Expression rightKey = compared(r, right.source());
-                    if (leftKey instanceof Literal && leftKey.equals(rightKey)) {
-                        // the same label set on every row of both sides tells no pair apart
-                        continue;
-                    }
-                    leftFields.add(attribute(leftKey, MetadataAttribute.TIMESERIES, leftEvals));
-                    rightFields.add(attribute(rightKey, MetadataAttribute.TIMESERIES, rightEvals));
-                    continue;
-                }
-                if (l.container != null || r.container != null) {
-                    // a container compares whole: its labels are what the other side holds in or outside its own
-                    leftLabels.add(attribute(compared(l, left.source()), MetadataAttribute.TIMESERIES, leftEvals));
-                    rightLabels.add(attribute(compared(r, right.source()), MetadataAttribute.TIMESERIES, rightEvals));
-                    continue;
-                }
-                // no container: the labels compare by name, absent where a side has none
-                var names = new TreeSet<>(l.labels.keySet());
-                names.addAll(r.labels.keySet());
-                for (String name : names) {
-                    leftLabels.add(attribute(label(l, name, left.source()), name, leftEvals));
-                    rightLabels.add(attribute(label(r, name, right.source()), name, rightEvals));
-                }
+            if (join.addedFields().stream().noneMatch(this::isContainer)) {
+                return join;
             }
-            LogicalPlan leftChild = evaluate(join.left(), leftEvals);
-            LogicalPlan rightChild = evaluate(join.right(), rightEvals);
-            rightChild = pack(rightChild, rightLabels, rightFields);
-            // The join merges its output by name: the right side keeps its keys and what it adds, a container's parts under the
-            // container's name, so they cannot shadow the left side's labels.
-            var projections = new ArrayList<NamedExpression>(rightFields);
+            var projections = new ArrayList<NamedExpression>(join.rightFields());
             var added = new ArrayList<Attribute>();
             for (Attribute attribute : join.addedFields()) {
                 if (isContainer(attribute) == false) {
@@ -929,56 +833,105 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
             }
             return new HashJoin(
                 join.source(),
-                pack(leftChild, leftLabels, leftFields),
-                new Project(rightChild.source(), rightChild, projections),
-                leftFields,
-                rightFields,
+                join.left(),
+                new Project(join.right().source(), join.right(), projections),
+                join.leftFields(),
+                join.rightFields(),
                 added,
                 join.unique(),
                 join.config().type()
             );
         }
 
-        private LogicalPlan rewriteTopNBy(TopNBy topNBy) {
-            var evals = new ArrayList<Alias>();
-            var labels = new ArrayList<Attribute>();
-            var groupings = new ArrayList<Expression>();
-            for (Expression grouping : topNBy.groupings()) {
-                if ((grouping instanceof Attribute attribute && isContainer(attribute)) == false) {
-                    groupings.add(scalar(grouping));
-                    continue;
-                }
-                Parts parts = record(grouping);
-                if (keysWhole()) {
-                    groupings.add(attribute(compared(parts, grouping.source()), MetadataAttribute.TIMESERIES, evals));
-                    continue;
-                }
-                if (parts.container != null) {
-                    groupings.add(parts.container);
-                }
-                // a label the container holds too is compared with it
-                parts.outside().values().forEach(label -> addIfAbsent(labels, (Attribute) label));
-            }
-            LogicalPlan child = pack(evaluate(topNBy.child(), evals), labels, groupings);
-            return new TopNBy(topNBy.source(), child, topNBy.order(), topNBy.limitPerGroup(), groupings);
-        }
-
         /**
-         * The pack of the parts of its label containers: the container that is left, and each label it does not hold.
+         * The pack of the parts of each label container it reads. A typed container is packed whole, the promoted labels it does
+         * not hold written back: the same label set is the same value wherever it is packed. A pack of one typed container is
+         * gone: the container keys as it is. A keyword container cannot be written to: the container that is left is packed with
+         * each promoted label, a label of several values as a whole. A container no part is left of packs as absent.
          */
         private LogicalPlan rewritePackDims(PackDims pack) {
             var evals = new ArrayList<Alias>();
             var dims = new ArrayList<Attribute>();
             for (Attribute dim : pack.dims()) {
                 if (isContainer(dim) == false) {
-                    dims.add(dim);
-                } else if (keysWhole()) {
-                    addIfAbsent(dims, attribute(compared(record(dim), dim.source()), MetadataAttribute.TIMESERIES, evals));
-                } else {
-                    keys(record(dim)).forEach(part -> addIfAbsent(dims, (Attribute) part));
+                    addIfAbsent(dims, dim);
+                    continue;
                 }
+                Parts parts = record(dim);
+                var taken = new ArrayList<Attribute>();
+                if (keysWhole()) {
+                    taken.add(attribute(whole(parts, dim.source()), MetadataAttribute.TIMESERIES, evals));
+                } else {
+                    dropCopies(dim.id(), parts);
+                    materialize(parts, evals);
+                    if (parts.container != null) {
+                        taken.add((Attribute) parts.container);
+                    }
+                    parts.labels.values().forEach(label -> taken.add((Attribute) label));
+                    if (taken.isEmpty()) {
+                        taken.add(attribute(absent(dim.source()), MetadataAttribute.TIMESERIES, evals));
+                    }
+                }
+                packed.put(dim.id(), taken);
+                taken.forEach(part -> addIfAbsent(dims, part));
+            }
+            if (keysWhole() && pack.dims().size() == 1 && packed.containsKey(pack.dims().getFirst().id())) {
+                // One typed container is one value per row, the same for the same label set: it keys as it is, and what names
+                // the pack names it instead.
+                keyed.put(pack.packed().id(), dims.getFirst());
+                return evaluate(pack.child(), evals);
             }
             return new PackDims(pack.source(), evaluate(pack.child(), evals), dims, pack.packed());
+        }
+
+        /**
+         * The unpack of what {@link #rewritePackDims} packed of each label container: each part keeps its id, so the parts of the
+         * container above are the parts below. A container packed whole is unpacked whole, and where its pack is gone the
+         * aggregate returns it as it is: a label read off it above reads off the key, which holds every label of the group.
+         */
+        private LogicalPlan rewriteUnpackDims(UnpackDims unpack) {
+            boolean gone = keyed.containsKey(unpack.packed().id());
+            var dims = new ArrayList<Attribute>();
+            var whole = new ArrayList<NameId>();
+            for (Attribute dim : unpack.dims()) {
+                List<Attribute> taken = packed.get(dim.id());
+                if (taken == null) {
+                    addIfAbsent(dims, dim);
+                    continue;
+                }
+                var unpacked = new HashMap<NameId, Attribute>();
+                for (Attribute part : taken) {
+                    // where the pack is gone, the aggregate returns the part as it is
+                    Attribute attribute = gone
+                        ? part
+                        : new ReferenceAttribute(
+                            part.source(),
+                            null,
+                            part.name(),
+                            part.dataType().noText(),
+                            Nullability.TRUE,
+                            part.id(),
+                            false
+                        );
+                    unpacked.put(part.id(), attribute);
+                    addIfAbsent(dims, attribute);
+                }
+                Parts key = containers.get(dim.id());
+                if (keysWhole()) {
+                    // the key holds the labels written back into it, and is without the others the container was without
+                    key.container = unpacked.get(taken.getFirst().id());
+                    key.without.removeAll(key.labels.keySet());
+                    key.labels = new TreeMap<>();
+                    whole.add(dim.id());
+                } else {
+                    if (key.container != null) {
+                        key.container = unpacked.get(((Attribute) key.container).id());
+                    }
+                    key.labels.replaceAll((name, label) -> unpacked.get(((Attribute) label).id()));
+                }
+            }
+            LogicalPlan plan = gone ? unpack.child() : new UnpackDims(unpack.source(), unpack.child(), unpack.packed(), dims);
+            return readKeyLabels(plan, whole);
         }
 
         private boolean isContainer(NamedExpression named) {
@@ -1205,7 +1158,7 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
                     for (Expression key : hash.children()) {
                         if (key.dataType() == DataType.TIME_SERIES_METADATA_DATA_TYPE && reads(key) && keysWhole()) {
                             // the container whole: the same series hashes alike whatever labels a plan promotes
-                            keys.add(compared(record(key), key.source()));
+                            keys.add(whole(record(key), key.source()));
                         } else if (key.dataType() == DataType.TIME_SERIES_METADATA_DATA_TYPE && reads(key)) {
                             // Each label once: a label in the container too would hash twice, so the same series would hash apart
                             // in plans that promote different labels.

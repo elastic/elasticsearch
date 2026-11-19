@@ -343,6 +343,18 @@ public final class RestoreService implements ClusterStateApplier {
         final ActionListener<RestoreCompletionResponse> listener,
         final BiConsumer<ClusterState, ProjectMetadata.Builder> updater
     ) {
+        restoreSnapshot(projectId, request, restoreUUID, reportShardRestoring, /* requireDataStreamTemplates = */ false, listener, updater);
+    }
+
+    public void restoreSnapshot(
+        final ProjectId projectId,
+        final RestoreSnapshotRequest request,
+        final String restoreUUID,
+        final boolean reportShardRestoring,
+        final boolean requireDataStreamTemplates,
+        final ActionListener<RestoreCompletionResponse> listener,
+        final BiConsumer<ClusterState, ProjectMetadata.Builder> updater
+    ) {
         Objects.requireNonNull(restoreUUID);
         if (SnapshotRecoverySource.NO_API_RESTORE_UUID.equals(restoreUUID)) {
             throw new IllegalArgumentException(
@@ -417,6 +429,7 @@ public final class RestoreService implements ClusterStateApplier {
                     restoreUUID,
                     updater,
                     reportShardRestoring,
+                    requireDataStreamTemplates,
                     responseListener
                 )
             )
@@ -447,6 +460,7 @@ public final class RestoreService implements ClusterStateApplier {
      *                       as the restore operation
      * @param reportShardRestoring whether requests that hit a shard of this restore should fail with {@link ShardRestoringException};
      *                             see {@link RestoreInProgress.Entry#reportShardRestoring()}
+     * @param requireDataStreamTemplates whether restore fails if the name that a data stream is restored to has no matching index template
      * @param listener       listener to resolve once restore has been started
      * @throws IOException   on failure to load metadata from the repository
      */
@@ -458,6 +472,7 @@ public final class RestoreService implements ClusterStateApplier {
         String restoreUUID,
         BiConsumer<ClusterState, ProjectMetadata.Builder> updater,
         boolean reportShardRestoring,
+        boolean requireDataStreamTemplates,
         ActionListener<RestoreCompletionResponse> listener
     ) throws IOException {
         assert Repository.assertSnapshotMetaThread();
@@ -527,7 +542,10 @@ public final class RestoreService implements ClusterStateApplier {
         Map<String, DataStream> dataStreamsToRestore = result.v1();
         Map<String, DataStreamAlias> dataStreamAliasesToRestore = result.v2();
 
-        validateDataStreamTemplatesExistAndWarnIfMissing(dataStreamsToRestore, snapshotInfo, globalMetadata);
+        // A restore that requires the templates fails when it starts, instead of warning about a data stream that has none
+        if (requireDataStreamTemplates == false) {
+            validateDataStreamTemplatesExistAndWarnIfMissing(dataStreamsToRestore, snapshotInfo, globalMetadata);
+        }
         ensureNoDataStreamMatchesSystemIndexPattern(dataStreamsToRestore.values(), request, systemIndices, snapshot);
 
         // Remove the data streams from the list of requested indices
@@ -708,6 +726,7 @@ public final class RestoreService implements ClusterStateApplier {
                 clusterService.getSettings(),
                 restoreUUID,
                 reportShardRestoring,
+                requireDataStreamTemplates,
                 existingDataStreamTargets,
                 openIndexTargets
             )
@@ -839,6 +858,7 @@ public final class RestoreService implements ClusterStateApplier {
                 clusterService.getSettings(),
                 restoreUUID,
                 reportShardRestoring,
+                /* requireDataStreamTemplates = */ false,
                 List.of(),
                 openIndexTargets
             )
@@ -1020,6 +1040,9 @@ public final class RestoreService implements ClusterStateApplier {
                 clusterService.getSettings(),
                 restoreUUID,
                 reportShardRestoring,
+                // the data streams that are restored over already have to have a matching template, see
+                // validateAndDeleteExistingDataStreams
+                /* requireDataStreamTemplates = */ false,
                 List.copyOf(targets),
                 Map.of()
             )
@@ -1429,6 +1452,31 @@ public final class RestoreService implements ClusterStateApplier {
     }
 
     public record RestoreCompletionResponse(String uuid, Snapshot snapshot, RestoreInfo restoreInfo) {}
+
+    /**
+     * The failure of a restore that requires index templates for its data streams (see
+     * {@link #restoreSnapshot(ProjectId, RestoreSnapshotRequest, String, boolean, boolean, ActionListener, BiConsumer)}) when no
+     * index template with a data stream configuration matches the name that one of them is restored to. It is an
+     * {@link IllegalArgumentException} with the message of creating that data stream, so that it is the same bad request, which lets
+     * the caller tell it apart from the other failures of a restore by its type and not by its message.
+     * <p>
+     * The restore fails in a cluster state update that runs on the master node, which is also where the caller of the restore is, so this
+     * is not sent over the transport and, unlike an {@link org.elasticsearch.ElasticsearchException}, is not registered for that.
+     */
+    public static final class MissingDataStreamTemplateException extends IllegalArgumentException {
+
+        private final String dataStream;
+
+        public MissingDataStreamTemplateException(String dataStream, IllegalArgumentException cause) {
+            super(cause.getMessage(), cause);
+            this.dataStream = dataStream;
+        }
+
+        /** The name that the data stream is restored to, after the renaming of the restore, which no index template matches. */
+        public String dataStream() {
+            return dataStream;
+        }
+    }
 
     public static class RestoreInProgressUpdater implements RoutingChangesObserver {
         // Map of RestoreUUID to a of changes to the shards' restore statuses
@@ -2180,6 +2228,13 @@ public final class RestoreService implements ClusterStateApplier {
         private final boolean reportShardRestoring;
 
         /**
+         * Whether the name that every data stream is restored to must have a matching index template with a data stream configuration, in
+         * the project as it is when this task runs, see
+         * {@link RestoreService#restoreSnapshot(ProjectId, RestoreSnapshotRequest, String, boolean, boolean, ActionListener, BiConsumer)}.
+         */
+        private final boolean requireDataStreamTemplates;
+
+        /**
          * The restore request that triggered this restore task.
          */
         private final RestoreSnapshotRequest request;
@@ -2242,6 +2297,7 @@ public final class RestoreService implements ClusterStateApplier {
             Settings settings,
             String restoreUUID,
             boolean reportShardRestoring,
+            boolean requireDataStreamTemplates,
             Collection<DataStreamRestoreTarget> existingDataStreamTargets,
             Map<String, Index> openIndexTargets
         ) {
@@ -2258,6 +2314,7 @@ public final class RestoreService implements ClusterStateApplier {
             this.listener = new AllocationActionListener<>(listener, threadPool.getThreadContext());
             this.restoreUUID = restoreUUID;
             this.reportShardRestoring = reportShardRestoring;
+            this.requireDataStreamTemplates = requireDataStreamTemplates;
             this.existingDataStreamTargets = existingDataStreamTargets;
             this.openIndexTargets = openIndexTargets;
         }
@@ -2287,6 +2344,20 @@ public final class RestoreService implements ClusterStateApplier {
 
             // Check if the snapshot to restore is currently being deleted
             ensureSnapshotNotDeleted(currentState);
+
+            if (requireDataStreamTemplates) {
+                final ProjectMetadata projectWithTemplates = currentState.metadata().getProject(projectId);
+                for (DataStream dataStream : dataStreamsToRestore) {
+                    if (dataStream.isSystem() == false) {
+                        final String destination = renameDataStream(dataStream.getName(), request);
+                        try {
+                            MetadataCreateDataStreamService.lookupTemplateForDataStream(destination, projectWithTemplates);
+                        } catch (IllegalArgumentException e) {
+                            throw new MissingDataStreamTemplateException(destination, e);
+                        }
+                    }
+                }
+            }
 
             // Deleting a data stream removes it from its aliases, so the aliases that the data streams that are restored over are in have
             // to be taken from the project as it is before they are deleted.

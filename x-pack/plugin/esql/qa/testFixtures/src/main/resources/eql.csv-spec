@@ -10,7 +10,7 @@ required_capability: eql_command_size_independent_of_limit
 EQL eql_test "process where true" WITH {"event_category_field": "category"}
 | STATS count = COUNT(*)
 ;
-warning:Line 1:1 [EQL eql_test \"process where true\" WITH {\"event_category_field\": \"category\"}]: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
+warning:Line 1:1: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
 
 count:long
 2
@@ -23,7 +23,7 @@ required_capability: eql_command_size_independent_of_limit
 EQL eql_test "process where pid == 100" WITH {"event_category_field": "category"}
 | STATS count = COUNT(*)
 ;
-warning:Line 1:1 [EQL eql_test \"process where pid == 100\" WITH {\"event_category_field\": \"category\"}]: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
+warning:Line 1:1: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
 
 count:long
 1
@@ -38,7 +38,7 @@ required_capability: eql_command_size_independent_of_limit
 EQL eql_test "process where true" WITH {"event_category_field": "category", "timestamp_field": "ingested", "tiebreaker_field": "pid"}
 | STATS count = COUNT(*)
 ;
-warning:Line 1:1 [EQL eql_test \"process where true\" WITH {\"event_category_field\": \"category\", \"timestamp_field\": \"ingested\", \"tiebreaker_field\": \"pid\"}]: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
+warning:Line 1:1: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
 
 count:long
 2
@@ -53,7 +53,7 @@ EQL eql_test "process where true" WITH {"event_category_field": "category"}
 | WHERE pid == 100
 | KEEP name, pid
 ;
-warning:Line 1:1 [EQL eql_test \"process where true\" WITH {\"event_category_field\": \"category\"}]: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
+warning:Line 1:1: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
 
 name:keyword | pid:long
 cmd.exe      | 100
@@ -69,7 +69,7 @@ EQL eql_test "process where true" WITH {"event_category_field": "category"}
 | KEEP @timestamp, name
 | SORT name
 ;
-warning:Line 1:1 [EQL eql_test \"process where true\" WITH {\"event_category_field\": \"category\"}]: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
+warning:Line 1:1: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
 
 @timestamp:datetime      | name:keyword
 2026-07-22T10:00:00.000Z | cmd.exe
@@ -84,7 +84,7 @@ EQL eql_test "process where true" WITH {"event_category_field": "category"}
 | STATS count = COUNT(*) BY name
 | SORT name
 ;
-warning:Line 1:1 [EQL eql_test \"process where true\" WITH {\"event_category_field\": \"category\"}]: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
+warning:Line 1:1: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
 
 count:long | name:keyword
 1          | cmd.exe
@@ -100,7 +100,7 @@ EQL eql_test "process where true" WITH {"event_category_field": "category"}
 | SORT name
 | LIMIT 1
 ;
-warning:Line 1:1 [EQL eql_test \"process where true\" WITH {\"event_category_field\": \"category\"}]: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
+warning:Line 1:1: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
 
 name:keyword
 cmd.exe
@@ -114,7 +114,7 @@ EQL eql_test "sequence by pid [process where true] [network where true]" WITH {"
 | KEEP join_keys, _sequence_stage
 | SORT join_keys, _sequence_stage
 ;
-warning:Line 1:1 [EQL eql_test \"sequence by pid [process where true] [network where true]\" WITH {\"event_category_field\": \"category\"}]: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
+warning:Line 1:1: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
 
 join_keys:keyword | _sequence_stage:integer
 100               | 0
@@ -130,7 +130,7 @@ required_capability: eql_command_size_independent_of_limit
 EQL eql_test "sequence by pid [process where true] [network where true]" WITH {"event_category_field": "category"}
 | STATS events = COUNT(*), sequences = COUNT_DISTINCT(_sequence)
 ;
-warning:Line 1:1 [EQL eql_test \"sequence by pid [process where true] [network where true]\" WITH {\"event_category_field\": \"category\"}]: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
+warning:Line 1:1: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
 
 events:long | sequences:long
 4           | 2
@@ -145,7 +145,7 @@ request_time_filter: 2026-07-22T10:00:01.000Z,2026-07-22T10:00:03.000Z
 EQL eql_test "process where true" WITH {"event_category_field": "category"}
 | KEEP name, pid
 ;
-warning:Line 1:1 [EQL eql_test \"process where true\" WITH {\"event_category_field\": \"category\"}]: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
+warning:Line 1:1: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
 
 name:keyword   | pid:long
 powershell.exe | 200
@@ -161,7 +161,7 @@ EQL eql_test "sequence by pid [process where true] [network where true]" WITH {"
 | KEEP join_keys, _sequence_stage
 | SORT join_keys, _sequence_stage
 ;
-warning:Line 1:1 [EQL eql_test \"sequence by pid [process where true] [network where true]\" WITH {\"event_category_field\": \"category\"}]: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
+warning:Line 1:1: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
 
 join_keys:keyword | _sequence_stage:integer
 200               | 0
@@ -178,7 +178,7 @@ EQL eql_test "process where true" METADATA _index WITH {"event_category_field": 
 | KEEP name, _index
 | SORT name
 ;
-warning:Line 1:1 [EQL eql_test \"process where true\" METADATA _index WITH {\"event_category_field\": \"category\"}]: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
+warning:Line 1:1: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
 
 name:keyword   | _index:keyword
 cmd.exe        | eql_test
@@ -193,7 +193,7 @@ required_capability: eql_command_size_independent_of_limit
 EQL eql_test "process where true" METADATA _index, _id WITH {"event_category_field": "category"}
 | STATS n = COUNT(*), idx = COUNT_DISTINCT(_index), ids = COUNT_DISTINCT(_id)
 ;
-warning:Line 1:1 [EQL eql_test \"process where true\" METADATA _index, _id WITH {\"event_category_field\": \"category\"}]: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
+warning:Line 1:1: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
 
 n:long | idx:long | ids:long
 2      | 1        | 2
@@ -208,7 +208,7 @@ EQL eql_test "process where true" METADATA _source WITH {"event_category_field":
 | WHERE _source IS NOT NULL
 | STATS n = COUNT(*)
 ;
-warning:Line 1:1 [EQL eql_test \"process where true\" METADATA _source WITH {\"event_category_field\": \"category\"}]: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
+warning:Line 1:1: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
 
 n:long
 2
@@ -222,7 +222,7 @@ required_capability: eql_command_size_independent_of_limit
 EQL eql_test "sequence by pid [process where true] [network where true]" METADATA _index WITH {"event_category_field": "category"}
 | STATS events = COUNT(*), sequences = COUNT_DISTINCT(_sequence) BY _index
 ;
-warning:Line 1:1 [EQL eql_test \"sequence by pid [process where true] [network where true]\" METADATA _index WITH {\"event_category_field\": \"category\"}]: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
+warning:Line 1:1: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
 
 events:long | sequences:long | _index:keyword
 4           | 2              | eql_test
@@ -238,7 +238,7 @@ EQL eql_test "process where true" WITH {"event_category_field": "category"}
 | KEEP name, unmapped_host
 | SORT name
 ;
-warning:Line 2:1 [EQL eql_test \"process where true\" WITH {\"event_category_field\": \"category\"}]: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
+warning:Line 2:1: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
 
 name:keyword   | unmapped_host:null
 cmd.exe        | null
@@ -254,7 +254,7 @@ SET unmapped_fields="nullify"\;
 EQL eql_test "process where true" WITH {"event_category_field": "category"}
 | STATS n = COUNT(*), present = COUNT(unmapped_host)
 ;
-warning:Line 2:1 [EQL eql_test \"process where true\" WITH {\"event_category_field\": \"category\"}]: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
+warning:Line 2:1: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
 
 n:long | present:long
 2      | 0
@@ -276,7 +276,7 @@ required_capability: eql_command_size_independent_of_limit
 FROM (EQL eql_test "process where true" WITH {"event_category_field": "category"} | KEEP name, pid)
 | SORT name
 ;
-warning:Line 1:7 [EQL eql_test \"process where true\" WITH {\"event_category_field\": \"category\"}]: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
+warning:Line 1:7: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
 
 name:keyword   | pid:long
 cmd.exe        | 100
@@ -295,7 +295,7 @@ FROM (EQL eql_test "process where pid == 100" WITH {"event_category_field": "cat
 | STATS count = COUNT(*) BY name
 | SORT name
 ;
-warning:Line 1:7 [EQL eql_test \"process where pid == 100\" WITH {\"event_category_field\": \"category\"}]: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
+warning:Line 1:7: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
 
 count:long | name:keyword
 1          | cmd.exe
@@ -313,7 +313,7 @@ FROM eql_test
 | WHERE pid IN (EQL eql_test "process where pid == 100" WITH {"event_category_field": "category"} | KEEP pid)
 | STATS count = COUNT(*)
 ;
-warning:Line 2:17 [EQL eql_test \"process where pid == 100\" WITH {\"event_category_field\": \"category\"}]: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
+warning:Line 2:17: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
 
 count:long
 2
@@ -329,7 +329,7 @@ FROM eql_test
 | WHERE pid IN (EQL eql_test "process where true" WITH {"event_category_field": "category", "result_position": "head"} | WHERE pid > 100 | LIMIT 1 | KEEP pid)
 | STATS count = COUNT(*)
 ;
-warning:Line 2:17 [EQL eql_test \"process where true\" WITH {\"event_category_field\": \"category\", \"result_position\": \"head\"}]: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
+warning:Line 2:17: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
 
 count:long
 2
@@ -346,7 +346,7 @@ EQL eql_test "process where true" WITH {"event_category_field": "category"}
 | KEEP name, pid, _fork
 | SORT pid
 ;
-warning:Line 1:1 [EQL eql_test \"process where true\" WITH {\"event_category_field\": \"category\"}]: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
+warning:Line 1:1: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
 
 name:keyword   | pid:long | _fork:keyword
 cmd.exe        | 100      | fork1
@@ -370,7 +370,7 @@ EQL eql_test "process where true" WITH {"event_category_field": "category"}
 | KEEP name, pid, language_name
 | SORT name
 ;
-warning:Line 1:1 [EQL eql_test \"process where true\" WITH {\"event_category_field\": \"category\"}]: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
+warning:Line 1:1: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
 
 name:keyword   | pid:long | language_name:keyword
 cmd.exe        | 100      | English
@@ -389,7 +389,7 @@ EQL eql_test "sequence by pid [process where true] [network where true]" WITH {"
 | STATS events = COUNT(*), sequences = COUNT_DISTINCT(_sequence) BY language_name
 | SORT language_name
 ;
-warning:Line 1:1 [EQL eql_test \"sequence by pid [process where true] [network where true]\" WITH {\"event_category_field\": \"category\"}]: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
+warning:Line 1:1: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
 
 events:long | sequences:long | language_name:keyword
 2           | 1              | English
@@ -412,7 +412,7 @@ FROM eql_test
                 | KEEP pid)
 | STATS count = COUNT(*)
 ;
-warning:Line 2:17 [EQL eql_test \"process where true\" WITH {\"event_category_field\": \"category\"}]: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
+warning:Line 2:17: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
 
 count:long
 2
@@ -432,7 +432,7 @@ FROM eql_test
 | KEEP category, pid, language_name
 | SORT category
 ;
-warning:Line 2:17 [EQL eql_test \"process where pid == 200\" WITH {\"event_category_field\": \"category\"}]: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
+warning:Line 2:17: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
 
 category:keyword | pid:long | language_name:keyword
 network          | 200      | French
@@ -450,7 +450,7 @@ EQL eql_test "process where true" WITH {"event_category_field": "category"}
 | KEEP name, pid, language_name
 | SORT name
 ;
-warning:Line 1:1 [EQL eql_test \"process where true\" WITH {\"event_category_field\": \"category\"}]: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
+warning:Line 1:1: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
 
 name:keyword   | pid:long | language_name:keyword
 cmd.exe        | 100      | English
@@ -468,7 +468,7 @@ EQL eql_test "process where true" WITH {"event_category_field": "category"}
 | KEEP name, pid, language_name
 | SORT name
 ;
-warning:Line 1:1 [EQL eql_test \"process where true\" WITH {\"event_category_field\": \"category\"}]: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
+warning:Line 1:1: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
 
 name:keyword   | pid:long | language_name:keyword
 cmd.exe        | 100      | English
@@ -489,7 +489,7 @@ eventQueryEqual
 required_capability: eql_command
 required_capability: eql_command_size_independent_of_limit
 EQL endgame-140 "process where serial_event_id == 1" | LIMIT 100 | SORT serial_event_id | KEEP serial_event_id;
-warning:Line 1:1 [EQL endgame-140 \"process where serial_event_id == 1\"]: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
+warning:Line 1:1: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
 
 serial_event_id:long
 1
@@ -499,7 +499,7 @@ eventQueryLessThan
 required_capability: eql_command
 required_capability: eql_command_size_independent_of_limit
 EQL endgame-140 "process where serial_event_id < 4" | LIMIT 100 | SORT serial_event_id | KEEP serial_event_id;
-warning:Line 1:1 [EQL endgame-140 \"process where serial_event_id < 4\"]: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
+warning:Line 1:1: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
 
 serial_event_id:long
 1
@@ -511,7 +511,7 @@ eventQueryFalse
 required_capability: eql_command
 required_capability: eql_command_size_independent_of_limit
 EQL endgame-140 "process where false" | LIMIT 100 | SORT serial_event_id | KEEP serial_event_id;
-warning:Line 1:1 [EQL endgame-140 \"process where false\"]: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
+warning:Line 1:1: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
 
 serial_event_id:long
 ;
@@ -520,7 +520,7 @@ eventQueryRange
 required_capability: eql_command
 required_capability: eql_command_size_independent_of_limit
 EQL endgame-140 "process where serial_event_id <= 8 and serial_event_id > 7" | LIMIT 100 | SORT serial_event_id | KEEP serial_event_id;
-warning:Line 1:1 [EQL endgame-140 \"process where serial_event_id <= 8 and serial_event_id > 7\"]: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
+warning:Line 1:1: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
 
 serial_event_id:long
 8
@@ -530,7 +530,7 @@ eventQueryProcessNameOrRange
 required_capability: eql_command
 required_capability: eql_command_size_independent_of_limit
 EQL endgame-140 "process where process_name : \"impossible name\" or (serial_event_id < 4.5 and serial_event_id >= 3.1)" | LIMIT 100 | SORT serial_event_id | KEEP serial_event_id;
-warning:Line 1:1 [EQL endgame-140 \"process where process_name : \\\"impossible name\\\" or (serial_event_id < 4.5 and serial_event_id >= 3.1)\"]: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
+warning:Line 1:1: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
 
 serial_event_id:long
 4
@@ -557,7 +557,7 @@ eventQueryDefaultSizeReturnsLastTenMatches
 required_capability: eql_command
 required_capability: eql_command_size_independent_of_limit
 EQL endgame-140 "process where serial_event_id <= 12" WITH {"tiebreaker_field": "serial_event_id"} | KEEP serial_event_id | SORT serial_event_id;
-warning:Line 1:1 [EQL endgame-140 \"process where serial_event_id <= 12\" WITH {\"tiebreaker_field\": \"serial_event_id\"}]: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
+warning:Line 1:1: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
 
 serial_event_id:long
 3
@@ -576,7 +576,7 @@ eventQueryLimitDoesNotRaiseTheDefaultSize
 required_capability: eql_command
 required_capability: eql_command_size_independent_of_limit
 EQL endgame-140 "process where serial_event_id <= 12" WITH {"tiebreaker_field": "serial_event_id"} | LIMIT 100 | SORT serial_event_id | KEEP serial_event_id;
-warning:Line 1:1 [EQL endgame-140 \"process where serial_event_id <= 12\" WITH {\"tiebreaker_field\": \"serial_event_id\"}]: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
+warning:Line 1:1: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
 
 serial_event_id:long
 3
@@ -617,7 +617,7 @@ eventQueryHeadSix
 required_capability: eql_command
 required_capability: eql_command_size_independent_of_limit
 EQL endgame-140 "process where true | head 6" WITH {"tiebreaker_field": "serial_event_id"} | LIMIT 100 | KEEP serial_event_id;
-warning:Line 1:1 [EQL endgame-140 \"process where true | head 6\" WITH {\"tiebreaker_field\": \"serial_event_id\"}]: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
+warning:Line 1:1: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
 
 serial_event_id:long
 1
@@ -633,7 +633,7 @@ eventQueryNullEqualityHeadSeven
 required_capability: eql_command
 required_capability: eql_command_size_independent_of_limit
 EQL endgame-140 "process where null == (exit_code > -1) | head 7" WITH {"tiebreaker_field": "serial_event_id"} | LIMIT 100 | KEEP serial_event_id;
-warning:Line 1:1 [EQL endgame-140 \"process where null == (exit_code > -1) | head 7\" WITH {\"tiebreaker_field\": \"serial_event_id\"}]: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
+warning:Line 1:1: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
 
 serial_event_id:long
 1
@@ -650,7 +650,7 @@ eventQueryTailThree
 required_capability: eql_command
 required_capability: eql_command_size_independent_of_limit
 EQL endgame-140 "file where true | tail 3" WITH {"tiebreaker_field": "serial_event_id"} | LIMIT 100 | KEEP serial_event_id;
-warning:Line 1:1 [EQL endgame-140 \"file where true | tail 3\" WITH {\"tiebreaker_field\": \"serial_event_id\"}]: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
+warning:Line 1:1: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
 
 serial_event_id:long
 92
@@ -663,7 +663,7 @@ sequenceDoubleSameProcess
 required_capability: eql_command
 required_capability: eql_command_size_independent_of_limit
 EQL endgame-140 "sequence [process where serial_event_id < 5] [process where serial_event_id < 5]" WITH {"tiebreaker_field": "serial_event_id"} | LIMIT 100 | KEEP _sequence, serial_event_id;
-warning:Line 1:1 [EQL endgame-140 \"sequence [process where serial_event_id < 5] [process where serial_event_id < 5]\" WITH {\"tiebreaker_field\": \"serial_event_id\"}]: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
+warning:Line 1:1: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
 
 _sequence:long |serial_event_id:long
 0        |1
@@ -679,7 +679,7 @@ sequenceByUniquePidProcessNetwork
 required_capability: eql_command
 required_capability: eql_command_size_independent_of_limit
 EQL endgame-140 "sequence by unique_pid [process where opcode == 1 and process_name : \"MSBuild.exe\"] [network where true]" WITH {"tiebreaker_field": "serial_event_id"} | LIMIT 100 | KEEP _sequence, serial_event_id;
-warning:Line 1:1 [EQL endgame-140 \"sequence by unique_pid [process where opcode == 1 and process_name : \\\"MSBuild.exe\\\"] [network where true]\" WITH {\"tiebreaker_field\": \"serial_event_id\"}]: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
+warning:Line 1:1: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
 
 _sequence:long |serial_event_id:long
 0        |75273
@@ -694,7 +694,7 @@ sampleComplexFilters
 required_capability: eql_command
 required_capability: eql_command_size_independent_of_limit
 EQL sample1,sample2,sample3 "sample by host [any where uptime > 0 and host == \"doom\" and (uptime > 15 or bool == true)] by os [any where port > 100 and ip == \"10.0.0.5\" or op_sys : \"REDHAT\"] by op_sys [any where bool == true] by os" METADATA _id | LIMIT 100 | EVAL id = TO_LONG(_id) | KEEP _sequence, id;
-warning:Line 1:1 [EQL sample1,sample2,sample3 \"sample by host [any where uptime > 0 and host == \\\"doom\\\" and (uptime > 15 or bool == true)] by os [any where port > 100 and ip == \\\"10.0.0.5\\\" or op_sys : \\\"REDHAT\\\"] by op_sys [any where bool == true] by os\" METADATA _id]: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
+warning:Line 1:1: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
 
 _sequence:long |id:long
 0        |17
@@ -707,7 +707,7 @@ sampleSimpleIpAsKey
 required_capability: eql_command
 required_capability: eql_command_size_independent_of_limit
 EQL sample1,sample2,sample3 "sample [success where true] by ip [alert where startsWith~(os,\"win\")] by host_ip" METADATA _id | LIMIT 100 | EVAL id = TO_LONG(_id) | KEEP _sequence, id;
-warning:Line 1:1 [EQL sample1,sample2,sample3 \"sample [success where true] by ip [alert where startsWith~(os,\\\"win\\\")] by host_ip\" METADATA _id]: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
+warning:Line 1:1: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
 
 _sequence:long |id:long
 0        |28
@@ -719,7 +719,7 @@ sampleKeywordAsKey
 required_capability: eql_command
 required_capability: eql_command_size_independent_of_limit
 EQL sample1,sample2,sample3 "sample by missing_keyword [success where true] by host [failure where host == \"doom\"] by host" METADATA _id | LIMIT 100 | EVAL id = TO_LONG(_id) | KEEP _sequence, id;
-warning:Line 1:1 [EQL sample1,sample2,sample3 \"sample by missing_keyword [success where true] by host [failure where host == \\\"doom\\\"] by host\" METADATA _id]: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
+warning:Line 1:1: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
 
 _sequence:long |id:long
 0        |18
@@ -733,7 +733,7 @@ sequenceLimitTrimsRowsAcrossMatches
 required_capability: eql_command
 required_capability: eql_command_size_independent_of_limit
 EQL endgame-140 "sequence [process where serial_event_id < 5] [process where serial_event_id < 5]" WITH {"tiebreaker_field": "serial_event_id", "result_position": "head"} | LIMIT 4 | KEEP _sequence, serial_event_id;
-warning:Line 1:1 [EQL endgame-140 \"sequence [process where serial_event_id < 5] [process where serial_event_id < 5]\" WITH {\"tiebreaker_field\": \"serial_event_id\", \"result_position\": \"head\"}]: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
+warning:Line 1:1: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
 
 _sequence:long |serial_event_id:long
 0              |1
@@ -746,7 +746,7 @@ sequenceLimitTrimsWithinFirstMatch
 required_capability: eql_command
 required_capability: eql_command_size_independent_of_limit
 EQL endgame-140 "sequence [process where serial_event_id < 5] [process where serial_event_id < 5]" WITH {"tiebreaker_field": "serial_event_id", "result_position": "head"} | LIMIT 2 | KEEP _sequence, serial_event_id;
-warning:Line 1:1 [EQL endgame-140 \"sequence [process where serial_event_id < 5] [process where serial_event_id < 5]\" WITH {\"tiebreaker_field\": \"serial_event_id\", \"result_position\": \"head\"}]: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
+warning:Line 1:1: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
 
 _sequence:long |serial_event_id:long
 0              |1
@@ -759,7 +759,7 @@ eventQueryInnerHeadWithSmallerOuterLimit
 required_capability: eql_command
 required_capability: eql_command_size_independent_of_limit
 EQL endgame-140 "process where true | head 6" WITH {"tiebreaker_field": "serial_event_id"} | LIMIT 3 | KEEP serial_event_id;
-warning:Line 1:1 [EQL endgame-140 \"process where true | head 6\" WITH {\"tiebreaker_field\": \"serial_event_id\"}]: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
+warning:Line 1:1: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
 
 serial_event_id:long
 1
@@ -771,7 +771,7 @@ eventQueryTailLimitReturnsFirstRowsOfLastTenMatches
 required_capability: eql_command
 required_capability: eql_command_size_independent_of_limit
 EQL endgame-140 "process where serial_event_id <= 12" WITH {"tiebreaker_field": "serial_event_id"} | LIMIT 5 | KEEP serial_event_id | SORT serial_event_id;
-warning:Line 1:1 [EQL endgame-140 \"process where serial_event_id <= 12\" WITH {\"tiebreaker_field\": \"serial_event_id\"}]: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
+warning:Line 1:1: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
 
 serial_event_id:long
 3
@@ -785,7 +785,7 @@ eventQueryTailLimitBehindKeepTrimsRows
 required_capability: eql_command
 required_capability: eql_command_size_independent_of_limit
 EQL endgame-140 "process where serial_event_id <= 12" WITH {"tiebreaker_field": "serial_event_id"} | KEEP serial_event_id | LIMIT 5 | SORT serial_event_id;
-warning:Line 1:1 [EQL endgame-140 \"process where serial_event_id <= 12\" WITH {\"tiebreaker_field\": \"serial_event_id\"}]: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
+warning:Line 1:1: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
 
 serial_event_id:long
 3
@@ -799,7 +799,7 @@ eventQueryTailLimitBehindEvalTrimsRows
 required_capability: eql_command
 required_capability: eql_command_size_independent_of_limit
 EQL endgame-140 "process where serial_event_id <= 12" WITH {"tiebreaker_field": "serial_event_id"} | EVAL next = serial_event_id + 1 | LIMIT 3 | KEEP serial_event_id, next | SORT serial_event_id;
-warning:Line 1:1 [EQL endgame-140 \"process where serial_event_id <= 12\" WITH {\"tiebreaker_field\": \"serial_event_id\"}]: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
+warning:Line 1:1: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
 
 serial_event_id:long | next:long
 3                    | 4
@@ -811,7 +811,7 @@ eventQueryLimitAfterWhereTrimsFetchedMatches
 required_capability: eql_command
 required_capability: eql_command_size_independent_of_limit
 EQL endgame-140 "process where serial_event_id <= 12" WITH {"tiebreaker_field": "serial_event_id"} | WHERE serial_event_id < 5 | LIMIT 5 | KEEP serial_event_id | SORT serial_event_id;
-warning:Line 1:1 [EQL endgame-140 \"process where serial_event_id <= 12\" WITH {\"tiebreaker_field\": \"serial_event_id\"}]: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
+warning:Line 1:1: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
 
 serial_event_id:long
 3
@@ -824,7 +824,7 @@ eventQueryInnerTailWithSmallerOuterLimit
 required_capability: eql_command
 required_capability: eql_command_size_independent_of_limit
 EQL endgame-140 "file where true | tail 3" WITH {"tiebreaker_field": "serial_event_id"} | LIMIT 2 | KEEP serial_event_id | SORT serial_event_id;
-warning:Line 1:1 [EQL endgame-140 \"file where true | tail 3\" WITH {\"tiebreaker_field\": \"serial_event_id\"}]: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
+warning:Line 1:1: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
 
 serial_event_id:long
 92
@@ -847,7 +847,7 @@ eventQueryHeadPositionLimitUnderBlockingWhereReturnsOldest
 required_capability: eql_command
 required_capability: eql_command_size_independent_of_limit
 EQL endgame-140 "process where serial_event_id <= 12" WITH {"result_position": "head", "tiebreaker_field": "serial_event_id"} | WHERE serial_event_id > 3 | LIMIT 5 | KEEP serial_event_id | SORT serial_event_id;
-warning:Line 1:1 [EQL endgame-140 \"process where serial_event_id <= 12\" WITH {\"result_position\": \"head\", \"tiebreaker_field\": \"serial_event_id\"}]: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
+warning:Line 1:1: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
 
 serial_event_id:long
 4
@@ -861,7 +861,7 @@ eventQueryHeadPositionWithoutLimitReturnsFirstTenMatches
 required_capability: eql_command
 required_capability: eql_command_size_independent_of_limit
 EQL endgame-140 "process where serial_event_id <= 12" WITH {"result_position": "head", "tiebreaker_field": "serial_event_id"} | KEEP serial_event_id;
-warning:Line 1:1 [EQL endgame-140 \"process where serial_event_id <= 12\" WITH {\"result_position\": \"head\", \"tiebreaker_field\": \"serial_event_id\"}]: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
+warning:Line 1:1: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
 
 serial_event_id:long
 1
@@ -933,7 +933,7 @@ eventQueryStatsCountsAtMostTheDefaultSize
 required_capability: eql_command
 required_capability: eql_command_size_independent_of_limit
 EQL endgame-140 "process where serial_event_id <= 12" WITH {"tiebreaker_field": "serial_event_id"} | STATS count = COUNT(*);
-warning:Line 1:1 [EQL endgame-140 \"process where serial_event_id <= 12\" WITH {\"tiebreaker_field\": \"serial_event_id\"}]: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
+warning:Line 1:1: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
 
 count:long
 10
@@ -951,7 +951,7 @@ sequenceTailLimitCutsAMatchPartWay
 required_capability: eql_command
 required_capability: eql_command_size_independent_of_limit
 EQL endgame-140 "sequence [process where serial_event_id < 5] [process where serial_event_id < 5]" WITH {"tiebreaker_field": "serial_event_id"} | LIMIT 1 | KEEP _sequence, serial_event_id;
-warning:Line 1:1 [EQL endgame-140 \"sequence [process where serial_event_id < 5] [process where serial_event_id < 5]\" WITH {\"tiebreaker_field\": \"serial_event_id\"}]: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
+warning:Line 1:1: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
 
 _sequence:long |serial_event_id:long
 0              |1
@@ -961,7 +961,7 @@ eventQueryExplicitHeadPipeIsBoundedByTheDefaultSize
 required_capability: eql_command
 required_capability: eql_command_size_independent_of_limit
 EQL endgame-140 "process where serial_event_id <= 12 | head 12" WITH {"tiebreaker_field": "serial_event_id"} | KEEP serial_event_id | SORT serial_event_id;
-warning:Line 1:1 [EQL endgame-140 \"process where serial_event_id <= 12 | head 12\" WITH {\"tiebreaker_field\": \"serial_event_id\"}]: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
+warning:Line 1:1: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
 
 serial_event_id:long
 1
@@ -999,7 +999,7 @@ eventQueryExplicitTailPipeIsBoundedByTheDefaultSize
 required_capability: eql_command
 required_capability: eql_command_size_independent_of_limit
 EQL endgame-140 "process where serial_event_id <= 12 | tail 12" WITH {"tiebreaker_field": "serial_event_id"} | KEEP serial_event_id | SORT serial_event_id;
-warning:Line 1:1 [EQL endgame-140 \"process where serial_event_id <= 12 | tail 12\" WITH {\"tiebreaker_field\": \"serial_event_id\"}]: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
+warning:Line 1:1: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
 
 serial_event_id:long
 3
@@ -1036,7 +1036,7 @@ eventQueryHeadPositionLimitAboveTheDefaultSizeWarns
 required_capability: eql_command
 required_capability: eql_command_size_independent_of_limit
 EQL endgame-140 "process where serial_event_id <= 12" WITH {"result_position": "head", "tiebreaker_field": "serial_event_id"} | LIMIT 11 | KEEP serial_event_id | SORT serial_event_id;
-warning:Line 1:1 [EQL endgame-140 \"process where serial_event_id <= 12\" WITH {\"result_position\": \"head\", \"tiebreaker_field\": \"serial_event_id\"}]: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
+warning:Line 1:1: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
 
 serial_event_id:long
 1
@@ -1068,7 +1068,7 @@ required_capability: eql_command
 required_capability: fork_v9
 required_capability: eql_command_size_independent_of_limit
 EQL endgame-140 "process where serial_event_id <= 12" WITH {"result_position": "head", "tiebreaker_field": "serial_event_id"} | FORK (LIMIT 1) (WHERE serial_event_id > 3 | LIMIT 1) | KEEP _fork, serial_event_id | SORT _fork;
-warning:Line 1:1 [EQL endgame-140 \"process where serial_event_id <= 12\" WITH {\"result_position\": \"head\", \"tiebreaker_field\": \"serial_event_id\"}]: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
+warning:Line 1:1: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more.
 
 _fork:keyword | serial_event_id:long
 fork1         | 1

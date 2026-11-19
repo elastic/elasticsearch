@@ -181,14 +181,14 @@ Combine it with `_fork` — `… BY _fork, _sequence` — to identify a match ac
 
 ## Examples
 
-Count the process events matching an event query:
+Count the process events matching an event query, up to the 1,000 most recent (`size` caps the matches that are counted):
 
 ```esql
 EQL logs-endpoint "process where process.name == \"cmd.exe\"" WITH { "size": 1000 }
 | STATS count = COUNT(*)
 ```
 
-Return matching events as typed columns and keep just a few:
+Return up to the 100 most recent matching events as typed columns and keep just a few:
 
 ```esql
 EQL logs-endpoint "network where destination.port == 443" WITH { "size": 100 }
@@ -196,14 +196,14 @@ EQL logs-endpoint "network where destination.port == 443" WITH { "size": 100 }
 | SORT @timestamp
 ```
 
-Run a `sequence` query and count the events and the distinct matches:
+Run a `sequence` query and count the events and the distinct matches among the 1,000 most recent sequences:
 
 ```esql
 EQL logs-endpoint "sequence by process.pid [process where true] [network where true]" WITH { "size": 1000 }
 | STATS events = COUNT(*), matches = COUNT_DISTINCT(_sequence)
 ```
 
-Inspect the events of each matched sequence, ordered by stage:
+Inspect the events of each matched sequence, ordered by stage (the default size returns the 10 most recent sequences):
 
 ```esql
 EQL logs-endpoint "sequence by process.pid [process where true] [network where true]"
@@ -211,14 +211,14 @@ EQL logs-endpoint "sequence by process.pid [process where true] [network where t
 | SORT _sequence, _sequence_stage
 ```
 
-Add the source index and document id with `METADATA`:
+Add the source index and document id with `METADATA` (the default size returns the 10 most recent events):
 
 ```esql
 EQL logs-endpoint "process where process.name == \"regsvr32.exe\"" METADATA _index, _id
 | KEEP _index, _id, process.name
 ```
 
-Use an `EQL` source inside a subquery and feed a value set to `IN`:
+Use an `EQL` source inside a subquery and feed a value set to `IN`, taken from the 1,000 most recent matches:
 
 ```esql
 FROM logs-endpoint
@@ -226,7 +226,7 @@ FROM logs-endpoint
 | STATS count = COUNT(*)
 ```
 
-Split an event query into two branches with `FORK`:
+Split an event query into two branches with `FORK`, using up to the 1,000 most recent events:
 
 ```esql
 EQL logs-endpoint "process where true" WITH { "size": 1000 }
@@ -235,7 +235,7 @@ EQL logs-endpoint "process where true" WITH { "size": 1000 }
 | SORT process.pid
 ```
 
-Query a remote cluster by prefixing the leading pattern with the cluster name:
+Query a remote cluster by prefixing the leading pattern with the cluster name, here counting up to the 1,000 most recent matches:
 
 ```esql
 EQL my_remote:logs-endpoint "process where process.name == \"regsvr32.exe\"" WITH { "size": 1000 }

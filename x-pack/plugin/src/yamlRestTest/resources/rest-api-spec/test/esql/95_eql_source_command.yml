@@ -222,7 +222,7 @@ setup:
       allowed_warnings:
         - "No limit defined, adding default limit of [1000]"
       warnings_regex:
-        - '.*\(in view \[eql_process_view\]\): EQL query used the default size of \[10\] matches.*'
+        - 'Line 1:1 \(in view \[eql_process_view\]\): EQL query used the default size of \[10\] matches\..*'
       esql.query:
         body:
           query: 'FROM eql_process_view | KEEP message | SORT message'

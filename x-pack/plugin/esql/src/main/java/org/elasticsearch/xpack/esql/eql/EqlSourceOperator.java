@@ -182,7 +182,7 @@ public class EqlSourceOperator extends SourceOperator {
     private void maybeWarnDefaultSize() {
         if (warnOnDefaultSize) {
             driverContext.createOnlyWarnings(source)
-                .registerWarning(
+                .registerWarningWithoutSourceText(
                     "EQL query used the default size of [" + request.size() + "] matches. Set WITH {\"size\": n} to return more."
                 );
         }

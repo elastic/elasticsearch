@@ -577,6 +577,20 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
     }
 
     public void testDefaultSizeWarningIsRegisteredWhenTheSearchIsIssued() {
+        assertDefaultSizeWarning(
+            new Source(1, 0, "eqlq"),
+            "Line 1:1: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more."
+        );
+    }
+
+    public void testDefaultSizeWarningNamesTheViewWithoutEchoingItsDefinition() {
+        assertDefaultSizeWarning(
+            new Source(1, 0, "EQL logs \"process where secret_field == \\\"secret\\\"\"").withViewName("eql_view"),
+            "Line 1:1 (in view [eql_view]): EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more."
+        );
+    }
+
+    private void assertDefaultSizeWarning(Source source, String expectedWarning) {
         CapturingEqlClient client = new CapturingEqlClient(threadPool);
         DriverContext driverContext = driverContext();
         EqlSearchResponse response = eventResponse(List.of(fieldEvent("a")));
@@ -585,15 +599,12 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
             eqlRequest(10),
             EqlRelation.Mode.EVENT,
             List.of(fieldAttribute("process.name", KEYWORD)),
-            new Source(1, 0, "eqlq"),
+            source,
             true
         ).get(driverContext);
         try {
             assertBlocked(operator);
-            assertThat(
-                collectWarnings(driverContext),
-                equalTo(List.of("Line 1:1 [eqlq]: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more."))
-            );
+            assertThat(collectWarnings(driverContext), equalTo(List.of(expectedWarning)));
             operator.close();
             client.capturedListener.onResponse(response);
         } finally {

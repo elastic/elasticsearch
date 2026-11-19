@@ -9,16 +9,15 @@ package org.elasticsearch.xpack.esql.optimizer.promql;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 
 /** PromQL set operators translated over a label container. */
 public class PromqlPlanVectorBinarySetV2Tests extends AbstractPromqlPlanOptimizerTests {
@@ -34,8 +33,9 @@ public class PromqlPlanVectorBinarySetV2Tests extends AbstractPromqlPlanOptimize
         UnionAll union = plan.collect(UnionAll.class).getFirst();
         assertThat(union.children(), hasSize(2));
         TopNBy first = plan.collect(TopNBy.class).getFirst();
-        // the label pushdown projects the union's label columns apart
-        assertThat(as(first.child(), Project.class).child(), equalTo(union));
+        // keyed by the labels of each series, over the union
+        assertThat(keyLabels(first, (Attribute) first.groupings().get(1)), not(empty()));
+        assertThat(first.collect(UnionAll.class), hasItem(union));
         assertThat(names(plan.output()), hasItem("_timeseries"));
     }
 

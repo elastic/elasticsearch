@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSe
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TemporaryNameGenerator;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
@@ -140,7 +141,8 @@ public final class VectorBinarySetV2 {
         Attribute step = attribute(unionOutput, cmd.stepColumnName());
         Attribute match = attribute(unionOutput, OR_MATCH_KEY);
         var order = new Order(source, attribute(unionOutput, cmd.branchColumnName()), Order.OrderDirection.ASC, Order.NullsPosition.LAST);
-        return new TopNBy(source, union, List.of(order), new Literal(source, 1, DataType.INTEGER), List.of(step, match));
+        PackDims pack = TranslationContextV2.packLabels(source, union, match);
+        return new TopNBy(source, pack, List.of(order), new Literal(source, 1, DataType.INTEGER), List.of(step, pack.packed()));
     }
 
     private static Attribute attribute(List<Attribute> output, String name) {

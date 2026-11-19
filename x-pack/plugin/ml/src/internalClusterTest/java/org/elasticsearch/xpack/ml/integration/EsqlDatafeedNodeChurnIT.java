@@ -248,6 +248,8 @@ public class EsqlDatafeedNodeChurnIT extends BaseMlIntegTestCase {
 
                 releaseRequest.countDown();
                 networkDisruption.removeAndEnsureHealthy(internalCluster());
+                // The only shard copy must be assigned again before indexing and before the resumed query.
+                ensureGreen(scenario.indexName());
 
                 // A single churned cycle must not wedge the datafeed: a later scheduled cycle has to run its query again,
                 // which is visible as a new data-node request reaching the healed node, and has to succeed.

@@ -715,3 +715,8 @@ tests:
 - class: org.elasticsearch.xpack.spatial.heappressure.GeoShapeHeapPressureIT
   method: testContainsPointClauses
   issue: https://github.com/elastic/elasticsearch/issues/166396
+- class: org.elasticsearch.action.bulk.ShardBatchMapperParseTests
+  tasks:
+  - :server:test
+  method: testRequiredFieldWithoutValueCausesColumnarFallback
+  issue: https://github.com/elastic/elasticsearch/issues/166579

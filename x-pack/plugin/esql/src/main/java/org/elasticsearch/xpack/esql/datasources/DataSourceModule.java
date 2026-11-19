@@ -299,7 +299,8 @@ public final class DataSourceModule implements Closeable {
             managedIdentityEnabled,
             retryScheduler,
             effectiveLocalFileAccess,
-            admissionTracker
+            admissionTracker,
+            threadPool != null ? threadPool.getThreadContext() : null
         );
 
         this.codecRegistry = new DecompressionCodecRegistry();

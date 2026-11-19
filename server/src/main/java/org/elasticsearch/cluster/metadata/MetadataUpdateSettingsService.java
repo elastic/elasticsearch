@@ -124,10 +124,16 @@ public class MetadataUpdateSettingsService {
     private final class UpdateSettingsTask implements ClusterStateTaskListener {
         private final UpdateSettingsClusterStateUpdateRequest request;
         private final ActionListener<AcknowledgedResponse> listener;
+        private final long startNanos;
 
-        private UpdateSettingsTask(UpdateSettingsClusterStateUpdateRequest request, ActionListener<AcknowledgedResponse> listener) {
+        private UpdateSettingsTask(
+            UpdateSettingsClusterStateUpdateRequest request,
+            ActionListener<AcknowledgedResponse> listener,
+            long startNanos
+        ) {
             this.request = request;
             this.listener = listener;
+            this.startNanos = startNanos;
         }
 
         private ClusterStateAckListener getAckListener(AllocationActionMultiListener<AcknowledgedResponse> multiListener) {
@@ -144,7 +150,10 @@ public class MetadataUpdateSettingsService {
 
                 @Override
                 public void onAckFailure(Exception e) {
-                    multiListener.delay(listener).onFailure(e);
+                    ActionListener.run(
+                        ActionListener.<AwaitClusterStateVersionAppliedResponse>running(() -> listener.onFailure(e)),
+                        l -> awaitAsyncSettingsApplication(request, startNanos, l)
+                    );
                 }
 
                 @Override
@@ -435,41 +444,44 @@ public class MetadataUpdateSettingsService {
             .<AcknowledgedResponse>newForked(
                 l -> taskQueue.submitTask(
                     "update-settings " + Arrays.toString(request.indices()),
-                    new UpdateSettingsTask(request, l),
+                    new UpdateSettingsTask(request, l, startNanos),
                     request.masterNodeTimeout()
                 )
             )
             // Step 2: await async updates
             .<AcknowledgedResponse>andThen((l, response) -> {
-                // TODO group (by timeout) the requests in the batch and only await once. Otherwise every batch task
-                // will fan out to all nodes whereas there is a single cluster state update that result from it.
-                // TODO re-use code between here and MetadataMappingService
-                // TODO: skip nodes whose publish failed for the target cluster state version.
-                final var clusterState = clusterService.state();
-                final var nodes = clusterState.nodes().getDataNodes().values().toArray(DiscoveryNode[]::new);
-                final var remainingTime = TimeValue.timeValueNanos(
-                    Math.max(0, request.ackTimeout().nanos() - (System.nanoTime() - startNanos))
-                );
-                client.execute(
-                    TransportAwaitClusterStateVersionAppliedAction.TYPE,
-                    new AwaitClusterStateVersionAppliedRequest(clusterState.version(), remainingTime, nodes),
-                    new ActionListener<>() {
-                        @Override
-                        public void onResponse(AwaitClusterStateVersionAppliedResponse awaitResponse) {
-                            logger.info("--> settings update completed apply of state, failures={}", awaitResponse.hasFailures());
-                            l.onResponse(AcknowledgedResponse.of(response.isAcknowledged() && awaitResponse.failures().isEmpty()));
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            logger.info("--> settings update state wait failed", e);
-                            l.onResponse(AcknowledgedResponse.FALSE);
-                        }
-                    }
-                );
+                awaitAsyncSettingsApplication(request, startNanos, ActionListener.wrap(awaitResponse -> {
+                    logger.info("--> settings update completed apply of state, failures={}", awaitResponse.hasFailures());
+                    l.onResponse(AcknowledgedResponse.of(response.isAcknowledged() && awaitResponse.failures().isEmpty()));
+                }, e -> {
+                    logger.info("--> settings update state wait failed", e);
+                    l.onResponse(AcknowledgedResponse.FALSE);
+                }));
             })
             // Step 3: complete outer listener
             .addListener(listener);
+    }
+
+    private void awaitAsyncSettingsApplication(
+        UpdateSettingsClusterStateUpdateRequest request,
+        long startNanos,
+        ActionListener<AwaitClusterStateVersionAppliedResponse> listener
+    ) {
+        // NB even if the publication was not fully acknowledged, we still wait here. The node(s) which did not ack the publication may
+        // have died, and in that case we still want to delay the response until the surviving nodes have completed applying the state.
+        // We read the state from the `clusterService` which may yield a fresher state than the one we just committed, which is ok.
+        // TODO group (by timeout) the requests in the batch and only await once. Otherwise every batch task
+        // will fan out to all nodes whereas there is a single cluster state update that result from it.
+        // TODO re-use code between here and MetadataMappingService
+        // TODO: skip nodes whose publish failed for the target cluster state version.
+        final var clusterState = clusterService.state();
+        final var nodes = clusterState.nodes().getDataNodes().values().toArray(DiscoveryNode[]::new);
+        final var remainingTime = TimeValue.timeValueNanos(Math.max(0, request.ackTimeout().nanos() - (System.nanoTime() - startNanos)));
+        client.execute(
+            TransportAwaitClusterStateVersionAppliedAction.TYPE,
+            new AwaitClusterStateVersionAppliedRequest(clusterState.version(), remainingTime, nodes),
+            listener
+        );
     }
 
     public static void updateIndexSettings(

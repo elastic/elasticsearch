@@ -10,23 +10,30 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.state.TransportAwaitClusterStateVersionAppliedAction;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsClusterStateUpdateRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.coordination.PublicationTransportHandler;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.transport.MockTransportService;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -38,6 +45,60 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class MetadataUpdateSettingsServiceIT extends ESIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return CollectionUtils.appendToCopy(super.nodePlugins(), MockTransportService.TestPlugin.class);
+    }
+
+    public void testWaitsForAsyncApplicationAfterPublicationAckFailure() {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        final var failingNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        final var indexName = "test";
+        createIndex(indexName);
+        ensureGreen(indexName);
+
+        final var masterState = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
+        final var survivingDataNode = masterState.nodes()
+            .getDataNodes()
+            .values()
+            .stream()
+            .filter(node -> node.equals(masterState.nodes().getMasterNode()) == false)
+            .findFirst()
+            .orElseThrow();
+        final var failingTransport = MockTransportService.getInstance(failingNode);
+        final var survivingTransport = MockTransportService.getInstance(survivingDataNode.getName());
+        final var waitReceived = new CountDownLatch(1);
+        final var releaseWait = new CountDownLatch(1);
+        final var ackFailureMessage = "simulated publication ack failure";
+        failingTransport.addRequestHandlingBehavior(
+            PublicationTransportHandler.PUBLISH_STATE_ACTION_NAME,
+            (handler, request, channel, task) -> channel.sendResponse(new IllegalStateException(ackFailureMessage))
+        );
+        survivingTransport.addRequestHandlingBehavior(
+            TransportAwaitClusterStateVersionAppliedAction.TYPE.name() + "[n]",
+            (handler, request, channel, task) -> {
+                waitReceived.countDown();
+                safeAwait(releaseWait);
+                handler.messageReceived(request, channel, task);
+            }
+        );
+        try {
+            final var result = indicesAdmin().prepareUpdateSettings(indexName)
+                .setSettings(Settings.builder().put("index.max_result_window", 1500))
+                .execute();
+            safeAwait(waitReceived);
+            assertFalse(result.isDone());
+            releaseWait.countDown();
+
+            final var failure = expectThrows(IllegalStateException.class, result::actionGet);
+            assertEquals(ackFailureMessage, failure.getMessage());
+        } finally {
+            releaseWait.countDown();
+            failingTransport.clearInboundRules();
+            survivingTransport.clearInboundRules();
+        }
+    }
 
     public void testThatNonDynamicSettingChangesTakeEffect() throws Exception {
         /*

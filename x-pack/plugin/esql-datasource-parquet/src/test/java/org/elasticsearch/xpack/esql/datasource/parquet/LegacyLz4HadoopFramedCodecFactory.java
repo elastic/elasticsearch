@@ -14,6 +14,7 @@ import org.apache.parquet.compression.CompressionCodecFactory;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 /**
  * Test-only codec factory that adds a writer for the deprecated Hadoop-framed
@@ -56,8 +57,29 @@ final class LegacyLz4HadoopFramedCodecFactory implements CompressionCodecFactory
     private final BytesInputCompressor legacyLz4Compressor;
 
     LegacyLz4HadoopFramedCodecFactory() {
+        this(true);
+    }
+
+    private LegacyLz4HadoopFramedCodecFactory(boolean framed) {
         this.delegate = new PlainCompressionCodecFactory();
-        this.legacyLz4Compressor = new HadoopFramedLz4Compressor();
+        this.legacyLz4Compressor = new HadoopFramedLz4Compressor(framed);
+    }
+
+    /**
+     * Returns a factory whose {@link CompressionCodecName#LZ4} compressor writes a bare raw LZ4
+     * block with no Hadoop frame, as some early parquet-cpp / Arrow writers did under the legacy
+     * codec id.
+     */
+    static LegacyLz4HadoopFramedCodecFactory unframed() {
+        return new LegacyLz4HadoopFramedCodecFactory(false);
+    }
+
+    /**
+     * Same as {@link #forCodec(CompressionCodecName)} but {@link CompressionCodecName#LZ4} is
+     * written without Hadoop framing.
+     */
+    static CompressionCodecFactory forCodecUnframedLz4(CompressionCodecName codec) {
+        return codec == CompressionCodecName.LZ4 ? unframed() : new PlainCompressionCodecFactory();
     }
 
     /**
@@ -93,6 +115,11 @@ final class LegacyLz4HadoopFramedCodecFactory implements CompressionCodecFactory
      */
     private static final class HadoopFramedLz4Compressor implements BytesInputCompressor {
         private final Lz4Compressor lz4 = new Lz4Compressor();
+        private final boolean framed;
+
+        HadoopFramedLz4Compressor(boolean framed) {
+            this.framed = framed;
+        }
 
         @Override
         public BytesInput compress(BytesInput bytes) throws IOException {
@@ -100,6 +127,9 @@ final class LegacyLz4HadoopFramedCodecFactory implements CompressionCodecFactory
             int uncompressedLen = in.length;
             byte[] rawCompressed = new byte[lz4.maxCompressedLength(uncompressedLen)];
             int compressedLen = lz4.compress(in, 0, uncompressedLen, rawCompressed, 0, rawCompressed.length);
+            if (framed == false) {
+                return BytesInput.from(Arrays.copyOf(rawCompressed, compressedLen));
+            }
 
             byte[] framed = new byte[4 + 4 + compressedLen];
             writeIntBE(framed, 0, uncompressedLen);

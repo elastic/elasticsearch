@@ -1,0 +1,1 @@
+FROM employees | KEEP emp_no | INTO dst

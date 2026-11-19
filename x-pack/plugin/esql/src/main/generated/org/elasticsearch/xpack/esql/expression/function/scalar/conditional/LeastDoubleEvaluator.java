@@ -70,7 +70,7 @@ public final class LeastDoubleEvaluator implements ExpressionEvaluator {
   }
 
   public DoubleBlock eval(int positionCount, DoubleBlock[] valuesBlocks) {
-    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount, true)) {
       double[] valuesValues = new double[values.length];
       position: for (int p = 0; p < positionCount; p++) {
         for (int i = 0; i < valuesBlocks.length; i++) {
@@ -99,7 +99,7 @@ public final class LeastDoubleEvaluator implements ExpressionEvaluator {
   }
 
   public DoubleVector eval(int positionCount, DoubleVector[] valuesVectors) {
-    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
+    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount, true)) {
       double[] valuesValues = new double[values.length];
       position: for (int p = 0; p < positionCount; p++) {
         // unpack valuesVectors into valuesValues

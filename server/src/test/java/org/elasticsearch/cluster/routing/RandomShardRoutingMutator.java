@@ -35,7 +35,8 @@ public final class RandomShardRoutingMutator {
                             RecoveryPriority.UNASSIGNED_UNEXPECTED,
                             RecoveryPriority.UNASSIGNED_EXPECTED,
                             RecoveryPriority.UNASSIGNED_RESTORING,
-                            RecoveryPriority.UNASSIGNED_PERFORMANCE_SCALING
+                            RecoveryPriority.UNASSIGNED_PERFORMANCE_SCALING,
+                            RecoveryPriority.UNASSIGNED_RESHARD_SPLIT_TARGET
                         )
                     );
                 } else if (shardRouting.unassignedInfo() != null) {

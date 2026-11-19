@@ -9,6 +9,7 @@ import java.lang.String;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Vector;
@@ -44,11 +45,11 @@ public final class ToDoubleFromLongEvaluator extends AbstractConvertFunction.Abs
     if (vector.isConstant()) {
       return driverContext.blockFactory().newConstantDoubleBlockWith(evalValue(vector, 0), positionCount);
     }
-    try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount, true)) {
+    try (DoubleVector.FixedBuilder builder = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount, true)) {
       for (int p = 0; p < positionCount; p++) {
-        builder.appendDouble(evalValue(vector, p));
+        builder.appendDouble(p, evalValue(vector, p));
       }
-      return builder.build();
+      return builder.build().asBlock();
     }
   }
 

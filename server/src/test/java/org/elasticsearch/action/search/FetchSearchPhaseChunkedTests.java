@@ -84,6 +84,7 @@ import static org.elasticsearch.action.search.FetchSearchPhaseTests.requestBreak
 import static org.elasticsearch.action.search.FetchSearchPhaseTests.searchPhaseFactory;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class FetchSearchPhaseChunkedTests extends ESTestCase {
 
@@ -334,8 +335,8 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
                 assertNotNull(searchResponse);
                 assertEquals(1, searchResponse.getFailedShards());
                 assertEquals(1, searchResponse.getSuccessfulShards());
-                assertEquals(1, searchResponse.getShardFailures().length);
-                assertEquals("simulated chunked fetch failure", searchResponse.getShardFailures()[0].getCause().getMessage());
+                assertEquals(1, searchResponse.getShardFailures().size());
+                assertEquals("simulated chunked fetch failure", searchResponse.getShardFailures().getFirst().getCause().getMessage());
                 assertEquals(1, searchResponse.getHits().getHits().length);
             } finally {
                 mockSearchPhaseContext.results.close();
@@ -414,9 +415,9 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
                 SearchResponse searchResponse = mockSearchPhaseContext.searchResponse.get();
                 assertNotNull(searchResponse);
                 assertEquals(1, searchResponse.getFailedShards());
-                assertEquals(1, searchResponse.getShardFailures().length);
-                assertTrue(searchResponse.getShardFailures()[0].getCause() instanceof TaskCancelledException);
-                assertEquals("simulated cancellation", searchResponse.getShardFailures()[0].getCause().getMessage());
+                assertEquals(1, searchResponse.getShardFailures().size());
+                assertThat(searchResponse.getShardFailures().getFirst().getCause(), instanceOf(TaskCancelledException.class));
+                assertEquals("simulated cancellation", searchResponse.getShardFailures().getFirst().getCause().getMessage());
             } finally {
                 mockSearchPhaseContext.results.close();
                 var resp = mockSearchPhaseContext.searchResponse.get();

@@ -12,6 +12,10 @@ package org.elasticsearch.search.vectors;
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
 /**
  * Unit tests for {@link PostFilterKnnQuery#nearestSeedsPerLeaf}, which chooses the retry seed entry
  * points: the highest-scoring (nearest) round-0 matches per leaf, capped per leaf, returned sorted by
@@ -53,11 +57,11 @@ public class PostFilterKnnQuerySeedSelectionTests extends ESTestCase {
     /** Ties at the cap go to the lower doc id. */
     public void testTiesGoToLowerDocId() {
         for (int run = 0; run < 50; run++) {
-            java.util.List<ScoreDoc> docs = new java.util.ArrayList<>();
+            List<ScoreDoc> docs = new ArrayList<>();
             for (int doc = 10; doc < 20; doc++) {
                 docs.add(new ScoreDoc(doc, 0.5f));
             }
-            java.util.Collections.shuffle(docs, random());
+            Collections.shuffle(docs, random());
             ScoreDoc[][] perLeaf = new ScoreDoc[][] { docs.toArray(ScoreDoc[]::new) };
             assertArrayEquals(new int[][] { { 10, 11, 12 } }, PostFilterKnnQuery.nearestSeedsPerLeaf(perLeaf, 3));
         }

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.stateless.cache;
+package org.elasticsearch.xpack.stateless.cache.relocation;
 
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -40,7 +40,7 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.hamcrest.Matchers.equalTo;
 
-public class SearchShardRelocationCountsTests extends ESTestCase {
+public class SearchShardRelocationsTests extends ESTestCase {
 
     private static final String SOURCE_A = "source-a";
     private static final String SOURCE_B = "source-b";
@@ -65,19 +65,19 @@ public class SearchShardRelocationCountsTests extends ESTestCase {
             Map.of()
         );
 
-        assertThat(SearchShardRelocationCounts.from(state, PRIMARY_NODE, TARGET), equalTo(0));
-        assertThat(SearchShardRelocationCounts.from(state, SOURCE_A, TARGET), equalTo(2));
-        assertThat(SearchShardRelocationCounts.from(state, SOURCE_A, OTHER_TARGET), equalTo(1));
-        assertThat(SearchShardRelocationCounts.from(state, SOURCE_B, TARGET), equalTo(1));
-        assertThat(SearchShardRelocationCounts.from(state, SOURCE_B, OTHER_TARGET), equalTo(0));
+        assertThat(SearchShardRelocations.countBetween(state, PRIMARY_NODE, TARGET), equalTo(0));
+        assertThat(SearchShardRelocations.countBetween(state, SOURCE_A, TARGET), equalTo(2));
+        assertThat(SearchShardRelocations.countBetween(state, SOURCE_A, OTHER_TARGET), equalTo(1));
+        assertThat(SearchShardRelocations.countBetween(state, SOURCE_B, TARGET), equalTo(1));
+        assertThat(SearchShardRelocations.countBetween(state, SOURCE_B, OTHER_TARGET), equalTo(0));
     }
 
     public void testFromIsZeroWhenThereIsNothingRelocatingOrTheNodeIsUnknown() {
         final var state = clusterState(List.of(new Relocation(SOURCE_A, TARGET)), List.of(), Map.of());
 
-        assertThat(SearchShardRelocationCounts.from(state, SOURCE_C, TARGET), equalTo(0));
-        assertThat(SearchShardRelocationCounts.from(state, "no-such-node", TARGET), equalTo(0));
-        assertThat(SearchShardRelocationCounts.from(state, SOURCE_A, "no-such-node"), equalTo(0));
+        assertThat(SearchShardRelocations.countBetween(state, SOURCE_C, TARGET), equalTo(0));
+        assertThat(SearchShardRelocations.countBetween(state, "no-such-node", TARGET), equalTo(0));
+        assertThat(SearchShardRelocations.countBetween(state, SOURCE_A, "no-such-node"), equalTo(0));
     }
 
     public void testFromShuttingDownNodesCountsOnlyNodesMarkedForRemoval() {
@@ -107,8 +107,8 @@ public class SearchShardRelocationCountsTests extends ESTestCase {
             )
         );
 
-        assertThat(SearchShardRelocationCounts.fromShuttingDownNodes(state, TARGET), equalTo(2));
-        assertThat(SearchShardRelocationCounts.fromShuttingDownNodes(state, OTHER_TARGET), equalTo(1));
+        assertThat(SearchShardRelocations.countFromShuttingDownNodesTo(state, TARGET), equalTo(2));
+        assertThat(SearchShardRelocations.countFromShuttingDownNodesTo(state, OTHER_TARGET), equalTo(1));
     }
 
     public void testFromShuttingDownNodesSumsAcrossShuttingDownNodes() {
@@ -118,8 +118,8 @@ public class SearchShardRelocationCountsTests extends ESTestCase {
             Map.of(SOURCE_A, SingleNodeShutdownMetadata.Type.REMOVE, SOURCE_B, SingleNodeShutdownMetadata.Type.REMOVE)
         );
 
-        assertThat(SearchShardRelocationCounts.fromShuttingDownNodes(state, TARGET), equalTo(3));
-        assertThat(SearchShardRelocationCounts.fromShuttingDownNodes(state, OTHER_TARGET), equalTo(0));
+        assertThat(SearchShardRelocations.countFromShuttingDownNodesTo(state, TARGET), equalTo(3));
+        assertThat(SearchShardRelocations.countFromShuttingDownNodesTo(state, OTHER_TARGET), equalTo(0));
     }
 
     private static DiscoveryNode searchNode(String nodeId) {

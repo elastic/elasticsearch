@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.stateless.cache;
+package org.elasticsearch.xpack.stateless.cache.relocation;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -25,9 +25,9 @@ import java.util.function.Function;
 
 /// The slots that a target has for incoming non-critical recoveries, which relocations share with the recoveries of unassigned shards
 /// added for performance reasons and with snapshot restores. [RelocationSourceShutdownTimeouts] shares them when it turns the time left
-/// until the grace deadline of a shutting-down node, see [ShutdownWarmingDeadlines], into a warming timeout. It only counts the
+/// until the grace deadline of a shutting-down node, see [ShutdownWarmingDeadline], into a warming timeout. It only counts the
 /// relocations as using the slots.
-class NonCriticalRecoverySlots {
+public class TargetRelocationSlotsEstimator {
 
     /// The values of the master settings at which the master leaves the throttling of the recoveries to a search node to the data nodes, as
     /// with data node recovery throttling (DNRT)
@@ -43,7 +43,7 @@ class NonCriticalRecoverySlots {
     private volatile int maxConcurrentNonCriticalRecoveries;
     private volatile boolean masterThrottlingDisabled;
 
-    NonCriticalRecoverySlots(ClusterSettings clusterSettings, Settings nodeSettings, ByteSizeValue maxHeap) {
+    public TargetRelocationSlotsEstimator(ClusterSettings clusterSettings, Settings nodeSettings, ByteSizeValue maxHeap) {
         DataNodeRecoveryThrottlingSettings.watchIncomingRecoveryLimits(
             clusterSettings,
             nodeSettings,
@@ -65,7 +65,7 @@ class NonCriticalRecoverySlots {
     /// leaves the shards it has not got to waiting in the cluster state, whereas with data node recovery throttling the master starts all
     /// the relocations of a shutting-down node at once. So the settings are trusted only when the cluster state agrees, see
     /// [#allSearchShardsOnShuttingDownNodesRelocating].
-    int effectiveSlots(final ClusterState state, final int relocationsInFlight) {
+    public int knownAvailableSlots(final ClusterState state, final int relocationsInFlight) {
         return dataNodeRecoveryThrottlingEnabled() && allSearchShardsOnShuttingDownNodesRelocating(state)
             ? maxConcurrentNonCriticalRecoveries
             : Math.min(maxConcurrentNonCriticalRecoveries, relocationsInFlight);

@@ -5,19 +5,20 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.stateless.cache;
+package org.elasticsearch.xpack.stateless.cache.relocation;
 
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 
 /// The time by which the shards of a shutting-down node have to be through, which bounds how long the warming of the shards relocating
 /// from that node may take.
-class ShutdownWarmingDeadlines {
+public class ShutdownWarmingDeadline {
 
     private volatile TimeValue searchRecoveryWarmingGracePeriodCap;
 
-    ShutdownWarmingDeadlines(ClusterSettings clusterSettings) {
+    public ShutdownWarmingDeadline(ClusterSettings clusterSettings) {
         clusterSettings.initializeAndWatch(
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING,
             value -> this.searchRecoveryWarmingGracePeriodCap = value
@@ -26,7 +27,7 @@ class ShutdownWarmingDeadlines {
 
     /// The shutdown start of `shutdown` plus its grace period, which is capped as well as defaulted by
     /// [SharedBlobCacheWarmingService#SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING].
-    long of(SingleNodeShutdownMetadata shutdown) {
+    long deadlineMillis(SingleNodeShutdownMetadata shutdown) {
         TimeValue grace = shutdown.getGracePeriod();
         if (grace == null) {
             grace = searchRecoveryWarmingGracePeriodCap;

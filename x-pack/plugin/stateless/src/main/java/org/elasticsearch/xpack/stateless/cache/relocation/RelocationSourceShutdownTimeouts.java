@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.stateless.cache;
+package org.elasticsearch.xpack.stateless.cache.relocation;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -13,32 +13,35 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeout;
 import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeout.TimeoutContext;
+import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
+import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 
 /// The warming timeouts of search shards that relocate from a source node that is shutting down, which depend on the grace deadline of
 /// the source and on the relocation slots of the target.
 ///
 /// It owns the settings and the cluster state accounting that only these timeouts use, so that
 /// [SearchRecoveryTimeoutCalculationService] reads as a choice of the timeout context.
-class RelocationSourceShutdownTimeouts {
+public class RelocationSourceShutdownTimeouts {
 
-    private final NonCriticalRecoverySlots nonCriticalRecoverySlots;
-    private final ShutdownWarmingDeadlines shutdownWarmingDeadlines;
+    private final TargetRelocationSlotsEstimator targetRelocationSlotsEstimator;
+    private final ShutdownWarmingDeadline shutdownWarmingDeadline;
     private final StatelessSharedBlobCacheService cacheService;
     private final ThreadPool threadPool;
     private volatile double searchRecoveryWarmingSourceShutdownShareFactor;
     private volatile double searchRecoveryWarmingCacheRatio;
     private volatile boolean searchRecoveryWarmingFilterSourceShardsByTarget;
 
-    RelocationSourceShutdownTimeouts(
-        NonCriticalRecoverySlots nonCriticalRecoverySlots,
-        ShutdownWarmingDeadlines shutdownWarmingDeadlines,
+    public RelocationSourceShutdownTimeouts(
+        TargetRelocationSlotsEstimator targetRelocationSlotsEstimator,
+        ShutdownWarmingDeadline shutdownWarmingDeadline,
         StatelessSharedBlobCacheService cacheService,
         ThreadPool threadPool,
         ClusterSettings clusterSettings
     ) {
-        this.nonCriticalRecoverySlots = nonCriticalRecoverySlots;
-        this.shutdownWarmingDeadlines = shutdownWarmingDeadlines;
+        this.targetRelocationSlotsEstimator = targetRelocationSlotsEstimator;
+        this.shutdownWarmingDeadline = shutdownWarmingDeadline;
         this.cacheService = cacheService;
         this.threadPool = threadPool;
         clusterSettings.initializeAndWatch(
@@ -75,7 +78,7 @@ class RelocationSourceShutdownTimeouts {
     /// [SearchRecoveryTimeoutCalculationService#searchRecoveryTimeout].
     /// When all shards fit in the target's recovery slots, nobody waits behind this one, so each re-evaluation extends the wait by up to
     /// one minute (bounded by the remaining grace) instead of only by the saved time.
-    SearchRecoveryTimeout timeout(
+    public SearchRecoveryTimeout timeout(
         ClusterState state,
         String sourceNodeId,
         String targetNodeId,
@@ -85,7 +88,7 @@ class RelocationSourceShutdownTimeouts {
         final var shutdown = state.metadata().nodeShutdowns().get(sourceNodeId);
         assert shutdown != null;
         final long now = threadPool.absoluteTimeInMillis();
-        final long deadline = shutdownWarmingDeadlines.of(shutdown);
+        final long deadline = shutdownWarmingDeadline.deadlineMillis(shutdown);
         final long remaining = deadline - now;
         if (remaining <= 0) {
             return new SearchRecoveryTimeout(TimeValue.ZERO, TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_GRACE_ELAPSED);
@@ -147,7 +150,7 @@ class RelocationSourceShutdownTimeouts {
 
     /// Returns this source's share of the target's relocation slots: how many of the shards of sourceNodeId can actively recover
     /// on targetNodeId concurrently: the source's share of the slots known to be available to the relocations from shutting-down nodes,
-    /// see [NonCriticalRecoverySlots#effectiveSlots], split between the sources in proportion to their relocations in flight, and not
+    /// see [TargetRelocationSlotsEstimator#knownAvailableSlots], split between the sources in proportion to their relocations in flight, and not
     /// more than `shardsOnSource`. It scales the equal share of one shard to the time the shards of the source can use the slots together.
     /// It can be fractional and below one, when the slots are split between sources.
     /// Without data node recovery throttling, it is the relocations from the source to the target that are in flight.
@@ -158,11 +161,11 @@ class RelocationSourceShutdownTimeouts {
         final int shardsOnSource
     ) {
         // The current shard is itself one such relocation, floor at 1 in case it is not yet visible on the source's RoutingNode.
-        final int relocationsFromSourceToTarget = Math.max(1, SearchShardRelocationCounts.from(state, sourceNodeId, targetNodeId));
-        final int allRelocationsToTarget = Math.max(1, SearchShardRelocationCounts.fromShuttingDownNodes(state, targetNodeId));
+        final int relocationsFromSourceToTarget = Math.max(1, SearchShardRelocations.countBetween(state, sourceNodeId, targetNodeId));
+        final int allRelocationsToTarget = Math.max(1, SearchShardRelocations.countFromShuttingDownNodesTo(state, targetNodeId));
         return Math.min(
             shardsOnSource,
-            (double) nonCriticalRecoverySlots.effectiveSlots(state, allRelocationsToTarget) * relocationsFromSourceToTarget
+            (double) targetRelocationSlotsEstimator.knownAvailableSlots(state, allRelocationsToTarget) * relocationsFromSourceToTarget
                 / allRelocationsToTarget
         );
     }

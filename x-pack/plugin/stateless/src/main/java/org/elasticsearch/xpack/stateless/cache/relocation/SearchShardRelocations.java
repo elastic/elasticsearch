@@ -5,19 +5,19 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.stateless.cache;
+package org.elasticsearch.xpack.stateless.cache.relocation;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRouting;
 
 /// Counts the search shards relocating between nodes, as seen from the `RoutingNode` of the source.
-final class SearchShardRelocationCounts {
+final class SearchShardRelocations {
 
-    private SearchShardRelocationCounts() {}
+    private SearchShardRelocations() {}
 
     /// The relocations from the node `sourceNodeId` to `targetNodeId`.
-    static int from(ClusterState state, String sourceNodeId, String targetNodeId) {
+    static int countBetween(ClusterState state, String sourceNodeId, String targetNodeId) {
         final var discoveryNode = state.nodes().get(sourceNodeId);
         final var sourceNode = state.getRoutingNodes().node(sourceNodeId);
         // a search node only holds search shards, as a promotable shard is only allowed on an index node
@@ -34,12 +34,12 @@ final class SearchShardRelocationCounts {
     }
 
     /// The relocations to `targetNodeId` from all the nodes marked for removal.
-    static int fromShuttingDownNodes(ClusterState state, String targetNodeId) {
+    static int countFromShuttingDownNodesTo(ClusterState state, String targetNodeId) {
         final var nodeShutdowns = state.metadata().nodeShutdowns();
         int count = 0;
         for (final String nodeId : nodeShutdowns.getAllNodeIds()) {
             if (nodeShutdowns.isNodeMarkedForRemoval(nodeId)) {
-                count += from(state, nodeId, targetNodeId);
+                count += countBetween(state, nodeId, targetNodeId);
             }
         }
         return count;

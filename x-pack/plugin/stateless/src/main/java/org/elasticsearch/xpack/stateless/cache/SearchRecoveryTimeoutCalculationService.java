@@ -25,6 +25,10 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeout.TimeoutContext;
+import org.elasticsearch.xpack.stateless.cache.relocation.RelocationOtherNodeShutdownTimeouts;
+import org.elasticsearch.xpack.stateless.cache.relocation.RelocationSourceShutdownTimeouts;
+import org.elasticsearch.xpack.stateless.cache.relocation.ShutdownWarmingDeadline;
+import org.elasticsearch.xpack.stateless.cache.relocation.TargetRelocationSlotsEstimator;
 
 import java.util.Map;
 
@@ -93,8 +97,8 @@ public class SearchRecoveryTimeoutCalculationService {
         ByteSizeValue maxHeap
     ) {
         this.relocationSourceShutdownTimeouts = new RelocationSourceShutdownTimeouts(
-            new NonCriticalRecoverySlots(clusterSettings, nodeSettings, maxHeap),
-            new ShutdownWarmingDeadlines(clusterSettings),
+            new TargetRelocationSlotsEstimator(clusterSettings, nodeSettings, maxHeap),
+            new ShutdownWarmingDeadline(clusterSettings),
             cacheService,
             threadPool,
             clusterSettings

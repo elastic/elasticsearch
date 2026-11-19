@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings.IncomingRecoveryLimits;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeout;
 import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeout.TimeoutContext;
@@ -70,10 +71,8 @@ public class RelocationOtherNodeShutdownTimeouts {
         // This shard is itself an initializing relocation on the target from a non-shutting-down node, so the count includes it: it is
         // added to the competing shards (+1) below, and left out of the "other" relocations here.
         final int otherRelocationsToTarget = Math.max(0, SearchShardRelocations.countFromNodesNotShuttingDownTo(state, targetNodeId) - 1);
-        final int slots = targetRelocationSlotsEstimator.knownAvailableSlots(
-            state,
-            SearchShardRelocations.countFromShuttingDownNodesTo(state, targetNodeId)
-        );
+        final int slots = targetRelocationSlotsEstimator.maxConcurrentRelocations();
+        assert slots < IncomingRecoveryLimits.UNBOUNDED.maxConcurrentNonCriticalRecoveries();
         final long now = threadPool.absoluteTimeInMillis();
 
         // the latest deadline and the shards competing before each deadline rely on the order

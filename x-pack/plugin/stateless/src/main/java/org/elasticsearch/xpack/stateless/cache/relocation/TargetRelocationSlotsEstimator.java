@@ -72,6 +72,12 @@ public class TargetRelocationSlotsEstimator {
             : Math.min(maxRecoveries, relocationsInFlight);
     }
 
+    /// The data node limit on the incoming non-critical recoveries of a target. It bounds the relocations to the target only while the
+    /// data nodes throttle them, see [#dataNodeRecoveryThrottlingEnabled()].
+    public int maxConcurrentRelocations() {
+        return maxConcurrentNonCriticalRecoveries;
+    }
+
     /// Whether the data nodes throttle the relocations, and not the master, see [#dataNodeRecoveryThrottlingEnabled(int)].
     public boolean dataNodeRecoveryThrottlingEnabled() {
         return dataNodeRecoveryThrottlingEnabled(maxConcurrentNonCriticalRecoveries);

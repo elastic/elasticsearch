@@ -693,6 +693,8 @@ public class SnapshotsWithReshardingIT extends AbstractStatelessPluginIntegTestC
         // Split targets recover as non-critical shards, and this test holds the state update request of every target at once,
         // releasing them only once all of them are held. They must therefore all be able to recover at the same time.
         var indexNode = startIndexNode(unthrottledIncomingRecoveryNodeSettings());
+        // Disable the handoff throttle
+        updateClusterSettings(Settings.builder().put(SplitSourceService.RESHARD_SPLIT_MAX_CONCURRENT_HANDOFF_PERCENTAGE.getKey(), 100.0));
         // The node the target shard is on, which is where its state change requests are sent from and so where they are held
         var targetNode = indexNode;
         final int shards;

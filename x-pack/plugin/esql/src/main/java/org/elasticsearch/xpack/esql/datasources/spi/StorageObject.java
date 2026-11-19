@@ -28,9 +28,10 @@ import java.util.concurrent.RejectedExecutionException;
  * Uses standard Java InputStream for compatibility with existing Elasticsearch code.
  * Random access is handled via range-based reads (like BlobContainer pattern).
  * <p>
- * {@link #close()} cancels an in-flight {@link #newStream} GET. Decorators must forward it.
- * Streams returned by {@link #newStream()} and {@link #newStream(long, long)} are still
- * closed by callers; {@link #close()} is the hung-open path when no stream exists yet.
+ * {@link #close()} cancels an in-flight {@link #newStream} GET on providers that override it
+ * (S3). The default is a no-op; HTTP does not currently cancel a hung open. Decorators must
+ * forward it. Streams returned by {@link #newStream()} and {@link #newStream(long, long)} are
+ * still closed by callers; {@link #close()} is the hung-open path when no stream exists yet.
  */
 public interface StorageObject {
 

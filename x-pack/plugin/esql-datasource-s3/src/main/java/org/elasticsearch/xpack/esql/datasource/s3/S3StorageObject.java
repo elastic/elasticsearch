@@ -13,6 +13,7 @@ import software.amazon.awssdk.core.async.AsyncResponseTransformer;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.http.Abortable;
+import software.amazon.awssdk.http.AbortableInputStream;
 import software.amazon.awssdk.retries.api.AcquireInitialTokenRequest;
 import software.amazon.awssdk.retries.api.RecordSuccessRequest;
 import software.amazon.awssdk.retries.api.RefreshRetryTokenRequest;
@@ -52,6 +53,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.utils.ContentRangeParser;
 
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.UnknownHostException;
@@ -577,8 +579,27 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             throw new CancellationException("read cancelled");
         }
         try {
-            return future.join();
+            ResponseInputStream<GetObjectResponse> in = future.join();
+            // Keep {@code future} in inFlightOpens until the stream is aborted/closed so object
+            // close() can cancel an assigned body GET, and so resume closeQuietly releases the
+            // Netty connection a truncated mid-body response would otherwise hold.
+            Abortable release = () -> {
+                inFlightOpens.remove(future);
+                discardGet(future);
+            };
+            FilterInputStream tracking = new FilterInputStream(in) {
+                @Override
+                public void close() throws IOException {
+                    try {
+                        super.close();
+                    } finally {
+                        release.abort();
+                    }
+                }
+            };
+            return new ResponseInputStream<>(in.response(), AbortableInputStream.create(tracking, release));
         } catch (CompletionException e) {
+            inFlightOpens.remove(future);
             Throwable cause = e.getCause() != null ? e.getCause() : e;
             if (cause instanceof CancellationException cancelled) {
                 throw cancelled;
@@ -587,8 +608,6 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                 throw runtime;
             }
             throw e;
-        } finally {
-            inFlightOpens.remove(future);
         }
     }
 

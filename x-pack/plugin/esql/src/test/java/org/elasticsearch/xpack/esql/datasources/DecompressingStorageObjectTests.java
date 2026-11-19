@@ -35,7 +35,11 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.zip.GZIPOutputStream;
 
 /**
@@ -396,6 +400,90 @@ public class DecompressingStorageObjectTests extends ESTestCase {
         decompressing.abortStream(stream);
         assertEquals("owner-thread abortStream must close the decoder", 1, decoderCloses.get());
         assertThat(tracking.abortCalls.get(), Matchers.greaterThanOrEqualTo(1));
+    }
+
+    /**
+     * After the leaf GET returns, {@code codec.decompress} reads the gzip header from the body.
+     * That read can stall while {@code decompressedStream} is still null, so {@code abortTransport}
+     * is a no-op. {@link DecompressingStorageObject#close()} must close {@code inFlightRaw} and
+     * unblock {@code newStream} without closing a decoder that does not exist yet.
+     */
+    public void testCloseUnblocksGzipHeaderRead() throws Exception {
+        assertCloseUnblocksGzipHeaderRead(false);
+    }
+
+    /**
+     * Production wraps {@code RetryableStorageObject(DecompressingStorageObject(leaf))}. Closing
+     * the Retryable is what the coordinator's {@code cancelStorageOpen()} does; if Retryable
+     * swallows {@code delegate.close()}, the gzip header hang still waits the 60s backstop.
+     */
+    public void testRetryableCloseUnblocksGzipHeaderRead() throws Exception {
+        assertCloseUnblocksGzipHeaderRead(true);
+    }
+
+    private void assertCloseUnblocksGzipHeaderRead(boolean closeRetryable) throws Exception {
+        HeaderParkStorageObject leaf = new HeaderParkStorageObject();
+        AtomicInteger decoderClosesOnCloser = new AtomicInteger();
+        AtomicReference<Thread> closer = new AtomicReference<>();
+        DecompressionCodec codec = countingGzip(decoderClosesOnCloser, closer);
+        DecompressingStorageObject decompressing = new DecompressingStorageObject(leaf, codec);
+        RetryableStorageObject retryable = new RetryableStorageObject(decompressing, RetryPolicy.NONE);
+        StorageObject toOpen = closeRetryable ? retryable : decompressing;
+        StorageObject toClose = closeRetryable ? retryable : decompressing;
+
+        AtomicReference<Exception> openerError = new AtomicReference<>();
+        CountDownLatch openerDone = new CountDownLatch(1);
+        Thread opener = new Thread(() -> {
+            try {
+                toOpen.newStream();
+            } catch (Exception e) {
+                openerError.set(e);
+            } finally {
+                openerDone.countDown();
+            }
+        }, "gzip-header-opener");
+        opener.start();
+        try {
+            assertTrue("newStream must enter codec.decompress (header read parked)", leaf.inHeaderRead.await(5, TimeUnit.SECONDS));
+            closer.set(Thread.currentThread());
+            long startNanos = System.nanoTime();
+            toClose.close();
+            assertTrue("close() must unblock codec.decompress", openerDone.await(5, TimeUnit.SECONDS));
+            assertThat(System.nanoTime() - startNanos, Matchers.lessThan(TimeUnit.SECONDS.toNanos(5)));
+            assertThat(openerError.get(), Matchers.instanceOf(IOException.class));
+            assertEquals("closer must not close a decoder that does not exist yet", 0, decoderClosesOnCloser.get());
+            assertEquals("closer must close the raw GET once", 1, leaf.rawCloses.get());
+        } finally {
+            leaf.release.countDown();
+            opener.join(TimeUnit.SECONDS.toMillis(5));
+        }
+    }
+
+    static GzipDecompressionCodec countingGzip(AtomicInteger decoderClosesOnCloser, AtomicReference<Thread> closer) {
+        return new GzipDecompressionCodec() {
+            @Override
+            public InputStream decompress(InputStream raw) throws IOException {
+                return countDecoderClose(super.decompress(raw), decoderClosesOnCloser, closer);
+            }
+
+            @Override
+            public InputStream decompress(InputStream raw, CircuitBreaker breaker) throws IOException {
+                return countDecoderClose(super.decompress(raw, breaker), decoderClosesOnCloser, closer);
+            }
+        };
+    }
+
+    static InputStream countDecoderClose(InputStream decoder, AtomicInteger decoderClosesOnCloser, AtomicReference<Thread> closer) {
+        return new FilterInputStream(decoder) {
+            @Override
+            public void close() throws IOException {
+                Thread closerThread = closer.get();
+                if (closerThread != null && Thread.currentThread() == closerThread) {
+                    decoderClosesOnCloser.incrementAndGet();
+                }
+                super.close();
+            }
+        };
     }
 
     /**
@@ -827,6 +915,91 @@ public class DecompressingStorageObjectTests extends ESTestCase {
             zstdOut.write(input);
         }
         return baos.toByteArray();
+    }
+
+    /**
+     * Leaf GET that returns immediately (HTTP headers already done) whose body {@code read()} parks
+     * until {@link InputStream#close()}. {@link StorageObject#close()} must not unpark: that is the
+     * {@code inFlightRaw} contract. A side-channel latch other than stream close would let a
+     * regression that drops {@code inFlightRaw} still pass.
+     */
+    static final class HeaderParkStorageObject extends AbstractTestStorageObject {
+        final CountDownLatch inHeaderRead = new CountDownLatch(1);
+        final CountDownLatch release = new CountDownLatch(1);
+        final AtomicInteger rawCloses = new AtomicInteger();
+        private final AtomicBoolean streamClosed = new AtomicBoolean();
+
+        @Override
+        public InputStream newStream() {
+            return parkedBody();
+        }
+
+        @Override
+        public InputStream newStream(long position, long length) {
+            return parkedBody();
+        }
+
+        private InputStream parkedBody() {
+            return new FilterInputStream(InputStream.nullInputStream()) {
+                @Override
+                public int read() throws IOException {
+                    parkUntilStreamClose();
+                    throw new IOException("stream closed");
+                }
+
+                @Override
+                public int read(byte[] b, int off, int len) throws IOException {
+                    parkUntilStreamClose();
+                    throw new IOException("stream closed");
+                }
+
+                @Override
+                public void close() throws IOException {
+                    if (streamClosed.compareAndSet(false, true)) {
+                        rawCloses.incrementAndGet();
+                        release.countDown();
+                    }
+                    super.close();
+                }
+            };
+        }
+
+        private void parkUntilStreamClose() throws IOException {
+            inHeaderRead.countDown();
+            try {
+                if (release.await(15, TimeUnit.SECONDS) == false) {
+                    throw new IOException("header read was not unblocked by stream close");
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IOException("header read interrupted", e);
+            }
+        }
+
+        @Override
+        public void close() {
+            // Object-level close must not unpark the parked GET body. Only stream.close() does.
+        }
+
+        @Override
+        public long length() {
+            return 1024;
+        }
+
+        @Override
+        public Instant lastModified() {
+            return Instant.EPOCH;
+        }
+
+        @Override
+        public boolean exists() {
+            return true;
+        }
+
+        @Override
+        public StoragePath path() {
+            return StoragePath.of("s3://bucket/parked.gz");
+        }
     }
 
     private static class BytesStorageObject extends AbstractTestStorageObject {

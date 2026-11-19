@@ -110,6 +110,12 @@ public class S3StorageProvider implements StorageProvider {
     private static final String DEFAULT_JWT_AUDIENCE = "sts.amazonaws.com";
 
     private static final Duration CONNECTION_ACQUISITION_TIMEOUT = Duration.ofSeconds(60);
+    /**
+     * Idle read timeout on the async GET path. A truncated body (mid-read reset) must fail the
+     * blocking stream so {@code RetryableStorageObject} can resume; without this the Netty
+     * connection stays acquired until the ES|QL REST client times out at 60s.
+     */
+    private static final Duration ASYNC_READ_TIMEOUT = Duration.ofSeconds(30);
 
     private final S3Client s3Client;
     private final S3AsyncClient s3AsyncClient;
@@ -325,6 +331,7 @@ public class S3StorageProvider implements StorageProvider {
                 .putChannelOption(ChannelOption.RCVBUF_ALLOCATOR, PooledRecvByteBufAllocator.DEFAULT)
                 .maxConcurrency(maxConnections)
                 .connectionAcquisitionTimeout(CONNECTION_ACQUISITION_TIMEOUT)
+                .readTimeout(ASYNC_READ_TIMEOUT)
         ).build();
     }
 
@@ -476,6 +483,7 @@ public class S3StorageProvider implements StorageProvider {
                 .putChannelOption(ChannelOption.RCVBUF_ALLOCATOR, PooledRecvByteBufAllocator.DEFAULT)
                 .maxConcurrency(maxConnections)
                 .connectionAcquisitionTimeout(CONNECTION_ACQUISITION_TIMEOUT)
+                .readTimeout(ASYNC_READ_TIMEOUT)
         ).build();
     }
 

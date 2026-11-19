@@ -1896,6 +1896,60 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
+     * Production gzip/zstd files hang <em>after</em> the leaf GET returns, inside
+     * {@code codec.decompress} (header read), while {@code decompressedStream} is still null.
+     * {@code abortTransport()} is then a deliberate no-op; iterator {@code close()} must still
+     * return without waiting {@code CLOSE_TIMEOUT_SECONDS} by closing {@code inFlightRaw} through
+     * the Retryable → Decompressing chain. Decoder teardown stays on the segmentator.
+     */
+    public void testIteratorCloseUnblocksGzipHeaderReadWhileDecompressedStreamNull() throws Exception {
+        DecompressingStorageObjectTests.HeaderParkStorageObject leaf = new DecompressingStorageObjectTests.HeaderParkStorageObject();
+        AtomicInteger decoderClosesOnCloser = new AtomicInteger();
+        AtomicReference<Thread> closer = new AtomicReference<>();
+        DecompressionCodec codec = DecompressingStorageObjectTests.countingGzip(decoderClosesOnCloser, closer);
+        DecompressingStorageObject decompressing = new DecompressingStorageObject(leaf, codec);
+        RetryableStorageObject retryable = new RetryableStorageObject(decompressing, RetryPolicy.NONE);
+
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            CloseableIterator<Page> iterator = StreamingParallelParsingCoordinator.parallelRead(
+                new LineFormatReader(256),
+                retryable::newStream,
+                retryable,
+                List.of("line"),
+                50,
+                2,
+                executor,
+                ErrorPolicy.STRICT,
+                null,
+                0L,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                null,
+                -1L,
+                StripeColumnScope.PROJECTED,
+                StreamingParallelParsingCoordinator.WarningSinks.NONE,
+                StreamingSegmentatorAdmission.unbounded(),
+                new NoopCircuitBreaker("test"),
+                ExternalReadCounters.NOOP,
+                null,
+                null
+            );
+            assertTrue("segmentator must enter codec.decompress (gzip header parked)", leaf.inHeaderRead.await(5, TimeUnit.SECONDS));
+            closer.set(Thread.currentThread());
+            long deadlineNanos = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+            iterator.close();
+            assertTrue(
+                "close() must return while decompressing gzip header, not wait CLOSE_TIMEOUT_SECONDS",
+                System.nanoTime() <= deadlineNanos
+            );
+            assertEquals("closer must not close a decoder that does not exist yet", 0, decoderClosesOnCloser.get());
+        } finally {
+            leaf.release.countDown();
+            executor.shutdownNow();
+        }
+    }
+
+    /**
      * Closing must unblock the segmentator when parsers are parked on a full page queue holding
      * every pool buffer. The segmentator may wait in a timed {@code bufferPool.poll()} or in
      * {@code putPageAndSignal} while inlining the FIFO head.

@@ -49,7 +49,7 @@ public record MergeBlob(String blobName, long primaryTerm) implements Blob {
         return blobName.substring(PREFIX.length());
     }
 
-    /// Writes the blob name and the primary term. Unlike a [BlobFile], a merge blob has no generation.
+    /// Writes the blob name and the primary term. Unlike a [BccBlob], a merge blob has no generation.
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         // WARNING: the blob name must stay the first thing written, as is. Blob#readFrom reads it first to find the type of the blob from

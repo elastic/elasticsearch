@@ -38,8 +38,8 @@ public interface RestHandler {
     /**
      * Whether the circuit breakers may reject this request when the node is short on memory. Return {@code false} for requests that must
      * keep working then, such as logging in or recovering a cluster. Their memory is still charged, so other requests are rejected sooner.
-     * They are still bounded by a fixed allowance, far more than such requests need. Content larger than the allowance is checked by the
-     * in-flight requests breaker, and parsing is checked once it charges more than the allowance.
+     * Past a fixed allowance, far more than such requests need, they are checked like any other request: a fully received body larger
+     * than the allowance is checked by the in-flight requests breaker, and parsing is checked once it charges more than the allowance.
      */
     default boolean canTripCircuitBreaker() {
         return true;

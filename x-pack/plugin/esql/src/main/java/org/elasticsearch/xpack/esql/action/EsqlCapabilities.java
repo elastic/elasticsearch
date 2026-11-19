@@ -1683,6 +1683,13 @@ public class EsqlCapabilities {
         WHERE_IN_SUBQUERY_WITH_EQUALS_NOT_EQUALS,
 
         /**
+         * Union-type conversions are scoped to their own side of an {@code IN} subquery. Before, a cast after an {@code IN} whose
+         * subquery ran {@code STATS} failed with "Cannot use field [...] due to ambiguities", and casts after the {@code IN} were
+         * loaded by the subquery's index too.
+         */
+        WHERE_IN_SUBQUERY_UNION_TYPES_SCOPE_FIX,
+
+        /**
          * Support multi-column IN subqueries in WHERE: WHERE (field1, field2) IN (FROM index | KEEP field1, field2).
          */
         WHERE_IN_MULTI_COLUMN_SUBQUERY,
@@ -3170,6 +3177,16 @@ public class EsqlCapabilities {
          * grammar change and are covered by {@link #EQL_COMMAND} alone.
          */
         EQL_IN_SUBQUERY(Build.current().isSnapshot()),
+
+        /**
+         * The EQL source command honours the request {@code filter}. Snapshot-only, gated together with {@link #EQL_COMMAND}.
+         */
+        EQL_COMMAND_REQUEST_FILTER(Build.current().isSnapshot()),
+
+        /**
+         * LOOKUP JOIN after the EQL source command resolves its lookup index on the local cluster. Fixes #166162.
+         */
+        EQL_COMMAND_LOOKUP_JOIN(Build.current().isSnapshot()),
 
         /**
          * Support for the EXTERNAL command (datasource access).
@@ -4927,6 +4944,11 @@ public class EsqlCapabilities {
         DESCRIBE_TIME_COLUMNS(Build.current().isSnapshot()),
 
         /**
+         * {@code DESCRIBE} reports the {@code interval} and {@code time_zone} of the date buckets with a constant interval.
+         */
+        DESCRIBE_INTERVAL(Build.current().isSnapshot()),
+
+        /**
          * Fixes a bug in the planner where {@code TS} queries failed with an {@link IllegalStateException} when an aggregation
          * with a filter combined several aggregate functions, such as {@code max(...) - min(...) WHERE ...}.
          */
@@ -4958,16 +4980,17 @@ public class EsqlCapabilities {
         INTO_COMMAND(Build.current().isSnapshot()),
 
         /**
-         * The usage information for ESQL counts queries by the Elastic product in {@code X-elastic-product-origin}: one
-         * {@code queries.<product>} per known product origin, {@code queries.other} for any other origin, and {@code queries.rest}
-         * for a request without the header. Before this, every query was counted as {@code rest}.
+         * {@code NESTED_EXPAND} turns one parent row into one row per object of a mapped nested field.
+         * Snapshot-only until the command is advertised.
          */
-        USAGE_QUERIES_BY_CLIENT,
+        NESTED_EXPAND(Build.current().isSnapshot()),
 
         /**
          * Streaming execution on {@code POST /_query/stream}: the response streams a columns line, one line
          * per row and a last line (with {@code complete} and {@code next_offset}) as NDJSON as rows are produced.
          * Replaces {@link #STREAMING}: streaming no longer runs on {@code POST /_query}.
+         * Also covers the body fields {@code max_rows} and {@code max_bytes}, which end the response early, and
+         * {@code store}, of which only {@code none} is accepted.
          * Snapshot-only while the streaming protocol is still changing.
          */
         STREAMING_V2(Build.current().isSnapshot()),
@@ -4979,6 +5002,13 @@ public class EsqlCapabilities {
          * of scoring, as it does for a single source.
          */
         FROM_SUBQUERY_MERGE_KEEPS_METADATA_SCORE,
+
+        /**
+         * Makes {@code FIRST}, {@code LAST}, {@code EARLIEST} and {@code LATEST} in {@code TS} queries return a real sample of a
+         * time series, like outside of {@code TS}. {@code EARLIEST} returned the last value of the time series whose last sample
+         * was the earliest. {@code LAST} and {@code LATEST} on histogram fields returned all histograms of the series merged.
+         */
+        FIX_TS_FIRST_LAST_SAMPLES,
 
         /**
          * The {@code _score} column merged by {@code FORK} stays as live score, classified from the branches as it is for a

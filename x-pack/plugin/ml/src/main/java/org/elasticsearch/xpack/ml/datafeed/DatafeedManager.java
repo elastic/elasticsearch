@@ -214,12 +214,6 @@ public class DatafeedManager {
         ThreadPool threadPool,
         ActionListener<PutDatafeedAction.Response> listener
     ) {
-        try {
-            esqlQueryValidator.validateQueryStructure(request.getDatafeed().getEsqlQuery(), crossProjectMlEnabled());
-        } catch (Exception e) {
-            listener.onFailure(e);
-            return;
-        }
         if (XPackSettings.SECURITY_ENABLED.get(settings)) {
             useSecondaryAuthIfAvailable(securityContext, () -> {
                 // TODO: Remove this filter once https://github.com/elastic/elasticsearch/issues/67798 is fixed.
@@ -716,6 +710,13 @@ public class DatafeedManager {
         ClusterState clusterState,
         ActionListener<PutDatafeedAction.Response> listener
     ) {
+        // After authorization: parsing resolves views, whose existence must not be disclosed to a caller without access.
+        try {
+            esqlQueryValidator.validateQueryStructure(request.getDatafeed().getEsqlQuery(), crossProjectMlEnabled());
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
         DatafeedConfig.validateAggregations(request.getDatafeed().getParsedAggregations(xContentRegistry));
         warnIfProjectRoutingIsInert(request.getDatafeed().getProjectRouting());
 

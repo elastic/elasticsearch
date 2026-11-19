@@ -912,6 +912,22 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         }
     }
 
+    public void testOuterLimitAboveOneThousandShouldBeNamedWithoutGroupingSeparators() {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        HeaderWarning.setThreadContext(threadContext);
+        try {
+            EsqlDatafeedQueryValidator.warnForOuterLimit(
+                "datafeed-1",
+                EsqlDatafeedQuery.parse(PARSER, "FROM logs | SORT ts DESC | LIMIT 5000"),
+                false
+            );
+
+            assertWarnings(false, List.of(containsString("query contains an outer LIMIT [5000]")));
+        } finally {
+            HeaderWarning.removeThreadContext(threadContext);
+        }
+    }
+
     public void testOuterLimitShouldWarnAboutDelayedDataOnlyWhenTheCheckIsEnabled() {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         HeaderWarning.setThreadContext(threadContext);

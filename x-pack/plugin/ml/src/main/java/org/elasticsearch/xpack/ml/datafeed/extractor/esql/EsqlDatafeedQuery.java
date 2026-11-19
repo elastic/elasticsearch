@@ -13,6 +13,8 @@ import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryParser;
 import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryWithParams;
 import org.elasticsearch.xpack.ml.datafeed.esql.spi.ParsedEsqlQuery;
 
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.Objects;
 import java.util.OptionalInt;
 import java.util.OptionalLong;
@@ -39,6 +41,17 @@ public final class EsqlDatafeedQuery {
     /** Parses {@code query}; throws a 400 if it is not valid ES|QL, uses an unsupported construct, or has no index source. */
     public static EsqlDatafeedQuery parse(EsqlQueryParser parser, String query) {
         ParsedEsqlQuery parsed = parser.parse(query);
+        // Checked here, at the boundary every execution path parses through, so a saved or inline query cannot skip them.
+        if (parsed.setsProjectRoutingInQuery()) {
+            throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.DATAFEED_ESQL_PROJECT_ROUTING_SETTING_NOT_SUPPORTED));
+        }
+        ZoneId timeZone = parsed.timeZone();
+        if (timeZone.normalized().equals(ZoneOffset.UTC) == false) {
+            // ES|QL honors the last SET, so the UTC ML prepends to every request would lose to this one.
+            throw ExceptionsHelper.badRequestException(
+                Messages.getMessage(Messages.DATAFEED_ESQL_TIME_ZONE_SETTING_NOT_UTC, timeZone.getId())
+            );
+        }
         if (parsed.indexPatterns().isEmpty()) {
             // Source probes and the extractor time filter need an index source.
             throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.DATAFEED_ESQL_SOURCE_COMMAND_REQUIRED));

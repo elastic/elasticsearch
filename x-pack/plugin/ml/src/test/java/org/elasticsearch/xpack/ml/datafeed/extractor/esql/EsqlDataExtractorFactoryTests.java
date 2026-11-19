@@ -31,6 +31,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -173,6 +174,29 @@ public class EsqlDataExtractorFactoryTests extends ESTestCase {
 
         assertThat(failure.get(), instanceOf(ElasticsearchException.class));
         assertThat(((ElasticsearchException) failure.get()).status(), equalTo(RestStatus.BAD_REQUEST));
+    }
+
+    public void testNonUtcTimeZoneInQueryShouldFailFactoryCreation() {
+        Job job = buildJob("job-1", TIME_FIELD, null);
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed-1", "job-1");
+        // A saved or inline-preview query reaches the factory without the PUT check.
+        builder.setEsqlQuery("SET time_zone=\"Europe/Berlin\"; FROM logs");
+        builder.setSourceTimeField(SOURCE_TIME_FIELD);
+        builder.setGroupingInterval(TimeValue.timeValueMinutes(1));
+        AtomicReference<Exception> failure = new AtomicReference<>();
+
+        EsqlDataExtractorFactory.create(
+            client,
+            builder.build(),
+            job,
+            timingStatsReporter,
+            PARSER,
+            ActionListener.wrap(f -> fail("expected a time zone failure"), failure::set)
+        );
+
+        assertThat(failure.get(), instanceOf(ElasticsearchException.class));
+        assertThat(((ElasticsearchException) failure.get()).status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(failure.get().getMessage(), containsString("UTC"));
     }
 
     private static Job buildJob(String jobId, String timeField, String summaryCountFieldName) {

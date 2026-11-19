@@ -32,8 +32,6 @@ import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryWithParams;
 import org.elasticsearch.xpack.ml.datafeed.esql.spi.ParsedEsqlQuery;
 
 import java.time.DateTimeException;
-import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -205,15 +203,6 @@ public class EsqlDatafeedQueryValidator {
             return;
         }
         ParsedEsqlQuery query = EsqlDatafeedQuery.parse(parser, esqlQuery).parsed();
-        if (query.setsProjectRoutingInQuery()) {
-            throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.DATAFEED_ESQL_PROJECT_ROUTING_SETTING_NOT_SUPPORTED));
-        }
-        ZoneId timeZone = query.timeZone();
-        if (timeZone.normalized().equals(ZoneOffset.UTC) == false) {
-            throw ExceptionsHelper.badRequestException(
-                Messages.getMessage(Messages.DATAFEED_ESQL_TIME_ZONE_SETTING_NOT_UTC, timeZone.getId())
-            );
-        }
         if (crossProjectEnabled) {
             return;
         }
@@ -276,7 +265,8 @@ public class EsqlDatafeedQueryValidator {
             String warning = Messages.getMessage(
                 Messages.DATAFEED_ESQL_OUTER_LIMIT_WARNING,
                 esqlDatafeedSubject(datafeedId),
-                outputLimit.getAsInt()
+                // A String, so MessageFormat does not group the digits: LIMIT 5000 is named as written.
+                String.valueOf(outputLimit.getAsInt())
             );
             addLimitWarning(warning, delayedDataCheckEnabled);
         }

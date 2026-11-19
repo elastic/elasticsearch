@@ -484,7 +484,7 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
         onShardFailure(shardIndex, shard, e);
         final SearchShardTarget nextShard = shardIt.nextOrNull();
         final boolean lastShard = nextShard == null;
-        final boolean retriable = TransportActions.isRetriableShardLevelException(e);
+        final boolean retriable = TransportActions.isRetriableShardLevelException(e, shardIt.getSearchContextId());
         logger.debug(() -> format("%s: Failed to execute [%s] lastShard [%s] retriable [%s]", shard, request, lastShard, retriable), e);
         if (lastShard == false && retriable) {
             logger.debug("Retrying shard [{}] with target [{}]", shard.getShardId(), nextShard);
@@ -745,14 +745,28 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
                     : null,
                 buildSearchContextId(failures)
             );
-            if (request.bufferSubSearchResponseForMultiSearch() && results instanceof QueryPhaseResultConsumer queryPhaseResultConsumer) {
-                long handoffBytes = queryPhaseResultConsumer.transferAggregationBreakerBytesForMultiSearch();
-                if (handoffBytes > 0) {
-                    searchResponse.setQueryPhaseAggregationBreakerBytes(handoffBytes);
+            // noinspection resource - owned and closed by this action
+            if (queryPhaseResults() instanceof QueryPhaseResultConsumer queryPhaseResultConsumer) {
+                if (request.bufferSubSearchResponseForMultiSearch()) {
+                    long handoffBytes = queryPhaseResultConsumer.transferAggregationBreakerBytesForMultiSearch();
+                    if (handoffBytes > 0) {
+                        searchResponse.setQueryPhaseAggregationBreakerBytes(handoffBytes);
+                    }
+                } else {
+                    // The response holds the aggregations, so it holds their charge.
+                    queryPhaseResultConsumer.transferAggregationChargeTo(searchResponse);
                 }
             }
             ActionListener.respondAndRelease(listener, searchResponse);
         }
+    }
+
+    /**
+     * The results of the query phase, which hold the reduced aggregations and their charge. These are the results of the first phase
+     * unless a subclass runs the query phase after another one, like the DFS search.
+     */
+    SearchPhaseResults<?> queryPhaseResults() {
+        return results;
     }
 
     void recordStoreMetrics(DirectoryMetrics directoryMetrics) {

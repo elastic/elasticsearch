@@ -182,6 +182,8 @@ import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedChildren;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedExpandOperator;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
@@ -190,6 +192,9 @@ import org.elasticsearch.xpack.esql.inference.completion.CompletionOperator;
 import org.elasticsearch.xpack.esql.inference.embedding.EmbeddingOperator;
 import org.elasticsearch.xpack.esql.inference.rerank.RerankOperator;
 import org.elasticsearch.xpack.esql.inference.textembedding.TextEmbeddingOperator;
+import org.elasticsearch.xpack.esql.into.IntoMergeStatsOperator;
+import org.elasticsearch.xpack.esql.into.IntoOperator;
+import org.elasticsearch.xpack.esql.into.IntoPageWriter;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -221,6 +226,7 @@ import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.HighlightExec;
 import org.elasticsearch.xpack.esql.plan.physical.InsertEmptyBucketsExec;
+import org.elasticsearch.xpack.esql.plan.physical.IntoExec;
 import org.elasticsearch.xpack.esql.plan.physical.IpLocationExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitByExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
@@ -229,6 +235,7 @@ import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MMRExec;
 import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
+import org.elasticsearch.xpack.esql.plan.physical.NestedExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PackDimsExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -554,6 +561,8 @@ public class LocalExecutionPlanner {
             return planLimit(limit, context);
         } else if (node instanceof MvExpandExec mvExpand) {
             return planMvExpand(mvExpand, context);
+        } else if (node instanceof NestedExpandExec nestedExpand) {
+            return planNestedExpand(nestedExpand, context);
         } else if (node instanceof TimeSeriesCollapseExec tsCollapse) {
             return planTimeSeriesCollapse(tsCollapse, context);
         } else if (node instanceof HighlightExec highlight) {
@@ -611,7 +620,9 @@ public class LocalExecutionPlanner {
             return planLookupJoin(join, context);
         }
         // output
-        else if (node instanceof StreamingOutputExec streamingOutput) {
+        else if (node instanceof IntoExec into) {
+            return planInto(into, context);
+        } else if (node instanceof StreamingOutputExec streamingOutput) {
             return planStreamingOutput(streamingOutput, context);
         } else if (node instanceof OutputExec outputExec) {
             return planOutput(outputExec, context);
@@ -999,7 +1010,7 @@ public class LocalExecutionPlanner {
             new OutputOperatorFactory(
                 Expressions.names(output),
                 alignPageToAttributes(output, source.layout),
-                outputExec.getPageConsumerFactory()
+                outputExec.getPageConsumer()
             ),
             source.layout
         );
@@ -1027,6 +1038,26 @@ public class LocalExecutionPlanner {
         } : Function.identity();
 
         return transformer;
+    }
+
+    private PhysicalOperation planInto(IntoExec into, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(into.child(), context);
+        Layout outputLayout = new Layout.Builder().append(into.output()).build();
+        return switch (into.mode()) {
+            case WRITE -> {
+                IntoPageWriter.Factory sink = IntoPageWriter.Factory.createFactory(
+                    client,
+                    into.destination(),
+                    into.sourceAttributes(),
+                    configuration.explainOnly() ? IntoPageWriter.Factory.Indexing.DISCARD : IntoPageWriter.Factory.Indexing.INDEX
+                );
+                yield source.with(
+                    new IntoOperator.Factory(sink, alignPageToAttributes(into.sourceAttributes(), source.layout)),
+                    outputLayout
+                );
+            }
+            case MERGE_STATS -> source.with(new IntoMergeStatsOperator.Factory(), outputLayout);
+        };
     }
 
     private PhysicalOperation planStreamingOutput(StreamingOutputExec exec, LocalExecutionPlannerContext context) {
@@ -2577,10 +2608,7 @@ public class LocalExecutionPlanner {
                 // Bridge the enclosing ES|QL query's own contracts so an EQL source honors them like FROM does.
                 configuration.allowPartialResults(),
                 QuerySettings.PROJECT_ROUTING.get(configuration.resolvedSettings()),
-                // The out-of-band request filter is not yet bridged to the EQL delegate. A query that combines an EQL
-                // source with a request filter is rejected in EsqlSession, so the filter is never silently ignored;
-                // EnclosingQuery.filter stays null here until the coordinator-local execution context is built.
-                null
+                eqlSource.requestFilter()
             )
         );
         // Reuse the coordinator's already-fetched field-caps so the EQL engine skips its own resolution; a null carrier
@@ -2934,6 +2962,34 @@ public class LocalExecutionPlanner {
             new MvExpandOperator.Factory(source.layout.get(mvExpandExec.target().id()).channel(), blockSize),
             layout.build()
         );
+    }
+
+    private PhysicalOperation planNestedExpand(NestedExpandExec expand, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(expand.child(), context);
+        int docChannel = -1;
+        for (Attribute attribute : expand.child().output()) {
+            if (EsQueryExec.isDocAttribute(attribute)) {
+                docChannel = source.layout.get(attribute.id()).channel();
+                break;
+            }
+        }
+        if (docChannel < 0) {
+            throw new IllegalStateException("NESTED_EXPAND requires [_doc]");
+        }
+        Layout.Builder layout = source.layout.builder();
+        layout.append(expand.expanded());
+        List<DataType> types = expand.expanded().stream().map(Attribute::dataType).toList();
+        // Enumeration does not depend on how many child columns remain after pruning.
+        NestedChildren.Factory children = NestedChildren.factory(
+            context.shardContexts,
+            expand.path(),
+            expand.paths(),
+            types,
+            expand.expanded().stream().map(EsPhysicalOperationProviders::findUnionTypes).toList(),
+            context.plannerSettings,
+            configuration
+        );
+        return source.with(new NestedExpandOperator.Factory(docChannel, children, expand.path(), types), layout.build());
     }
 
     private PhysicalOperation planTimeSeriesCollapse(TimeSeriesCollapseExec collapse, LocalExecutionPlannerContext context) {

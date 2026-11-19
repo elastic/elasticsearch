@@ -110,6 +110,10 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     @Nullable
     private transient Releasable coordinatorFetchCharge;
 
+    // Charge for the aggregations the coordinating node reduced, released when this response is.
+    @Nullable
+    private transient Releasable aggregationCharge;
+
     // Size of the aggregations as read off the wire, or -1 if unknown, so that they can be estimated without serializing them again.
     private transient long serializedAggregationsBytes = -1;
 
@@ -322,7 +326,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                 hit.decRef();
             }
             hits.decRef();
-            Releasables.closeExpectNoException(coordinatorFetchCharge);
+            Releasables.closeExpectNoException(coordinatorFetchCharge, aggregationCharge);
             return true;
         }
         return false;
@@ -496,6 +500,18 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
 
     boolean hasCoordinatorFetchCharge() {
         return coordinatorFetchCharge != null;
+    }
+
+    /**
+     * Takes the charge for the reduced aggregations, so it is held until this response is released and not until the search completes.
+     */
+    void adoptAggregationCharge(Releasable charge) {
+        assert aggregationCharge == null : "an aggregation charge was already adopted";
+        aggregationCharge = charge;
+    }
+
+    boolean hasAggregationCharge() {
+        return aggregationCharge != null;
     }
 
     /**

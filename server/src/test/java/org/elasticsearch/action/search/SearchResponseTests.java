@@ -165,6 +165,36 @@ public class SearchResponseTests extends ESTestCase {
         assertThat(hitsBytes, greaterThanOrEqualTo(3 * SearchHitRamUsageEstimator.BASE_BYTES));
         response.chargeReadResponse(breaker, serializedBytes, "<read_response>");
         assertEquals(serializedBytes + hitsBytes, breaker.getUsed());
+
+        response.decRef();
+        assertEquals(0L, breaker.getUsed());
+    }
+
+    public void testAggregationChargeReleasesOnLastDecRef() {
+        CircuitBreaker breaker = FetchSearchPhaseTests.requestBreaker("1gb");
+        long bytes = 8192L;
+        breaker.addWithoutBreaking(bytes);
+        SearchResponse response = new SearchResponse(
+            emptySections(),
+            null,
+            1,
+            1,
+            0,
+            0,
+            List.of(),
+            SearchResponse.Clusters.EMPTY,
+            null,
+            null,
+            null
+        );
+        response.adoptAggregationCharge(() -> breaker.addWithoutBreaking(-bytes));
+        assertTrue(response.hasAggregationCharge());
+
+        // Such as the REST layer, which keeps the response until it is sent.
+        response.mustIncRef();
+        response.decRef();
+        assertEquals(bytes, breaker.getUsed());
+
         response.decRef();
         assertEquals(0L, breaker.getUsed());
     }

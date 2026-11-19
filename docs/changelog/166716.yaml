@@ -1,5 +1,5 @@
 area: Search
 issues: []
 pr: 166716
-summary: Break score ties by doc id in kNN top-k selection
+summary: Break kNN top-k score ties by internal Lucene doc ID
 type: bug

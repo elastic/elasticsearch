@@ -92,7 +92,7 @@ import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.WarmingRatioProvider;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
-import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
@@ -1313,7 +1313,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
                     StatelessCompoundCommit commit,
                     BlobStoreCacheDirectory directory,
                     WarmingRatioProvider warmingRatioProvider,
-                    @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
+                    @Nullable Map<BccBlob, WarmTarget> endTargetsToWarm,
                     boolean preWarmForIdLookup,
                     ActionListener<Void> listener
                 ) {
@@ -1339,7 +1339,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
                 public void warmCacheForBCCHeadersRead(
                     IndexShard indexShard,
                     BlobStoreCacheDirectory directory,
-                    Set<BlobFile> lastCommitBlobs,
+                    Set<BccBlob> lastCommitBlobs,
                     ActionListener<Void> listener
                 ) {
                     if (deferRegion0Prewarm.get()) {

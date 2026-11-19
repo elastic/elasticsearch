@@ -705,7 +705,7 @@ public class SearchEngine extends Engine {
                                     referencedCompoundCommit.referencedInternalFiles()
                                 )
                             );
-                            var bccBlobFile = referencedCompoundCommit.statelessCompoundCommitReference().bccBlobFile();
+                            var bccBlobFile = referencedCompoundCommit.statelessCompoundCommitReference().bccBlob();
                             // Accumulate raw per-CC timestamps; resolution happens once below, before backfilling.
                             long ccTimestamp = BlobFileRanges.midpointMillisOrUnknownForCache(
                                 referencedCompoundCommit.statelessCompoundCommitReference().compoundCommit().getTimestampFieldValueRange()

@@ -252,6 +252,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
 
   apply plugin: 'elasticsearch.jdk-download'
   apply plugin: 'elasticsearch.repositories'
+  apply plugin: 'elasticsearch.native-library-collection'
 
   int bundledJdkMajor = BundledJdkPlatforms.bundledJdkMajor(buildParams)
 
@@ -358,10 +359,9 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       into 'tools/ansi-console'
     }
     library('libsNative') {
-      // Request the dedicated `nativeLibs` consumable variant — see libs/native/libraries/build.gradle.
-      // Do not switch this back to the `default` configuration: it is plugin-order dependent and would
-      // silently bind to the Java runtime variant if `elasticsearch.build` is ever applied to that project.
-      from dependencies.project(path: ':libs:native:native-libraries', configuration: 'nativeLibs')
+      // The native libraries of every project applying elasticsearch.native-library-build, including
+      // libraries loaded only by modules and plugins.
+      from files(configurations.allNativeLibraries)
       into 'platform'
       platformNative()
     }

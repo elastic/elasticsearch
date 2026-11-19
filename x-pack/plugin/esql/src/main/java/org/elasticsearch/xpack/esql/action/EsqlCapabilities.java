@@ -1445,7 +1445,7 @@ public class EsqlCapabilities {
         /**
          * Support for the {@code exemplars} query setting.
          */
-        EXEMPLARS_SETTING_DEVELOPMENT_V8(Build.current().isSnapshot()),
+        EXEMPLARS_SETTING_RELEASE,
 
         /**
          * Are the {@code documents_found} and {@code values_loaded} fields available
@@ -1683,6 +1683,13 @@ public class EsqlCapabilities {
         WHERE_IN_SUBQUERY_WITH_EQUALS_NOT_EQUALS,
 
         /**
+         * Union-type conversions are scoped to their own side of an {@code IN} subquery. Before, a cast after an {@code IN} whose
+         * subquery ran {@code STATS} failed with "Cannot use field [...] due to ambiguities", and casts after the {@code IN} were
+         * loaded by the subquery's index too.
+         */
+        WHERE_IN_SUBQUERY_UNION_TYPES_SCOPE_FIX,
+
+        /**
          * Support multi-column IN subqueries in WHERE: WHERE (field1, field2) IN (FROM index | KEEP field1, field2).
          */
         WHERE_IN_MULTI_COLUMN_SUBQUERY,
@@ -1875,6 +1882,15 @@ public class EsqlCapabilities {
          * {@code .read}, {@code .planning}, {@code .split_discovery}, {@code .total})?
          */
         USAGE_CONTAINS_DATASOURCES_QUERY_CPU,
+
+        /**
+         * Does the usage information for ESQL contain per-component CPU counters for external-source queries that failed
+         * or were cancelled ({@code datasources.queries.cpu_nanos.by_outcome.failure.*} and
+         * {@code datasources.queries.cpu_nanos.by_outcome.cancelled.*}, each with {@code .execution}, {@code .read},
+         * {@code .planning}, {@code .split_discovery} and {@code .total})? They are not part of
+         * {@code datasources.queries.cpu_nanos.*}, which is the CPU of the queries that succeeded.
+         */
+        USAGE_CONTAINS_DATASOURCES_QUERY_CPU_BY_OUTCOME,
 
         /**
          * Support loading of ip fields if they are not indexed.
@@ -2127,6 +2143,11 @@ public class EsqlCapabilities {
          * EXPLAIN command with remote plans (5 columns: cluster, node, role, type, plan)
          */
         EXPLAIN_WITH_REMOTE_PLANS(Build.current().isSnapshot()),
+        /**
+         * EXPLAIN command with the JSON form of each plan (6 columns: cluster, node, role, type, plan, plan_json).
+         * Older nodes return the five columns of {@link #EXPLAIN_WITH_REMOTE_PLANS}.
+         */
+        EXPLAIN_WITH_JSON_PLANS(Build.current().isSnapshot()),
         /**
          * Support for the RLIKE operator with a list of regexes.
          */
@@ -3156,6 +3177,16 @@ public class EsqlCapabilities {
          * grammar change and are covered by {@link #EQL_COMMAND} alone.
          */
         EQL_IN_SUBQUERY(Build.current().isSnapshot()),
+
+        /**
+         * The EQL source command honours the request {@code filter}. Snapshot-only, gated together with {@link #EQL_COMMAND}.
+         */
+        EQL_COMMAND_REQUEST_FILTER(Build.current().isSnapshot()),
+
+        /**
+         * LOOKUP JOIN after the EQL source command resolves its lookup index on the local cluster. Fixes #166162.
+         */
+        EQL_COMMAND_LOOKUP_JOIN(Build.current().isSnapshot()),
 
         /**
          * Support for the EXTERNAL command (datasource access).
@@ -4313,6 +4344,14 @@ public class EsqlCapabilities {
         FIX_PROMQL_EMPTY_RANGE_IS_NO_ELEMENT(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
+         * A view whose body is {@code PROMQL} nullifies missing labels and metrics in its own scope, whatever the caller
+         * {@code SET}s, as the same {@code PROMQL} does directly, rather than failing with "Unknown column" under a caller
+         * {@code SET unmapped_fields}. A {@code PROMQL} inside a view no longer makes the caller's query nullify, and the
+         * sources of a view's {@code PROMQL} are read back against the view's query on data nodes.
+         */
+        FIX_PROMQL_VIEW_WITH_CALLER_UNMAPPED_FIELDS,
+
+        /**
          * Fix mixing of millisecond roundings with nanosecond timestamps in time-series aggregations over
          * {@code date_nanos} indices. This covers window bucket expansion, the window merge in the final
          * aggregation, the window row filter for windows smaller than the time bucket, and the neighbor-bucket
@@ -4567,13 +4606,12 @@ public class EsqlCapabilities {
         EXTERNAL_PARQUET_LIKE_MISSING_COLUMN_REJECTS_ROWS,
 
         /**
-         * Streaming execution on {@code POST /_query}: the {@code streaming} URL parameter is
-         * accepted, and with {@code format=ndjson} the response streams a columns line, one line
-         * per row and a last line (with {@code complete} and {@code next_offset}) as NDJSON as rows
-         * are produced.
-         * Snapshot-only while the streaming protocol is still changing.
+         * Streaming execution on {@code POST /_query?streaming=true&format=ndjson}. That API was removed and
+         * {@code POST /_query} now rejects the {@code streaming} parameter, so this capability is disabled and no
+         * node advertises it. Streaming is served by {@code POST /_query/stream}, advertised by {@link #STREAMING_V2}.
+         * Kept only because capabilities are append-only.
          */
-        STREAMING(Build.current().isSnapshot()),
+        STREAMING(false),
 
         /**
          * The external-dataset warning and error texts were rewritten; csv-spec tests that assert them require this so an
@@ -4617,6 +4655,12 @@ public class EsqlCapabilities {
          * in the main query as a relation or as an {@code IN} operand.
          */
         NAMED_SUBQUERY_LET(Build.current().isSnapshot()),
+
+        /**
+         * {@code METADATA _class, _name} on a {@code LET} binding referenced in {@code FROM} answers {@code subquery} and the
+         * binding name, instead of {@code null} for both.
+         */
+        NAMED_SUBQUERY_LET_METADATA_CLASS_AND_NAME(Build.current().isSnapshot()),
 
         /**
          * {@code DESCRIBE} returns one row per input column with its role, origin, metric type, unit and a usage hint,
@@ -4887,6 +4931,24 @@ public class EsqlCapabilities {
         COLUMN_METADATA_MERGED_BRANCHES(Build.current().isSnapshot()),
 
         /**
+         * {@code DESCRIBE} and {@code column_metadata} report every unit and description of a column whose indices or merged
+         * branches disagree on them as a multi-value, and merge the field semantics of branches that read the same field as
+         * they merge indices.
+         */
+        COLUMN_METADATA_LISTED_UNITS(Build.current().isSnapshot()),
+
+        /**
+         * {@code DESCRIBE} reports {@code role: time} for the {@code @timestamp} column of a dataset and for a time column
+         * that is rounded or converted to another date type.
+         */
+        DESCRIBE_TIME_COLUMNS(Build.current().isSnapshot()),
+
+        /**
+         * {@code DESCRIBE} reports the {@code interval} and {@code time_zone} of the date buckets with a constant interval.
+         */
+        DESCRIBE_INTERVAL(Build.current().isSnapshot()),
+
+        /**
          * Fixes a bug in the planner where {@code TS} queries failed with an {@link IllegalStateException} when an aggregation
          * with a filter combined several aggregate functions, such as {@code max(...) - min(...) WHERE ...}.
          */
@@ -4906,9 +4968,46 @@ public class EsqlCapabilities {
         TS_FORK_BEFORE_STATS_NOT_SUPPORTED,
 
         /**
+         * Fixes a bug in the planner where aggregations over columns produced by earlier {@code STATS}, {@code INLINE STATS},
+         * {@code TS_COLLAPSE} or {@code RERANK}, such as {@code MIN(a), MIN(b)} with {@code a} and {@code b} both computed as
+         * {@code COUNT(*)} over different rows, were deduplicated and returned the value of one aggregation for both.
+         */
+        FIX_DEDUPLICATE_AGGS_OVER_AGGREGATE_OUTPUTS,
+
+        /**
          * The {@code INTO} command, which writes a query's rows into an index and returns a summary row of total and created counts.
          */
         INTO_COMMAND(Build.current().isSnapshot()),
+
+        /**
+         * The usage information for ESQL counts queries by the Elastic product in {@code X-elastic-product-origin}: one
+         * {@code queries.<product>} per known product origin, {@code queries.other} for any other origin, and {@code queries.rest}
+         * for a request without the header. Before this, every query was counted as {@code rest}.
+         */
+        USAGE_QUERIES_BY_CLIENT,
+
+        /**
+         * Streaming execution on {@code POST /_query/stream}: the response streams a columns line, one line
+         * per row and a last line (with {@code complete} and {@code next_offset}) as NDJSON as rows are produced.
+         * Replaces {@link #STREAMING}: streaming no longer runs on {@code POST /_query}.
+         * Snapshot-only while the streaming protocol is still changing.
+         */
+        STREAMING_V2(Build.current().isSnapshot()),
+
+        /** The {@code _score} column merged by a subquery union ({@code FROM (...), (...)}) stays as live score when every
+         * branch either asked for {@code METADATA _score} or leaves the column null, so a scoring search after the merge,
+         * such as a runtime {@code MATCH}, adds to it instead of being dropped. Rows from a branch without a score stay
+         * {@code null} through that search. A branch that computed its own {@code _score} keeps the merged column out
+         * of scoring, as it does for a single source.
+         */
+        FROM_SUBQUERY_MERGE_KEEPS_METADATA_SCORE,
+
+        /**
+         * Makes {@code FIRST}, {@code LAST}, {@code EARLIEST} and {@code LATEST} in {@code TS} queries return a real sample of a
+         * time series, like outside of {@code TS}. {@code EARLIEST} returned the last value of the time series whose last sample
+         * was the earliest. {@code LAST} and {@code LATEST} on histogram fields returned all histograms of the series merged.
+         */
+        FIX_TS_FIRST_LAST_SAMPLES,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

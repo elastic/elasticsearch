@@ -1,0 +1,5 @@
+area: TSDB
+issues: []
+pr: 166557
+summary: Fix EARLIEST in TS queries
+type: bug

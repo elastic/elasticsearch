@@ -21,6 +21,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -90,7 +91,8 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
         if (targetIndexRequest == null) {
             validationException = addValidationError("target index request is missing", validationException);
         }
-        if (targetIndexRequest.settings().getByPrefix("index.sort.").isEmpty() == false) {
+        if (targetIndexRequest.settings().getByPrefix("index.sort.").isEmpty() == false
+            || targetIndexRequest.settings().hasValue(IndexSortConfig.INDEX_SORT_SETTING.getKey())) {
             validationException = addValidationError("can't override index sort when resizing an index", validationException);
         }
         if (type == ResizeType.SPLIT && IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexRequest.settings()) == false) {

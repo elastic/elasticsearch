@@ -16,13 +16,9 @@ import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.search.TaskExecutor;
-<<<<<<< HEAD
 import org.elasticsearch.index.codec.vectors.VectorReadHints;
 import org.elasticsearch.index.codec.vectors.VectorWriteHints;
-=======
-import org.elasticsearch.index.codec.vectors.DirectIOCapableFlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.AshConfigResolver;
->>>>>>> 9c5372d87e7fdecd230a274fc1190fe66dcd14f1
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfMergeConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
@@ -112,15 +108,13 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
             DEFAULT_VECTORS_PER_CLUSTER,
             DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
             DenseVectorFieldMapper.ElementType.FLOAT,
-            false,
             null,
             1,
             null,
             defaultFlatThreshold(DEFAULT_VECTORS_PER_CLUSTER),
             null,
             IvfFlushConfigSource.empty(),
-            IvfMergeConfigResolver.useCodecDefault(),
-            false
+            IvfMergeConfigResolver.useCodecDefault()
         );
     }
 
@@ -140,13 +134,9 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
         );
     }
 
-<<<<<<< HEAD
-=======
     /**
      * @param ashConfigResolver supplies the ASH configuration for each field from its vector dimension
-     * @param onDiskMerge whether merges use direct I/O for the raw vectors (the field's {@code on_disk_merge} option)
      */
->>>>>>> 9c5372d87e7fdecd230a274fc1190fe66dcd14f1
     public ESNextDiskASHVectorsFormat(
         AshConfigResolver ashConfigResolver,
         int vectorPerCluster,
@@ -229,13 +219,8 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
         return new ESNextDiskASHVectorsReader(state, f -> {
             var format = supportedFormats.get(f);
             if (format == null) return null;
-<<<<<<< HEAD
             return format.fieldsReader(VectorReadHints.readToRescore(state));
-        }, ashConfig.queryBitsPerDim());
-=======
-            return format.fieldsReader(state, dio, odm);
         }, ashConfigResolver.queryBitsPerDim());
->>>>>>> 9c5372d87e7fdecd230a274fc1190fe66dcd14f1
     }
 
     @Override

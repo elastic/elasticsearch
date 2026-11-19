@@ -195,7 +195,6 @@ public class TSDBDocValuesPrefetchTests extends ESTestCase {
                 .mapToObj(i -> new BytesRef(randomAlphaOfLength(randomIntBetween(4, 30))))
                 .toArray(BytesRef[]::new);
             IndexWriterConfig config = new IndexWriterConfig().setCodec(TestUtil.alwaysDocValuesFormat(format)).setUseCompoundFile(false);
-            config.getMergePolicy().setNoCFSRatio(0);
             try (IndexWriter writer = new IndexWriter(dir, config)) {
                 for (int doc = 0; doc < numDocs; doc++) {
                     Document document = new Document();

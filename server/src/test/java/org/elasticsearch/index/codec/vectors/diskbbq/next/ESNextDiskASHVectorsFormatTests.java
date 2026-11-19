@@ -462,9 +462,7 @@ public class ESNextDiskASHVectorsFormatTests extends ESBaseKnnVectorsFormatTestC
 
     private static ESNextDiskASHVectorsReader ashReader(LeafReader leafReader, String field) {
         KnnVectorsReader vectorReader = ((CodecReader) leafReader).getVectorReader();
-        if (vectorReader instanceof PerFieldKnnVectorsFormat.FieldsReader fieldsReader) {
-            vectorReader = fieldsReader.getFieldReader(field);
-        }
+        vectorReader = vectorReader.unwrapReaderForField(field);
         assertThat(vectorReader, instanceOf(ESNextDiskASHVectorsReader.class));
         return (ESNextDiskASHVectorsReader) vectorReader;
     }
@@ -762,15 +760,13 @@ public class ESNextDiskASHVectorsFormatTests extends ESBaseKnnVectorsFormatTestC
             MIN_VECTORS_PER_CLUSTER,
             ESNextDiskASHVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
             DenseVectorFieldMapper.ElementType.FLOAT,
-            false,
             null,
             1,
             null,
             -1,
             null,
             IvfFlushConfigSource.empty(),
-            IvfMergeConfigResolver.useCodecDefault(),
-            false
+            IvfMergeConfigResolver.useCodecDefault()
         );
     }
 

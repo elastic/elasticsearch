@@ -159,9 +159,9 @@ public final class PrefetchRecordingDirectory extends FilterDirectory {
         }
 
         @Override
-        public void prefetch(long offset, long length) throws IOException {
+        public boolean prefetch(long offset, long length) throws IOException {
             onPrefetch(file, base + offset, length);
-            in.prefetch(offset, length);
+            return in.prefetch(offset, length);
         }
 
         @Override

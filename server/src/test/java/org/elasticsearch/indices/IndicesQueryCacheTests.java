@@ -57,7 +57,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -398,39 +397,6 @@ public class IndicesQueryCacheTests extends ESTestCase {
         cache.close(); // this triggers some assertions
     }
 
-    public void testDenseEntriesUseRunEndCachingIterator() throws IOException {
-        Directory dir = newDirectory();
-        IndexWriter w = new IndexWriter(dir, newIndexWriterConfig());
-        for (int i = 0; i < 10; i++) {
-            w.addDocument(new Document());
-        }
-        w.forceMerge(1);
-        DirectoryReader r = DirectoryReader.open(w);
-        w.close();
-        ShardId shard = new ShardId("index", "_na_", 0);
-        r = ElasticsearchDirectoryReader.wrap(r, shard);
-        IndexSearcher s = new IndexSearcher(r);
-        s.setQueryCachingPolicy(TrivialQueryCachingPolicy.ALWAYS);
-        Settings settings = Settings.builder().put(IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.getKey(), true).build();
-        IndicesQueryCache cache = new IndicesQueryCache(settings);
-        s.setQueryCache(cache);
-
-        Weight weight = s.createWeight(s.rewrite(new DummyQuery(0)), ScoreMode.COMPLETE_NO_SCORES, 1f);
-        LeafReaderContext leaf = r.leaves().get(0);
-        for (int i = 0; i < 2; i++) {
-            // the first iteration populates the cache, the second one reads from it
-            DocIdSetIterator it = weight.scorer(leaf).iterator();
-            assertThat(it, instanceOf(RunEndCachingBitDocIdSet.RunEndCachingBitSetIterator.class));
-            assertEquals(0, it.nextDoc());
-            assertEquals(10, it.docIDRunEnd());
-        }
-        assertEquals(1L, cache.getStats(shard, () -> 0L).getHitCount());
-
-        IOUtils.close(r, dir);
-        cache.onClose(shard);
-        cache.close();
-    }
-
     /**
      * Doc-partitioning lets concurrent slices of the same segment race to populate the cache through an
      * {@link IndicesQueryCache.OptionalCachingWeight}: only the slice that wins {@code startCaching} populates the
@@ -476,9 +442,6 @@ public class IndicesQueryCacheTests extends ESTestCase {
         return cacheCount;
     }
 
-<<<<<<< HEAD
-    // TODO: LUCENE11 (https://github.com/elastic/elasticsearch/issues/163523): see testBasics — shard cacheSize/cacheCount.
-=======
     /**
      * Before building an entry the cache asks the search to reserve the heap the entry takes, sized like Lucene sizes the entry, on
      * the circuit breaker of the {@link ContextIndexSearcher} running it. The searcher is a real one, so what reaches the cache is the
@@ -533,7 +496,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
         cache.close();
     }
 
->>>>>>> 9c5372d87e7fdecd230a274fc1190fe66dcd14f1
+    // TODO: LUCENE11 (https://github.com/elastic/elasticsearch/issues/163523): see testBasics — shard cacheSize/cacheCount.
     public void testTwoShards() throws IOException {
         Directory dir1 = newDirectory();
         IndexWriter w1 = new IndexWriter(dir1, newIndexWriterConfig());

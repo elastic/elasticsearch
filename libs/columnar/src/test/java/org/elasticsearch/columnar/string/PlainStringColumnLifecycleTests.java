@@ -241,7 +241,6 @@ public class PlainStringColumnLifecycleTests extends ESTestCase {
         FormatVersion formatVersion
     ) throws IOException {
         final LogDocMergePolicy policy = new LogDocMergePolicy();
-        policy.setNoCFSRatio(0.0);
         try (IndexWriter writer = new IndexWriter(dir, config(policy, options, formatVersion))) {
             final List<BytesRef[]> kept = new ArrayList<>();
             for (int doc = 0; doc < docSlots.length; doc++) {

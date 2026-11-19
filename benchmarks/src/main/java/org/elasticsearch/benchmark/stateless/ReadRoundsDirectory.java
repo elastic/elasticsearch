@@ -193,8 +193,9 @@ final class ReadRoundsDirectory extends FilterDirectory {
         }
 
         @Override
-        public void prefetch(long offset, long length) throws IOException {
+        public boolean prefetch(long offset, long length) throws IOException {
             onPrefetch(file, base + offset, length);
+            return false;
         }
 
         @Override

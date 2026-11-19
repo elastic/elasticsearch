@@ -47,7 +47,6 @@ public class AutomatonsTests extends ESTestCase {
         assertMismatch(patterns("/fo.*/", "ba*"), "zipfoo");
     }
 
-<<<<<<< HEAD
     public void testLuceneRegexComplement() throws Exception {
         assertMatch(pattern("/~(notStr)/"), "other");
         assertMismatch(pattern("/~(notStr)/"), "notStr");
@@ -61,7 +60,8 @@ public class AutomatonsTests extends ESTestCase {
         );
         assertMatch(pattern("/@&~(\\.security.*)&~(\\.async-search.*)/"), "logs-1");
         assertMismatch(pattern("/@&~(\\.security.*)&~(\\.async-search.*)/"), ".security-7");
-=======
+    }
+
     /** Callers that reuse a single patterns automaton rely on each builder path having already minimized it. */
     public void testPatternsReturnMinimalDeterministicAutomata() {
         final List<List<String>> inputs = List.of(
@@ -83,7 +83,6 @@ public class AutomatonsTests extends ESTestCase {
             final Automaton minimized = MinimizationOperations.minimize(automaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
             assertEquals("expected a minimal automaton for " + input, minimized.getNumStates(), automaton.getNumStates());
         }
->>>>>>> 9c5372d87e7fdecd230a274fc1190fe66dcd14f1
     }
 
     public void testPatternSingle() throws Exception {

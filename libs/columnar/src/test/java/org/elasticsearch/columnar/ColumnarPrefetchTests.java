@@ -137,7 +137,6 @@ public class ColumnarPrefetchTests extends ESTestCase {
         Map<Integer, BytesRef> indexed = new HashMap<>();
         try (Directory dir = newDirectory()) {
             IndexWriterConfig config = new IndexWriterConfig().setCodec(codec).setUseCompoundFile(false);
-            config.getMergePolicy().setNoCFSRatio(0);
             try (IndexWriter writer = new IndexWriter(dir, config)) {
                 for (int doc = 0; doc < numDocs; doc++) {
                     Document document = new Document();

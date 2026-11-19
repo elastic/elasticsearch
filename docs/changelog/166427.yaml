@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 166427
-summary: Keep a file's statistics cached when one text column is too wide to publish
+summary: Omit a text column's minimum and maximum from cached statistics when the value exceeds 1 KB
 type: bug

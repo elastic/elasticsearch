@@ -47,6 +47,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -1578,6 +1579,37 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 }
             }
         }
+    }
+
+    /** A by() key no parent reads still decides the rows it aggregates. */
+    public void testPromqlUnusedByKeyStillDeterminesRows() {
+        String index = "promql-unused-by-key";
+        createOptionalLabelMetricsIndex(index);
+        indexPromqlSample(index, "cluster", "prod", "host", "a", "tx", 1.0);
+        indexPromqlSample(index, "cluster", "prod", "host", "b", "tx", 10.0);
+        refresh(index);
+        assertRowsAnyOrder(promqlQuery(index, "sum(max by(host)(tx))") + " | KEEP result", List.of(List.of(11.0)));
+    }
+
+    /** A label a closed by() left out reads as absent above it, a non-dimension field like a dimension. */
+    public void testPromqlMissingLabelCannotCrossClosedBy() {
+        String index = "promql-closed-by";
+        createOptionalLabelMetricsIndex(index);
+        indexPromqlSample(index, "cluster", "prod", "host", "a", "event", "e1", "tx", 1.0);
+        indexPromqlSample(index, "cluster", "prod", "host", "b", "event", "e2", "tx", 10.0);
+        refresh(index);
+        assertRowsAnyOrder(
+            promqlQuery(index, "sum by(host)(sum by(cluster)(tx))") + " | KEEP result, host",
+            List.of(Arrays.asList(11.0, null))
+        );
+        assertRowsAnyOrder(
+            promqlQuery(index, "sum by(event)(tx)") + " | KEEP result, event",
+            List.of(List.of(1.0, "e1"), List.of(10.0, "e2"))
+        );
+        assertRowsAnyOrder(
+            promqlQuery(index, "sum by(event)(sum by(cluster)(tx))") + " | KEEP result, event",
+            List.of(Arrays.asList(11.0, null))
+        );
     }
 
     /** Removing the metric name from the output must not merge histogram families before their quantiles. */

@@ -59,7 +59,7 @@ public class SearchResponseMetrics {
      * </ul>
      * Anything above 4 TiB goes into a single overflow bucket.
      */
-    public static final List<Long> STORE_BYTES_READ_BUCKETS = Stream.concat(
+    private static final List<Long> STORE_BYTES_READ_BUCKETS = Stream.concat(
         Stream.of(0L),
         IntStream.rangeClosed(10, 42).mapToObj(exponent -> 1L << exponent)
     ).toList();

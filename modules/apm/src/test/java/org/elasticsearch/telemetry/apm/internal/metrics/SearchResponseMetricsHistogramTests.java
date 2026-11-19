@@ -23,7 +23,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.rest.action.search.SearchResponseMetrics.STORE_BYTES_READ_BUCKETS;
 import static org.elasticsearch.rest.action.search.SearchResponseMetrics.STORE_BYTES_READ_HISTOGRAM_NAME;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -44,6 +43,7 @@ public class SearchResponseMetricsHistogramTests extends ESTestCase {
         metrics.recordStoreBytesRead(ByteSizeValue.ofMb(5).getBytes(), Map.of());
         metrics.recordStoreBytesRead(ByteSizeValue.ofMb(6).getBytes(), Map.of());
         metrics.recordStoreBytesRead(ByteSizeValue.ofGb(3).getBytes(), Map.of());
+        metrics.recordStoreBytesRead(ByteSizeValue.ofTb(4).getBytes(), Map.of());
         metrics.recordStoreBytesRead(ByteSizeValue.ofTb(5).getBytes(), Map.of());
 
         HistogramPointData point = reader.collectAllMetrics()
@@ -56,8 +56,14 @@ public class SearchResponseMetricsHistogramTests extends ESTestCase {
             .iterator()
             .next();
 
+        List<Double> expectedBoundaries = new ArrayList<>(List.of(0.0));
+        long start = ByteSizeValue.ofKb(1).getBytes();
+        long end = ByteSizeValue.ofTb(4).getBytes();
+        for (long bytes = start; bytes <= end; bytes *= 2) {
+            expectedBoundaries.add((double) bytes);
+        }
         List<Double> boundaries = point.getBoundaries();
-        assertThat(boundaries, equalTo(STORE_BYTES_READ_BUCKETS.stream().map(Long::doubleValue).toList()));
+        assertThat(boundaries, equalTo(expectedBoundaries));
 
         int zeroBucket = boundaries.indexOf(0.0);
         int overflowBucket = boundaries.size();
@@ -65,6 +71,7 @@ public class SearchResponseMetricsHistogramTests extends ESTestCase {
         expectedCounts.set(zeroBucket, 1L);
         expectedCounts.set(boundaries.indexOf((double) ByteSizeValue.ofMb(8).getBytes()), 2L);
         expectedCounts.set(boundaries.indexOf((double) ByteSizeValue.ofGb(4).getBytes()), 1L);
+        expectedCounts.set(boundaries.indexOf((double) ByteSizeValue.ofTb(4).getBytes()), 1L);
         expectedCounts.set(overflowBucket, 1L);
         assertThat(point.getCounts(), equalTo(expectedCounts));
     }

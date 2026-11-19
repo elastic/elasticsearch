@@ -215,6 +215,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 }
 
                 final AtomicLong pagesFetched = new AtomicLong();
+                // TODO: once FROM supports INTO, do not retry requests whose writer has already sent a bulk
                 var listener = ActionListener.wrap(nodeListener::onResponse, e -> nodeListener.onFailure(e, pagesFetched.get() > 0));
                 final Transport.Connection connection;
                 try {
@@ -277,7 +278,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 sameNodeAsCoordinator && queryPragmas.singleNodeOptimizations() && Strings.isEmpty(clusterAlias)
                             );
                             ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
-                            final var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, connection);
+                            final var sinkPart = computeService.remoteSinkPart(computeService.queryId(parentTask), groupTask);
+                            final var remoteSink = computeService.newRemoteSink(groupTask, childSessionId, connection, sinkPart);
                             transportService.sendChildRequest(
                                 connection,
                                 ComputeService.DATA_ACTION_NAME,
@@ -298,7 +300,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 configuration.allowPartialResults() == false,
                                 pagesFetched::incrementAndGet,
                                 queryPragmas.concurrentExchangeClients(),
-                                computeListener.acquireAvoid()
+                                ActionListener.releaseAfter(computeListener.acquireAvoid(), sinkPart)
                             );
                         }
                     })
@@ -437,7 +439,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                             currentNode
                         );
                         ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
-                        var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, connection);
+                        var sinkPart = computeService.remoteSinkPart(computeService.queryId(parentTask), groupTask);
+                        var remoteSink = computeService.newRemoteSink(groupTask, childSessionId, connection, sinkPart);
                         transportService.sendChildRequest(
                             connection,
                             ComputeService.DATA_ACTION_NAME,
@@ -456,7 +459,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                             false,
                             walk::pageFetched,
                             queryPragmas.concurrentExchangeClients(),
-                            walk.sinkListener(0, computeListener.acquireAvoid())
+                            ActionListener.releaseAfter(walk.sinkListener(0, computeListener.acquireAvoid()), sinkPart)
                         );
                     }
                 });
@@ -673,6 +676,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
      * fetched from this walk cannot be replayed, so a failure after the first page is terminal.
      */
     static boolean shouldRerouteExternalWorker(Exception failure, long pagesFetched, boolean hasNextWorker) {
+        // TODO: once FROM supports INTO, do not reroute external workers whose writer has already sent a bulk
         return hasNextWorker && pagesFetched == 0 && isRetryableExternalWorkerFailure(failure);
     }
 
@@ -1038,7 +1042,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             final String childSessionId = computeService.newChildSession(sessionId);
             final ActionListener<Void> opened = ActionListener.wrap(unused -> {
                 ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
-                var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, next.connection());
+                var sinkPart = computeService.remoteSinkPart(queryId, groupTask);
+                var remoteSink = computeService.newRemoteSink(groupTask, childSessionId, next.connection(), sinkPart);
                 transportService.sendChildRequest(
                     next.connection(),
                     ComputeService.DATA_ACTION_NAME,
@@ -1057,7 +1062,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     false,
                     this::pageFetched,
                     queryPragmas.concurrentExchangeClients(),
-                    sinkListener(attempt, sink)
+                    ActionListener.releaseAfter(sinkListener(attempt, sink), sinkPart)
                 );
             }, e -> {
                 if (abandonAttempt(attempt, e)) {
@@ -1238,6 +1243,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
 
                 @Override
                 public void onFailure(Exception e) {
+                    // TODO: once FROM supports INTO, fail fast if a writer in this batch has already sent a bulk
                     if (pagesProduced.get() == 0 && failFastOnShardFailure == false) {
                         for (DataNodeRequest.Shard shard : batch) {
                             addShardLevelFailure(shard.shardId(), e);

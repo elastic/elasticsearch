@@ -120,9 +120,15 @@ public class Least extends EsqlScalarFunction implements OptionalArgument, AnyNu
 
     @Override
     public DataType dataType() {
-        if (dataType == null) {
-            resolveType();
-        }
+        DataType cached = dataType;
+        return cached != null ? cached : resolveDataType();
+    }
+
+    /**
+     * {@link #resolveType} assigns {@link #dataType}. Reading it after this thread assigned it can't see {@code null}.
+     */
+    private DataType resolveDataType() {
+        resolveType();
         return dataType;
     }
 
@@ -132,26 +138,31 @@ public class Least extends EsqlScalarFunction implements OptionalArgument, AnyNu
             return new TypeResolution("Unresolved children");
         }
 
+        // Compute in a local and publish only the final type: this field is shared by every thread that holds the plan.
+        DataType type = null;
         for (int position = 0; position < children().size(); position++) {
             Expression child = children().get(position);
-            if (dataType == null || dataType == NULL) {
-                dataType = child.dataType().noText();
+            if (type == null || type == NULL) {
+                type = child.dataType().noText();
                 continue;
             }
+            DataType expected = type;
             TypeResolution resolution = TypeResolutions.isType(
                 child,
-                t -> t.noText() == dataType,
+                t -> t.noText() == expected,
                 sourceText(),
                 TypeResolutions.ParamOrdinal.fromIndex(position),
-                dataType.typeName()
+                expected.typeName()
             );
             if (resolution.unresolved()) {
+                dataType = type;
                 return resolution;
             }
         }
+        dataType = type;
 
-        if (dataType != NULL && EVALUATOR_MAP.containsKey(dataType) == false && DataType.isString(dataType) == false) {
-            return new TypeResolution("Cannot use [" + dataType.typeName() + "] with function [" + getWriteableName() + "]");
+        if (type != NULL && EVALUATOR_MAP.containsKey(type) == false && DataType.isString(type) == false) {
+            return new TypeResolution("Cannot use [" + type.typeName() + "] with function [" + getWriteableName() + "]");
         }
 
         return TypeResolution.TYPE_RESOLVED;

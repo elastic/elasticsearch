@@ -3692,6 +3692,14 @@ public class InternalEngine extends Engine {
         iwc.setMaxFullFlushMergeWaitMillis(-1);
         iwc.setSimilarity(engineConfig.getSimilarity());
         iwc.setRAMBufferSizeMB(engineConfig.getIndexingBufferSize().getMbFrac());
+        final IndexWriter.IndexReaderWarmer mergedSegmentWarmer = engineConfig.getMergedSegmentWarmer();
+        if (mergedSegmentWarmer != null) {
+            // Lucene silently skips the merged segment warmer unless reader pooling is enabled. It is on by default and also gets
+            // enabled by the first DirectoryReader.open(writer), so this is set explicitly only to keep the warmer working
+            // if that default or the settings above ever change.
+            iwc.setReaderPooling(true);
+            iwc.setMergedSegmentWarmer(mergedSegmentWarmer);
+        }
 
         Codec codec = engineConfig.getCodec();
         if (DiscoveryNode.isStateless(engineConfig.getIndexSettings().getNodeSettings())) {

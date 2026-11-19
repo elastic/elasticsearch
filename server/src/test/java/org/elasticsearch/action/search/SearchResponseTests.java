@@ -133,6 +133,35 @@ public class SearchResponseTests extends ESTestCase {
         assertEquals(0L, breaker.getUsed());
     }
 
+    public void testAggregationChargeReleasesOnLastDecRef() {
+        CircuitBreaker breaker = FetchSearchPhaseTests.requestBreaker("1gb");
+        long bytes = 8192L;
+        breaker.addWithoutBreaking(bytes);
+        SearchResponse response = new SearchResponse(
+            emptySections(),
+            null,
+            1,
+            1,
+            0,
+            0,
+            List.of(),
+            SearchResponse.Clusters.EMPTY,
+            null,
+            null,
+            null
+        );
+        response.adoptAggregationCharge(() -> breaker.addWithoutBreaking(-bytes));
+        assertTrue(response.hasAggregationCharge());
+
+        // Such as the REST layer, which keeps the response until it is sent.
+        response.mustIncRef();
+        response.decRef();
+        assertEquals(bytes, breaker.getUsed());
+
+        response.decRef();
+        assertEquals(0L, breaker.getUsed());
+    }
+
     private static SearchResponseSections emptySections() {
         return new SearchResponseSections(
             SearchHits.empty(Lucene.TOTAL_HITS_EQUAL_TO_ZERO, Float.NaN),

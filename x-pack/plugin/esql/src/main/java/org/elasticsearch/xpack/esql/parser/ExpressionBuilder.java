@@ -1395,17 +1395,33 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     /**
      * Similar to {@link #visitFields(EsqlBaseParser.FieldsContext)} however avoids wrapping the expression
      * into an Alias.
+     * <p>
+     * An unnamed key that is a parameter with the reserved value that stands for a field ({@code BY ??g}) is dropped, as
+     * "any group" is no group at all, as long as something else stays: an aggregate or another key. It would leave a
+     * {@code STATS} that does nothing otherwise, so the key stays and is reported. A named key stays too, as it is a column
+     * that the rest of the query can use. The {@code ?g} that stands for a value is not dropped either.
+     *
+     * @param aggregateCount the number of aggregates of the command, which also stay as it is
      */
-    public List<NamedExpression> visitGrouping(EsqlBaseParser.FieldsContext ctx) {
+    public List<NamedExpression> visitGrouping(EsqlBaseParser.FieldsContext ctx, int aggregateCount) {
         List<NamedExpression> list;
         if (ctx != null) {
             var fields = ctx.field();
             list = new ArrayList<>(fields.size());
+            List<NamedExpression> droppable = new ArrayList<>();
             for (EsqlBaseParser.FieldContext field : fields) {
                 NamedExpression ne = null;
                 UnresolvedAttribute id = visitQualifiedName(field.qualifiedName());
                 Expression value = expression(field.booleanExpression());
                 String name = null;
+                boolean anyField = id == null && value instanceof AnyParam any && any.field();
+                if (value instanceof AnyParam any && anyField == false) {
+                    value = any.withReason(
+                        id != null
+                            ? "in a named BY key, as only an unnamed key can be dropped"
+                            : "as a BY key that is a value, as only a key that is a field can be dropped"
+                    );
+                }
                 if (id == null) {
                     // when no alias has been specified, see if the underling one can be reused
                     if (value instanceof Attribute a) {
@@ -1424,6 +1440,26 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                     ne = new Alias(source(field), name, value);
                 }
                 list.add(ne);
+                if (anyField) {
+                    droppable.add(ne);
+                }
+            }
+            if (aggregateCount > 0 || droppable.size() < list.size()) {
+                list.removeIf(key -> droppable.stream().anyMatch(dropped -> dropped == key));
+            } else {
+                for (NamedExpression kept : droppable) {
+                    Alias key = (Alias) kept;
+                    AnyParam any = (AnyParam) key.child();
+                    list.replaceAll(
+                        k -> k == kept
+                            ? new Alias(
+                                key.source(),
+                                key.name(),
+                                any.withReason("in a STATS that would have no aggregate and no other key without it")
+                            )
+                            : k
+                    );
+                }
             }
         } else {
             list = new ArrayList<>();

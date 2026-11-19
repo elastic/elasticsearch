@@ -950,7 +950,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         EsqlBaseParser.FieldsContext groupingsCtx,
         EsqlBaseParser.AggFieldsContext aggregatesCtx
     ) {
-        List<NamedExpression> groupings = visitGrouping(groupingsCtx);
+        List<NamedExpression> groupings = visitGrouping(groupingsCtx, aggregatesCtx == null ? 0 : aggregatesCtx.aggField().size());
         List<NamedExpression> aggregates = new ArrayList<>(visitAggFields(aggregatesCtx));
         return ParserUtils.buildStats(source, new ArrayList<>(groupings), aggregates);
     }
@@ -971,7 +971,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
         List<Alias> aggFields = visitAggFields(ctx.stats);
         List<NamedExpression> aggregates = new ArrayList<>(aggFields);
-        List<NamedExpression> groupings = visitGrouping(ctx.grouping);
+        List<NamedExpression> groupings = visitGrouping(ctx.grouping, aggFields.size());
         aggregates.addAll(groupings);
         return input -> new InlineStats(source, new Aggregate(source, input, new ArrayList<>(groupings), aggregates));
     }

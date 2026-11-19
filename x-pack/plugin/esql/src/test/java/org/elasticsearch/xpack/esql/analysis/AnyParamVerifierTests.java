@@ -67,8 +67,13 @@ public class AnyParamVerifierTests extends ESTestCase {
 
     public void testMarkerInGroupingIsReported() {
         analyzer().error(
-            "FROM test | STATS c = COUNT(*) BY ??g",
-            containsString(anyMessage("??g", "here")),
+            "FROM test | STATS BY ??g",
+            containsString(anyMessage("??g", "in a STATS that would have no aggregate and no other key without it")),
+            new QueryParams(List.of(paramAsConstant("g", ANY)))
+        );
+        analyzer().error(
+            "FROM test | STATS c = COUNT(*) BY k = ??g",
+            containsString(anyMessage("??g", "in a named BY key, as only an unnamed key can be dropped")),
             new QueryParams(List.of(paramAsConstant("g", ANY)))
         );
     }
@@ -112,10 +117,11 @@ public class AnyParamVerifierTests extends ESTestCase {
             "FROM test | STATS c = COUNT(?x)",
             "FROM test | STATS c = SUM(emp_no) WHERE emp_no > ?x",
             "FROM test | STATS c = COUNT(*) BY ?x",
-            "FROM test | STATS c = COUNT(*) BY ??g",
+            "FROM test | STATS BY ??g",
+            "FROM test | STATS c = COUNT(*) BY k = ??g",
             "FROM test | STATS c = COUNT(*) BY b = BUCKET(emp_no, ?x)",
             "FROM test | STATS c = COUNT(*) BY emp_no + ?x",
-            "FROM test | INLINE STATS c = COUNT(*) BY ??g",
+            "FROM test | INLINE STATS c = COUNT(*) BY k = ??g",
             "FROM test | INLINE STATS c = SUM(emp_no) WHERE emp_no > ?x",
             "FROM test | LIMIT 5 BY ?x",
             "FROM test | LIMIT 5 BY ??g",

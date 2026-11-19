@@ -5016,6 +5016,13 @@ public class EsqlCapabilities {
          */
         PARAM_ANY_VALUE_V1(Build.current().isSnapshot()),
 
+        /**
+         * Adds to {@link #PARAM_ANY_VALUE_V1} that an unnamed {@code STATS ... BY ??g} key, or {@code BY ?g} with an identifier
+         * parameter, is dropped when the parameter stands for "Any" and the command keeps an aggregate or another key.
+         * Snapshot-only while the setting is.
+         */
+        PARAM_ANY_VALUE_V2(Build.current().isSnapshot()),
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

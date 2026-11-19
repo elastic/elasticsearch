@@ -1,0 +1,101 @@
+// Query parameters with the value reserved to stand for "Any" (param_any_value, "__ANY__" by default).
+
+anyGroupKeyIsDropped
+required_capability: param_any_value_v2
+param: g = "__ANY__"
+FROM employees
+| STATS c = COUNT(*) BY ??g
+;
+
+c:long
+100
+;
+
+anyGroupKeyIsDroppedNextToAggregates
+required_capability: param_any_value_v2
+param: g = "__ANY__"
+FROM employees
+| WHERE emp_no < 10003
+| STATS c = COUNT(*), m = MAX(emp_no) BY ??g
+;
+
+c:long | m:integer
+2      | 10002
+;
+
+anyGroupKeyIsDroppedNextToAnotherKey
+required_capability: param_any_value_v2
+param: g = "__ANY__"
+FROM employees
+| WHERE emp_no < 10003
+| STATS c = COUNT(*) BY emp_no, ??g
+| SORT emp_no
+;
+
+c:long | emp_no:integer
+1      | 10001
+1      | 10002
+;
+
+anyIdentifierGroupKeyIsDropped
+required_capability: param_any_value_v2
+param: g = {"identifier": "__ANY__"}
+FROM employees
+| STATS c = COUNT(*) BY ?g
+;
+
+c:long
+100
+;
+
+anyGroupKeysAreAllDropped
+required_capability: param_any_value_v2
+param: g = "__ANY__"
+param: h = "__ANY__"
+FROM employees
+| STATS c = COUNT(*) BY ??g, ??h
+;
+
+c:long
+100
+;
+
+anyGroupKeyIsDroppedInInlineStats
+required_capability: param_any_value_v2
+required_capability: inline_stats
+param: g = "__ANY__"
+FROM employees
+| WHERE emp_no < 10003
+| KEEP emp_no
+| INLINE STATS c = COUNT(*) BY ??g
+| SORT emp_no
+;
+
+emp_no:integer | c:long
+10001          | 2
+10002          | 2
+;
+
+groupKeyWithAnotherValueIsKept
+required_capability: param_any_value_v2
+param: g = "emp_no"
+FROM employees
+| WHERE emp_no < 10003
+| STATS c = COUNT(*) BY ??g
+| SORT emp_no
+;
+
+c:long | emp_no:integer
+1      | 10001
+1      | 10002
+;
+
+literalWithTheReservedValueIsAnOrdinaryString
+required_capability: param_any_value_v2
+ROW a = "__ANY__"
+| STATS c = COUNT(*) BY a
+;
+
+c:long | a:keyword
+1      | __ANY__
+;

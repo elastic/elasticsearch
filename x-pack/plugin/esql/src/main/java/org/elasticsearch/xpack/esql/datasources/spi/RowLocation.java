@@ -177,9 +177,12 @@ public final class RowLocation {
     }
 
     /**
-     * Replaces, with a backslash-u escape of its code point (a newline becomes {@code \u000A}), every character in
-     * an object name that the name could otherwise use to impersonate the text around it. Two such characters, for
-     * two different channels.
+     * Replaces, with a backslash-u escape of its code point — six ASCII characters where the original was one,
+     * the last four naming the code point in hex, so a newline is escaped as 000A — every character in an
+     * object name that the name could otherwise use to impersonate the text around it. Two such characters, for
+     * two different channels. The escape is spelled out in words here rather than written: a backslash followed
+     * by {@code u} is a unicode escape ANYWHERE in a Java source file, comments included, so writing one would
+     * have the compiler substitute the character it names before anyone could read about it.
      * <p>
      * A control character, because this clause is
      * the one piece of an object's name that reaches the node log: the readers pass the whole rendered location
@@ -200,10 +203,17 @@ public final class RowLocation {
      * either bracket is enough to break the forgery; both are escaped so the rule is "a bracket in a name is never
      * a bracket in the message" rather than a rule about which one happened to matter.
      * <p>
-     * Escaping is one-way and is not meant to be reversed: a name holding a literal backslash followed by
-     * {@code u} renders the same as one holding the escape of that code point. The clause's job is to identify
-     * which object a row came from, which survives the ambiguity; a name recovered from a log line is not
-     * something to feed back to a store.
+     * Escaping is one-way and is not meant to be reversed: an object whose name literally holds the six
+     * characters of a bracket's escape renders exactly as one that holds the bracket, so the rendering is not
+     * injective and two names can still reach one token through it. Escaping the backslash as well would close
+     * that, and is declined on purpose: the escape's own output would then hold an escapable character, which
+     * is precisely what {@link #displayObjectName} relies on NOT being true when {@link #of} applies this a
+     * second time. That idempotence protects every message — a reader that forgets to reduce its own name
+     * still cannot emit an unescaped one — whereas what it costs is a name-to-name collision rather than the
+     * field-structure forgery a bracket allowed: it needs the OTHER object's name to hold a bracket or a
+     * control character, and it cannot move a row to a byte it was never read at. {@code RowLocationTests}
+     * pins the idempotence this choice rests on, so a later addition to the escaped set fails a test rather
+     * than silently double-escaping every bracketed name.
      * <p>
      * Applied before the cap, so {@link #MAX_OBJECT_NAME_CHARS} bounds what is actually emitted — an escape is
      * six characters where the original was one, and capping first would let a name of them expand past the

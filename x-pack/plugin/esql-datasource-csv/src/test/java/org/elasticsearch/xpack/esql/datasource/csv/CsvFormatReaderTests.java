@@ -12330,6 +12330,59 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertThat(detail, equalTo("row [1] of [test.csv] counted from byte [" + cut + "]: cannot read [bad_id] as [long]"));
     }
 
+    /**
+     * The error-budget failure reports an aggregate -- how many bad rows out of how many read -- and that count is
+     * this reader's own in exactly the way a row ordinal is. Without the window clause the summary claims about the
+     * whole object what it counted in one piece of it: the same mis-location the detail lines no longer carry, left
+     * in the message that replaces them when a read finally fails. Both arms are pinned, because the clause has two
+     * forms and a swap to {@code splitStartByte} would still satisfy only one.
+     */
+    public void testTheErrorBudgetFailureNamesTheWindowItCountedIn() throws IOException {
+        List<Attribute> schema = splitSchema();
+        long cut = ("id:long,name:keyword\n" + "1,Alice\n2,Bob\n").getBytes(StandardCharsets.UTF_8).length;
+        ExternalClientException aligned = expectThrows(
+            ExternalClientException.class,
+            () -> drainAll(
+                new CsvFormatReader(blockFactory).withSchema(schema),
+                createStorageObject("bad_id,Carol\n"),
+                laterSplitContext(schema, cut, new ErrorPolicy(0, false))
+            )
+        );
+        assertThat(aligned.getMessage(), containsString("rows of [test.csv] counted from byte [" + cut + "]; over [max_errors] of [0]"));
+
+        // recordAligned=false discards the leading partial record, so the first row counted is the bad one, and the
+        // split's start byte is on the compressed axis -- withheld, with the window still named.
+        FormatReadContext unaligned = FormatReadContext.builder()
+            .batchSize(10)
+            .errorPolicy(new ErrorPolicy(0, false))
+            .firstSplit(false)
+            .lastSplit(true)
+            .recordAligned(false)
+            .splitStartByte(9999L)
+            .readSchema(schema)
+            .fileHeaderColumns(List.of("id", "name"))
+            .build();
+        ExternalClientException inSplit = expectThrows(
+            ExternalClientException.class,
+            () -> drainAll(
+                new CsvFormatReader(blockFactory).withSchema(schema),
+                createStorageObject("partial,fragment\nbad_id,Carol\n"),
+                unaligned
+            )
+        );
+        assertThat(inSplit.getMessage(), containsString("rows of [test.csv] counted within a split; over [max_errors] of [0]"));
+        assertThat("a byte on the wrong axis must not be printed", inSplit.getMessage(), not(containsString("counted from byte")));
+    }
+
+    /** Drains the reader, releasing every page, so a failure raised during iteration is the test's subject. */
+    private static void drainAll(CsvFormatReader reader, StorageObject object, FormatReadContext context) throws IOException {
+        try (CloseableIterator<Page> iterator = reader.read(object, context)) {
+            while (iterator.hasNext()) {
+                iterator.next().releaseBlocks();
+            }
+        }
+    }
+
     private static List<Attribute> splitSchema() {
         return List.of(
             new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG),

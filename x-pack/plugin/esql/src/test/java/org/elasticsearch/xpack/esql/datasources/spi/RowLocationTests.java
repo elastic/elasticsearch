@@ -159,9 +159,21 @@ public class RowLocationTests extends ESTestCase {
      * details under it carry the same token; {@link RowLocation#of} reduces it again. The two passes must agree,
      * or a long or control-bearing name would render one way in the summary and another in the detail, which reads
      * as two different objects.
+     * <p>
+     * It holds only while no character the escape EMITS is itself escaped, so the bracket-bearing names here
+     * guard the set as it stands: adding a backslash to it -- which would make the rendering injective, and is
+     * declined on {@code RowLocation.escapeImpersonatingCharacters} for this reason -- fails this test rather
+     * than quietly double-escaping every name that carries a bracket.
      */
     public void testReducingTheNameTwiceChangesNothing() {
-        for (String name : new String[] { "v.csv", "p".repeat(300) + ".csv", "a\nb.csv", "\n".repeat(20) + ".csv" }) {
+        for (String name : new String[] {
+            "v.csv",
+            "p".repeat(300) + ".csv",
+            "a\nb.csv",
+            "\n".repeat(20) + ".csv",
+            "a[b].csv",
+            "v.csv] counted from byte [12",
+            "a[" + "y".repeat(300) + "].csv" }) {
             String once = RowLocation.displayObjectName(name);
             assertThat(RowLocation.displayObjectName(once), equalTo(once));
             assertThat(RowLocation.of(1, once, 0L), equalTo(RowLocation.of(1, name, 0L)));

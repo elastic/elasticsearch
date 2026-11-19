@@ -16,6 +16,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BatchIndexingEnabled;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.ShardBatchIndexer;
@@ -31,6 +32,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ShardBatchMapper;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockLog;
 import org.junit.ClassRule;
@@ -39,6 +41,7 @@ import org.junit.runners.model.Statement;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -255,6 +258,86 @@ public class BatchBulkTSDBIT extends ESIntegTestCase {
 
         refresh(dataStreamName);
 
+        assertResponse(prepareSearch(dataStreamName).setSize(0).setTrackTotalHits(true), response -> {
+            assertNoFailures(response);
+            assertThat(response.getHits().getTotalHits().value(), equalTo((long) numDocs * 2));
+        });
+    }
+
+    /**
+     * A bulk that repeats documents the data stream already holds, in between new ones. The repeated documents fail their version
+     * check while the rest of the bulk is still written to Lucene as one column batch, and that batch must add the new documents
+     * only. Lucene adds a document for every doc id of a column batch, so the rejected documents used to be indexed as documents
+     * without any field, which a search then counted.
+     */
+    public void testDuplicatesInColumnarBatchAddNoDocuments() throws IOException {
+        String dataStreamName = "test-tsdb-batch-duplicates";
+        createTsdbTemplate(dataStreamName, """
+            {
+                "properties": {
+                    "@timestamp": { "type": "date" },
+                    "host": { "type": "keyword", "time_series_dimension": true },
+                    "value": { "type": "double", "time_series_metric": "gauge" }
+                }
+            }
+            """);
+
+        var createRequest = new CreateDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, dataStreamName);
+        assertAcked(client().execute(CreateDataStreamAction.INSTANCE, createRequest).actionGet());
+        ensureGreen(dataStreamName);
+
+        String coordinatingNode = findCoordinatingNode();
+        int numDocs = randomIntBetween(10, 50);
+        Instant baseTime = Instant.now();
+
+        BulkRequest warmUp = new BulkRequest();
+        for (int i = 0; i < numDocs; i++) {
+            warmUp.add(keywordDimensionDoc(dataStreamName, baseTime.minusSeconds(numDocs - i).toEpochMilli(), i));
+        }
+        assertNoFailures(client(coordinatingNode).bulk(warmUp).actionGet());
+
+        // Every new document may be preceded by a copy of a warm-up document: same time series and timestamp, so the same _id.
+        BulkRequest bulkRequest = new BulkRequest();
+        List<Boolean> duplicates = new ArrayList<>();
+        int alwaysDuplicated = randomIntBetween(0, numDocs - 1);
+        for (int i = 0; i < numDocs; i++) {
+            if (i == alwaysDuplicated || randomBoolean()) {
+                bulkRequest.add(keywordDimensionDoc(dataStreamName, baseTime.minusSeconds(numDocs - i).toEpochMilli(), i));
+                duplicates.add(true);
+            }
+            bulkRequest.add(keywordDimensionDoc(dataStreamName, baseTime.plusSeconds(i).toEpochMilli(), i));
+            duplicates.add(false);
+        }
+
+        withBatchLoggingEnabled(mockLog -> {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "tsdb columnar batch with duplicates indexed on primary",
+                    ShardBatchIndexer.class.getName(),
+                    Level.TRACE,
+                    "batch indexed * operations on primary shard *"
+                )
+            );
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation("no columnar fallback", ShardBatchMapper.class.getName(), Level.DEBUG, "*disabled*")
+            );
+
+            BulkResponse bulkResponse = client(coordinatingNode).bulk(bulkRequest).actionGet();
+            assertThat(bulkResponse.getItems().length, equalTo(duplicates.size()));
+            for (int i = 0; i < duplicates.size(); i++) {
+                BulkItemResponse item = bulkResponse.getItems()[i];
+                if (duplicates.get(i)) {
+                    assertTrue("item [" + i + "] repeats a document and must be rejected", item.isFailed());
+                    assertThat(item.getFailure().getStatus(), equalTo(RestStatus.CONFLICT));
+                } else {
+                    assertFalse("item [" + i + "] is a new document: " + item.getFailureMessage(), item.isFailed());
+                }
+            }
+        });
+
+        refresh(dataStreamName);
+
+        // The warm-up documents and the new ones, and no document for a rejected duplicate.
         assertResponse(prepareSearch(dataStreamName).setSize(0).setTrackTotalHits(true), response -> {
             assertNoFailures(response);
             assertThat(response.getHits().getTotalHits().value(), equalTo((long) numDocs * 2));

@@ -9,20 +9,43 @@
 
 package org.elasticsearch.sourcebatch;
 
+import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.KnnFloatVectorField;
+import org.apache.lucene.document.TextField;
 import org.apache.lucene.document.column.BinaryColumn;
 import org.apache.lucene.document.column.Column;
+import org.apache.lucene.document.column.ColumnBatch;
 import org.apache.lucene.document.column.LongColumn;
 import org.apache.lucene.document.column.LongTupleCursor;
 import org.apache.lucene.document.column.ObjectTupleCursor;
+import org.apache.lucene.document.column.TokenStreamColumn;
+import org.apache.lucene.document.column.VectorColumn;
+import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.FloatVectorValues;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.KnnVectorValues;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.PostingsEnum;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.analysis.CannedTokenStream;
+import org.apache.lucene.tests.analysis.Token;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.util.ByteUtils;
+import org.elasticsearch.escf.EscfColumn;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -210,7 +233,10 @@ public class MappedColumnsTests extends ESTestCase {
         filter.set(3);
         MappedColumns filtered = mc.withFilter(filter);
 
-        assertEquals(Map.of(1, new BytesRef("b"), 3, new BytesRef("d")), drainBinaryTuples(filtered));
+        // The batch for Lucene holds the two remaining docs only, renumbered; the row cursor keeps the numbering of the window.
+        assertEquals(4, filtered.docCount());
+        assertEquals(2, filtered.toColumnBatch().numDocs());
+        assertEquals(Map.of(0, new BytesRef("b"), 1, new BytesRef("d")), drainBinaryTuples(filtered));
         assertEquals(Map.of(1, new BytesRef("b"), 3, new BytesRef("d")), drainBinaryRowCursor(filtered));
     }
 
@@ -272,7 +298,9 @@ public class MappedColumnsTests extends ESTestCase {
         filter.set(2);
         MappedColumns filtered = mc.withFilter(filter);
 
-        assertEquals(Map.of(0, 10L, 2, 30L), drainLongTuples(filtered));
+        // Doc 2 moves up to the doc id that the excluded doc 1 would have taken.
+        assertEquals(2, filtered.toColumnBatch().numDocs());
+        assertEquals(Map.of(0, 10L, 1, 30L), drainLongTuples(filtered));
     }
 
     public void testWithFilterSlicePreservesFilter() {
@@ -303,7 +331,10 @@ public class MappedColumnsTests extends ESTestCase {
         // slice(2, 6) → docs 2,3,4,5 become local 0,1,2,3; only original docs 3 and 5 pass filter
         MappedColumns sliced = mc.withFilter(filter).slice(2, 6);
 
-        assertEquals(Map.of(1, new BytesRef("d"), 3, new BytesRef("f")), drainBinaryTuples(sliced));
+        assertEquals(4, sliced.docCount());
+        assertEquals(2, sliced.toColumnBatch().numDocs());
+        assertEquals(Map.of(0, new BytesRef("d"), 1, new BytesRef("f")), drainBinaryTuples(sliced));
+        assertEquals(Map.of(1, new BytesRef("d"), 3, new BytesRef("f")), drainBinaryRowCursor(sliced));
     }
 
     public void testWithFilterAllSetWindowBecomesNull() {
@@ -330,6 +361,245 @@ public class MappedColumnsTests extends ESTestCase {
         MappedColumns sliced = mc.withFilter(filter).slice(1, 3);
         assertEquals(Column.Density.DENSE, sliced.toColumnBatch().columns().iterator().next().density());
         assertEquals(Map.of(0, new BytesRef("b"), 1, new BytesRef("c")), drainBinaryTuples(sliced));
+    }
+
+    // -------------------------------------------------------------------------
+    // withFilter — indexing the filtered batch
+    // -------------------------------------------------------------------------
+
+    /**
+     * Adds a filtered batch through {@code IndexWriter#addBatch}, the call the engine makes, and checks that the remaining documents
+     * alone are indexed and that each one holds its own values in every kind of column. Lucene adds one document per doc id of the
+     * batch: a filtered-out document that kept its doc id would be indexed as a document without fields, and columns that did not
+     * renumber the remaining documents alike would put values on the wrong document.
+     */
+    public void testFilteredBatchIndexesRemainingDocsOnly() throws IOException {
+        final int docCount = between(2, 50);
+        // The filter keeps one document for sure and excludes another, the rest are random. Every column has a value for the kept one.
+        final int kept = between(0, docCount - 1);
+        final int excluded = randomValueOtherThan(kept, () -> between(0, docCount - 1));
+        final long[] longs = new long[docCount];
+        final BytesRef[] binaries = new BytesRef[docCount];
+        final String[] terms = new String[docCount];
+        final float[][] vectors = new float[docCount][];
+        final boolean[] keep = new boolean[docCount];
+        for (int doc = 0; doc < docCount; doc++) {
+            keep[doc] = doc == kept || (doc != excluded && randomBoolean());
+            longs[doc] = doc;
+            binaries[doc] = doc == kept || randomInt(3) > 0 ? new BytesRef("binary-" + doc) : null;
+            terms[doc] = doc == kept || randomInt(3) > 0 ? "term-" + doc : null;
+            vectors[doc] = doc == kept || randomInt(3) > 0 ? new float[] { doc, -doc } : null;
+        }
+        final BytesRef seqNos = new BytesRef(new byte[docCount * 8]);
+        final BytesRef primaryTerms = new BytesRef(new byte[docCount * 8]);
+        final BytesRef versions = new BytesRef(new byte[docCount * 8]);
+        final MappedColumns mc = new MappedColumns(
+            0,
+            docCount,
+            seqNos,
+            primaryTerms,
+            versions,
+            List.of(
+                MappedColumns.longColumn(new BytesRef(longBytes(longs)), "long", LONG_FIELD_TYPE, LongColumn.NumericKind.LONG),
+                MappedColumns.binaryColumn(binaries, "binary", BINARY_FIELD_TYPE),
+                new TermColumn(terms, 0, docCount, null),
+                new FloatVectorColumn(vectors, 0, docCount, null)
+            )
+        );
+
+        // A window around the kept document, filtered either before or after it is cut out. The engine filters a slice.
+        final int from = between(0, kept);
+        final int to = between(kept + 1, docCount);
+        final MappedColumns filtered = randomBoolean()
+            ? mc.slice(from, to).withFilter(filterOf(keep, from, to))
+            : mc.withFilter(filterOf(keep, 0, docCount)).slice(from, to);
+        final List<Integer> remaining = new ArrayList<>();
+        for (int doc = from; doc < to; doc++) {
+            if (keep[doc]) {
+                remaining.add(doc);
+            }
+        }
+
+        final ColumnBatch batch = filtered.toColumnBatch();
+        assertEquals(to - from, filtered.docCount());
+        assertEquals(remaining.size(), batch.numDocs());
+        try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig())) {
+            writer.addBatch(batch);
+            try (DirectoryReader reader = DirectoryReader.open(writer)) {
+                // A single batch in a new index: the Lucene doc ids are the doc ids of the batch.
+                final LeafReader leaf = getOnlyLeafReader(reader);
+                assertEquals(remaining.size(), leaf.maxDoc());
+                final NumericDocValues longValues = leaf.getNumericDocValues("long");
+                final BinaryDocValues binaryValues = leaf.getBinaryDocValues("binary");
+                final FloatVectorValues vectorValues = leaf.getFloatVectorValues("vector");
+                final KnnVectorValues.DocIndexIterator vectorDocs = vectorValues.iterator();
+                int vectorDoc = vectorDocs.nextDoc();
+                for (int docId = 0; docId < remaining.size(); docId++) {
+                    final int doc = remaining.get(docId);
+                    assertTrue(longValues.advanceExact(docId));
+                    assertEquals(doc, longValues.longValue());
+                    assertEquals(binaries[doc] != null, binaryValues.advanceExact(docId));
+                    if (binaries[doc] != null) {
+                        assertEquals(binaries[doc], binaryValues.binaryValue());
+                    }
+                    if (vectors[doc] != null) {
+                        assertEquals(docId, vectorDoc);
+                        assertArrayEquals(vectors[doc], vectorValues.vectorValue(vectorDocs.index()), 0f);
+                        vectorDoc = vectorDocs.nextDoc();
+                    }
+                }
+                assertEquals(DocIdSetIterator.NO_MORE_DOCS, vectorDoc);
+                for (int doc = 0; doc < docCount; doc++) {
+                    if (terms[doc] == null) {
+                        continue;
+                    }
+                    final PostingsEnum postings = leaf.postings(new Term("text", terms[doc]));
+                    final int docId = remaining.indexOf(doc);
+                    if (docId < 0) {
+                        assertNull("term of the filtered-out doc [" + doc + "]", postings);
+                    } else {
+                        assertEquals(docId, postings.nextDoc());
+                        assertEquals(DocIdSetIterator.NO_MORE_DOCS, postings.nextDoc());
+                    }
+                }
+            }
+        }
+    }
+
+    private static FixedBitSet filterOf(boolean[] keep, int from, int to) {
+        final FixedBitSet filter = new FixedBitSet(to - from);
+        for (int doc = from; doc < to; doc++) {
+            if (keep[doc]) {
+                filter.set(doc - from);
+            }
+        }
+        return filter;
+    }
+
+    /**
+     * The doc ids of a window {@code [from, from + count)} over {@code values} that hold a value and pass {@code filter}, which is
+     * how the token stream and vector columns of the mappers apply a filter.
+     */
+    private static <T> ObjectTupleCursor<T> filteredTuples(T[] values, int from, int count, FixedBitSet filter) {
+        return new ObjectTupleCursor<>() {
+            private int doc = -1;
+
+            @Override
+            public int nextDoc() {
+                do {
+                    doc++;
+                } while (doc < count && (values[from + doc] == null || (filter != null && filter.get(doc) == false)));
+                return doc < count ? doc : DocIdSetIterator.NO_MORE_DOCS;
+            }
+
+            @Override
+            public T value() {
+                return values[from + doc];
+            }
+        };
+    }
+
+    /**
+     * A token stream column in place of the one {@code TsidExtractingIdFieldMapper} keeps to itself: one term per document, or
+     * {@code null} for none. It serves {@code IndexWriter#addBatch} only, the row path has no part in these tests.
+     */
+    private static final class TermColumn extends TokenStreamColumn implements LuceneColumn {
+
+        private final String[] terms;
+        private final int from;
+        private final int count;
+        private final FixedBitSet filter;
+
+        TermColumn(String[] terms, int from, int count, FixedBitSet filter) {
+            super("text", TextField.TYPE_NOT_STORED, Density.SPARSE);
+            this.terms = terms;
+            this.from = from;
+            this.count = count;
+            this.filter = filter;
+        }
+
+        @Override
+        public ObjectTupleCursor<TokenStream> tuples() {
+            final ObjectTupleCursor<String> in = filteredTuples(terms, from, count, filter);
+            return new ObjectTupleCursor<>() {
+                @Override
+                public int nextDoc() {
+                    return in.nextDoc();
+                }
+
+                @Override
+                public TokenStream value() {
+                    return new CannedTokenStream(new Token(in.value(), 0, in.value().length()));
+                }
+            };
+        }
+
+        @Override
+        public TermColumn slice(int from, int count) {
+            return new TermColumn(terms, this.from + from, count, EscfColumn.windowValidity(filter, from, count));
+        }
+
+        @Override
+        public TermColumn withFilter(FixedBitSet newFilter) {
+            return new TermColumn(terms, from, count, LuceneColumn.singleFilter(filter, newFilter));
+        }
+
+        @Override
+        public Column toLuceneColumn() {
+            return this;
+        }
+
+        @Override
+        public RowFieldCursor rowFieldCursor() {
+            throw new UnsupportedOperationException("only the column batch is under test");
+        }
+    }
+
+    /**
+     * A vector column in place of the package-private one of the {@code dense_vector} mapper: one vector per document, or
+     * {@code null} for none. It serves {@code IndexWriter#addBatch} only, the row path has no part in these tests.
+     */
+    private static final class FloatVectorColumn extends VectorColumn<float[]> implements LuceneColumn {
+
+        private static final FieldType FIELD_TYPE = KnnFloatVectorField.createFieldType(2, VectorSimilarityFunction.EUCLIDEAN);
+
+        private final float[][] vectors;
+        private final int from;
+        private final int count;
+        private final FixedBitSet filter;
+
+        FloatVectorColumn(float[][] vectors, int from, int count, FixedBitSet filter) {
+            super("vector", FIELD_TYPE, Density.SPARSE);
+            this.vectors = vectors;
+            this.from = from;
+            this.count = count;
+            this.filter = filter;
+        }
+
+        @Override
+        public ObjectTupleCursor<float[]> tuples() {
+            return filteredTuples(vectors, from, count, filter);
+        }
+
+        @Override
+        public FloatVectorColumn slice(int from, int count) {
+            return new FloatVectorColumn(vectors, this.from + from, count, EscfColumn.windowValidity(filter, from, count));
+        }
+
+        @Override
+        public FloatVectorColumn withFilter(FixedBitSet newFilter) {
+            return new FloatVectorColumn(vectors, from, count, LuceneColumn.singleFilter(filter, newFilter));
+        }
+
+        @Override
+        public Column toLuceneColumn() {
+            return this;
+        }
+
+        @Override
+        public RowFieldCursor rowFieldCursor() {
+            throw new UnsupportedOperationException("only the column batch is under test");
+        }
     }
 
     public void testSliceOfSliceSeqNoOffset() {

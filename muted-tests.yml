@@ -621,11 +621,6 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testBlobsNotDeletedDuringFailedRelocation
   issue: https://github.com/elastic/elasticsearch/issues/166242
-- class: org.elasticsearch.datastreams.DataStreamsClientYamlTestSuiteIT
-  tasks:
-  - :modules:data-streams:yamlRestCompatTest
-  method: test {yaml=data_stream/150_tsdb/dynamic templates with incremental indexing}
-  issue: https://github.com/elastic/elasticsearch/issues/166250
 - class: org.elasticsearch.search.ccs.CrossClusterSearchDirectoryMetricsIT
   tasks:
   - :server:internalClusterTest

@@ -9,13 +9,18 @@
 
 package org.elasticsearch.sourcebatch;
 
+import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.StoredValue;
 import org.apache.lucene.document.column.BinaryColumn;
 import org.apache.lucene.document.column.BytesRefValuesCursor;
 import org.apache.lucene.document.column.Column;
 import org.apache.lucene.document.column.ColumnBatch;
 import org.apache.lucene.document.column.LongColumn;
+import org.apache.lucene.document.column.LongTupleCursor;
 import org.apache.lucene.document.column.ObjectTupleCursor;
+import org.apache.lucene.document.column.TokenStreamColumn;
+import org.apache.lucene.document.column.VectorColumn;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -41,18 +46,37 @@ public final class MappedColumns {
     private final BytesRef versions;
 
     private final List<LuceneColumn> columns;
+    /**
+     * The documents of this window that are written to Lucene, or {@code null} for all of them. Every column carries the same
+     * filter; it is kept here as well because {@link #toColumnBatch()} needs it to renumber the remaining documents.
+     */
+    private final FixedBitSet filter;
 
     /**
      * Constructs a {@code MappedColumns} covering the window {@code [from, from + count)} of the
      * given backing arrays and columns.
      */
     public MappedColumns(int offset, int count, BytesRef seqNos, BytesRef primaryTerms, BytesRef versions, List<LuceneColumn> columns) {
+        this(offset, count, seqNos, primaryTerms, versions, columns, null);
+    }
+
+    private MappedColumns(
+        int offset,
+        int count,
+        BytesRef seqNos,
+        BytesRef primaryTerms,
+        BytesRef versions,
+        List<LuceneColumn> columns,
+        FixedBitSet filter
+    ) {
+        assert filter == null || filter.length() == count;
         this.offset = offset;
         this.count = count;
         this.seqNos = Objects.requireNonNull(seqNos, "seqNos");
         this.primaryTerms = Objects.requireNonNull(primaryTerms, "primaryTerms");
         this.versions = Objects.requireNonNull(versions, "versions");
         this.columns = List.copyOf(columns);
+        this.filter = filter;
     }
 
     public int docCount() {
@@ -82,13 +106,24 @@ public final class MappedColumns {
         for (LuceneColumn c : columns) {
             slicedColumns.add(c.slice(from, newCount));
         }
-        return new MappedColumns(this.offset + from, newCount, seqNos, primaryTerms, versions, slicedColumns);
+        return new MappedColumns(
+            this.offset + from,
+            newCount,
+            seqNos,
+            primaryTerms,
+            versions,
+            slicedColumns,
+            windowValidity(filter, from, newCount)
+        );
     }
 
     /**
      * Returns a copy of this {@code MappedColumns} where every column is filtered to emit only
      * the documents whose bit is set in {@code filter}. Returns {@code this} when {@code filter}
      * is {@code null}.
+     *
+     * <p>The filter does not change {@link #docCount()} or the row numbering of {@link #rowCursor()}, which still has to be
+     * advanced once per document. {@link #toColumnBatch()} on the other hand holds the remaining documents only.
      *
      * @param filter a bitset of length {@link #docCount()}, or {@code null}
      */
@@ -101,12 +136,110 @@ public final class MappedColumns {
         for (LuceneColumn c : columns) {
             filtered.add(c.withFilter(filter));
         }
-        return new MappedColumns(offset, count, seqNos, primaryTerms, versions, filtered);
+        return new MappedColumns(offset, count, seqNos, primaryTerms, versions, filtered, LuceneColumn.singleFilter(this.filter, filter));
     }
 
+    /**
+     * The batch to hand to {@code IndexWriter.addBatch}. Lucene adds one document per batch-local doc id in {@code [0, numDocs)},
+     * whether or not any column has a value for it, so a document that a {@link #withFilter filter} excludes must not keep a doc id
+     * or it is indexed as a document without any field. The remaining documents are therefore renumbered densely, in order, and
+     * {@code numDocs} is the number of them.
+     */
     public ColumnBatch toColumnBatch() {
-        final List<Column> luceneColumns = columns.stream().map(LuceneColumn::toLuceneColumn).toList();
-        return new SliceableColumnBatch(luceneColumns, count);
+        if (filter == null) {
+            final List<Column> luceneColumns = columns.stream().map(LuceneColumn::toLuceneColumn).toList();
+            return new SliceableColumnBatch(luceneColumns, count);
+        }
+        final int[] compactedDocIds = new int[count];
+        int numDocs = 0;
+        for (int doc = 0; doc < count; doc++) {
+            compactedDocIds[doc] = filter.get(doc) ? numDocs++ : -1;
+        }
+        final List<Column> luceneColumns = new ArrayList<>(columns.size());
+        for (LuceneColumn column : columns) {
+            luceneColumns.add(compact(column.toLuceneColumn(), compactedDocIds));
+        }
+        return new SliceableColumnBatch(luceneColumns, numDocs);
+    }
+
+    /**
+     * Wraps a filtered column so that its tuples carry the compacted doc ids. A filtered column is always
+     * {@link Column.Density#SPARSE}, so Lucene only ever reads it through its tuple cursor, and that cursor already skips the
+     * excluded documents: renumbering the doc ids it returns is all that is left to do, whatever the column is backed by.
+     *
+     * @param compactedDocIds the doc id each document of the window takes in the batch, {@code -1} for the excluded ones
+     */
+    private static Column compact(Column column, int[] compactedDocIds) {
+        assert column.density() == Column.Density.SPARSE : "filtered column [" + column.name() + "] must be sparse";
+        return switch (column) {
+            case LongColumn c -> new LongColumn(c.name(), c.fieldType(), Column.Density.SPARSE, c.numericKind()) {
+                @Override
+                public LongTupleCursor tuples() {
+                    final LongTupleCursor in = c.tuples();
+                    return new LongTupleCursor() {
+                        @Override
+                        public int nextDoc() {
+                            return compactedDocId(in.nextDoc(), compactedDocIds);
+                        }
+
+                        @Override
+                        public long longValue() {
+                            return in.longValue();
+                        }
+                    };
+                }
+            };
+            case BinaryColumn c -> new BinaryColumn(c.name(), c.fieldType(), Column.Density.SPARSE) {
+                @Override
+                public StoredValue.Type storedType() {
+                    return c.storedType();
+                }
+
+                @Override
+                public ObjectTupleCursor<BytesRef> tuples() {
+                    return compact(c.tuples(), compactedDocIds);
+                }
+            };
+            case TokenStreamColumn c -> new TokenStreamColumn(c.name(), c.fieldType(), Column.Density.SPARSE) {
+                @Override
+                public ObjectTupleCursor<TokenStream> tuples() {
+                    return compact(c.tuples(), compactedDocIds);
+                }
+            };
+            case VectorColumn<?> c -> compactVectors(c, compactedDocIds);
+            default -> throw new IllegalStateException("cannot compact column [" + column.name() + "] of type " + column.getClass());
+        };
+    }
+
+    private static <T> VectorColumn<T> compactVectors(VectorColumn<T> column, int[] compactedDocIds) {
+        return new VectorColumn<>(column.name(), column.fieldType(), Column.Density.SPARSE) {
+            @Override
+            public ObjectTupleCursor<T> tuples() {
+                return compact(column.tuples(), compactedDocIds);
+            }
+        };
+    }
+
+    private static <T> ObjectTupleCursor<T> compact(ObjectTupleCursor<T> in, int[] compactedDocIds) {
+        return new ObjectTupleCursor<>() {
+            @Override
+            public int nextDoc() {
+                return compactedDocId(in.nextDoc(), compactedDocIds);
+            }
+
+            @Override
+            public T value() {
+                return in.value();
+            }
+        };
+    }
+
+    private static int compactedDocId(int doc, int[] compactedDocIds) {
+        if (doc == DocIdSetIterator.NO_MORE_DOCS) {
+            return doc;
+        }
+        assert compactedDocIds[doc] >= 0 : "column emitted filtered-out doc [" + doc + "]";
+        return compactedDocIds[doc];
     }
 
     /**

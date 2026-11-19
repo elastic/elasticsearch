@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql;
 
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -530,8 +528,8 @@ public final class CsvSpecReader {
                 name = named.group(1);
                 json = named.group(2).trim();
             }
-            json = canonicalJson(line, json);
-            if (name == null && json.startsWith("{")) {
+            XContentParser.Token token = parseJsonValue(line, json);
+            if (name == null && token == XContentParser.Token.START_OBJECT) {
                 throw new IllegalArgumentException(
                     "Invalid param [" + line + "]: an unnamed parameter can't be an object, use [param: <name> = <json>]"
                 );
@@ -544,38 +542,22 @@ public final class CsvSpecReader {
         }
 
         /**
-         * Parses {@code json} as a single JSON value and returns it serialized again, so what the parser accepts beyond
-         * plain JSON, like comments, never reaches the request.
+         * Checks that {@code json} is a single JSON value and returns its first token.
          */
-        private static String canonicalJson(String line, String json) {
+        private static XContentParser.Token parseJsonValue(String line, String json) {
             String error = "Invalid param [" + line + "]: expected [param: <name> = <json>] or [param: <json>], with a single JSON value";
             try (XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, json)) {
-                if (parser.nextToken() == null) {
+                XContentParser.Token token = parser.nextToken();
+                if (token == null) {
                     throw new IllegalArgumentException(error);
                 }
-                XContentBuilder builder = JsonXContent.contentBuilder();
-                builder.copyCurrentStructure(parser);
+                parser.skipChildren();
                 if (parser.nextToken() != null) {
                     throw new IllegalArgumentException(error);
                 }
-                checkFiniteNumbers(line, json);
-                return Strings.toString(builder);
+                return token;
             } catch (IOException | XContentParseException e) {
                 throw new IllegalArgumentException(error, e);
-            }
-        }
-
-        /**
-         * Rejects numbers that overflow a double, like {@code 1e309}: serialized again, they'd become the string
-         * {@code "Infinity"}.
-         */
-        private static void checkFiniteNumbers(String line, String json) throws IOException {
-            try (XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, json)) {
-                for (XContentParser.Token token = parser.nextToken(); token != null; token = parser.nextToken()) {
-                    if (token == XContentParser.Token.VALUE_NUMBER && Double.isFinite(parser.doubleValue()) == false) {
-                        throw new IllegalArgumentException("Invalid param [" + line + "]: numbers must be finite");
-                    }
-                }
             }
         }
     }

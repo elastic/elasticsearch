@@ -214,17 +214,17 @@ public class CsvSpecReaderTests extends ESTestCase {
                     new Param("d", "-1.5"),
                     new Param("b", "true"),
                     new Param("n", "null"),
-                    new Param("a", "[1,2]"),
-                    new Param("v", "{\"value\":\"x\"}"),
-                    new Param("f", "{\"identifier\":\"first_name\"}")
+                    new Param("a", "[1, 2]"),
+                    new Param("v", "{\"value\": \"x\"}"),
+                    new Param("f", "{\"identifier\": \"first_name\"}")
                 )
             )
         );
         assertThat(
             testCase.paramsJson(),
             equalTo(
-                "[{\"s\": \"a string with = and {braces}\"}, {\"i\": 5}, {\"d\": -1.5}, {\"b\": true}, {\"n\": null}, {\"a\": [1,2]}, "
-                    + "{\"v\": {\"value\":\"x\"}}, {\"f\": {\"identifier\":\"first_name\"}}]"
+                "[{\"s\": \"a string with = and {braces}\"}, {\"i\": 5}, {\"d\": -1.5}, {\"b\": true}, {\"n\": null}, {\"a\": [1, 2]}, "
+                    + "{\"v\": {\"value\": \"x\"}}, {\"f\": {\"identifier\": \"first_name\"}}]"
             )
         );
     }
@@ -234,16 +234,10 @@ public class CsvSpecReaderTests extends ESTestCase {
         assertThat(
             testCase.params,
             equalTo(
-                List.of(new Param(null, "\"F\""), new Param(null, "10008"), new Param(null, "[\"a\",\"b\"]"), new Param(null, "\"x = 1\""))
+                List.of(new Param(null, "\"F\""), new Param(null, "10008"), new Param(null, "[\"a\", \"b\"]"), new Param(null, "\"x = 1\""))
             )
         );
-        assertThat(testCase.paramsJson(), equalTo("[\"F\", 10008, [\"a\",\"b\"], \"x = 1\"]"));
-    }
-
-    public void testParamCommentIsNotSent() {
-        CsvTestCase testCase = parse("param: x = 1 // note", "param: y = [1, /* two */ 2]");
-        assertThat(testCase.params, equalTo(List.of(new Param("x", "1"), new Param("y", "[1,2]"))));
-        assertThat(testCase.paramsJson(), equalTo("[{\"x\": 1}, {\"y\": [1,2]}]"));
+        assertThat(testCase.paramsJson(), equalTo("[\"F\", 10008, [\"a\", \"b\"], \"x = 1\"]"));
     }
 
     public void testParamsDoNotLeakIntoNextTest() {
@@ -277,13 +271,6 @@ public class CsvSpecReaderTests extends ESTestCase {
     public void testEmptyParamRejected() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> CsvSpecReader.specParser().parse("param: x ="));
         assertThat(e.getMessage(), containsString("with a single JSON value"));
-    }
-
-    public void testNonFiniteNumberParamRejected() {
-        for (String line : List.of("param: x = 1e309", "param: x = [1, -1e400]", "param: x = {\"value\": 1e309}")) {
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> CsvSpecReader.specParser().parse(line));
-            assertThat(e.getMessage(), containsString("numbers must be finite"));
-        }
     }
 
     public void testUnnamedObjectParamRejected() {

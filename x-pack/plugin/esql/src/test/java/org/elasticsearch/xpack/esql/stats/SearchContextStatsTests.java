@@ -1096,6 +1096,56 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
         }
     }
 
+    /**
+     * {@code isSingleValue} is decided once for all shards of a node: a single multivalued shard makes the field
+     * report as multivalued, regardless of whether it is searched before or after the single-valued shards. Callers such as
+     * the {@code ROUND_TO} block loader pushdown rely on this to take the same code path on every shard of the node.
+     */
+    public void testFieldMultiValuedInOneOfSeveralShardsIsNotSingleValued() throws IOException {
+        final MapperService singleValuedService = createMapperService("""
+            { "doc": { "properties": { "n": { "type": "long" } } } }""");
+        final MapperService multiValuedService = createMapperService("""
+            { "doc": { "properties": { "n": { "type": "long" } } } }""");
+
+        final Directory singleValuedDir = newDirectory();
+        final Directory multiValuedDir = newDirectory();
+        final DirectoryReader singleValuedReader;
+        final DirectoryReader multiValuedReader;
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), singleValuedDir)) {
+            writer.addDocument(List.of(new LongField("n", 1L, Field.Store.NO)));
+            writer.addDocument(List.of(new LongField("n", 2L, Field.Store.NO)));
+            writer.forceMerge(1);
+            singleValuedReader = writer.getReader();
+        }
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), multiValuedDir)) {
+            writer.addDocument(List.of(new LongField("n", 1L, Field.Store.NO), new LongField("n", 2L, Field.Store.NO)));
+            writer.forceMerge(1);
+            multiValuedReader = writer.getReader();
+        }
+
+        try {
+            final SearchExecutionContext singleValued = createSearchExecutionContext(singleValuedService, newSearcher(singleValuedReader));
+            final SearchExecutionContext multiValued = createSearchExecutionContext(multiValuedService, newSearcher(multiValuedReader));
+            final FieldAttribute.FieldName field = new FieldAttribute.FieldName("n");
+
+            assertTrue(
+                "sanity check: the single-valued shard alone is single-valued",
+                SearchContextStats.from(List.of(singleValued)).isSingleValue(field)
+            );
+            assertFalse("the multivalued shard alone is multivalued", SearchContextStats.from(List.of(multiValued)).isSingleValue(field));
+            assertFalse(
+                "a multivalued shard searched after a single-valued shard makes the field multivalued",
+                SearchContextStats.from(List.of(singleValued, multiValued)).isSingleValue(field)
+            );
+            assertFalse(
+                "a multivalued shard searched before a single-valued shard makes the field multivalued",
+                SearchContextStats.from(List.of(multiValued, singleValued)).isSingleValue(field)
+            );
+        } finally {
+            IOUtils.close(singleValuedReader, multiValuedReader, singleValuedService, multiValuedService, singleValuedDir, multiValuedDir);
+        }
+    }
+
     public void testMinMaxFromMappedShard() throws IOException {
         final MapperService mappedService = createMapperService("""
             { "doc": { "properties": { "d": { "type": "date" } } } }""");

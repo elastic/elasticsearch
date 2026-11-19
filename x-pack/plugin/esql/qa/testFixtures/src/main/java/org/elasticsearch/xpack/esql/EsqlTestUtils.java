@@ -390,7 +390,7 @@ public final class EsqlTestUtils {
     public static class TestSearchStats implements SearchStats {
 
         private final boolean supportsLoaderConfig;
-        private final boolean multiValue;
+        private final boolean singleValue;
 
         public TestSearchStats() {
             this(true);
@@ -406,7 +406,7 @@ public final class EsqlTestUtils {
          */
         public TestSearchStats(boolean supportsLoaderConfig, boolean multiValue) {
             this.supportsLoaderConfig = supportsLoaderConfig;
-            this.multiValue = multiValue;
+            this.singleValue = multiValue == false;
         }
 
         @Override
@@ -465,7 +465,7 @@ public final class EsqlTestUtils {
 
         @Override
         public boolean isSingleValue(FieldName field) {
-            return multiValue == false;
+            return singleValue;
         }
 
         @Override

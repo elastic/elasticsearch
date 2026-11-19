@@ -104,6 +104,7 @@ import javax.security.auth.x500.X500Principal;
 import static org.elasticsearch.common.ssl.KeyStoreUtil.createKeyManager;
 import static org.elasticsearch.common.ssl.KeyStoreUtil.createTrustManager;
 import static org.elasticsearch.test.FileMatchers.pathExists;
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -991,6 +992,7 @@ public class CertificateToolTests extends ESTestCase {
         assertThat(nodeCert.getIssuerX500Principal(), equalTo(caCert.getSubjectX500Principal()));
         nodeCert.verify(caCert.getPublicKey());
         assertThat(nodeKeyStore.getCertificate("ca"), equalTo(caCert));
+        assertThat(nodeKeyStore.getCertificateChain("node01"), arrayContaining(nodeCert, caCert));
     }
 
     /**

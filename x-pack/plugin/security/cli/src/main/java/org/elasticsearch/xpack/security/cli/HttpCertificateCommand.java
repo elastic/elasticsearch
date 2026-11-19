@@ -577,8 +577,11 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
         X509Certificate caCert
     ) throws IOException, GeneralSecurityException {
         final KeyStore keyStore = keyStoreFormat.newKeyStore();
-        keyStore.setKeyEntry("http", key, password, new Certificate[] { certificate });
-        if (caCert != null) {
+        if (caCert == null) {
+            keyStore.setKeyEntry("http", key, password, new Certificate[] { certificate });
+        } else {
+            // not every keystore format rebuilds the key entry's chain from other entries, so include the CA explicitly
+            keyStore.setKeyEntry("http", key, password, new Certificate[] { certificate, caCert });
             keyStore.setCertificateEntry("ca", caCert);
         }
         try (ZipEntryStream entry = new ZipEntryStream(zip, name)) {

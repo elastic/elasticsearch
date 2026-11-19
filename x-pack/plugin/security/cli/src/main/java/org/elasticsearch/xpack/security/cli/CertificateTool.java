@@ -605,8 +605,11 @@ class CertificateTool extends MultiCommand {
                 if (passwordError != null) {
                     throw new UserException(ExitCodes.CONFIG, passwordError);
                 }
-                keyStore.setKeyEntry(alias, pair.key, keyStorePassword, new Certificate[] { pair.cert });
-                if (caCert != null) {
+                if (caCert == null) {
+                    keyStore.setKeyEntry(alias, pair.key, keyStorePassword, new Certificate[] { pair.cert });
+                } else {
+                    // node enrollment finds the CA in the key entry's chain, which not every keystore format rebuilds from other entries
+                    keyStore.setKeyEntry(alias, pair.key, keyStorePassword, new Certificate[] { pair.cert, caCert });
                     keyStore.setCertificateEntry("ca", caCert);
                 }
                 keyStore.store(output, keyStorePassword);

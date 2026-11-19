@@ -96,6 +96,7 @@ import static org.elasticsearch.test.FileMatchers.isRegularFile;
 import static org.elasticsearch.test.FileMatchers.pathExists;
 import static org.elasticsearch.xpack.security.cli.CertGenUtilsTests.assertExpectedKeyUsage;
 import static org.elasticsearch.xpack.security.cli.HttpCertificateCommand.guessFileType;
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
@@ -566,6 +567,7 @@ public class HttpCertificateCommandTests extends ESTestCase {
         final Path keyStorePath = zipRoot.resolve("elasticsearch/http.bcfks");
         final X509Certificate cert = readCertificateAndKey(format, keyStorePath, password.toCharArray()).v1();
         verifyChain(cert, caCert);
+        assertThat(readCertificateChain(format, keyStorePath, password.toCharArray(), "http"), arrayContaining(cert, caCert));
 
         final String yml = Files.readString(zipRoot.resolve("elasticsearch/sample-elasticsearch.yml"));
         assertThat(yml, containsString("xpack.security.http.ssl.keystore.path: \"http.bcfks\""));
@@ -603,9 +605,11 @@ public class HttpCertificateCommandTests extends ESTestCase {
         command.execute(terminal, command.getParser().parse(), newEnvironment(), new ProcessInfo(Map.of(), Map.of(), createTempDir()));
 
         final Path zipRoot = getZipRoot(outFile);
-        final X509Certificate cert = readCertificateAndKey(format, zipRoot.resolve("elasticsearch/http.bcfks"), password.toCharArray())
-            .v1();
-        verifyChain(cert, CertParsingUtils.readX509Certificate(getDataPath("ca.crt")));
+        final Path keyStorePath = zipRoot.resolve("elasticsearch/http.bcfks");
+        final X509Certificate cert = readCertificateAndKey(format, keyStorePath, password.toCharArray()).v1();
+        final X509Certificate caCert = CertParsingUtils.readX509Certificate(getDataPath("ca.crt"));
+        verifyChain(cert, caCert);
+        assertThat(readCertificateChain(format, keyStorePath, password.toCharArray(), "http"), arrayContaining(cert, caCert));
         assertThat(zipRoot.resolve("ca"), not(pathExists()));
     }
 
@@ -997,6 +1001,15 @@ public class HttpCertificateCommandTests extends ESTestCase {
         assertThat(key, instanceOf(PrivateKey.class));
         assertMatchingPair(cert.getPublicKey(), (PrivateKey) key);
         return new Tuple<>((X509Certificate) cert, (PrivateKey) key);
+    }
+
+    private Certificate[] readCertificateChain(CliKeyStoreFormat format, Path path, char[] password, String alias) throws IOException,
+        GeneralSecurityException {
+        final KeyStore keyStore = format.newKeyStore();
+        try (InputStream in = Files.newInputStream(path)) {
+            keyStore.load(in, password);
+        }
+        return keyStore.getCertificateChain(alias);
     }
 
     private <T> T readPemObject(Path path, String expectedType, CheckedFunction<? super byte[], T, IOException> factory)

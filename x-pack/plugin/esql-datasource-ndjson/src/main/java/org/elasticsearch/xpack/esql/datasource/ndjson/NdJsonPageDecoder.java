@@ -2389,7 +2389,7 @@ public class NdJsonPageDecoder implements Closeable {
                 try {
                     // Double.parseDouble accepts NaN/Infinity — an external read preserves the IEEE value the
                     // file holds, matching the native columnar double read and CSV (see DeclaredTypeCoercions).
-                    ((DoubleBlock.Builder) blockBuilder).appendDouble(Double.parseDouble(parser.getValueAsString()));
+                    ((DoubleBlock.Builder) blockBuilder).appendDouble(DeclaredTypeCoercions.parseDoubleText(parser.getValueAsString()));
                 } catch (NumberFormatException e) {
                     coercionFailure(blockBuilder, parser, inArray, DataType.DOUBLE);
                 }

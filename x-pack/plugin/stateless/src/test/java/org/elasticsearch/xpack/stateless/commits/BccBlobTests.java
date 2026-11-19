@@ -20,45 +20,45 @@ import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommitT
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class BlobFileTests extends AbstractWireSerializingTestCase<BlobFile> {
+public class BccBlobTests extends AbstractWireSerializingTestCase<BccBlob> {
     @Override
-    protected Writeable.Reader<BlobFile> instanceReader() {
-        return Blob.reader(BlobFile.class);
+    protected Writeable.Reader<BccBlob> instanceReader() {
+        return Blob.reader(BccBlob.class);
     }
 
     @Override
-    protected BlobFile createTestInstance() {
-        return randomBlobFile();
+    protected BccBlob createTestInstance() {
+        return randomBccBlob();
     }
 
-    private BlobFile randomBlobFile() {
+    private BccBlob randomBccBlob() {
         var termAndGen = randomTermAndGeneration();
-        return new BlobFile(blobNameFromGeneration(termAndGen.generation()), termAndGen);
+        return new BccBlob(blobNameFromGeneration(termAndGen.generation()), termAndGen);
     }
 
     @Override
-    protected BlobFile mutateInstance(BlobFile instance) throws IOException {
+    protected BccBlob mutateInstance(BccBlob instance) throws IOException {
         var mutatedTermAndGen = mutateTermAndGeneration(instance.termAndGeneration());
-        return new BlobFile(blobNameFromGeneration(mutatedTermAndGen.generation()), mutatedTermAndGen);
+        return new BccBlob(blobNameFromGeneration(mutatedTermAndGen.generation()), mutatedTermAndGen);
     }
 
     public void testRejectsUnrecognizedBlobName() {
         var exception = expectThrows(
             IllegalArgumentException.class,
-            () -> new BlobFile("foo_" + randomNonNegativeInt(), randomTermAndGeneration())
+            () -> new BccBlob("foo_" + randomNonNegativeInt(), randomTermAndGeneration())
         );
         assertThat(exception.getMessage(), containsString("unrecognized blob name"));
     }
 
     public void testRejectsMergeBlobName() {
         var blobName = MergeBlob.blobName(randomByteArrayOfLength(StringHelper.ID_LENGTH));
-        var exception = expectThrows(IllegalArgumentException.class, () -> new BlobFile(blobName, randomTermAndGeneration()));
+        var exception = expectThrows(IllegalArgumentException.class, () -> new BccBlob(blobName, randomTermAndGeneration()));
         assertThat(exception.getMessage(), containsString("unrecognized blob name"));
     }
 
     public void testRejectsNonNumericGeneration() {
         var blobName = BatchedCompoundCommit.PREFIX + randomAlphaOfLengthBetween(1, 10);
-        var exception = expectThrows(IllegalArgumentException.class, () -> new BlobFile(blobName, randomTermAndGeneration()));
+        var exception = expectThrows(IllegalArgumentException.class, () -> new BccBlob(blobName, randomTermAndGeneration()));
         assertThat(exception.getMessage(), containsString("malformed blob name [" + blobName + ']'));
         assertThat(exception.getCause(), instanceOf(NumberFormatException.class));
     }
@@ -66,20 +66,20 @@ public class BlobFileTests extends AbstractWireSerializingTestCase<BlobFile> {
     public void testGenerationIsDeducedFromBlobName() {
         var primaryTerm = randomNonNegativeLong();
         var generation = randomLongBetween(1, Long.MAX_VALUE);
-        var blobFile = new BlobFile(blobNameFromGeneration(generation), primaryTerm);
+        var blobFile = new BccBlob(blobNameFromGeneration(generation), primaryTerm);
         assertEquals(new PrimaryTermAndGeneration(primaryTerm, generation), blobFile.termAndGeneration());
     }
 
     public void testRejectsInvalidBlobNameWithPrimaryTerm() {
         var unrecognized = expectThrows(
             IllegalArgumentException.class,
-            () -> new BlobFile("foo_" + randomNonNegativeInt(), randomNonNegativeLong())
+            () -> new BccBlob("foo_" + randomNonNegativeInt(), randomNonNegativeLong())
         );
         assertThat(unrecognized.getMessage(), containsString("unrecognized blob name"));
 
         var malformed = expectThrows(
             IllegalArgumentException.class,
-            () -> new BlobFile(BatchedCompoundCommit.PREFIX + randomAlphaOfLengthBetween(1, 10), randomNonNegativeLong())
+            () -> new BccBlob(BatchedCompoundCommit.PREFIX + randomAlphaOfLengthBetween(1, 10), randomNonNegativeLong())
         );
         assertThat(malformed.getMessage(), containsString("malformed blob name"));
         assertThat(malformed.getCause(), instanceOf(NumberFormatException.class));
@@ -89,12 +89,12 @@ public class BlobFileTests extends AbstractWireSerializingTestCase<BlobFile> {
         var blobName = BatchedCompoundCommit.PREFIX + randomFrom("0", "-1", "-" + randomLongBetween(1, Long.MAX_VALUE));
         var generation = Long.parseLong(blobName.substring(BatchedCompoundCommit.PREFIX.length()));
 
-        var fromBlobName = expectThrows(IllegalArgumentException.class, () -> new BlobFile(blobName, randomNonNegativeLong()));
+        var fromBlobName = expectThrows(IllegalArgumentException.class, () -> new BccBlob(blobName, randomNonNegativeLong()));
         assertThat(fromBlobName.getMessage(), containsString("the generation must be positive"));
 
         var fromTermAndGeneration = expectThrows(
             IllegalArgumentException.class,
-            () -> new BlobFile(blobName, new PrimaryTermAndGeneration(randomNonNegativeLong(), generation))
+            () -> new BccBlob(blobName, new PrimaryTermAndGeneration(randomNonNegativeLong(), generation))
         );
         assertThat(fromTermAndGeneration.getMessage(), containsString("the generation must be positive"));
     }
@@ -102,7 +102,7 @@ public class BlobFileTests extends AbstractWireSerializingTestCase<BlobFile> {
     public void testRejectsGenerationMismatch() {
         var termAndGen = randomTermAndGeneration();
         var blobName = blobNameFromGeneration(randomValueOtherThan(termAndGen.generation(), () -> randomNonZeroPositiveLong()));
-        var exception = expectThrows(IllegalArgumentException.class, () -> new BlobFile(blobName, termAndGen));
+        var exception = expectThrows(IllegalArgumentException.class, () -> new BccBlob(blobName, termAndGen));
         assertThat(exception.getMessage(), containsString("generation mismatch"));
     }
 
@@ -111,17 +111,25 @@ public class BlobFileTests extends AbstractWireSerializingTestCase<BlobFile> {
         assertThat(exception.getMessage(), containsString("unrecognized blob name"));
     }
 
-    /// Reading a merge blob where a [BlobFile] is expected must fail cleanly rather than be mistaken for a batched compound commit.
+    /// Reading a merge blob where a [BccBlob] is expected must fail cleanly rather than be mistaken for a batched compound commit.
     public void testReadRejectsMergeBlobName() {
         var mergeBlob = new MergeBlob(MergeBlob.blobName(randomByteArrayOfLength(StringHelper.ID_LENGTH)), randomNonNegativeLong());
-        Writeable.Reader<Writeable> reader = in -> Blob.reader(BlobFile.class).read(in);
+        Writeable.Reader<Writeable> reader = in -> Blob.reader(BccBlob.class).read(in);
         var exception = expectThrows(
             IOException.class,
             () -> copyWriteable(mergeBlob, writableRegistry(), reader, TransportVersionUtils.randomCompatibleVersion())
         );
         assertThat(
             exception.getMessage(),
-            containsString("expected a [BlobFile] but blob [" + mergeBlob.blobName() + "] is a [MergeBlob]")
+            containsString(
+                "expected a ["
+                    + BccBlob.class.getSimpleName()
+                    + "] but blob ["
+                    + mergeBlob.blobName()
+                    + "] is a ["
+                    + mergeBlob.getClass().getSimpleName()
+                    + ']'
+            )
         );
     }
 
@@ -139,19 +147,19 @@ public class BlobFileTests extends AbstractWireSerializingTestCase<BlobFile> {
         assertThat(exception.getMessage(), containsString("term/generation mismatch"));
     }
 
-    /// Writes the given blob name and term/generation as is, which a [BlobFile] cannot do for invalid values, and reads them back through
+    /// Writes the given blob name and term/generation as is, which a [BccBlob] cannot do for invalid values, and reads them back through
     /// [Blob#reader(Class)] with a random transport version.
     private void readInvalidBlob(String blobName, PrimaryTermAndGeneration termAndGeneration) throws IOException {
         Writeable invalidBlob = out -> {
             out.writeString(blobName);
             termAndGeneration.writeTo(out);
         };
-        Writeable.Reader<Writeable> reader = in -> Blob.reader(BlobFile.class).read(in);
+        Writeable.Reader<Writeable> reader = in -> Blob.reader(BccBlob.class).read(in);
         copyWriteable(invalidBlob, writableRegistry(), reader, TransportVersionUtils.randomCompatibleVersion());
     }
 
     /// Unlike [org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGenerationTests#randomPrimaryTermAndGeneration()], the generation is
-    /// always positive, as a [BlobFile] cannot have a generation of 0.
+    /// always positive, as a [BccBlob] cannot have a generation of 0.
     private static PrimaryTermAndGeneration randomTermAndGeneration() {
         return new PrimaryTermAndGeneration(randomNonNegativeLong(), randomNonZeroPositiveLong());
     }

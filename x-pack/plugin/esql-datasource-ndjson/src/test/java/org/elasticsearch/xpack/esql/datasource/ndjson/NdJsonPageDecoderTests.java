@@ -16,6 +16,7 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -3485,6 +3486,21 @@ public class NdJsonPageDecoderTests extends ESTestCase {
         assertThat(warnings.get(0), Matchers.containsString("[" + token + "]"));
         assertThat(warnings.get(1), Matchers.containsString("[" + token + "]"));
         assertThat(String.join(" ", warnings), Matchers.not(Matchers.containsString(longName)));
+    }
+
+    public void testDeclaredDoubleRefusesJavaOnlySpellings() {
+        for (String text : List.of("10D", "14f", "0x1p3", "١٢٣")) {
+            expectThrows(ParsingException.class, () -> decodeOneColumn("{\"v\":\"" + text + "\"}\n", DataType.DOUBLE, ErrorPolicy.STRICT));
+        }
+    }
+
+    public void testDeclaredDoubleReadsOrdinarySpellingsFromStrings() throws IOException {
+        try (Page page = decodeOneColumn("{\"v\":\"1e5\"}\n{\"v\":\"+5\"}\n{\"v\":\"NaN\"}\n", DataType.DOUBLE, ErrorPolicy.STRICT)) {
+            DoubleBlock block = page.getBlock(0);
+            assertEquals(100000.0, block.getDouble(0), 0.0);
+            assertEquals(5.0, block.getDouble(1), 0.0);
+            assertTrue(Double.isNaN(block.getDouble(2)));
+        }
     }
 
 }

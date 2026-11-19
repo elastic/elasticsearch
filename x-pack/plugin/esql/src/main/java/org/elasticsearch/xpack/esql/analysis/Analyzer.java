@@ -420,40 +420,133 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         LogicalPlan verified = verify(analyzed, gatherPreAnalysisMetrics(plan, partialMetrics));
         // verify throws on failure, so we only reach here once the plan is valid: flush the warnings deferred during analysis.
         context().deferredHeaderWarnings().forEach(HeaderWarning::addWarning);
-        viewBoundaryNullFillWarnings(context().viewBoundaryNullFills()).forEach(HeaderWarning::addWarning);
+        String viewBoundaryWarning = viewBoundaryNullFillWarning(context().viewBoundaryNullFills());
+        if (viewBoundaryWarning != null) {
+            HeaderWarning.addWarning(viewBoundaryWarning);
+        }
         return verified;
     }
 
     /**
-     * One warning per view boundary whose output null-filled outer references because the referencing scope's
-     * {@code unmapped_fields} mode does not apply inside it.
+     * At most this many field names are listed in the {@link #viewBoundaryNullFillWarning}, counted across its entries; the rest
+     * are only counted. Together with {@link #MAX_LISTED_VIEW_BOUNDARY_VIEW_NAMES} this bounds the {@code Warning} header, which
+     * some clients reject when it grows too large, however many views an index pattern matches.
      */
-    static List<String> viewBoundaryNullFillWarnings(Set<AnalyzerContext.ViewBoundaryNullFill> nullFills) {
-        Map<AnalyzerContext.ViewBoundary, List<String>> fieldsByBoundary = new LinkedHashMap<>();
-        for (AnalyzerContext.ViewBoundaryNullFill fill : nullFills) {
-            fieldsByBoundary.computeIfAbsent(fill.boundary(), k -> new ArrayList<>()).add(fill.fieldName());
+    static final int MAX_LISTED_VIEW_BOUNDARY_FIELDS = 10;
+
+    /**
+     * At most this many view names are printed in the {@link #viewBoundaryNullFillWarning}, counted across its entries: a view and
+     * the view whose definition SET the mode each count, as each can be up to 255 bytes long and three
+     * times that once percent-encoded in the header. Views that no longer fit are only counted. See
+     * {@link #MAX_LISTED_VIEW_BOUNDARY_FIELDS}.
+     */
+    static final int MAX_LISTED_VIEW_BOUNDARY_VIEW_NAMES = 5;
+
+    /**
+     * Views that null-filled the same fields under the {@code SET} of the same scope, reported as one entry of the
+     * {@link #viewBoundaryNullFillWarning}. {@code fields} is a set so that views whose fields were filled in different orders,
+     * e.g. by sibling subqueries that reference them in different orders, still share the entry; it lists them in the order of
+     * the first such view.
+     */
+    private record ViewBoundaryEntry(@Nullable String settingView, Set<String> fields) {}
+
+    /**
+     * The one warning about outer references null-filled at view outputs because the loading {@code unmapped_fields} mode of the
+     * referencing scope does not apply inside those views, or {@code null} if there are none. A user who knows a view's contents
+     * may expect that mode to reach them.
+     * <p>
+     * The advice comes first and the list of fields last, so a client that truncates the header only loses part of the list.
+     * Views that lack the same fields under the same {@code SET} share one entry, so an index pattern over many similar views
+     * reads as one short entry; the listed names are capped by {@link #MAX_LISTED_VIEW_BOUNDARY_FIELDS} and
+     * {@link #MAX_LISTED_VIEW_BOUNDARY_VIEW_NAMES}. The mode itself is not named: the advice is the same for every loading mode.
+     */
+    @Nullable
+    static String viewBoundaryNullFillWarning(Set<AnalyzerContext.ViewBoundaryNullFill> nullFills) {
+        if (nullFills.isEmpty()) {
+            return null;
         }
-        List<String> warnings = new ArrayList<>(fieldsByBoundary.size());
-        fieldsByBoundary.forEach((boundary, fields) -> warnings.add(viewBoundaryNullFillWarning(boundary, fields)));
-        return warnings;
+        Map<AnalyzerContext.ViewBoundary, Set<String>> fieldsByBoundary = new LinkedHashMap<>();
+        Set<String> allFields = new HashSet<>();
+        for (AnalyzerContext.ViewBoundaryNullFill fill : nullFills) {
+            fieldsByBoundary.computeIfAbsent(fill.boundary(), k -> new LinkedHashSet<>()).add(fill.fieldName());
+            allFields.add(fill.fieldName());
+        }
+        Map<ViewBoundaryEntry, List<AnalyzerContext.ViewBoundary>> boundariesByEntry = new LinkedHashMap<>();
+        fieldsByBoundary.forEach(
+            (boundary, fields) -> boundariesByEntry.computeIfAbsent(
+                new ViewBoundaryEntry(boundary.settingView(), fields),
+                k -> new ArrayList<>()
+            ).add(boundary)
+        );
+
+        StringBuilder list = new StringBuilder();
+        int fieldBudget = MAX_LISTED_VIEW_BOUNDARY_FIELDS;
+        int viewNameBudget = MAX_LISTED_VIEW_BOUNDARY_VIEW_NAMES;
+        Set<String> listedFields = new HashSet<>();
+        Set<String> unlistedFields = new HashSet<>();
+        int unlistedViews = 0;
+        for (Map.Entry<ViewBoundaryEntry, List<AnalyzerContext.ViewBoundary>> e : boundariesByEntry.entrySet()) {
+            List<String> fields = List.copyOf(e.getKey().fields());
+            List<AnalyzerContext.ViewBoundary> views = e.getValue();
+            int settingViewNames = e.getKey().settingView() == null ? 0 : 1;
+            int viewsListed = Math.min(views.size(), viewNameBudget - settingViewNames);
+            if (fieldBudget == 0 || viewsListed <= 0) {
+                unlistedFields.addAll(fields);
+                unlistedViews += views.size();
+                continue;
+            }
+            viewNameBudget -= settingViewNames + viewsListed;
+            int fieldsListed = Math.min(fields.size(), fieldBudget);
+            fieldBudget -= fieldsListed;
+            listedFields.addAll(fields.subList(0, fieldsListed));
+            if (list.isEmpty() == false) {
+                list.append("; ");
+            }
+            appendBoundedList(list, fields, fieldsListed, field -> "[" + field + "]");
+            list.append(views.size() == 1 ? " in view " : " in views ");
+            appendBoundedList(list, views, viewsListed, view -> "[" + view.viewName() + "]");
+            if (e.getKey().settingView() != null) {
+                list.append(" (SET by view [").append(e.getKey().settingView()).append("])");
+            }
+        }
+        unlistedFields.removeAll(listedFields);
+        if (unlistedViews > 0) {
+            list.append("; and ");
+            if (unlistedFields.isEmpty() == false) {
+                list.append("[")
+                    .append(unlistedFields.size())
+                    .append("] more field")
+                    .append(unlistedFields.size() == 1 ? "" : "s")
+                    .append(" in ");
+            }
+            list.append("[").append(unlistedViews).append("] more view").append(unlistedViews == 1 ? "" : "s");
+        }
+
+        boolean oneView = fieldsByBoundary.size() == 1;
+        boolean oneField = allFields.size() == 1;
+        return Strings.format(
+            "SET unmapped_fields does not affect the contents of %s, so %s null in %s rows; to load %s, %s must reference %s "
+                + "under SET unmapped_fields=\"load\": %s",
+            oneView ? "a view" : "views",
+            oneField ? "this field is" : "these fields are",
+            oneView ? "its" : "their",
+            oneField ? "it" : "them",
+            oneView ? "the view definition" : "the view definitions",
+            oneField ? "it" : "them",
+            list
+        );
     }
 
-    static String viewBoundaryNullFillWarning(AnalyzerContext.ViewBoundary boundary, List<String> fieldNames) {
-        assert fieldNames.isEmpty() == false : "no fields to warn about";
-        boolean one = fieldNames.size() == 1;
-        return Strings.format(
-            "SET unmapped_fields=\"%s\"%s does not affect the contents of view [%s]%s, so field%s %s %s null in its rows; "
-                + "to load such fields, the view definition must %s them itself",
-            boundary.resolution().settingValue(),
-            boundary.settingView() == null ? "" : " in view [" + boundary.settingView() + "]",
-            boundary.viewName(),
-            boundary.enclosingView() == null ? "" : " nested in view [" + boundary.enclosingView() + "]",
-            one ? "" : "s",
-            ViewQuerySettings.bracketedList(fieldNames),
-            one ? "is" : "are",
-            // A view that already SETs load loads only the fields its own body references.
-            boundary.viewLoadsUnmappedFields() ? "reference" : "SET unmapped_fields=\"load\" and reference"
-        );
+    /**
+     * Appends the first {@code listed} of {@code items} as a comma-separated list, followed by {@code and [N] more} for the rest.
+     */
+    private static <T> void appendBoundedList(StringBuilder sb, List<T> items, int listed, Function<T, String> format) {
+        for (int i = 0; i < listed; i++) {
+            sb.append(i == 0 ? "" : ", ").append(format.apply(items.get(i)));
+        }
+        if (items.size() > listed) {
+            sb.append(" and [").append(items.size() - listed).append("] more");
+        }
     }
 
     public LogicalPlan verify(LogicalPlan plan, BitSet partialMetrics) {
@@ -499,11 +592,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             resolutions.addAll(context.lookupResolution().values());
             Map<NameId, FieldSemantics> semantics = ColumnSemantics.collect(describe.child(), resolutions);
             Map<NameId, Attribute> datasetColumns = ColumnSemantics.datasetColumns(describe.child());
+            Set<NameId> timeColumns = ColumnSemantics.timeColumns(describe.child(), semantics, datasetColumns);
             return describe.describe(
                 semantics,
                 datasetColumns,
                 ColumnUnits.collect(describe.child(), semantics),
-                ColumnSemantics.timeColumns(describe.child(), semantics, datasetColumns)
+                timeColumns,
+                ColumnIntervals.collect(describe.child(), context.configuration().newFoldContext())
             );
         }
 
@@ -643,6 +738,19 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         return list;
     }
 
+    private static FieldAttribute fieldAttribute(Source source, String parentName, String name, EsField field, boolean synthetic) {
+        if (field instanceof UnsupportedEsField uef) {
+            return new UnsupportedAttribute(source, name, uef);
+        }
+        if (field instanceof InvalidMappedTsField imtf) {
+            // Convert the TS role conflict directly to an UnsupportedAttribute with a meaningful message.
+            // The original types don't matter. We pass a custom error message, anyway, which will fail the query in the verifier.
+            var carrier = new UnsupportedEsField(imtf.getName(), List.of(), null, imtf.getProperties());
+            return new UnsupportedAttribute(source, name, carrier, imtf.errorMessage());
+        }
+        return new FieldAttribute(source, parentName, null, name, field, synthetic);
+    }
+
     private static void mappingAsAttributes(List<Attribute> list, Source source, String parentName, Map<String, EsField> mapping) {
         for (Map.Entry<String, EsField> entry : mapping.entrySet()) {
             String name = entry.getKey();
@@ -654,19 +762,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 t = t.withWidenedSmallNumeric();
                 var type = t.getDataType();
 
-                FieldAttribute attribute;
-                if (t instanceof UnsupportedEsField uef) {
-                    attribute = new UnsupportedAttribute(source, name, uef);
-                } else if (t instanceof InvalidMappedTsField imtf) {
-                    // Convert the TS role conflict directly to an UnsupportedAttribute with a meaningful message.
-                    // The original types don't matter. We pass a custom error message, anyway, which will fail the query in the verifier.
-                    var carrier = new UnsupportedEsField(imtf.getName(), List.of(), null, imtf.getProperties());
-                    attribute = new UnsupportedAttribute(source, name, carrier, imtf.errorMessage());
-                } else {
-                    // Nested-scope fields exist only for NESTED_EXPAND. Marking them synthetic keeps them out of name
-                    // resolution and out of the query output.
-                    attribute = new FieldAttribute(source, parentName, null, name, t, t instanceof NestedScopeField);
-                }
+                // Nested-scope fields exist only for NESTED_EXPAND. Marking them synthetic keeps them out of name
+                // resolution and out of the query output.
+                FieldAttribute attribute = fieldAttribute(source, parentName, name, t, t instanceof NestedScopeField);
                 // primitive branch
                 if (DataType.isPrimitive(type)) {
                     list.add(attribute);
@@ -1784,7 +1882,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case Eval p -> resolveEval(p, childrenOutput);
                 case Enrich p -> resolveEnrich(p, childrenOutput);
                 case MvExpand p -> resolveMvExpand(p, childrenOutput);
-                case NestedExpand p -> resolveNestedExpand(p, childrenOutput);
+                case NestedExpand p -> resolveNestedExpand(p, childrenOutput, context);
                 case Lookup l -> resolveLookup(l, childrenOutput);
                 case LookupJoin j -> resolveLookupJoin(j, context);
                 case AbstractSubqueryJoin sj -> resolveSubqueryJoin(sj);
@@ -1804,11 +1902,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * Binds {@code NESTED_EXPAND} to a mapped nested collection. An unknown name stays unresolved, so the verifier
          * reports it like any other unknown column. A name that exists but is not nested fails here.
          */
-        private LogicalPlan resolveNestedExpand(NestedExpand expand, List<Attribute> childrenOutput) {
+        private LogicalPlan resolveNestedExpand(NestedExpand expand, List<Attribute> childrenOutput, AnalyzerContext context) {
             if (expand.bound()) {
                 return expand;
             }
             NamedExpression target = expand.target();
+            // The plan can only run if every node can read and serialize the command
+            if (context.minimumVersion().supports(NestedExpand.VERSION) == false) {
+                throw nestedExpandError(target, "NESTED_EXPAND requires all nodes to support nested expansion");
+            }
             String name = target.name();
             String rootName = NestedScopeField.PREFIX + name;
             FieldAttribute root = null;
@@ -1867,11 +1969,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<String> paths = new ArrayList<>();
             for (FieldAttribute child : children) {
                 String relative = child.name().substring(NestedScopeField.PREFIX.length() + path.length() + 1);
-                // TODO: A child keeps only its type here. Binding it as a FieldAttribute that holds NestedScopeField#leaf would let
-                // cast resolution see a type conflict, but that needs the conversion to belong to this NestedExpand rather than to the
-                // parent relation, the same conversion applied when the child is read, and ReplaceFieldWithConstantOrNull keeping the
-                // child (SearchContextStats#exists is false for nested subfields). To be done with the execution of NESTED_EXPAND.
-                expanded.add(new ReferenceAttribute(expand.source(), path + "." + relative, child.dataType()));
+                String childName = path + "." + relative;
+                String parentName = childName.substring(0, childName.lastIndexOf('.'));
+                expanded.add(fieldAttribute(expand.source(), parentName, childName, ((NestedScopeField) child.field()).leaf(), false));
                 paths.add(relative);
             }
             return new NestedExpand(expand.source(), expand.child(), null, path, expanded, paths);
@@ -4483,6 +4583,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private static class UnionTypeResolutionState {
             private final List<Attribute.IdIgnoringWrapper> unionFieldAttributes = new ArrayList<>();
             private boolean isAfterAggregate = false;
+            /** The children a {@code NESTED_EXPAND} reads, by id, with the relative path each is read from. */
+            private final Map<NameId, String> expandedChildren = new HashMap<>();
+            /** The generated attributes that convert an expanded child, by id, with the child they convert. */
+            private final Map<NameId, FieldAttribute> convertedChildren = new HashMap<>();
         }
 
         private static LogicalPlan doRule(LogicalPlan plan, UnionTypeResolutionState state, AnalyzerContext context) {
@@ -4498,6 +4602,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
             }
 
+            if (plan instanceof NestedExpand expand && expand.bound()) {
+                for (int i = 0; i < expand.expanded().size(); i++) {
+                    state.expandedChildren.put(expand.expanded().get(i).id(), expand.paths().get(i));
+                }
+            }
+
             if (state.isAfterAggregate) {
                 return plan;
             }
@@ -4508,7 +4618,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             LogicalPlan beforeConverts = plan;
             plan = plan.transformExpressionsOnly(e -> {
                 if (e instanceof ConvertFunction convert) {
-                    return resolveConvertFunction(convert, state.unionFieldAttributes, context);
+                    int before = state.unionFieldAttributes.size();
+                    Expression resolved = resolveConvertFunction(convert, state.unionFieldAttributes, context);
+                    if (convertedField(convert) instanceof FieldAttribute child && state.expandedChildren.containsKey(child.id())) {
+                        for (int i = before; i < state.unionFieldAttributes.size(); i++) {
+                            state.convertedChildren.put(state.unionFieldAttributes.get(i).inner().id(), child);
+                        }
+                    }
+                    return resolved;
                 }
                 return e;
             });
@@ -4531,9 +4648,20 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             if (generatedUnionFields) {
+                List<FieldAttribute> generated = state.unionFieldAttributes.stream().map(attr -> (FieldAttribute) attr.inner()).toList();
+                // An expanded child is not a field of the relation: its conversion is part of the expansion that reads it.
+                if (state.convertedChildren.isEmpty() == false) {
+                    plan = addGeneratedFieldsToNestedExpands(plan, generated, state);
+                    Set<NameId> convertedChildren = state.convertedChildren.keySet();
+                    plan = carryOverSyntheticAttributesThroughProjects(
+                        plan,
+                        attr -> convertedChildren.contains(attr.id()),
+                        context.unmappedResolution().loadsAllUnmappedFields()
+                    );
+                }
                 plan = addGeneratedFieldsToEsRelations(
                     plan,
-                    state.unionFieldAttributes.stream().map(attr -> (FieldAttribute) attr.inner()).toList(),
+                    generated.stream().filter(fa -> state.convertedChildren.containsKey(fa.id()) == false).toList(),
                     context.unmappedResolution().loadsAllUnmappedFields()
                 );
             }
@@ -4544,6 +4672,50 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 state.isAfterAggregate = true;
             }
             return plan;
+        }
+
+        /** The field a convert reads, looking through the converts it is nested in, as in {@code foo::long::double}. */
+        private static Expression convertedField(ConvertFunction convert) {
+            Expression field = convert.field();
+            while (field instanceof ConvertFunction inner) {
+                field = inner.field();
+            }
+            return field;
+        }
+
+        /**
+         * Adds the generated attributes that convert a child of a {@code NESTED_EXPAND} to that expansion, which reads the child
+         * from each shard's mapping and converts it there.
+         */
+        private static LogicalPlan addGeneratedFieldsToNestedExpands(
+            LogicalPlan plan,
+            List<FieldAttribute> unionFieldAttributes,
+            UnionTypeResolutionState state
+        ) {
+            return plan.transformDown(NestedExpand.class, expand -> {
+                if (expand.bound() == false) {
+                    return expand;
+                }
+                List<Attribute> expanded = new ArrayList<>(expand.expanded());
+                List<String> paths = new ArrayList<>(expand.paths());
+                for (FieldAttribute generated : unionFieldAttributes) {
+                    FieldAttribute child = state.convertedChildren.get(generated.id());
+                    int index = -1;
+                    for (int i = 0; child != null && i < expand.expanded().size(); i++) {
+                        if (expand.expanded().get(i).id().equals(child.id())) {
+                            index = i;
+                            break;
+                        }
+                    }
+                    if (index >= 0 && expanded.contains(generated) == false) {
+                        expanded.add(generated);
+                        paths.add(expand.paths().get(index));
+                    }
+                }
+                return expanded.size() == expand.expanded().size()
+                    ? expand
+                    : new NestedExpand(expand.source(), expand.child(), null, expand.path(), expanded, paths);
+            });
         }
 
         /**
@@ -6659,6 +6831,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * overload that also gates synthetics against the enclosing {@link MergePlan} output.
      */
     private static LogicalPlan carryOverSyntheticAttributesThroughProjects(LogicalPlan plan, boolean preserveResolvingProject) {
+        return carryOverSyntheticAttributesThroughProjects(plan, Attribute::synthetic, preserveResolvingProject);
+    }
+
+    /**
+     * As {@link #carryOverSyntheticAttributesThroughProjects(LogicalPlan, boolean)}, but carrying over only the synthetic attributes
+     * that {@code carried} accepts.
+     */
+    private static LogicalPlan carryOverSyntheticAttributesThroughProjects(
+        LogicalPlan plan,
+        Predicate<Attribute> carried,
+        boolean preserveResolvingProject
+    ) {
         // The right side of an IndependentSubqueryJoin is a separate query: synthetics of the main query are not its to carry.
         return plan.transformUpSkipBranch(IndependentSubqueryJoin::isSubqueryBranch, node -> {
             if (node instanceof Project == false) {
@@ -6673,7 +6857,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             List<Attribute> syntheticAttributesToCarryOver = new ArrayList<>();
             for (Attribute attr : p.inputSet()) {
-                if (attr.synthetic() && p.outputSet().contains(attr) == false) {
+                if (attr.synthetic() && carried.test(attr) && p.outputSet().contains(attr) == false) {
                     syntheticAttributesToCarryOver.add(attr);
                 }
             }

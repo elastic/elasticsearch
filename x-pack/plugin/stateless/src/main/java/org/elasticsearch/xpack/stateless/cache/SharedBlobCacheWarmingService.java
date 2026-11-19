@@ -433,6 +433,23 @@ public class SharedBlobCacheWarmingService {
         Setting.Property.Dynamic
     );
 
+    /**
+     * The maximum number of consecutive cache regions of the same blob that {@link AbstractWarmer.WarmBlobByteRangeTask} fills from a
+     * single object store read, instead of one read per region. Cache regions are 16MB by default, so the default of 4 means reads of up
+     * to 64MB. Only applies to data read from the object store, and only while the shard being warmed is not serving searches yet: once
+     * the shard is started, its warming reads one region at a time so that it does not delay the searches that run concurrently.
+     * A value of 1 disables grouping. The upper bound also limits the depth of the recursion that fills the regions of a group one
+     * after the other.
+     */
+    public static final Setting<Integer> WARM_BYTE_RANGE_MAX_REGIONS_PER_READ_SETTING = Setting.intSetting(
+        "stateless.blob_cache_warming.warm_byte_range_max_regions_per_read",
+        4,
+        1,
+        10,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private final StatelessSharedBlobCacheService cacheService;
     private final ThreadPool threadPool;
     private final Executor fetchExecutor;
@@ -458,6 +475,7 @@ public class SharedBlobCacheWarmingService {
     private volatile boolean prewarmIndexShardForIdLookupsEnabled;
     private volatile long maxUploadPrewarmSize;
     private volatile int warmByteRangePerFileConcurrency;
+    private volatile int warmByteRangeMaxRegionsPerRead;
     private final SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService;
 
     public SharedBlobCacheWarmingService(
@@ -590,6 +608,10 @@ public class SharedBlobCacheWarmingService {
         clusterSettings.initializeAndWatch(
             WARM_BYTE_RANGE_PER_FILE_CONCURRENCY_SETTING,
             value -> this.warmByteRangePerFileConcurrency = value
+        );
+        clusterSettings.initializeAndWatch(
+            WARM_BYTE_RANGE_MAX_REGIONS_PER_READ_SETTING,
+            value -> this.warmByteRangeMaxRegionsPerRead = value
         );
     }
 
@@ -1366,6 +1388,7 @@ public class SharedBlobCacheWarmingService {
                     blobSize,
                     timestampMillis,
                     store::isClosing,
+                    () -> indexShard.state() == IndexShardState.STARTED,
                     directory,
                     listener
                 )
@@ -1695,6 +1718,7 @@ public class SharedBlobCacheWarmingService {
         private final ByteRange byteRangeToWarm;
         private final long blobSize;
         private final long timestampMillis;
+        private final BooleanSupplier isShardServingSearches;
 
         BlobByteRangeWarmer(
             SharedBlobCacheWarmingService.WarmingRun warmingRun,
@@ -1703,6 +1727,7 @@ public class SharedBlobCacheWarmingService {
             long blobSize,
             long timestampMillis,
             Supplier<Boolean> isStoreClosing,
+            BooleanSupplier isShardServingSearches,
             BlobStoreCacheDirectory directory,
             ActionListener<Void> listener
         ) {
@@ -1711,6 +1736,18 @@ public class SharedBlobCacheWarmingService {
             this.byteRangeToWarm = byteRangeToWarm;
             this.blobSize = blobSize;
             this.timestampMillis = timestampMillis;
+            this.isShardServingSearches = isShardServingSearches;
+        }
+
+        /**
+         * Grouping regions into larger object store reads speeds up warming a shard that does not serve searches yet. Once the shard
+         * serves searches (recovery may resume, and the shard start, while warming continues in the background), the larger reads would
+         * compete with the reads of the searches, so the remaining regions are read one at a time. The shard state is checked every time
+         * a task starts reading, so a shard that starts mid-warming switches over for the tasks that have not started yet.
+         */
+        @Override
+        protected int maxRegionsPerRead() {
+            return isShardServingSearches.getAsBoolean() ? 1 : super.maxRegionsPerRead();
         }
 
         void run() {
@@ -1798,6 +1835,13 @@ public class SharedBlobCacheWarmingService {
         protected final RefCountingListener listeners;
         protected final AtomicLong tasksCount = new AtomicLong(0L);
         protected final AtomicLong totalBytesCopied = new AtomicLong(0L);
+
+        /**
+         * The maximum number of consecutive cache regions that {@link WarmBlobByteRangeTask} fills from a single object store read.
+         */
+        protected int maxRegionsPerRead() {
+            return warmByteRangeMaxRegionsPerRead;
+        }
 
         AbstractWarmer(
             WarmingRun warmingRun,
@@ -2151,6 +2195,7 @@ public class SharedBlobCacheWarmingService {
                     perFileRunner.asExecutor(),
                     true,
                     timestampMillis,
+                    maxRegionsPerRead(),
                     l
                 );
             }

@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -euo pipefail
+
 ROOT_DIR=$(cd "$(dirname "$0")/.." && pwd)
 
 branches=($(cat "$ROOT_DIR/branches.json" | jq -r '.branches[].branch'))
@@ -29,8 +31,15 @@ for branch in "${branches[@]}"; do
   fi
 
   export JAVA_HOME="$HOME/.java/$ES_BUILD_JAVA"
-  "checkout/${branch}/gradlew" --project-dir "$CHECKOUT_DIR" --parallel -s resolveAllDependencies -Dbwc.throttle.maxParallelUsages=1 -Dorg.gradle.warning.mode=none -DisCI --max-workers=4 "$@" || exit 1
+  for attempt in 1 2; do
+    "checkout/${branch}/gradlew" --project-dir "$CHECKOUT_DIR" --parallel -s resolveAllDependencies -Dbwc.throttle.maxParallelUsages=1 -Dorg.gradle.warning.mode=none -DisCI --max-workers=4 "$@" && break
+    if [ "$attempt" -eq 2 ]; then
+      echo "Failed to resolve dependencies for ${branch} branch" >&2
+      exit 1
+    fi
+    sleep 60
+  done
   "checkout/${branch}/gradlew" --stop
-  pkill -f '.*GradleDaemon.*'
+  pkill -f '.*GradleDaemon.*' || true
   rm -rf "checkout/${branch}"
 done

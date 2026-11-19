@@ -1222,6 +1222,11 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         assertThat(StatelessMemoryMetricsService.heapRequiredForOperation(fifteenPercent, operationSize), equalTo(6_667L));
     }
 
+    public void testZeroPercentLimitRequiresNoHeap() {
+        final Settings zeroPercent = Settings.builder().put(IndexingPressure.MAX_OPERATION_SIZE.getKey(), "0%").build();
+        assertThat(StatelessMemoryMetricsService.heapRequiredForOperation(zeroPercent, 4_000_000L), equalTo(0L));
+    }
+
     public void testValidRequirementsReportConvertedRawSizeThenLargerLegacyHeap() {
         final AtomicLong now = new AtomicLong(0L);
         final StatelessMemoryMetricsService timed = new StatelessMemoryMetricsService(now::get, clusterService);

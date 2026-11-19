@@ -74,7 +74,7 @@ public final class SourceShardWarmingInfo {
     }
 
     // This is only used for metrics. Can be removed once metrics are no longer needed.
-    enum Status {
+    public enum Status {
         /** The source answered for its current shutdown signal. */
         AVAILABLE,
         /** The source could not compute the warming info, the request failed, or it was sent under a since-replaced shutdown signal. */
@@ -83,13 +83,13 @@ public final class SourceShardWarmingInfo {
         PENDING,
         NOT_REQUESTED;
 
-        String attributeValue() {
+        public String attributeValue() {
             return name().toLowerCase(Locale.ROOT);
         }
     }
 
     /// Status of the answer for the source's shutdown signal started at `currentShutdownSignalTimestamp`.
-    Status status(long currentShutdownSignalTimestamp) {
+    public Status status(long currentShutdownSignalTimestamp) {
         return status(warmingInfo, currentShutdownSignalTimestamp);
     }
 

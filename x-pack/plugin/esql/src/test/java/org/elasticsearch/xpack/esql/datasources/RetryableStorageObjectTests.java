@@ -3880,6 +3880,15 @@ public class RetryableStorageObjectTests extends ESTestCase {
     }
 
     public void testByteBufferAsyncReadCompletionRestoresIssuingThreadContext() throws Exception {
+        assertThat(readByteBufferAndObserveHeader(false), equalTo("issuing-user"));
+    }
+
+    public void testByteBufferAsyncReadFailureRestoresIssuingThreadContext() throws Exception {
+        assertThat(readByteBufferAndObserveHeader(true), equalTo("issuing-user"));
+    }
+
+    /** Reads through the ByteBuffer overload on an empty-context worker and returns the header the listener sees. */
+    private String readByteBufferAndObserveHeader(boolean failStream) throws Exception {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         ExecutorService sdkThread = Executors.newSingleThreadExecutor();
         try {
@@ -3891,7 +3900,10 @@ public class RetryableStorageObjectTests extends ESTestCase {
                 }
 
                 @Override
-                public InputStream newStream(long position, long length) {
+                public InputStream newStream(long position, long length) throws IOException {
+                    if (failStream) {
+                        throw new IOException("stream failure");
+                    }
                     return new ByteArrayInputStream(new byte[(int) length]);
                 }
 
@@ -3944,13 +3956,20 @@ public class RetryableStorageObjectTests extends ESTestCase {
                     command.run();
                 }
             });
-            obj.readBytesAsync(
-                0,
-                ByteBuffer.allocate(4),
-                sdkExecutor,
-                ActionListener.wrap(n -> observed.onResponse(threadContext.getHeader(CONTEXT_HEADER)), observed::onFailure)
-            );
-            assertThat(observed.get(10, TimeUnit.SECONDS), equalTo("issuing-user"));
+            obj.readBytesAsync(0, ByteBuffer.allocate(4), sdkExecutor, ActionListener.wrap(n -> {
+                if (failStream) {
+                    observed.onFailure(new IllegalStateException("expected the read to fail"));
+                } else {
+                    observed.onResponse(threadContext.getHeader(CONTEXT_HEADER));
+                }
+            }, e -> {
+                if (failStream) {
+                    observed.onResponse(threadContext.getHeader(CONTEXT_HEADER));
+                } else {
+                    observed.onFailure(e);
+                }
+            }));
+            return observed.get(10, TimeUnit.SECONDS);
         } finally {
             terminate(sdkThread);
         }

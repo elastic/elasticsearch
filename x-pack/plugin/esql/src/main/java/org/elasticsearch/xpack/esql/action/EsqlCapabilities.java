@@ -5018,8 +5018,8 @@ public class EsqlCapabilities {
         FIX_TS_FIRST_LAST_SAMPLES,
 
         /**
-         * {@code LOOKUP JOIN} on a {@code keyword} key that does not hold its values as terms (a runtime field, {@code index: false},
-         * a normalizer) matches as a term query does, instead of matching nothing.
+         * {@code LOOKUP JOIN} on a {@code keyword} key that does not hold its values as terms (a runtime field, an alias,
+         * {@code index: false}, a normalizer) matches as a term query does, instead of matching nothing.
          */
         LOOKUP_JOIN_KEYWORD_KEY_WITHOUT_EXACT_TERMS,
 

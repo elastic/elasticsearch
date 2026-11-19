@@ -63,6 +63,22 @@ setup:
               threat_level:
                 type: keyword
   - do:
+      indices.create:
+        index: lookup_alias
+        body:
+          settings:
+            index:
+              mode: lookup
+          mappings:
+            properties:
+              ip_real:
+                type: keyword
+              ip:
+                type: alias
+                path: ip_real
+              threat_level:
+                type: keyword
+  - do:
       bulk:
         index: firewall
         refresh: true
@@ -100,6 +116,15 @@ setup:
           - { "host": "Bravo", "threat_level": "high" }
           - { "index": { } }
           - { "host": "CHARLIE", "threat_level": "medium" }
+  - do:
+      bulk:
+        index: lookup_alias
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "ip_real": "203.0.113.5", "threat_level": "high" }
+          - { "index": { } }
+          - { "ip_real": "198.51.100.2", "threat_level": "medium" }
   # Dynamic mapping updates are not acknowledged by every node, so wait until all nodes have applied them.
   - do:
       cluster.health:
@@ -143,4 +168,20 @@ setup:
       esql.query:
         body:
           query: 'FROM firewall | LOOKUP JOIN lookup_normalized ON host | KEEP ip, threat_level | SORT ip | LIMIT 10'
+  - match: { values: [ [ "192.0.2.1", null ], [ "198.51.100.2", "medium" ], [ "203.0.113.5", "high" ] ] }
+
+---
+"keyword key that is an alias":
+  - do:
+      esql.query:
+        body:
+          query: 'FROM firewall | LOOKUP JOIN lookup_alias ON ip | KEEP ip, threat_level | SORT ip | LIMIT 10'
+  - match: { values: [ [ "192.0.2.1", null ], [ "198.51.100.2", "medium" ], [ "203.0.113.5", "high" ] ] }
+
+---
+"keyword key that is an alias in an expression join":
+  - do:
+      esql.query:
+        body:
+          query: 'FROM firewall | RENAME ip AS left_ip | LOOKUP JOIN lookup_alias ON left_ip == ip | KEEP left_ip, threat_level | SORT left_ip | LIMIT 10'
   - match: { values: [ [ "192.0.2.1", null ], [ "198.51.100.2", "medium" ], [ "203.0.113.5", "high" ] ] }

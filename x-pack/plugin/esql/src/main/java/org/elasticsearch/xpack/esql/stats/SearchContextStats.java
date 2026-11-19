@@ -508,12 +508,14 @@ public class SearchContextStats implements SearchStats {
     }
 
     /**
-     * Whether the shard of {@code context} keeps each value of {@code field} as a term, exactly as written: an indexed
-     * {@code keyword} with no normalizer. A runtime field or a {@code keyword} with {@code index: false} has no terms, and a
-     * normalizer changes the value before indexing it, so a lookup that seeks values in the terms dictionary would miss them.
+     * Whether seeking a value under {@code field} in the terms dictionary of the shard of {@code context} finds the documents
+     * a term query for it would: {@code field} is the name of an indexed {@code keyword} with no normalizer. A runtime field
+     * or a {@code keyword} with {@code index: false} has no terms, an alias has none under its own name, and a normalizer
+     * changes the value before indexing it.
      */
     public static boolean holdsValuesAsTerms(SearchExecutionContext context, String field) {
         return context.getFieldType(field) instanceof KeywordFieldMapper.KeywordFieldType keyword
+            && keyword.name().equals(field)
             && keyword.indexType().hasTerms()
             && keyword.hasNormalizer() == false;
     }

@@ -48,9 +48,8 @@ public interface SearchStats {
     }
 
     /**
-     * Whether every shard here keeps each value of {@code field} as a term, exactly as written: see
-     * {@link SearchContextStats#holdsValuesAsTerms(SearchExecutionContext, String)}. Only then does seeking a value in the
-     * terms dictionary find the documents a term query for it would.
+     * Whether seeking a value under {@code field} in the terms dictionary of every shard here finds the documents a term
+     * query for it would: see {@link SearchContextStats#holdsValuesAsTerms(SearchExecutionContext, String)}.
      */
     default boolean holdsValuesAsTerms(FieldName field) {
         return false;

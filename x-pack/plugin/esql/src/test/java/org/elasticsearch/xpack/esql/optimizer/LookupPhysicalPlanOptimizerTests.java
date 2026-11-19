@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
@@ -44,10 +45,12 @@ import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.stats.SearchContextStats;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -226,6 +229,34 @@ public class LookupPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             """, statsWithoutTerms("language_name"));
 
         assertNoBulkLookup(plan);
+    }
+
+    /**
+     * With the stats of a real shard, the bulk lookup is used only for a key that holds its values as terms under its own name.
+     */
+    public void testBulkLookupFollowsTheMappingOfTheKey() throws IOException {
+        assertBulkLookup(true, """
+            { "_doc": { "properties": { "language_name": { "type": "keyword" } } } }""");
+        assertBulkLookup(false, """
+            { "_doc": { "properties": { "language_name": { "type": "keyword", "index": false } } } }""");
+        assertBulkLookup(false, """
+            { "_doc": { "runtime": { "language_name": { "type": "keyword" } } } }""");
+        assertBulkLookup(false, """
+            { "_doc": { "properties": { "language_name": { "type": "alias", "path": "name" }, "name": { "type": "keyword" } } } }""");
+    }
+
+    private void assertBulkLookup(boolean expected, String lookupIndexMapping) throws IOException {
+        try (MapperService mapperService = createMapperService(lookupIndexMapping)) {
+            SearchStats stats = SearchContextStats.from(List.of(createSearchExecutionContext(mapperService)));
+            List<String> queries = List.of(
+                "ROW language_name = \"French\" | LOOKUP JOIN languages_lookup ON language_name",
+                "ROW name = \"French\" | LOOKUP JOIN languages_lookup ON name == language_name"
+            );
+            for (String query : queries) {
+                PhysicalPlan plan = optimizeLookupPlan(query, stats);
+                assertThat(lookupIndexMapping + " " + query, plan.anyMatch(p -> p instanceof BulkLookupMvFilterExec), is(expected));
+            }
+        }
     }
 
     private static SearchStats statsWithoutTerms(String field) {

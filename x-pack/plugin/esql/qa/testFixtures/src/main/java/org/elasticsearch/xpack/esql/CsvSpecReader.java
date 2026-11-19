@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql;
 
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -528,8 +530,8 @@ public final class CsvSpecReader {
                 name = named.group(1);
                 json = named.group(2).trim();
             }
-            XContentParser.Token token = parseJsonValue(line, json);
-            if (name == null && token == XContentParser.Token.START_OBJECT) {
+            json = canonicalJson(line, json);
+            if (name == null && json.startsWith("{")) {
                 throw new IllegalArgumentException(
                     "Invalid param [" + line + "]: an unnamed parameter can't be an object, use [param: <name> = <json>]"
                 );
@@ -542,20 +544,21 @@ public final class CsvSpecReader {
         }
 
         /**
-         * Checks that {@code json} is a single JSON value and returns its first token.
+         * Parses {@code json} as a single JSON value and returns it serialized again, so what the parser accepts beyond
+         * plain JSON, like comments, never reaches the request.
          */
-        private static XContentParser.Token parseJsonValue(String line, String json) {
+        private static String canonicalJson(String line, String json) {
             String error = "Invalid param [" + line + "]: expected [param: <name> = <json>] or [param: <json>], with a single JSON value";
             try (XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, json)) {
-                XContentParser.Token token = parser.nextToken();
-                if (token == null) {
+                if (parser.nextToken() == null) {
                     throw new IllegalArgumentException(error);
                 }
-                parser.skipChildren();
+                XContentBuilder builder = JsonXContent.contentBuilder();
+                builder.copyCurrentStructure(parser);
                 if (parser.nextToken() != null) {
                     throw new IllegalArgumentException(error);
                 }
-                return token;
+                return Strings.toString(builder);
             } catch (IOException | XContentParseException e) {
                 throw new IllegalArgumentException(error, e);
             }

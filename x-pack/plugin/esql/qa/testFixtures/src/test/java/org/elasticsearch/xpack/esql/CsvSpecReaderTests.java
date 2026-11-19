@@ -210,8 +210,8 @@ public class CsvSpecReaderTests extends ESTestCase {
         assertThat(
             testCase.paramsJson(),
             equalTo(
-                "[{\"s\": \"a string with = and {braces}\"}, {\"i\": 5}, {\"d\": -1.5}, {\"b\": true}, {\"n\": null}, {\"a\": [1, 2]}, "
-                    + "{\"v\": {\"value\": \"x\"}}, {\"f\": {\"identifier\": \"first_name\"}}]"
+                "[{\"s\": \"a string with = and {braces}\"}, {\"i\": 5}, {\"d\": -1.5}, {\"b\": true}, {\"n\": null}, {\"a\": [1,2]}, "
+                    + "{\"v\": {\"value\":\"x\"}}, {\"f\": {\"identifier\":\"first_name\"}}]"
             )
         );
     }
@@ -221,7 +221,12 @@ public class CsvSpecReaderTests extends ESTestCase {
         assertThat(testCase.params, hasSize(4));
         assertThat(testCase.params.get(0), equalTo(new CsvSpecReader.Param(null, "\"F\"")));
         assertThat(testCase.params.get(3), equalTo(new CsvSpecReader.Param(null, "\"x = 1\"")));
-        assertThat(testCase.paramsJson(), equalTo("[\"F\", 10008, [\"a\", \"b\"], \"x = 1\"]"));
+        assertThat(testCase.paramsJson(), equalTo("[\"F\", 10008, [\"a\",\"b\"], \"x = 1\"]"));
+    }
+
+    public void testParamCommentIsNotSent() {
+        CsvTestCase testCase = parse("param: x = 1 // note", "param: y = [1, /* two */ 2]");
+        assertThat(testCase.paramsJson(), equalTo("[{\"x\": 1}, {\"y\": [1,2]}]"));
     }
 
     public void testParamsDoNotLeakIntoNextTest() {

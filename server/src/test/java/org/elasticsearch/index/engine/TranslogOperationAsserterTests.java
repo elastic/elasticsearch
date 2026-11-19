@@ -46,6 +46,7 @@ public class TranslogOperationAsserterTests extends EngineTestCase {
                     "other": { "type": "keyword" },
                     "point": { "type": "geo_point" },
                     "range": { "type": "integer_range" },
+                    "disabled": { "type": "object", "enabled": false },
                     "obj": {
                         "properties": {
                             "a": { "type": "keyword" },
@@ -366,6 +367,18 @@ public class TranslogOperationAsserterTests extends EngineTestCase {
             assertTrue(asserter.assertSameIndexOperation(o1, o2));
             assertTrue(asserter.assertSameIndexOperation(o2, o1));
         }
+    }
+
+    public void testFieldNamesMadeOfDots() throws Exception {
+        TranslogOperationAsserter asserter = TranslogOperationAsserter.withEngineConfig(engineConfig(true));
+        var o1 = toIndexOp("""
+            { "disabled": { ".": "x", "a.": "v" } }
+            """);
+        var o2 = toIndexOp("""
+            { "disabled": { ".": "y", "a.": "v" } }
+            """);
+        assertFalse(asserter.assertSameIndexOperation(o1, o2));
+        assertFalse(asserter.assertSameIndexOperation(o2, o1));
     }
 
     public void testEveryTopLevelFieldMustMatch() throws Exception {

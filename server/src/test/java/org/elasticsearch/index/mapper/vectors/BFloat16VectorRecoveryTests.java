@@ -145,6 +145,17 @@ public class BFloat16VectorRecoveryTests extends EngineTestCase {
             {"vec_bfloat16_dv":"P8BAAMBQ","vec_bfloat16_indexed":[2.5,2.0,-3.25]}""");
     }
 
+    /**
+     * The indexed vector has a dotted name and the non-indexed one is inside the object. The older node
+     * puts the vector it synthesizes inside the object.
+     */
+    public void testTranslogOperationAsserterAcceptsRecoveredSourceWithDottedVectorName() throws IOException {
+        assertSameOperation("""
+            {"obj.vector7":[230.0,300.33,-34.8988,15.555,-200.0],"obj":{"vector8":[130.0,115.0,-1.02,15.555,-100.0]}}""", """
+            {"obj":{"vector8":[130.0,115.0,-1.02,15.555,-100.0],\
+            "vector7":[229.90425,300.38586,-34.821266,15.522733,-199.69786]}}""");
+    }
+
     public void testTranslogOperationAsserterRejectsDifferentVector() throws IOException {
         assertDifferentOperation(ORIGINAL_SOURCE, """
             {"vector8":[130.0,115.0,-1.02,15.555,-100.0],"name":"cow.jpg",\

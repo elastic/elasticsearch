@@ -9,6 +9,7 @@ package org.elasticsearch.compute.data;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -22,6 +23,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class VectorFixedBuilderTests extends ESTestCase {
     @ParametersFactory
@@ -53,7 +55,7 @@ public class VectorFixedBuilderTests extends ESTestCase {
 
     public void testCloseWithoutBuilding() {
         BlockFactory blockFactory = BlockFactoryTests.blockFactory(ByteSizeValue.ofGb(1));
-        vectorBuilder(10, blockFactory).close();
+        vectorBuilder(elementType, 10, blockFactory, false).close();
         assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
     }
 
@@ -71,9 +73,9 @@ public class VectorFixedBuilderTests extends ESTestCase {
 
     private void testBuild(int size) {
         BlockFactory blockFactory = BlockFactoryTests.blockFactory(ByteSizeValue.ofGb(1));
-        try (Vector.Builder builder = vectorBuilder(size, blockFactory)) {
+        try (Vector.Builder builder = vectorBuilder(elementType, size, blockFactory, false)) {
             RandomBlock random = RandomBlock.randomBlock(elementType, size, false, 1, 1, 0, 0);
-            fill(builder, random.block().asVector());
+            fill(elementType, builder, random.block().asVector());
             try (Vector built = builder.build()) {
                 assertThat(built, equalTo(random.block().asVector()));
                 assertThat(blockFactory.breaker().getUsed(), equalTo(built.ramBytesUsed()));
@@ -85,9 +87,9 @@ public class VectorFixedBuilderTests extends ESTestCase {
 
     public void testDoubleBuild() {
         BlockFactory blockFactory = BlockFactoryTests.blockFactory(ByteSizeValue.ofGb(1));
-        try (Vector.Builder builder = vectorBuilder(10, blockFactory)) {
+        try (Vector.Builder builder = vectorBuilder(elementType, 10, blockFactory, false)) {
             RandomBlock random = RandomBlock.randomBlock(elementType, 10, false, 1, 1, 0, 0);
-            fill(builder, random.block().asVector());
+            fill(elementType, builder, random.block().asVector());
             try (Vector built = builder.build()) {
                 assertThat(built, equalTo(random.block().asVector()));
             }
@@ -104,9 +106,9 @@ public class VectorFixedBuilderTests extends ESTestCase {
         BlockFactory blockFactory = BlockFactory.builder(bigArrays).build();
         for (int i = 0; i < 100; i++) {
             try {
-                Vector.Builder builder = vectorBuilder(10, blockFactory);
+                Vector.Builder builder = vectorBuilder(elementType, 10, blockFactory, randomBoolean());
                 RandomBlock random = RandomBlock.randomBlock(elementType, 10, false, 1, 1, 0, 0);
-                fill(builder, random.block().asVector());
+                fill(elementType, builder, random.block().asVector());
                 try (Vector built = builder.build()) {
                     assertThat(built, equalTo(random.block().asVector()));
                 }
@@ -119,19 +121,66 @@ public class VectorFixedBuilderTests extends ESTestCase {
         }
     }
 
-    private Vector.Builder vectorBuilder(int size, BlockFactory blockFactory) {
+    public void testCrankyWithPooled() {
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new CrankyCircuitBreakerService());
+        BlockFactory blockFactory = BlockFactory.builder(bigArrays).build();
+        var localCircuitBreaker = randomLocalBreaker(blockFactory.breaker());
+        blockFactory = blockFactory.newChildFactory(localCircuitBreaker);
+        for (int i = 0; i < 100; i++) {
+            try {
+                Vector.Builder builder = vectorBuilder(elementType, 10, blockFactory, randomBoolean());
+                RandomBlock random = RandomBlock.randomBlock(elementType, 10, false, 1, 1, 0, 0);
+                fill(elementType, builder, random.block().asVector());
+                try (Vector built = builder.build()) {
+                    assertThat(built, equalTo(random.block().asVector()));
+                }
+                // If we made it this far cranky didn't fail us!
+            } catch (CircuitBreakingException e) {
+                logger.info("cranky", e);
+                assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+            }
+        }
+        localCircuitBreaker.close();
+        assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
+        blockFactory = blockFactory.parent();
+        assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
+    }
+
+    public void testPooled() {
+        BlockFactory parent = BlockFactoryTests.blockFactory(ByteSizeValue.ofGb(1));
+        LocalCircuitBreaker local = new LocalCircuitBreaker(parent.breaker(), 0, 0);
+        BlockFactory blockFactory = parent.newChildFactory(local);
+        long idleBytes = 0;
+        for (ElementType elementType : List.of(ElementType.INT, ElementType.LONG, ElementType.DOUBLE)) {
+            for (int size : new int[] { 3000, 8000, 3000, 5000, 1 }) {
+                try (Vector.Builder builder = vectorBuilder(elementType, size, blockFactory, true)) {
+                    RandomBlock random = RandomBlock.randomBlock(elementType, size, false, 1, 1, 0, 0);
+                    fill(elementType, builder, random.block().asVector());
+                    try (Vector built = builder.build()) {
+                        assertThat(built, equalTo(random.block().asVector()));
+                    }
+                }
+                assertThat(local.pool().idleBytes(), greaterThan(idleBytes));
+            }
+            idleBytes = local.pool().idleBytes();
+        }
+        local.close();
+        assertThat(parent.breaker().getUsed(), equalTo(0L));
+    }
+
+    private Vector.Builder vectorBuilder(ElementType elementType, int size, BlockFactory blockFactory, boolean enablePooling) {
         return switch (elementType) {
             case NULL, BYTES_REF, DOC, COMPOSITE, AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, TDIGEST, LONG_RANGE, DOUBLE_RANGE,
                 UNKNOWN -> throw new UnsupportedOperationException();
             case BOOLEAN -> blockFactory.newBooleanVectorFixedBuilder(size);
-            case DOUBLE -> blockFactory.newDoubleVectorFixedBuilder(size);
+            case DOUBLE -> blockFactory.newDoubleVectorFixedBuilder(size, enablePooling);
             case FLOAT -> blockFactory.newFloatVectorFixedBuilder(size);
-            case INT -> blockFactory.newIntVectorFixedBuilder(size);
-            case LONG -> blockFactory.newLongVectorFixedBuilder(size);
+            case INT -> blockFactory.newIntVectorFixedBuilder(size, enablePooling);
+            case LONG -> blockFactory.newLongVectorFixedBuilder(size, enablePooling);
         };
     }
 
-    private void fill(Vector.Builder builder, Vector from) {
+    private void fill(ElementType elementType, Vector.Builder builder, Vector from) {
         switch (elementType) {
             case NULL, DOC, COMPOSITE, AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, TDIGEST, LONG_RANGE, DOUBLE_RANGE, UNKNOWN ->
                 throw new UnsupportedOperationException();
@@ -161,5 +210,11 @@ public class VectorFixedBuilderTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    static LocalCircuitBreaker randomLocalBreaker(CircuitBreaker breaker) {
+        long maxOverReservedBytes = randomLongBetween(2048, 8196);
+        long overReservedBytes = randomLongBetween(1024, maxOverReservedBytes);
+        return new LocalCircuitBreaker(breaker, overReservedBytes, maxOverReservedBytes);
     }
 }

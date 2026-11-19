@@ -12,6 +12,7 @@ package org.elasticsearch.action.downsample;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
@@ -145,6 +146,69 @@ public class DownsampleConfigTests extends AbstractXContentSerializingTestCase<D
                 .build();
             assertThat(generateDownsampleIndexName("downsample-", indexMeta, new DateHistogramInterval("8h")), is("downsample-8h-test"));
         }
+    }
+
+    public void testIsTargetOfSource() {
+        Index source = new Index("source", randomUUID());
+        IndexMetadata.DownsampleTaskStatus status = randomFrom(
+            IndexMetadata.DownsampleTaskStatus.STARTED,
+            IndexMetadata.DownsampleTaskStatus.SUCCESS
+        );
+
+        // The target records this source
+        assertTrue(DownsampleConfig.isTargetOfSource(downsampleTarget("target", status, source.getName(), source.getUUID()), source));
+
+        // The target records a different source: another name, or the same name but another uuid (e.g. the index was recreated)
+        assertFalse(DownsampleConfig.isTargetOfSource(downsampleTarget("target", status, "another-source", source.getUUID()), source));
+        assertFalse(DownsampleConfig.isTargetOfSource(downsampleTarget("target", status, source.getName(), randomUUID()), source));
+        assertFalse(DownsampleConfig.isTargetOfSource(downsampleTarget("target", status, "another-source", randomUUID()), source));
+    }
+
+    public void testIsTargetOfSourceWhenSourceIsNotRecorded() {
+        Index source = new Index("source", randomUUID());
+        IndexMetadata.DownsampleTaskStatus status = randomFrom(
+            IndexMetadata.DownsampleTaskStatus.STARTED,
+            IndexMetadata.DownsampleTaskStatus.SUCCESS
+        );
+
+        // We cannot tell that the target was created for this source, so we do not consider it to be of the source
+        assertFalse(DownsampleConfig.isTargetOfSource(downsampleTarget("target", status, null, null), source));
+        assertFalse(DownsampleConfig.isTargetOfSource(downsampleTarget("target", status, "another-source", null), source));
+        assertFalse(DownsampleConfig.isTargetOfSource(downsampleTarget("target", status, null, randomUUID()), source));
+    }
+
+    public void testIsTargetOfSourceWhenTargetIsNotADownsampleIndex() {
+        Index source = new Index("source", randomUUID());
+        IndexMetadata plainIndex = IndexMetadata.builder("target").settings(indexSettings(IndexVersion.current(), 1, 0)).build();
+        assertFalse(DownsampleConfig.isTargetOfSource(plainIndex, source));
+    }
+
+    public void testIsTargetOfSourceWhenTargetIsTheSourceItself() {
+        // An index that was already downsampled, is asked to be downsampled with the same interval. The generated target name is the name
+        // of the index itself, and it records the index it was downsampled from.
+        IndexMetadata downsampledIndex = downsampleTarget(
+            "downsample-5m-origin",
+            IndexMetadata.DownsampleTaskStatus.SUCCESS,
+            "origin",
+            randomUUID()
+        );
+        assertTrue(DownsampleConfig.isTargetOfSource(downsampledIndex, downsampledIndex.getIndex()));
+    }
+
+    private static IndexMetadata downsampleTarget(
+        String name,
+        IndexMetadata.DownsampleTaskStatus status,
+        String recordedSourceName,
+        String recordedSourceUuid
+    ) {
+        Settings.Builder settings = indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.INDEX_DOWNSAMPLE_STATUS_KEY, status);
+        if (recordedSourceName != null) {
+            settings.put(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME_KEY, recordedSourceName);
+        }
+        if (recordedSourceUuid != null) {
+            settings.put(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_UUID_KEY, recordedSourceUuid);
+        }
+        return IndexMetadata.builder(name).settings(settings).build();
     }
 
     public static DateHistogramInterval randomInterval() {

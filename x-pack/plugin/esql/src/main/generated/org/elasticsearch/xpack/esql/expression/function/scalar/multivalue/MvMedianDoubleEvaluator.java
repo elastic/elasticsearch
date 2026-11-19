@@ -70,7 +70,7 @@ public final class MvMedianDoubleEvaluator extends AbstractMultivalueFunction.Ab
     }
     DoubleBlock v = (DoubleBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    try (DoubleVector.FixedBuilder builder = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
+    try (DoubleVector.FixedBuilder builder = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount, true)) {
       MvMedian.Doubles work = new MvMedian.Doubles();
       for (int p = 0; p < positionCount; p++) {
         int valueCount = v.getValueCount(p);
@@ -115,7 +115,7 @@ public final class MvMedianDoubleEvaluator extends AbstractMultivalueFunction.Ab
   private Block evalAscendingNotNullable(Block fieldVal) {
     DoubleBlock v = (DoubleBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    try (DoubleVector.FixedBuilder builder = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
+    try (DoubleVector.FixedBuilder builder = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount, true)) {
       MvMedian.Doubles work = new MvMedian.Doubles();
       for (int p = 0; p < positionCount; p++) {
         int valueCount = v.getValueCount(p);

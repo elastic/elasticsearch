@@ -184,6 +184,11 @@ tests:
   - :x-pack:plugin:logsdb:javaRestTest
   method: testTermsQuery
   issue: https://github.com/elastic/elasticsearch/issues/166581
+- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
+  tasks:
+  - :docs:yamlRestTest
+  method: test {yaml=reference/snapshot-restore/apis/restore-snapshot-api/line_60}
+  issue: https://github.com/elastic/elasticsearch/issues/166584
 
 # Examples:
 #

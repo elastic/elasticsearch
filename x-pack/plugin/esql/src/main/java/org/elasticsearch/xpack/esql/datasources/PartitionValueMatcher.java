@@ -12,6 +12,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.PartitionFilterHint;
+import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -305,6 +306,9 @@ public final class PartitionValueMatcher {
 
     /** The text parsed as a number, or {@code null} if it is not numeric. */
     private static Number parseNumber(String text) {
+        if (DeclaredTypeCoercions.isPlainNumberText(text) == false) {
+            return null;
+        }
         try {
             return Long.valueOf(text);
         } catch (NumberFormatException notALong) {

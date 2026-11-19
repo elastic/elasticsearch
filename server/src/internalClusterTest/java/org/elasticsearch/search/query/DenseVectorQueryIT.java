@@ -10,6 +10,7 @@
 package org.elasticsearch.search.query;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -62,6 +63,7 @@ import static org.hamcrest.Matchers.equalTo;
  *     stay within the codec's quantization budget of the ground truth.</li>
  * </ul>
  */
+@LuceneTestCase.SuppressCodecs("*")
 public class DenseVectorQueryIT extends ESIntegTestCase {
 
     public static final String INDEX_NAME = "dense_vector_query_it";

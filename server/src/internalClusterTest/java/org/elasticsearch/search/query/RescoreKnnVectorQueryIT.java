@@ -10,6 +10,7 @@
 package org.elasticsearch.search.query;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -54,6 +55,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.notNullValue;
 
+@LuceneTestCase.SuppressCodecs("*")
 public class RescoreKnnVectorQueryIT extends ESIntegTestCase {
 
     public static final String INDEX_NAME = "test";

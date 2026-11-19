@@ -8,9 +8,12 @@
 package org.elasticsearch.xpack.stateless.recovery;
 
 import org.apache.lucene.store.IOContext;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -24,11 +27,15 @@ import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
+import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeoutCalculationService;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.WarmTarget;
+import org.elasticsearch.xpack.stateless.cache.SourceShardWarmingInfo;
 import org.elasticsearch.xpack.stateless.cache.WarmingRatioProviderFactory;
-import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
@@ -36,6 +43,7 @@ import org.elasticsearch.xpack.stateless.engine.SearchEngine;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
+import org.elasticsearch.xpack.stateless.recovery.shardinfo.TransportGetShardWarmingInfoAction;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -58,6 +66,7 @@ public class StatelessSearchNodeRecoveryListener extends AbstractStatelessRecove
     private final boolean useInternalFilesReplicatedContentForSearchShards;
     private final ClusterService clusterService;
     private final WarmingRatioProviderFactory warmingRatioProviderFactory;
+    private final Client client;
 
     public StatelessSearchNodeRecoveryListener(
         ObjectStoreService objectStoreService,
@@ -66,7 +75,8 @@ public class StatelessSearchNodeRecoveryListener extends AbstractStatelessRecove
         ProjectResolver projectResolver,
         Executor bccHeaderReadExecutor,
         ClusterService clusterService,
-        WarmingRatioProviderFactory warmingRatioProviderFactory
+        WarmingRatioProviderFactory warmingRatioProviderFactory,
+        Client client
     ) {
         super(objectStoreService, projectResolver);
         this.recoveryCommitRegistrationHandler = recoveryCommitRegistrationHandler;
@@ -76,6 +86,7 @@ public class StatelessSearchNodeRecoveryListener extends AbstractStatelessRecove
             .get(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT);
         this.clusterService = clusterService;
         this.warmingRatioProviderFactory = warmingRatioProviderFactory;
+        this.client = client;
     }
 
     @Override
@@ -100,6 +111,9 @@ public class StatelessSearchNodeRecoveryListener extends AbstractStatelessRecove
         throws IOException {
         assert indexShard.store().refCount() > 0 : indexShard.shardId();
         assert blobContainer != null : indexShard.routingEntry();
+
+        // Sent first so the answer can arrive while the shard state is read from the object store and the commit is registered.
+        final var sourceShardWarmingInfo = requestSourceShardWarmingInfo(indexShard);
 
         final var searchDirectory = SearchDirectory.unwrapDirectory(indexShard.store().directory());
         final boolean timestampBackfillEnabled = useInternalFilesReplicatedContentForSearchShards
@@ -161,7 +175,7 @@ public class StatelessSearchNodeRecoveryListener extends AbstractStatelessRecove
                 SubscribableListener.<SearchRecoveryWarmingInputs>newForked(l2 -> {
                     if (useInternalFilesReplicatedContentForSearchShards) {
                         Map<String, BlobFileRanges> blobFileRanges = ConcurrentCollections.newConcurrentMap();
-                        Map<BlobFile, WarmTarget> targetsToWarm = ConcurrentCollections.newConcurrentMap();
+                        Map<BccBlob, WarmTarget> targetsToWarm = ConcurrentCollections.newConcurrentMap();
                         ObjectStoreService.readReferencedCompoundCommitsUsingCache(
                             compoundCommit.commitFiles(),
                             batchedCompoundCommit,
@@ -177,7 +191,7 @@ public class StatelessSearchNodeRecoveryListener extends AbstractStatelessRecove
                                         referencedCompoundCommit.referencedInternalFiles()
                                     )
                                 );
-                                var bccBlobFile = referencedCompoundCommit.statelessCompoundCommitReference().bccBlobFile();
+                                var bccBlobFile = referencedCompoundCommit.statelessCompoundCommitReference().bccBlob();
                                 // Aggregate a single warm target per BCC blob: the furthest offset to warm, stamped with the most recent
                                 // representative timestamp among the referenced CCs sharing that blob.
                                 // blobSize is 0 as a sentinel until the bccBlobSizeConsumer fills it in.
@@ -237,11 +251,65 @@ public class StatelessSearchNodeRecoveryListener extends AbstractStatelessRecove
                         searchDirectory,
                         warmingRatioProvider,
                         warmingInputs != null ? warmingInputs.targetsToWarm() : null,
+                        sourceShardWarmingInfo,
                         resumeRecovery
                     );
                 }));
             })
         );
+    }
+
+    /// Asks the relocation source for this shard's warming info when the source is shutting down and the answer can be used.
+    /// Never fails recovery: a failed request leaves no warming info.
+    // visible for testing
+    SourceShardWarmingInfo requestSourceShardWarmingInfo(IndexShard indexShard) {
+        if (useInternalFilesReplicatedContentForSearchShards == false) {
+            // Without the replicated-content path there is no warm plan and so no timeout to compute.
+            return SourceShardWarmingInfo.NOT_REQUESTED;
+        }
+        final ShardRouting routing = indexShard.routingEntry();
+        final String sourceNodeId = routing.relocatingNodeId();
+        if (routing.initializing() == false || sourceNodeId == null) {
+            return SourceShardWarmingInfo.NOT_REQUESTED;
+        }
+        if (clusterService.getClusterSettings()
+            .get(SearchRecoveryTimeoutCalculationService.SEARCH_OFFLINE_WARMING_SOURCE_WARMING_INFO_ENABLED_SETTING) == false) {
+            return SourceShardWarmingInfo.NOT_REQUESTED;
+        }
+        final var state = clusterService.state();
+        if (state.getMinTransportVersion().supports(TransportGetShardWarmingInfoAction.SHARD_WARMING_INFO) == false) {
+            return SourceShardWarmingInfo.NOT_REQUESTED;
+        }
+        final var nodeShutdowns = state.metadata().nodeShutdowns();
+        final var sourceNode = state.nodes().get(sourceNodeId);
+        if (sourceNode == null || nodeShutdowns.isNodeMarkedForRemoval(sourceNodeId) == false) {
+            return SourceShardWarmingInfo.NOT_REQUESTED;
+        }
+        final long shutdownSignalTimestamp = nodeShutdowns.get(sourceNodeId).getStartedAtMillis();
+        final var sourceShardWarmingInfo = SourceShardWarmingInfo.newPending(shutdownSignalTimestamp);
+        final var request = new TransportGetShardWarmingInfoAction.Request(
+            sourceNode,
+            new TransportGetShardWarmingInfoAction.NodeRequest(routing.currentNodeId(), indexShard.shardId(), shutdownSignalTimestamp)
+        );
+        client.execute(
+            TransportGetShardWarmingInfoAction.TYPE,
+            request,
+            ActionListener.wrap(
+                response -> sourceShardWarmingInfo.complete(
+                    new SourceShardWarmingInfo.WarmingInfo(response.shardBytesToWarm(), response.sourceBytesToWarm())
+                ),
+                e -> {
+                    sourceShardWarmingInfo.complete(SourceShardWarmingInfo.WarmingInfo.NONE);
+                    // The source leaving or closing is expected towards the end of its drain.
+                    if (ExceptionsHelper.unwrap(e, ConnectTransportException.class, NodeClosedException.class) != null) {
+                        logger.debug(() -> "could not fetch shard warming info for " + indexShard.shardId() + " from " + sourceNode, e);
+                    } else {
+                        logger.warn(() -> "could not fetch shard warming info for " + indexShard.shardId() + " from " + sourceNode, e);
+                    }
+                }
+            )
+        );
+        return sourceShardWarmingInfo;
     }
 
     @Override
@@ -294,7 +362,7 @@ public class StatelessSearchNodeRecoveryListener extends AbstractStatelessRecove
         );
     }
 
-    private record SearchRecoveryWarmingInputs(Map<String, BlobFileRanges> blobFileRanges, Map<BlobFile, WarmTarget> targetsToWarm) {
+    private record SearchRecoveryWarmingInputs(Map<String, BlobFileRanges> blobFileRanges, Map<BccBlob, WarmTarget> targetsToWarm) {
         public SearchRecoveryWarmingInputs {
             Objects.requireNonNull(blobFileRanges);
             Objects.requireNonNull(targetsToWarm);

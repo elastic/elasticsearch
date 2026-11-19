@@ -234,9 +234,11 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
 
     /**
      * Resolves the full dotted column name for the given ordinal by joining
-     * the path segments from the dictionary. Each call allocates a new String;
+     * the path segments from the dictionary. A dotted name is rebuilt on every call;
      * callers that iterate over columns should prefer {@link #resolveColumnName(int, StringBuilder)}
-     * to reuse a buffer.
+     * to reuse a buffer. A single-segment name is returned from the dictionary itself and allocates
+     * nothing — see {@link #resolveColumnName(int, StringBuilder)} for why a caller that keeps the
+     * returned string depends on that.
      */
     public String columnName(int ordinal) {
         Objects.checkIndex(ordinal, columnCount());
@@ -255,11 +257,26 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
     /**
      * Resolves the full dotted column name into the given {@link StringBuilder}, which is
      * cleared before use. Avoids per-call String allocation when iterating over columns.
+     * <p>
+     * A single-segment name is returned straight from the dictionary rather than rebuilt through the
+     * buffer, which matters to a caller that KEEPS what it gets back and not only to allocation rate.
+     * {@link #fold} keys its result on these names, and {@link Builder#addColumn} stores the string it
+     * is handed: {@code String.split} on a name with no separator in it returns an array holding that
+     * same string, so a folded record's dictionary ends up referencing its pieces' names instead of
+     * copies of them. Rebuilding through the buffer would hand {@code addColumn} a fresh string every
+     * time and give every stripe of a read its own copy of the schema's column names.
+     * <p>
+     * A dotted name is still rebuilt here, and {@code split} copies each of its segments regardless, so
+     * there is no sharing to preserve for one. Closing that would need an {@code addColumn} taking
+     * pre-resolved segments.
      */
     String resolveColumnName(int ordinal, StringBuilder sb) {
         Objects.checkIndex(ordinal, columnCount());
-        sb.setLength(0);
         int[] segs = columnSegmentOrdinals[ordinal];
+        if (segs.length == 1) {
+            return segments[segs[0]];
+        }
+        sb.setLength(0);
         for (int j = 0; j < segs.length; j++) {
             if (j > 0) sb.append('.');
             sb.append(segments[segs[j]]);
@@ -563,7 +580,7 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
      *        column's null_count. Text (false): a column absent from a NON-EMPTY split is dropped entirely.
      * @return folded stats, or {@code null} if null/empty; the single element unchanged when size 1.
      */
-    static SplitStats fold(List<SplitStats> splits, boolean implicitNullsForAbsentColumn) {
+    public static SplitStats fold(List<SplitStats> splits, boolean implicitNullsForAbsentColumn) {
         if (splits == null || splits.isEmpty()) {
             return null;
         }

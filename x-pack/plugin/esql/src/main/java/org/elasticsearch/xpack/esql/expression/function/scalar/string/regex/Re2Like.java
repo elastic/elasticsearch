@@ -11,6 +11,7 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -92,7 +93,11 @@ public class Re2Like extends RegexMatch<Re2Pattern> implements AnyNullIsNull, Tr
         MultiTermQuery.RewriteMethod constantScoreRewrite,
         SearchExecutionContext context
     ) {
-        Automaton automaton = pattern().createAutomaton(caseInsensitive());
+        // accounted on the breaker of the shard, as a regexp query's automaton is
+        CircuitBreaker circuitBreaker = context.getCircuitBreaker();
+        Automaton automaton = circuitBreaker == null
+            ? pattern().createAutomaton(caseInsensitive())
+            : pattern().createAutomaton(caseInsensitive(), circuitBreaker, NAME + ":" + fieldType.name());
         return fieldType.automatonQuery(
             () -> automaton,
             () -> new CharacterRunAutomaton(automaton),

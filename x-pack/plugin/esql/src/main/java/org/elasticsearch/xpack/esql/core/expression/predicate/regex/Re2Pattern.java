@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.core.expression.predicate.regex;
 
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.lucene.util.automaton.CircuitBreakingOperations;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.RE2;
 
 import java.util.Objects;
@@ -27,11 +29,24 @@ public class Re2Pattern extends AbstractStringPattern {
 
     @Override
     protected Automaton doCreateAutomaton(boolean ignoreCase) {
+        return Operations.determinize(new Re2RegExp(regex, flags(ignoreCase)).toAutomaton(), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+    }
+
+    /**
+     * The automaton of {@link #createAutomaton}, determinized with its memory accounted on {@code circuitBreaker}, as a
+     * shard builds the automaton of a {@code regexp} query.
+     */
+    public Automaton createAutomaton(boolean ignoreCase, CircuitBreaker circuitBreaker, String label) {
+        Automaton automaton = new Re2RegExp(regex, flags(ignoreCase)).toAutomaton();
+        return CircuitBreakingOperations.determinize(automaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, circuitBreaker, label);
+    }
+
+    private static int flags(boolean ignoreCase) {
         int flags = RE2.PERL | RE2.DOT_NL;
         if (ignoreCase) {
             flags |= RE2.FOLD_CASE;
         }
-        return Operations.determinize(new Re2RegExp(regex, flags).toAutomaton(), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        return flags;
     }
 
     /**

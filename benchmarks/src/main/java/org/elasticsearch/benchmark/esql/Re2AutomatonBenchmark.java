@@ -13,6 +13,8 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.benchmark.internal.BenchmarkLogging;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.Re2Pattern;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -83,6 +85,8 @@ public class Re2AutomatonBenchmark {
     )
     public String shape;
 
+    private static final CircuitBreaker BREAKER = new NoopCircuitBreaker("benchmark");
+
     private String re2;
     private String lucene;
     private int luceneFlags;
@@ -113,6 +117,12 @@ public class Re2AutomatonBenchmark {
     @Benchmark
     public Automaton re2() {
         return new Re2Pattern(re2).createAutomaton(false);
+    }
+
+    /** The automaton as a shard builds it for a pushed down {@code Re2Like}, accounted on a circuit breaker. */
+    @Benchmark
+    public Automaton re2Accounted() {
+        return new Re2Pattern(re2).createAutomaton(false, BREAKER, "benchmark");
     }
 
     @Benchmark

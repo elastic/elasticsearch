@@ -9,50 +9,30 @@ package org.elasticsearch.xpack.esql.streaming;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 
 import java.util.List;
-import java.util.Map;
 
 public class NoopStreamStore implements StreamStorage {
 
     public static final StreamStorage INSTANCE = new NoopStreamStore();
 
     @Override
-    public void create(
-        String streamId,
-        TaskId taskId,
-        Map<String, String> headers,
-        List<ColumnInfo> columns,
-        long expirationMillis,
-        ActionListener<Void> listener
-    ) {
+    public void create(StreamMetadata metadata, ActionListener<Void> listener) {
         listener.onResponse(null);
     }
 
     @Override
-    public void extendTtl(String streamId, long expirationMillis, ActionListener<Void> listener) {
-        listener.onResponse(null);
-    }
-
-    @Override
-    public void appendPage(String streamId, long offset, Page page, ActionListener<Void> listener) {
-        listener.onResponse(null);
-    }
-
-    @Override
-    public void markComplete(String streamId, boolean isPartial, long totalRows, long totalPages, ActionListener<Void> listener) {
-        listener.onResponse(null);
-    }
-
-    @Override
-    public void markFailed(String streamId, Exception exception, ActionListener<Void> listener) {
+    public void update(StreamMetadata metadata, ActionListener<Void> listener) {
         listener.onResponse(null);
     }
 
     @Override
     public void getMetadata(String streamId, ActionListener<StreamMetadata> listener) {
+        listener.onResponse(null);
+    }
+
+    @Override
+    public void appendPage(String streamId, long offset, Page page, ActionListener<Void> listener) {
         listener.onResponse(null);
     }
 

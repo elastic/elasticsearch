@@ -8,7 +8,6 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;

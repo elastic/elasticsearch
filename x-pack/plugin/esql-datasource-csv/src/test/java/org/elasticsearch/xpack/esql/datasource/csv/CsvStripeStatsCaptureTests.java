@@ -1535,19 +1535,27 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
      * COUNT is documented as the row count alone, and on the direct-block path — the CSV default — nothing but
      * the scope kept per-column statistics out of its publish: the accumulator was built from the projected
      * attributes whenever the file was cacheable, and a whole-file publish is the one consumer that reads it.
-     * What this pins is the published contribution, not the per-cell fold specifically — at this row count the
-     * schema sample may consume every row, in which case the parent still publishes the empty accumulator's
-     * per-column entries. Either way COUNT must carry none of them.
+     * <p>
+     * The header is TYPED so the read actually takes that path. An untyped header leaves the schema unresolved,
+     * inference then samples far more rows than this fixture holds, every row arrives pre-parsed, and the direct
+     * batch is reached only at EOF with nothing in it — so an untyped fixture pins the accumulator being built
+     * and published while never folding a single cell, which is the cost this scope exists to avoid.
+     * <p>
+     * Each arm pairs the per-column assertion with the row count, because "no column stats" is also what a read
+     * that published nothing at all looks like.
      */
     public void testCountScopePublishesNoColumnStatsOnTheDirectPath() throws Exception {
-        byte[] full = concat("n\n".getBytes(StandardCharsets.UTF_8), asciiCsv(0, 10));
+        int rows = 10;
+        byte[] full = concat("n:integer\n".getBytes(StandardCharsets.UTF_8), asciiCsv(0, rows));
 
         List<Map<String, Object>> countFrags = readWholeFile(memoryObject(full), StripeColumnScope.COUNT, List.of("n"));
+        assertEquals("COUNT must still publish the row count", rows, foldedRowCount(countFrags));
         assertFalse("COUNT must publish no per-column stats, on the direct path as anywhere else", hasAnyColumnStat(countFrags, "n"));
 
         // Control: PROJECTED over the same read publishes them, so the assertion above is about the scope and
         // not about a read that published nothing at all.
         List<Map<String, Object>> projFrags = readWholeFile(memoryObject(full), StripeColumnScope.PROJECTED, List.of("n"));
+        assertEquals("PROJECTED must publish the row count too", rows, foldedRowCount(projFrags));
         assertTrue("PROJECTED must publish per-column stats for n", hasAnyColumnStat(projFrags, "n"));
     }
 

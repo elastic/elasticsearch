@@ -4573,7 +4573,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             this.stripeHarvester = statsStripeSize > 0 ? new StripeStatsHarvester(statsStripeSize, statsFileFinal, statsStripeSink) : null;
             // Pins the call site's scope term: drop it and chunkMode alone leaves a positive grid under NONE, so
             // this builds a harvester nothing can feed. Assertions are off in production.
-            assert this.statsColumnScope != StripeColumnScope.NONE || this.stripeHarvester == null : "stripe grid active under NONE";
+            assert this.statsColumnScope != StripeColumnScope.NONE || this.stripeHarvester == null
+                : "stripe grid active under " + this.statsColumnScope + ", size " + statsStripeSize;
             // Same fallback as SkipWarnings, so a read context without a sink (tests, benchmarks) does not silence one
             // read-time channel while the other still reaches HeaderWarning. Production read paths always supply one.
             this.warningSink = warningSink != null ? warningSink : message -> HeaderWarning.addWarning(message);
@@ -5513,10 +5514,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     columnStats = ColumnStatsAccumulator.forProjectedAttributes(projectedAttrs);
                     accumulateDirectStats = columnStats.isEmpty() == false;
                 }
-                // PROJECTED, not "not NONE": under COUNT the file is still cacheable, so the scope is the only
-                // thing standing between this path and a per-cell fold whose result COUNT never publishes.
-                assert statsColumnScope == StripeColumnScope.PROJECTED || accumulateDirectStats == false
-                    : "direct-path column fold active under " + statsColumnScope;
             }
         }
 

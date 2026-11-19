@@ -213,7 +213,7 @@ public class AsyncSearchStoreFailureIT extends AsyncSearchIntegTestCase {
             for (SearchHit hit : hits) {
                 heapBytes += hit.ramBytesUsed();
             }
-            StoredResponseSizeCheck.Sample sample = StoredResponseSizeCheck.Sample.of(hits);
+            StoredResponseSizeCheck.Sample sample = StoredResponseSizeCheck.Sample.of(hits, StoredResponseSizeCheck.sampleBytes(heapBytes));
             double projected = (double) heapBytes * sample.storedBytes() / sample.hitsBytes();
             assertThat("projected [" + projected + "], stored [" + storedBytes + "]", projected / storedBytes, closeTo(1.0, 0.05));
         } finally {

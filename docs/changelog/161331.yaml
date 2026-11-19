@@ -1,0 +1,7 @@
+area: Mapping
+issues:
+ - 160687
+ - 160691
+pr: 161331
+summary: Skip malformed object values in `scaled_float`
+type: bug

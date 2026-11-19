@@ -215,7 +215,8 @@ public abstract class AbstractPhysicalOperationProviders {
                     aggregatorFactories,
                     groupSpecs.stream().map(GroupSpec::toHashGroupSpec).toList(),
                     context,
-                    aggregationBatchSize
+                    aggregationBatchSize,
+                    parallelConfig
                 );
             } else {
                 QueryPragmas pragmas = context.queryPragmas();
@@ -546,6 +547,7 @@ public abstract class AbstractPhysicalOperationProviders {
         List<GroupingAggregator.Factory> aggregatorFactories,
         List<BlockHash.GroupSpec> groupSpecs,
         LocalExecutionPlannerContext context,
-        int maxPageSize
+        int maxPageSize,
+        HashAggregationOperator.ParallelConfig parallelConfig
     );
 }

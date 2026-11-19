@@ -74,6 +74,22 @@ public class TextExpansionQueryBuilderTests extends AbstractQueryTestCase<TextEx
         return builder;
     }
 
+    /**
+     * The query needs a non-null {@link IndexReader}.
+     * The query rewrites to a weighted_tokens query, whose token pruning reads token document frequencies from the reader.
+     */
+    @Override
+    protected IndexReaderManager getIndexReaderManager() {
+        return new IndexReaderManager() {
+            @Override
+            protected void initIndexWriter(RandomIndexWriter indexWriter) throws IOException {
+                Document document = new Document();
+                document.add(new FloatDocValuesField(RANK_FEATURES_FIELD, 1.0f));
+                indexWriter.addDocument(document);
+            }
+        };
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return List.of(MapperExtrasPlugin.class, XPackClientPlugin.class);

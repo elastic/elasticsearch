@@ -1,0 +1,6 @@
+area: Engine
+issues:
+ - 163242
+pr: 163684
+summary: Fail translog listeners on new primary term
+type: bug

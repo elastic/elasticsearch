@@ -1,5 +1,0 @@
-area: Inference
-issues: []
-pr: 161168
-summary: Ensure Vertex creates unique IDs for each tool call
-type: bug

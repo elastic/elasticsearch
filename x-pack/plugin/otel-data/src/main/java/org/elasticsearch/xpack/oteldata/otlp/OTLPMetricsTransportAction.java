@@ -40,6 +40,8 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -73,14 +75,12 @@ import java.util.concurrent.TimeUnit;
  * It also handles the response according to the OpenTelemetry Protocol specifications,
  * including success, partial success responses, and errors due to bad data or server errors.
  *
- * <p>When {@link BatchIndexingEnabled} is active cluster-wide, exemplar ingestion does not apply, and all data-point values and
- * attributes in the request are scalar,
- * (gauges and monotonic sums with string/bool/int/double attributes only), metrics are written
- * directly into an {@link EscfBatch} without a CBOR intermediate representation, and the coordinator
- * derives {@code _tsid} column-major via
+ * <p>When {@link BatchIndexingEnabled} is active cluster-wide, exemplar ingestion does not apply, and all
+ * attributes in the request are expressible as ESCF columns (string/bool/int/double values and arrays thereof),
+ * metrics of every type are written directly into an {@link EscfBatch} without a CBOR intermediate representation,
+ * and the coordinator derives {@code _tsid} column-major via
  * {@link org.elasticsearch.cluster.routing.ColumnarTsidCalculator}. For all other cases
- * (histograms, summaries, non-scalar attributes, or the setting disabled) the existing XContent path
- * is used unchanged.
+ * (non-scalar attributes, or the setting disabled) the existing XContent path is used unchanged.
  *
  * @see <a href="https://opentelemetry.io/docs/specs/otlp">OTLP Specification</a>
  */
@@ -88,6 +88,8 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
 
     public static final String NAME = "indices:data/write/otlp/metrics";
     public static final ActionType<OTLPActionResponse> TYPE = new ActionType<>(NAME);
+
+    private static final Logger logger = LogManager.getLogger(OTLPMetricsTransportAction.class);
 
     // visible for testing
     volatile MappingHints defaultMappingHints;
@@ -144,7 +146,9 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
         // fall through to doc-mode. Within a single data stream, BatchModeRouter handles routing to
         // multiple backing indices automatically via timestamp-based resolution.
         List<DataPointGroupingContext.DataPointGroup> allGroups = new ArrayList<>();
-        context.consume(allGroups::add);
+        context.forEachGroup(allGroups::add);
+        // The context outlives this method (it is referenced by the bulk response listener); only allGroups is used from here on.
+        context.clearResourceGroups();
 
         // Snapshot volatile setting to have it consistent for this request
         boolean exemplarIngestionEnabled = this.exemplarIngestionEnabled;
@@ -158,8 +162,10 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
             // through to the doc-mode loop below for the whole request, exactly as if canUseBatchIndexing
             // had returned false in the first place.
             if (tryAddEscfBatch(bulkRequestBuilder, allGroups, firstTarget, expandedContentTracker)) {
+                logger.trace("built an ESCF batch of [{}] rows for [{}]", totalItems, firstTarget);
                 return context;
             }
+            logger.debug("[{}] is batch-indexed but a data point or attribute value is not expressible as ESCF columns", firstTarget);
         }
 
         MetricDocumentBuilder metricDocumentBuilder = new MetricDocumentBuilder(byteStringAccessor, defaultMappingHints);
@@ -229,10 +235,10 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
     // -------------------------------------------------------------------------
 
     /**
-     * Optimistically attempts to write every group in {@code groups} as scalar ESCF columns into a single
+     * Optimistically attempts to write every group in {@code groups} as ESCF columns into a single
      * {@link OTLPMetricBatchBuilder}, registering the resulting batch on {@code bulkRequestBuilder} on
      * success. Returns {@code false} without mutating {@code bulkRequestBuilder} if any group turns out
-     * ineligible (a non-scalar attribute or an unsupported data point) —
+     * ineligible (a non-scalar attribute) —
      * {@link OTLPMetricBatchBuilder#buildMetricRow} discovers this the moment it tries to write the
      * offending value, rather than this method scanning every group's data upfront. On failure, the
      * caller falls back to the doc-mode (XContent) path for the whole request.

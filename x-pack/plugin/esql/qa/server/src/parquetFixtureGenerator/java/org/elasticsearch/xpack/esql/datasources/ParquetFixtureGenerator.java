@@ -337,6 +337,16 @@ public final class ParquetFixtureGenerator {
                 .optionalElement(PrimitiveType.PrimitiveTypeName.INT64)
                 .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
                 .named(col.name());
+            // The sub-millisecond TIMESTAMP units, matching their scalar arms. Without these a bracketed cell fell
+            // to the BINARY default below and the fixture exercised the string decoder instead of the timestamp one.
+            case "date_micros" -> Types.optionalList()
+                .optionalElement(PrimitiveType.PrimitiveTypeName.INT64)
+                .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+                .named(col.name());
+            case "date_nanos" -> Types.optionalList()
+                .optionalElement(PrimitiveType.PrimitiveTypeName.INT64)
+                .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.NANOS))
+                .named(col.name());
             case "time_millis" -> Types.optionalList()
                 .optionalElement(PrimitiveType.PrimitiveTypeName.INT32)
                 .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
@@ -375,6 +385,12 @@ public final class ParquetFixtureGenerator {
                 .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MILLIS));
             case "date_nanos" -> Types.optional(PrimitiveType.PrimitiveTypeName.INT64)
                 .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.NANOS));
+            // The microsecond timestamp unit, which pyarrow writes for a datetime64[us] column and Spark writes under
+            // TIMESTAMP_MICROS. It has no ESQL type of its
+            // own -- it renders date_nanos, as the nanosecond unit does -- so the header name says the unit rather
+            // than the rendered type, and its values are epoch microseconds.
+            case "date_micros" -> Types.optional(PrimitiveType.PrimitiveTypeName.INT64)
+                .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS));
             // TIME, the time-of-day annotation: MILLIS is physically an INT32, MICROS and NANOS INT64, which is
             // the Parquet spec's own pairing and what Arrow's time32/time64 produce.
             case "time_millis" -> Types.optional(PrimitiveType.PrimitiveTypeName.INT32)
@@ -429,7 +445,10 @@ public final class ParquetFixtureGenerator {
             case "long" -> listElement.append("element", ((Number) elem).longValue());
             case "double", "scaled_float", "float", "half_float" -> listElement.append("element", ((Number) elem).doubleValue());
             case "boolean" -> listElement.append("element", Boolean.TRUE.equals(elem));
-            case "date", "time_micros", "time_nanos" -> listElement.append("element", ((Number) elem).longValue());
+            case "date", "date_micros", "date_nanos", "time_micros", "time_nanos" -> listElement.append(
+                "element",
+                ((Number) elem).longValue()
+            );
             case "time_millis" -> listElement.append("element", ((Number) elem).intValue());
             default -> listElement.append("element", elem.toString());
         }
@@ -449,7 +468,7 @@ public final class ParquetFixtureGenerator {
                 case "double", "scaled_float" -> g.add(leafName, ((Number) value).doubleValue());
                 case "float", "half_float" -> g.add(leafName, ((Number) value).floatValue());
                 case "boolean" -> g.add(leafName, Boolean.TRUE.equals(value));
-                case "date", "date_nanos", "time_micros", "time_nanos" -> g.add(leafName, ((Number) value).longValue());
+                case "date", "date_nanos", "date_micros", "time_micros", "time_nanos" -> g.add(leafName, ((Number) value).longValue());
                 // TIME(MILLIS) is the one temporal annotation on a 32-bit physical column.
                 case "time_millis" -> g.add(leafName, ((Number) value).intValue());
                 case "ip" -> g.add(leafName, value.toString());

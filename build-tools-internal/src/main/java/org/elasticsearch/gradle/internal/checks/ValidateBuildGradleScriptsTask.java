@@ -9,15 +9,16 @@
 
 package org.elasticsearch.gradle.internal.checks;
 
+import org.codehaus.groovy.control.CompilationFailedException;
 import org.elasticsearch.gradle.internal.conventions.problems.ElasticsearchBuildProblems;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.problems.Problem;
-import org.gradle.api.problems.ProblemId;
 import org.gradle.api.problems.ProblemReporter;
 import org.gradle.api.problems.Problems;
+import org.gradle.api.problems.ThirdLevelProblemGroup;
 import org.gradle.api.provider.MapProperty;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Input;
@@ -59,6 +60,7 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
     private final File rootBuildFile;
     private final ProjectLayout projectLayout;
     private final ProblemReporter problemReporter;
+    private final ThirdLevelProblemGroup problemGroup;
 
     @Inject
     public ValidateBuildGradleScriptsTask(ProjectLayout projectLayout, Problems problems) {
@@ -66,6 +68,7 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
         this.rootBuildFile = projectLayout.getSettingsDirectory().file("build.gradle").getAsFile();
         this.projectLayout = projectLayout;
         this.problemReporter = problems.getReporter();
+        this.problemGroup = ElasticsearchBuildProblems.BUILD_GRADLE_SCRIPTS.group(problems);
         setDescription("Validates build.gradle scripts against repository guardrails");
     }
 
@@ -128,6 +131,7 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
         addDistributionBundledJdkRules(rules);
         addDistributionClosureAssignmentRules(rules);
         addDistributionExtClosureRules(rules);
+        addEagerTestSeedRules(rules);
         return rules;
     }
 
@@ -214,6 +218,37 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
         );
     }
 
+    /**
+     * Adds a guardrail against reading the test seed at configuration time. The seed is a configuration cache input when
+     * it is read while configuring, so a script that reads it ({@code get()}, {@code getOrNull()}, {@code getOrElse(...)}
+     * or {@code orNull}), or reads {@code buildParams.random}, which is derived from it, makes every build with a new seed
+     * miss the configuration cache. The rule follows the call chain from the provider, so a read inside a lazy closure such
+     * as {@code map { ... }} is not flagged. The chain may continue on later lines, but each argument list or closure in it
+     * must sit on one line, and the rule does not follow the provider through a variable.
+     */
+    private void addEagerTestSeedRules(List<ScriptRule> rules) {
+        rules.add(
+            new ScriptRule(
+                "eager-test-seed",
+                "Build scripts must not read the test seed at configuration time",
+                path -> true,
+                Pattern.compile(
+                    // the provider, then a chain of calls (arguments and closures on one line each, closures may hold ${...}),
+                    // then a read. The whitespace before an argument list or closure sits inside the optional group: if two
+                    // parts of the pattern could match the same whitespace, a failed match would backtrack exponentially.
+                    "\\bbuildParams\\s*\\.\\s*(?:testSeedProvider\\b|getTestSeedProvider\\s*\\(\\s*\\)|random\\b|getRandom\\s*\\(\\s*\\))"
+                        + "(?:\\s*\\.\\s*\\w+(?:\\s*\\([^()\\n]*\\)|\\s*\\{(?:[^{}\\n]|\\$\\{[^{}\\n]*\\})*\\})?)*?"
+                        + "\\s*\\.\\s*(?:get\\s*\\(\\s*\\)|getOrNull\\s*\\(\\s*\\)|getOrElse\\s*\\(|orNull\\b)"
+                ),
+                "Calling get() on buildParams.testSeedProvider or buildParams.random reads the test seed while the build is "
+                    + "configured. The seed then becomes a configuration cache input and changes with every build, so the "
+                    + "configuration cache can never be reused.",
+                "Keep the value lazy: map the provider (buildParams.testSeedProvider.map { seed -> ... }) and pass it to "
+                    + "nonInputProperties.systemProperty, which reads it when the test JVM starts."
+            )
+        );
+    }
+
     private void validateFile(
         File scriptFile,
         String content,
@@ -242,7 +277,7 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
                 violations.add("- " + label + System.lineSeparator() + "  " + lineText);
                 problems.add(
                     problemReporter.create(
-                        ProblemId.create(rule.id(), rule.title(), ElasticsearchBuildProblems.BUILD_GRADLE_SCRIPTS),
+                        problemGroup.problemId(rule.title()),
                         spec -> spec.contextualLabel(label)
                             .details(rule.details())
                             .lineInFileLocation(scriptFile.getAbsolutePath(), lineNumber)
@@ -250,6 +285,61 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
                     )
                 );
             }
+        }
+        validateExecutionClosures(scriptFile, content, relativePath, ignoreEntriesByKey, matchedIgnoredViolations, problems, violations);
+    }
+
+    private void validateExecutionClosures(
+        File scriptFile,
+        String content,
+        String relativePath,
+        Map<IgnoreKey, IgnoreEntry> ignoreEntriesByKey,
+        Map<IgnoreEntry, Integer> matchedIgnoredViolations,
+        List<Problem> problems,
+        List<String> violations
+    ) {
+        final List<ExecutionClosureScanner.Finding> findings;
+        try {
+            findings = ExecutionClosureScanner.scan(relativePath, content);
+        } catch (CompilationFailedException e) {
+            String label = "[build-script-parse-failure] " + relativePath;
+            violations.add("- " + label + System.lineSeparator() + "  " + e.getMessage());
+            problems.add(
+                problemReporter.create(
+                    problemGroup.problemId("Cannot parse build.gradle for execution-closure validation"),
+                    spec -> spec.contextualLabel(label)
+                        .details(e.getMessage())
+                        .fileLocation(scriptFile.getAbsolutePath())
+                        .solution(
+                            "Fix the Groovy syntax in this build.gradle; execution-closure validation cannot safely skip an unparsed script."
+                        )
+                )
+            );
+            return;
+        }
+        for (ExecutionClosureScanner.Finding finding : findings) {
+            IgnoreEntry ignoreEntry = ignoreEntriesByKey.get(new IgnoreKey(ExecutionClosureScanner.RULE_ID, relativePath));
+            if (ignoreEntry != null && ignoreEntry.matchesConsumed(matchedIgnoredViolations.getOrDefault(ignoreEntry, 0)) == false) {
+                matchedIgnoredViolations.merge(ignoreEntry, 1, Integer::sum);
+                continue;
+            }
+            String label = "[" + ExecutionClosureScanner.RULE_ID + "] " + relativePath + ":" + finding.line();
+            violations.add("- " + label + " (" + finding.reference() + ")");
+            problems.add(
+                problemReporter.create(
+                    problemGroup.problemId("Project-model reference in task execution closure"),
+                    spec -> spec.contextualLabel(label)
+                        .details(
+                            "Direct "
+                                + finding.reference()
+                                + " access in doFirst/doLast/onlyIf is unsafe at execution time with the configuration cache."
+                        )
+                        .lineInFileLocation(scriptFile.getAbsolutePath(), finding.line(), finding.column())
+                        .solution(
+                            "Capture the required value at configuration time, or use a typed task with declared inputs and injected services."
+                        )
+                )
+            );
         }
     }
 
@@ -276,11 +366,7 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
             violations.add("- " + label);
             problems.add(
                 problemReporter.create(
-                    ProblemId.create(
-                        "stale-ignore-entry",
-                        "Stale build.gradle validation ignore entry",
-                        ElasticsearchBuildProblems.BUILD_GRADLE_SCRIPTS
-                    ),
+                    problemGroup.problemId("Stale build.gradle validation ignore entry"),
                     spec -> spec.contextualLabel(label)
                         .details(details)
                         .fileLocation(rootBuildFile.getAbsolutePath())

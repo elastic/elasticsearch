@@ -41,10 +41,10 @@ class LicenseHeadersPrecommitPluginFuncTest extends AbstractGradleInternalPlugin
         assertOutputMissing(result.output, "./src/main/java/org/acme/DualLicensed.java")
 
         and: "problems report contains license-headers group with per-file problems"
-        assertProblemsReportContains("license-headers")
-        assertProblemsReportContainsProblem("unapproved-license-header")
+        assertProblemsReportContains("License Headers")
+        assertProblemsReportContainsProblem("Unapproved license header")
         assertProblemsReportHasAtLeast(2)
-        assertProblemsReportSeverity("unapproved-license-header", "ERROR")
+        assertProblemsReportSeverity("Unapproved license header", "ERROR")
     }
 
     def "can filter source files"() {
@@ -77,8 +77,8 @@ class LicenseHeadersPrecommitPluginFuncTest extends AbstractGradleInternalPlugin
         assertOutputContains(result.output, "./src/main/java/org/acme/DuplicateHeader.java")
 
         and: "problems report contains duplicate-license-header problem"
-        assertProblemsReportContains("license-headers")
-        assertProblemsReportContainsProblem("duplicate-license-header")
+        assertProblemsReportContains("License Headers")
+        assertProblemsReportContainsProblem("Duplicate license header")
     }
 
     def "detects duplicate license header placed after package declaration"() {
@@ -93,7 +93,7 @@ class LicenseHeadersPrecommitPluginFuncTest extends AbstractGradleInternalPlugin
         assertOutputContains(result.output, "./src/main/java/org/acme/DuplicateHeaderAfterPackage.java")
 
         and:
-        assertProblemsReportContainsProblem("duplicate-license-header")
+        assertProblemsReportContainsProblem("Duplicate license header")
     }
 
     def "supports sspl by convention"() {

@@ -70,6 +70,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
@@ -125,15 +126,15 @@ public class PointInTimeIT extends ESIntegTestCase {
                 Map.of(entry1.getKey(), entry2.getValue()),
                 context1.aliasFilter(),
                 TransportVersion.current(),
-                ShardSearchFailure.EMPTY_ARRAY
+                List.of()
             );
 
             SearchPhaseExecutionException failure = expectThrows(
                 SearchPhaseExecutionException.class,
                 prepareSearch().setAllowPartialSearchResults(randomBoolean()).setPointInTime(new PointInTimeBuilder(forged))
             );
-            assertThat(failure.shardFailures().length, equalTo(1));
-            Throwable cause = ExceptionsHelper.unwrapCause(failure.shardFailures()[0].getCause());
+            assertThat(failure.shardFailures(), hasSize(1));
+            Throwable cause = ExceptionsHelper.unwrapCause(failure.shardFailures().getFirst().getCause());
             assertThat(cause, instanceOf(IllegalArgumentException.class));
             assertThat(cause.getMessage(), equalTo("search context id is not valid"));
             assertThat(failure.toString(), not(containsString(index2)));
@@ -773,7 +774,7 @@ public class PointInTimeIT extends ESIntegTestCase {
                             assertThat(resp.getTotalShards(), equalTo(numShards));
                             assertThat(resp.getSuccessfulShards(), equalTo(numShards - shardsRemoved));
                             assertThat(resp.getFailedShards(), equalTo(shardsRemoved));
-                            assertThat(resp.getShardFailures().length, equalTo(shardsRemoved));
+                            assertThat(resp.getShardFailures(), hasSize(shardsRemoved));
                             for (var failure : resp.getShardFailures()) {
                                 assertTrue(shardsToRelocate.contains(failure.shardId()));
                                 assertThat(failure.getCause(), instanceOf(NoShardAvailableActionException.class));

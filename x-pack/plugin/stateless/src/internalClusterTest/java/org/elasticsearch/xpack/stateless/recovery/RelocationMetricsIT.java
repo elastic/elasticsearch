@@ -74,6 +74,10 @@ public class RelocationMetricsIT extends AbstractStatelessPluginIntegTestCase {
         assertHistogramRecorded(targetTelemetry, StatelessPrimaryRelocationMetricsCollector.RELOCATION_HANDOFF_TIME_METRIC_IN_SECONDS);
         assertHistogramRecorded(
             targetTelemetry,
+            StatelessPrimaryRelocationMetricsCollector.RELOCATION_INDEXING_BLOCKED_TIME_METRIC_IN_SECONDS
+        );
+        assertHistogramRecorded(
+            targetTelemetry,
             StatelessPrimaryRelocationMetricsCollector.RELOCATION_TARGET_PRE_RECOVERY_TIME_METRIC_IN_SECONDS
         );
         assertHistogramRecorded(

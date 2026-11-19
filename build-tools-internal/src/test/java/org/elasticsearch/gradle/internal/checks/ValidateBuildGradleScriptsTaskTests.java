@@ -18,6 +18,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.Assert.assertEquals;
@@ -160,6 +161,79 @@ public class ValidateBuildGradleScriptsTaskTests {
     }
 
     @Test
+    public void testFailsForEagerTestSeedReads() throws Exception {
+        Project project = createProject();
+        File scriptFile = writeFile(
+            project,
+            "x-pack/plugin/foo/qa/s3/build.gradle",
+            List.of(
+                "def seed = buildParams.testSeedProvider.get()",
+                "systemProperty 'base', buildParams.getTestSeedProvider().map { s -> 'base_' + s }.get()",
+                "systemProperty 'flag', buildParams.random.map{r -> r.nextBoolean()}.get()",
+                "def random = buildParams.getRandom().getOrNull()",
+                "def other = buildParams.random.getOrElse(new Random())",
+                "def orNull = buildParams.testSeedProvider.orNull",
+                "def chained = buildParams.testSeedProvider",
+                "  .map { s -> 'base_' + s }",
+                "  .get()",
+                "def gstring = buildParams.testSeedProvider.map { \"seed_${it}\" }.get()"
+            )
+        );
+        ValidateBuildGradleScriptsTask task = createTask(project, scriptFile);
+
+        try {
+            task.validateScripts();
+            fail("GradleException was expected");
+        } catch (GradleException e) {
+            for (int line : List.of(1, 2, 3, 4, 5, 6, 7, 10)) {
+                assertTrue(e.getMessage(), e.getMessage().contains("[eager-test-seed] x-pack/plugin/foo/qa/s3/build.gradle:" + line));
+            }
+        }
+    }
+
+    /**
+     * A long property chain with no read must fail to match quickly; whitespace that two parts of the pattern could both
+     * match made this take exponential time.
+     */
+    @Test(timeout = 10_000)
+    public void testEagerTestSeedRuleDoesNotBacktrackOnLongChains() throws Exception {
+        Project project = createProject();
+        List<String> lines = new ArrayList<>();
+        lines.add("def x = buildParams.random");
+        for (int i = 0; i < 30; i++) {
+            lines.add("        .p" + i);
+        }
+        lines.add("println x");
+        File scriptFile = writeFile(project, "x-pack/plugin/foo/build.gradle", lines);
+        ValidateBuildGradleScriptsTask task = createTask(project, scriptFile);
+
+        task.validateScripts();
+
+        assertOutputMarkerWritten(task);
+    }
+
+    @Test
+    public void testAllowsLazyTestSeedUse() throws Exception {
+        Project project = createProject();
+        File scriptFile = writeFile(
+            project,
+            "x-pack/plugin/foo/qa/s3/build.gradle",
+            List.of(
+                "nonInputProperties.systemProperty 'base', buildParams.testSeedProvider.map { seed -> 'base_' + seed }",
+                "nonInputProperties.systemProperty 'flag', buildParams.random.map{r -> r.nextBoolean()}",
+                "nonInputProperties.systemProperty 'path', buildParams.testSeedProvider.map { s -> basePath.get() + s }",
+                "nonInputProperties.systemProperty 'n', buildParams.random.map { r -> r.nextInt(10) }.map { n -> names.getOrElse(n, 'x') }",
+                "def bucket = providers.environmentVariable('BUCKET').get()"
+            )
+        );
+        ValidateBuildGradleScriptsTask task = createTask(project, scriptFile);
+
+        task.validateScripts();
+
+        assertOutputMarkerWritten(task);
+    }
+
+    @Test
     public void testCountedIgnoreSuppressesExactlyTheBaselinedNumberOfViolations() throws Exception {
         Project project = createProject();
         File scriptFile = writeFile(
@@ -269,6 +343,94 @@ public class ValidateBuildGradleScriptsTaskTests {
             fail("GradleException was expected");
         } catch (GradleException e) {
             assertTrue(e.getMessage().contains("Ignore count for rule [distribution-closure-assignment] must be an integer"));
+        }
+    }
+
+    @Test
+    public void testExecutionClosureBaselineLifecycle() throws Exception {
+        Project project = createProject();
+        File script = writeFile(project, "subproject/build.gradle", List.of("tasks.register('probe') {", "  onlyIf { project.name }", "}"));
+        ValidateBuildGradleScriptsTask task = createTask(project, script);
+        task.getIgnore().set(java.util.Map.of(ExecutionClosureScanner.RULE_ID, List.of("subproject/build.gradle::1")));
+        task.validateScripts();
+        assertOutputMarkerWritten(task);
+
+        Files.writeString(script.toPath(), "tasks.register('probe') { onlyIf { project.name }; doLast { gradle.startParameter } }\n");
+        try {
+            task.validateScripts();
+            fail("Added execution reference must fail");
+        } catch (GradleException e) {
+            assertTrue(e.getMessage().contains(ExecutionClosureScanner.RULE_ID));
+            assertTrue(e.getMessage().contains("gradle"));
+        }
+
+        Files.writeString(script.toPath(), "tasks.register('probe') { onlyIf { true } }\n");
+        try {
+            task.validateScripts();
+            fail("Removed execution reference must make the baseline stale");
+        } catch (GradleException e) {
+            assertTrue(e.getMessage().contains("stale-ignore-entry"));
+        }
+    }
+
+    @Test
+    public void testLegacyTaskExecutionReferencesAreRejected() throws Exception {
+        for (String declaration : List.of("task probe", "task probe(type: Exec)", "task('probe')")) {
+            Project project = createProject();
+            File script = writeFile(project, "subproject/build.gradle", List.of(declaration + " {", "  doLast { project.name }", "}"));
+            ValidateBuildGradleScriptsTask task = createTask(project, script);
+            try {
+                task.validateScripts();
+                fail("Expected a model reference finding for " + declaration);
+            } catch (GradleException e) {
+                assertTrue(e.getMessage().contains(ExecutionClosureScanner.RULE_ID));
+                assertTrue(e.getMessage().contains("subproject/build.gradle:2"));
+            }
+        }
+    }
+
+    @Test
+    public void testLegacyTaskConfigurationCaptureIsAllowed() throws Exception {
+        for (String declaration : List.of("task probe", "task probe(type: Exec)", "task('probe')")) {
+            Project project = createProject();
+            File script = writeFile(
+                project,
+                "subproject/build.gradle",
+                List.of(declaration + " {", "  def name = project.name", "  doLast { println name }", "}")
+            );
+            ValidateBuildGradleScriptsTask task = createTask(project, script);
+            task.validateScripts();
+            assertOutputMarkerWritten(task);
+        }
+    }
+
+    @Test
+    public void testQualifiedModelAccessConsumesOneIgnorePerReceiver() throws Exception {
+        Project project = createProject();
+        File script = writeFile(
+            project,
+            "subproject/build.gradle",
+            List.of("tasks.register('probe') { doLast { project.file('data'); project.sourceSets.main.output } }")
+        );
+        ValidateBuildGradleScriptsTask task = createTask(project, script);
+        task.getIgnore().set(java.util.Map.of(ExecutionClosureScanner.RULE_ID, List.of("subproject/build.gradle::2")));
+        task.validateScripts();
+        assertOutputMarkerWritten(task);
+    }
+
+    @Test
+    public void testParseFailureIsActionableAndCannotBeIgnored() throws Exception {
+        Project project = createProject();
+        File script = writeFile(project, "subproject/build.gradle", List.of("tasks.register('broken') {"));
+        ValidateBuildGradleScriptsTask task = createTask(project, script);
+        task.getIgnore().set(java.util.Map.of("build-script-parse-failure", List.of("subproject/build.gradle")));
+        try {
+            task.validateScripts();
+            fail("Unparsed scripts cannot pass validation");
+        } catch (GradleException e) {
+            assertTrue(e.getMessage().contains("build-script-parse-failure"));
+            assertTrue(e.getMessage().contains("subproject/build.gradle"));
+            assertTrue(e.getMessage().contains("Unexpected input"));
         }
     }
 

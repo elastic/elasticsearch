@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslatePromqlToEsqlPlan;
@@ -30,8 +31,11 @@ import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.promql.CountValuesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.MetadataManipulationFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
+import org.elasticsearch.xpack.esql.plan.logical.promql.SortByLabelFunction;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Selector;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.rule.Rule;
@@ -57,6 +61,24 @@ public class PromqlVerifierTests extends ESTestCase {
     private final TestAnalyzer tsdb = analyzer().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
         .stripErrorPrefix(true)
         .unmappedResolution(UnmappedResolution.NULLIFY);
+
+    public void testPredictLinearArguments() {
+        tsdb.error(
+            "PROMQL index=test step=5m predict_linear(network.bytes_in[5m])",
+            ParsingException.class,
+            containsString("Invalid number of parameters for function [predict_linear], required [2], found [1]")
+        );
+        tsdb.error(
+            "PROMQL index=test step=5m predict_linear(network.bytes_in[5m], network.bytes_in)",
+            containsString("expected type scalar in call to function [predict_linear], got instant_vector")
+        );
+        for (String horizon : List.of("time()", "scalar(sum(network.bytes_in))")) {
+            tsdb.error(
+                "PROMQL index=test step=5m predict_linear(network.bytes_in[5m], " + horizon + ")",
+                containsString("expected literal parameter in call to function [predict_linear]")
+            );
+        }
+    }
 
     public void testPromqlRangeVector() {
         tsdb.error(
@@ -446,7 +468,11 @@ public class PromqlVerifierTests extends ESTestCase {
     public void testVectorMatchingRequiresInstantVectors() {
         assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
         // Mirrors Prometheus: on/ignoring describe how two labelsets match, and a scalar operand has no labelset.
-        tsdb.error("PROMQL index=test step=5m foo / on(bar) 1", containsString("vector matching only allowed between instant vectors"));
+        tsdb.error(
+            "PROMQL index=test step=5m foo / on(bar) 1",
+            ParsingException.class,
+            containsString("Vector matching only allowed between instant vectors")
+        );
     }
 
     public void testNonScalarComparison() {
@@ -667,6 +693,39 @@ public class PromqlVerifierTests extends ESTestCase {
         assertTrue(tsdb.query("PROMQL index=test time=\"2025-10-31T00:00:00Z\" sort(abs(network.bytes_in))").resolved());
     }
 
+    public void testSortByLabelRejectedBelowValueTransformation() {
+        tsdb.error(
+            "PROMQL index=test step=5m abs(sort_by_label(network.bytes_in, \"pod\"))",
+            containsString("[sort_by_label] is only supported at the top-level at this time")
+        );
+    }
+
+    public void testSortByLabelDescRejectedBelowValueTransformation() {
+        tsdb.error(
+            "PROMQL index=test step=5m abs(sort_by_label_desc(network.bytes_in, \"pod\"))",
+            containsString("[sort_by_label_desc] is only supported at the top-level at this time")
+        );
+    }
+
+    /** Like Prometheus, an empty label name is accepted: it is equal on every series, so it is dropped from the sort labels. */
+    public void testSortByLabelSkipsEmptyLabelName() {
+        assertSortLabels("sort_by_label(network.bytes_in, \"pod\", \"\")", List.of("pod"));
+        assertSortLabels("sort_by_label_desc(network.bytes_in, \"\", \"pod\")", List.of("pod"));
+    }
+
+    public void testSortByLabelWithOnlyEmptyLabelNameResolves() {
+        assertSortLabels("sort_by_label(network.bytes_in, \"\")", List.of());
+        assertTrue(tsdb.query("PROMQL index=test time=\"2025-10-31T00:00:00Z\" sort_by_label(network.bytes_in, \"\")").resolved());
+    }
+
+    private void assertSortLabels(String promql, List<String> expected) {
+        PromqlCommand command = resolvePromqlWithoutTranslation("PROMQL index=test time=\"2025-10-31T00:00:00Z\" " + promql).collect(
+            PromqlCommand.class
+        ).getFirst();
+        SortByLabelFunction sort = command.promqlPlan().collect(SortByLabelFunction.class).getFirst();
+        assertEquals(expected, sort.sortLabels().stream().map(Attribute::name).toList());
+    }
+
     public void testInstantVectorExpectedWithGrouping() {
         tsdb.error(
             "PROMQL index=test step=5m avg by (pod) (network.bytes_in[5m])",
@@ -776,7 +835,10 @@ public class PromqlVerifierTests extends ESTestCase {
         // the derived label is materialized as a column rather than written into the series-identity blob.
         tsdb.error(
             "PROMQL index=test step=5m label_replace(network.bytes_in, \"dst\", \"$1\", \"host\", \"(.+)\")",
-            containsString("[label_replace] is only supported inside a `by(...)` aggregation")
+            containsString(
+                "[label_replace] is only supported inside a `by(...)` aggregation or over the result of one, "
+                    + "but was used as a top-level expression over raw (non-aggregated) series"
+            )
         );
     }
 
@@ -808,7 +870,36 @@ public class PromqlVerifierTests extends ESTestCase {
         // A topk/bottomk reduction consumes the series identity directly rather than through a by(dst) grouping.
         tsdb.error(
             "PROMQL index=test step=5m topk(3, label_replace(network.bytes_in, \"dst\", \"$1\", \"host\", \"(.+)\"))",
-            containsString("[label_replace] is only supported inside a `by(...)` aggregation, but was used under [topk]")
+            containsString(
+                "[label_replace] is only supported inside a `by(...)` aggregation or over the result of one, "
+                    + "but was used under [topk] over raw (non-aggregated) series"
+            )
+        );
+    }
+
+    public void testLabelReplaceOverNonByAggregateRejectedWithSpecificReason() {
+        // The input is aggregated, but not by a `by(...)`: the message names what the relabel actually sits on instead of
+        // calling it non-aggregated.
+        tsdb.error(
+            "PROMQL index=test step=5m label_replace(sum (network.bytes_in), \"dst\", \"$1\", \"host\", \"(.+)\")",
+            containsString("but was used as a top-level expression over an aggregation without a `by(...)` grouping")
+        );
+        tsdb.error(
+            "PROMQL index=test step=5m label_replace(sum without (host) (network.bytes_in), \"dst\", \"$1\", \"host\", \"(.+)\")",
+            containsString("but was used as a top-level expression over a `without(...)` aggregation")
+        );
+        tsdb.error(
+            "PROMQL index=test step=5m label_replace(topk(3, sum by (host) (network.bytes_in)), \"dst\", \"$1\", \"host\", \"(.+)\")",
+            containsString("but was used as a top-level expression over [topk]")
+        );
+        tsdb.error(
+            "PROMQL index=test step=5m label_replace(sum by (host) (network.bytes_in) * 2, \"dst\", \"$1\", \"host\", \"(.+)\")",
+            containsString("but was used as a top-level expression over a binary operator")
+        );
+        tsdb.error(
+            "PROMQL index=test step=5m "
+                + "bottomk(2, label_replace(sum by (host) (network.bytes_in) * 2, \"dst\", \"$1\", \"host\", \"(.+)\"))",
+            containsString("but was used under [bottomk] over a binary operator")
         );
     }
 
@@ -823,6 +914,155 @@ public class PromqlVerifierTests extends ESTestCase {
     public void testLabelJoinUnderByGroupingResolves() {
         assertTrue(
             tsdb.query("PROMQL index=test step=5m sum by (dst) (label_join(network.bytes_in, \"dst\", \"-\", \"host\", \"metricset\"))")
+                .resolved()
+        );
+    }
+
+    public void testLabelReplaceAddingNewLabelOverAggregatedVectorResolves() {
+        // The enclosed aggregation has already reduced identity to the concrete label `host`, and `dst` is a new label
+        // derived from it, so the relabeled identity only refines the aggregate's and no two series can collapse.
+        assertTrue(
+            tsdb.query("PROMQL index=test step=5m label_replace(sum by (host) (network.bytes_in), \"dst\", \"$1\", \"host\", \"(.+)\")")
+                .resolved()
+        );
+    }
+
+    public void testLabelJoinAddingNewLabelOverAggregatedVectorResolves() {
+        assertTrue(
+            tsdb.query("PROMQL index=test step=5m label_join(sum by (host) (network.bytes_in), \"dst\", \"-\", \"host\")").resolved()
+        );
+    }
+
+    public void testLabelReplaceAddingNewLabelUnderReductionResolves() {
+        // topk preserves identity, which is fine when the relabel only refines the aggregate's concrete label set.
+        assertTrue(
+            tsdb.query(
+                "PROMQL index=test step=5m topk(3, label_replace(sum by (host) (network.bytes_in), \"dst\", \"$1\", \"host\", \"(.+)\"))"
+            ).resolved()
+        );
+    }
+
+    public void testLabelReplaceAddingNewLabelUnderLimitReductionsResolves() {
+        // limitk and limit_ratio are across-series reductions like topk and keep the identity of the series they select.
+        for (String query : List.of(
+            "PROMQL index=test step=5m limitk(3, label_replace(sum by (host) (network.bytes_in), \"dst\", \"$1\", \"host\", \"(.+)\"))",
+            "PROMQL index=test step=5m limit_ratio(0.5, label_join(sum by (host) (network.bytes_in), \"dst\", \"-\", \"host\"))"
+        )) {
+            assertTrue(query, tsdb.query(query).resolved());
+        }
+    }
+
+    public void testLabelJoinOverBinaryOperatorRejected() {
+        // A binary operator's output does not materialize the relabel's source labels as readable columns, so the
+        // derivation would silently see them as absent and join empty strings instead of the matched label values.
+        tsdb.error(
+            "PROMQL index=test step=5m "
+                + "label_join(sum by (host) (network.bytes_in) / sum by (host) (network.bytes_in), \"dst\", \"-\", \"host\")",
+            containsString(
+                "[label_join] is only supported inside a `by(...)` aggregation or over the result of one, "
+                    + "but was used as a top-level expression over a binary operator"
+            )
+        );
+    }
+
+    public void testLabelReplaceOverwritingAggregatedIdentityLabelRejected() {
+        // Overwriting a label that is part of the aggregate's identity can map two distinct series onto one label set,
+        // which needs Prometheus' duplicate-label-set handling and stays rejected.
+        tsdb.error(
+            "PROMQL index=test step=5m label_replace(sum by (host) (network.bytes_in), \"host\", \"$1\", \"host\", \"(.+)\")",
+            containsString(
+                "[label_replace] used as a top-level expression over a `by(...)` aggregation must add a new label, "
+                    + "but destination [host] overwrites a label of the aggregation"
+            )
+        );
+        tsdb.error(
+            "PROMQL index=test step=5m topk(3, label_join(sum by (host) (network.bytes_in), \"host\", \"-\", \"host\"))",
+            containsString(
+                "[label_join] used under [topk] over a `by(...)` aggregation must add a new label, "
+                    + "but destination [host] overwrites a label of the aggregation"
+            )
+        );
+    }
+
+    public void testRelabelOverAggregatePrefixedDestinationComparedByLabelName() {
+        // The analyzer and the translation treat a `labels.`-prefixed name as the same label as its bare form, so the
+        // verifier must too: `labels.host` over `sum by (host)` overwrites `host` (and would otherwise silently replace the
+        // grouping column), and `labels.step` collides with the built-in step column.
+        tsdb.error(
+            "PROMQL index=test step=5m label_replace(sum by (host) (network.bytes_in), \"labels.host\", \"$1\", \"host\", \"(.+)\")",
+            containsString("but destination [host] overwrites a label of the aggregation")
+        );
+        tsdb.error(
+            "PROMQL index=test step=5m topk(3, label_join(sum by (host) (network.bytes_in), \"labels.host\", \"-\", \"host\"))",
+            containsString("but destination [host] overwrites a label of the aggregation")
+        );
+        tsdb.error(
+            "PROMQL index=test step=5m label_replace(sum by (host) (network.bytes_in), \"labels.step\", \"$1\", \"host\", \"(.+)\")",
+            containsString("label [step] collides with the built-in [step] output column")
+        );
+        tsdb.error(
+            "PROMQL index=test step=5m result=(label_join(sum by (host) (network.bytes_in), \"labels.result\", \"-\", \"host\"))",
+            containsString("label [result] collides with the built-in [result] output column")
+        );
+        tsdb.error(
+            "PROMQL index=test step=5m sum by (labels.step) (network.bytes_in)",
+            containsString("label [step] collides with the built-in [step] output column")
+        );
+        // A prefixed name that is genuinely new is still fine.
+        assertTrue(
+            tsdb.query(
+                "PROMQL index=test step=5m label_replace(sum by (host) (network.bytes_in), \"labels.dst\", \"$1\", \"host\", \"(.+)\")"
+            ).resolved()
+        );
+    }
+
+    public void testRelabelOverAggregateCollidingWithStepColumnRejected() {
+        // Over an aggregate the derived label becomes an output column of its own, so it must not reuse the name of the
+        // built-in step column, which would surface as a duplicate output attribute in the optimizer.
+        for (String query : List.of(
+            "PROMQL index=test step=5m label_replace(sum by (host) (network.bytes_in), \"step\", \"$1\", \"host\", \"(.+)\")",
+            "PROMQL index=test step=5m label_join(sum by (host) (network.bytes_in), \"step\", \"-\", \"host\")",
+            "PROMQL index=test step=5m topk(3, label_replace(sum by (host) (network.bytes_in), \"step\", \"$1\", \"host\", \"(.+)\"))"
+        )) {
+            tsdb.error(query, containsString("label [step] collides with the built-in [step] output column"));
+        }
+    }
+
+    public void testRelabelOverAggregateCollidingWithValueColumnRejected() {
+        // Same for the value column, whose name is whatever the user chose (or `value` for the Prometheus API).
+        for (String query : List.of(
+            "PROMQL index=test step=5m result=(label_replace(sum by (host) (network.bytes_in), \"result\", \"$1\", \"host\", \"(.+)\"))",
+            "PROMQL index=test step=5m result=(topk(3, label_join(sum by (host) (network.bytes_in), \"result\", \"-\", \"host\")))"
+        )) {
+            tsdb.error(query, containsString("label [result] collides with the built-in [result] output column"));
+        }
+    }
+
+    public void testGroupingCollidingWithValueColumnRejected() {
+        // A `by(...)` or reduction grouping named like the value column collides the same way the built-in step column
+        // already did. Before this check, grouping on a stored dimension named like the value column (`host` here) made
+        // it past verification and failed in the optimizer with a duplicate output attribute; a grouping on a label that
+        // does not exist in the index (`result`) only "worked" because the grouping was silently dropped.
+        for (String query : List.of(
+            "PROMQL index=test step=5m host=(sum by (host) (network.bytes_in))",
+            "PROMQL index=test step=5m host=(topk by (host) (3, network.bytes_in))",
+            "PROMQL index=test step=5m host=(sum by (host) (label_replace(network.bytes_in, \"host\", \"$1\", \"metricset\", \"(.+)\")))"
+        )) {
+            tsdb.error(query, containsString("label [host] collides with the built-in [host] output column"));
+        }
+        for (String query : List.of(
+            "PROMQL index=test step=5m result=(sum by (result) (network.bytes_in))",
+            "PROMQL index=test step=5m result=(sum by (result) (label_replace(network.bytes_in, \"result\", \"$1\", \"host\", \"(.+)\")))"
+        )) {
+            tsdb.error(query, containsString("label [result] collides with the built-in [result] output column"));
+        }
+    }
+
+    public void testRelabelUnderByGroupingMayUseBuiltInColumnName() {
+        // Under an enclosing `by(...)` that does not group on it, the derived label is dropped and never reaches the
+        // output, so a built-in column name as destination is harmless there.
+        assertTrue(
+            tsdb.query("PROMQL index=test step=5m sum by (host) (label_replace(network.bytes_in, \"step\", \"$1\", \"host\", \"(.+)\"))")
                 .resolved()
         );
     }
@@ -896,6 +1136,106 @@ public class PromqlVerifierTests extends ESTestCase {
         );
     }
 
+    public void testCountValuesLabelMustBeStringLiteral() {
+        tsdb.error(
+            "PROMQL index=test step=5m count_values(5, network.connections)",
+            containsString("expected a string literal as the label name in call to function [count_values], got [5]")
+        );
+    }
+
+    public void testCountValuesInvalidLabelName() {
+        tsdb.error(
+            "PROMQL index=test step=5m count_values(\"\", network.connections)",
+            containsString("invalid label name [] in call to function [count_values]")
+        );
+    }
+
+    public void testCountValuesWithoutNotSupported() {
+        tsdb.error(
+            "PROMQL index=test step=5m count_values without (host) (\"v\", network.connections)",
+            containsString("function [count_values] is not yet supported with [WITHOUT]")
+        );
+    }
+
+    public void testCountValuesOnHistogramNotSupported() {
+        tsdb.error(
+            "PROMQL index=test step=5m count_values(\"v\", request_duration)",
+            ParsingException.class,
+            containsString("count_values function is not yet supported on native histograms")
+        );
+    }
+
+    public void testCountValuesLabelCollidesWithBuiltInColumn() {
+        tsdb.error(
+            "PROMQL index=test step=5m value=(count_values(\"value\", network.connections))",
+            containsString("label [value] collides with the built-in [value] output column")
+        );
+    }
+
+    public void testCountValuesTimeseriesLabelRejected() {
+        tsdb.error(
+            "PROMQL index=test step=5m count_values(\"_timeseries\", network.connections)",
+            containsString("label [_timeseries] in call to function [count_values] collides with a reserved column")
+        );
+    }
+
+    /**
+     * A {@code count_values} operand is translated on its own and then joined, which needs concrete label sets on both
+     * sides; an operand that is neither scalar nor labelled concretely cannot be joined.
+     */
+    public void testCountValuesWithRawOperandNotSupported() {
+        for (String query : List.of(
+            "count_values(\"v\", vector(1)) / network.connections",
+            "network.connections / count_values(\"v\", vector(1))",
+            "abs(count_values(\"v\", vector(1))) / rate(network.bytes_in[5m])"
+        )) {
+            tsdb.error(
+                "PROMQL index=test step=5m " + query,
+                containsString("binary operations between an aggregated and a raw vector are not supported at this time")
+            );
+        }
+    }
+
+    public void testCountValuesAcceptsParenthesizedLabel() {
+        assertTrue(resolvePromqlWithoutTranslation("PROMQL index=test step=5m count_values((\"v\"), network.connections)").resolved());
+    }
+
+    public void testCountValuesValueLabelSurvivesRewrites() {
+        CountValuesAggregate countValues = promqlPlanWithoutTranslation("count_values(\"v\", network.connections)").collect(
+            CountValuesAggregate.class
+        ).getFirst();
+        Attribute valueLabel = countValues.valueLabel();
+        assertNotNull(valueLabel);
+        assertEquals("v", valueLabel.name());
+        assertEquals(List.of(valueLabel), countValues.output());
+        CountValuesAggregate replaced = countValues.replaceChild(countValues.child());
+        assertEquals(valueLabel.id(), replaced.valueLabel().id());
+        assertEquals(countValues, replaced);
+    }
+
+    /** A selector below {@code count_values} matches the stored label, not the value label of the same name. */
+    public void testSelectorBelowCountValuesBindsToStoredLabel() {
+        Expression matched = promqlPlanWithoutTranslation("sum by (host) (count_values(\"host\", network.connections{host=\"a\"}))")
+            .collect(Selector.class)
+            .getFirst()
+            .labels()
+            .stream()
+            .filter(l -> l instanceof Attribute a && a.name().equals("host"))
+            .findFirst()
+            .orElseThrow();
+        assertThat(matched, instanceOf(FieldAttribute.class));
+    }
+
+    public void testRelabelOverCountValuesMustAddNewLabel() {
+        tsdb.error(
+            "PROMQL index=test step=5m label_replace(count_values(\"v\", network.connections), \"v\", \"$1\", \"v\", \"(.*)\")",
+            containsString(
+                "[label_replace] used as a top-level expression over [count_values] must add a new label, "
+                    + "but destination [v] overwrites a label of the aggregation"
+            )
+        );
+    }
+
     /**
      * Batch test for analysis-level invalid queries. Each bare PromQL expression is wrapped in
      * "PROMQL index=test step=5m (%s)" and expected to throw during analysis (either a
@@ -924,6 +1264,11 @@ public class PromqlVerifierTests extends ESTestCase {
     private LogicalPlan resolvePromqlWithoutTranslation(String query) {
         LogicalPlan parsed = InSubqueryResolver.resolve(EsqlTestUtils.TEST_PARSER.parseQuery(query));
         return new ResolveOnlyAnalyzer(tsdb.buildContext()).resolve(parsed);
+    }
+
+    /** The resolved-but-not-translated PromQL plan of {@code PROMQL index=test step=5m <promql>}. */
+    private LogicalPlan promqlPlanWithoutTranslation(String promql) {
+        return resolvePromqlWithoutTranslation("PROMQL index=test step=5m " + promql).collect(PromqlCommand.class).getFirst().promqlPlan();
     }
 
     /**

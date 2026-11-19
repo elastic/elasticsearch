@@ -244,7 +244,9 @@ public class GcsStorageProvider implements StorageProvider {
     private static GoogleCredentials buildIdentityPoolCredentials(GcsConfiguration config) throws IOException {
         WorkloadIdentityIssuerClient issuerClient = WorkloadIdentityRegistry.getSharedIssuerClient();
         if (issuerClient.isEnabled() == false) {
-            throw new IllegalStateException(
+            // Operator misconfiguration, not a broken invariant: the data source asked for federated
+            // identity on a node where the feature is off.
+            throw new IllegalArgumentException(
                 "GCS federated authentication requires the workload-identity feature to be enabled on this node"
             );
         }

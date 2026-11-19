@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
+import org.elasticsearch.xpack.esql.plan.PlanJsonLog;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.BranchIdentity;
@@ -53,11 +54,11 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
-import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedMetadata;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
+import org.elasticsearch.xpack.esql.plan.logical.ViewSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.view.ViewQuerySettings.WildcardsStop;
@@ -236,6 +237,7 @@ public class ViewResolver {
             parser,
             boundaryPreservation,
             DEFAULT_MAX_PLAN_NODES_COUNT,
+            PlanSize.CLUSTER_SETTING_SOURCE,
             listener
         );
     }
@@ -260,7 +262,7 @@ public class ViewResolver {
      *                             filter rewriter finds view output boundaries), and
      *                             {@link ViewBoundaryPreservation#KEEP_VIEW_IDENTITY} additionally keeps pass-through
      *                             views from merging with caller-owned patterns ({@link #resolve} wraps a bare-{@link
-     *                             UnresolvedRelation} body in a {@link NamedSubquery}). See the
+     *                             UnresolvedRelation} body in a {@link ViewSubquery}). See the
      *                             {@link ViewBoundaryPreservation} javadoc for why each feature needs its level and
      *                             no more.
      * @param listener callback that receives the {@link ViewResolutionResult}
@@ -273,6 +275,7 @@ public class ViewResolver {
         BiFunction<String, String, EsqlStatement> parser,
         ViewBoundaryPreservation boundaryPreservation,
         int maxPlanNodesCount,
+        String maxPlanNodesSource,
         ActionListener<ViewResolutionResult> listener
     ) {
         Map<String, String> viewQueries = new HashMap<>();
@@ -285,7 +288,7 @@ public class ViewResolver {
         // provided by the ActionListener plumbing, the same way the viewQueries map threaded through these callbacks is.
         Holder<Boolean> hasInSubquery = new Holder<>(false);
         // Running total of plan nodes: starts with the unexpanded query and grows with every view body expanded into it.
-        PlanSize planSize = new PlanSize(PlanSize.countNodes(plan), maxPlanNodesCount);
+        PlanSize planSize = new PlanSize(plan, maxPlanNodesCount, maxPlanNodesSource);
         // Views a body's wildcards would have matched had an enclosing scope's wildcards_match_views reached it, keyed by where it
         // stopped.
         Map<WildcardsStop, StoppedMatches> stoppedWildcardMatches = new LinkedHashMap<>();
@@ -295,7 +298,7 @@ public class ViewResolver {
             return;
         }
         // Note: this returns the uncompacted nested plan. Compaction (UnionAll/BranchPlan
-        // rewriting, sibling UnresolvedRelation merging, NamedSubquery unwrapping) now lives in
+        // rewriting, sibling UnresolvedRelation merging, ViewSubquery unwrapping) now lives in
         // {@link org.elasticsearch.xpack.esql.view.ViewCompaction} and is applied by EsqlSession
         // between view resolution and pre-analysis, so PreAnalyzer extracts the same index
         // patterns that the analyzer's ResolveTable will later look up. Keeping the resolver's
@@ -657,7 +660,7 @@ public class ViewResolver {
                 boundaryPreservation,
                 planSize,
                 l.delegateFailureAndWrap((sl, newLeft) -> {
-                    if (newLeft instanceof Subquery sq && sq.child() instanceof NamedSubquery named) {
+                    if (newLeft instanceof Subquery sq && sq.child() instanceof ViewSubquery named) {
                         newLeft = named;
                     }
                     sl.onResponse(newLeft);
@@ -680,7 +683,7 @@ public class ViewResolver {
                 boundaryPreservation,
                 planSize,
                 l.delegateFailureAndWrap((sl, newRight) -> {
-                    if (newRight instanceof Subquery sq && sq.child() instanceof NamedSubquery named) {
+                    if (newRight instanceof Subquery sq && sq.child() instanceof ViewSubquery named) {
                         newRight = named;
                     }
                     if (newLeft.equals(origLeft) == false || newRight.equals(origRight) == false) {
@@ -849,7 +852,7 @@ public class ViewResolver {
                         MetadataAttribute.requestsRelationColumn(unresolvedRelation.metadataFields())
                             || boundaryPreservation.keepsPassThroughIdentity()
                     );
-                    planSize.add(PlanSize.countNodes(body));
+                    planSize.add(body);
                     // The view's own SET statements govern its body — the caller's never do. The SET's scope ends at
                     // the view boundary: a caller's setting must not change which sources a stored view definition
                     // resolves to (a wildcard inside the body could otherwise expand to views or datasets its author
@@ -877,6 +880,7 @@ public class ViewResolver {
                         bodySettings.requiresViewIdentity() ? ViewBoundaryPreservation.KEEP_VIEW_IDENTITY : ViewBoundaryPreservation.NONE,
                         planSize,
                         l2.delegateFailureAndWrap((l3, fullyResolved) -> {
+                            PlanJsonLog.debug(PlanJsonLog.Stage.RESOLVED, view.name(), fullyResolved);
                             ViewPlan viewPlan = new ViewPlan(view.name(), fullyResolved);
                             resolvedViews.put(view.name(), viewPlan);
                             l3.onResponse(null);
@@ -1340,7 +1344,7 @@ public class ViewResolver {
         LinkedHashMap<String, BranchIdentity> identities = new LinkedHashMap<>();
         for (ViewPlan vp : subqueries) {
             String key = makeUniqueKey(plans, vp.name);
-            if (vp.plan instanceof NamedSubquery ns) {
+            if (vp.plan instanceof ViewSubquery ns) {
                 assertNamesMatch("Unexpected subquery name mismatch", ns.name(), vp.name);
                 plans.put(key, ns);
                 // Identity carries the real view name; the key may be uniquified (e.g. "meow~2") and is just a label.
@@ -1352,12 +1356,12 @@ public class ViewResolver {
                 identities.put(key, BranchIdentity.INDEX);
             } else if (vp.plan instanceof ViewShadowRelation) {
                 // Leave ViewShadowRelation bare — ViewCompaction's strip recognises it by
-                // type and removes it directly. Wrapping in NamedSubquery would hide it from the
+                // type and removes it directly. Wrapping in ViewSubquery would hide it from the
                 // strip and keep its name out of the dropped-entries' keyspace.
                 plans.put(key, vp.plan);
                 identities.put(key, BranchIdentity.INDEX);
             } else {
-                plans.put(key, new NamedSubquery(ur.source(), vp.plan, key));
+                plans.put(key, new ViewSubquery(ur.source(), vp.plan, key));
                 identities.put(key, BranchIdentity.view(vp.name));
             }
         }
@@ -1412,7 +1416,7 @@ public class ViewResolver {
 
     /**
      * Merges bare UnresolvedRelation entries that don't share index patterns into a single entry.
-     * Those that cannot be merged are wrapped in NamedSubquery nodes to preserve data duplication
+     * Those that cannot be merged are wrapped in ViewSubquery nodes to preserve data duplication
      * semantics. The full broader-scope compaction lives in {@link ViewCompaction}; this is the
      * per-level merge that keeps the resolved tree small enough to pass {@link MergePlan} limit
      * at logical verification.
@@ -1442,8 +1446,8 @@ public class ViewResolver {
                 merged = result;
                 plans.remove(key);
             } else {
-                // Cannot merge — wrap in NamedSubquery to preserve independence
-                plans.put(key, new NamedSubquery(ur.source(), ur, key));
+                // Cannot merge — wrap in ViewSubquery to preserve independence
+                plans.put(key, new ViewSubquery(ur.source(), ur, key));
             }
         }
         plans.put(firstKey, merged);
@@ -1522,13 +1526,13 @@ public class ViewResolver {
             // together and avoid branched plans. But exclusion patterns must stay scoped to the
             // view body — a bare UnresolvedRelation with an exclusion that gets merged with sibling
             // or outer UnresolvedRelations would have its exclusion's scope widened across the
-            // merged pattern list (see #146XXX), so those are wrapped in a NamedSubquery via the
+            // merged pattern list (see #146XXX), so those are wrapped in a ViewSubquery via the
             // else branch to prevent merging.
             return parsed;
         } else {
             // More complex subqueries (or simple UnresolvedRelations containing exclusions) are
             // maintained with the view name for branch identification.
-            return new NamedSubquery(parsed.source(), parsed, view.name());
+            return new ViewSubquery(parsed.source(), parsed, view.name());
         }
     }
 

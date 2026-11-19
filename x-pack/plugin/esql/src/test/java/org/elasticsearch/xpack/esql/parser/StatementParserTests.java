@@ -12,6 +12,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.TimeValue;
@@ -119,6 +120,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.lucene.BytesRefs.toBytesRef;
@@ -1502,14 +1504,211 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
     }
 
+    private static QueryPragmas pragma(Setting<Integer> pragma, int value) {
+        return new QueryPragmas(Settings.builder().put(pragma.getKey(), value).build());
+    }
+
     public void testMaxCommandCountIsConfigurable() {
         String query = "from foo, (from bar" + " | where a > 0".repeat(3) + ")" + " | where a > 0".repeat(2);
-        TEST_PARSER.parse(query, new QueryParams(), new InferenceSettings(Settings.EMPTY), 5);
+        TEST_PARSER.parse(
+            query,
+            new QueryParams(),
+            new InferenceSettings(Settings.EMPTY),
+            pragma(QueryPragmas.MAX_COMMAND_COUNT, 5),
+            EsqlFlags.DEFAULTS
+        );
         expectThrows(
             ParsingException.class,
             containsString("ES|QL statement exceeded the maximum of [4] commands allowed, including the commands in its subqueries"),
-            () -> TEST_PARSER.parse(query, new QueryParams(), new InferenceSettings(Settings.EMPTY), 4)
+            () -> TEST_PARSER.parse(
+                query,
+                new QueryParams(),
+                new InferenceSettings(Settings.EMPTY),
+                pragma(QueryPragmas.MAX_COMMAND_COUNT, 4),
+                EsqlFlags.DEFAULTS
+            )
         );
+    }
+
+    private static final String MAX_BINARY_OPERATORS_ERROR =
+        "ES|QL statement exceeded the maximum number of binary operators allowed between commas or pipes ("
+            + EsqlParser.MAX_BINARY_OPERATORS
+            + ")";
+
+    private static final String MAX_LEFT_PARENTHESES_ERROR =
+        "ES|QL statement exceeded the maximum number of left parentheses allowed in an expression ("
+            + EsqlParser.MAX_LEFT_PARENTHESES
+            + ")";
+
+    private static final String MAX_EXPRESSION_DEPTH_ERROR = "ES|QL statement exceeded the maximum expression depth allowed ("
+        + ExpressionBuilder.MAX_EXPRESSION_DEPTH
+        + ")";
+
+    /** A balanced binary tree of {@code leaf + leaf}, such as {@code ((a + a) + (a + a))}, with 2^levels leaves. */
+    private static String balancedAdditionTree(String leaf, int levels) {
+        String expr = leaf;
+        for (int i = 0; i < levels; i++) {
+            expr = "(" + expr + " + " + expr + ")";
+        }
+        return expr;
+    }
+
+    private static String balancedAdditionTree(int levels) {
+        return balancedAdditionTree("a", levels);
+    }
+
+    /** A balanced binary tree of nested function calls without any operator, such as {@code max(max(0,0),max(0,0))}. */
+    private static String balancedFunctionCallTree(int levels) {
+        String expr = "0";
+        for (int i = 0; i < levels; i++) {
+            expr = "max(" + expr + "," + expr + ")";
+        }
+        return expr;
+    }
+
+    /** {@code ROW x0 = 1 + 1, x1 = 1 + 1, ...} with one binary operator per field. */
+    private static String fieldsWithOneOperatorEach(String prefix, int fields) {
+        return IntStream.range(0, fields).mapToObj(i -> prefix + i + " = 1 + 1").collect(Collectors.joining(", "));
+    }
+
+    /** {@code abs(1), abs(1), ...} with one left parenthesis per item. */
+    private static String functionCalls(int count) {
+        return IntStream.range(0, count).mapToObj(i -> "abs(1)").collect(Collectors.joining(", "));
+    }
+
+    public void testFlatOperatorChainFailsMaxBinaryOperators() {
+        expectError("row x = 0" + " + 0".repeat(EsqlParser.MAX_BINARY_OPERATORS + 1), MAX_BINARY_OPERATORS_ERROR);
+        expectError("from test | eval y = a" + " - a".repeat(EsqlParser.MAX_BINARY_OPERATORS + 1), MAX_BINARY_OPERATORS_ERROR);
+        expectError("from test | where a > 0" + " and a > 0".repeat(EsqlParser.MAX_BINARY_OPERATORS), MAX_BINARY_OPERATORS_ERROR);
+        expectError("from test | eval y = a" + "::long".repeat(EsqlParser.MAX_BINARY_OPERATORS + 1), MAX_BINARY_OPERATORS_ERROR);
+    }
+
+    public void testBalancedOperatorTreeFailsMaxLeftParentheses() {
+        // Reproduces https://github.com/elastic/esql-planning/issues/2297: shallow parenthesis nesting, but a huge number of operators
+        expectError("from test | eval y = " + balancedAdditionTree(17) + " | keep y", MAX_LEFT_PARENTHESES_ERROR);
+        // 2^10 - 1 = 1023 parentheses
+        expectError("from test | eval y = " + balancedAdditionTree(10), MAX_LEFT_PARENTHESES_ERROR);
+        // 2^8 - 1 = 255 parentheses
+        query("from test | eval y = " + balancedAdditionTree(8) + " | keep y");
+    }
+
+    public void testBalancedFunctionCallTreeFailsMaxLeftParentheses() {
+        // No binary operators at all, but the cost of parsing grows with the nested calls: 2^10 - 1 = 1023 calls take gigabytes of heap
+        expectError("row x = " + balancedFunctionCallTree(10), MAX_LEFT_PARENTHESES_ERROR);
+        expectError("row x = " + balancedFunctionCallTree(15), MAX_LEFT_PARENTHESES_ERROR);
+        // 2^5 - 1 = 31 calls
+        query("row x = " + balancedFunctionCallTree(5));
+    }
+
+    public void testCommasInsideParenthesesDoNotHideLeftParentheses() {
+        // The commas of the inner function calls reset the operator count, but not the count of the left parentheses
+        expectError("from test | eval y = " + balancedAdditionTree("coalesce(a, a)", 10) + " | keep y", MAX_LEFT_PARENTHESES_ERROR);
+        expectError("from test | eval y = abs(" + balancedAdditionTree("coalesce(a, a)", 9) + ", 1)", MAX_LEFT_PARENTHESES_ERROR);
+    }
+
+    public void testLeftParenthesesUpToMaxAreAccepted() {
+        query("row x = coalesce(" + functionCalls(EsqlParser.MAX_LEFT_PARENTHESES - 1) + ")");
+        expectError("row x = coalesce(" + functionCalls(EsqlParser.MAX_LEFT_PARENTHESES) + ")", MAX_LEFT_PARENTHESES_ERROR);
+    }
+
+    public void testLeftParenthesesAreResetByTopLevelCommaAndPipe() {
+        // Fields of a command are independent
+        query(
+            "row "
+                + IntStream.range(0, 5 * EsqlParser.MAX_LEFT_PARENTHESES)
+                    .mapToObj(i -> "x" + i + " = abs(1)")
+                    .collect(Collectors.joining(", "))
+        );
+        // Commands are independent
+        String calls = functionCalls(EsqlParser.MAX_LEFT_PARENTHESES - 1);
+        query("from test | eval a = coalesce(" + calls + ") | eval b = coalesce(" + calls + ") | keep a, b");
+        // A pipe or a comma inside parentheses do not reset the count of the enclosing expression
+        expectError("from test | eval a = coalesce(" + calls + ", " + calls + ")", MAX_LEFT_PARENTHESES_ERROR);
+        expectError("from test | where x in (from a | where " + calls + " | where " + calls + ")", MAX_LEFT_PARENTHESES_ERROR);
+    }
+
+    public void testBinaryOperatorCountIsResetByComma() {
+        // Fields of a command are independent expressions, so any number of them is fine
+        query("row " + fieldsWithOneOperatorEach("x", 5 * EsqlParser.MAX_BINARY_OPERATORS));
+        query("from test | eval " + fieldsWithOneOperatorEach("x", 5 * EsqlParser.MAX_BINARY_OPERATORS) + " | keep x0");
+        // Arguments of a function call are independent expressions too
+        query("row x = coalesce(" + IntStream.range(0, 2300).mapToObj(i -> "1 + 1").collect(Collectors.joining(", ")) + ")");
+        // COUNT(*) is conservatively counted as a multiplication
+        query(
+            "from test | stats "
+                + IntStream.range(0, 5 * EsqlParser.MAX_BINARY_OPERATORS)
+                    .mapToObj(i -> "c" + i + " = count(*)")
+                    .collect(Collectors.joining(", "))
+        );
+        // Two big trees in two fields are accepted, the same trees in one expression are not
+        String tree = balancedAdditionTree(8);
+        query("from test | eval x = " + tree + ", y = " + tree);
+        expectError("from test | eval x = " + tree + " + " + tree, MAX_LEFT_PARENTHESES_ERROR);
+    }
+
+    public void testBinaryOperatorCountIsResetByPipe() {
+        String tree = balancedAdditionTree(8);
+        // Each command is below the limit while the statement total is above it
+        query("from test | eval x = " + tree + " | eval y = " + tree + " | eval z = " + tree + " | keep x");
+        String conditions = " and a > 0".repeat(EsqlParser.MAX_BINARY_OPERATORS / 4);
+        query("from test | where a > 0" + conditions + " | where a > 0" + conditions + " | where a > 0" + conditions);
+    }
+
+    public void testNestedPipeDoesNotResetBinaryOperatorCount() {
+        // Each half is below the limit, the subquery between them must not hide the operators of the enclosing WHERE
+        String conditions = " and a > 0".repeat(EsqlParser.MAX_BINARY_OPERATORS * 2 / 5);
+        expectError("from test | where a > 0" + conditions + " and x in (from sub | keep x)" + conditions, MAX_BINARY_OPERATORS_ERROR);
+    }
+
+    public void testOperatorsWithoutSeparatorFailMaxBinaryOperators() {
+        // The function call does not hide the operators from the check, because they are not separated by a comma
+        expectError("from test | eval x = abs(a" + " + a".repeat(EsqlParser.MAX_BINARY_OPERATORS + 1) + ")", MAX_BINARY_OPERATORS_ERROR);
+        expectError(
+            "from test | where abs(a"
+                + " + a".repeat(EsqlParser.MAX_BINARY_OPERATORS / 2)
+                + ") > 0"
+                + " and a > 0".repeat(EsqlParser.MAX_BINARY_OPERATORS / 2),
+            MAX_BINARY_OPERATORS_ERROR
+        );
+    }
+
+    public void testLimitsAreCheckedWhenTheLexerFails() {
+        // The parser would work on everything before the invalid character, so the limits must hold for that part
+        List<String> invalidEnds = List.of(" | keep \u00c5", " \"unterminated", " /* unterminated");
+        for (String end : invalidEnds) {
+            expectError("row x = 0" + " + 0".repeat(EsqlParser.MAX_BINARY_OPERATORS + 1) + end, MAX_BINARY_OPERATORS_ERROR);
+            expectError("from test | eval y = " + balancedAdditionTree(17) + end, MAX_LEFT_PARENTHESES_ERROR);
+            expectError("row x = " + balancedFunctionCallTree(10) + end, MAX_LEFT_PARENTHESES_ERROR);
+            expectError(
+                "row x = "
+                    + "(".repeat(ExpressionBuilder.MAX_EXPRESSION_DEPTH + 1)
+                    + "1"
+                    + ")".repeat(ExpressionBuilder.MAX_EXPRESSION_DEPTH + 1)
+                    + end,
+                MAX_EXPRESSION_DEPTH_ERROR
+            );
+        }
+    }
+
+    public void testLexerErrorIsReportedWhenTheLimitsHold() {
+        // The query is parsed lazily again, so the first error in the query is reported, not necessarily the lexer error
+        expectError("from test | keep \u00c5", "token recognition error at: '\u00c5'");
+        expectError("from test | eval y = " + balancedAdditionTree(3) + " | keep \u00c5", "token recognition error at: '\u00c5'");
+        expectError("from | keep \u00c5", "mismatched input '|' expecting");
+    }
+
+    public void testUnmatchedRightParenthesisIsReportedByTheParser() {
+        for (String query : List.of("row x = ) | eval y = 1", "row x = 1) + (2", ") | eval " + fieldsWithOneOperatorEach("x", 10))) {
+            ParsingException e = expectThrows(ParsingException.class, () -> query(query));
+            assertThat(e.getMessage(), not(containsString("exceeded the maximum")));
+        }
+    }
+
+    public void testOperatorLikeTokensInStringsAndCommentsAreNotCounted() {
+        String plusses = "+".repeat(EsqlParser.MAX_BINARY_OPERATORS + 1);
+        query("row x = \"" + plusses + "\"");
+        query("row x = 1 // " + plusses);
+        query("row x = 1 /* " + plusses + " */");
     }
 
     public void testBlockComments() {
@@ -2920,6 +3119,17 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(Expressions.name(w.condition()), equalTo("a.b.1m.4321"));
     }
 
+    public void testDottedColumnUnquotedAndQuotedAreTheSameName() {
+        // Nested parquet source.ip and a flat leaf named "source.ip" are both written
+        // source.ip in ES|QL. Backticks do not pick the literal leaf; the file schema does.
+        Filter unquoted = as(processingCommand("where source.ip == \"188.166.20.77\""), Filter.class);
+        Filter quoted = as(processingCommand("where `source.ip` == \"188.166.20.77\""), Filter.class);
+        Equals unquotedEq = as(unquoted.condition(), Equals.class);
+        Equals quotedEq = as(quoted.condition(), Equals.class);
+        assertThat(Expressions.name(unquotedEq.left()), equalTo("source.ip"));
+        assertThat(Expressions.name(quotedEq.left()), equalTo("source.ip"));
+    }
+
     public void testQuotedName() {
         // row `my-field`=123 | stats count(`my-field`) | eval x = `count(`my-field`)`
         LogicalPlan plan = processingCommand("stats count(`my-field`) |  keep `count(``my-field``)`");
@@ -3053,7 +3263,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 List.of(new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", List.of(attribute("cpu")))), attribute("ts")),
                 null,
                 new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS load=avg(cpu) BY ts")),
-                TimeSeriesAggregate.Origin.TS_COMMAND
+                TimeSeriesAggregate.Origin.TS_COMMAND,
+                false
             )
         );
         assertQuery(
@@ -3065,7 +3276,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 List.of(new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", List.of(attribute("cpu")))), attribute("ts")),
                 null,
                 new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS load=avg(cpu) BY ts")),
-                TimeSeriesAggregate.Origin.TS_COMMAND
+                TimeSeriesAggregate.Origin.TS_COMMAND,
+                false
             )
         );
         assertQuery(
@@ -3085,7 +3297,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 ),
                 null,
                 new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS load=avg(cpu),max(rate(requests)) BY ts")),
-                TimeSeriesAggregate.Origin.TS_COMMAND
+                TimeSeriesAggregate.Origin.TS_COMMAND,
+                false
             )
         );
         assertQuery(
@@ -3097,7 +3310,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 List.of(new Alias(EMPTY, "count(errors)", new UnresolvedFunction(EMPTY, "count", List.of(attribute("errors"))))),
                 null,
                 new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS count(errors)")),
-                TimeSeriesAggregate.Origin.TS_COMMAND
+                TimeSeriesAggregate.Origin.TS_COMMAND,
+                false
             )
         );
         assertQuery(
@@ -3109,7 +3323,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", List.of(attribute("b"))))),
                 null,
                 new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS a(b)")),
-                TimeSeriesAggregate.Origin.TS_COMMAND
+                TimeSeriesAggregate.Origin.TS_COMMAND,
+                false
             )
         );
         assertQuery(
@@ -3121,7 +3336,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", List.of(attribute("b"))))),
                 null,
                 new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS a(b)")),
-                TimeSeriesAggregate.Origin.TS_COMMAND
+                TimeSeriesAggregate.Origin.TS_COMMAND,
+                false
             )
         );
         assertQuery(
@@ -3133,7 +3349,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 List.of(new Alias(EMPTY, "a1(b2)", new UnresolvedFunction(EMPTY, "a1", List.of(attribute("b2"))))),
                 null,
                 new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS a1(b2)")),
-                TimeSeriesAggregate.Origin.TS_COMMAND
+                TimeSeriesAggregate.Origin.TS_COMMAND,
+                false
             )
         );
         assertQuery(
@@ -3149,7 +3366,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 ),
                 null,
                 new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS b = min(a) by c, d.e")),
-                TimeSeriesAggregate.Origin.TS_COMMAND
+                TimeSeriesAggregate.Origin.TS_COMMAND,
+                false
             )
         );
     }
@@ -4176,7 +4394,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
                ( CHANGE_POINT a on b )
                ( LOOKUP JOIN idx2 ON f1 )
                ( ENRICH idx2 on f1 with f2 = f3 )
-               ( FORK ( WHERE a:"baz" ) ( EVAL x = [ 1, 2, 3 ] ) )
                ( COMPLETION a=b WITH { "inference_id": "c" } )
             | KEEP a
             """;
@@ -4213,7 +4430,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
                ( CHANGE_POINT a on b )
                ( LOOKUP JOIN idx2 ON f1 | LOOKUP JOIN idx3 ON f1 > f3)
                ( ENRICH idx2 on f1 with f2 = f3 )
-               ( FORK ( WHERE a:"baz" ) ( EVAL x = [ 1, 2, 3 ] ) )
                ( COMPLETION a=b WITH { "inference_id": "c" } )
                ( SAMPLE 0.99 )
             | KEEP a
@@ -4230,6 +4446,81 @@ public class StatementParserTests extends AbstractStatementParserTests {
             """;
         plan = query(query);
         assertThat(plan, instanceOf(Keep.class));
+    }
+
+    /**
+     * The single-FORK rule is applied while the parse tree is visited, so that a second FORK on one pipeline never reaches view
+     * resolution or analysis, where it would multiply the plan below it by its branch count first. Every subquery, whether in FROM,
+     * in an IN condition or in a LET binding, is a FORK scope of its own; FORK branches share the scope of their pipeline.
+     */
+    public void testSecondForkOnOnePipelineRejectedWhileParsing() {
+        String error = "Only a single FORK command is supported, but found multiple";
+        expectVerificationError(
+            "FROM a | FORK (WHERE x > 0) (WHERE x < 0) | FORK (WHERE y > 0) (WHERE y < 0)",
+            "Found 1 problem\nline 1:45: " + error
+        );
+        expectVerificationError("FROM a | FORK (FORK (WHERE x > 0) (WHERE x < 0)) (WHERE y > 0)", "line 1:16: " + error);
+        expectVerificationError(
+            "FROM a | WHERE x IN (FROM b | FORK (WHERE x > 0) (WHERE x < 0) | FORK (WHERE y > 0) (WHERE y < 0))",
+            error
+        );
+        expectVerificationError(
+            "FROM a | WHERE (x, y) IN (FROM b | FORK (WHERE x > 0) (WHERE x < 0) | FORK (WHERE y > 0) (WHERE y < 0))",
+            error
+        );
+        expectVerificationError("FROM a | WHERE x IN (FROM b | FORK (FORK (WHERE x > 0) (WHERE x < 0)) (WHERE y > 0))", error);
+        expectVerificationError("FROM (FROM a | FORK (FORK (WHERE x > 0) (WHERE x < 0)) (WHERE y > 0)) | WHERE x > 0", error);
+        expectVerificationError("FROM a" + " | FORK (WHERE x > 0) (WHERE x < 0)".repeat(60), error);
+
+        query("FROM (FROM a | FORK (WHERE x > 0) (WHERE x < 0)) | FORK (WHERE y > 0) (WHERE y < 0)");
+        query("FROM (FROM a | FORK (WHERE x > 0) (WHERE x < 0)), (FROM b) | FORK (WHERE y > 0) (WHERE y < 0)");
+        query("FROM (FROM a | FORK (WHERE x > 0) (WHERE x < 0)), (FROM b | FORK (WHERE x > 1) (WHERE x < 1))");
+        query("""
+            FROM (FROM (FROM a | FORK (WHERE x > 0) (WHERE x < 0)), (FROM c) | FORK (WHERE y > 0) (WHERE y < 0)), (FROM d)
+            | FORK (WHERE z > 0) (WHERE z < 0)
+            """);
+        query("FROM a | WHERE x IN (FROM b | FORK (WHERE x > 0) (WHERE x < 0)) | FORK (WHERE y > 0) (WHERE y < 0)");
+        query("FROM a | FORK (WHERE x IN (FROM b | FORK (WHERE x > 0) (WHERE x < 0))) (WHERE y > 0)");
+    }
+
+    private static final String MAX_BRANCH_COUNT_ERROR = "exceeding the limit of 128";
+
+    /** {@code depth} FORKs, one per line, each over a UNION ALL of the previous one and another index: 2^(depth + 2) - 2 leaves. */
+    private static String nestedForks(int depth) {
+        String query = "FROM a | FORK (WHERE x > 0) (WHERE x < 0)";
+        for (int i = 0; i < depth; i++) {
+            query = "FROM (\n" + query + "\n), b | FORK (WHERE x > 0) (WHERE x < 0)";
+        }
+        return query;
+    }
+
+    /**
+     * FORKs nested through UNION ALL subqueries double the leaf branches at every level, and every walk after the parser pays once per
+     * leaf. The parser applies a fixed query-wide branch ceiling to each FORK it builds, so a 40-deep nesting, 2^42 leaves, is rejected at
+     * the sixth FORK before any command on top of it is applied. The configured {@code max_branch_count} is enforced after parsing.
+     */
+    public void testNestedForksPastTheBranchCountRejectedWhileParsing() {
+        for (String suffix : new String[] { "", "\n| STATS COUNT(*)", "\n| WHERE x IN (FROM c)" }) {
+            expectVerificationError(nestedForks(10) + suffix, MAX_BRANCH_COUNT_ERROR);
+        }
+        expectVerificationError(nestedForks(6), MAX_BRANCH_COUNT_ERROR);
+        expectVerificationError("FROM a | WHERE x IN (" + nestedForks(40) + ")", MAX_BRANCH_COUNT_ERROR);
+        assumeTrue("Requires EXPLAIN capability", EsqlCapabilities.Cap.EXPLAIN.isEnabled());
+        expectVerificationError("EXPLAIN (" + nestedForks(40) + ")", MAX_BRANCH_COUNT_ERROR);
+    }
+
+    /** The limit is on leaf branches, not on plan nodes: a long pipeline with one FORK stays at two leaves. */
+    public void testForksWithinTheBranchCountParse() {
+        assertThat(query("FROM a" + " | EVAL x = 1".repeat(400) + " | FORK (WHERE x > 0) (WHERE x < 0)"), instanceOf(Fork.class));
+        assertThat(query(nestedForks(2)), instanceOf(Fork.class));
+        assertThat(query(nestedForks(5)), instanceOf(Fork.class));
+    }
+
+    public void testSecondForkOnOnePipelineInExplainRejectedWhileParsing() {
+        assumeTrue("Requires EXPLAIN capability", EsqlCapabilities.Cap.EXPLAIN.isEnabled());
+        String error = "Only a single FORK command is supported, but found multiple";
+        expectVerificationError("EXPLAIN (FROM a | FORK (WHERE x > 0) (WHERE x < 0) | FORK (WHERE y > 0) (WHERE y < 0))", error);
+        assertThat(query("EXPLAIN (FROM a | FORK (WHERE x > 0) (WHERE x < 0))"), instanceOf(Explain.class));
     }
 
     public void testForkWithBareFillNull() {

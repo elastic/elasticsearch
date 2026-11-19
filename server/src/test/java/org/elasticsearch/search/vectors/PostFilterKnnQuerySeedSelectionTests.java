@@ -50,7 +50,7 @@ public class PostFilterKnnQuerySeedSelectionTests extends ESTestCase {
         assertArrayEquals(new int[][] { { 1, 4 }, null, { 100, 101 } }, PostFilterKnnQuery.nearestSeedsPerLeaf(perLeaf, 2));
     }
 
-    /** Equal scores at the cap go to the lower doc id, so the seeds do not depend on the order of the candidates. */
+    /** Ties at the cap go to the lower doc id. */
     public void testTiesGoToLowerDocId() {
         for (int run = 0; run < 50; run++) {
             java.util.List<ScoreDoc> docs = new java.util.ArrayList<>();

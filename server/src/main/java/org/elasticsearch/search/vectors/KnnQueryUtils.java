@@ -175,7 +175,7 @@ public final class KnnQueryUtils {
         return out;
     }
 
-    /** Highest score first, ties to the lower doc id (as in Lucene), so a selection never depends on input order. */
+    /** Score descending, ties to the lower doc id, so selection is independent of input order. */
     static final Comparator<ScoreDoc> BY_SCORE_DESC_THEN_DOC = (a, b) -> {
         int byScore = Float.compare(b.score, a.score);
         return byScore != 0 ? byScore : Integer.compare(a.doc, b.doc);

@@ -77,6 +77,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsRequest;
+import org.elasticsearch.xpack.esql.action.QueryParamsTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.datasources.datasource.TestEncryptionServicePlugin;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
@@ -256,6 +257,12 @@ public class CsvIT extends ESTestCase {
         default boolean ignoreValueOrder() {
             return false;
         }
+
+        /**
+         * Lets a variant turn a failure that is tracked by an issue into a skip by throwing {@link org.junit.AssumptionViolatedException};
+         * otherwise the failure propagates. Receives any throwable of the test body, skips included.
+         */
+        default void onFailure(String testId, CsvSpecReader.CsvTestCase testCase, Throwable failure) {}
     }
 
     public static final DifferentialTestStrategy IDENTITY_DIFFERENTIAL_TEST_STRATEGY = new DifferentialTestStrategy() {
@@ -449,6 +456,9 @@ public class CsvIT extends ESTestCase {
             testCase
         );
         EsqlQueryRequest request = syncEsqlQueryRequest(transformed.query());
+        if (testCase.paramsJson() != null) {
+            request.params(QueryParamsTestUtils.parseParams(testCase.paramsJson()));
+        }
         if (testCase.requestTimeRangeGte != null && testCase.requestTimeRangeGte.isEmpty() == false) {
             request.filter(new RangeQueryBuilder("@timestamp").gte(testCase.requestTimeRangeGte).lte(testCase.requestTimeRangeLte));
         }
@@ -512,6 +522,7 @@ public class CsvIT extends ESTestCase {
             CsvAssert.assertDocumentsFound(testCase.expectedDocumentsFound, response.documentsFound());
             CsvAssert.assertApproximationApplied(testCase.expectedApproximationApplied, response.approximationApplied());
         } catch (Throwable t) {
+            differentialTestStrategy.onFailure(groupName + "." + testName, testCase, t);
             t.setStackTrace(prependSpec(t.getStackTrace()));
             throw t;
         }

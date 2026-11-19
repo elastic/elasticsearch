@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 165875
+summary: Upgrade commons-lang3 to 3.20.0
+type: upgrade

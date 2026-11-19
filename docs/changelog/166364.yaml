@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 166364
+summary: "Fix union-type casts after an IN subquery, and casts inside views that ignored the view's unmapped_fields setting"
+type: bug

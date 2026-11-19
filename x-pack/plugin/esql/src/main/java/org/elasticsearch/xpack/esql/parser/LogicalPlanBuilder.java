@@ -84,6 +84,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.InfoCommandPlanUtils;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
+import org.elasticsearch.xpack.esql.plan.logical.Into;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
@@ -92,6 +93,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MMR;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
+import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.RegisteredDomain;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
@@ -397,6 +399,13 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     @Override
+    public PlanFactory visitNestedExpandCommand(EsqlBaseParser.NestedExpandCommandContext ctx) {
+        UnresolvedAttribute field = visitQualifiedName(ctx.qualifiedName());
+        Source src = source(ctx);
+        return child -> new NestedExpand(src, child, field);
+    }
+
+    @Override
     public PlanFactory visitMvExpandCommand(EsqlBaseParser.MvExpandCommandContext ctx) {
         UnresolvedAttribute field = visitQualifiedName(ctx.qualifiedName());
         Source src = source(ctx);
@@ -506,6 +515,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             plan = processingCommand.apply(plan);
         }
         forkSeenInScope = forkSeenInEnclosingScope;
+        plan.forEachDown(Into.class, into -> { throw new ParsingException(into.source(), "INTO must be the last command of the query"); });
         return plan;
     }
 
@@ -556,6 +566,31 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitDedupCommand(EsqlBaseParser.DedupCommandContext ctx) {
         Source source = source(ctx);
         return input -> new Dedup(source, input);
+    }
+
+    @Override
+    public PlanFactory visitIntoCommand(EsqlBaseParser.IntoCommandContext ctx) {
+        Source source = source(ctx);
+        Source destinationSource = source(ctx.indexPattern());
+        String destination = visitIndexPattern(List.of(ctx.indexPattern()));
+        if (destination.contains(WILDCARD)) {
+            throw new ParsingException(destinationSource, "invalid index pattern [{}], * is not allowed in INTO", destination);
+        }
+        if (RemoteClusterAware.splitIndexName(destination).clusterAlias() != null) {
+            throw new ParsingException(
+                destinationSource,
+                "invalid index pattern [{}], remote clusters are not supported with INTO",
+                destination
+            );
+        }
+        if (destination.contains(IndexNameExpressionResolver.SelectorResolver.SELECTOR_SEPARATOR)) {
+            throw new ParsingException(
+                destinationSource,
+                "invalid index pattern [{}], index pattern selectors are not supported in INTO",
+                destination
+            );
+        }
+        return input -> new Into(source, input, destination);
     }
 
     @Override
@@ -1322,7 +1357,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             throw new ParsingException(source, "only LOOKUP JOIN available, {} JOIN unsupported at the moment", joinType);
         }
 
-        var target = ctx.joinTarget();
+        var target = ctx.lookupJoinTarget();
         var rightPattern = visitIndexPattern(List.of(target.index));
         if (rightPattern.contains(WILDCARD)) {
             throw new ParsingException(source(target), "invalid index pattern [{}], * is not allowed in LOOKUP JOIN", rightPattern);
@@ -2115,20 +2150,16 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
 
         PromqlParser promqlParser = new PromqlParser();
-        LogicalPlan promqlPlan;
-        try {
-            // The existing PromqlParser is used to parse the inner query
-            promqlPlan = promqlParser.createStatement(
-                promqlQuery,
-                params.startLiteral(),
-                params.endLiteral(),
-                promqlStartLine,
-                promqlStartColumn,
-                context.params()
-            );
-        } catch (ParsingException pe) {
-            throw PromqlParserUtils.adjustParsingException(pe, promqlStartLine, promqlStartColumn);
-        }
+        // The existing PromqlParser is used to parse the inner query
+        LogicalPlan promqlPlan = promqlParser.createStatement(
+            promqlQuery,
+            params.startLiteral(),
+            params.endLiteral(),
+            promqlStartLine,
+            promqlStartColumn,
+            context.params(),
+            context.viewName()
+        );
 
         String valueColumnName = getValueColumnName(ctx.valueName(), promqlQuery);
 

@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
+import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
@@ -103,6 +104,42 @@ public class FieldNameUtils {
     }
 
     public static PreAnalysisResult resolveFieldNames(LogicalPlan parsed, boolean hasEnriches, boolean includePrefixFields) {
+        return addNestedExpand(parsed, collectFieldNames(parsed, hasEnriches, includePrefixFields));
+    }
+
+    /**
+     * A {@code NESTED_EXPAND} needs the nested field's mapping, which field caps otherwise drops. The result's
+     * {@link PreAnalysisResult#nestedScope()} tells the resolution of the main source to keep those fields in a private schema
+     * instead of turning them into ordinary columns.
+     */
+    private static PreAnalysisResult addNestedExpand(LogicalPlan parsed, PreAnalysisResult result) {
+        Set<String> collections = new HashSet<>();
+        parsed.forEachDown(NestedExpand.class, expand -> {
+            if (expand.bound() == false && expand.target() != null) {
+                // TODO: When collection aliases/references are supported, resolve their owning
+                // source and mapped path here; the target name may be an alias in the query.
+                collections.add(expand.target().name());
+            }
+        });
+        if (collections.isEmpty()) {
+            return result;
+        }
+        if (result.fieldNames().contains(WILDCARD)) {
+            return new PreAnalysisResult(result.fieldNames(), result.parentPaths(), true, result.wildcardJoinIndices());
+        }
+        Set<String> fieldNames = new HashSet<>(result.fieldNames());
+        for (String name : result.fieldNames()) {
+            fieldNames.addAll(parentPrefixes(name));
+        }
+        for (String collection : collections) {
+            fieldNames.add(collection);
+            fieldNames.add(collection + ".*");
+            fieldNames.addAll(parentPrefixes(collection));
+        }
+        return new PreAnalysisResult(fieldNames, result.parentPaths(), true, result.wildcardJoinIndices());
+    }
+
+    private static PreAnalysisResult collectFieldNames(LogicalPlan parsed, boolean hasEnriches, boolean includePrefixFields) {
 
         // The EQL command's output is the whole mapping: its query references fields the ES|QL field-name walk
         // cannot see, and a narrow set risks a zero-column schema for `EQL x "q" | STATS COUNT(*)`, so resolve all
@@ -451,11 +488,14 @@ public class FieldNameUtils {
             return new PreAnalysisResult(IndexResolver.INDEX_METADATA_FIELD, wildcardJoinIndices);
         } else {
             Set<String> allFields = new HashSet<>();
+            Set<String> parentPaths = new HashSet<>();
             for (String name : fieldNames) {
-                addRelatedFields(includePrefixFields, allFields, name);
+                addRelatedFields(includePrefixFields, allFields, parentPaths, name);
             }
             allFields.add(MetadataAttribute.INDEX);
-            return new PreAnalysisResult(allFields, wildcardJoinIndices);
+            Set<String> onlyParentPaths = onlyParentPaths(parentPaths, allFields);
+            allFields.addAll(parentPaths);
+            return new PreAnalysisResult(allFields, onlyParentPaths, false, wildcardJoinIndices);
         }
     }
 
@@ -465,12 +505,12 @@ public class FieldNameUtils {
      * <li>The field itself: "a.b.c"</li>
      * <li>Its multi-fields: "a.b.c.*". A sample case where this is required is TEXT fields that may have a ".keyword" subfield that's
      * implicitly used in some queries.</li>
-     * <li>(Only when {@code includeFieldParentPrefixes}) All dot-delimited parent prefixes: ["a", "a.b"]. This is needed to get back
-     * flattened parents, which hold a name as a key or, under {@code unmapped_fields="load"}, let the verifier detect their
-     * subfields.</li>
+     * <li>(Only when {@code includeFieldParentPrefixes}) All dot-delimited parent prefixes, into {@code parentPaths}: ["a", "a.b"].
+     * This is needed to get back flattened parents, which hold a name as a key or, under {@code unmapped_fields="load"}, let the
+     * verifier detect their subfields.</li>
      * </ul>
      */
-    private static void addRelatedFields(boolean includeFieldParentPrefixes, Set<String> allFields, String name) {
+    private static void addRelatedFields(boolean includeFieldParentPrefixes, Set<String> allFields, Set<String> parentPaths, String name) {
         allFields.add(name);
 
         if (name.endsWith(WILDCARD) == false) {
@@ -478,8 +518,26 @@ public class FieldNameUtils {
         }
 
         if (includeFieldParentPrefixes) {
-            allFields.addAll(parentPrefixes(name));
+            parentPaths.addAll(parentPrefixes(name));
         }
+    }
+
+    /**
+     * The {@code parentPaths} that field caps is asked for only to find the {@code flattened} fields above the names the query uses:
+     * those that none of {@code fieldNames}, by name or pattern, asks for as a field.
+     */
+    public static Set<String> onlyParentPaths(Set<String> parentPaths, Set<String> fieldNames) {
+        if (parentPaths.isEmpty()) {
+            return Set.of();
+        }
+        List<String> patterns = fieldNames.stream().filter(Regex::isSimpleMatchPattern).toList();
+        Set<String> only = new HashSet<>();
+        for (String path : parentPaths) {
+            if (fieldNames.contains(path) == false && patterns.stream().noneMatch(pattern -> Regex.simpleMatch(pattern, path))) {
+                only.add(path);
+            }
+        }
+        return only;
     }
 
     /**
@@ -591,6 +649,7 @@ public class FieldNameUtils {
             || p instanceof Keep
             || p instanceof Limit
             || p instanceof MvExpand
+            || p instanceof NestedExpand
             || p instanceof OrderBy
             || p instanceof Project
             || p instanceof RegexExtract

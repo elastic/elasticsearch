@@ -143,8 +143,7 @@ public class CrossClusterLoggingIT extends AbstractCrossClusterTestCase {
             new EsqlStreamQueryRequest(
                 source,
                 ActionListener.wrap(resultStream -> resultStream.publisher().subscribe(subscriber), startError::set),
-                false,
-                between(1, 10)
+                false
             )
         );
         future.actionGet(TimeValue.timeValueSeconds(30));

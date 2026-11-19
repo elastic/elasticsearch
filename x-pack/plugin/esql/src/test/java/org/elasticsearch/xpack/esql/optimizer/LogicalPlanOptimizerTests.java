@@ -66,6 +66,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SummationMode;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Score;
@@ -8023,6 +8024,163 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(lastOverTime.filter(), instanceOf(Equals.class));
     }
 
+    /**
+     * The inline filter of an expression combining several aggregates is pushed onto each nested aggregate. It must end up on the
+     * per-time-series aggregates only, since the dimensions it references are not available after the first pass.
+     */
+    public void testTranslateWithInlineFilterOnExpressionOfAggregates() {
+        var query = """
+            TS k8s
+            | STATS max(last_over_time(network.bytes_in)) - min(last_over_time(network.bytes_in))
+                WHERE starts_with(cluster, "p") OR cluster IN ("qa", "staging")
+                BY bucket(@timestamp, 1 minute)
+            | LIMIT 10
+            """;
+        var plan = planMetrics(query);
+
+        List<AggregateFunction> secondPassAggs = new ArrayList<>();
+        List<LastOverTime> firstPassAggs = new ArrayList<>();
+        plan.forEachDown(Aggregate.class, agg -> {
+            if (agg instanceof TimeSeriesAggregate tsAgg) {
+                tsAgg.forEachExpression(LastOverTime.class, firstPassAggs::add);
+            } else {
+                agg.forEachExpression(AggregateFunction.class, secondPassAggs::add);
+            }
+        });
+        assertThat(secondPassAggs, hasSize(2));
+        for (AggregateFunction secondPassAgg : secondPassAggs) {
+            assertFalse("second pass aggregate must not keep the filter: " + secondPassAgg, secondPassAgg.hasFilter());
+        }
+        assertThat(firstPassAggs, hasSize(1));
+        assertThat(firstPassAggs.get(0).filter(), instanceOf(Or.class));
+    }
+
+    /**
+     * Filtered and unfiltered aggregates, each inside a scalar expression, in one {@code STATS}. Only the per-time-series aggregates
+     * of the filtered expressions keep the filter. See https://github.com/elastic/elasticsearch/issues/166160.
+     */
+    public void testTranslateWithMixedInlineFiltersOnWrappedAggregates() {
+        var plan = planMetrics("""
+            TS k8s
+            | STATS a = MAX(MAX_OVER_TIME(network.bytes_in)) * 8 WHERE event == "foo",
+                    b = MAX(MAX_OVER_TIME(network.cost)) * 8,
+                    c = MAX(MAX_OVER_TIME(network.eth0.rx)) * 8,
+                    d = MAX(MAX_OVER_TIME(network.eth0.tx)) * 8 WHERE event == "foo"
+              BY TBUCKET(1 minute)
+            """);
+
+        List<AggregateFunction> secondPassAggs = new ArrayList<>();
+        Map<String, Expression> firstPassFilters = new HashMap<>();
+        plan.forEachDown(Aggregate.class, agg -> {
+            if (agg instanceof TimeSeriesAggregate tsAgg) {
+                // The optimizer replaces MAX_OVER_TIME with MAX in the first pass
+                tsAgg.forEachExpression(Max.class, m -> firstPassFilters.put(Expressions.name(m.fields().getFirst()), m.filter()));
+            } else {
+                agg.forEachExpression(AggregateFunction.class, secondPassAggs::add);
+            }
+        });
+        assertThat(secondPassAggs, hasSize(4));
+        for (AggregateFunction secondPassAgg : secondPassAggs) {
+            assertFalse("second pass aggregate must not keep the filter: " + secondPassAgg, secondPassAgg.hasFilter());
+        }
+        assertThat(firstPassFilters.keySet(), containsInAnyOrder("network.bytes_in", "network.cost", "network.eth0.rx", "network.eth0.tx"));
+        assertThat(firstPassFilters.get("network.bytes_in"), instanceOf(Equals.class));
+        assertThat(firstPassFilters.get("network.cost"), equalTo(Literal.TRUE));
+        assertThat(firstPassFilters.get("network.eth0.rx"), equalTo(Literal.TRUE));
+        assertThat(firstPassFilters.get("network.eth0.tx"), instanceOf(Equals.class));
+    }
+
+    /**
+     * {@code LATEST} and {@code EARLIEST} read the implicit {@code @timestamp}, which the second pass cannot see. The first pass must
+     * aggregate it per time series with the same functions as {@code LAST} and {@code FIRST}. See
+     * https://github.com/elastic/elasticsearch/issues/154299 and https://github.com/elastic/elasticsearch/issues/157757.
+     */
+    public void testTranslateLatestAndEarliest() {
+        var plan = planMetrics("""
+            TS k8s
+            | WHERE cluster IS NOT NULL AND cluster != "" AND network.eth0.tx IS NOT NULL
+            | STATS l = LATEST(network.eth0.tx), e = EARLIEST(network.eth0.tx) BY pod
+            """);
+
+        List<TimeSeriesAggregate> firstPass = plan.collect(TimeSeriesAggregate.class);
+        assertThat(firstPass, hasSize(1));
+        List<String> firstPassAggs = new ArrayList<>();
+        for (NamedExpression agg : firstPass.get(0).aggregates()) {
+            if (Alias.unwrap(agg) instanceof AggregateFunction af) {
+                firstPassAggs.add(af.getClass().getSimpleName() + "(" + Expressions.name(af.fields().getFirst()) + ")");
+            }
+        }
+        // The optimizer replaces MAX_OVER_TIME and MIN_OVER_TIME with MAX and MIN in the first pass
+        assertThat(
+            firstPassAggs,
+            hasItems("LastOverTime(network.eth0.tx)", "Max(@timestamp)", "FirstOverTime(network.eth0.tx)", "Min(@timestamp)")
+        );
+        assertThat(firstPassAggs, not(hasItem("LastOverTime(@timestamp)")));
+    }
+
+    /**
+     * Grouping by {@code _tsid} matches the per-time-series grouping of the first pass, so the second pass must regroup on the
+     * first-pass {@code _tsid} rather than on a {@code VALUES(_tsid)} that reuses its id.
+     */
+    public void testTranslateStatsByTsidWithAggregate() {
+        var plan = planMetrics("""
+            TS k8s METADATA _tsid
+            | STATS bytes = max(last_over_time(network.bytes_in)) BY _tsid
+            | STATS c = COUNT(*), bytes = max(bytes)
+            """);
+
+        List<TimeSeriesAggregate> firstPass = new ArrayList<>();
+        plan.forEachDown(TimeSeriesAggregate.class, firstPass::add);
+        assertThat(firstPass, hasSize(1));
+        TimeSeriesAggregate aggsByTsid = firstPass.get(0);
+        assertThat(aggsByTsid.groupings(), hasSize(1));
+        Attribute tsid = as(aggsByTsid.groupings().get(0), MetadataAttribute.class);
+        assertThat(tsid.name(), equalTo(MetadataAttribute.TSID_FIELD));
+        aggsByTsid.forEachExpression(Values.class, values -> fail("first pass must not wrap _tsid in VALUES: " + values));
+
+        List<Aggregate> secondPass = new ArrayList<>();
+        plan.forEachDown(Aggregate.class, agg -> {
+            if (agg instanceof TimeSeriesAggregate == false && agg.groupings().isEmpty() == false) {
+                secondPass.add(agg);
+            }
+        });
+        assertThat(secondPass, hasSize(1));
+        assertThat(secondPass.get(0).groupings(), hasSize(1));
+        assertThat(Expressions.attribute(Alias.unwrap(secondPass.get(0).groupings().get(0))).id(), equalTo(tsid.id()));
+    }
+
+    /**
+     * A {@code STATS} without aggregate functions that groups only by {@code _tsid} already yields one row per time series, so it is
+     * planned as a single regular aggregation over a standard relation, as if the query started with {@code FROM}.
+     */
+    public void testTranslateStatsByTsidWithoutAggregatesUsesSinglePass() {
+        var plan = planMetrics("""
+            TS k8s METADATA _tsid
+            | STATS BY _tsid
+            | STATS c = COUNT(*)
+            """);
+
+        plan.forEachDown(TimeSeriesAggregate.class, agg -> fail("expected no time-series aggregate: " + agg));
+        plan.forEachExpressionDown(Values.class, values -> fail("_tsid must not be wrapped in VALUES: " + values));
+
+        List<Aggregate> groupedAggs = new ArrayList<>();
+        plan.forEachDown(Aggregate.class, agg -> {
+            if (agg.groupings().isEmpty() == false) {
+                groupedAggs.add(agg);
+            }
+        });
+        assertThat(groupedAggs, hasSize(1));
+        Aggregate byTsid = groupedAggs.get(0);
+        assertThat(byTsid.groupings(), hasSize(1));
+        Attribute tsid = as(byTsid.groupings().get(0), MetadataAttribute.class);
+        assertThat(tsid.name(), equalTo(MetadataAttribute.TSID_FIELD));
+
+        List<EsRelation> relations = plan.collect(EsRelation.class);
+        assertThat(relations, hasSize(1));
+        assertThat(relations.get(0).indexMode(), equalTo(IndexMode.STANDARD));
+        assertThat(relations.get(0).output(), hasItem(tsid));
+    }
+
     public void testTranslateWithDateTrunc() {
         var query = randomFrom("""
             TS k8s
@@ -8688,6 +8846,50 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertTrue(rateHolder.get().hasWindow());
         assertFalse(rateHolder.get().hasFilter());
         assertThat(rateHolder.get().window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(7)));
+    }
+
+    public void testAggregateWindowMustBeConstantTimeDuration() {
+        // Nested agg / field windows are not foldable constants (#159176).
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> planMetrics("TS k8s | STATS AVG(RATE(network.total_bytes_in, RATE(network.total_bytes_in))) BY TBUCKET(1h)")
+        );
+        assertThat(e.getMessage(), containsString("must be a constant [time_duration]"));
+
+        e = expectThrows(
+            VerificationException.class,
+            () -> planMetrics("TS k8s | STATS AVG(RATE(network.total_bytes_in, client.ip)) BY TBUCKET(1h)")
+        );
+        assertThat(e.getMessage(), containsString("must be a constant [time_duration]"));
+
+        // Integer is foldable but not time_duration.
+        e = expectThrows(
+            VerificationException.class,
+            () -> planMetrics("TS k8s | STATS AVG(RATE(network.total_bytes_in, 10)) BY TBUCKET(1h)")
+        );
+        assertThat(e.getMessage(), containsString("must be [time_duration]"));
+        assertThat(e.getMessage(), containsString("type [integer]"));
+
+        // date_period (e.g. 1 day) is invalid; suggest a fixed duration instead.
+        e = expectThrows(
+            VerificationException.class,
+            () -> planMetrics("TS k8s | STATS AVG(RATE(network.total_bytes_in, 1 day)) BY TBUCKET(1h)")
+        );
+        assertThat(e.getMessage(), containsString("must be [time_duration]"));
+        assertThat(e.getMessage(), containsString("type [date_period]"));
+        assertThat(e.getMessage(), containsString("24 hours"));
+
+        // Same window rules apply beyond RATE.
+        e = expectThrows(
+            VerificationException.class,
+            () -> planMetrics("TS k8s | STATS MAX(MAX_OVER_TIME(network.cost, 1 day)) BY TBUCKET(1h)")
+        );
+        assertThat(e.getMessage(), containsString("must be [time_duration]"));
+        assertThat(e.getMessage(), containsString("type [date_period]"));
+
+        e = expectThrows(VerificationException.class, () -> planMetrics("TS k8s | STATS MAX(DELTA(network.cost, 10)) BY TBUCKET(1h)"));
+        assertThat(e.getMessage(), containsString("must be [time_duration]"));
+        assertThat(e.getMessage(), containsString("type [integer]"));
     }
 
     public void testMvSortInvalidOrder() {
@@ -10221,6 +10423,17 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         Exception e = expectThrows(VerificationException.class, () -> logicalOptimizer.optimize(defaultAnalyzer().query(query)));
         assertThat(e.getMessage(), containsString("has non-literal value [scale]"));
+    }
+
+    public void testDecayInvalidScaleFailsVerification() {
+        var query = """
+            FROM employees
+            | EVAL decay_result = decay(salary, 0, 0)
+            | KEEP decay_result
+            | LIMIT 5""";
+
+        Exception e = expectThrows(VerificationException.class, () -> logicalOptimizer.optimize(defaultAnalyzer().query(query)));
+        assertThat(e.getMessage(), containsString("[scale] must be a finite number greater than 0, found [0.0]"));
     }
 
     /**

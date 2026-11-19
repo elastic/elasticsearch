@@ -35,6 +35,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -47,6 +48,7 @@ import org.elasticsearch.index.store.DirectoryMetricsTests;
 import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.search.SearchResponseMetrics;
+import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
@@ -91,7 +93,6 @@ import static org.elasticsearch.action.search.AbstractSearchAsyncAction.ALL_SHAR
 import static org.elasticsearch.action.search.AbstractSearchAsyncAction.INTERNAL_PARTIAL_RESULTS_CANCEL_REASON;
 import static org.elasticsearch.rest.action.search.SearchResponseMetrics.CACHE_MISS_WAIT_HISTOGRAM_NAME;
 import static org.elasticsearch.rest.action.search.SearchResponseMetrics.STORE_BYTES_READ_HISTOGRAM_NAME;
-import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyArray;
@@ -363,7 +364,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         assertThat(exception.get(), instanceOf(SearchPhaseExecutionException.class));
         SearchPhaseExecutionException searchPhaseExecutionException = (SearchPhaseExecutionException) exception.get();
         assertEquals(0, searchPhaseExecutionException.getSuppressed().length);
-        assertEquals(numFailures, searchPhaseExecutionException.shardFailures().length);
+        assertEquals(numFailures, searchPhaseExecutionException.shardFailures().size());
         for (ShardSearchFailure shardSearchFailure : searchPhaseExecutionException.shardFailures()) {
             assertThat(shardSearchFailure.getCause(), instanceOf(IllegalArgumentException.class));
         }
@@ -384,7 +385,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         SearchPhaseExecutionException searchPhaseExecutionException = (SearchPhaseExecutionException) exception.get();
         assertEquals("message", searchPhaseExecutionException.getMessage());
         assertEquals("test", searchPhaseExecutionException.getPhaseName());
-        assertEquals(0, searchPhaseExecutionException.shardFailures().length);
+        assertEquals(0, searchPhaseExecutionException.shardFailures().size());
         assertEquals(0, searchPhaseExecutionException.getSuppressed().length);
         assertEquals(nodeLookups, resolvedNodes);
         assertEquals(requestIds, releasedContexts);
@@ -418,7 +419,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         SearchPhaseExecutionException searchPhaseExecutionException = (SearchPhaseExecutionException) exception.get();
         assertEquals("Partial shards failure (" + (numShards - 1) + " shards unavailable)", searchPhaseExecutionException.getMessage());
         assertEquals("query", searchPhaseExecutionException.getPhaseName());
-        assertEquals(0, searchPhaseExecutionException.shardFailures().length);
+        assertEquals(0, searchPhaseExecutionException.shardFailures().size());
         assertEquals(0, searchPhaseExecutionException.getSuppressed().length);
     }
 
@@ -564,13 +565,13 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
 
             action.doRun(Map.of(shardIt, 0, other, 1));
 
-            final ShardSearchFailure[] failures = action.buildShardFailures();
-            assertThat(failures, arrayWithSize(2));
-            final var restoringFailure = Arrays.stream(failures).filter(f -> f.shard().getShardId().equals(restoring.shardId())).findAny();
+            List<ShardSearchFailure> failures = action.buildShardFailures();
+            assertThat(failures, hasSize(2));
+            final var restoringFailure = failures.stream().filter(f -> f.shard().getShardId().equals(restoring.shardId())).findAny();
             assertTrue(restoringFailure.isPresent());
             assertThat(restoringFailure.get().getCause(), instanceOf(ShardRestoringException.class));
             assertThat(restoringFailure.get().status(), equalTo(RestStatus.FORBIDDEN));
-            final var otherFailure = Arrays.stream(failures).filter(f -> f.shard().getShardId().equals(other.shardId())).findAny();
+            final var otherFailure = failures.stream().filter(f -> f.shard().getShardId().equals(other.shardId())).findAny();
             assertTrue(otherFailure.isPresent());
             assertThat(otherFailure.get().getCause(), instanceOf(NoShardAvailableActionException.class));
             assertThat(otherFailure.get().status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
@@ -595,11 +596,11 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             action.onShardFailure(0, target, new ShardRestoringException("index", randomUUID()));
             action.onShardFailure(1, target, new ShardNotFoundException(shardId));
 
-            final ShardSearchFailure[] failures = action.buildShardFailures();
-            assertThat(failures[0].getCause(), instanceOf(ShardRestoringException.class));
-            assertThat(failures[0].status(), equalTo(RestStatus.FORBIDDEN));
-            assertThat(failures[1].getCause(), instanceOf(NoShardAvailableActionException.class));
-            assertThat(failures[1].status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+            List<ShardSearchFailure> failures = action.buildShardFailures();
+            assertThat(failures.get(0).getCause(), instanceOf(ShardRestoringException.class));
+            assertThat(failures.get(0).status(), equalTo(RestStatus.FORBIDDEN));
+            assertThat(failures.get(1).getCause(), instanceOf(NoShardAvailableActionException.class));
+            assertThat(failures.get(1).status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
         }
     }
 
@@ -619,7 +620,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             )
         );
         PointInTimeBuilder pointInTimeBuilder = new PointInTimeBuilder(
-            SearchContextId.encode(originalShardIdMap, Collections.emptyMap(), TransportVersion.current(), ShardSearchFailure.EMPTY_ARRAY)
+            SearchContextId.encode(originalShardIdMap, Collections.emptyMap(), TransportVersion.current(), List.of())
         );
 
         final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
@@ -858,6 +859,56 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         assertFalse("onShardGroupFailure must not fire when retrying", groupFailureFired.get());
     }
 
+    public void testMissingContextIsRetriedOnlyForRetryableContextIds() {
+        var retryableContextId = new ShardSearchContextId(UUIDs.randomBase64UUID(), randomNonNegativeLong(), UUIDs.randomBase64UUID());
+        assertTrue("the context may exist on another copy", retriesAfterMissingContext(retryableContextId, false));
+        assertFalse("there is no other copy left", retriesAfterMissingContext(retryableContextId, true));
+        assertFalse("no context id", retriesAfterMissingContext(null, false));
+        var nonRetryableContextId = new ShardSearchContextId(UUIDs.randomBase64UUID(), randomNonNegativeLong());
+        assertFalse("the context cannot be rebuilt on another copy", retriesAfterMissingContext(nonRetryableContextId, false));
+    }
+
+    /**
+     * Fails the first (or, with {@code failOnLastCopy}, the second and last) of two copies of a shard with a
+     * {@link SearchContextMissingException} and returns whether the other copy is tried.
+     */
+    private boolean retriesAfterMissingContext(ShardSearchContextId contextId, boolean failOnLastCopy) {
+        SearchShardIterator shardIt = new SearchShardIterator(
+            null,
+            new ShardId("index", "_na_", 0),
+            List.of("node1", "node2"),
+            null,
+            contextId,
+            contextId == null ? null : TimeValue.timeValueMinutes(1),
+            false,
+            false,
+            SplitShardCountSummary.UNSET
+        );
+        SearchShardTarget target = shardIt.nextOrNull();
+        if (failOnLastCopy) {
+            target = shardIt.nextOrNull();
+        }
+        AtomicInteger retryCount = new AtomicInteger();
+        AtomicBoolean groupFailureFired = new AtomicBoolean();
+        try (ArraySearchPhaseResults<SearchPhaseResult> phaseResults = new ArraySearchPhaseResults<>(1)) {
+            AbstractSearchAsyncAction<SearchPhaseResult> action = createRetryTrackingAction(
+                new SearchRequest().allowPartialSearchResults(true),
+                phaseResults,
+                retryCount,
+                groupFailureFired
+            );
+            var missingContext = new SearchContextMissingException(
+                new ShardSearchContextId(UUIDs.randomBase64UUID(), randomNonNegativeLong())
+            );
+            action.onShardFailure(0, target, shardIt, missingContext);
+        } finally {
+            // createAction starts a new thread pool and transport service on every call, and only the last ones are closed after the test
+            cleanTransportService();
+        }
+        assertEquals("the shard fails exactly when it is not retried", retryCount.get() == 0, groupFailureFired.get());
+        return retryCount.get() > 0;
+    }
+
     public void testOnShardFailure_IgnoresInternalTaskCancelledException() {
         SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(false);
         AtomicReference<Exception> exception = new AtomicReference<>();
@@ -899,8 +950,8 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         SearchPhaseExecutionException searchPhaseExecutionException = (SearchPhaseExecutionException) exception.get();
         assertThat(searchPhaseExecutionException.getSuppressed(), emptyArray());
         // Confirm that we include the non-TaskCancelledException and use the appropriate status code
-        assertThat(searchPhaseExecutionException.shardFailures(), arrayWithSize(1));
-        assertThat(searchPhaseExecutionException.shardFailures()[0].getCause(), equalTo(nonInternalException));
+        assertThat(searchPhaseExecutionException.shardFailures(), hasSize(1));
+        assertThat(searchPhaseExecutionException.shardFailures().getFirst().getCause(), equalTo(nonInternalException));
         assertThat(searchPhaseExecutionException.getMessage(), containsString("Partial shards failure"));
         assertThat(searchPhaseExecutionException.status(), equalTo(ExceptionsHelper.status(nonInternalException)));
         assertEquals(nodeLookups, resolvedNodes);
@@ -944,8 +995,8 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         SearchPhaseExecutionException searchPhaseExecutionException = (SearchPhaseExecutionException) exception.get();
         assertThat(searchPhaseExecutionException.getSuppressed(), emptyArray());
         // Confirm that we include only the first non-internal TaskCancelledException and use its status code
-        assertThat(searchPhaseExecutionException.shardFailures(), arrayWithSize(1));
-        assertThat(searchPhaseExecutionException.shardFailures()[0].getCause(), equalTo(nonInternalCancel.get()));
+        assertThat(searchPhaseExecutionException.shardFailures(), hasSize(1));
+        assertThat(searchPhaseExecutionException.shardFailures().getFirst().getCause(), equalTo(nonInternalCancel.get()));
         assertThat(searchPhaseExecutionException.getMessage(), containsString("Partial shards failure"));
         assertThat(searchPhaseExecutionException.status(), equalTo(nonInternalCancel.get().status()));
         assertEquals(nodeLookups, resolvedNodes);
@@ -1001,7 +1052,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         assertThat(exception.get(), instanceOf(SearchPhaseExecutionException.class));
         SearchPhaseExecutionException searchPhaseExecutionException = (SearchPhaseExecutionException) exception.get();
         assertThat(searchPhaseExecutionException.getSuppressed(), emptyArray());
-        assertThat(searchPhaseExecutionException.shardFailures(), emptyArray());
+        assertThat(searchPhaseExecutionException.shardFailures(), empty());
         // Confirm that the placeholder exception is used as the cause and that the status is INTERNAL_SERVER_ERROR
         assertThat(searchPhaseExecutionException.getCause().getMessage(), equalTo(ALL_SHARDS_FAILED_DUE_TO_INTERNAL_CANCEL));
         assertThat(searchPhaseExecutionException.getMessage(), containsString(ALL_SHARDS_FAILED_DUE_TO_INTERNAL_CANCEL));

@@ -971,6 +971,60 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
     }
 
     /**
+     * The same mapping as {@link #testPropagateUnsupportedToSubFields}, with a query that names only the sub-field: its parent is not
+     * one of the query's fields, so the sub-field keeps its own type.
+     */
+    public void testSubFieldOfUnsupportedFieldNamedAlone() throws IOException {
+        assumeOriginalTypesReported();
+        boolean keys = clusterHasCapability(EsqlCapabilities.Cap.FLATTENED_KEYS);
+        boolean parentPaths = clusterHasCapability(EsqlCapabilities.Cap.PARENT_PATHS_ARE_NOT_FIELDS);
+        List<String> modes = new ArrayList<>();
+        // Without keys only load asks for parent paths
+        if (keys == false || parentPaths) {
+            modes.add("");
+            if (clusterHasCapability(EsqlCapabilities.Cap.OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW)) {
+                modes.add("SET unmapped_fields=\"nullify\"; ");
+            }
+        }
+        if (parentPaths) {
+            modes.add("SET unmapped_fields=\"load\"; ");
+            if (clusterHasCapability(EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2)) {
+                modes.add("SET unmapped_fields=\"load_all\"; ");
+            }
+        }
+        assumeFalse("a parent path is a field of the query in every mode", modes.isEmpty());
+        createIndex("test", index -> {
+            index.startObject("properties");
+            index.startObject("f");
+            {
+                index.field("type", "ip_range");
+                index.startObject("fields");
+                {
+                    index.startObject("raw").field("type", "keyword").endObject();
+                }
+                index.endObject();
+            }
+            index.endObject();
+            index.endObject();
+        });
+        index("test", """
+            {"f": "192.168.0.1/24"}""");
+
+        for (String mode : modes) {
+            assertResultMap(
+                runEsql(mode + "FROM test* | KEEP f.raw | LIMIT 2"),
+                List.of(columnInfo("f.raw", "keyword")),
+                List.of(matchesList().item("192.168.0.1/24"))
+            );
+            assertResultMap(
+                runEsql(mode + "FROM test* | WHERE f.raw == \"192.168.0.1/24\" | KEEP f.raw | LIMIT 2"),
+                List.of(columnInfo("f.raw", "keyword")),
+                List.of(matchesList().item("192.168.0.1/24"))
+            );
+        }
+    }
+
+    /**
      * Two indices, one with:
      * <pre>
      * "f": {
@@ -1632,6 +1686,10 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
             "This test makes sense for versions that have the fix for https://github.com/elastic/elasticsearch/issues/117054",
             requiredClusterCapability
         );
+    }
+
+    private boolean clusterHasCapability(EsqlCapabilities.Cap cap) throws IOException {
+        return clusterHasCapability("POST", "/_query", List.of(), List.of(cap.name().toLowerCase(Locale.ROOT))).orElse(false);
     }
 
     private void assumeOriginalTypesReported() throws IOException {

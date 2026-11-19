@@ -116,6 +116,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -268,6 +269,26 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             layout.append(attr);
         }
         var fields = extractFields(fieldExtractExec);
+        int docSequenceThreshold = context.queryPragmas()
+            .docSequenceBytesRefFieldThreshold(plannerSettings.docSequenceBytesRefFieldThreshold());
+        return source.with(valuesSourceReader(fields, docChannel, docSequenceThreshold), layout.build());
+    }
+
+    /**
+     * Loads {@code attributes} for the documents in channel {@code docChannel}, outside a plan, the way
+     * {@link #fieldExtractPhysicalOperation} loads them without an extraction preference. The fetch phase loads the
+     * fetched columns of the documents a fetch request names with it.
+     */
+    public ValuesSourceReaderOperator.Factory valuesSourceReader(List<Attribute> attributes, int docChannel) {
+        var fields = extractFields(attributes, attr -> MappedFieldType.FieldExtractPreference.NONE, Set.of());
+        return valuesSourceReader(fields, docChannel, plannerSettings.docSequenceBytesRefFieldThreshold());
+    }
+
+    private ValuesSourceReaderOperator.Factory valuesSourceReader(
+        List<ValuesSourceReaderOperator.FieldInfo> fields,
+        int docChannel,
+        int docSequenceThreshold
+    ) {
         IndexedByShardId<ValuesSourceReaderOperator.ShardContext> readers = shardContexts.map(
             s -> new ValuesSourceReaderOperator.ShardContext(
                 s.searcher().getIndexReader(),
@@ -275,21 +296,15 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 s.storedFieldsSequentialProportion()
             )
         );
-        boolean reuseColumnLoaders = fieldExtractExec.attributesToExtract().size() <= plannerSettings.reuseColumnLoadersThreshold();
-        int docSequenceThreshold = context.queryPragmas()
-            .docSequenceBytesRefFieldThreshold(plannerSettings.docSequenceBytesRefFieldThreshold());
-        return source.with(
-            new ValuesSourceReaderOperator.Factory(
-                plannerSettings.valuesLoadingJumboSize(),
-                fields,
-                readers,
-                reuseColumnLoaders,
-                docChannel,
-                plannerSettings.sourceReservationFactor(),
-                docSequenceThreshold,
-                directoryBytesRead
-            ),
-            layout.build()
+        return new ValuesSourceReaderOperator.Factory(
+            plannerSettings.valuesLoadingJumboSize(),
+            fields,
+            readers,
+            fields.size() <= plannerSettings.reuseColumnLoadersThreshold(),
+            docChannel,
+            plannerSettings.sourceReservationFactor(),
+            docSequenceThreshold,
+            directoryBytesRead
         );
     }
 
@@ -665,17 +680,29 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         List<Attribute> attributes,
         Function<Attribute, MappedFieldType.FieldExtractPreference> fieldExtractPreference
     ) {
-        List<ValuesSourceReaderOperator.FieldInfo> fieldInfos = new ArrayList<>(attributes.size());
         Set<String> nullsFilteredFields = new HashSet<>();
         planForNullsFilter.forEachDown(
             EsQueryExec.class,
             queryExec -> nullsFilteredFields.addAll(nullsFilteredFieldsAfterSourceQueries(queryExec.queryBuilderAndTags()))
         );
+        return extractFields(attributes, fieldExtractPreference, nullsFilteredFields);
+    }
+
+    /**
+     * @param nullsFilteredFields the fields whose nulls a query of the plan filtered out already
+     */
+    private List<ValuesSourceReaderOperator.FieldInfo> extractFields(
+        List<Attribute> attributes,
+        Function<Attribute, MappedFieldType.FieldExtractPreference> fieldExtractPreference,
+        Set<String> nullsFilteredFields
+    ) {
+        List<ValuesSourceReaderOperator.FieldInfo> fieldInfos = new ArrayList<>(attributes.size());
         UnmappedFields.Walk unmappedFieldsWalk = unmappedFieldsWalk(attributes);
         for (Attribute attr : attributes) {
             DataType dataType = attr.dataType();
             var preference = fieldExtractPreference.apply(attr);
             ElementType elementType = PlannerUtils.toElementType(dataType, preference);
+            // Called concurrently by every driver on this node, on the attributes of the plan they share (see BuildLoader)
             ValuesSourceReaderOperator.BuildLoader buildLoader = (driverContext, s) -> blockLoaderAndConverter(
                 driverContext,
                 s,
@@ -843,8 +870,19 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         /** The walk of {@code _source} that the fields one extraction reads from it share, or {@code null} for a walk each. */
         @Nullable
         private final UnmappedFields.Walk sourceWalk;
+        private final LongAdder rowsEmitted;
 
         public DefaultShardContext(int index, Releasable releasable, SearchExecutionContext ctx, AliasFilter aliasFilter) {
+            this(index, releasable, ctx, aliasFilter, new LongAdder());
+        }
+
+        public DefaultShardContext(
+            int index,
+            Releasable releasable,
+            SearchExecutionContext ctx,
+            AliasFilter aliasFilter,
+            LongAdder rowsEmitted
+        ) {
             this.index = index;
             this.releasable = releasable;
             this.ctx = ctx;
@@ -853,6 +891,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             this.shardIdentifier = this.ctx.getFullyQualifiedIndex().getName() + ":" + this.ctx.getShardId();
             this.shardSearchStats = ctx.stats();
             this.sourceWalk = null;
+            this.rowsEmitted = rowsEmitted;
         }
 
         private DefaultShardContext(DefaultShardContext context, UnmappedFields.Walk sourceWalk) {
@@ -863,6 +902,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             this.shardIdentifier = context.shardIdentifier;
             this.shardSearchStats = context.shardSearchStats;
             this.sourceWalk = sourceWalk;
+            this.rowsEmitted = context.rowsEmitted;
         }
 
         /** This context, reading the fields it reads from {@code _source} through {@code sourceWalk} when it reads them. */
@@ -1031,6 +1071,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         @Override
         public ShardSearchStats stats() {
             return shardSearchStats;
+        }
+
+        @Override
+        public void addRowsEmitted(long rows) {
+            rowsEmitted.add(rows);
         }
 
         @Override

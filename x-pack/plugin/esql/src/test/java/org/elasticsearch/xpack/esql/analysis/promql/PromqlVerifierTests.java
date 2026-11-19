@@ -11,6 +11,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -23,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.AbstractTimeSeriesMetadataFunction;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslatePromqlToEsqlPlan;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlAstTests;
@@ -61,6 +63,14 @@ public class PromqlVerifierTests extends ESTestCase {
     private final TestAnalyzer tsdb = analyzer().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
         .stripErrorPrefix(true)
         .unmappedResolution(UnmappedResolution.NULLIFY);
+
+    /** A cluster with a node that does not know the label container functions, which still rejects the shapes that take them. */
+    private final TestAnalyzer mixedTsdb = analyzer().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
+        .stripErrorPrefix(true)
+        .unmappedResolution(UnmappedResolution.NULLIFY)
+        .minimumTransportVersion(
+            TransportVersionUtils.getPreviousVersion(AbstractTimeSeriesMetadataFunction.ESQL_TIMESERIES_METADATA_FUNCTIONS)
+        );
 
     public void testPredictLinearArguments() {
         tsdb.error(
@@ -567,7 +577,7 @@ public class PromqlVerifierTests extends ESTestCase {
                 "limit_ratio(0.5, network.bytes_in)",
                 "sum without (host) (network.bytes_in)"
             )) {
-                tsdb.error(
+                mixedTsdb.error(
                     "PROMQL index=test step=5m " + function + buckets + ")",
                     containsString(
                         "over topk, bottomk, limitk, limit_ratio or a WITHOUT aggregate is not supported at this time "
@@ -597,8 +607,12 @@ public class PromqlVerifierTests extends ESTestCase {
 
     /** A native histogram aggregated with {@code without} is rejected like classic buckets are. */
     public void testNativeHistogramOverWithoutIsRejected() {
+        // Only where a node does not know the label container functions.
         TestAnalyzer nativeHistograms = analyzer().addIndex("exp_histo", "exp_histo_sample-mappings.json", IndexMode.TIME_SERIES)
-            .stripErrorPrefix(true);
+            .stripErrorPrefix(true)
+            .minimumTransportVersion(
+                TransportVersionUtils.getPreviousVersion(AbstractTimeSeriesMetadataFunction.ESQL_TIMESERIES_METADATA_FUNCTIONS)
+            );
         for (String rejected : List.of(
             "histogram_quantile(0.5, sum without (instance) (responseTime))",
             "histogram_fraction(0, 0.2, sum without (instance) (responseTime))"
@@ -667,28 +681,13 @@ public class PromqlVerifierTests extends ESTestCase {
         );
     }
 
-    public void testSortRejectedBelowValueTransformation() {
-        tsdb.error(
-            "PROMQL index=test step=5m abs(sort(network.bytes_in))",
-            containsString("[sort] is only supported at the top-level at this time")
-        );
+    /** Below the top level a sort passes its input through, as in Prometheus. */
+    public void testSortBelowTopLevelResolves() {
+        for (String query : List.of("abs(sort(network.bytes_in))", "sum(sort_desc(network.bytes_in))", "topk(1, sort(network.bytes_in))")) {
+            assertTrue(query, tsdb.query("PROMQL index=test time=\"2025-10-31T00:00:00Z\" " + query).resolved());
+        }
     }
 
-    public void testSortDescRejectedBelowAggregate() {
-        tsdb.error(
-            "PROMQL index=test step=5m sum(sort_desc(network.bytes_in))",
-            containsString("[sort_desc] is only supported at the top-level at this time")
-        );
-    }
-
-    public void testSortRejectedBelowReduction() {
-        tsdb.error(
-            "PROMQL index=test step=5m topk(1, sort(network.bytes_in))",
-            containsString("[sort] is only supported at the top-level at this time")
-        );
-    }
-
-    /** The outermost position is the supported one: only an enclosing function makes a sort unreachable. */
     public void testSortAtTopLevelWrappingAnotherFunctionResolves() {
         assertTrue(tsdb.query("PROMQL index=test time=\"2025-10-31T00:00:00Z\" sort(abs(network.bytes_in))").resolved());
     }

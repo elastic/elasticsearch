@@ -378,7 +378,7 @@ public class CsvLogicalRecordReaderTests extends ESTestCase {
     }
 
     public void testRecordTooLargeInBracketIgnoresAQuoteInsideTheBracket() throws IOException {
-        String input = "ok,1\n" + "[" + "x".repeat(30) + "\"\n\"],2\n" + "fin,3\n";
+        String input = "ok,1\n" + "[" + "x".repeat(30) + "\"\n],2\n" + "fin,3\n";
         assertBracketAwareDrainsToFin(newCappedReader(input, 20), input);
     }
 
@@ -411,8 +411,7 @@ public class CsvLogicalRecordReaderTests extends ESTestCase {
         assertEquals("ok,1", reader.readRecord(true));
         expectThrows(CsvRecordTooLargeException.class, () -> reader.readRecord(true));
         assertEquals((long) input.indexOf("\"ok\nline"), reader.bytesRead());
-        String multiLine = reader.readRecord(true);
-        assertTrue(multiLine, multiLine.contains("ok\nline"));
+        assertEquals("\"ok\nline\",2", reader.readRecord(true));
         assertEquals("fin,3", reader.readRecord(true));
     }
 

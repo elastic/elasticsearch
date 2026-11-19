@@ -109,15 +109,26 @@ public class MergeBlobTests extends AbstractWireSerializingTestCase<MergeBlob> {
         assertThat(read, instanceOf(MergeBlob.class));
     }
 
-    /// Reading a [BlobFile] where a [MergeBlob] is expected must fail cleanly. The opposite case is tested in [BlobFileTests].
-    public void testReadRejectsBlobFileName() {
-        var blobFile = new BlobFile(BatchedCompoundCommit.blobNameFromGeneration(randomNonZeroPositiveLong()), randomNonNegativeLong());
+    /// Reading a [BccBlob] where a [MergeBlob] is expected must fail cleanly. The opposite case is tested in [BccBlobTests].
+    public void testReadRejectsBccBlobFileName() {
+        var blobFile = new BccBlob(BatchedCompoundCommit.blobNameFromGeneration(randomNonZeroPositiveLong()), randomNonNegativeLong());
         Writeable.Reader<Writeable> reader = in -> Blob.reader(MergeBlob.class).read(in);
         var exception = expectThrows(
             IOException.class,
             () -> copyWriteable(blobFile, writableRegistry(), reader, TransportVersionUtils.randomCompatibleVersion())
         );
-        assertThat(exception.getMessage(), containsString("expected a [MergeBlob] but blob [" + blobFile.blobName() + "] is a [BlobFile]"));
+        assertThat(
+            exception.getMessage(),
+            containsString(
+                "expected a ["
+                    + MergeBlob.class.getSimpleName()
+                    + "] but blob ["
+                    + blobFile.blobName()
+                    + "] is a ["
+                    + blobFile.getClass().getSimpleName()
+                    + ']'
+            )
+        );
     }
 
     public void testReadRejectsMalformedBlobName() {

@@ -62,6 +62,8 @@ import static org.mockito.Mockito.when;
 
 public class DatafeedJobBuilderTests extends ESTestCase {
 
+    private static final String AGGREGATING_ESQL_QUERY = "FROM logs | STATS c = COUNT(*) BY b = BUCKET(@timestamp, 1 hour)";
+
     private Client client;
     private AnomalyDetectionAuditor auditor;
     private AnnotationPersister annotationPersister;
@@ -292,6 +294,73 @@ public class DatafeedJobBuilderTests extends ESTestCase {
 
         buildDatafeedJob(newDatafeedTask("datafeed1"), datafeedContext, datafeedJobHandler);
         assertBusy(() -> assertTrue(wasHandlerCalled.get()));
+    }
+
+    public void testBuildGivenAggregatingEsqlDatafeedAndRevertedSnapshotShouldResumeFromRevertedLatestRecord() throws Exception {
+        long hour = TimeValue.timeValueHours(1).millis();
+        // A revert with delete_intervening_results lowers both the latest final bucket and the latest record time.
+        assertEsqlLastEndTimeOnBothBuildPaths(AGGREGATING_ESQL_QUERY, new RestartTimeInfo(5 * hour, 6 * hour, true), 7 * hour - 1);
+    }
+
+    public void testBuildGivenRawEsqlDatafeedAndRevertedSnapshotShouldResumeAtRevertedLatestRecord() throws Exception {
+        long hour = TimeValue.timeValueHours(1).millis();
+        long revertedRecord = 6 * hour + 30 * 60_000L;
+        assertEsqlLastEndTimeOnBothBuildPaths("FROM logs", new RestartTimeInfo(5 * hour, revertedRecord, true), revertedRecord);
+    }
+
+    public void testBuildGivenAggregatingEsqlDatafeedAndEndStampedLatestRecordShouldAdvancePastGroupingInterval() throws Exception {
+        long hour = TimeValue.timeValueHours(1).millis();
+        // Rows stamped at bucket + span - 1ms. The extractor factory floors the resulting start back to the next bucket boundary.
+        long endStampedRecord = 10 * hour - 1;
+        assertEsqlLastEndTimeOnBothBuildPaths(
+            AGGREGATING_ESQL_QUERY,
+            new RestartTimeInfo(8 * hour, endStampedRecord, true),
+            endStampedRecord + hour - 1
+        );
+    }
+
+    public void testBuildGivenEsqlDatafeedAndFinalBucketEndAfterLatestRecordShouldResumeFromFinalBucketEnd() throws Exception {
+        long hour = TimeValue.timeValueHours(1).millis();
+        // The job's bucket span is one hour. Same rule as the DSL datafeed: the later of the two end times wins.
+        long finalBucketEnd = 21 * hour - 1;
+        assertEsqlLastEndTimeOnBothBuildPaths(AGGREGATING_ESQL_QUERY, new RestartTimeInfo(20 * hour, 9 * hour, true), finalBucketEnd);
+        assertEsqlLastEndTimeOnBothBuildPaths("FROM logs", new RestartTimeInfo(20 * hour, 9 * hour, true), finalBucketEnd);
+    }
+
+    private void assertEsqlLastEndTimeOnBothBuildPaths(String esqlQuery, RestartTimeInfo restartTimeInfo, long expectedLastEndTimeMs)
+        throws Exception {
+        assumeTrue("Only relevant when the ES|QL datafeeds feature flag is on", MachineLearning.ESQL_DATAFEEDS_FEATURE_FLAG.isEnabled());
+        DataDescription.Builder dataDescription = new DataDescription.Builder();
+        dataDescription.setTimeField("time");
+        Job.Builder jobBuilder = DatafeedRunnerTests.createDatafeedJob();
+        jobBuilder.setDataDescription(dataDescription);
+        jobBuilder.setCreateTime(new Date());
+        DatafeedConfig.Builder datafeed = new DatafeedConfig.Builder("datafeed1", jobBuilder.getId());
+        datafeed.setEsqlQuery(esqlQuery);
+        datafeed.setSourceTimeField("@timestamp");
+        datafeed.setGroupingInterval(TimeValue.timeValueHours(1));
+        datafeed.setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig());
+
+        DatafeedContext datafeedContext = new DatafeedContext(
+            datafeed.build(),
+            jobBuilder.build(),
+            restartTimeInfo,
+            new DatafeedTimingStats(jobBuilder.getId())
+        );
+
+        for (boolean viaExtractorFactory : new boolean[] { true, false }) {
+            AtomicBoolean wasHandlerCalled = new AtomicBoolean(false);
+            ActionListener<DatafeedJob> datafeedJobHandler = ActionTestUtils.assertNoFailureListener(datafeedJob -> {
+                assertThat(datafeedJob.lastEndTimeMs(), equalTo(expectedLastEndTimeMs));
+                wasHandlerCalled.set(true);
+            });
+            if (viaExtractorFactory) {
+                buildDatafeedJob(newDatafeedTask("datafeed1"), datafeedContext, datafeedJobHandler);
+            } else {
+                datafeedJobBuilder.build(newDatafeedTask("datafeed1"), datafeedContext, datafeedJobHandler);
+            }
+            assertBusy(() -> assertTrue(wasHandlerCalled.get()));
+        }
     }
 
     public void testBuildGivenEsqlDatafeedShouldSucceed() throws Exception {

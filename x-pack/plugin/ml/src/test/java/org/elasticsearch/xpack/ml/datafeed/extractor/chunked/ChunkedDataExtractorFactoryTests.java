@@ -107,6 +107,24 @@ public class ChunkedDataExtractorFactoryTests extends ESTestCase {
         assertThat(dataExtractor.getContext().end(), equalTo(Duration.ofHours(10).toMillis()));
     }
 
+    public void testEsqlResumeFromEndStampedRecordShouldStartAtNextBucketBoundary() {
+        ChunkedDataExtractorFactory factory = createEsqlFactory(TimeValue.timeValueHours(1));
+        long hour = Duration.ofHours(1).toMillis();
+
+        // Last emitted row is end-stamped (bucket 09:00 stamped 09:59:59.999). DatafeedJobBuilder turns it into
+        // lastEnd = record + interval - 1, and DatafeedJob resumes at lastEnd + 1.
+        long endStampedResume = (10 * hour - 1) + hour - 1 + 1;
+        // Last emitted row is bucket-start stamped (bucket 09:00 stamped 09:00).
+        long bucketStartResume = (9 * hour) + hour - 1 + 1;
+
+        long windowEnd = 12 * hour;
+        ChunkedDataExtractor endStamped = (ChunkedDataExtractor) factory.newExtractor(endStampedResume, windowEnd);
+        ChunkedDataExtractor bucketStart = (ChunkedDataExtractor) factory.newExtractor(bucketStartResume, windowEnd);
+
+        assertThat(endStamped.getContext().start(), equalTo(10 * hour));
+        assertThat(bucketStart.getContext().start(), equalTo(10 * hour));
+    }
+
     public void testEsqlWindowInsideSingleBucketShouldBeEmptyRatherThanInverted() {
         ChunkedDataExtractorFactory factory = createEsqlFactory(TimeValue.timeValueHours(1));
 

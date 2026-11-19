@@ -728,6 +728,42 @@ public class DatafeedJobTests extends ESTestCase {
         verify(client, never()).execute(same(PersistJobAction.INSTANCE), any());
     }
 
+    public void testEsqlLookBackAfterRevertShouldReplayFromRevertedResumePoint() throws Exception {
+        long hour = 3_600_000L;
+        currentTime = 20 * hour;
+        long queryDelayMs = 500;
+        // Resume point DatafeedJobBuilder computes for an aggregating query after a revert to a snapshot whose latest record is 06:00.
+        long revertedResumeEnd = 7 * hour - 1;
+
+        DatafeedJob datafeedJob = createDatafeedJob(1000, queryDelayMs, -1, revertedResumeEnd, true);
+        datafeedJob.runLookBack(0L, null);
+
+        verify(dataExtractorFactory).newExtractor(7 * hour, currentTime - queryDelayMs);
+    }
+
+    public void testEsqlRealtimeAfterRestartShouldStartAfterLastEndTime() throws Exception {
+        long hour = 3_600_000L;
+        currentTime = 20 * hour;
+        long queryDelayMs = 500;
+        long resumeEnd = 7 * hour - 1;
+
+        DatafeedJob datafeedJob = createDatafeedJob(1000, queryDelayMs, -1, resumeEnd, true);
+        datafeedJob.runRealtime();
+
+        verify(dataExtractorFactory).newExtractor(7 * hour, (currentTime - queryDelayMs) / 1000 * 1000);
+    }
+
+    public void testEsqlLookBackWithEmptyWindowShouldAdvanceLastEndTimeToWindowEnd() throws Exception {
+        long hour = 3_600_000L;
+        when(dataExtractor.hasNext()).thenReturn(false);
+        when(dataExtractor.getEndTime()).thenReturn(10 * hour);
+
+        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, true);
+        expectThrows(DatafeedJob.EmptyDataCountException.class, () -> datafeedJob.runLookBack(0L, 10 * hour));
+
+        assertThat(datafeedJob.lastEndTimeMs(), equalTo(10 * hour - 1));
+    }
+
     public void testEsqlTruncatedChunkShouldAuditWarningAndAdvancePastInterval() throws Exception {
         when(dataExtractor.getEndTime()).thenReturn(1000L);
         when(dataExtractor.getIncompleteSearchInterval()).thenReturn(Optional.of(new SearchInterval(100L, 200L)));

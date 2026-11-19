@@ -8,6 +8,7 @@
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-test-artifact'
+apply plugin: 'elasticsearch.internal-heap-pressure-test'
 
 esplugin {
   name = 'spatial'
@@ -26,6 +27,12 @@ dependencies {
   testImplementation project(path: ':modules:percolator')
   testImplementation project(path: xpackModule('vector-tile'))
   testImplementation project(path: ':modules:aggregations')
+
+  heapPressureTestImplementation project(':test:framework')
+  heapPressureTestImplementation project(':test:test-clusters')
+  // The plugins spatial extends, which the integration test distribution does not have.
+  clusterModules project(':modules:legacy-geo')
+  clusterModules project(':modules:lang-painless')
 }
 
 testClusters.configureEach {

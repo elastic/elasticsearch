@@ -710,7 +710,7 @@ public final class CsvSpecReader {
          * always reads the parameter as a name, or by being declared as one (see {@link Param#declaredAsName()}).
          * Test variants that find or rewrite field names in the query text don't see these names.
          */
-        public boolean paramsCanBeNames() {
+        public boolean hasParamsUsedAsNames() {
             // Also true for a "??" inside a string literal: a rare case, where it only skips a test that could run.
             return params.isEmpty() == false && (query.contains("??") || params.stream().anyMatch(Param::declaredAsName));
         }
@@ -724,7 +724,7 @@ public final class CsvSpecReader {
          * Whether a {@code PROMQL} command takes its index from a query parameter, like {@code PROMQL index = ?idx}.
          * Test variants that find the indices in the query text don't see that index.
          */
-        public boolean promqlIndexIsParam() {
+        public boolean hasPromqlIndexParam() {
             // Also true for that text inside a string literal: a rare case, where it only skips a test that could run.
             return params.isEmpty() == false && PROMQL_INDEX_PARAM.matcher(query).find();
         }

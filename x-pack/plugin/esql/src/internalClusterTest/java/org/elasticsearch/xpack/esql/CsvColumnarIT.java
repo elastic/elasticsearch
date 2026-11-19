@@ -495,7 +495,7 @@ public class CsvColumnarIT extends CsvIT {
             return false;
         }
         // The dataset resolution below doesn't see an index name in a parameter's value.
-        if (testCase.promqlIndexIsParam()) {
+        if (testCase.hasPromqlIndexParam()) {
             return true;
         }
         // Wildcard view patterns (e.g. view_k8s_max_*) are not resolvable via the exact-key

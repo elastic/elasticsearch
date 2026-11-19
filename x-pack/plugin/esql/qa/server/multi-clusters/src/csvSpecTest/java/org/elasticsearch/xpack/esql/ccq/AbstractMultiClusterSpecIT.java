@@ -202,7 +202,7 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
 
     @Override
     protected void shouldSkipTest(String testName) throws IOException {
-        assumeFalse("query parameters in the source command aren't supported in CCS tests", paramsInSourceCommand(testCase));
+        assumeFalse("query parameters in the source command aren't supported in CCS tests", hasParamsInSourceCommand(testCase));
         boolean remoteMetadata = testCase.requiredCapabilities.contains(METADATA_FIELDS_REMOTE_TEST.capabilityName());
         if (remoteMetadata) {
             // remove the capability from the test to enable it
@@ -469,7 +469,7 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
      * Whether the query parameters are used in the source command, like {@code PROMQL index=?idx ...}. The conversion to remote
      * indices parses the source command without the parameters, and can't rewrite an index name passed as a parameter.
      */
-    private static boolean paramsInSourceCommand(CsvSpecReader.CsvTestCase testCase) {
+    private static boolean hasParamsInSourceCommand(CsvSpecReader.CsvTestCase testCase) {
         if (testCase.params.isEmpty()) {
             return false;
         }
@@ -485,7 +485,7 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
         if (dataLocation == null) {
             dataLocation = randomFrom(DataLocation.values());
         }
-        if (paramsInSourceCommand(testCase)) {
+        if (hasParamsInSourceCommand(testCase)) {
             // skipped in shouldSkipTest
             return testCase;
         }

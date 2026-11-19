@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.CsvSpecReader.DatasetSource;
+import org.elasticsearch.xpack.esql.CsvSpecReader.Param;
 
 import java.util.List;
 
@@ -190,7 +191,7 @@ public class CsvSpecReaderTests extends ESTestCase {
         CsvTestCase testCase = parse();
         assertThat(testCase.params, empty());
         assertThat(testCase.paramsJson(), nullValue());
-        assertFalse(testCase.paramsCanBeNames());
+        assertFalse(testCase.hasParamsUsedAsNames());
     }
 
     public void testNamedParams() {
@@ -204,9 +205,21 @@ public class CsvSpecReaderTests extends ESTestCase {
             "PARAM: v = {\"value\": \"x\"}",
             "param: f = {\"identifier\": \"first_name\"}"
         );
-        assertThat(testCase.params, hasSize(8));
-        assertThat(testCase.params.get(0), equalTo(new CsvSpecReader.Param("s", "\"a string with = and {braces}\"")));
-        assertThat(testCase.params.get(1), equalTo(new CsvSpecReader.Param("i", "5")));
+        assertThat(
+            testCase.params,
+            equalTo(
+                List.of(
+                    new Param("s", "\"a string with = and {braces}\""),
+                    new Param("i", "5"),
+                    new Param("d", "-1.5"),
+                    new Param("b", "true"),
+                    new Param("n", "null"),
+                    new Param("a", "[1,2]"),
+                    new Param("v", "{\"value\":\"x\"}"),
+                    new Param("f", "{\"identifier\":\"first_name\"}")
+                )
+            )
+        );
         assertThat(
             testCase.paramsJson(),
             equalTo(
@@ -218,14 +231,18 @@ public class CsvSpecReaderTests extends ESTestCase {
 
     public void testUnnamedParams() {
         CsvTestCase testCase = parse("param: \"F\"", "param: 10008", "param: [\"a\", \"b\"]", "param: \"x = 1\"");
-        assertThat(testCase.params, hasSize(4));
-        assertThat(testCase.params.get(0), equalTo(new CsvSpecReader.Param(null, "\"F\"")));
-        assertThat(testCase.params.get(3), equalTo(new CsvSpecReader.Param(null, "\"x = 1\"")));
+        assertThat(
+            testCase.params,
+            equalTo(
+                List.of(new Param(null, "\"F\""), new Param(null, "10008"), new Param(null, "[\"a\",\"b\"]"), new Param(null, "\"x = 1\""))
+            )
+        );
         assertThat(testCase.paramsJson(), equalTo("[\"F\", 10008, [\"a\",\"b\"], \"x = 1\"]"));
     }
 
     public void testParamCommentIsNotSent() {
         CsvTestCase testCase = parse("param: x = 1 // note", "param: y = [1, /* two */ 2]");
+        assertThat(testCase.params, equalTo(List.of(new Param("x", "1"), new Param("y", "[1,2]"))));
         assertThat(testCase.paramsJson(), equalTo("[{\"x\": 1}, {\"y\": [1,2]}]"));
     }
 
@@ -233,7 +250,7 @@ public class CsvSpecReaderTests extends ESTestCase {
         SpecReader.Parser parser = CsvSpecReader.specParser();
         parser.parse("param: x = 1");
         parser.parse("FROM foo;");
-        assertThat(((CsvTestCase) parser.parse(";")).params, hasSize(1));
+        assertThat(((CsvTestCase) parser.parse(";")).params, equalTo(List.of(new Param("x", "1"))));
         parser.parse("FROM bar;");
         assertThat(((CsvTestCase) parser.parse(";")).params, empty());
     }
@@ -285,21 +302,21 @@ public class CsvSpecReaderTests extends ESTestCase {
     }
 
     public void testParamsCanBeNames() {
-        assertFalse(parseWithParams("FROM foo | WHERE a == ?x", "param: x = \"a\"").paramsCanBeNames());
-        assertFalse(parseWithParams("FROM foo | WHERE a == ?x", "param: x = {\"value\": \"a\"}").paramsCanBeNames());
-        assertFalse(parseWithParams("FROM foo | WHERE a == ??x").paramsCanBeNames());
-        assertTrue(parseWithParams("FROM foo | WHERE ??x == ?y", "param: x = \"a\"", "param: y = 1").paramsCanBeNames());
-        assertTrue(parseWithParams("FROM foo | KEEP ??1", "param: \"a\"").paramsCanBeNames());
-        assertTrue(parseWithParams("FROM foo | KEEP ??", "param: \"a\"").paramsCanBeNames());
-        assertTrue(parseWithParams("FROM foo | KEEP ?x", "param: x = {\"identifier\": \"a\"}").paramsCanBeNames());
-        assertTrue(parseWithParams("FROM foo | KEEP ?x", "param: x = {\"Pattern\": \"a*\"}").paramsCanBeNames());
+        assertFalse(parseWithParams("FROM foo | WHERE a == ?x", "param: x = \"a\"").hasParamsUsedAsNames());
+        assertFalse(parseWithParams("FROM foo | WHERE a == ?x", "param: x = {\"value\": \"a\"}").hasParamsUsedAsNames());
+        assertFalse(parseWithParams("FROM foo | WHERE a == ??x").hasParamsUsedAsNames());
+        assertTrue(parseWithParams("FROM foo | WHERE ??x == ?y", "param: x = \"a\"", "param: y = 1").hasParamsUsedAsNames());
+        assertTrue(parseWithParams("FROM foo | KEEP ??1", "param: \"a\"").hasParamsUsedAsNames());
+        assertTrue(parseWithParams("FROM foo | KEEP ??", "param: \"a\"").hasParamsUsedAsNames());
+        assertTrue(parseWithParams("FROM foo | KEEP ?x", "param: x = {\"identifier\": \"a\"}").hasParamsUsedAsNames());
+        assertTrue(parseWithParams("FROM foo | KEEP ?x", "param: x = {\"Pattern\": \"a*\"}").hasParamsUsedAsNames());
     }
 
     public void testPromqlIndexIsParam() {
-        assertTrue(parseWithParams("PROMQL index=?idx step=1m (avg(x))", "param: idx = \"k8s\"").promqlIndexIsParam());
-        assertTrue(parseWithParams("PROMQL step=1m index = ?idx (avg(x))", "param: idx = \"k8s\"").promqlIndexIsParam());
-        assertFalse(parseWithParams("PROMQL index=k8s step=?step (avg(x))", "param: step = \"1m\"").promqlIndexIsParam());
-        assertFalse(parseWithParams("PROMQL index=?idx (avg(x))").promqlIndexIsParam());
+        assertTrue(parseWithParams("PROMQL index=?idx step=1m (avg(x))", "param: idx = \"k8s\"").hasPromqlIndexParam());
+        assertTrue(parseWithParams("PROMQL step=1m index = ?idx (avg(x))", "param: idx = \"k8s\"").hasPromqlIndexParam());
+        assertFalse(parseWithParams("PROMQL index=k8s step=?step (avg(x))", "param: step = \"1m\"").hasPromqlIndexParam());
+        assertFalse(parseWithParams("PROMQL index=?idx (avg(x))").hasPromqlIndexParam());
     }
 
     // makeWarningsOptional() tests

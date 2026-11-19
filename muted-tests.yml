@@ -304,6 +304,18 @@ tests:
     - testColumnar {cluster=UPGRADED}
     - testLogsdbColumnar {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/163164
+- class: org.elasticsearch.datastreams.DataStreamsClientYamlTestSuiteIT
+  method: test {yaml=data_stream/292_columnar_plain_skip_index_rollover/Rollover a columnar data stream sorted on a keyword}
+  issue: https://github.com/elastic/elasticsearch/issues/163164
+- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=data_stream/292_columnar_plain_skip_index_rollover/Rollover a columnar data stream sorted on a keyword}
+  issue: https://github.com/elastic/elasticsearch/issues/163164
+- class: org.elasticsearch.upgrades.ColumnarPlainSkipIndexRollingUpgradeIT
+  method: testPlainSkipIndexDataStream {upgradedNodes=3}
+  issue: https://github.com/elastic/elasticsearch/issues/163164
+- class: org.elasticsearch.upgrades.ColumnarPlainSkipIndexFullClusterRestartIT
+  method: testPlainSkipIndexDataStream {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/163164
 # Lucene 11 Dutch default is Kraaij-Pohlmann. Existing dutch names must keep
 # Porter stems (#163610). Yaml still asserts Lucene 10 tokens.
 - class: org.elasticsearch.analysis.common.CommonAnalysisClientYamlTestSuiteIT

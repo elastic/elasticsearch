@@ -14,6 +14,7 @@ import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.document.column.Column;
 import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.document.column.VectorColumn;
+import org.apache.lucene.document.column.VectorValuesCursor;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -115,6 +116,21 @@ final class DenseVectorColumn<T> extends VectorColumn<T> implements LuceneColumn
             @Override
             public T value() {
                 return vectors[offset + doc];
+            }
+        };
+    }
+
+    @Override
+    public VectorValuesCursor<T> values() {
+        if (density() == Density.SPARSE) {
+            return super.values();
+        }
+        return new VectorValuesCursor<>(count, luceneFieldType.vectorDimension()) {
+            private int doc = -1;
+
+            @Override
+            public T next() {
+                return vectors[offset + (++doc)];
             }
         };
     }

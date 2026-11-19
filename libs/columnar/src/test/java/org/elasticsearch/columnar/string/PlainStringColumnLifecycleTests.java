@@ -330,7 +330,11 @@ public class PlainStringColumnLifecycleTests extends ESTestCase {
             StringColumnOptionsSelector.always(options),
             formatVersion
         );
-        return new IndexWriterConfig().setCodec(columnarCodec(format)).setUseCompoundFile(false).setMergePolicy(mergePolicy);
+        final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec(format))
+            .setUseCompoundFile(false)
+            .setMergePolicy(mergePolicy);
+        iwc.getCodec().compoundFormat().setShouldUseCompoundFile(false);
+        return iwc;
     }
 
     private static StringColumnOptions plain(boolean bounded) {

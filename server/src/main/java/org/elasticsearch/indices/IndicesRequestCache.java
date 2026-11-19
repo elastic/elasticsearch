@@ -15,6 +15,7 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.cache.AdaptiveEviction;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.cache.CacheLoader;
@@ -71,6 +72,26 @@ public final class IndicesRequestCache implements Closeable {
         "1%",
         Property.NodeScope
     );
+    /**
+     * Opt-in: decide size-based evictions of the request cache adaptively between LRU and LFU shadow policies (see
+     * {@link org.elasticsearch.common.cache.AdaptiveEviction}) instead of strict LRU.
+     */
+    public static final Setting<Boolean> INDICES_CACHE_QUERY_ADAPTIVE_EVICTION = Setting.boolSetting(
+        "indices.requests.cache.adaptive_eviction.enabled",
+        false,
+        Property.NodeScope
+    );
+    /**
+     * How many accesses the LFU shadow policy of the adaptive eviction remembers before halving its frequency counts (see
+     * {@link org.elasticsearch.common.cache.AdaptiveEviction.Builder#sketchSample}). A long memory favours stable popularity, a short one
+     * recovers faster when the popular queries change. Only used when adaptive eviction is enabled.
+     */
+    public static final Setting<Long> INDICES_CACHE_QUERY_ADAPTIVE_EVICTION_SKETCH_SAMPLE = Setting.longSetting(
+        "indices.requests.cache.adaptive_eviction.sketch_sample",
+        AdaptiveEviction.DEFAULT_SKETCH_SAMPLE,
+        1L,
+        Property.NodeScope
+    );
     public static final Setting<TimeValue> INDICES_CACHE_QUERY_EXPIRE = Setting.positiveTimeSetting(
         "indices.requests.cache.expire",
         new TimeValue(0),
@@ -95,6 +116,11 @@ public final class IndicesRequestCache implements Closeable {
             .removalListener(notification -> notification.getKey().entity.onRemoval(notification));
         if (expire != null) {
             cacheBuilder.setExpireAfterAccess(expire);
+        }
+        if (INDICES_CACHE_QUERY_ADAPTIVE_EVICTION.get(settings)) {
+            cacheBuilder.setAdaptiveEviction(
+                AdaptiveEviction.<Key>builder().sketchSample(INDICES_CACHE_QUERY_ADAPTIVE_EVICTION_SKETCH_SAMPLE.get(settings)).build()
+            );
         }
         cache = cacheBuilder.build();
     }

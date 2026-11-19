@@ -20,6 +20,7 @@ public class CacheBuilder<K, V> {
     private long expireAfterWriteNanos = -1;
     private ToLongBiFunction<K, V> weigher;
     private RemovalListener<K, V> removalListener;
+    private AdaptiveEviction<K> adaptiveEviction;
 
     public static <K, V> CacheBuilder<K, V> builder() {
         return new CacheBuilder<>();
@@ -79,6 +80,15 @@ public class CacheBuilder<K, V> {
         return this;
     }
 
+    /**
+     * Decide weight-based evictions adaptively among several shadow policies instead of strict LRU; see {@link AdaptiveEviction}.
+     * Requires a maximum weight. Without this call the cache behaves exactly as before.
+     */
+    public CacheBuilder<K, V> setAdaptiveEviction(AdaptiveEviction<K> adaptiveEviction) {
+        this.adaptiveEviction = Objects.requireNonNull(adaptiveEviction);
+        return this;
+    }
+
     public Cache<K, V> build() {
         Cache<K, V> cache = new Cache<>();
         if (maximumWeight != -1) {
@@ -95,6 +105,12 @@ public class CacheBuilder<K, V> {
         }
         if (removalListener != null) {
             cache.setRemovalListener(removalListener);
+        }
+        if (adaptiveEviction != null) {
+            if (maximumWeight == -1) {
+                throw new IllegalStateException("adaptive eviction requires a maximum weight");
+            }
+            cache.setAdaptiveEviction(adaptiveEviction);
         }
         return cache;
     }

@@ -94,6 +94,9 @@ public class Cache<K, V> {
     // the weigher of entries
     private ToLongBiFunction<K, V> weigher = (k, v) -> 1;
 
+    // non-null if evictions are decided adaptively (see AdaptiveEviction); only touched while holding lruLock
+    private AdaptiveEvictionController<K, V> adaptive;
+
     // the removal callback
     private RemovalListener<K, V> removalListener = notification -> {};
 
@@ -138,6 +141,43 @@ public class Cache<K, V> {
         this.weigher = weigher;
     }
 
+    /**
+     * Enables adaptive eviction. Must be called before the cache is used, after the maximum weight is set.
+     */
+    void setAdaptiveEviction(AdaptiveEviction<K> config) {
+        Objects.requireNonNull(config);
+        if (maximumWeight < 0) {
+            throw new IllegalStateException("adaptive eviction requires a maximum weight");
+        }
+        this.adaptive = new AdaptiveEvictionController<>(config, maximumWeight);
+    }
+
+    /**
+     * What the adaptive eviction controller did so far.
+     *
+     * @return a snapshot, or {@code null} if adaptive eviction is not enabled for this cache
+     */
+    public AdaptiveEviction.Stats adaptiveStats() {
+        lruLock.lock();
+        try {
+            return adaptive == null ? null : adaptive.stats();
+        } finally {
+            lruLock.unlock();
+        }
+    }
+
+    /** Verifies the adaptive controller's bookkeeping; for tests. */
+    void checkAdaptiveInvariants() {
+        lruLock.lock();
+        try {
+            if (adaptive != null) {
+                adaptive.checkInvariants();
+            }
+        } finally {
+            lruLock.unlock();
+        }
+    }
+
     void setRemovalListener(RemovalListener<K, V> removalListener) {
         Objects.requireNonNull(removalListener);
         this.removalListener = removalListener;
@@ -161,7 +201,7 @@ public class Cache<K, V> {
         DELETED
     }
 
-    private static final class Entry<K, V> {
+    static final class Entry<K, V> {
         final K key;
         final V value;
         final long writeTime;
@@ -641,6 +681,9 @@ public class Cache<K, V> {
                 head = tail = null;
                 count = 0;
                 weight = 0;
+                if (adaptive != null) {
+                    adaptive.onClear();
+                }
             } finally {
                 for (int i = NUMBER_OF_SEGMENTS - 1; i >= 0; i--) {
                     if (haveSegmentLock[i]) {
@@ -853,11 +896,21 @@ public class Cache<K, V> {
         try {
             switch (entry.state) {
                 case DELETED -> promoted = false;
-                case EXISTING -> relinkAtHead(entry);
-                case NEW -> linkAtHead(entry);
+                case EXISTING -> {
+                    relinkAtHead(entry);
+                    if (adaptive != null) {
+                        adaptive.onAccess(entry, weigher.applyAsLong(entry.key, entry.value), false);
+                    }
+                }
+                case NEW -> {
+                    linkAtHead(entry);
+                    if (adaptive != null) {
+                        adaptive.onAccess(entry, weigher.applyAsLong(entry.key, entry.value), true);
+                    }
+                }
             }
             if (promoted) {
-                evict(now);
+                evict(now, entry);
             }
         } finally {
             lruLock.unlock();
@@ -865,10 +918,24 @@ public class Cache<K, V> {
     }
 
     private void evict(long now) {
+        evict(now, null);
+    }
+
+    private void evict(long now, Entry<K, V> justPromoted) {
         assert lruLock.isHeldByCurrentThread();
 
-        while (tail != null && shouldPrune(tail, now)) {
+        if (adaptive == null) {
+            while (tail != null && shouldPrune(tail, now)) {
+                evictEntry(tail);
+            }
+            return;
+        }
+        // adaptive mode: expired entries leave in LRU order as before, weight evictions are chosen by the controller
+        while (tail != null && isExpired(tail, now)) {
             evictEntry(tail);
+        }
+        while (tail != null && exceedsWeight()) {
+            evictEntry(adaptive.chooseVictim(justPromoted, tail));
         }
     }
 
@@ -904,6 +971,14 @@ public class Cache<K, V> {
     }
 
     private boolean unlink(Entry<K, V> entry) {
+        return unlink(entry, true);
+    }
+
+    /**
+     * @param removal false when the entry is only being moved to the head of the list: the adaptive controller must not see that as a
+     *                removal, or it forgets every entry that has been hit
+     */
+    private boolean unlink(Entry<K, V> entry, boolean removal) {
         assert lruLock.isHeldByCurrentThread();
 
         if (entry.state == State.EXISTING) {
@@ -939,6 +1014,9 @@ public class Cache<K, V> {
             count--;
             weight -= weigher.applyAsLong(entry.key, entry.value);
             entry.state = State.DELETED;
+            if (removal && adaptive != null) {
+                adaptive.onUnlink(entry);
+            }
             return true;
         } else {
             return false;
@@ -967,7 +1045,7 @@ public class Cache<K, V> {
         assert lruLock.isHeldByCurrentThread();
 
         if (head != entry) {
-            unlink(entry);
+            unlink(entry, false);
             linkAtHead(entry);
         }
     }

@@ -37,7 +37,7 @@ import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema
 public abstract sealed class HistogramFunctionCall extends PromqlFunctionCall permits HistogramFraction, HistogramQuantile {
     public static final String LE_LABEL = "le";
 
-    private List<Attribute> output;
+    private volatile List<Attribute> output;
 
     protected HistogramFunctionCall(Source source, LogicalPlan child, PromqlFunctionDefinition definition, List<Expression> parameters) {
         super(source, child, definition, parameters);

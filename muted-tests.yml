@@ -732,3 +732,8 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testUnpromotableRegisterCommitForRecoveryTracksAllBlobsPessimisticallyAndWaitsUntilShardStarts
   issue: https://github.com/elastic/elasticsearch/issues/166734
+- class: org.elasticsearch.xpack.esql.into.IntoPageWriterTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testCrankyBreakerReleasesAndStatsMatchWrittenRows
+  issue: https://github.com/elastic/elasticsearch/issues/166741

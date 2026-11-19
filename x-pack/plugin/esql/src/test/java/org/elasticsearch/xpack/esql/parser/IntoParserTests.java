@@ -42,6 +42,10 @@ public class IntoParserTests extends AbstractStatementParserTests {
         assertThat(as(query("ROW a = 1 | INTO \"my-dst\""), Into.class).destination(), equalTo("my-dst"));
     }
 
+    public void testUnquotedKeywordDestinationIsRejected() {
+        expectError("ROW a = 1 | INTO with", "mismatched input 'with'");
+    }
+
     public void testBadDestination() {
         expectError("ROW a = 1 | INTO dst*", "invalid index pattern [dst*], * is not allowed in INTO");
         expectError("ROW a = 1 | INTO remote:dst", "invalid index pattern [remote:dst], remote clusters are not supported with INTO");
@@ -205,6 +209,10 @@ public class IntoParserTests extends AbstractStatementParserTests {
         );
     }
 
+    public void testUnknownOptionIsReportedAsWritten() {
+        expectError("ROW a = 1 | INTO dst WITH {\"FOO\": 1}", "Invalid option [FOO] in INTO, expected one of [collisions, refresh]");
+    }
+
     public void testDuplicateOptionRejected() {
         expectError(
             "ROW a = 1 | INTO dst WITH {\"collisions\": \"keep\", \"collisions\": \"abort\"}",
@@ -229,6 +237,13 @@ public class IntoParserTests extends AbstractStatementParserTests {
     public void testCollisionsNameAndValueAreCaseInsensitive() {
         assertThat(intoOptions("ROW a = 1 | INTO dst WITH {\"collisions\": \"REPLACE\"}").collisions(), equalTo(Collisions.REPLACE));
         assertThat(intoOptions("ROW a = 1 | INTO dst WITH {\"Collisions\": \"Keep\"}").collisions(), equalTo(Collisions.KEEP));
+    }
+
+    public void testCollisionsValueIsNotTrimmed() {
+        expectError(
+            "ROW a = 1 | INTO dst WITH {\"collisions\": \" keep \"}",
+            "Invalid value [ keep ] for option [collisions] in INTO, expected one of [abort, keep, replace]"
+        );
     }
 
     public void testCollisionsFromParameter() {

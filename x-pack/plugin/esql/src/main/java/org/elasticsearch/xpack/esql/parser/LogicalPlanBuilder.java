@@ -621,13 +621,17 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             return IntoOptions.DEFAULT;
         }
         Map<String, Expression> optionExpressionsByName = new LinkedHashMap<>();
+        // Lowercased name -> name as written, so an unknown option is reported the way the user typed it
+        Map<String, String> writtenNames = new LinkedHashMap<>();
         // The entries, not the folded map: it keeps only the last value of a name, which would hide an invalid one before it
         for (EntryExpression entry : optionsExpression.entryExpressions()) {
             if (entry.key() instanceof Literal key) {
-                String name = BytesRefs.toString(key.value()).toLowerCase(Locale.ROOT);
+                String written = BytesRefs.toString(key.value());
+                String name = written.toLowerCase(Locale.ROOT);
                 if (optionExpressionsByName.put(name, entry.value()) != null) {
                     throw new ParsingException(entry.value().source(), "Duplicate option [{}] in INTO", name);
                 }
+                writtenNames.put(name, written);
             } else {
                 throw new ParsingException(entry.key().source(), "Option names must be literals in INTO");
             }
@@ -647,7 +651,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 source,
                 "Invalid option{} {} in INTO, expected one of {}",
                 optionExpressionsByName.size() > 1 ? "s" : "",
-                optionExpressionsByName.keySet(),
+                optionExpressionsByName.keySet().stream().map(writtenNames::get).toList(),
                 Option.NAMES
             );
         }

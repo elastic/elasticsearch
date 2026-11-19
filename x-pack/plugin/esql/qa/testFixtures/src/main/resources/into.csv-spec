@@ -10,8 +10,10 @@ total:long | created:long | updated:long | version_conflicts:long | failures:lon
 3          | 3            | 0            | 0                      | 0             | null
 ;
 
-// The cluster is shared across runs, so these leave _id to the destination to stay repeatable. Each test writes its own
-// destination: auto-generated ids are not unique across tests here and trip an engine assertion.
+// The cluster is shared across runs, so these leave _id to the destination to stay repeatable. Each case writes its own
+// destination so its counts stay independent of the other cases sharing the cluster.
+// Without an _id the keep/replace/null-id cases cannot be told apart from an abort: they are parse and plumbing smoke
+// tests only, and IntoIT covers the behavior of each mode.
 rowIntoIndexWithCollisionsKeep
 required_capability: into_command
 

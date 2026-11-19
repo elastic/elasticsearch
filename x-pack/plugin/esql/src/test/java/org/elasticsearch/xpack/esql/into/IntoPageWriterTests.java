@@ -552,28 +552,80 @@ public class IntoPageWriterTests extends ComputeTestCase {
     public void testMultiValuedIdIsRejected() {
         IntoPageWriter idWriter = writerWithIds(Collisions.ABORT);
         Page page;
+        // The valid first row has already reserved breaker bytes when the second row is rejected, so they must be released
+        try (
+            BytesRefBlock.Builder id = blockFactory.newBytesRefBlockBuilder(2);
+            BytesRefBlock.Builder host = blockFactory.newBytesRefBlockBuilder(2)
+        ) {
+            id.appendBytesRef(new BytesRef("ok"));
+            host.appendBytesRef(new BytesRef("h1"));
+            id.beginPositionEntry().appendBytesRef(new BytesRef("a")).appendBytesRef(new BytesRef("b")).endPositionEntry();
+            host.appendBytesRef(new BytesRef("h2"));
+            page = new Page(id.build(), host.build());
+        }
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> idWriter.consume(page));
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(e.getMessage(), containsString("must be single-valued, found [[a, b]]"));
+        assertThat(client.bulks, empty());
+        assertThat(driverContext.breaker().getUsed(), equalTo(0L));
+        assertThat(sink.failure(), sameInstance(e));
+    }
+
+    public void testMultiValuedIdStopsSiblingWriters() {
+        IntoPageWriter idWriter = writerWithIds(Collisions.ABORT);
+        IntoPageWriter sibling = sink.create(new DriverContext(mockBigArrays(), blockFactory, null));
+        Page bad;
         try (
             BytesRefBlock.Builder id = blockFactory.newBytesRefBlockBuilder(1);
             BytesRefBlock.Builder host = blockFactory.newBytesRefBlockBuilder(1)
         ) {
             id.beginPositionEntry().appendBytesRef(new BytesRef("a")).appendBytesRef(new BytesRef("b")).endPositionEntry();
             host.appendBytesRef(new BytesRef("h1"));
-            page = new Page(id.build(), host.build());
+            bad = new Page(id.build(), host.build());
         }
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> idWriter.consume(page));
-        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(e.getMessage(), containsString("_id"));
+        expectThrows(ElasticsearchStatusException.class, () -> idWriter.consume(bad));
+
+        sibling.consume(idPage(new String[] { "c" }, "dropped"));
         assertThat(client.bulks, empty());
-        assertThat(driverContext.breaker().getUsed(), equalTo(0L));
     }
 
     public void testAbortAndKeepSendCreateRequests() {
-        for (Collisions collisions : List.of(Collisions.ABORT, Collisions.KEEP)) {
-            IntoPageWriter idWriter = writerWithIds(collisions);
-            idWriter.consume(idPage(new String[] { "a" }, "h1"));
-            assertThat(client.bulks.getFirst().requests().getFirst().opType(), equalTo(DocWriteRequest.OpType.CREATE));
-            client.answer(CREATED);
+        IntoPageWriter idWriter = writerWithIds(randomFrom(Collisions.ABORT, Collisions.KEEP));
+        idWriter.consume(idPage(new String[] { "a" }, "h1"));
+        assertThat(client.bulks.getFirst().requests().getFirst().opType(), equalTo(DocWriteRequest.OpType.CREATE));
+        client.answer(CREATED);
+    }
+
+    public void testEmptyIdIsRefusedByTheDestinationUnderEveryMode() {
+        Collisions collisions = randomFrom(Collisions.values());
+        IntoPageWriter idWriter = writerWithIds(collisions);
+        idWriter.consume(idPage(new String[] { "" }, "h1"));
+        assertThat(client.bulks.getFirst().requests().getFirst().id(), equalTo(""));
+        client.answer(REFUSED);
+
+        ElasticsearchStatusException failure = asInstanceOf(ElasticsearchStatusException.class, sink.failure());
+        assertThat(failure.status(), equalTo(RestStatus.BAD_REQUEST));
+    }
+
+    public void testNullTypedIdColumnLeavesIdsToTheDestination() throws IOException {
+        List<Attribute> columns = List.of(
+            new ReferenceAttribute(Source.EMPTY, IntoPageWriter.ID_COLUMN, DataType.NULL),
+            new ReferenceAttribute(Source.EMPTY, "host", DataType.KEYWORD)
+        );
+        sink = IntoPageWriter.Factory.createFactory(bulks(), client, blockFactory.breaker(), DEST, columns, INDEX, IntoOptions.DEFAULT);
+        IntoPageWriter nullIdWriter = sink.create(driverContext);
+        Page page;
+        try (BytesRefBlock.Builder host = blockFactory.newBytesRefBlockBuilder(2)) {
+            host.appendBytesRef(new BytesRef("h1"));
+            host.appendBytesRef(new BytesRef("h2"));
+            page = new Page(blockFactory.newConstantNullBlock(2), host.build());
         }
+        nullIdWriter.consume(page);
+
+        BulkRequest bulk = client.bulks.getFirst();
+        assertThat(bulk.requests().stream().map(DocWriteRequest::id).toList(), equalTo(Arrays.asList(null, null)));
+        assertThat(sources(bulk), equalTo(List.of(Map.of("host", "h1"), Map.of("host", "h2"))));
+        client.answer(CREATED, CREATED);
     }
 
     public void testReplaceSendsIndexRequests() {
@@ -599,6 +651,17 @@ public class IntoPageWriterTests extends ComputeTestCase {
 
         idWriter.consume(idPage(new String[] { "c" }, "dropped"));
         assertThat(client.bulks, empty());
+    }
+
+    public void testReplaceWithoutIdColumnCreatesEveryRow() {
+        IntoOptions options = IntoOptions.builder().collisions(Collisions.REPLACE).build();
+        sink = IntoPageWriter.Factory.createFactory(bulks(), client, blockFactory.breaker(), DEST, COLUMNS, INDEX, options);
+        IntoPageWriter replaceWriter = sink.create(driverContext);
+        replaceWriter.consume(page("h1", "h2"));
+        client.answer(CREATED, CREATED);
+        replaceWriter.finish();
+
+        assertThat(replaceWriter.stats(), equalTo(new IntoStats(2, 2, 0, 0, 0, List.of())));
     }
 
     public void testKeepCountsCollisionsAndContinues() {

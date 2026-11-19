@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingPressure;
@@ -51,6 +50,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
@@ -93,16 +93,10 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(
-            CollectionUtils.appendToCopy(
-                CollectionUtils.appendToCopy(
-                    CollectionUtils.appendToCopy(super.nodePlugins(), IngestCommonPlugin.class),
-                    MockTransportService.TestPlugin.class
-                ),
-                FailingFieldPlugin.class
-            ),
-            DataStreamsPlugin.class
-        );
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(IngestCommonPlugin.class, MockTransportService.TestPlugin.class, FailingFieldPlugin.class, DataStreamsPlugin.class)
+        ).toList();
     }
 
     @Override
@@ -616,7 +610,6 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
             assertStats(response, 2, 2, 0, 0);
         }
         assertReadBackWithIds("KEEP _id, k | SORT _id", List.of(List.of("x1", "v"), List.of("x2", "v")));
-        refresh(DESTINATION);
         assertResponse(
             prepareSearch(DESTINATION),
             response -> assertThat(
@@ -669,15 +662,22 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
         assertReadBackWithIds("KEEP _id, k, l | SORT _id", List.of(Arrays.asList("a", "new", null), Arrays.asList("b", "new", null)));
     }
 
-    public void testReplaceOnADataStreamIsRejected() {
+    public void testReplaceOnAnExistingDataStreamIsRejected() {
         createDataStream();
-        for (String destination : List.of(DATA_STREAM, DATA_STREAM_PREFIX + "missing")) {
-            VerificationException e = expectThrows(
-                VerificationException.class,
-                () -> run("ROW k = \"y\" | INTO " + destination + " WITH {\"collisions\": \"replace\"}").close()
-            );
-            assertThat(e.getMessage(), containsString("INTO collisions [replace] is not supported on data stream [" + destination + "]"));
-        }
+        assertReplaceRejected(DATA_STREAM);
+    }
+
+    public void testReplaceOnAMissingDataStreamIsRejected() {
+        putDataStreamTemplate();
+        assertReplaceRejected(DATA_STREAM_PREFIX + "missing");
+    }
+
+    private void assertReplaceRejected(String destination) {
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> run("ROW k = \"y\" | INTO " + destination + " WITH {\"collisions\": \"replace\"}").close()
+        );
+        assertThat(e.getMessage(), containsString("INTO collisions [replace] is not supported on data stream [" + destination + "]"));
     }
 
     public void testKeepOnADataStreamCountsConflicts() {

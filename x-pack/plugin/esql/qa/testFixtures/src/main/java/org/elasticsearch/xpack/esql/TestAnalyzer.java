@@ -682,14 +682,14 @@ public class TestAnalyzer {
     /**
      * Adds {@code @timestamp} lower and upper bounds extracted from a query DSL filter.
      */
-    /** The coordinator's view of the cluster, for rules that check index metadata. Defaults to {@code null}, as if unavailable. */
-    public TestAnalyzer projectMetadata(ProjectMetadata projectMetadata) {
-        this.projectMetadata = projectMetadata;
+    public TestAnalyzer timestampBounds(TimestampBounds timestampBounds) {
+        this.timestampBounds = timestampBounds;
         return this;
     }
 
-    public TestAnalyzer timestampBounds(TimestampBounds timestampBounds) {
-        this.timestampBounds = timestampBounds;
+    /** The coordinator's view of the cluster, for rules that check index metadata. Defaults to {@code null}, as if unavailable. */
+    public TestAnalyzer projectMetadata(ProjectMetadata projectMetadata) {
+        this.projectMetadata = projectMetadata;
         return this;
     }
 

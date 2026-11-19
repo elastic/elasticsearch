@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.logging.HeaderWarning;
@@ -600,7 +601,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         /** A data stream, an alias of one, one of its backing indices, or a missing name a data stream template matches. */
-        private static boolean writesToDataStream(ProjectMetadata project, String destination) {
+        private static boolean writesToDataStream(ProjectMetadata project, String destinationExpression) {
+            String destination = IndexNameExpressionResolver.resolveDateMathExpression(destinationExpression);
             IndexAbstraction abstraction = project.getIndicesLookup().get(destination);
             if (abstraction == null) {
                 String template = MetadataIndexTemplateService.findV2Template(project, destination, false);

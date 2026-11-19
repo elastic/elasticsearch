@@ -41,7 +41,7 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
  * Terminal command that writes the query's rows into {@link #destination()}.
  * It is a {@link PipelineBreaker} so the mapper ends the data-node fragment at the write and
  * wraps it in a coordinator-side MERGE_STATS node. {@link #output()} is the one-row {@link IntoStats}
- * result returned to the caller. {@link #options()} are the {@code WITH} options, applied by every writer.
+ * result returned to the caller. {@link #options()} are the {@code WITH} options, applied by every node that writes or merges.
  */
 public class Into extends UnaryPlan
     implements

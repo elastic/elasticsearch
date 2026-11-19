@@ -122,9 +122,14 @@ public class IntoAnalysisTests extends AnalyzerTestCase {
     }
 
     public void testIdColumnMayBeAString() {
-        analyzer().query("ROW _id = \"a\", x = 1 | INTO dst");
-        analyzer().query("ROW _id = null, x = 1 | INTO dst");
+        analyzer().query(randomFrom("ROW _id = \"a\", x = 1 | INTO dst", "ROW _id = null, x = 1 | INTO dst"));
+    }
+
+    public void testIdColumnMayBeComputedFromAnotherColumn() {
         analyzer().addEmployees().query("FROM employees | EVAL _id = emp_no::keyword | INTO dst");
+    }
+
+    public void testIdColumnMayBeTheIdMetadataField() {
         analyzer().addEmployees().query("FROM employees METADATA _id | INTO dst");
     }
 
@@ -132,6 +137,9 @@ public class IntoAnalysisTests extends AnalyzerTestCase {
         String error = "INTO column [_id] must be of type [keyword] or [text], found [integer]";
         analyzer().error("ROW _id = 1, x = 1 | INTO dst", containsString(error));
         analyzer().addEmployees().error("FROM employees | EVAL _id = emp_no | KEEP _id | INTO dst", containsString(error));
+    }
+
+    public void testIdColumnOfBooleanTypeIsRejected() {
         analyzer().error("ROW _id = true | INTO dst", containsString("must be of type [keyword] or [text], found [boolean]"));
     }
 
@@ -143,6 +151,14 @@ public class IntoAnalysisTests extends AnalyzerTestCase {
                 containsString("INTO collisions [replace] is not supported on data stream [" + destination + "]")
             );
         }
+    }
+
+    public void testReplaceIsRejectedOnDateMathDestinationMatchingADataStreamTemplate() {
+        TestAnalyzer analyzer = analyzer().projectMetadata(projectWithDataStream());
+        analyzer.error(
+            "ROW a = 1 | INTO \"<auto-ds-{now/d}>\" WITH {\"collisions\": \"replace\"}",
+            containsString("INTO collisions [replace] is not supported on data stream [<auto-ds-{now/d}>]")
+        );
     }
 
     public void testReplaceIsAllowedOnIndices() {

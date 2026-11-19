@@ -50,7 +50,7 @@ public class IntoGoldenTests extends GoldenTestCase {
     public void testFromIntoWithCollisions() {
         assumeTrue("INTO is only enabled in snapshot builds", EsqlCapabilities.Cap.INTO_COMMAND.isEnabled());
         builder("FROM employees | KEEP emp_no | INTO dst WITH {\"collisions\": \"replace\"}").stages(
-            EnumSet.of(Stage.PHYSICAL_OPTIMIZATION)
+            EnumSet.of(Stage.PHYSICAL_OPTIMIZATION, Stage.LOCAL_PHYSICAL_OPTIMIZATION)
         ).run();
     }
 }

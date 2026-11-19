@@ -23,6 +23,7 @@ For information about index-level settings, refer to [](/reference/elasticsearch
 
 The settings are grouped by feature or purpose, for example:
 
+- [Attachment](/reference/elasticsearch/configuration-reference/ingest-attachment-settings.md) {applies_to}`stack: ga 9.5`
 - [Auditing](/reference/elasticsearch/configuration-reference/auding-settings.md)
 - [Circuit breaker](/reference/elasticsearch/configuration-reference/circuit-breaker-settings.md)
 - [Cluster formation and discovery](/reference/elasticsearch/configuration-reference/discovery-cluster-formation-settings.md)

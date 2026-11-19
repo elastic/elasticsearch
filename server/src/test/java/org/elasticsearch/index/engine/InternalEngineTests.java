@@ -394,6 +394,39 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
+    public void testMergedSegmentWarmerRunsBeforeMergeIsCommitted() throws Exception {
+        final int numSegments = between(2, 5);
+        final AtomicInteger warmedSegments = new AtomicInteger();
+        final AtomicInteger warmedMaxDoc = new AtomicInteger();
+        final AtomicInteger segmentsVisibleToWriterWhenWarming = new AtomicInteger();
+        final AtomicReference<InternalEngine> engineRef = new AtomicReference<>();
+        try (Store store = createStore()) {
+            final EngineConfig config = EngineConfig.builder(config(defaultSettings, store, createTempDir(), new TieredMergePolicy()))
+                .mergedSegmentWarmer(reader -> {
+                    warmedSegments.incrementAndGet();
+                    warmedMaxDoc.set(reader.maxDoc());
+                    // the merge has not been committed yet, so the merged segment is not visible to the writer
+                    segmentsVisibleToWriterWhenWarming.set(engineRef.get().segments().size());
+                })
+                .build();
+            try (InternalEngine engine = createEngine(config)) {
+                engineRef.set(engine);
+                for (int i = 0; i < numSegments; i++) {
+                    indexDoc(engine, indexForDoc(testParsedDocument(Integer.toString(i), null, testDocument(), B_1)));
+                    engine.flush();
+                }
+                assertThat(warmedSegments.get(), equalTo(0));
+
+                engine.forceMerge(true, 1, false, UUIDs.randomBase64UUID());
+
+                assertThat(warmedSegments.get(), greaterThanOrEqualTo(1));
+                assertThat(warmedMaxDoc.get(), equalTo(numSegments));
+                assertThat(segmentsVisibleToWriterWhenWarming.get(), equalTo(numSegments));
+                assertThat(engine.segments().size(), equalTo(1));
+            }
+        }
+    }
+
     public void testSegmentsWithMergeFlag() throws Exception {
         try (Store store = createStore(); Engine engine = createEngine(defaultSettings, store, createTempDir(), new TieredMergePolicy())) {
             ParsedDocument doc = testParsedDocument("1", null, testDocument(), B_1);

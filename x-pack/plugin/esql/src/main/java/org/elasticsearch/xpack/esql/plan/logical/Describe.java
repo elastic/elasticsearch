@@ -14,6 +14,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.analysis.ColumnIntervals;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
@@ -33,6 +34,7 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * {@code DESCRIBE} returns one row per column of its input: what the column is, where it comes from,
@@ -53,6 +55,8 @@ public class Describe extends UnaryPlan implements TelemetryAware {
         new Column("origin", DataType.KEYWORD),
         new Column("metric_type", DataType.KEYWORD),
         new Column("unit", DataType.KEYWORD),
+        new Column("interval", DataType.KEYWORD),
+        new Column("time_zone", DataType.KEYWORD),
         new Column("description", DataType.KEYWORD)
     );
 
@@ -101,11 +105,15 @@ public class Describe extends UnaryPlan implements TelemetryAware {
      * @param datasetColumns the dataset columns the child's columns read, keyed by attribute id
      * @param units          the unit of every column whose unit is known, or every unit when its sources disagree,
      *                       keyed by attribute id
+     * @param timeColumns    the ids of the columns that hold time but read no mapped field
+     * @param intervals      the interval of every date bucket with a constant interval, keyed by attribute id
      */
     public LocalRelation describe(
         Map<NameId, FieldSemantics> semantics,
         Map<NameId, Attribute> datasetColumns,
-        Map<NameId, List<String>> units
+        Map<NameId, List<String>> units,
+        Set<NameId> timeColumns,
+        Map<NameId, ColumnIntervals.Interval> intervals
     ) {
         List<Attribute> columns = child().output().stream().filter(a -> a.synthetic() == false).toList();
         ElementType[] elementTypes = new ElementType[COLUMNS.size()];
@@ -118,8 +126,9 @@ public class Describe extends UnaryPlan implements TelemetryAware {
             for (Attribute column : columns) {
                 FieldSemantics field = semantics.get(column.id());
                 Attribute datasetColumn = datasetColumns.get(column.id());
-                FieldSemantics.Role role = field != null ? field.role() : isMetadata(column) ? FieldSemantics.Role.METADATA : null;
+                FieldSemantics.Role role = role(column, field, timeColumns);
                 String metricType = field == null ? null : field.metricType();
+                ColumnIntervals.Interval interval = intervals.get(column.id());
                 Object[] row = new Object[] {
                     column.name(),
                     column.dataType().outputType(),
@@ -128,6 +137,8 @@ public class Describe extends UnaryPlan implements TelemetryAware {
                     origin(column, field, datasetColumn),
                     metricType,
                     units.get(column.id()),
+                    interval == null ? null : interval.interval(),
+                    interval == null ? null : interval.timeZone(),
                     field == null || field.descriptions().isEmpty() ? null : List.copyOf(field.descriptions()) };
                 for (int i = 0; i < row.length; i++) {
                     append(builders[i], row[i], elementTypes[i]);
@@ -182,6 +193,20 @@ public class Describe extends UnaryPlan implements TelemetryAware {
             return "computed";
         }
         return field.field().equals(column.name()) ? "mapped" : "renamed";
+    }
+
+    @Nullable
+    private static FieldSemantics.Role role(Attribute column, @Nullable FieldSemantics field, Set<NameId> timeColumns) {
+        if (field != null) {
+            return field.role();
+        }
+        if (isMetadata(column)) {
+            return FieldSemantics.Role.METADATA;
+        }
+        if (timeColumns.contains(column.id())) {
+            return FieldSemantics.Role.TIME;
+        }
+        return null;
     }
 
     private static boolean isMetadata(Attribute column) {

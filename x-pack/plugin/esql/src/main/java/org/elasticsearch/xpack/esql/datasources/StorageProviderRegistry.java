@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache;
@@ -87,9 +88,11 @@ public class StorageProviderRegistry implements Closeable {
     private final ExternalSourceSettings.BlobStoreConcurrency concurrency;
     /** Schedules async read-retry continuations off a timer; {@code DIRECT} (no ThreadPool) in tests. */
     private final RetryScheduler retryScheduler;
+    @Nullable
+    private final ThreadContext threadContext;
     /**
      * Gate for {@code file://} local-disk reads. Defaults to {@link LocalFileAccess#UNRESTRICTED} in
-     * test-only constructors; production always goes through the five-argument constructor via {@code DataSourceModule}.
+     * test-only constructors; production always goes through the seven-argument constructor via {@code DataSourceModule}.
      */
     private final LocalFileAccess localFileAccess;
     private final AdmissionTracker admissionTracker;
@@ -104,7 +107,7 @@ public class StorageProviderRegistry implements Closeable {
      * {@code EsqlPlugin} (where the boolean is forced to {@code false} when {@code DiscoveryNode.isStateless}).
      * Similarly, {@code localFileAccess} defaults to {@link LocalFileAccess#UNRESTRICTED} and does <b>not</b>
      * apply the stateless gate or the allowlist from {@code ExternalSourceSettings#LOCAL_ALLOWED_PATHS}.
-     * Production always goes through the five-argument constructor via {@code DataSourceModule}.
+     * Production always goes through the seven-argument constructor via {@code DataSourceModule}.
      */
     public StorageProviderRegistry(Settings settings, @Nullable DataSourceCredentials credentials) {
         this(
@@ -143,6 +146,23 @@ public class StorageProviderRegistry implements Closeable {
         LocalFileAccess localFileAccess,
         AdmissionTracker admissionTracker
     ) {
+        this(settings, credentials, managedIdentityEnabled, retryScheduler, localFileAccess, admissionTracker, null);
+    }
+
+    /**
+     * @param threadContext the node's thread context, which async storage reads use to complete their listeners under the context of
+     *                      the thread that issued them; {@code null} (tests only) completes them on the completing thread's context
+     */
+    public StorageProviderRegistry(
+        Settings settings,
+        @Nullable DataSourceCredentials credentials,
+        BooleanSupplier managedIdentityEnabled,
+        RetryScheduler retryScheduler,
+        LocalFileAccess localFileAccess,
+        AdmissionTracker admissionTracker,
+        @Nullable ThreadContext threadContext
+    ) {
+        this.threadContext = threadContext;
         this.settings = settings != null ? settings : Settings.EMPTY;
         this.credentials = credentials;
         this.managedIdentityEnabled = managedIdentityEnabled;
@@ -341,7 +361,7 @@ public class StorageProviderRegistry implements Closeable {
         StorageProvider bounded = "file".equals(scheme)
             ? provider
             : new ConcurrencyLimitedStorageProvider(provider, limiterForScheme(scheme));
-        return new RetryableStorageProvider(bounded, retryScheduler, this::retryPolicyForScope);
+        return new RetryableStorageProvider(bounded, retryScheduler, this::retryPolicyForScope, threadContext);
     }
 
     /**

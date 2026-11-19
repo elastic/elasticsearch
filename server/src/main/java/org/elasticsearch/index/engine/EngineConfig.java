@@ -10,6 +10,7 @@ package org.elasticsearch.index.engine;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.search.QueryCache;
@@ -168,6 +169,9 @@ public final class EngineConfig {
      */
     private final Function<ElasticsearchIndexDeletionPolicy, ElasticsearchIndexDeletionPolicy> indexDeletionPolicyWrapper;
 
+    @Nullable
+    private final IndexWriter.IndexReaderWarmer mergedSegmentWarmer;
+
     private EngineConfig(
         ShardId shardId,
         ThreadPool threadPool,
@@ -200,7 +204,8 @@ public final class EngineConfig {
         EngineResetLock engineResetLock,
         MergeMetrics mergeMetrics,
         FlushMetrics flushMetrics,
-        Function<ElasticsearchIndexDeletionPolicy, ElasticsearchIndexDeletionPolicy> indexDeletionPolicyWrapper
+        Function<ElasticsearchIndexDeletionPolicy, ElasticsearchIndexDeletionPolicy> indexDeletionPolicyWrapper,
+        @Nullable IndexWriter.IndexReaderWarmer mergedSegmentWarmer
     ) {
         this.shardId = shardId;
         this.indexSettings = indexSettings;
@@ -252,6 +257,7 @@ public final class EngineConfig {
         this.mergeMetrics = mergeMetrics;
         this.flushMetrics = flushMetrics;
         this.indexDeletionPolicyWrapper = indexDeletionPolicyWrapper;
+        this.mergedSegmentWarmer = mergedSegmentWarmer;
     }
 
     /**
@@ -516,6 +522,16 @@ public final class EngineConfig {
         return indexDeletionPolicyWrapper;
     }
 
+    /**
+     * Returns the Lucene {@link IndexWriter.IndexReaderWarmer} that runs on the merge thread for each newly merged segment, before the
+     * merge is committed to the writer, or {@code null} if there is none. An exception thrown by the warmer fails the merge. This is
+     * unrelated to {@link #getWarmer()}, which warms searchers on refresh.
+     */
+    @Nullable
+    public IndexWriter.IndexReaderWarmer getMergedSegmentWarmer() {
+        return mergedSegmentWarmer;
+    }
+
     public static final class Builder {
         private ShardId shardId;
         private ThreadPool threadPool;
@@ -549,6 +565,7 @@ public final class EngineConfig {
         private MergeMetrics mergeMetrics;
         private FlushMetrics flushMetrics = FlushMetrics.NOOP;
         private Function<ElasticsearchIndexDeletionPolicy, ElasticsearchIndexDeletionPolicy> indexDeletionPolicyWrapper;
+        private IndexWriter.IndexReaderWarmer mergedSegmentWarmer;
 
         Builder() {}
 
@@ -585,6 +602,7 @@ public final class EngineConfig {
             this.mergeMetrics = config.mergeMetrics;
             this.flushMetrics = config.flushMetrics;
             this.indexDeletionPolicyWrapper = config.indexDeletionPolicyWrapper;
+            this.mergedSegmentWarmer = config.mergedSegmentWarmer;
         }
 
         public Builder shardId(ShardId shardId) {
@@ -609,6 +627,11 @@ public final class EngineConfig {
 
         public Builder warmer(Engine.Warmer warmer) {
             this.warmer = warmer;
+            return this;
+        }
+
+        public Builder mergedSegmentWarmer(@Nullable IndexWriter.IndexReaderWarmer mergedSegmentWarmer) {
+            this.mergedSegmentWarmer = mergedSegmentWarmer;
             return this;
         }
 
@@ -782,7 +805,8 @@ public final class EngineConfig {
                 engineResetLock,
                 mergeMetrics,
                 flushMetrics,
-                indexDeletionPolicyWrapper
+                indexDeletionPolicyWrapper,
+                mergedSegmentWarmer
             );
         }
     }

@@ -16,11 +16,11 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpPrincipal;
 
-import org.apache.lucene.store.Directory;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -325,22 +325,20 @@ public class AzureBccUploadRefillRaceIT extends AbstractStatelessPluginIntegTest
             return new ObjectStoreService(settings, repositoriesService, threadPool, clusterService, projectResolver, meterRegistry) {
                 @Override
                 public void uploadBatchedCompoundCommitFile(
-                    long primaryTerm,
-                    Directory directory,
-                    long enqueuedAtNanos,
+                    BlobContainer blobContainer,
                     VirtualBatchedCompoundCommit pendingCommit,
-                    ActionListener<BccUploadObjectStoreTiming> listener
+                    ActionListener<UploadTiming> listener
                 ) {
                     try (var in = pendingCommit.getFrozenInputStreamForUpload()) {
                         intendedBccs.put(
-                            intendedBccKey(pendingCommit.getShardId(), primaryTerm, pendingCommit.getBlobName()),
+                            intendedBccKey(pendingCommit.getShardId(), pendingCommit.blob().primaryTerm(), pendingCommit.getBlobName()),
                             in.readAllBytes()
                         );
                     } catch (IOException e) {
                         listener.onFailure(e);
                         return;
                     }
-                    super.uploadBatchedCompoundCommitFile(primaryTerm, directory, enqueuedAtNanos, pendingCommit, listener);
+                    super.uploadBatchedCompoundCommitFile(blobContainer, pendingCommit, listener);
                 }
             };
         }

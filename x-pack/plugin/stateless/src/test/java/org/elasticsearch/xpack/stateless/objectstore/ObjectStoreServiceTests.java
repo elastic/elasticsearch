@@ -1915,7 +1915,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
                 .getMeasurements(InstrumentType.LONG_HISTOGRAM, BccUploadMetrics.BCC_OBJECT_STORE_UPLOAD_DURATION_HISTOGRAM_METRIC);
             assertThat(objectStoreUploads.size(), equalTo(1));
             assertThat(objectStoreUploads.getFirst().getLong(), greaterThanOrEqualTo(0L));
-            assertThat(objectStoreUploads.getFirst().attributes().get(BccUploadMetrics.BCC_UPLOAD_SUCCESS_ATTRIBUTE_KEY), equalTo(true));
+            assertThat(objectStoreUploads.getFirst().attributes().get(ObjectStoreService.UPLOAD_SUCCESS_ATTRIBUTE_KEY), equalTo(true));
             assertThat(objectStoreUploads.getFirst().attributes().get(BccUploadMetrics.BCC_SIZE_ATTRIBUTE_KEY), notNullValue());
         }
     }

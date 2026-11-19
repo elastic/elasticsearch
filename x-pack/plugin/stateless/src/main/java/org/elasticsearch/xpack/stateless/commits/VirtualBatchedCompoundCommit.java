@@ -103,7 +103,7 @@ import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.
  * </p>
  *
  * */
-public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements Closeable, AbstractBatchedCompoundCommit {
+public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements Closeable, AbstractBatchedCompoundCommit, UploadableBlob {
 
     private static final Logger logger = LogManager.getLogger(VirtualBatchedCompoundCommit.class);
 
@@ -833,6 +833,36 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
 
     public String getBlobName() {
         return bccBlob.blobName();
+    }
+
+    @Override
+    public BccBlob blob() {
+        return bccBlob;
+    }
+
+    @Override
+    public long length() {
+        return getTotalSizeInBytes();
+    }
+
+    @Override
+    public InputStream openStream() {
+        return getFrozenInputStreamForUpload();
+    }
+
+    @Override
+    public boolean supportsPartialStreams() {
+        return true;
+    }
+
+    @Override
+    public InputStream openStream(long offset, long length) {
+        return getFrozenInputStreamForUpload(offset, length);
+    }
+
+    @Override
+    public ShardId shardId() {
+        return shardId;
     }
 
     public ShardId getShardId() {

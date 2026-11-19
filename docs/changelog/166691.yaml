@@ -1,0 +1,5 @@
+area: Mapping
+issues: []
+pr: 166691
+summary: Skip pre-capture checks without ignored source
+type: enhancement

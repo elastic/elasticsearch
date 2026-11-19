@@ -2038,6 +2038,19 @@ public class RetryableStorageObjectTests extends ESTestCase {
         assertOpenBackoffWakesOnClose(obj -> obj.newStream(0, 100));
     }
 
+    /**
+     * Query cancel during open-retry sleep, object still open. Distinct from object.close():
+     * composed {@code previous} supplier, not {@code aborted}.
+     */
+    public void testNewStreamOpenBackoffAbortsWhenQueryCancelled() throws Exception {
+        assertOpenBackoffWakesOnQueryCancel(RetryableStorageObject::newStream);
+    }
+
+    /** Same as {@link #testNewStreamOpenBackoffAbortsWhenQueryCancelled} for the ranged open. */
+    public void testRangeNewStreamOpenBackoffAbortsWhenQueryCancelled() throws Exception {
+        assertOpenBackoffWakesOnQueryCancel(obj -> obj.newStream(0, 100));
+    }
+
     private void assertOpenBackoffWakesOnClose(OpenCall open) throws Exception {
         RetryPolicy policy = new RetryPolicy(0, 0, 0, 10, 30_000, 30_000, RetryPolicy.NO_BUDGET, null);
         AlwaysFailingStorageObject delegate = new AlwaysFailingStorageObject(
@@ -2064,6 +2077,38 @@ public class RetryableStorageObjectTests extends ESTestCase {
             assertThat(elapsedMs, lessThan(5_000L));
             assertThat(error.get(), instanceOf(IOException.class));
             assertThat(error.get().getMessage(), containsString("read aborted"));
+        } finally {
+            opener.interrupt();
+            opener.join(TimeUnit.SECONDS.toMillis(5));
+        }
+    }
+
+    private void assertOpenBackoffWakesOnQueryCancel(OpenCall open) throws Exception {
+        RetryPolicy policy = new RetryPolicy(0, 0, 0, 10, 30_000, 30_000, RetryPolicy.NO_BUDGET, null);
+        AlwaysFailingStorageObject delegate = new AlwaysFailingStorageObject(
+            StoragePath.of("s3://bucket/key"),
+            new ExternalUnavailableException(Condition.STORE_THROTTLED, StoragePath.NONE, "", "", true, 0L)
+        );
+        RetryableStorageObject obj = new RetryableStorageObject(delegate, policy);
+        AtomicBoolean cancelled = new AtomicBoolean();
+        AtomicReference<Exception> error = new AtomicReference<>();
+        Thread opener = new Thread(() -> {
+            try {
+                StorageRetryCancellation.callWithCancellation(cancelled::get, () -> open.call(obj));
+            } catch (Exception e) {
+                error.set(e);
+            }
+        }, "retryable-query-cancel-during-open-backoff");
+        opener.start();
+        try {
+            assertBusy(() -> assertEquals(Thread.State.TIMED_WAITING, opener.getState()));
+            long startNanos = System.nanoTime();
+            cancelled.set(true);
+            opener.join(TimeUnit.SECONDS.toMillis(5));
+            long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
+            assertFalse("query cancel must wake open-retry backoff, not sleep the 30s hop", opener.isAlive());
+            assertThat(elapsedMs, lessThan(5_000L));
+            assertThat(error.get(), instanceOf(TaskCancelledException.class));
         } finally {
             opener.interrupt();
             opener.join(TimeUnit.SECONDS.toMillis(5));

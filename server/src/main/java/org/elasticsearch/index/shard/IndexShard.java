@@ -316,7 +316,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final MergeMetrics mergeMetrics;
     private final FlushMetrics flushMetrics;
 
-    private final ShardEventListener shardEventListener = new ShardEventListener();
+    private final EngineEventListener engineEventListener = new EngineEventListener();
 
     private final ShardPath path;
 
@@ -2911,7 +2911,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public void addShardFailureCallback(Consumer<ShardFailure> onShardFailure) {
-        this.shardEventListener.delegates.add(onShardFailure);
+        this.engineEventListener.delegates.add(onShardFailure);
     }
 
     /**
@@ -4179,7 +4179,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     }
 
-    class ShardEventListener implements Engine.EventListener {
+    class EngineEventListener implements Engine.EventListener {
         private final CopyOnWriteArrayList<Consumer<ShardFailure>> delegates = new CopyOnWriteArrayList<>();
 
         // called by the current engine
@@ -4268,7 +4268,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             .analyzer(buildIndexAnalyzer(mapperService))
             .similarity(similarityService.similarity(mapperService == null ? null : mapperService::fieldType))
             .codecProvider(codecService)
-            .eventListener(shardEventListener)
+            .eventListener(engineEventListener)
             .queryCache(indexCache != null ? indexCache.query() : null)
             .queryCachingPolicy(cachingPolicy)
             .translogConfig(translogConfig)

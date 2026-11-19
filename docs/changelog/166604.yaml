@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 166604
-summary: Abort only transport on parse close
-type: enhancement
+summary: Fix hang and use-after-free when cancelling streaming compressed ES|QL reads
+type: bug

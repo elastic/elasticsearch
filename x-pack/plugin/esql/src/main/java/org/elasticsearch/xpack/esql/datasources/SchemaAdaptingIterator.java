@@ -39,8 +39,8 @@ import java.util.function.Consumer;
  * This iterator runs on the producer side of {@link AsyncExternalSourceBuffer} (the generic /
  * external-source pool thread that drains pages from the format reader), <em>not</em> on the
  * driver thread that later consumes them. Callers must therefore pass a {@link BlockFactory}
- * that is safe to use off-driver — typically the node-level (root) factory wired via
- * {@link AsyncExternalSourceOperatorFactory.Builder#producerBlockFactory(BlockFactory)} — so the
+ * that is safe to use off-driver — the request-level root from
+ * {@link AsyncExternalSourceOperatorFactory#producerBlockFactory(org.elasticsearch.compute.operator.DriverContext)} — so the
  * null-fill and cast allocations are charged to the global request circuit breaker. Passing a
  * driver-local factory backed by {@link org.elasticsearch.compute.data.LocalCircuitBreaker}
  * trips its single-thread assertion in debug builds and races with the driver loop's
@@ -135,8 +135,12 @@ final class SchemaAdaptingIterator implements CloseableIterator<Page>, ColumnExt
 
     private SkipWarnings castWarnings() {
         if (castWarnings == null) {
+            // A drop helper exists exactly when the policy skips the row, which is then what happens to it.
             castWarnings = new SkipWarnings(
-                "Cross-file schema unification could not convert some values to the unified column type; they are returned as null",
+                dropHelper != null
+                    ? "Some values cannot be read as the merged column type; skipping their rows"
+                    : "Some values cannot be read as the merged column type; returning null",
+                "Some values cannot be read as the merged column type; " + SkipWarnings.REMOVED_FROM_MULTI_VALUE_OUTCOME,
                 informationalWarningSink
             );
         }
@@ -256,6 +260,16 @@ final class SchemaAdaptingIterator implements CloseableIterator<Page>, ColumnExt
     }
 
     @Override
+    public boolean isExhausted() {
+        return delegate.isExhausted();
+    }
+
+    @Override
+    public void revokeOvershootOnPark() {
+        delegate.revokeOvershootOnPark();
+    }
+
+    @Override
     public Page tryAdvance() {
         Page filePage = delegate.tryAdvance();
         return filePage != null ? adaptPage(filePage) : null;
@@ -329,7 +343,7 @@ final class SchemaAdaptingIterator implements CloseableIterator<Page>, ColumnExt
                         schemaReleased = true;
                         filtered = dropHelper.filterBlocks(filtered, blockFactory);
                         dropHelper.addToTotals(originalPositions, dropped);
-                        dropHelper.checkBudget(castWarnings);
+                        dropHelper.checkBudget();
                         return new Page(originalPositions - dropped, filtered);
                     } catch (Throwable e) {
                         Releasables.closeExpectNoException(filtered);
@@ -391,7 +405,7 @@ final class SchemaAdaptingIterator implements CloseableIterator<Page>, ColumnExt
         String[] names = pendingAbsentColumnNames;
         pendingAbsentColumnNames = null;
         for (String name : names) {
-            sink.accept(SkipWarnings.absentDeclaredColumnMessage(name));
+            sink.accept(SkipWarnings.absentColumnMessage(name));
         }
     }
 

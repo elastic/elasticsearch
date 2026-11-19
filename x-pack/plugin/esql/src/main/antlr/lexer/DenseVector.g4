@@ -9,4 +9,4 @@ lexer grammar DenseVector;
 //
 // DENSE_VECTOR command
 //
-DEV_DENSE_VECTOR : {this.isDevVersion()}? 'dense_vector' -> pushMode(EXPRESSION_MODE);
+DENSE_VECTOR : 'dense_vector' -> pushMode(EXPRESSION_MODE);

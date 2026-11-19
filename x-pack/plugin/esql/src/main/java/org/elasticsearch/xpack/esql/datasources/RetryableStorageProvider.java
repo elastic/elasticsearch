@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -15,7 +17,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.Instant;
-import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.function.Function;
 
@@ -30,17 +31,28 @@ import java.util.function.Function;
  * scope, is known there. The two-arg constructor binds a single fixed policy for every path (used by tests and
  * any caller that does not need per-scope backoff).
  */
-class RetryableStorageProvider implements StorageProvider {
+class RetryableStorageProvider extends DelegatingStorageProvider {
 
     private final StorageProvider delegate;
     private final RetryScheduler retryScheduler;
     private final Function<StoragePath, RetryPolicy> policyForScope;
+    @Nullable
+    private final ThreadContext threadContext;
 
     RetryableStorageProvider(StorageProvider delegate, RetryPolicy retryPolicy) {
         this(delegate, RetryScheduler.DIRECT, fixed(retryPolicy));
     }
 
     RetryableStorageProvider(StorageProvider delegate, RetryScheduler retryScheduler, Function<StoragePath, RetryPolicy> policyForScope) {
+        this(delegate, retryScheduler, policyForScope, null);
+    }
+
+    RetryableStorageProvider(
+        StorageProvider delegate,
+        RetryScheduler retryScheduler,
+        Function<StoragePath, RetryPolicy> policyForScope,
+        @Nullable ThreadContext threadContext
+    ) {
         if (delegate == null) {
             throw new IllegalArgumentException("delegate cannot be null");
         }
@@ -53,6 +65,7 @@ class RetryableStorageProvider implements StorageProvider {
         this.delegate = delegate;
         this.retryScheduler = retryScheduler;
         this.policyForScope = policyForScope;
+        this.threadContext = threadContext;
     }
 
     /** A scope lookup that returns the same fixed policy for every path (no per-scope backoff). */
@@ -69,24 +82,50 @@ class RetryableStorageProvider implements StorageProvider {
     }
 
     @Override
+    protected StorageProvider delegate() {
+        return delegate;
+    }
+
+    @Override
+    public StorageEntry objectMetadata(StoragePath path) throws IOException {
+        return policyFor(path).execute(() -> delegate.objectMetadata(path), "objectMetadata", path);
+    }
+
+    @Override
     public StorageObject newObject(StoragePath path) {
-        return new RetryableStorageObject(delegate.newObject(path), policyFor(path), retryScheduler);
+        return new RetryableStorageObject(delegate.newObject(path), policyFor(path), retryScheduler, threadContext);
     }
 
     @Override
     public StorageObject newObject(StoragePath path, long length) {
-        return new RetryableStorageObject(delegate.newObject(path, length), policyFor(path), retryScheduler);
+        return new RetryableStorageObject(delegate.newObject(path, length), policyFor(path), retryScheduler, threadContext);
     }
 
     @Override
     public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
-        return new RetryableStorageObject(delegate.newObject(path, length, lastModified), policyFor(path), retryScheduler);
+        return new RetryableStorageObject(delegate.newObject(path, length, lastModified), policyFor(path), retryScheduler, threadContext);
+    }
+
+    @Override
+    public StorageObject newObject(StoragePath path, long length, Instant lastModified, String version) {
+        return new RetryableStorageObject(
+            delegate.newObject(path, length, lastModified, version),
+            policyFor(path),
+            retryScheduler,
+            threadContext
+        );
     }
 
     @Override
     public StorageIterator listObjects(StoragePath prefix, boolean recursive) throws IOException {
+        return listObjects(prefix, "", recursive);
+    }
+
+    /** The retry unit is unchanged; only the prefix handed to the delegate is narrower. */
+    @Override
+    public StorageIterator listObjects(StoragePath prefix, String namePrefix, boolean recursive) throws IOException {
         RetryPolicy policy = policyFor(prefix);
-        StorageIterator iterator = policy.execute(() -> delegate.listObjects(prefix, recursive), "listObjects", prefix);
+        StorageIterator iterator = policy.execute(() -> delegate.listObjects(prefix, namePrefix, recursive), "listObjects", prefix);
         return new RetryableStorageIterator(iterator, policy, prefix);
     }
 
@@ -99,16 +138,6 @@ class RetryableStorageProvider implements StorageProvider {
     @Override
     public boolean exists(StoragePath path) throws IOException {
         return policyFor(path).execute(() -> delegate.exists(path), "exists", path);
-    }
-
-    @Override
-    public List<String> supportedSchemes() {
-        return delegate.supportedSchemes();
-    }
-
-    @Override
-    public boolean supportsStableMetadata() {
-        return delegate.supportsStableMetadata();
     }
 
     @Override

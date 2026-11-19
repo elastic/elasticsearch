@@ -18,10 +18,12 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.DataType;
+import org.elasticsearch.inference.EmbeddingInferenceService;
 import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -67,7 +69,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInva
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedUnifiedCompletionOperation;
 import static org.elasticsearch.xpack.inference.services.jinaai.embeddings.BaseJinaAIEmbeddingsServiceSettings.updateEmbeddingDetails;
 
-public class JinaAIService extends SenderService<JinaAIModel> implements RerankingInferenceService {
+public class JinaAIService extends SenderService<JinaAIModel> implements EmbeddingInferenceService, RerankingInferenceService {
 
     public static final TransportVersion JINA_AI_EMBEDDING_REFACTOR = TransportVersion.fromName("jina_ai_embedding_refactor");
 
@@ -266,6 +268,11 @@ public class JinaAIService extends SenderService<JinaAIModel> implements Reranki
     }
 
     @Override
+    public boolean requiresSingleInputEmbeddingRequest(Model model, InferenceString input) {
+        return input.dataType() == DataType.PDF;
+    }
+
+    @Override
     protected boolean supportsMultipleItemsPerContent() {
         return true;
     }
@@ -291,17 +298,17 @@ public class JinaAIService extends SenderService<JinaAIModel> implements Reranki
 
     /**
      * Return the default similarity measure for the embedding type.
-     * JinaAI embeddings are normalized to unit vectors therefore Dot
-     * Product similarity can be used and is the default for all JinaAI
-     * models.
+     * Float embeddings default to cosine similarity since we cannot guarantee third-party providers
+     * return unit-length vectors. BIT and BINARY embeddings use l2_norm.
      *
+     * @param embeddingType the Jina AI embedding type
      * @return The default similarity.
      */
     static SimilarityMeasure defaultSimilarity(JinaAIEmbeddingType embeddingType) {
         if (embeddingType == JinaAIEmbeddingType.BINARY || embeddingType == JinaAIEmbeddingType.BIT) {
             return SimilarityMeasure.L2_NORM;
         }
-        return SimilarityMeasure.DOT_PRODUCT;
+        return SimilarityMeasure.COSINE;
     }
 
     @Override
@@ -381,7 +388,7 @@ public class JinaAIService extends SenderService<JinaAIModel> implements Reranki
                     new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.EMBEDDING)).setDescription(
                         Strings.format(
                             "The similarity measure. One of %s. For float embeddings, the default similarity "
-                                + "is dot_product. For bit and binary embeddings, the default similarity is l2_norm.",
+                                + "is cosine. For bit and binary embeddings, the default similarity is l2_norm.",
                             EnumSet.allOf(SimilarityMeasure.class)
                         )
                     )

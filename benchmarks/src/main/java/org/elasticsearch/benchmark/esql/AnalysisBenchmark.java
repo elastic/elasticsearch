@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
-import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlConfig;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
@@ -53,6 +52,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.logicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 
 /**
@@ -112,6 +112,18 @@ import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
  *    drop_sort (control)      ~44 / ~42                      ~117 / ~120
  *    drop_wildcard_overlap    51.1 / 311.8   (~6x)           136.9 / 1043.1  (~7.6x)
  * </pre>
+ * <p>
+ *     {@code dissect_chain} chains {@link #DISSECT_STAGES} {@code DISSECT}s, each appending one column to the
+ *     full output. Generating plan nodes used to rebuild {@code output()} on every call by recursing into
+ *     their child, so every pass that visits each node cost {@code O(fields * stages²)}; they now cache it.
+ *     Measured with {@link #fullPipeline} using {@code -wi 2 -i 3 -f 1}, ms/op, cached / uncached:
+ * </p>
+ * <pre>
+ *    fields     cached      uncached   (ratio)
+ *    1 000        15.4         622.9    (~40x)
+ *    10 000       88.2        3804.4    (~43x)
+ *    100 000    1731.3       62062.0    (~36x)
+ * </pre>
  */
 @Fork(1)
 @Warmup(iterations = 3, time = 2, timeUnit = TimeUnit.SECONDS)
@@ -136,7 +148,7 @@ public class AnalysisBenchmark {
      * {@code drop_many} reference {@link #WIDE_REFERENCES} explicit fields to stress exact-name
      * resolution.
      */
-    @Param({ "from", "sort", "drop_sort", "keep_many", "sort_many", "where_many", "drop_many", "drop_wildcard_overlap" })
+    @Param({ "from", "sort", "drop_sort", "keep_many", "sort_many", "where_many", "drop_many", "drop_wildcard_overlap", "dissect_chain" })
     public String query;
 
     /**
@@ -145,6 +157,11 @@ public class AnalysisBenchmark {
      * {@code fieldCount}-wide output, so the pre-index analyzer was O(references × fields) here.
      */
     private static final int WIDE_REFERENCES = 1000;
+
+    /**
+     * Number of chained {@code DISSECT} commands in the {@code dissect_chain} shape.
+     */
+    private static final int DISSECT_STAGES = 100;
 
     private static final Map<String, String> QUERIES = buildQueries();
 
@@ -191,6 +208,8 @@ public class AnalysisBenchmark {
         // Overlapping wildcard DROP: the second pattern re-matches columns the first removed, shrinking
         // resolvedProjections below the match-set size to stress dropResolver's removeAll.
         queries.put("drop_wildcard_overlap", "FROM test | DROP otel.*, otel.*");
+        // A long chain of DISSECTs, each appending one column to the full fieldCount-wide output.
+        queries.put("dissect_chain", dissectChainQuery(DISSECT_STAGES));
         return Map.copyOf(queries);
     }
 
@@ -203,6 +222,14 @@ public class AnalysisBenchmark {
             query.append("attr_").append(i);
         }
         return query.append(suffix).toString();
+    }
+
+    private static String dissectChainQuery(int stages) {
+        StringBuilder query = new StringBuilder("FROM test");
+        for (int i = 0; i < stages; i++) {
+            query.append(" | DISSECT service_name \"%{k").append(i).append("}\"");
+        }
+        return query.append(" | LIMIT 1").toString();
     }
 
     private String queryText;
@@ -242,7 +269,7 @@ public class AnalysisBenchmark {
             new Verifier(new Metrics(functionRegistry, true, true), new XPackLicenseState(() -> 0L))
         );
 
-        optimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), minimumVersion));
+        optimizer = new LogicalPlanOptimizer(logicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), minimumVersion));
 
         parser = new EsqlParser(new EsqlConfig(functionRegistry));
 

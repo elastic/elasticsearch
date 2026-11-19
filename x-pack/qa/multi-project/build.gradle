@@ -4,7 +4,9 @@ subprojects {
 
   group = 'org.elasticsearch.qa.multi-project'
 
+  // Captured at configuration time: the configuration cache detaches onlyIf closures from the build script.
+  def isSnapshotBuild = buildParams.snapshotBuild
   tasks.named { it == "javaRestTest" || it == "yamlRestTest" }.configureEach {
-    it.onlyIf("snapshot build") { buildParams.snapshotBuild }
+    it.onlyIf("snapshot build") { isSnapshotBuild }
   }
 }

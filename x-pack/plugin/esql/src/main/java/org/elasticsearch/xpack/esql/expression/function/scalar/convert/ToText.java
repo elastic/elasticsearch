@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.AnalyzedTextExpression;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
@@ -39,6 +40,7 @@ import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -104,8 +106,18 @@ public class ToText extends AbstractConvertFunction
         returnType = "text",
         briefSummary = "Converts a value to text.",
         description = "Converts an input value into text.",
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.5.0") },
-        preview = true,
+        detailedDescription = """
+            Use `TO_TEXT` to search a computed value as full text with `MATCH`. String functions such as
+            `CONCAT` return `keyword`, which `MATCH` matches exactly, while `text` is analyzed. To learn more,
+            refer to [runtime search](/reference/query-languages/esql/esql-runtime-search.md).
+
+            {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga`
+            `MATCH_PHRASE` can search the resulting column too, and the `analyzer` option declares how its
+            values are analyzed when searched.
+            """,
+        appliesTo = {
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.5.0"),
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.6.0") },
         examples = { @Example(file = "convert", tag = "to_text") }
     )
     public ToText(
@@ -125,7 +137,9 @@ public class ToText extends AbstractConvertFunction
                     description = "The analyzer applied to the values of the resulting text column, playing the role the "
                         + "mapping's `analyzer` plays for an indexed text field. Defaults to `standard`. Must name a registered "
                         + "(prebuilt or plugin-provided) analyzer, and is only accepted on expressions that are not backed by an "
-                        + "index-mapped field."
+                        + "index-mapped field.",
+                    applies_to = """
+                        {"serverless": "ga", "stack": "ga 9.6.0"}"""
                 ) },
             description = "(Optional) Additional options as <<esql-function-named-params,function named parameters>>.",
             optional = true
@@ -210,7 +224,9 @@ public class ToText extends AbstractConvertFunction
                 }
             }
             if (resolvesToMappedFieldAttribute(plan, field())) {
-                failures.add(fail(field(), "{}", analyzerOnMappedFieldMessage(field().sourceText())));
+                // Name the field and point at this call rather than at the field's source: a column merged by a
+                // subquery UNION is sourced from the whole FROM clause.
+                failures.add(fail(this, "{}", analyzerOnMappedFieldMessage(Expressions.name(field()))));
             }
         };
     }
@@ -250,6 +266,11 @@ public class ToText extends AbstractConvertFunction
         Holder<Attribute> current = new Holder<>((Attribute) input);
         Holder<Boolean> mapped = new Holder<>(false);
         plan.forEachDownMayReturnEarly((p, breakEarly) -> {
+            // FILLNULL keeps the id of a column it fills until the optimizer expands it, but the column is no longer the field below.
+            if (p instanceof FillNull fillNull && fillNull.fills(current.get())) {
+                breakEarly.set(true);
+                return;
+            }
             List<? extends NamedExpression> aliases;
             if (p instanceof Project project) {
                 aliases = project.projections();

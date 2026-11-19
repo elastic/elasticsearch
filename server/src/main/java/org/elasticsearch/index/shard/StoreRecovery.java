@@ -40,6 +40,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.snapshots.IndexShardRestoreFailedException;
+import org.elasticsearch.index.store.NoHardLinksDirectory;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.RecoveryState;
@@ -184,7 +185,9 @@ public final class StoreRecovery {
         assert sources.length > 0;
         final int luceneIndexCreatedVersionMajor = Lucene.readSegmentInfos(sources[0]).getIndexCreatedVersionMajor();
 
-        final Directory hardLinkOrCopyTarget = new HardlinkCopyDirectoryWrapper(target);
+        final Directory hardLinkOrCopyTarget = NoHardLinksDirectory.hasNoHardLinksDirectory(target)
+            ? target
+            : new HardlinkCopyDirectoryWrapper(target);
 
         IndexWriterConfig iwc = indexWriterConfigWithNoMerging(null).setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
             .setCommitOnClose(false)

@@ -48,9 +48,7 @@ public final class Booleans {
         if (isTrue(text, offset, length)) {
             return true;
         }
-        throw new IllegalArgumentException(
-            "Failed to parse value [" + new String(text, offset, length) + "] as only [true] or [false] are allowed."
-        );
+        throw invalidBoolean(new String(text, offset, length));
     }
 
     /**
@@ -98,11 +96,7 @@ public final class Booleans {
         if (isTrue(text, offset, length)) {
             return true;
         }
-        throw new IllegalArgumentException(
-            "Failed to parse value ["
-                + new String(text, offset, length, StandardCharsets.UTF_8)
-                + "] as only [true] or [false] are allowed."
-        );
+        throw invalidBoolean(new String(text, offset, length, StandardCharsets.UTF_8));
     }
 
     /**
@@ -136,7 +130,13 @@ public final class Booleans {
         if (isTrue(value)) {
             return true;
         }
-        throw new IllegalArgumentException("Failed to parse value [" + value + "] as only [true] or [false] are allowed.");
+        throw invalidBoolean(value);
+    }
+
+    private static IllegalArgumentException invalidBoolean(String value) {
+        return new IllegalArgumentException(
+            "Failed to parse value [" + Strings.truncateForError(value) + "] as only [true] or [false] are allowed."
+        );
     }
 
     private static boolean hasText(CharSequence str) {

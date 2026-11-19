@@ -120,7 +120,7 @@ public abstract sealed class DecodedVector permits DecodedVector.ByteVector, Dec
     public abstract float[] toFloatArray();
 
     /**
-     * Returns the vector components as a list of numbers: {@code Integer} for byte-backed vectors,
+     * Returns the vector components as a list of numbers: {@code Byte} for byte-backed vectors,
      * {@code Float} otherwise.
      *
      * @return list of numeric components
@@ -166,7 +166,7 @@ public abstract sealed class DecodedVector permits DecodedVector.ByteVector, Dec
         public List<Object> toValueList() {
             List<Object> values = new ArrayList<>(bytes.length);
             for (byte b : bytes) {
-                values.add((int) b);
+                values.add(b);
             }
             return values;
         }

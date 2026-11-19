@@ -20,10 +20,9 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.ParsedContentReservation;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.injection.guice.Inject;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -41,7 +40,6 @@ import java.util.Map;
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 
 public class TransportSubmitAsyncSearchAction extends HandledTransportAction<SubmitAsyncSearchRequest, AsyncSearchResponse> {
-    private static final Logger logger = LogManager.getLogger(TransportSubmitAsyncSearchAction.class);
 
     private final ClusterService clusterService;
     private final NodeClient nodeClient;
@@ -88,17 +86,27 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
 
     @Override
     protected void doExecute(Task submitTask, SubmitAsyncSearchRequest request, ActionListener<AsyncSearchResponse> submitListener) {
-        if (request.getKeepAlive().equals(SubmitAsyncSearchRequest.DEFAULT_KEEP_ALIVE) == false) {
-            logger.debug("async search submitted with non-default keep_alive [{}]", request.getKeepAlive());
+        final TimeValue keepAlive;
+        try {
+            keepAlive = store.resolveKeepAlive(request.getKeepAlive());
+        } catch (Exception e) {
+            submitListener.onFailure(e);
+            return;
         }
-        final SearchRequest searchRequest = createSearchRequest(request, submitTask, request.getKeepAlive());
+        final SearchRequest searchRequest = createSearchRequest(request, submitTask, keepAlive);
         try (var ignored = threadContext.newTraceContext()) {
             AsyncSearchTask searchTask = (AsyncSearchTask) taskManager.register(
                 "transport",
                 TransportSearchAction.TYPE.name(),
                 searchRequest
             );
-            searchAction.execute(searchTask, searchRequest, searchTask.getSearchProgressActionListener());
+            // If the search runs past wait_for_completion_timeout, the submit responds first, so the search holds the parsed request's
+            // charge until it ends. The task keeps the request uncharged until its result is stored.
+            searchAction.execute(
+                searchTask,
+                searchRequest,
+                ActionListener.releaseAfter(searchTask.getSearchProgressActionListener(), ParsedContentReservation.hold(threadContext))
+            );
 
             ActionListener<AsyncSearchResponse> submitListenerWithHeaders = submitListener.map(response -> {
                 threadContext.addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_IS_RUNNING_HEADER, response.isRunning() ? "?1" : "?0");

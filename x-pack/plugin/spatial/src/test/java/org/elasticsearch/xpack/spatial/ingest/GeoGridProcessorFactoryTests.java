@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.spatial.ingest;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeometryParserFormat;
+import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -171,4 +173,21 @@ public class GeoGridProcessorFactoryTests extends ESTestCase {
         assertThat(processor.field("non_children_field"), equalTo(nonChildrenField));
         assertThat(processor.field("precision_field"), equalTo(precisionField));
     }
+
+    /**
+     * Pipelines are stored, so a malformed path in one has to be accepted when the processor is created, with the failure only coming
+     * when a document is run through it. This goes through the factory, as creating a processor from a stored pipeline does.
+     */
+    public void testCreateWithMalformedField() {
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "a..b");
+        config.put("tile_type", GeoGridProcessor.TileFieldType.GEOHASH.name());
+        GeoGridProcessor processor = factory.create(null, randomAlphaOfLength(10), null, config, null);
+        assertThat(processor.field("field"), equalTo("a..b"));
+
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
+        assertThat(e.getMessage(), equalTo("path [a..b] is not valid"));
+    }
+
 }

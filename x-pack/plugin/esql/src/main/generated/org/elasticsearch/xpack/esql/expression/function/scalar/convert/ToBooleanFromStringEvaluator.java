@@ -10,6 +10,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Vector;
@@ -46,11 +47,11 @@ public final class ToBooleanFromStringEvaluator extends AbstractConvertFunction.
     if (vector.isConstant()) {
       return driverContext.blockFactory().newConstantBooleanBlockWith(evalValue(vector, 0, scratchPad), positionCount);
     }
-    try (BooleanBlock.Builder builder = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
+    try (BooleanVector.FixedBuilder builder = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       for (int p = 0; p < positionCount; p++) {
-        builder.appendBoolean(evalValue(vector, p, scratchPad));
+        builder.appendBoolean(p, evalValue(vector, p, scratchPad));
       }
-      return builder.build();
+      return builder.build().asBlock();
     }
   }
 

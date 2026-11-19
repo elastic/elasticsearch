@@ -42,7 +42,7 @@ import java.util.concurrent.TimeUnit;
  * Inference runs once per file at planning time, over a sample of up to 20,000 rows, and a glob
  * dataset pays it once per file — so a regression here is a planning-latency regression across a
  * whole dataset, not a per-row cost. This benchmark exists because teaching the inferrers to produce
- * {@code date_nanos} (elastic/esql-planning#1798) touched the value-classification step that every
+ * {@code date_nanos} touched the value-classification step that every
  * sampled cell of every column goes through.
  * <p>
  * The {@code column} parameter names the shape of the sampled timestamp column, which is what decides

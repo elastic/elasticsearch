@@ -11,6 +11,7 @@ package org.elasticsearch.simdvec.internal.vectorization;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.simdvec.ESVectorUtil;
+import org.elasticsearch.simdvec.ScoringQuery;
 import org.elasticsearch.simdvec.internal.MemorySegmentES92PanamaInt7VectorsScorer;
 
 import java.io.IOException;
@@ -27,19 +28,19 @@ final class MSD7Q7ES940OSQVectorsScorer extends MemorySegmentES940OSQVectorsScor
     }
 
     @Override
-    long quantizeScore(byte[] q) throws IOException {
-        return int7Scorer.int7DotProduct(q);
+    long quantizeScore(ScoringQuery q) throws IOException {
+        return int7Scorer.int7DotProduct(q.bytes());
     }
 
     @Override
-    boolean quantizeScoreBulk(byte[] q, int count, float[] scores) throws IOException {
-        int7Scorer.int7DotProductBulk(q, count, scores);
+    boolean quantizeScoreBulk(ScoringQuery q, int count, float[] scores) throws IOException {
+        int7Scorer.int7DotProductBulk(q.bytes(), count, scores);
         return true;
     }
 
     @Override
     float scoreBulk(
-        byte[] q,
+        ScoringQuery q,
         float queryLowerInterval,
         float queryUpperInterval,
         int queryComponentSum,
@@ -50,7 +51,7 @@ final class MSD7Q7ES940OSQVectorsScorer extends MemorySegmentES940OSQVectorsScor
         int bulkSize
     ) throws IOException {
         int7Scorer.scoreBulk(
-            q,
+            q.bytes(),
             queryLowerInterval,
             queryUpperInterval,
             queryComponentSum,

@@ -15,6 +15,7 @@ import org.antlr.v4.runtime.RecognitionException;
 import org.antlr.v4.runtime.Recognizer;
 import org.antlr.v4.runtime.atn.PredictionMode;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -30,6 +31,7 @@ public class KqlParser {
         return invokeParser(kqlQuery, kqlParserContext, KqlBaseParser::topLevelQuery, KqlAstBuilder::toQueryBuilder);
     }
 
+    @SuppressForbidden(reason = "TODO: replace with manual depth tracking before the overflow occurs")
     private <T> T invokeParser(
         String kqlQuery,
         KqlParsingContext kqlParsingContext,
@@ -55,7 +57,7 @@ public class KqlParser {
             log.trace(() -> Strings.format("Parse tree: %s", tree.toStringTree()));
 
             return visitor.apply(new KqlAstBuilder(kqlParsingContext), tree);
-        } catch (StackOverflowError e) {
+        } catch (StackOverflowError e) { // TODO: unsafe - replace with manual depth tracking
             // we don't have information where exactly, so just say it's the whole query
             throw new KqlParsingException(
                 "KQL statement is too large, causing stack overflow when generating the parsing tree: [{}]",

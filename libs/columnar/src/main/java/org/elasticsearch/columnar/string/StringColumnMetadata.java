@@ -9,6 +9,7 @@
 
 package org.elasticsearch.columnar.string;
 
+import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
 import org.elasticsearch.columnar.ColumnMetadata;
@@ -20,11 +21,9 @@ import org.elasticsearch.columnar.substrate.MonotonicWriter;
 import java.io.IOException;
 
 /**
- * Describes a string column — single- or multi-valued. Slots live in one value-address-indexed,
- * block-encoded store in the order they were written (never reordered), addressed by a compact
- * {@code DirectMonotonic} table of per-block byte offsets. The offset table is per block rather than per
- * value so its size is a fraction of the column's — the position of a value inside its block comes from
- * decoding the block, which a read has to do anyway.
+ * Describes a string column — single- or multi-valued. Slots are addressed by value address in the order
+ * they were written (never reordered). What places a value in the column's bytes is kept per block rather than
+ * per value, so it is a fraction of the column's size.
  *
  * <p>A column takes one of two layouts, and each says only what its own layout has. {@link Plain} reads its
  * values straight out of {@link Plain#values()}. {@link Dictionary} instead reads an ordinal from
@@ -37,7 +36,7 @@ import java.io.IOException;
  * it holds most.
  *
  * <p>Where the nulls are is not shared, because the two layouts can afford different answers. {@link Plain}
- * stores a null as a zero-length value and keeps a table of the addresses that hold one. {@link Dictionary}
+ * stores a null as a code of its own in its lengths, below every length. {@link Dictionary}
  * names a null with a reserved ordinal, which costs no table and keeps a null out of every term's ordinal
  * range — so a query answered from the ordinals alone is not also answering for the empty term.
  */
@@ -64,13 +63,22 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
     long valueBytes();
 
     /**
+     * The shortest value in bytes, or {@code -1} when no slot holds one. Recorded so a merge knows its output's
+     * lengths from its inputs without reading their values.
+     */
+    int minLength();
+
+    /** The longest value in bytes, or {@code -1} when no slot holds one. */
+    int maxLength();
+
+    /**
      * How many slots each document holds and where every block of those counts begins, present only when
      * the slots and the documents are not in step. When every document holds exactly one slot it is dropped
      * and a document's value address is its rank.
      *
      * <p>Shared by both layouts, unlike the nulls: finding where a document's slots are is the same question
-     * whichever layout names them. Both parts store their data in the data file, read off-heap from the
-     * mapped input, and keep their small metadata here.
+     * whichever layout names them. The counts are in the addressing and the bases in the navigation, both
+     * read off-heap from the mapped input, and their small metadata is kept here.
      */
     SlotAddressing addressing();
 
@@ -95,25 +103,29 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
     StringColumnMetadata withSummary(Summary summary);
 
     /** Writes what this layout has, after the fields both layouts share. */
-    void writeBody(DataOutput out) throws IOException;
+    void writeBody(DataOutput out, FormatVersion formatVersion) throws IOException;
 
     /** Whether this column recorded what it surveyed. */
     default boolean hasSummary() {
         return summary() != null;
     }
 
-    /** True when at least one document has more than one slot. */
+    /**
+     * True when a document holds more than one slot. The counts alone do not answer it — a document holding
+     * none cancels out one holding two — so the addressing records it as the documents are written.
+     */
     default boolean multiValued() {
-        return numValues() > numDocsWithField();
+        return addressing().someDocumentHoldsSeveral();
     }
 
     /**
      * Whether a document's value address has to be looked up rather than being its rank. That is any column
      * where the slots and the documents are not in step, which a document holding several slots causes and a
-     * document holding none — an empty array — causes just as much.
+     * document holding none — an empty array — causes just as much. The two cancel out in the counts, so the
+     * column records it rather than deriving it: the addressing is kept exactly where it is needed.
      */
     default boolean hasValueAddresses() {
-        return numValues() != numDocsWithField();
+        return SlotAddressing.NONE.equals(addressing()) == false;
     }
 
     /** True when at least one slot in the column is null. */
@@ -125,28 +137,37 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
      * What a column records of the terms it holds most, so a merge can work out a vocabulary from its
      * inputs instead of reading their values again. The counts are the survey's, and so are lower bounds.
      *
-     * <p>A dictionary column's summary terms are its dictionary; only the counts are written beside it.
+     * <p>Where a dictionary column's summary selects exactly the terms its dictionary holds, the terms are
+     * not written twice and only the counts are stored beside it. The two selections answer different
+     * quotas, so a dictionary column may equally carry summary terms of its own.
      *
      * @param terms        the summarised terms in term order, or null when they are the dictionary
      * @param countsOffset where the counts, one vlong per term, begin
      * @param countsLength how many bytes they occupy
-     * @param numValues    the values the survey saw, which the counts are a share of
+     * @param numValues    the values a dictionary would have to name, which the counts are a share of, so
+     *                     null slots are not among them: a null is named by an ordinal of its own
      */
-    record Summary(ValueStream.Metadata terms, long countsOffset, long countsLength, long numValues) {}
+    record Summary(ValueStream.Metadata terms, long countsOffset, long countsLength, long numValues, BestCoverage bestCoverage) {
+
+        boolean hasTerms() {
+            return countsLength > 0;
+        }
+    }
 
     /**
      * A column that stores its values as they were written.
      *
-     * <p>A null is stored as a zero-length value, so it occupies an address like any other slot and
-     * {@link #nullSlots()} is the only thing that tells it from an empty string. That table is this layout's
-     * alone: the values are bytes, and bytes have no spare value to mean "null" the way an ordinal does.
+     * <p>A null occupies an address like any other slot and stores no bytes; its length, which the column keeps
+     * for every slot, is what tells it from an empty string.
      *
-     * @param nullSlots    the value addresses holding a null, ascending; present only when {@code numNullSlots > 0}
+     * @param values       the values and their lengths; null for a column with no document holding one
      * @param valuesWorthNaming whether a page of this column is worth naming its values with ordinals rather
      *                          than handing the bytes over. The survey that turned the dictionary down answers
      *                          it: values that did not cover enough of the column to earn one do not repeat
      *                          enough for a page to earn one either. A column written under no dictionary
      *                          policy was never surveyed, and leaves the page to decide as it always has
+     * @param skipper      where the bounds on the values each chunk owns are in the skip-index file;
+     *                     null for a column that wrote none
      */
     record Plain(
         ColumnIteratorMetadata iterator,
@@ -154,13 +175,72 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         long numValues,
         long numNullSlots,
         long valueBytes,
+        int minLength,
+        int maxLength,
         SlotAddressing addressing,
-        MonotonicWriter.Table nullSlots,
-        ValueStream.Metadata values,
+        PlainValues.Metadata values,
         boolean valuesSorted,
         boolean valuesWorthNaming,
+        Skipper skipper,
         Summary summary
     ) implements StringColumnMetadata {
+
+        /**
+         * Where the skip-index region of a column is: {@code kind} is the id of the {@link PlainSkipKind} that wrote it and
+         * so reads it, followed in the skip-index file by {@code entryCount} directory entries, then {@code payloadLength}
+         * bytes.
+         */
+        record Skipper(byte kind, long dataOffset, int entryCount, long payloadLength) {
+
+            static final byte NONE = 0;
+
+            void writeTo(DataOutput out) throws IOException {
+                out.writeByte(kind);
+                out.writeVLong(dataOffset);
+                out.writeVInt(entryCount);
+                out.writeVLong(payloadLength);
+            }
+
+            static Skipper readOptionally(DataInput in, long numValues) throws IOException {
+                final byte kind = in.readByte();
+                return kind == NONE ? null : readFrom(kind, in, numValues);
+            }
+
+            static Skipper readFrom(DataInput in, long numValues) throws IOException {
+                return readFrom(in.readByte(), in, numValues);
+            }
+
+            private static Skipper readFrom(byte kind, DataInput in, long numValues) throws IOException {
+                try {
+                    PlainSkipKind.forId(kind);
+                } catch (IllegalArgumentException e) {
+                    throw new CorruptIndexException(e.getMessage(), in, e);
+                }
+                final Skipper skipper = new Skipper(kind, in.readVLong(), in.readVInt(), in.readVLong());
+                if (skipper.dataOffset < 0 || skipper.payloadLength < 0 || skipper.entryCount < 1 || skipper.entryCount > numValues) {
+                    throw new CorruptIndexException("invalid plain skipper " + skipper + " for [" + numValues + "] values", in);
+                }
+                return skipper;
+            }
+        }
+
+        public Plain withSkipper(Skipper skipper) {
+            return new Plain(
+                iterator,
+                numDocsWithField,
+                numValues,
+                numNullSlots,
+                valueBytes,
+                minLength,
+                maxLength,
+                addressing,
+                values,
+                valuesSorted,
+                valuesWorthNaming,
+                skipper,
+                summary
+            );
+        }
 
         @Override
         public StringColumnLayout layout() {
@@ -175,21 +255,29 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
                 numValues,
                 numNullSlots,
                 valueBytes,
+                minLength,
+                maxLength,
                 addressing,
-                nullSlots,
                 values,
                 valuesSorted,
                 valuesWorthNaming,
+                skipper,
                 summary
             );
         }
 
         @Override
-        public void writeBody(DataOutput out) throws IOException {
+        public void writeBody(DataOutput out, FormatVersion formatVersion) throws IOException {
             values.writeTo(out);
             out.writeByte((byte) (valuesWorthNaming ? 1 : 0));
-            if (hasNullSlots()) {
-                writeTable(out, nullSlots);
+            if (formatVersion.onOrAfter(FormatVersion.VERSION_SKIP_INDEX_PLAIN)) {
+                if (skipper == null) {
+                    out.writeByte(Skipper.NONE);
+                } else {
+                    skipper.writeTo(out);
+                }
+            } else if (skipper != null) {
+                throw new IllegalStateException("format version [" + formatVersion.version() + "] has no room for a plain skipper");
             }
         }
     }
@@ -217,6 +305,8 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         long numValues,
         long numNullSlots,
         long valueBytes,
+        int minLength,
+        int maxLength,
         SlotAddressing addressing,
         ValueStream.Metadata dictionary,
         NumericColumnMetadata ordinals,
@@ -257,6 +347,8 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
                 numValues,
                 numNullSlots,
                 valueBytes,
+                minLength,
+                maxLength,
                 addressing,
                 dictionary,
                 ordinals,
@@ -270,10 +362,10 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         }
 
         @Override
-        public void writeBody(DataOutput out) throws IOException {
+        public void writeBody(DataOutput out, FormatVersion formatVersion) throws IOException {
             out.writeVInt(dictionarySize);
             dictionary.writeTo(out);
-            ordinals.writeTo(out);
+            ordinals.writeTo(out, formatVersion);
             escapes.writeTo(out);
             if (escapes.numValues() > 0) {
                 out.writeVInt(escapeRankBlockSize);
@@ -283,7 +375,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
     }
 
     static StringColumnMetadata empty(ColumnIteratorMetadata iterator) {
-        return plain(iterator, 0, 0, 0, SlotAddressing.NONE, MonotonicWriter.Table.NONE, ValueStream.Metadata.empty(), true, false);
+        return plain(iterator, 0, 0, 0, 0, -1, -1, SlotAddressing.NONE, null, true, false);
     }
 
     /** A column that stores its values as they were written. */
@@ -292,9 +384,11 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         int numDocsWithField,
         long numValues,
         long numNullSlots,
+        long valueBytes,
+        int minLength,
+        int maxLength,
         SlotAddressing addressing,
-        MonotonicWriter.Table nullSlots,
-        ValueStream.Metadata values,
+        PlainValues.Metadata values,
         boolean valuesSorted,
         boolean valuesWorthNaming
     ) {
@@ -303,12 +397,14 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
             numDocsWithField,
             numValues,
             numNullSlots,
-            values.valueBytes(),
+            valueBytes,
+            minLength,
+            maxLength,
             addressing,
-            nullSlots,
             values,
             valuesSorted,
             valuesWorthNaming,
+            null,
             null
         );
     }
@@ -320,6 +416,8 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         long numValues,
         long numNullSlots,
         long valueBytes,
+        int minLength,
+        int maxLength,
         SlotAddressing addressing,
         ValueStream.Metadata dictionary,
         NumericColumnMetadata ordinals,
@@ -335,6 +433,8 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
             numValues,
             numNullSlots,
             valueBytes,
+            minLength,
+            maxLength,
             addressing,
             dictionary,
             ordinals,
@@ -348,7 +448,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
     }
 
     @Override
-    default void writeTo(DataOutput out) throws IOException {
+    default void writeTo(DataOutput out, FormatVersion formatVersion) throws IOException {
         iterator().writeTo(out);
         out.writeVInt(numDocsWithField());
         if (numDocsWithField() == 0) {
@@ -357,15 +457,19 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         out.writeVLong(numValues());
         out.writeVLong(numNullSlots());
         out.writeVLong(valueBytes());
+        // Shifted by one, since a column holding only nulls has no length at all.
+        out.writeVInt(minLength() + 1);
+        out.writeVInt(maxLength() + 1);
         out.writeByte(valuesSorted() ? SORTED : NOT_SORTED);
         // Written ahead of the layout because finding a document's slots is the same question whichever
         // layout follows, and gated on counts already on the wire above. How the nulls among those slots are
         // recorded is not shared, so that goes in the body.
+        out.writeByte((byte) (hasValueAddresses() ? 1 : 0));
         if (hasValueAddresses()) {
             addressing().writeTo(out);
         }
         out.writeByte(layout().id());
-        writeBody(out);
+        writeBody(out, formatVersion);
         final Summary summary = summary();
         out.writeByte((byte) (summary == null ? 0 : 1));
         if (summary != null) {
@@ -377,6 +481,8 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
             out.writeVLong(summary.countsOffset());
             out.writeVLong(summary.countsLength());
             out.writeVLong(summary.numValues());
+            out.writeVLong(summary.bestCoverage().cap());
+            out.writeVLong(summary.bestCoverage().namedValues());
         }
     }
 
@@ -387,8 +493,8 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
      * {@link org.elasticsearch.columnar.substrate.ColumnarCodecUtil#checkHeader}. Fields added in a later
      * layout version are gated on it:
      * <pre>{@code
-     * if (formatVersion.onOrAfter(FormatVersion.V1_EXTRA_FLAGS)) {
-     *     flags = in.readVInt();
+     * if (formatVersion.onOrAfter(FormatVersion.VERSION_SKIP_INDEX_PLAIN)) {
+     *     skipper = Plain.Skipper.readOptionally(in, numValues);
      * }
      * }</pre>
      */
@@ -401,25 +507,31 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         long numValues = in.readVLong();
         long numNullSlots = in.readVLong();
         long valueBytes = in.readVLong();
+        int minLength = in.readVInt() - 1;
+        int maxLength = in.readVInt() - 1;
         boolean valuesSorted = in.readByte() == SORTED;
-        SlotAddressing addressing = numValues != numDocsWithField ? SlotAddressing.readFrom(in) : SlotAddressing.NONE;
+        SlotAddressing addressing = in.readByte() != 0 ? SlotAddressing.readFrom(in) : SlotAddressing.NONE;
         StringColumnLayout layout = StringColumnLayout.fromId(in.readByte());
         final StringColumnMetadata column = switch (layout) {
             case PLAIN -> {
-                final ValueStream.Metadata values = ValueStream.Metadata.readFrom(in);
+                final PlainValues.Metadata values = PlainValues.Metadata.readFrom(in);
                 final boolean valuesWorthNaming = in.readByte() != 0;
-                final MonotonicWriter.Table nullSlots = numNullSlots > 0 ? readTable(in) : MonotonicWriter.Table.NONE;
+                final Plain.Skipper skipper = formatVersion.onOrAfter(FormatVersion.VERSION_SKIP_INDEX_PLAIN)
+                    ? Plain.Skipper.readOptionally(in, values.numValues())
+                    : null;
                 yield plain(
                     iterator,
                     numDocsWithField,
                     numValues,
                     numNullSlots,
+                    valueBytes,
+                    minLength,
+                    maxLength,
                     addressing,
-                    nullSlots,
                     values,
                     valuesSorted,
                     valuesWorthNaming
-                );
+                ).withSkipper(skipper);
             }
             case DICTIONARY -> {
                 final int dictionarySize = in.readVInt();
@@ -434,6 +546,8 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
                     numValues,
                     numNullSlots,
                     valueBytes,
+                    minLength,
+                    maxLength,
                     addressing,
                     dictionary,
                     ordinals,
@@ -449,7 +563,20 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
             return column;
         }
         final ValueStream.Metadata summaryTerms = in.readByte() == 0 ? null : ValueStream.Metadata.readFrom(in);
-        return column.withSummary(new Summary(summaryTerms, in.readVLong(), in.readVLong(), in.readVLong()));
+        final long countsOffset = in.readVLong();
+        final long countsLength = in.readVLong();
+        final long summaryValues = in.readVLong();
+        final long bestCoverageCap = in.readVLong();
+        final long bestCoverageValues = in.readVLong();
+        return column.withSummary(
+            new Summary(
+                summaryTerms,
+                countsOffset,
+                countsLength,
+                summaryValues,
+                BestCoverage.of(bestCoverageValues, summaryValues, bestCoverageCap)
+            )
+        );
     }
 
     private static void writeTable(DataOutput out, MonotonicWriter.Table table) throws IOException {

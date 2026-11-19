@@ -33,12 +33,23 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  * Response: {@code {"status": "success"}}, {@code {"status": "failure", "error": "..."}}, or
  * {@code {"status": "untestable"[, "message": "..."]}}. Returns 400 for an unregistered type.
  *
+ * <p>Registration is gated by {@link #ESQL_DATA_SOURCE_TEST_CONNECTION_FEATURE_FLAG} (snapshot-on,
+ * release-off). When the flag is off the handler is not registered. With federation still on,
+ * {@code POST /_query/data_source/_test} then hits CRUD's {@code /_query/data_source/{name}}
+ * template and returns {@code 405 Incorrect HTTP method} rather than a probe response.
+ *
  * <p>Implements {@link RestRequestFilter} with the same secret-field mask as {@link RestPutDataSourceAction}
  * so that credential values ({@code secret_key}, {@code sas_token}, etc.) are not written to the audit
  * log in plain text when {@code emit_request_body} is enabled.
  */
 @ServerlessScope(Scope.PUBLIC)
 public class RestTestDataSourceConnectionAction extends BaseRestHandler implements RestRequestFilter {
+
+    /**
+     * Gates {@code POST /_query/data_source/_test}. Snapshot-on, release-off; override in release with
+     * {@code -Des.esql_data_source_test_connection_feature_flag_enabled=true}.
+     */
+    public static final FeatureFlag ESQL_DATA_SOURCE_TEST_CONNECTION_FEATURE_FLAG = new FeatureFlag("esql_data_source_test_connection");
 
     // Mirrors HttpDataSourcePlugin.ESQL_EXTERNAL_DATASOURCES_LOCAL_FEATURE_FLAG without importing
     // the http-datasource plugin (wrong dependency direction). Both check the same JVM property.
@@ -80,9 +91,12 @@ public class RestTestDataSourceConnectionAction extends BaseRestHandler implemen
             Set.of(
                 EsqlDataSourcesCapabilities.DATA_SOURCES,
                 EsqlDataSourcesCapabilities.DATA_SOURCES_SERVERLESS_SCOPE,
-                EsqlDataSourcesCapabilities.DATA_SOURCE_TEST_CONNECTION
+                EsqlDataSourcesCapabilities.EXTERNAL_DATASET_MESSAGES
             )
         );
+        if (ESQL_DATA_SOURCE_TEST_CONNECTION_FEATURE_FLAG.isEnabled()) {
+            caps.add(EsqlDataSourcesCapabilities.DATA_SOURCE_TEST_CONNECTION);
+        }
         if (LOCAL_TYPE_FLAG.isEnabled()) {
             caps.add(EsqlDataSourcesCapabilities.DATA_SOURCE_LOCAL_TYPE);
         }

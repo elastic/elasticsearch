@@ -35,7 +35,7 @@ public class BytesRefArrayStatePartitionTests extends ESTestCase {
     private void runTest(long pagedThreshold) {
         var bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(200)).withCircuitBreaking();
         var breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
-        var partitionBreaker = new NoopCircuitBreaker("partition");
+        var partitionBreaker = NoopCircuitBreaker.INSTANCE;
 
         int numGroups = between(1, 50000);
         boolean withNulls = randomBoolean();

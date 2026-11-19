@@ -19,6 +19,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 
@@ -110,6 +111,21 @@ public final class Expressions {
         return list;
     }
 
+    /**
+     * Keep {@link UnsupportedAttribute}s already on {@code existingOutput}. LOAD_ALL UnionAll type conflicts put that
+     * attribute on the union output while the children hold null-keyword aliases so they can still execute; rebuilding
+     * from the children would report {@code keyword} and drop {@code original_types}.
+     */
+    public static List<Attribute> keepExistingUnsupportedAttributes(List<Attribute> converted, List<Attribute> existingOutput) {
+        Map<String, Attribute> existing = existingOutput.stream()
+            .filter(attr -> attr instanceof UnsupportedAttribute)
+            .map(attr -> (UnsupportedAttribute) attr)
+            .collect(Collectors.toMap(FieldAttribute::name, e -> e));
+        return existing.isEmpty()
+            ? converted
+            : new ArrayList<>(converted.stream().map(attr -> existing.getOrDefault(attr.name(), attr)).toList());
+    }
+
     public static boolean anyMatch(List<? extends Expression> exps, Predicate<? super Expression> predicate) {
         for (Expression exp : exps) {
             if (exp.anyMatch(predicate)) {
@@ -137,20 +153,7 @@ public final class Expressions {
      * </pre>
      */
     public static Nullability nullable(List<? extends Expression> exps) {
-        Nullability value = Nullability.FALSE;
-        for (Expression exp : exps) {
-            switch (exp.nullable()) {
-                case UNKNOWN:
-                    return Nullability.UNKNOWN;
-                case TRUE:
-                    value = Nullability.TRUE;
-                    break;
-                default:
-                    // not nullable
-                    break;
-            }
-        }
-        return value;
+        return exps.stream().anyMatch(e -> e.nullable() == Nullability.TRUE) ? Nullability.TRUE : Nullability.FALSE;
     }
 
     public static List<Expression> canonicalize(List<? extends Expression> exps) {

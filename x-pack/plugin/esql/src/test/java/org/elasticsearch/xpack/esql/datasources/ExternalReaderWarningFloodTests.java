@@ -51,11 +51,11 @@ public class ExternalReaderWarningFloodTests extends ESTestCase {
     private static final int BAD_ROWS_PER_UNIT = 40;
 
     public void testCsvNullFieldWarningsStayBoundedAcrossDriverFanOut() {
-        assertChannelBounded("CSV", "affected rows/fields are listed below");
+        assertChannelBounded("CSV");
     }
 
     public void testNdjsonNullFieldWarningsStayBoundedAcrossDriverFanOut() {
-        assertChannelBounded("NDJSON", "affected rows are listed below");
+        assertChannelBounded("NDJSON");
     }
 
     /**
@@ -66,7 +66,7 @@ public class ExternalReaderWarningFloodTests extends ESTestCase {
      * surfaces and that the whole channel stays within {@code MAX_ADDED_WARNINGS + 1} regardless of the
      * driver, unit, and per-unit row counts.
      */
-    private void assertChannelBounded(String format, String summaryTail) {
+    private void assertChannelBounded(String format) {
         int cap = SkipWarnings.MAX_ADDED_WARNINGS;
         InformationalWarningBudget budget = new InformationalWarningBudget(cap);
 
@@ -87,15 +87,12 @@ public class ExternalReaderWarningFloodTests extends ESTestCase {
                 // One collector per unit, mirroring the reader's per-chunk/per-file SkipWarnings. The summary
                 // embeds a per-unit source location, as a multi-file glob would, so summaries are distinct too.
                 String file = "part-" + driver + "-" + unit + "." + format.toLowerCase(Locale.ROOT);
-                String summary = format
-                    + " read from ["
-                    + file
-                    + "] "
-                    + "encountered parse errors handled per policy (policy: null_field); "
-                    + summaryTail;
+                String summary = "Some values in [" + file + "] cannot be read; returning null, and skipping rows that cannot be parsed";
                 SkipWarnings unitWarnings = SkipWarnings.of(ErrorPolicy.PERMISSIVE, summary, sink);
                 for (int row = 0; row < BAD_ROWS_PER_UNIT; row++) {
-                    unitWarnings.add("Failed to parse " + format + " value [notanumber-" + driver + "-" + unit + "-" + row + "] as [LONG]");
+                    unitWarnings.add(
+                        "row [" + row + "], column [v]: cannot read [notanumber-" + driver + "-" + unit + "-" + row + "] as [long]"
+                    );
                 }
             }
 
@@ -110,7 +107,7 @@ public class ExternalReaderWarningFloodTests extends ESTestCase {
         assertThat(
             "the null-fill drift must still surface at least one per-value warning, got: " + delivered,
             delivered,
-            hasItem(containsString("as [LONG]"))
+            hasItem(containsString("as [long]"))
         );
         // Sanity: the fixture presents far more distinct warnings than the cap, so a passing bound is a real
         // cap and not an artifact of too little input.

@@ -7,21 +7,32 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
+import io.airlift.compress.MalformedInputException;
+import io.airlift.compress.lz4.Lz4Compressor;
+
+import org.apache.parquet.bytes.BytesInput;
+import org.apache.parquet.compression.CompressionCodecFactory.BytesInputDecompressor;
+import org.apache.parquet.hadoop.metadata.CompressionCodecName;
+import org.apache.parquet.io.ParquetDecodingException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
-import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalServerException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
+import java.util.Arrays;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
@@ -35,9 +46,9 @@ public class ParquetReadFailuresTests extends ESTestCase {
         IOException io = new IOException("truncated");
         RuntimeException wrapped = ParquetReadFailures.wrap(io, "Failed to read column [id]");
         assertThat(wrapped, instanceOf(ExternalClientException.class));
-        assertSame(io, wrapped.getCause());
+        assertNull("the IO failure must not be chained to prevent caused_by leaks", wrapped.getCause());
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(wrapped));
-        assertSame(wrapped, ExternalFailures.classify(wrapped));
+        assertEquals(wrapped.getMessage(), ExternalFailures.classify(wrapped).getMessage());
     }
 
     public void testUncheckedIoExceptionBecomesExternalClient400() {
@@ -45,13 +56,21 @@ public class ParquetReadFailuresTests extends ESTestCase {
         UncheckedIOException uioe = new UncheckedIOException("wrapped", cause);
         RuntimeException wrapped = ParquetReadFailures.wrap(uioe, "Failed to parse page header");
         assertThat(wrapped, instanceOf(ExternalClientException.class));
-        assertSame(uioe, wrapped.getCause());
+        assertNull("the IO failure must not be chained to prevent caused_by leaks", wrapped.getCause());
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(wrapped));
-        assertSame(wrapped, ExternalFailures.classify(wrapped));
+        assertEquals(wrapped.getMessage(), ExternalFailures.classify(wrapped).getMessage());
     }
 
     public void testExternalUnavailableIdentityAnd503() {
-        ExternalUnavailableException unavailable = new ExternalUnavailableException("store 503", new IOException());
+        ExternalUnavailableException unavailable = new ExternalUnavailableException(
+            Condition.STORE_UNAVAILABLE,
+            StoragePath.NONE,
+            "",
+            "",
+            false,
+            0L,
+            new IOException()
+        );
         RuntimeException wrapped = ParquetReadFailures.wrap(unavailable, "ctx");
         assertSame(unavailable, wrapped);
         assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(ExternalFailures.classify(wrapped)));
@@ -64,7 +83,15 @@ public class ParquetReadFailuresTests extends ESTestCase {
     }
 
     public void testCompletionExceptionUnwrapsExternalUnavailableTo503() {
-        ExternalUnavailableException unavailable = new ExternalUnavailableException("store 503", new IOException());
+        ExternalUnavailableException unavailable = new ExternalUnavailableException(
+            Condition.STORE_UNAVAILABLE,
+            StoragePath.NONE,
+            "",
+            "",
+            false,
+            0L,
+            new IOException()
+        );
         RuntimeException wrapped = ParquetReadFailures.wrap(new CompletionException(unavailable), "Phase 2 prefetch failed");
         assertSame(unavailable, wrapped);
         assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(ExternalFailures.classify(wrapped)));
@@ -74,7 +101,7 @@ public class ParquetReadFailuresTests extends ESTestCase {
         IOException io = new IOException("truncated");
         RuntimeException wrapped = ParquetReadFailures.wrap(new ExecutionException(io), "Failed to read column");
         assertThat(wrapped, instanceOf(ExternalClientException.class));
-        assertSame(io, wrapped.getCause());
+        assertNull("the IO failure must not be chained to prevent caused_by leaks", wrapped.getCause());
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(wrapped));
     }
 
@@ -97,6 +124,84 @@ public class ParquetReadFailuresTests extends ESTestCase {
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(ExternalFailures.classify(wrapped)));
     }
 
+    public void testParquetDecodingExceptionKeepsContext400() {
+        ParquetDecodingException decoding = new ParquetDecodingException(
+            "Could not decompress V1 data page (codec SNAPPY)",
+            new IOException("FAILED_TO_UNCOMPRESS(5)")
+        );
+        RuntimeException wrapped = ParquetReadFailures.wrap(decoding, "Failed to read Parquet column [id] in file [k.parquet]");
+        assertThat(wrapped, instanceOf(ParquetDecodingException.class));
+        assertThat(wrapped.getMessage(), containsString("Failed to read Parquet column [id] in file [k.parquet]"));
+        assertThat(wrapped.getMessage(), containsString("Could not decompress V1 data page (codec SNAPPY)"));
+        assertSame(decoding, wrapped.getCause());
+
+        RuntimeException classified = ExternalFailures.classify(wrapped);
+        assertThat(classified, instanceOf(ExternalClientException.class));
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(classified));
+        assertThat(classified.getMessage(), containsString("k.parquet"));
+        assertThat(classified.getMessage(), containsString("SNAPPY"));
+    }
+
+    public void testParquetDecodingExceptionWithNullMessageKeepsContext() {
+        ParquetDecodingException decoding = new ParquetDecodingException((String) null);
+        RuntimeException wrapped = ParquetReadFailures.wrap(decoding, "Failed to read Parquet column [id] in file [k.parquet]");
+        assertThat(wrapped, instanceOf(ParquetDecodingException.class));
+        assertSame(decoding, wrapped.getCause());
+        assertThat(wrapped.getMessage(), containsString("Failed to read Parquet column [id] in file [k.parquet]"));
+        assertThat(wrapped.getMessage(), containsString("ParquetDecodingException"));
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(ExternalFailures.classify(wrapped)));
+    }
+
+    public void testTypedElasticsearchFailureStillPassesThrough() {
+        ExternalUnavailableException unavailable = new ExternalUnavailableException(
+            Condition.STORE_UNAVAILABLE,
+            StoragePath.NONE,
+            "",
+            "",
+            false,
+            0L,
+            new IOException()
+        );
+        String unavailableMessage = unavailable.getMessage();
+        RuntimeException wrappedUnavailable = ParquetReadFailures.wrap(unavailable, "ctx");
+        assertSame(unavailable, wrappedUnavailable);
+        assertEquals(unavailableMessage, wrappedUnavailable.getMessage());
+        assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(ExternalFailures.classify(wrappedUnavailable)));
+
+        CircuitBreakingException breaking = new CircuitBreakingException("over", 10, 5, CircuitBreaker.Durability.TRANSIENT);
+        String breakingMessage = breaking.getMessage();
+        RuntimeException wrappedBreaking = ParquetReadFailures.wrap(breaking, "ctx");
+        assertSame(breaking, wrappedBreaking);
+        assertEquals(breakingMessage, wrappedBreaking.getMessage());
+        assertEquals(RestStatus.TOO_MANY_REQUESTS, ExceptionsHelper.status(ExternalFailures.classify(breaking)));
+    }
+
+    public void testUnsupportedCodecRefusalIsClient400() {
+        CompressionCodecName codec = randomBoolean() ? CompressionCodecName.BROTLI : CompressionCodecName.LZO;
+        IllegalArgumentException iae = new IllegalArgumentException(
+            PlainCompressionCodecFactory.unsupportedDecompressionDetail("id", codec, 0)
+        );
+        RuntimeException wrapped = ParquetReadFailures.wrap(iae, "Failed to read Parquet column [id] in file [brotli.parquet]");
+        assertThat(wrapped, instanceOf(IllegalArgumentException.class));
+        assertThat(wrapped.getMessage(), containsString("id"));
+        assertThat(wrapped.getMessage(), containsString(codec.name()));
+        RuntimeException classified = ExternalFailures.classify(wrapped);
+        assertThat(classified, instanceOf(ExternalClientException.class));
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(classified));
+        assertThat(classified.getMessage(), containsString(codec.name()));
+        assertThat(classified.getMessage(), containsString("id"));
+        assertThat(classified.getMessage(), containsString("LZ4_RAW"));
+    }
+
+    public void testUnsupportedOperationExceptionStillClassifies500() {
+        UnsupportedOperationException uoe = new UnsupportedOperationException("Unsupported Parquet decompression codec: BROTLI");
+        RuntimeException wrapped = ParquetReadFailures.wrap(uoe, "ctx");
+        assertSame(uoe, wrapped);
+        RuntimeException classified = ExternalFailures.classify(wrapped);
+        assertThat(classified, instanceOf(ExternalServerException.class));
+        assertEquals(RestStatus.INTERNAL_SERVER_ERROR, ExceptionsHelper.status(classified));
+    }
+
     public void testInvalidArgumentExceptionIdentity400() {
         InvalidArgumentException invalid = new InvalidArgumentException("cannot coerce");
         RuntimeException wrapped = ParquetReadFailures.wrap(invalid, "ctx");
@@ -105,21 +210,21 @@ public class ParquetReadFailuresTests extends ESTestCase {
     }
 
     public void testCredentialsExpiredIdentityAnd400() {
-        ExternalCredentialsExpiredException expired = new ExternalCredentialsExpiredException("expired");
+        ExternalCredentialsExpiredException expired = new ExternalCredentialsExpiredException(StoragePath.NONE, "", "");
         RuntimeException wrapped = ParquetReadFailures.wrap(expired, "ctx");
         assertSame(expired, wrapped);
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(ExternalFailures.classify(wrapped)));
     }
 
     public void testCredentialsExpiredUnderCompletionException() {
-        ExternalCredentialsExpiredException expired = new ExternalCredentialsExpiredException("expired");
+        ExternalCredentialsExpiredException expired = new ExternalCredentialsExpiredException(StoragePath.NONE, "", "");
         RuntimeException wrapped = ParquetReadFailures.wrap(new CompletionException(expired), "Prefetch failed");
         assertSame(expired, wrapped);
         assertTrue(OptimizedParquetColumnIterator.isCredentialsExpired(wrapped));
     }
 
     public void testIsCredentialsExpiredWalksCauseChain() {
-        ExternalCredentialsExpiredException expired = new ExternalCredentialsExpiredException("expired");
+        ExternalCredentialsExpiredException expired = new ExternalCredentialsExpiredException(StoragePath.NONE, "", "");
         assertTrue(OptimizedParquetColumnIterator.isCredentialsExpired(expired));
         assertTrue(OptimizedParquetColumnIterator.isCredentialsExpired(new CompletionException(expired)));
         assertTrue(OptimizedParquetColumnIterator.isCredentialsExpired(new RuntimeException(new IOException(expired))));
@@ -128,7 +233,7 @@ public class ParquetReadFailuresTests extends ESTestCase {
     }
 
     public void testBareExpiredCredentialsIsNotSyncFallback() {
-        ExternalCredentialsExpiredException expired = new ExternalCredentialsExpiredException("expired");
+        ExternalCredentialsExpiredException expired = new ExternalCredentialsExpiredException(StoragePath.NONE, "", "");
         assertFalse(OptimizedParquetColumnIterator.isTransientPrefetchFailure(expired));
         assertFalse(OptimizedParquetColumnIterator.isTransientPrefetchFailure(new CompletionException(expired)));
         assertTrue(OptimizedParquetColumnIterator.isTransientPrefetchFailure(new CompletionException(new IOException("reset"))));
@@ -138,7 +243,7 @@ public class ParquetReadFailuresTests extends ESTestCase {
         CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> later = new CompletableFuture<>();
         ArrayDeque<OptimizedParquetColumnIterator.PendingPrefetch> remaining = new ArrayDeque<>();
         remaining.add(new OptimizedParquetColumnIterator.PendingPrefetch(2, later));
-        ExternalCredentialsExpiredException expired = new ExternalCredentialsExpiredException("expired");
+        ExternalCredentialsExpiredException expired = new ExternalCredentialsExpiredException(StoragePath.NONE, "", "");
 
         ExternalCredentialsExpiredException thrown = expectThrows(
             ExternalCredentialsExpiredException.class,
@@ -160,5 +265,66 @@ public class ParquetReadFailuresTests extends ESTestCase {
         AssertionError error = new AssertionError("boom");
         AssertionError thrown = expectThrows(AssertionError.class, () -> ParquetReadFailures.wrap(new CompletionException(error), "ctx"));
         assertSame(error, thrown);
+    }
+
+    public void testMalformedLz4PayloadIsClient400() throws IOException {
+        byte[] corrupt = corruptLz4Payload();
+        PlainCompressionCodecFactory factory = new PlainCompressionCodecFactory();
+        try {
+            BytesInputDecompressor decompressor = factory.getDecompressor(CompressionCodecName.LZ4_RAW);
+            IOException thrown = expectThrows(IOException.class, () -> decompressor.decompress(BytesInput.from(corrupt), 4096));
+            assertThat(thrown.getMessage(), containsString("LZ4_RAW"));
+            assertThat(thrown.getCause(), instanceOf(MalformedInputException.class));
+            assertEquals(
+                RestStatus.BAD_REQUEST,
+                ExceptionsHelper.status(ExternalFailures.classify(ParquetReadFailures.wrap(thrown, "ctx")))
+            );
+        } finally {
+            factory.release();
+        }
+    }
+
+    public void testMalformedLz4PayloadIsClient400OnByteBufferOverload() throws IOException {
+        byte[] corrupt = corruptLz4Payload();
+        PlainCompressionCodecFactory factory = new PlainCompressionCodecFactory();
+        try {
+            BytesInputDecompressor decompressor = factory.getDecompressor(CompressionCodecName.LZ4_RAW);
+            ByteBuffer input = ByteBuffer.wrap(corrupt);
+            ByteBuffer output = ByteBuffer.allocate(4096);
+            IOException thrown = expectThrows(IOException.class, () -> decompressor.decompress(input, corrupt.length, output, 4096));
+            assertThat(thrown.getMessage(), containsString("LZ4_RAW"));
+            assertThat(thrown.getCause(), instanceOf(MalformedInputException.class));
+            assertEquals(
+                RestStatus.BAD_REQUEST,
+                ExceptionsHelper.status(ExternalFailures.classify(ParquetReadFailures.wrap(thrown, "ctx")))
+            );
+        } finally {
+            factory.release();
+        }
+    }
+
+    public void testMalformedPageIaeWrapNamesFileAndClassifies400() {
+        IllegalArgumentException iae = new IllegalArgumentException(
+            "Malformed Parquet page for column [id] in row group [0]: declared type [DATA_PAGE_V2] but data_page_header_v2 is missing"
+        );
+        RuntimeException wrapped = ParquetReadFailures.wrap(iae, "Failed to read Parquet column [id] in file [broken.parquet]");
+        assertThat(wrapped.getMessage(), containsString("broken.parquet"));
+        assertThat(wrapped.getMessage(), containsString("id"));
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(ExternalFailures.classify(wrapped)));
+    }
+
+    private static byte[] corruptLz4Payload() {
+        byte[] source = new byte[4096];
+        for (int i = 0; i < source.length; i++) {
+            source[i] = (byte) (i % 7);
+        }
+        Lz4Compressor compressor = new Lz4Compressor();
+        byte[] compressed = new byte[compressor.maxCompressedLength(source.length)];
+        int length = compressor.compress(source, 0, source.length, compressed, 0, compressed.length);
+        byte[] corrupt = Arrays.copyOf(compressed, length);
+        for (int i = 8; i < 24; i++) {
+            corrupt[i] ^= 0x5A;
+        }
+        return corrupt;
     }
 }

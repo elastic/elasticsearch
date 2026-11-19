@@ -1,0 +1,4 @@
+LET base = (FROM employees | WHERE emp_no > 10010 | KEEP emp_no, languages);
+LET top5 = (FROM base | LIMIT 5);
+FROM top5
+| SORT emp_no

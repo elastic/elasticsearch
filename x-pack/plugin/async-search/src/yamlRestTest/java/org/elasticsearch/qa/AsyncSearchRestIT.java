@@ -7,6 +7,7 @@
 
 package org.elasticsearch.qa;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -22,7 +23,7 @@ public class AsyncSearchRestIT extends ESClientYamlSuiteTestCase {
         .module("x-pack-async-search")
         .build();
 
-    public AsyncSearchRestIT(final ClientYamlTestCandidate testCandidate) {
+    public AsyncSearchRestIT(@Name("yaml") final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 

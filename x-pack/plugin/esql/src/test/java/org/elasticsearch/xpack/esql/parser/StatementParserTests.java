@@ -12,6 +12,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.TimeValue;
@@ -31,6 +32,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.tree.Location;
@@ -73,6 +75,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
+import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
@@ -100,6 +103,8 @@ import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
@@ -115,12 +120,15 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.common.lucene.BytesRefs.toBytesRef;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.assertEqualsIgnoringIds;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.assumeHighlightImplicitQueryAndFieldsEnabled;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.equalToIgnoringIds;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsIdentifier;
@@ -149,6 +157,7 @@ import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
@@ -580,7 +589,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var match = (MatchOperator) filter.condition();
         var matchField = (UnresolvedAttribute) match.field();
         assertThat(matchField.name(), equalTo("a"));
-        assertThat(match.query().fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("baz")));
+        assertThat(match.query().fold(FoldContext.small()), equalTo(toBytesRef("baz")));
 
         // second subplan
         eval = as(subPlans.get(1), Eval.class);
@@ -591,7 +600,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(alias.name(), equalTo("COUNT(*)"));
         var countFn = as(alias.child(), UnresolvedFunction.class);
         assertThat(countFn.children().get(0), instanceOf(Literal.class));
-        assertThat(countFn.children().get(0).fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("*")));
+        assertThat(countFn.children().get(0).fold(FoldContext.small()), equalTo(toBytesRef("*")));
 
         // third subplan
         eval = as(subPlans.get(2), Eval.class);
@@ -603,7 +612,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(alias.name(), equalTo("COUNT(*)"));
         countFn = as(alias.child(), UnresolvedFunction.class);
         assertThat(countFn.children().get(0), instanceOf(Literal.class));
-        assertThat(countFn.children().get(0).fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("*")));
+        assertThat(countFn.children().get(0).fold(FoldContext.small()), equalTo(toBytesRef("*")));
     }
 
     public void testStringAsIndexPattern() {
@@ -1260,11 +1269,58 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(relation.indexPattern().indexPattern(), equalTo("foo"));
     }
 
-    public void testHighlightRequiresQueryAndOnClause() {
-        // Query and ON are currently required by grammar.
-        expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT"));
-        expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT \"elasticsearch\""));
-        expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT ON title"));
+    public void testBareHighlight() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        Highlight highlight = as(query("FROM foo | HIGHLIGHT"), Highlight.class);
+        assertThat(highlight.query(), nullValue());
+        assertTrue(highlight.fields().isEmpty());
+        assertTrue(highlight.derivedFields());
+        assertThat(highlight.prefix(), equalTo(Highlight.DEFAULT_PREFIX));
+    }
+
+    public void testHighlightOnFieldsWithoutQuery() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        Highlight highlight = as(query("FROM foo | HIGHLIGHT ON title, body"), Highlight.class);
+        assertThat(highlight.query(), nullValue());
+        assertThat(highlight.fields(), hasSize(2));
+        assertThat(((UnresolvedAttribute) highlight.fields().get(0)).name(), equalTo("title"));
+        assertThat(((UnresolvedAttribute) highlight.fields().get(1)).name(), equalTo("body"));
+        assertFalse(highlight.derivedFields());
+    }
+
+    public void testHighlightQueryWithoutOnFields() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        Highlight highlight = as(query("FROM foo | HIGHLIGHT \"fox\""), Highlight.class);
+        assertThat(highlight.query(), instanceOf(Literal.class));
+        assertTrue(highlight.fields().isEmpty());
+        assertTrue(highlight.derivedFields());
+    }
+
+    public void testHighlightOnStar() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        Highlight highlight = as(query("FROM foo | HIGHLIGHT ON *"), Highlight.class);
+        assertThat(highlight.query(), nullValue());
+        assertThat(highlight.fields(), hasSize(1));
+        assertThat(highlight.fields().getFirst(), instanceOf(UnresolvedStar.class));
+        assertTrue(highlight.derivedFields());
+    }
+
+    public void testHighlightRejectsOnNamePattern() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        expectThrows(
+            ParsingException.class,
+            containsString("Invalid pattern [title*] in HIGHLIGHT ON, expected field names or [*]"),
+            () -> query("FROM foo | HIGHLIGHT ON title*")
+        );
+    }
+
+    public void testHighlightRejectsStarCombinedWithFields() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        expectThrows(
+            ParsingException.class,
+            containsString("HIGHLIGHT ON [*] cannot be combined with other fields"),
+            () -> query("FROM foo | HIGHLIGHT ON title, *")
+        );
     }
 
     public void testHighlightCustomPrefix() {
@@ -1368,10 +1424,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(as(highlight.query(), UnresolvedFunction.class).name(), equalTo("MATCH"));
     }
 
-    public void testHighlightRejectsWildcardFields() {
-        expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT \"elasticsearch\" ON *"));
-    }
-
     public void testBasicSortCommand() {
         LogicalPlan plan = query("from text | where true | sort a+b asc nulls first, x desc nulls last | sort y asc | sort z desc");
         assertThat(plan, instanceOf(OrderBy.class));
@@ -1421,6 +1473,242 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testSubquery() {
         assumeTrue("Requires EXPLAIN capability", EsqlCapabilities.Cap.EXPLAIN.isEnabled());
         assertEqualsIgnoringIds(new Explain(EMPTY, PROCESSING_CMD_INPUT), query("explain ( row a = 1 )"));
+    }
+
+    private static final int DEFAULT_MAX_COMMAND_COUNT = EsqlFlags.ESQL_MAX_COMMAND_COUNT.getDefault(Settings.EMPTY);
+
+    public void testDeepSubqueryFailsMaxCommandCount() {
+        assumeTrue("Requires subqueries in FROM", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        String pipes = " | where a > 0".repeat(DEFAULT_MAX_COMMAND_COUNT);
+        query("from foo, (from bar" + pipes + ")");
+        expectThrows(
+            ParsingException.class,
+            containsString("ES|QL statement exceeded the maximum of [500] commands allowed, including the commands in its subqueries"),
+            () -> query("from foo, (from bar" + pipes + " | where a > 0)")
+        );
+    }
+
+    public void testMaxCommandCountIsSharedAcrossSubqueries() {
+        String pipes = " | where a > 0".repeat(DEFAULT_MAX_COMMAND_COUNT / 2);
+        query("from foo, (from bar" + pipes + "), (from baz" + pipes + ")");
+        query("from foo, (from bar" + pipes + ")" + pipes);
+        expectThrows(
+            ParsingException.class,
+            containsString("ES|QL statement exceeded the maximum of [500] commands allowed, including the commands in its subqueries"),
+            () -> query("from foo, (from bar" + pipes + "), (from baz" + pipes + "), (from qux | where a > 0)")
+        );
+        expectThrows(
+            ParsingException.class,
+            containsString("ES|QL statement exceeded the maximum of [500] commands allowed, including the commands in its subqueries"),
+            () -> query("from foo, (from bar" + pipes + ")" + pipes + " | where a > 0")
+        );
+    }
+
+    private static QueryPragmas pragma(Setting<Integer> pragma, int value) {
+        return new QueryPragmas(Settings.builder().put(pragma.getKey(), value).build());
+    }
+
+    public void testMaxCommandCountIsConfigurable() {
+        String query = "from foo, (from bar" + " | where a > 0".repeat(3) + ")" + " | where a > 0".repeat(2);
+        TEST_PARSER.parse(
+            query,
+            new QueryParams(),
+            new InferenceSettings(Settings.EMPTY),
+            pragma(QueryPragmas.MAX_COMMAND_COUNT, 5),
+            EsqlFlags.DEFAULTS
+        );
+        expectThrows(
+            ParsingException.class,
+            containsString("ES|QL statement exceeded the maximum of [4] commands allowed, including the commands in its subqueries"),
+            () -> TEST_PARSER.parse(
+                query,
+                new QueryParams(),
+                new InferenceSettings(Settings.EMPTY),
+                pragma(QueryPragmas.MAX_COMMAND_COUNT, 4),
+                EsqlFlags.DEFAULTS
+            )
+        );
+    }
+
+    private static final String MAX_BINARY_OPERATORS_ERROR =
+        "ES|QL statement exceeded the maximum number of binary operators allowed between commas or pipes ("
+            + EsqlParser.MAX_BINARY_OPERATORS
+            + ")";
+
+    private static final String MAX_LEFT_PARENTHESES_ERROR =
+        "ES|QL statement exceeded the maximum number of left parentheses allowed in an expression ("
+            + EsqlParser.MAX_LEFT_PARENTHESES
+            + ")";
+
+    private static final String MAX_EXPRESSION_DEPTH_ERROR = "ES|QL statement exceeded the maximum expression depth allowed ("
+        + ExpressionBuilder.MAX_EXPRESSION_DEPTH
+        + ")";
+
+    /** A balanced binary tree of {@code leaf + leaf}, such as {@code ((a + a) + (a + a))}, with 2^levels leaves. */
+    private static String balancedAdditionTree(String leaf, int levels) {
+        String expr = leaf;
+        for (int i = 0; i < levels; i++) {
+            expr = "(" + expr + " + " + expr + ")";
+        }
+        return expr;
+    }
+
+    private static String balancedAdditionTree(int levels) {
+        return balancedAdditionTree("a", levels);
+    }
+
+    /** A balanced binary tree of nested function calls without any operator, such as {@code max(max(0,0),max(0,0))}. */
+    private static String balancedFunctionCallTree(int levels) {
+        String expr = "0";
+        for (int i = 0; i < levels; i++) {
+            expr = "max(" + expr + "," + expr + ")";
+        }
+        return expr;
+    }
+
+    /** {@code ROW x0 = 1 + 1, x1 = 1 + 1, ...} with one binary operator per field. */
+    private static String fieldsWithOneOperatorEach(String prefix, int fields) {
+        return IntStream.range(0, fields).mapToObj(i -> prefix + i + " = 1 + 1").collect(Collectors.joining(", "));
+    }
+
+    /** {@code abs(1), abs(1), ...} with one left parenthesis per item. */
+    private static String functionCalls(int count) {
+        return IntStream.range(0, count).mapToObj(i -> "abs(1)").collect(Collectors.joining(", "));
+    }
+
+    public void testFlatOperatorChainFailsMaxBinaryOperators() {
+        expectError("row x = 0" + " + 0".repeat(EsqlParser.MAX_BINARY_OPERATORS + 1), MAX_BINARY_OPERATORS_ERROR);
+        expectError("from test | eval y = a" + " - a".repeat(EsqlParser.MAX_BINARY_OPERATORS + 1), MAX_BINARY_OPERATORS_ERROR);
+        expectError("from test | where a > 0" + " and a > 0".repeat(EsqlParser.MAX_BINARY_OPERATORS), MAX_BINARY_OPERATORS_ERROR);
+        expectError("from test | eval y = a" + "::long".repeat(EsqlParser.MAX_BINARY_OPERATORS + 1), MAX_BINARY_OPERATORS_ERROR);
+    }
+
+    public void testBalancedOperatorTreeFailsMaxLeftParentheses() {
+        // Reproduces https://github.com/elastic/esql-planning/issues/2297: shallow parenthesis nesting, but a huge number of operators
+        expectError("from test | eval y = " + balancedAdditionTree(17) + " | keep y", MAX_LEFT_PARENTHESES_ERROR);
+        // 2^10 - 1 = 1023 parentheses
+        expectError("from test | eval y = " + balancedAdditionTree(10), MAX_LEFT_PARENTHESES_ERROR);
+        // 2^8 - 1 = 255 parentheses
+        query("from test | eval y = " + balancedAdditionTree(8) + " | keep y");
+    }
+
+    public void testBalancedFunctionCallTreeFailsMaxLeftParentheses() {
+        // No binary operators at all, but the cost of parsing grows with the nested calls: 2^10 - 1 = 1023 calls take gigabytes of heap
+        expectError("row x = " + balancedFunctionCallTree(10), MAX_LEFT_PARENTHESES_ERROR);
+        expectError("row x = " + balancedFunctionCallTree(15), MAX_LEFT_PARENTHESES_ERROR);
+        // 2^5 - 1 = 31 calls
+        query("row x = " + balancedFunctionCallTree(5));
+    }
+
+    public void testCommasInsideParenthesesDoNotHideLeftParentheses() {
+        // The commas of the inner function calls reset the operator count, but not the count of the left parentheses
+        expectError("from test | eval y = " + balancedAdditionTree("coalesce(a, a)", 10) + " | keep y", MAX_LEFT_PARENTHESES_ERROR);
+        expectError("from test | eval y = abs(" + balancedAdditionTree("coalesce(a, a)", 9) + ", 1)", MAX_LEFT_PARENTHESES_ERROR);
+    }
+
+    public void testLeftParenthesesUpToMaxAreAccepted() {
+        query("row x = coalesce(" + functionCalls(EsqlParser.MAX_LEFT_PARENTHESES - 1) + ")");
+        expectError("row x = coalesce(" + functionCalls(EsqlParser.MAX_LEFT_PARENTHESES) + ")", MAX_LEFT_PARENTHESES_ERROR);
+    }
+
+    public void testLeftParenthesesAreResetByTopLevelCommaAndPipe() {
+        // Fields of a command are independent
+        query(
+            "row "
+                + IntStream.range(0, 5 * EsqlParser.MAX_LEFT_PARENTHESES)
+                    .mapToObj(i -> "x" + i + " = abs(1)")
+                    .collect(Collectors.joining(", "))
+        );
+        // Commands are independent
+        String calls = functionCalls(EsqlParser.MAX_LEFT_PARENTHESES - 1);
+        query("from test | eval a = coalesce(" + calls + ") | eval b = coalesce(" + calls + ") | keep a, b");
+        // A pipe or a comma inside parentheses do not reset the count of the enclosing expression
+        expectError("from test | eval a = coalesce(" + calls + ", " + calls + ")", MAX_LEFT_PARENTHESES_ERROR);
+        expectError("from test | where x in (from a | where " + calls + " | where " + calls + ")", MAX_LEFT_PARENTHESES_ERROR);
+    }
+
+    public void testBinaryOperatorCountIsResetByComma() {
+        // Fields of a command are independent expressions, so any number of them is fine
+        query("row " + fieldsWithOneOperatorEach("x", 5 * EsqlParser.MAX_BINARY_OPERATORS));
+        query("from test | eval " + fieldsWithOneOperatorEach("x", 5 * EsqlParser.MAX_BINARY_OPERATORS) + " | keep x0");
+        // Arguments of a function call are independent expressions too
+        query("row x = coalesce(" + IntStream.range(0, 2300).mapToObj(i -> "1 + 1").collect(Collectors.joining(", ")) + ")");
+        // COUNT(*) is conservatively counted as a multiplication
+        query(
+            "from test | stats "
+                + IntStream.range(0, 5 * EsqlParser.MAX_BINARY_OPERATORS)
+                    .mapToObj(i -> "c" + i + " = count(*)")
+                    .collect(Collectors.joining(", "))
+        );
+        // Two big trees in two fields are accepted, the same trees in one expression are not
+        String tree = balancedAdditionTree(8);
+        query("from test | eval x = " + tree + ", y = " + tree);
+        expectError("from test | eval x = " + tree + " + " + tree, MAX_LEFT_PARENTHESES_ERROR);
+    }
+
+    public void testBinaryOperatorCountIsResetByPipe() {
+        String tree = balancedAdditionTree(8);
+        // Each command is below the limit while the statement total is above it
+        query("from test | eval x = " + tree + " | eval y = " + tree + " | eval z = " + tree + " | keep x");
+        String conditions = " and a > 0".repeat(EsqlParser.MAX_BINARY_OPERATORS / 4);
+        query("from test | where a > 0" + conditions + " | where a > 0" + conditions + " | where a > 0" + conditions);
+    }
+
+    public void testNestedPipeDoesNotResetBinaryOperatorCount() {
+        // Each half is below the limit, the subquery between them must not hide the operators of the enclosing WHERE
+        String conditions = " and a > 0".repeat(EsqlParser.MAX_BINARY_OPERATORS * 2 / 5);
+        expectError("from test | where a > 0" + conditions + " and x in (from sub | keep x)" + conditions, MAX_BINARY_OPERATORS_ERROR);
+    }
+
+    public void testOperatorsWithoutSeparatorFailMaxBinaryOperators() {
+        // The function call does not hide the operators from the check, because they are not separated by a comma
+        expectError("from test | eval x = abs(a" + " + a".repeat(EsqlParser.MAX_BINARY_OPERATORS + 1) + ")", MAX_BINARY_OPERATORS_ERROR);
+        expectError(
+            "from test | where abs(a"
+                + " + a".repeat(EsqlParser.MAX_BINARY_OPERATORS / 2)
+                + ") > 0"
+                + " and a > 0".repeat(EsqlParser.MAX_BINARY_OPERATORS / 2),
+            MAX_BINARY_OPERATORS_ERROR
+        );
+    }
+
+    public void testLimitsAreCheckedWhenTheLexerFails() {
+        // The parser would work on everything before the invalid character, so the limits must hold for that part
+        List<String> invalidEnds = List.of(" | keep \u00c5", " \"unterminated", " /* unterminated");
+        for (String end : invalidEnds) {
+            expectError("row x = 0" + " + 0".repeat(EsqlParser.MAX_BINARY_OPERATORS + 1) + end, MAX_BINARY_OPERATORS_ERROR);
+            expectError("from test | eval y = " + balancedAdditionTree(17) + end, MAX_LEFT_PARENTHESES_ERROR);
+            expectError("row x = " + balancedFunctionCallTree(10) + end, MAX_LEFT_PARENTHESES_ERROR);
+            expectError(
+                "row x = "
+                    + "(".repeat(ExpressionBuilder.MAX_EXPRESSION_DEPTH + 1)
+                    + "1"
+                    + ")".repeat(ExpressionBuilder.MAX_EXPRESSION_DEPTH + 1)
+                    + end,
+                MAX_EXPRESSION_DEPTH_ERROR
+            );
+        }
+    }
+
+    public void testLexerErrorIsReportedWhenTheLimitsHold() {
+        // The query is parsed lazily again, so the first error in the query is reported, not necessarily the lexer error
+        expectError("from test | keep \u00c5", "token recognition error at: '\u00c5'");
+        expectError("from test | eval y = " + balancedAdditionTree(3) + " | keep \u00c5", "token recognition error at: '\u00c5'");
+        expectError("from | keep \u00c5", "mismatched input '|' expecting");
+    }
+
+    public void testUnmatchedRightParenthesisIsReportedByTheParser() {
+        for (String query : List.of("row x = ) | eval y = 1", "row x = 1) + (2", ") | eval " + fieldsWithOneOperatorEach("x", 10))) {
+            ParsingException e = expectThrows(ParsingException.class, () -> query(query));
+            assertThat(e.getMessage(), not(containsString("exceeded the maximum")));
+        }
+    }
+
+    public void testOperatorLikeTokensInStringsAndCommentsAreNotCounted() {
+        String plusses = "+".repeat(EsqlParser.MAX_BINARY_OPERATORS + 1);
+        query("row x = \"" + plusses + "\"");
+        query("row x = 1 // " + plusses);
+        query("row x = 1 /* " + plusses + " */");
     }
 
     public void testBlockComments() {
@@ -1901,33 +2189,33 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(field.name(), is("y"));
         assertThat(field, instanceOf(Alias.class));
         alias = (Alias) field;
-        assertThat(alias.child().fold(FoldContext.small()), is(BytesRefs.toBytesRef("2")));
+        assertThat(alias.child().fold(FoldContext.small()), is(toBytesRef("2")));
 
         field = row.fields().get(2);
         assertThat(field.name(), is("a"));
         assertThat(field, instanceOf(Alias.class));
         alias = (Alias) field;
-        assertThat(alias.child().fold(FoldContext.small()), is(BytesRefs.toBytesRef("2 days")));
+        assertThat(alias.child().fold(FoldContext.small()), is(toBytesRef("2 days")));
 
         field = row.fields().get(3);
         assertThat(field.name(), is("b"));
         assertThat(field, instanceOf(Alias.class));
         alias = (Alias) field;
-        assertThat(alias.child().fold(FoldContext.small()), is(BytesRefs.toBytesRef("4 hours")));
+        assertThat(alias.child().fold(FoldContext.small()), is(toBytesRef("4 hours")));
 
         field = row.fields().get(4);
         assertThat(field.name(), is("c"));
         assertThat(field, instanceOf(Alias.class));
         alias = (Alias) field;
         assertThat(alias.child().fold(FoldContext.small()).getClass(), is(BytesRef.class));
-        assertThat(alias.child().fold(FoldContext.small()), is(BytesRefs.toBytesRef("1.2.3")));
+        assertThat(alias.child().fold(FoldContext.small()), is(toBytesRef("1.2.3")));
 
         field = row.fields().get(5);
         assertThat(field.name(), is("d"));
         assertThat(field, instanceOf(Alias.class));
         alias = (Alias) field;
         assertThat(alias.child().fold(FoldContext.small()).getClass(), is(BytesRef.class));
-        assertThat(alias.child().fold(FoldContext.small()), is(BytesRefs.toBytesRef("127.0.0.1")));
+        assertThat(alias.child().fold(FoldContext.small()), is(toBytesRef("127.0.0.1")));
 
         field = row.fields().get(6);
         assertThat(field.name(), is("e"));
@@ -2215,7 +2503,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
         assertThat(plan, instanceOf(Aggregate.class));
         Aggregate agg = (Aggregate) plan;
-        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo(BytesRefs.toBytesRef("*")));
+        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo(toBytesRef("*")));
         assertThat(agg.child(), instanceOf(Eval.class));
         assertThat(agg.children().size(), equalTo(1));
         assertThat(agg.children().get(0), instanceOf(Eval.class));
@@ -2235,7 +2523,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
         assertThat(plan, instanceOf(Aggregate.class));
         agg = (Aggregate) plan;
-        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo(BytesRefs.toBytesRef("*")));
+        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo(toBytesRef("*")));
         assertThat(agg.child(), instanceOf(Eval.class));
         assertThat(agg.children().size(), equalTo(1));
         assertThat(agg.children().get(0), instanceOf(Eval.class));
@@ -2255,7 +2543,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
         assertThat(plan, instanceOf(Aggregate.class));
         agg = (Aggregate) plan;
-        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo(BytesRefs.toBytesRef("*")));
+        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo(toBytesRef("*")));
         assertThat(agg.child(), instanceOf(Eval.class));
         assertThat(agg.children().size(), equalTo(1));
         assertThat(agg.children().get(0), instanceOf(Eval.class));
@@ -2273,7 +2561,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
         assertThat(plan, instanceOf(Aggregate.class));
         agg = (Aggregate) plan;
-        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo(BytesRefs.toBytesRef("*")));
+        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo(toBytesRef("*")));
         assertThat(agg.child(), instanceOf(Eval.class));
         assertThat(agg.children().size(), equalTo(1));
         assertThat(agg.children().get(0), instanceOf(Eval.class));
@@ -2291,7 +2579,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
         assertThat(plan, instanceOf(Aggregate.class));
         agg = (Aggregate) plan;
-        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo(BytesRefs.toBytesRef("*")));
+        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo(toBytesRef("*")));
         assertThat(agg.child(), instanceOf(Eval.class));
         assertThat(agg.children().size(), equalTo(1));
         assertThat(agg.children().get(0), instanceOf(Eval.class));
@@ -2352,14 +2640,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
         NamedExpression field = eval.fields().get(0);
         assertThat(field.name(), is("y"));
         assertThat(field, instanceOf(Alias.class));
-        assertThat(
-            ((Literal) ((Add) eval.fields().get(0).child()).left().children().get(0)).value(),
-            equalTo(BytesRefs.toBytesRef("2024-01-01"))
-        );
-        assertThat(
-            ((Literal) ((Add) eval.fields().get(0).child()).right().children().get(0)).value(),
-            equalTo(BytesRefs.toBytesRef("3 days"))
-        );
+        assertThat(((Literal) ((Add) eval.fields().get(0).child()).left().children().get(0)).value(), equalTo(toBytesRef("2024-01-01")));
+        assertThat(((Literal) ((Add) eval.fields().get(0).child()).right().children().get(0)).value(), equalTo(toBytesRef("3 days")));
     }
 
     public void testParamForIdentifier() {
@@ -2837,6 +3119,17 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(Expressions.name(w.condition()), equalTo("a.b.1m.4321"));
     }
 
+    public void testDottedColumnUnquotedAndQuotedAreTheSameName() {
+        // Nested parquet source.ip and a flat leaf named "source.ip" are both written
+        // source.ip in ES|QL. Backticks do not pick the literal leaf; the file schema does.
+        Filter unquoted = as(processingCommand("where source.ip == \"188.166.20.77\""), Filter.class);
+        Filter quoted = as(processingCommand("where `source.ip` == \"188.166.20.77\""), Filter.class);
+        Equals unquotedEq = as(unquoted.condition(), Equals.class);
+        Equals quotedEq = as(quoted.condition(), Equals.class);
+        assertThat(Expressions.name(unquotedEq.left()), equalTo("source.ip"));
+        assertThat(Expressions.name(quotedEq.left()), equalTo("source.ip"));
+    }
+
     public void testQuotedName() {
         // row `my-field`=123 | stats count(`my-field`) | eval x = `count(`my-field`)`
         LogicalPlan plan = processingCommand("stats count(`my-field`) |  keep `count(``my-field``)`");
@@ -2867,7 +3160,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var plan = query(statement);
         var lookup = as(plan, Lookup.class);
         var tableName = as(lookup.tableName(), Literal.class);
-        assertThat(tableName.fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef(string)));
+        assertThat(tableName.fold(FoldContext.small()), equalTo(toBytesRef(string)));
     }
 
     public void testIdPatternUnquoted() {
@@ -2930,7 +3223,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var plan = query(query);
         var lookup = as(plan, Lookup.class);
         var tableName = as(lookup.tableName(), Literal.class);
-        assertThat(tableName.fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("t")));
+        assertThat(tableName.fold(FoldContext.small()), equalTo(toBytesRef("t")));
         assertThat(lookup.matchFields(), hasSize(1));
         var matchField = as(lookup.matchFields().get(0), UnresolvedAttribute.class);
         assertThat(matchField.name(), equalTo("j"));
@@ -2970,7 +3263,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 List.of(new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", List.of(attribute("cpu")))), attribute("ts")),
                 null,
                 new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS load=avg(cpu) BY ts")),
-                TimeSeriesAggregate.Origin.TS_COMMAND
+                TimeSeriesAggregate.Origin.TS_COMMAND,
+                false
             )
         );
         assertQuery(
@@ -2982,7 +3276,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 List.of(new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", List.of(attribute("cpu")))), attribute("ts")),
                 null,
                 new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS load=avg(cpu) BY ts")),
-                TimeSeriesAggregate.Origin.TS_COMMAND
+                TimeSeriesAggregate.Origin.TS_COMMAND,
+                false
             )
         );
         assertQuery(
@@ -3002,7 +3297,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 ),
                 null,
                 new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS load=avg(cpu),max(rate(requests)) BY ts")),
-                TimeSeriesAggregate.Origin.TS_COMMAND
+                TimeSeriesAggregate.Origin.TS_COMMAND,
+                false
             )
         );
         assertQuery(
@@ -3014,7 +3310,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 List.of(new Alias(EMPTY, "count(errors)", new UnresolvedFunction(EMPTY, "count", List.of(attribute("errors"))))),
                 null,
                 new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS count(errors)")),
-                TimeSeriesAggregate.Origin.TS_COMMAND
+                TimeSeriesAggregate.Origin.TS_COMMAND,
+                false
             )
         );
         assertQuery(
@@ -3026,7 +3323,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", List.of(attribute("b"))))),
                 null,
                 new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS a(b)")),
-                TimeSeriesAggregate.Origin.TS_COMMAND
+                TimeSeriesAggregate.Origin.TS_COMMAND,
+                false
             )
         );
         assertQuery(
@@ -3038,7 +3336,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", List.of(attribute("b"))))),
                 null,
                 new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS a(b)")),
-                TimeSeriesAggregate.Origin.TS_COMMAND
+                TimeSeriesAggregate.Origin.TS_COMMAND,
+                false
             )
         );
         assertQuery(
@@ -3050,7 +3349,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 List.of(new Alias(EMPTY, "a1(b2)", new UnresolvedFunction(EMPTY, "a1", List.of(attribute("b2"))))),
                 null,
                 new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS a1(b2)")),
-                TimeSeriesAggregate.Origin.TS_COMMAND
+                TimeSeriesAggregate.Origin.TS_COMMAND,
+                false
             )
         );
         assertQuery(
@@ -3066,7 +3366,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 ),
                 null,
                 new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS b = min(a) by c, d.e")),
-                TimeSeriesAggregate.Origin.TS_COMMAND
+                TimeSeriesAggregate.Origin.TS_COMMAND,
+                false
             )
         );
     }
@@ -3112,7 +3413,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var match = (MatchOperator) filter.condition();
         var matchField = (UnresolvedAttribute) match.field();
         assertThat(matchField.name(), equalTo("field"));
-        assertThat(match.query().fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("value")));
+        assertThat(match.query().fold(FoldContext.small()), equalTo(toBytesRef("value")));
     }
 
     public void testInvalidMatchOperator() {
@@ -3139,7 +3440,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var concat = (UnresolvedFunction) match.field();
         assertThat(concat.name(), equalTo("CONCAT"));
         assertThat(concat.children().size(), equalTo(3));
-        assertThat(match.query().fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("Anneke Preusig")));
+        assertThat(match.query().fold(FoldContext.small()), equalTo(toBytesRef("Anneke Preusig")));
     }
 
     public void testMatchOperatorWithNestedFunctionLhs() {
@@ -3159,7 +3460,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var toInteger = (ToInteger) function.children().get(0);
         var matchField = (UnresolvedAttribute) toInteger.field();
         assertThat(matchField.name(), equalTo("field"));
-        assertThat(function.children().get(1).fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("value")));
+        assertThat(function.children().get(1).fold(FoldContext.small()), equalTo(toBytesRef("value")));
     }
 
     public void testMatchOperatorFieldCasting() {
@@ -3169,7 +3470,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var toInteger = (ToInteger) match.field();
         var matchField = (UnresolvedAttribute) toInteger.field();
         assertThat(matchField.name(), equalTo("field"));
-        assertThat(match.query().fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("value")));
+        assertThat(match.query().fold(FoldContext.small()), equalTo(toBytesRef("value")));
     }
 
     public void testFailingMetadataWithSquareBrackets() {
@@ -3787,6 +4088,197 @@ public class StatementParserTests extends AbstractStatementParserTests {
         }
     }
 
+    public void testFillNullAllFields() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        LogicalPlan plan = processingCommand("fillnull DEFAULT ON *");
+        assertEquals(FillNull.class, plan.getClass());
+        FillNull fillNull = (FillNull) plan;
+        assertNull(fillNull.fillValue());
+        assertTrue(fillNull.targetFields().isEmpty());
+    }
+
+    public void testFillNullWithValue() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        LogicalPlan plan = processingCommand("fillnull 0 ON *");
+        assertEquals(FillNull.class, plan.getClass());
+        FillNull fillNull = (FillNull) plan;
+        assertNotNull(fillNull.fillValue());
+        assertThat(fillNull.fillValue(), instanceOf(Literal.class));
+        assertEquals(0, ((Literal) fillNull.fillValue()).value());
+        assertTrue(fillNull.targetFields().isEmpty());
+    }
+
+    public void testFillNullNamedFields() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        LogicalPlan plan = processingCommand("fillnull DEFAULT ON a, b");
+        assertEquals(FillNull.class, plan.getClass());
+        FillNull fillNull = (FillNull) plan;
+        assertNull(fillNull.fillValue());
+        assertEquals(2, fillNull.targetFields().size());
+        assertThat(fillNull.targetFields().get(0), equalToIgnoringIds(attribute("a")));
+        assertThat(fillNull.targetFields().get(1), equalToIgnoringIds(attribute("b")));
+    }
+
+    public void testFillNullWithValueAndFields() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        LogicalPlan plan = processingCommand("fillnull \"N/A\" ON status, category");
+        assertEquals(FillNull.class, plan.getClass());
+        FillNull fillNull = (FillNull) plan;
+        assertThat(fillNull.fillValue(), instanceOf(Literal.class));
+        Literal lit = (Literal) fillNull.fillValue();
+        assertEquals(toBytesRef("N/A"), lit.value());
+        assertEquals(KEYWORD, lit.dataType());
+        assertEquals(2, fillNull.targetFields().size());
+        assertThat(fillNull.targetFields().get(0), equalToIgnoringIds(attribute("status")));
+        assertThat(fillNull.targetFields().get(1), equalToIgnoringIds(attribute("category")));
+    }
+
+    public void testFillNullWithNullValue() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        LogicalPlan plan = processingCommand("fillnull null ON a");
+        assertEquals(FillNull.class, plan.getClass());
+        FillNull fillNull = (FillNull) plan;
+        assertThat(fillNull.fillValue(), instanceOf(Literal.class));
+        Literal lit = (Literal) fillNull.fillValue();
+        assertNull(lit.value());
+        assertEquals(DataType.NULL, lit.dataType());
+        assertEquals(1, fillNull.targetFields().size());
+        assertThat(fillNull.targetFields().get(0), equalToIgnoringIds(attribute("a")));
+    }
+
+    public void testFillNullWithDecimalValue() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        LogicalPlan plan = processingCommand("fillnull 1.5 ON a");
+        assertEquals(FillNull.class, plan.getClass());
+        FillNull fillNull = (FillNull) plan;
+        assertThat(fillNull.fillValue(), instanceOf(Literal.class));
+        Literal lit = (Literal) fillNull.fillValue();
+        assertEquals(1.5, lit.value());
+        assertEquals(DataType.DOUBLE, lit.dataType());
+        assertEquals(1, fillNull.targetFields().size());
+        assertThat(fillNull.targetFields().get(0), equalToIgnoringIds(attribute("a")));
+    }
+
+    public void testFillNullWithBooleanValue() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        for (boolean expected : new boolean[] { true, false }) {
+            LogicalPlan plan = processingCommand("fillnull " + expected + " ON a");
+            assertEquals(FillNull.class, plan.getClass());
+            FillNull fillNull = (FillNull) plan;
+            assertThat(fillNull.fillValue(), instanceOf(Literal.class));
+            Literal lit = (Literal) fillNull.fillValue();
+            assertEquals(expected, lit.value());
+            assertEquals(DataType.BOOLEAN, lit.dataType());
+            assertEquals(1, fillNull.targetFields().size());
+            assertThat(fillNull.targetFields().get(0), equalToIgnoringIds(attribute("a")));
+        }
+    }
+
+    public void testFillNullWithPositionalParameter() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        LogicalPlan plan = query("row a = 1 | fillnull ? ON a", new QueryParams(List.of(paramAsConstant(null, "missing"))));
+        FillNull fillNull = as(plan, FillNull.class);
+        Literal lit = as(fillNull.fillValue(), Literal.class);
+        assertEquals(toBytesRef("missing"), lit.value());
+        assertEquals(KEYWORD, lit.dataType());
+        assertEquals(1, fillNull.targetFields().size());
+        assertThat(fillNull.targetFields().get(0), equalToIgnoringIds(attribute("a")));
+    }
+
+    public void testFillNullWithNamedParameter() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        LogicalPlan plan = query("row a = 1 | fillnull ?fill ON a", new QueryParams(List.of(paramAsConstant("fill", 42))));
+        FillNull fillNull = as(plan, FillNull.class);
+        Literal lit = as(fillNull.fillValue(), Literal.class);
+        assertEquals(42, lit.value());
+        assertEquals(DataType.INTEGER, lit.dataType());
+        assertEquals(1, fillNull.targetFields().size());
+        assertThat(fillNull.targetFields().get(0), equalToIgnoringIds(attribute("a")));
+    }
+
+    public void testFillNullWithNullParameterFails() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        String error = "] is null, cannot be used as a FILLNULL value; use FILLNULL NULL to leave nulls unchanged";
+        List<QueryParam> nullNamed = List.of(paramAsConstant("fill", null));
+        List<QueryParam> nullUnnamed = List.of(paramAsConstant(null, null));
+        expectError("row a = 1 | fillnull ?fill ON a", nullNamed, "line 1:22: Query parameter [?fill" + error);
+        expectError("row a = 1 | fillnull ?1 ON a", nullUnnamed, "line 1:22: Query parameter [?1" + error);
+        expectError("row a = 1 | fillnull ? ON a", nullUnnamed, "line 1:22: Query parameter [?" + error);
+        expectError("from test | where x > 0 | fillnull ?fill ON a, b", nullNamed, "line 1:36: Query parameter [?fill" + error);
+    }
+
+    public void testFillNullWithUnknownParameterIsNotReportedAsNull() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        ParsingException e = expectThrows(
+            ParsingException.class,
+            () -> query("row a = 1 | fillnull ?fill ON a", new QueryParams(List.of(paramAsConstant("fil", 0))))
+        );
+        assertThat(e.getMessage(), containsString("line 1:22: Unknown query parameter [fill]"));
+        assertThat(e.getMessage(), not(containsString("is null")));
+    }
+
+    public void testFillNullExplicitDefaultKeyword() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        FillNull fillNull = as(processingCommand("fillnull DEFAULT ON a"), FillNull.class);
+        assertNull(fillNull.fillValue());
+        assertEquals(1, fillNull.targetFields().size());
+        assertThat(fillNull.targetFields().get(0), equalToIgnoringIds(attribute("a")));
+    }
+
+    public void testFillNullWildcardPatternTarget() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        FillNull fillNull = as(processingCommand("fillnull 0 ON a*"), FillNull.class);
+        assertThat(fillNull.fillValue(), instanceOf(Literal.class));
+        assertEquals(0, ((Literal) fillNull.fillValue()).value());
+        assertEquals(1, fillNull.targetFields().size());
+        assertThat(fillNull.targetFields().get(0), instanceOf(UnresolvedNamePattern.class));
+    }
+
+    public void testFillNullStarMixedWithNamesIsAllColumns() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        // `*` co-listed with names/patterns selects every column regardless of position, but the co-listed names are
+        // retained so the analyzer still resolves them and reports a typo like any other command would.
+        for (String targets : new String[] { "*, first_name", "first_name, *", "*, a*", "a, *, b*" }) {
+            FillNull fillNull = as(processingCommand("fillnull 0 ON " + targets), FillNull.class);
+            assertThat(fillNull.fillValue(), instanceOf(Literal.class));
+            assertTrue("expected the all-columns form for [" + targets + "]", fillNull.allColumns());
+        }
+        // The co-listed names survive for resolution; only the star is dropped.
+        assertEquals(1, as(processingCommand("fillnull 0 ON *, first_name"), FillNull.class).targetFields().size());
+        assertEquals(2, as(processingCommand("fillnull 0 ON a, *, b*"), FillNull.class).targetFields().size());
+        // A plain `ON *` has no targets at all.
+        FillNull star = as(processingCommand("fillnull 0 ON *"), FillNull.class);
+        assertTrue(star.allColumns());
+        assertTrue(star.targetFields().isEmpty());
+        // Without a star the form is the strict one.
+        assertFalse(as(processingCommand("fillnull 0 ON first_name"), FillNull.class).allColumns());
+        // The same applies to the DEFAULT value form (null fill value).
+        FillNull withDefault = as(processingCommand("fillnull DEFAULT ON *, first_name"), FillNull.class);
+        assertNull(withDefault.fillValue());
+        assertTrue(withDefault.allColumns());
+        assertEquals(1, withDefault.targetFields().size());
+    }
+
+    public void testFillNullMissingOnFails() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        expectThrows(ParsingException.class, () -> processingCommand("fillnull 0 a"));
+    }
+
+    public void testFillNullMissingValueFails() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        expectThrows(ParsingException.class, () -> processingCommand("fillnull ON a"));
+    }
+
+    public void testFillNullMissingFieldsFails() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        expectThrows(ParsingException.class, () -> processingCommand("fillnull 0"));
+    }
+
+    public void testFillNullNotInReleaseBuild() {
+        assumeFalse("only runs on release build", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        expectThrows(ParsingException.class, containsString("mismatched input 'FILLNULL'"), () -> query("FROM foo | FILLNULL"));
+    }
+
     public void testValidFork() {
         var plan = query("""
             FROM foo*
@@ -3810,7 +4302,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var match = (MatchOperator) filter.condition();
         var matchField = (UnresolvedAttribute) match.field();
         assertThat(matchField.name(), equalTo("a"));
-        assertThat(match.query().fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("baz")));
+        assertThat(match.query().fold(FoldContext.small()), equalTo(toBytesRef("baz")));
 
         // second subplan
         eval = as(subPlans.get(1), Eval.class);
@@ -3824,7 +4316,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         match = (MatchOperator) filter.condition();
         matchField = (UnresolvedAttribute) match.field();
         assertThat(matchField.name(), equalTo("b"));
-        assertThat(match.query().fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("bar")));
+        assertThat(match.query().fold(FoldContext.small()), equalTo(toBytesRef("bar")));
 
         // third subplan
         eval = as(subPlans.get(2), Eval.class);
@@ -3833,7 +4325,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         match = (MatchOperator) filter.condition();
         matchField = (UnresolvedAttribute) match.field();
         assertThat(matchField.name(), equalTo("c"));
-        assertThat(match.query().fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("bat")));
+        assertThat(match.query().fold(FoldContext.small()), equalTo(toBytesRef("bat")));
 
         // fourth subplan
         eval = as(subPlans.get(3), Eval.class);
@@ -3902,7 +4394,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
                ( CHANGE_POINT a on b )
                ( LOOKUP JOIN idx2 ON f1 )
                ( ENRICH idx2 on f1 with f2 = f3 )
-               ( FORK ( WHERE a:"baz" ) ( EVAL x = [ 1, 2, 3 ] ) )
                ( COMPLETION a=b WITH { "inference_id": "c" } )
             | KEEP a
             """;
@@ -3939,7 +4430,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
                ( CHANGE_POINT a on b )
                ( LOOKUP JOIN idx2 ON f1 | LOOKUP JOIN idx3 ON f1 > f3)
                ( ENRICH idx2 on f1 with f2 = f3 )
-               ( FORK ( WHERE a:"baz" ) ( EVAL x = [ 1, 2, 3 ] ) )
                ( COMPLETION a=b WITH { "inference_id": "c" } )
                ( SAMPLE 0.99 )
             | KEEP a
@@ -3958,6 +4448,100 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(plan, instanceOf(Keep.class));
     }
 
+    /**
+     * The single-FORK rule is applied while the parse tree is visited, so that a second FORK on one pipeline never reaches view
+     * resolution or analysis, where it would multiply the plan below it by its branch count first. Every subquery, whether in FROM,
+     * in an IN condition or in a LET binding, is a FORK scope of its own; FORK branches share the scope of their pipeline.
+     */
+    public void testSecondForkOnOnePipelineRejectedWhileParsing() {
+        String error = "Only a single FORK command is supported, but found multiple";
+        expectVerificationError(
+            "FROM a | FORK (WHERE x > 0) (WHERE x < 0) | FORK (WHERE y > 0) (WHERE y < 0)",
+            "Found 1 problem\nline 1:45: " + error
+        );
+        expectVerificationError("FROM a | FORK (FORK (WHERE x > 0) (WHERE x < 0)) (WHERE y > 0)", "line 1:16: " + error);
+        expectVerificationError(
+            "FROM a | WHERE x IN (FROM b | FORK (WHERE x > 0) (WHERE x < 0) | FORK (WHERE y > 0) (WHERE y < 0))",
+            error
+        );
+        expectVerificationError(
+            "FROM a | WHERE (x, y) IN (FROM b | FORK (WHERE x > 0) (WHERE x < 0) | FORK (WHERE y > 0) (WHERE y < 0))",
+            error
+        );
+        expectVerificationError("FROM a | WHERE x IN (FROM b | FORK (FORK (WHERE x > 0) (WHERE x < 0)) (WHERE y > 0))", error);
+        expectVerificationError("FROM (FROM a | FORK (FORK (WHERE x > 0) (WHERE x < 0)) (WHERE y > 0)) | WHERE x > 0", error);
+        expectVerificationError("FROM a" + " | FORK (WHERE x > 0) (WHERE x < 0)".repeat(60), error);
+
+        query("FROM (FROM a | FORK (WHERE x > 0) (WHERE x < 0)) | FORK (WHERE y > 0) (WHERE y < 0)");
+        query("FROM (FROM a | FORK (WHERE x > 0) (WHERE x < 0)), (FROM b) | FORK (WHERE y > 0) (WHERE y < 0)");
+        query("FROM (FROM a | FORK (WHERE x > 0) (WHERE x < 0)), (FROM b | FORK (WHERE x > 1) (WHERE x < 1))");
+        query("""
+            FROM (FROM (FROM a | FORK (WHERE x > 0) (WHERE x < 0)), (FROM c) | FORK (WHERE y > 0) (WHERE y < 0)), (FROM d)
+            | FORK (WHERE z > 0) (WHERE z < 0)
+            """);
+        query("FROM a | WHERE x IN (FROM b | FORK (WHERE x > 0) (WHERE x < 0)) | FORK (WHERE y > 0) (WHERE y < 0)");
+        query("FROM a | FORK (WHERE x IN (FROM b | FORK (WHERE x > 0) (WHERE x < 0))) (WHERE y > 0)");
+    }
+
+    private static final String MAX_BRANCH_COUNT_ERROR = "exceeding the limit of 128";
+
+    /** {@code depth} FORKs, one per line, each over a UNION ALL of the previous one and another index: 2^(depth + 2) - 2 leaves. */
+    private static String nestedForks(int depth) {
+        String query = "FROM a | FORK (WHERE x > 0) (WHERE x < 0)";
+        for (int i = 0; i < depth; i++) {
+            query = "FROM (\n" + query + "\n), b | FORK (WHERE x > 0) (WHERE x < 0)";
+        }
+        return query;
+    }
+
+    /**
+     * FORKs nested through UNION ALL subqueries double the leaf branches at every level, and every walk after the parser pays once per
+     * leaf. The parser applies a fixed query-wide branch ceiling to each FORK it builds, so a 40-deep nesting, 2^42 leaves, is rejected at
+     * the sixth FORK before any command on top of it is applied. The configured {@code max_branch_count} is enforced after parsing.
+     */
+    public void testNestedForksPastTheBranchCountRejectedWhileParsing() {
+        for (String suffix : new String[] { "", "\n| STATS COUNT(*)", "\n| WHERE x IN (FROM c)" }) {
+            expectVerificationError(nestedForks(10) + suffix, MAX_BRANCH_COUNT_ERROR);
+        }
+        expectVerificationError(nestedForks(6), MAX_BRANCH_COUNT_ERROR);
+        expectVerificationError("FROM a | WHERE x IN (" + nestedForks(40) + ")", MAX_BRANCH_COUNT_ERROR);
+        assumeTrue("Requires EXPLAIN capability", EsqlCapabilities.Cap.EXPLAIN.isEnabled());
+        expectVerificationError("EXPLAIN (" + nestedForks(40) + ")", MAX_BRANCH_COUNT_ERROR);
+    }
+
+    /** The limit is on leaf branches, not on plan nodes: a long pipeline with one FORK stays at two leaves. */
+    public void testForksWithinTheBranchCountParse() {
+        assertThat(query("FROM a" + " | EVAL x = 1".repeat(400) + " | FORK (WHERE x > 0) (WHERE x < 0)"), instanceOf(Fork.class));
+        assertThat(query(nestedForks(2)), instanceOf(Fork.class));
+        assertThat(query(nestedForks(5)), instanceOf(Fork.class));
+    }
+
+    public void testSecondForkOnOnePipelineInExplainRejectedWhileParsing() {
+        assumeTrue("Requires EXPLAIN capability", EsqlCapabilities.Cap.EXPLAIN.isEnabled());
+        String error = "Only a single FORK command is supported, but found multiple";
+        expectVerificationError("EXPLAIN (FROM a | FORK (WHERE x > 0) (WHERE x < 0) | FORK (WHERE y > 0) (WHERE y < 0))", error);
+        assertThat(query("EXPLAIN (FROM a | FORK (WHERE x > 0) (WHERE x < 0))"), instanceOf(Explain.class));
+    }
+
+    public void testForkWithBareFillNull() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        assertThat(query("FROM foo* | FORK (WHERE a < 1) (WHERE a < 1 | FILLNULL DEFAULT ON *) | KEEP a"), instanceOf(Keep.class));
+        assertThat(query("FROM foo* | FORK (SORT a) (FILLNULL DEFAULT ON *) | KEEP a"), instanceOf(Keep.class));
+        assertThat(query("FROM foo* | FORK (WHERE a < 1 | FILLNULL 0 ON *) (FILLNULL DEFAULT ON a) | KEEP a"), instanceOf(Keep.class));
+    }
+
+    public void testForkBareArgumentRequiringCommandBeforeRp() {
+        expectError("FROM foo* | FORK (MV_EXPAND) (WHERE true) | KEEP a", "input ')'");
+        expectError("FROM foo* | FORK (LIMIT) (WHERE true) | KEEP a", "input ')'");
+        expectError("FROM foo* | FORK (KEEP) (WHERE true) | KEEP a", "input ')'");
+        expectError("FROM foo* | FORK (SORT) (WHERE true) | KEEP a", "input ')'");
+        expectError("FROM foo* | FORK (DROP) (WHERE true) | KEEP a", "input ')'");
+    }
+
+    public void testUnknownCommandAdjacentToParen() {
+        expectError("FROM foo* | foobar(x)", "mismatched input 'foobar'");
+    }
+
     public void testInvalidFork() {
         expectError("""
             FROM foo* | FORK
@@ -3966,17 +4550,22 @@ public class StatementParserTests extends AbstractStatementParserTests {
             FROM foo* | FORK ()
             """, "line 1:19: mismatched input ')'");
 
-        expectError("""
-            FROM foo*
-            | FORK (where true) (where true) (where true) (where true)
-                   (where true) (where true) (where true) (where true)
-                   (where true)
-            """, "Fork supports up to 8 branches");
+        int maxBranches = QueryPragmas.MAX_BRANCH_COUNT_PER_MERGE_MAX;
+        assertThat(query(forkWithBranches(maxBranches)), instanceOf(Fork.class));
+        expectError(forkWithBranches(maxBranches + 1), "FORK supports up to " + maxBranches + " branches");
 
         expectError("FROM foo* | FORK ( x+1 ) ( WHERE y>2 )", "line 1:20: mismatched input 'x+1'");
         expectError("FROM foo* | FORK ( LIMIT 10 ) ( y+2 )", "line 1:33: mismatched input 'y+2'");
         expectError("FROM foo* | FORK (where true) ()", "line 1:32: mismatched input ')'");
         expectError("FROM foo* | FORK () (where true)", "line 1:19: mismatched input ')'");
+    }
+
+    private static String forkWithBranches(int n) {
+        StringBuilder query = new StringBuilder("FROM foo* | FORK");
+        for (int i = 0; i < n; i++) {
+            query.append(" (WHERE true)");
+        }
+        return query.toString();
     }
 
     public void testFieldNamesAsCommands() throws Exception {
@@ -5270,7 +5859,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         plan = query("from test | enrich \"" + indexName + "\"");
         Enrich enrich = as(plan, Enrich.class);
-        assertThat(enrich.policyName().fold(FoldContext.small()), is(BytesRefs.toBytesRef(indexName)));
+        assertThat(enrich.policyName().fold(FoldContext.small()), is(toBytesRef(indexName)));
         as(enrich.child(), UnresolvedRelation.class);
 
         if (indexName.contains("*")) {

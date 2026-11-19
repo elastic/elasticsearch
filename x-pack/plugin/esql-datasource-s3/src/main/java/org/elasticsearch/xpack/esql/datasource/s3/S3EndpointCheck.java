@@ -21,8 +21,10 @@ import java.util.function.Predicate;
 
 /**
  * Restricts the {@code endpoint} and {@code sts_endpoint} data-source settings at
- * {@code PUT /_query/data_source} time, via
- * {@link org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator#withDatasourceCheck}.
+ * {@code PUT /_query/data_source} time (via
+ * {@link org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator#withDatasourceCheck})
+ * and when the storage provider factory builds a client for a read or connection test
+ * (see {@code S3DataSourcePlugin.storageProviders}).
  *
  * <p>A host is admitted by membership in sets built at class load from the SDK's region metadata, or by matching
  * the PrivateLink shape, so a region the pinned SDK does not know is refused. A region must follow the service label: without
@@ -139,14 +141,14 @@ final class S3EndpointCheck {
         boolean https = "https".equalsIgnoreCase(uri.getScheme());
         // The STS host receives the node's OIDC token, so it gets TLS even when the operator allowlist names it.
         if (https == false && STS_SERVICE.equals(service)) {
-            errors.addValidationError(settingName + " [" + value + "] must use https; it is sent the node's OIDC token");
+            errors.addValidationError(settingName + " must use https; it is sent the node's OIDC token");
             return;
         }
         if (allowedByOperator.test(hostAndPort(uri))) {
             return;
         }
         if (https == false) {
-            errors.addValidationError(settingName + " [" + value + "] must use https; plain http does not authenticate the endpoint");
+            errors.addValidationError(settingName + " must use https; plain http does not authenticate the endpoint");
             return;
         }
         if (isPermittedHost(uri.getHost(), service) == false) {

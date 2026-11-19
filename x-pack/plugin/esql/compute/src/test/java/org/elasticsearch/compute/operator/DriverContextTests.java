@@ -7,12 +7,14 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.compute.test.FakeCpuClock;
 import org.elasticsearch.compute.test.NoOpReleasable;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Releasable;
@@ -41,6 +43,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public class DriverContextTests extends ESTestCase {
@@ -155,6 +158,78 @@ public class DriverContextTests extends ESTestCase {
         driverContext.removeAsyncAction();
         assertTrue(future.isDone());
         Releasables.closeExpectNoException(driverContext.getSnapshot());
+    }
+
+    public void testMeteredCpu() {
+        assumeTrue("needs thread CPU time", ThreadCpuTimer.currentNanos() >= 0);
+        DriverContext driverContext = new AssertingDriverContext();
+        long burnNanos = TimeUnit.MILLISECONDS.toNanos(between(1, 5));
+        driverContext.meteredCpu(() -> burnCpu(burnNanos));
+        assertThat(driverContext.cpuNanos(), greaterThanOrEqualTo(burnNanos));
+    }
+
+    public void testNestedMeteredCpuOfSameDriverCountsOnce() {
+        FakeCpuClock clock = new FakeCpuClock();
+        DriverContext driverContext = driverContext(clock);
+        driverContext.meteredCpu(() -> {
+            clock.burn(10);
+            driverContext.meteredCpu(() -> clock.burn(20));
+        });
+        assertThat(driverContext.cpuNanos(), equalTo(30L));
+    }
+
+    public void testNestedMeteredCpuOfAnotherDriverPausesOuter() {
+        FakeCpuClock clock = new FakeCpuClock();
+        DriverContext outer = driverContext(clock);
+        DriverContext inner = driverContext(clock);
+        outer.meteredCpu(() -> {
+            clock.burn(10);
+            inner.meteredCpu(() -> clock.burn(20));
+            clock.burn(30);
+        });
+        assertThat(outer.cpuNanos(), equalTo(40L));
+        assertThat(inner.cpuNanos(), equalTo(20L));
+    }
+
+    /**
+     * Removing the last async action completes {@link DriverContext#waitForAsyncActions}, which is where the driver
+     * publishes its final status. The CPU time measured on the removing thread up to that point must already be in the
+     * total; only what runs after the removal can be missed.
+     */
+    public void testRemoveAsyncActionAddsOpenMeasurement() {
+        FakeCpuClock clock = new FakeCpuClock();
+        DriverContext driverContext = driverContext(clock);
+        driverContext.addAsyncAction();
+        driverContext.finish();
+        long[] cpuNanosAtCompletion = new long[1];
+        driverContext.waitForAsyncActions(ActionListener.running(() -> cpuNanosAtCompletion[0] = driverContext.cpuNanos()));
+        driverContext.meteredCpu(() -> {
+            clock.burn(50);
+            driverContext.removeAsyncAction();
+            clock.burn(5);
+        });
+        assertThat(cpuNanosAtCompletion[0], equalTo(50L));
+        assertThat(driverContext.cpuNanos(), equalTo(55L));
+        Releasables.closeExpectNoException(driverContext.getSnapshot());
+    }
+
+    private static DriverContext driverContext(FakeCpuClock clock) {
+        return new DriverContext(
+            BigArrays.NON_RECYCLING_INSTANCE,
+            TestBlockFactory.getNonBreakingInstance(),
+            null,
+            null,
+            DriverContext.WarningsMode.COLLECT,
+            new CpuTracker(clock)
+        );
+    }
+
+    /** Spins until the current thread has used at least {@code nanos} of CPU time. */
+    static void burnCpu(long nanos) {
+        long start = ThreadCpuTimer.currentNanos();
+        while (ThreadCpuTimer.currentNanos() - start < nanos) {
+            Thread.onSpinWait();
+        }
     }
 
     static TestDriver newTestDriver(int unused) {

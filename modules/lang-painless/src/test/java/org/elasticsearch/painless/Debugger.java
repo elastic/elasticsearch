@@ -9,6 +9,7 @@
 
 package org.elasticsearch.painless;
 
+import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupBuilder;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
@@ -35,12 +36,16 @@ final class Debugger {
 
     /** compiles to bytecode, and returns debugging output */
     static String toString(Class<?> iface, String source, CompilerSettings settings, List<Whitelist> whitelists) {
+        return toString(iface, source, settings, PainlessLookupBuilder.buildFromWhitelists(whitelists, new HashMap<>(), new HashMap<>()));
+    }
+
+    /** compiles with a lookup the caller built once, for tests that compile many scripts */
+    static String toString(Class<?> iface, String source, CompilerSettings settings, PainlessLookup lookup) {
         StringWriter output = new StringWriter();
         PrintWriter outputWriter = new PrintWriter(output);
         Textifier textifier = new Textifier();
         try {
-            new Compiler(iface, null, null, PainlessLookupBuilder.buildFromWhitelists(whitelists, new HashMap<>(), new HashMap<>()))
-                .compile("<debugging>", source, settings, textifier);
+            new Compiler(iface, null, null, lookup).compile("<debugging>", source, settings, textifier);
         } catch (RuntimeException e) {
             textifier.print(outputWriter);
             e.addSuppressed(new Exception("current bytecode: \n" + output));

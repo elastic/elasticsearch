@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -41,10 +40,7 @@ public class ConfigurationSerializationTests extends AbstractWireSerializingTest
     @Override
     protected Writeable.Reader<Configuration> instanceReader() {
         return in -> new Configuration(
-            new BlockStreamInput(
-                in,
-                BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker(CircuitBreaker.REQUEST)).build()
-            )
+            new BlockStreamInput(in, BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build())
         );
     }
 
@@ -56,7 +52,7 @@ public class ConfigurationSerializationTests extends AbstractWireSerializingTest
     @Override
     protected Configuration mutateInstance(Configuration in) {
         ConfigurationBuilder builder = new ConfigurationBuilder(in);
-        switch (between(0, 10)) {
+        switch (between(0, 11)) {
             case 0 -> builder.setting(
                 QuerySettings.TIME_ZONE,
                 randomValueOtherThan(QuerySettings.TIME_ZONE.get(in.resolvedSettings()), () -> randomZone().normalized())
@@ -74,6 +70,7 @@ public class ConfigurationSerializationTests extends AbstractWireSerializingTest
             case 7 -> builder.resultTruncationDefaultSizeRegular(in.resultTruncationDefaultSize(false) + randomIntBetween(3, 10));
             case 8 -> builder.query(in.query() + randomAlphaOfLength(2));
             case 9 -> builder.profile(in.profile() == false);
+            case 11 -> builder.flattenedKeys(in.flattenedKeys() == false);
             case 10 -> {
                 while (true) {
                     Map<String, Map<String, Column>> newTables = null;
@@ -134,5 +131,14 @@ public class ConfigurationSerializationTests extends AbstractWireSerializingTest
         Configuration roundTripped = copyInstance(configWithTimeZoneAndApproximation(), preApproximation);
         assertThat(QuerySettings.TIME_ZONE.get(roundTripped.resolvedSettings()), equalTo(ZoneId.of("Europe/Paris")));
         assertThat(QuerySettings.APPROXIMATION.get(roundTripped.resolvedSettings()), is(nullValue()));
+    }
+
+    public void testFlattenedKeys() throws IOException {
+        Configuration configuration = randomConfiguration().withFlattenedKeys(true);
+        assertThat(copyInstance(configuration, TransportVersion.current()).flattenedKeys(), is(true));
+        TransportVersion older = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("esql_flattened_keys"));
+        assertThat(copyInstance(configuration, older).flattenedKeys(), is(false));
+        assertThat(configuration.flattenedKeys(older), is(false));
+        assertThat(configuration.flattenedKeys(TransportVersion.current()), is(true));
     }
 }

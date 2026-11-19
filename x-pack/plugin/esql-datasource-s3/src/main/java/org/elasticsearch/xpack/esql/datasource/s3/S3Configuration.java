@@ -100,7 +100,7 @@ public class S3Configuration extends FileDataSourceConfiguration {
     );
 
     // Fields consumed at query time. Same set for now; can diverge if region is eventually
-    // retired from the data-source vocabulary (see elastic/esql-planning#1747 step 7).
+    // retired from the data-source vocabulary.
     private static final Map<String, DataSourceConfigDefinition> QUERY_FIELDS = DATA_SOURCE_FIELDS;
 
     private S3Configuration(Map<String, Object> raw) {
@@ -141,6 +141,11 @@ public class S3Configuration extends FileDataSourceConfiguration {
     /** Names of credential (secret) settings accepted on a data source PUT, derived from the field definitions. */
     public static Set<String> secretFieldNames() {
         return secretFieldNamesFrom(DATA_SOURCE_FIELDS);
+    }
+
+    /** Names of every setting accepted on a data source PUT. Package-private so the docs coverage test can check them. */
+    static Set<String> dataSourceFieldNames() {
+        return DATA_SOURCE_FIELDS.keySet();
     }
 
     public static S3Configuration fromMap(Map<String, Object> raw) {

@@ -11,6 +11,7 @@ package org.elasticsearch.test;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.cluster.remote.RemoteInfoRequest;
 import org.elasticsearch.action.admin.cluster.remote.TransportRemoteInfoAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
@@ -178,10 +179,26 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
         return false;
     }
 
+    /**
+     * Closes the clusters and checks that all pages were released. The clusters are cleared and the page check runs even if
+     * closing fails, so that a class that leaks resources reports its own failures and the next class in the same JVM starts
+     * with fresh clusters.
+     */
     @AfterClass
     public static void stopClusters() throws Exception {
-        IOUtils.close(clusterGroup);
-        clusterGroup = null;
+        try {
+            IOUtils.close(clusterGroup);
+        } catch (Exception | AssertionError e) {
+            // The page check forgets leaked pages once it has reported them, so skipping it here would blame the next class.
+            try {
+                MockPageCacheRecycler.ensureAllPagesAreReleased();
+            } catch (Exception | AssertionError pagesFailure) {
+                e.addSuppressed(pagesFailure);
+            }
+            throw e;
+        } finally {
+            clusterGroup = null;
+        }
         MockPageCacheRecycler.ensureAllPagesAreReleased();
     }
 
@@ -296,7 +313,32 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
 
         @Override
         public void close() throws IOException {
-            IOUtils.close(CloseableTestClusterWrapper.wrap(clusters.values()));
+            closeAll(CloseableTestClusterWrapper.wrap(clusters.values()));
+        }
+
+        /**
+         * Closes every cluster even if closing an earlier one fails, adding later failures as suppressed. Unlike
+         * {@link IOUtils#close(Iterable)} this also continues past an {@link AssertionError}, such as a node that did not close
+         * in time, so every cluster gets a close attempt before {@link AbstractMultiClustersTestCase#stopClusters()} clears the group.
+         */
+        static void closeAll(Iterable<? extends Closeable> closeables) throws IOException {
+            Throwable failure = null;
+            for (Closeable closeable : closeables) {
+                try {
+                    closeable.close();
+                } catch (IOException | RuntimeException | AssertionError e) {
+                    failure = ExceptionsHelper.useOrSuppress(failure, e);
+                }
+            }
+            if (failure instanceof IOException e) {
+                throw e;
+            }
+            if (failure instanceof RuntimeException e) {
+                throw e;
+            }
+            if (failure instanceof AssertionError e) {
+                throw e;
+            }
         }
     }
 

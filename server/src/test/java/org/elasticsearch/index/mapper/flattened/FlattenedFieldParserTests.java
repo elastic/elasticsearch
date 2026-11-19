@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper.flattened;
 
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -49,7 +50,8 @@ public class FlattenedFieldParserTests extends ESTestCase {
             FlattenedFieldMapper.PreserveLeafArrays.LOSSY,
             IndexVersion.current(),
             false,
-            false
+            false,
+            IndexWriter.MAX_TERM_LENGTH
         );
     }
 
@@ -320,7 +322,8 @@ public class FlattenedFieldParserTests extends ESTestCase {
             FlattenedFieldMapper.PreserveLeafArrays.LOSSY,
             IndexVersion.current(),
             false,
-            false
+            false,
+            IndexWriter.MAX_TERM_LENGTH
         );
 
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
@@ -352,7 +355,8 @@ public class FlattenedFieldParserTests extends ESTestCase {
             FlattenedFieldMapper.PreserveLeafArrays.LOSSY,
             IndexVersion.current(),
             false,
-            false
+            false,
+            IndexWriter.MAX_TERM_LENGTH
         );
 
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
@@ -379,7 +383,8 @@ public class FlattenedFieldParserTests extends ESTestCase {
             FlattenedFieldMapper.PreserveLeafArrays.LOSSY,
             IndexVersion.current(),
             false,
-            false
+            false,
+            IndexWriter.MAX_TERM_LENGTH
         );
 
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
@@ -406,7 +411,8 @@ public class FlattenedFieldParserTests extends ESTestCase {
             FlattenedFieldMapper.PreserveLeafArrays.LOSSY,
             IndexVersion.current(),
             false,
-            false
+            false,
+            IndexWriter.MAX_TERM_LENGTH
         );
 
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
@@ -439,7 +445,8 @@ public class FlattenedFieldParserTests extends ESTestCase {
             FlattenedFieldMapper.PreserveLeafArrays.LOSSY,
             IndexVersion.current(),
             false,
-            false
+            false,
+            IndexWriter.MAX_TERM_LENGTH
         );
 
         TestDocumentParserContext configuredContext = new TestDocumentParserContext(createXContentParser(input));

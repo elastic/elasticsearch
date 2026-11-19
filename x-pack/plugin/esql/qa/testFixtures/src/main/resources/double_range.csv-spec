@@ -81,11 +81,13 @@ height_range:double_range
 
 toRangeNullLeft
 required_capability: double_range_tech_preview
+required_capability: warn_null_misuse
 
 ROW to = 1.5
 | EVAL height_range = TO_RANGE(null, to)
 | KEEP height_range
 ;
+warning:Line 2:23: Expression [TO_RANGE(null, to)] always evaluates to NULL.
 
 height_range:double_range
 null
@@ -93,11 +95,13 @@ null
 
 toRangeNullRight
 required_capability: double_range_tech_preview
+required_capability: warn_null_misuse
 
 ROW from = 1.5
 | EVAL height_range = TO_RANGE(from, null)
 | KEEP height_range
 ;
+warning:Line 2:23: Expression [TO_RANGE(from, null)] always evaluates to NULL.
 
 height_range:double_range
 null
@@ -322,6 +326,7 @@ result:double_range
 
 coalesceDoubleRangeNullFirst
 required_capability: double_range_tech_preview
+required_capability: warn_null_misuse
 
 FROM heights
 | WHERE description == "Short"
@@ -329,6 +334,7 @@ FROM heights
 | EVAL result = COALESCE(missing, TO_RANGE(10.0, 20.0))
 | KEEP result
 ;
+warning:Line 3:18: Expression [TO_RANGE(null, 1.0)] always evaluates to NULL.
 
 result:double_range
 10.0..20.0
@@ -336,6 +342,7 @@ result:double_range
 
 coalesceDoubleRangeMultipleArgs
 required_capability: double_range_tech_preview
+required_capability: warn_null_misuse
 
 FROM heights
 | WHERE description == "Short"
@@ -343,6 +350,7 @@ FROM heights
 | EVAL result = COALESCE(missing, height_range, TO_RANGE(10.0, 20.0))
 | KEEP result
 ;
+warning:Line 3:18: Expression [TO_RANGE(null, 1.0)] always evaluates to NULL.
 
 result:double_range
 1.5..1.6
@@ -492,10 +500,12 @@ true
 
 presentDoubleRangeAllNull
 required_capability: double_range_tech_preview
+required_capability: warn_null_misuse
 
 ROW height_range = TO_RANGE(null, 1.0)
 | STATS present = PRESENT(height_range)
 ;
+warning:Line 1:20: Expression [TO_RANGE(null, 1.0)] always evaluates to NULL.
 
 present:boolean
 false
@@ -514,10 +524,12 @@ false
 
 absentDoubleRangeAllNull
 required_capability: double_range_tech_preview
+required_capability: warn_null_misuse
 
 ROW height_range = TO_RANGE(null, 1.0)
 | STATS absent = ABSENT(height_range)
 ;
+warning:Line 1:20: Expression [TO_RANGE(null, 1.0)] always evaluates to NULL.
 
 absent:boolean
 true

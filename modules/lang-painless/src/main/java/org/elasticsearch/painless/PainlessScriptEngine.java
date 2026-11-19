@@ -11,6 +11,7 @@ package org.elasticsearch.painless;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.painless.Compiler.Loader;
@@ -109,6 +110,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
                 CompilerSettings.MAX_ALLOCATION_BYTES.getConcreteSettingForNamespace(context.name).get(settings).getBytes()
             );
             contextDefaults.setAllocationMetricsEnabled(allocationMetricsEnabled);
+            contextDefaults.setScriptContextName(context.name);
 
             mutableContextsToCompilers.put(
                 context,
@@ -223,6 +225,8 @@ public final class PainlessScriptEngine implements ScriptEngine {
         String[] classInterfaces = new String[] { interfaceBase };
 
         ClassWriter writer = new ClassWriter(classFrames);
+        // Painless makes its own bytecode, so turn off the ASM work limits.
+        writer.setComputeLimits(Integer.MAX_VALUE, Long.MAX_VALUE);
         writer.visit(WriterConstants.CLASS_VERSION, classAccess, className, null, OBJECT_TYPE.getInternalName(), classInterfaces);
 
         Method newFactory = null;
@@ -343,6 +347,8 @@ public final class PainlessScriptEngine implements ScriptEngine {
         String[] classInterfaces = new String[] { interfaceBase };
 
         ClassWriter writer = new ClassWriter(classFrames);
+        // Painless makes its own bytecode, so turn off the ASM work limits.
+        writer.setComputeLimits(Integer.MAX_VALUE, Long.MAX_VALUE);
         writer.visit(WriterConstants.CLASS_VERSION, classAccess, className, null, OBJECT_TYPE.getInternalName(), classInterfaces);
 
         org.objectweb.asm.commons.Method init = new org.objectweb.asm.commons.Method(
@@ -452,6 +458,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
         }
     }
 
+    @SuppressForbidden(reason = "TODO: replace with manual depth tracking before the overflow occurs")
     ScriptScope compile(
         Compiler compiler,
         CompilerSettings contextDefaults,
@@ -468,6 +475,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
             String name = scriptName == null ? source : scriptName;
             return compiler.compile(loader, name, source, compilerSettings, allocationRecorder);
             // Note that it is safe to catch any of the following errors since Painless is stateless.
+            // TODO: catching StackOverflowError is unsafe - after the stack unwinds, invariants may not hold.
         } catch (OutOfMemoryError | StackOverflowError | LinkageError | Exception e) {
             throw convertToScriptException(source, e);
         }
@@ -487,6 +495,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
             compilerSettings.setRegexLimitFactor(contextDefaults.getAppliedRegexLimitFactor());
             compilerSettings.setMaxAllocationBytes(contextDefaults.getMaxAllocationBytes());
             compilerSettings.setAllocationMetricsEnabled(contextDefaults.isAllocationMetricsEnabled());
+            compilerSettings.setScriptContextName(contextDefaults.getScriptContextName());
 
             Map<String, String> copy = new HashMap<>(params);
 

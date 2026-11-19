@@ -16,6 +16,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.test.AbstractXContentTestCase.chunkedXContentTester;
@@ -46,7 +47,7 @@ public class MultiSearchResponseTests extends ESTestCase {
                 successfulShards,
                 skippedShards,
                 tookInMillis,
-                ShardSearchFailure.EMPTY_ARRAY,
+                List.of(),
                 clusters
             );
             items[i] = new MultiSearchResponse.Item(searchResponse, null);
@@ -71,7 +72,7 @@ public class MultiSearchResponseTests extends ESTestCase {
                     successfulShards,
                     skippedShards,
                     tookInMillis,
-                    ShardSearchFailure.EMPTY_ARRAY,
+                    List.of(),
                     clusters
                 );
                 items[i] = new MultiSearchResponse.Item(searchResponse, null);

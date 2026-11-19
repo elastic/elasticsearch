@@ -55,7 +55,14 @@ public abstract class AbstractExternalDistributedIT extends ESRestTestCase {
 
     public static DataSourcesS3HttpFixture s3Fixture = new DataSourcesS3HttpFixture();
 
-    private static ElasticsearchCluster clusterInstance = ExternalDistributedClusters.testCluster(() -> s3Fixture.getAddress());
+    private static ElasticsearchCluster clusterInstance = ExternalDistributedClusters.testCluster(
+        () -> s3Fixture.getAddress(),
+        // The suites on this cluster inject storage faults and assert they fire. The footer byte cache admits
+        // an object that fits the footer prefetch whole, and the fixtures here are that small, so once one test
+        // method has read one a later query is served from that entry and never reaches the injected fault.
+        // A 1b budget admits no entry, so every query goes to storage, which is what these suites observe.
+        spec -> spec.setting("esql.external.cache.footer.size", "1b")
+    );
 
     protected static ElasticsearchCluster cluster() {
         return clusterInstance;

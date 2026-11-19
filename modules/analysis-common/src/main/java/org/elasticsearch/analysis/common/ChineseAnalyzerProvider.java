@@ -34,4 +34,9 @@ public class ChineseAnalyzerProvider extends AbstractIndexAnalyzerProvider<Stand
     public StandardAnalyzer get() {
         return this.analyzer;
     }
+
+    @Override
+    public Object sharingKey() {
+        return getClass();
+    }
 }

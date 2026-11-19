@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
+import org.elasticsearch.xpack.esql.plan.logical.DocPreserving;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -72,7 +73,12 @@ import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
  * flips a couple of hooks for {@code NOT IN}, and {@link MarkJoin} returns Eval-based plans that preserve every left row and produce a
  * boolean mark attribute with three-valued logic.
  */
-public abstract class AbstractSubqueryJoin extends Join implements SortPreserving, ExecutesOn.Coordinator {
+public abstract class AbstractSubqueryJoin extends Join
+    implements
+        IndependentSubqueryJoin,
+        SortPreserving,
+        ExecutesOn.Coordinator,
+        DocPreserving {
 
     protected AbstractSubqueryJoin(Source source, LogicalPlan left, LogicalPlan right, JoinConfig config) {
         super(source, left, right, config, ExecuteLocation.ANY);
@@ -102,6 +108,15 @@ public abstract class AbstractSubqueryJoin extends Join implements SortPreservin
     @Override
     public List<NamedExpression> computeOutputExpressions(List<? extends NamedExpression> left, List<? extends NamedExpression> right) {
         return new ArrayList<>(left);
+    }
+
+    /**
+     * Rows come from the left side only; the deduplicated subquery on the right decides which left rows survive (SEMI / ANTI)
+     * or adds a mark column (MARK), so each output row still maps to one left document.
+     */
+    @Override
+    public LogicalPlan preservingInput() {
+        return left();
     }
 
     @Override
@@ -708,6 +723,8 @@ public abstract class AbstractSubqueryJoin extends Join implements SortPreservin
         Attribute sentinelAttr = new ReferenceAttribute(source, null, "$$matched", DataType.BOOLEAN, Nullability.TRUE, null, false);
         List<Attribute> extendedSchema = new ArrayList<>(schema);
         extendedSchema.add(sentinelAttr);
+        // Concurrently planned branches on this node can share this page; see EsqlSession#resultToPlan.
+        dedupPage.allowPassingToDifferentDriver();
         LocalRelation deduplicatedData = new LocalRelation(source, extendedSchema, LocalSupplier.of(dedupPage));
 
         // SV guard: pipe the left key through {@link MvSingleValueOrNull} via an EVAL so multi-valued left positions become NULL
@@ -939,6 +956,8 @@ public abstract class AbstractSubqueryJoin extends Join implements SortPreservin
         Attribute sentinelAttr = new ReferenceAttribute(source, null, "$$matched", DataType.BOOLEAN, Nullability.TRUE, null, false);
         List<Attribute> extendedSchema = new ArrayList<>(schema);
         extendedSchema.add(sentinelAttr);
+        // Concurrently planned branches on this node can share this page; see EsqlSession#resultToPlan.
+        dedupPage.allowPassingToDifferentDriver();
         LocalRelation deduplicatedData = new LocalRelation(source, extendedSchema, LocalSupplier.of(dedupPage));
 
         List<Attribute> leftFields = subqueryJoin.config().leftFields();

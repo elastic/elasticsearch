@@ -17,6 +17,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.client.internal.IndicesAdminClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -108,7 +109,7 @@ public class IndexRecoveryCollectorTests extends BaseCollectorTestCase {
                 source,
                 unassignedInfo,
                 ShardRouting.Role.DEFAULT,
-                ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
+                RecoveryPriority.UNASSIGNED_EXPECTED
             ).initialize(localNode.getId(), "_allocation_id", 10 * i);
 
             final RecoveryState recoveryState = new RecoveryState(shardRouting, localNode, localNode);

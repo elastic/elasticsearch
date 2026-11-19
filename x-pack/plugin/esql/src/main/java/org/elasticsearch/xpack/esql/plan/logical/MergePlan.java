@@ -9,51 +9,52 @@ package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xpack.esql.analysis.Analyzer;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.util.Holder;
-import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
-import static org.elasticsearch.xpack.esql.core.expression.Expressions.toReferenceAttributesPreservingIds;
+import static org.elasticsearch.xpack.esql.core.expression.Expressions.keepExistingUnsupportedAttributes;
 
 /**
  * N-ary logical plan whose children are independently planned branches and whose output is the
  * name-union of those branches. {@link Fork} (the {@code FORK} command), {@link UnionAll} (subquery
- * unions), and {@link ViewUnionAll} (view-produced unions) are the concrete forms. All of them map
+ * unions), and {@link BranchPlan} (view-produced unions) are the concrete forms. All of them map
  * to {@code MergeExec} at the physical layer.
  */
 public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanVerificationAware, ExecutesOn.Coordinator {
 
-    public static final int MAX_BRANCHES = 8;
     private final List<Attribute> output;
 
     protected MergePlan(Source source, List<LogicalPlan> children, List<Attribute> output) {
         super(source, children);
         this.output = output;
-    }
-
-    /**
-     * Branch-count predicate shared by every {@link MergePlan} and any caller that wants to fail
-     * earlier with a more user-facing message. Returns {@code true} if {@code count} would exceed the
-     * branch cap. Centralizes the comparison so the cap can move in one place.
-     */
-    public static boolean exceedsMaxBranches(int count) {
-        return count > MAX_BRANCHES;
     }
 
     @Override
@@ -69,28 +70,83 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
         throw new UnsupportedOperationException("not serialized");
     }
 
+    /**
+     * A merge is resolved once its branches are and its output has a column for every column a branch produces. The branches do not
+     * have to line up with the output: a branch lacking a column contributes nulls to it, and the optimizer materializes that
+     * alignment (see {@link MergeBranchAlignment}). Until then, the output is what the rest of the plan reads.
+     * <p>
+     * A branch column that is never a merge column does not count: the no-fields marker and IN-subquery marks. Neither does a
+     * synthetic attribute that appears in a branch once the merge has columns; it only becomes a merge column if a rule that owns it
+     * puts it in the output explicitly (e.g. a union-type conversion pushed into the branches).
+     */
     @Override
     public boolean expressionsResolved() {
         if (children().stream().allMatch(LogicalPlan::resolved) == false) {
             return false;
         }
+        Set<String> outputNames = new HashSet<>(output.size());
+        for (Attribute attr : output) {
+            outputNames.add(attr.name());
+        }
+        for (LogicalPlan child : children()) {
+            for (Attribute attr : child.output()) {
+                if (outputNames.contains(attr.name()) == false && isMergeColumnCandidate(attr, output)) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
 
-        if (children().stream()
-            .anyMatch(p -> p.outputSet().names().contains(Analyzer.NO_FIELDS_NAME) || output.size() != p.output().size())) {
+    /**
+     * Whether a branch column {@code attr} that is not in the merge's {@code output} has to become one of its columns; see
+     * {@link #expressionsResolved()}.
+     */
+    public static boolean isMergeColumnCandidate(Attribute attr, List<Attribute> output) {
+        if (attr == NO_FIELDS.getFirst() || InSubqueryResolver.isInSubquerySynthetic(attr)) {
             return false;
         }
+        return output.isEmpty() || attr.synthetic() == false;
+    }
 
-        // All branches must output the same column names; otherwise the merge is not resolved.
-        List<String> firstOutputNames = children().getFirst().output().stream().map(Attribute::name).toList();
-        Holder<Boolean> resolved = new Holder<>(true);
-        children().stream().skip(1).forEach(subPlan -> {
-            List<String> names = subPlan.output().stream().map(Attribute::name).toList();
-            if (names.equals(firstOutputNames) == false) {
-                resolved.set(false);
+    /**
+     * The columns a merge with branches {@code subplans} and output {@code previous} has once its output is brought up to date with
+     * the branches: {@link #outputUnion} of the branches, without the branch columns that {@link #isMergeColumnCandidate} rules
+     * out, in the order of {@link #inOrderOf}.
+     */
+    public static List<Attribute> mergeColumns(List<LogicalPlan> subplans, List<Attribute> previous) {
+        Set<String> previousNames = new HashSet<>(previous.size());
+        for (Attribute attr : previous) {
+            previousNames.add(attr.name());
+        }
+        List<Attribute> union = new ArrayList<>(outputUnion(subplans));
+        union.removeIf(attr -> previousNames.contains(attr.name()) == false && isMergeColumnCandidate(attr, previous) == false);
+        return inOrderOf(union, previous);
+    }
+
+    /**
+     * {@code union}, a merge's new columns (as from {@link #outputUnion}), ordered like the merge's {@code previous} output: the
+     * columns it already had keep their position, and new ones come after them, in {@code union}'s order. Once a merge's columns
+     * are first determined, later changes to its branches (which can reorder a branch's own output, e.g. an {@code Eval} shadowing
+     * one of its columns) must not reorder the columns the query returns.
+     */
+    public static List<Attribute> inOrderOf(List<Attribute> union, List<Attribute> previous) {
+        if (previous.isEmpty()) {
+            return union;
+        }
+        Map<String, Attribute> byName = new LinkedHashMap<>();
+        for (Attribute attr : union) {
+            byName.putIfAbsent(attr.name(), attr);
+        }
+        List<Attribute> ordered = new ArrayList<>(union.size());
+        for (Attribute attr : previous) {
+            Attribute column = byName.remove(attr.name());
+            if (column != null) {
+                ordered.add(column);
             }
-        });
-
-        return resolved.get();
+        }
+        ordered.addAll(byName.values());
+        return ordered;
     }
 
     public abstract MergePlan replaceSubPlans(List<LogicalPlan> subPlans);
@@ -102,7 +158,7 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
      * <p>
      * Deliberately {@code final} and expressed in terms of {@link #replaceSubPlansAndOutput}: a per-subclass
      * implementation only has to construct the node itself, and any such implementation that names a concrete
-     * constructor silently downgrades a further subclass. {@link ViewUnionAll} is the case in point — it carries a
+     * constructor silently downgrades a further subclass. {@link BranchPlan} is the case in point — it carries a
      * named-subqueries map and view-branch keys that a {@code new UnionAll(...)} here would drop, turning its view
      * boundaries back into anonymous union branches. Subclasses only need {@link #replaceSubPlansAndOutput} to be
      * faithful, which they already need for every other rewrite.
@@ -114,7 +170,7 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
     /**
      * Drop branches whose root the {@code isEmpty} predicate considers empty. Each
      * {@link MergePlan} subclass with structural invariants beyond the positional children list
-     * (notably {@link ViewUnionAll}, which carries a named-subqueries map) overrides this method
+     * (notably {@link BranchPlan}, which carries a named-subqueries map) overrides this method
      * to preserve those invariants.
      * <p>
      * Behaviour:
@@ -127,7 +183,7 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
      *       a {@code LocalRelation} when every branch reduces to empty) or to let the
      *       analyzer's verifier surface the empty-merge state via {@link #checkBranchCount}.</li>
      * </ul>
-     * Single-survivor collapse semantics — a {@link UnionAll}/{@link ViewUnionAll} with one
+     * Single-survivor collapse semantics — a {@link UnionAll}/{@link BranchPlan} with one
      * branch left is equivalent to that branch — are not part of this primitive; callers that
      * want that collapse do it explicitly (see {@code ViewCompaction.stripViewShadowRelations}).
      * A {@link Fork} with a single branch is still a {@link Fork} per FORK syntax.
@@ -145,8 +201,208 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
         return replaceChildren(kept);
     }
 
+    /**
+     * The output re-derived from the branches, see {@link #mergeColumns}. Once the optimizer has aligned the branches, that is also
+     * their columns, in their order.
+     */
     protected List<Attribute> refreshedOutput() {
-        return withUnmappedFieldsAttributeFromChildren(toReferenceAttributesPreservingIds(outputUnion(children()), this.output()));
+        List<Attribute> merged = mergeColumns(children(), output());
+        List<Attribute> converted = mergesScoreAsMetadata()
+            ? toReferenceAttributesPreservingIds(children(), merged, output())
+            : Expressions.toReferenceAttributesPreservingIds(merged, output());
+        // LOAD_ALL stamps _unmapped_fields; preserve type-conflict UnsupportedAttributes that union-type resolution Eval-null'd in
+        // children.
+        if (unmappedFieldsAttributeFromChildren() != null) {
+            converted = keepExistingUnsupportedAttributes(converted, this.output());
+        }
+        return withUnmappedFieldsAttributeFromChildren(converted);
+    }
+
+    /**
+     * Converts the merged columns {@code mergedColumns} into output attributes, preserving the ids of the columns of {@code existingOutput}
+     * ({@link Expressions#toReferenceAttributesPreservingIds}), then re-classes {@code _score} according to {@code branches}, see
+     * {@link #withScoreAttributeFromChildren}. A merge for which {@link #mergesScoreAsMetadata()} is {@code false} must use
+     * {@link Expressions#toReferenceAttributesPreservingIds} directly instead.
+     *
+     * @param branches the branches as they will be after this output is installed, which may differ from {@link #children()}
+     *                 while the analyzer is still aligning them
+     * @param mergedColumns the merged columns to convert into output attributes
+     * @param existingOutput the MergePlan's output before the branches changed, whose ids to preserve
+     */
+    public static List<Attribute> toReferenceAttributesPreservingIds(
+        List<LogicalPlan> branches,
+        List<? extends NamedExpression> mergedColumns,
+        List<Attribute> existingOutput
+    ) {
+        return withScoreAttributeFromChildren(branches, Expressions.toReferenceAttributesPreservingIds(mergedColumns, existingOutput));
+    }
+
+    /**
+     * Whether the merged {@code _score} column should be converted to {@link MetadataAttribute}.
+     */
+    public boolean mergesScoreAsMetadata() {
+        return true;
+    }
+
+    /**
+     * Re-classes the merged {@code _score} column of {@code converted} according to what the {@code branches} put in it.
+     * <p>
+     * The class is decided from all branches, not just the first one {@link #outputUnion} keeps for the name,
+     * because the column's provenance differs per branch:
+     * <ul>
+     *   <li>a branch that asked for {@code METADATA _score} contributes the live score;</li>
+     *   <li>a branch whose {@code _score} holds nothing but nulls has no say: branch alignment filled the column in because
+     *   a sibling has it, or the user wrote {@code EVAL _score = null}, and either way its rows stay {@code null} through
+     *   later scoring (see {@code ScoreOperator});</li>
+     *   <li>any other branch computed its own {@code _score}, which later scoring must not add to.</li>
+     * </ul>
+     * The merged column is a {@link MetadataAttribute} when at least one branch contributes the live score and none computed
+     * its own, and a reference otherwise. The id is preserved either way, so the alignment projections in the branches and
+     * the plans above the merge keep resolving against it.
+     *
+     * @param branches the branches of the MergePlan
+     * @param converted the merged columns, with the {@code _score} column as a reference attribute
+     */
+    public static List<Attribute> withScoreAttributeFromChildren(List<LogicalPlan> branches, List<Attribute> converted) {
+        int index = IntStream.range(0, converted.size())
+            .filter(i -> converted.get(i).name().equals(MetadataAttribute.SCORE))
+            .findFirst()
+            .orElse(-1);
+        if (index < 0) {
+            return converted;
+        }
+
+        boolean live = false;
+        boolean userDefined = false;
+        for (LogicalPlan branch : branches) {
+            switch (branchScore(branch)) {
+                case USER_DEFINED -> userDefined = true;
+                case LIVE -> live = true;
+                case EMPTY -> {
+                }
+            }
+        }
+        Attribute merged = converted.get(index);
+        boolean asMetadata = live && userDefined == false;
+        if (asMetadata == MetadataAttribute.isScoreAttribute(merged)) {
+            return converted;
+        }
+        Attribute replacement = asMetadata
+            ? new MetadataAttribute(
+                merged.source(),
+                MetadataAttribute.SCORE,
+                merged.dataType(),
+                merged.nullable(),
+                merged.id(),
+                merged.synthetic(),
+                false
+            )
+            : new ReferenceAttribute(
+                merged.source(),
+                null,
+                MetadataAttribute.SCORE,
+                merged.dataType(),
+                merged.nullable(),
+                merged.id(),
+                merged.synthetic()
+            );
+        List<Attribute> result = new ArrayList<>(converted);
+        result.set(index, replacement);
+        return result;
+    }
+
+    /** What a branch puts in its {@code _score} column, see {@link #withScoreAttributeFromChildren}. */
+    private enum BranchScore {
+        LIVE,
+        EMPTY,
+        USER_DEFINED
+    }
+
+    private static BranchScore branchScore(LogicalPlan branch) {
+        for (Attribute attr : branch.output()) {
+            if (attr.name().equals(MetadataAttribute.SCORE)) {
+                if (MetadataAttribute.isScoreAttribute(attr)) {
+                    return BranchScore.LIVE;
+                }
+                return producesOnlyNull(branch).test(attr) ? BranchScore.EMPTY : BranchScore.USER_DEFINED;
+            }
+        }
+        // this branch does not define a _score column.
+        return BranchScore.EMPTY;
+    }
+
+    /**
+     * Whether a column of {@code branch}'s output holds nothing but nulls. A column written as an explicit
+     * {@code EVAL x = null} is indistinguishable from one inserted by Analyzer rules (such as {@code InjectOuterMetadataForSubqueries}),
+     * so both are treated alike.
+     * <p>
+     * Matched on the attribute's id rather than its name: a branch may assign the name more than once, and only the
+     * assignment this attribute came from decides what the branch outputs. Matching by name would let an assignment
+     * a later one shadows answer for the column. The assignment is looked for in {@link Eval}s and, since the optimizer
+     * folds an alignment {@link Eval} into the {@link Project} above it, in {@link Project}s as well.
+     * <p>
+     * Null-only values are followed through the branch, bottom-up: an alias of a null-only attribute is null-only too,
+     * which covers {@code RENAME} and {@code EVAL x = y}, and a nested {@link MergePlan}'s output column is null-only
+     * when that column is null-only in every one of its branches. A nested union whose branches all null-fill a column
+     * outputs it as a fresh attribute that no alias defines, so without the latter it would look like a computed value.
+     * <p>
+     * Walks {@code branch} once, so build one predicate per branch and test every column of a wide branch against it.
+     */
+    public static Predicate<Attribute> producesOnlyNull(LogicalPlan branch) {
+        Set<NameId> onlyNull = new HashSet<>();
+        branch.forEachUp(plan -> {
+            switch (plan) {
+                case Eval eval -> eval.fields().forEach(alias -> markIfOnlyNull(alias, onlyNull));
+                case Project project -> project.projections().forEach(ne -> {
+                    if (ne instanceof Alias alias) {
+                        markIfOnlyNull(alias, onlyNull);
+                    }
+                });
+                case MergePlan merge -> {
+                    if (merge.children().isEmpty() == false) {
+                        // A name is null-only if no branch outputs it as a non-null column. A branch that lacks the name
+                        // entirely contributes nulls, so it neither adds to nor removes from the result.
+                        Set<String> nullsFromMerge = new HashSet<>();
+                        Set<String> nonNullNames = new HashSet<>();
+                        for (LogicalPlan child : merge.children()) {
+                            for (Attribute childAttr : child.output()) {
+                                if (onlyNull.contains(childAttr.id())) {
+                                    nullsFromMerge.add(childAttr.name());
+                                } else {
+                                    nonNullNames.add(childAttr.name());
+                                }
+                            }
+                        }
+                        nullsFromMerge.removeAll(nonNullNames);
+                        for (Attribute out : merge.output()) {
+                            if (nullsFromMerge.contains(out.name())) {
+                                onlyNull.add(out.id());
+                            }
+                        }
+                    }
+                }
+                default -> {
+                }
+            }
+        });
+        return attr -> onlyNull.contains(attr.id());
+    }
+
+    private static void markIfOnlyNull(Alias alias, Set<NameId> onlyNull) {
+        if (isGuaranteedNull(alias.child(), onlyNull)) {
+            onlyNull.add(alias.id());
+        }
+    }
+
+    /**
+     * {@link Expressions#isGuaranteedNull}, also accepting an attribute already known to be null-only and looking through
+     * functions that are null whenever an argument is null.
+     */
+    private static boolean isGuaranteedNull(Expression e, Set<NameId> onlyNull) {
+        if (Expressions.isGuaranteedNull(e) || (e instanceof Attribute attr && onlyNull.contains(attr.id()))) {
+            return true;
+        }
+        return e instanceof AnyNullIsNull && e.children().stream().anyMatch(child -> isGuaranteedNull(child, onlyNull));
     }
 
     private List<Attribute> withUnmappedFieldsAttributeFromChildren(List<Attribute> converted) {
@@ -156,7 +412,7 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
         }
         for (int i = 0; i < converted.size(); i++) {
             if (converted.get(i).name().equals(UnmappedFieldsAttribute.ATTRIBUTE_NAME)) {
-                // Keep the subtype so coordinator expansion can find $$unmapped_fields after the merge.
+                // Keep the subtype so that _unmapped_fields is found after the merge and returned.
                 converted.set(i, ufa.withId(converted.get(i).id()));
                 break;
             }
@@ -207,7 +463,11 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
                     continue;
                 }
 
-                if (names.contains(attr.name()) == false && attr != NO_FIELDS.getFirst()) {
+                // Keep union-type cast synthetics ($$field$converted_to$type): a conversion above the merge still references them. Drop
+                // only IN-subquery marks/consts, which are local to the rewrite and leak if they become merge columns.
+                if (names.contains(attr.name()) == false
+                    && attr != NO_FIELDS.getFirst()
+                    && InSubqueryResolver.isInSubquerySynthetic(attr) == false) {
                     names.add(attr.name());
                     output.add(attr);
                 }
@@ -245,49 +505,23 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
     }
 
     @Override
-    public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
-        return MergePlan::checkBranchCount;
-    }
-
-    /**
-     * Branch-count bounds shared by all {@link MergePlan} subclasses (Fork, UnionAll, ViewUnionAll).
-     * Lives at post-analysis verification rather than the constructor so that compaction
-     * passes (e.g. ViewCompaction) get a chance to reduce the count first. Called from both
-     * {@code Fork::checkFork} and {@code UnionAll::checkUnionAll} since each subclass dispatches
-     * to its own {@link #postAnalysisPlanVerification()} override.
-     * <p>
-     * The lower bound (≥ 1 branch) catches invalid plans where {@link #pruneEmptyBranches}
-     * removed every branch — e.g. a CCS subquery whose {@code IndexResolution} came back
-     * {@code EMPTY_SUBQUERY} for every sibling. The {@code PruneEmptyMergeBranches} optimizer
-     * rule short-circuits this case to a {@code LocalRelation}; rules that don't (the analyzer's
-     * {@code PruneEmptyUnionAllBranch}, {@code ViewCompaction.stripViewShadowRelations}) rely on
-     * this check to surface the bad state with a clear message rather than letting an empty
-     * {@code MergePlan} propagate silently.
-     */
-    static void checkBranchCount(LogicalPlan plan, Failures failures) {
-        if (plan instanceof MergePlan merge) {
-            int size = merge.children().size();
-            if (exceedsMaxBranches(size)) {
-                failures.add(Failure.fail(merge, "FORK supports up to {} branches, got: {}", MAX_BRANCHES, size));
-            } else if (size == 0) {
-                failures.add(Failure.fail(merge, "{} requires at least one branch", merge.getClass().getSimpleName()));
+    public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification(
+        AnalysisRegistry analysisRegistry,
+        QueryPragmas pragmas,
+        EsqlFlags flags
+    ) {
+        return (plan, failures) -> {
+            if (plan != this) {
+                return;
             }
-        }
+            checkBranchCount(plan, failures, pragmas, flags);
+            postAnalysisPlanVerification().accept(plan, failures);
+        };
     }
 
-    /**
-     * Traverses the plan tree downward, invoking {@code action} for each {@link MergePlan} encountered,
-     * but does not descend into the right-hand side (subquery plan) of an {@link AbstractSubqueryJoin}.
-     * The right side is a separate query scope; a FORK or merge inside it is independent of any FORK
-     * or merge in the enclosing query.
-     */
-    static void forEachMergePlanSkippingSubqueries(LogicalPlan plan, Consumer<MergePlan> action) {
-        if (plan instanceof MergePlan merge) {
-            action.accept(merge);
-        }
-        List<LogicalPlan> children = plan instanceof AbstractSubqueryJoin join ? List.of(join.left()) : plan.children();
-        for (LogicalPlan child : children) {
-            forEachMergePlanSkippingSubqueries(child, action);
+    void checkBranchCount(LogicalPlan plan, Failures failures, QueryPragmas pragmas, EsqlFlags flags) {
+        if (plan.children().isEmpty()) {
+            failures.add(Failure.fail(plan, "{} requires at least one branch", plan.getClass().getSimpleName()));
         }
     }
 }

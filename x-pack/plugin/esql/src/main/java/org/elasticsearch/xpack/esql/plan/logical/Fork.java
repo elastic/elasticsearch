@@ -11,19 +11,21 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
-import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.AnalyzedTextExpression;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiConsumer;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
@@ -33,6 +35,7 @@ import java.util.stream.Collectors;
 public final class Fork extends MergePlan implements TelemetryAware {
 
     public static final String FORK_FIELD = "_fork";
+    public static final String MULTIPLE_FORKS_ERROR = "Only a single FORK command is supported, but found multiple";
 
     public Fork(Source source, List<LogicalPlan> children, List<Attribute> output) {
         super(source, children, output);
@@ -40,7 +43,7 @@ public final class Fork extends MergePlan implements TelemetryAware {
 
     @Override
     public Fork replaceChildren(List<LogicalPlan> newChildren) {
-        return new Fork(source(), newChildren, output());
+        return passIdentityTo(new Fork(source(), newChildren, output()));
     }
 
     @Override
@@ -50,12 +53,12 @@ public final class Fork extends MergePlan implements TelemetryAware {
 
     @Override
     public Fork replaceSubPlans(List<LogicalPlan> subPlans) {
-        return new Fork(source(), subPlans, output());
+        return passIdentityTo(new Fork(source(), subPlans, output()));
     }
 
     @Override
     public Fork replaceSubPlansAndOutput(List<LogicalPlan> subPlans, List<Attribute> output) {
-        return new Fork(source(), subPlans, output);
+        return passIdentityTo(new Fork(source(), subPlans, output));
     }
 
     @Override
@@ -82,30 +85,15 @@ public final class Fork extends MergePlan implements TelemetryAware {
     }
 
     private static void checkFork(LogicalPlan plan, Failures failures) {
-        checkBranchCount(plan, failures);
         if (plan instanceof Fork == false) {
             return;
         }
         Fork fork = (Fork) plan;
 
-        forEachMergePlanSkippingSubqueries(fork, other -> {
-            if (other == fork) {
-                return;
-            }
-
-            failures.add(
-                Failure.fail(
-                    other,
-                    other instanceof UnionAll
-                        ? "FORK after subquery is not supported"
-                        : "Only a single FORK command is supported, but found multiple"
-                )
-            );
-        });
-
         Map<String, Attribute> mergedOutput = fork.output().stream().collect(Collectors.toMap(Attribute::name, attr -> attr));
 
         fork.children().forEach(subPlan -> {
+            Predicate<Attribute> onlyNull = producesOnlyNull(subPlan);
             for (Attribute attr : subPlan.output()) {
                 var merged = mergedOutput.get(attr.name());
 
@@ -115,7 +103,11 @@ public final class Fork extends MergePlan implements TelemetryAware {
                 //
                 // Likewise, a branch that does not produce the column at all had it filled with nulls to line the branches up.
                 // Those rows carry no values, so there is nothing for a sibling's declarations to disagree with.
-                if (merged == null || merged.dataType() == DataType.UNSUPPORTED || producesOnlyNull(subPlan, attr)) {
+                //
+                // Union-type resolution can also introduce synthetic conversion attributes after this FORK's output was
+                // resolved. They are carried through the branch projections so the conversion can be extracted, but are
+                // intentionally absent from the user-visible FORK output and removed by the union-types cleanup rule.
+                if (merged == null || merged.dataType() == DataType.UNSUPPORTED || onlyNull.test(attr)) {
                     continue;
                 }
 
@@ -134,6 +126,33 @@ public final class Fork extends MergePlan implements TelemetryAware {
                 }
             }
         });
+    }
+
+    /**
+     * Rejects a {@link Fork} whose direct children exceed {@code max_branch_count_per_merge} cluster setting or pragma.
+     */
+    @Override
+    void checkBranchCount(LogicalPlan plan, Failures failures, QueryPragmas pragmas, EsqlFlags flags) {
+        super.checkBranchCount(plan, failures, pragmas, flags);
+        int maxBranches = pragmas.maxBranchCountPerMerge(flags.maxBranchCountPerMerge());
+        String limitSource = pragmas.maxBranchCountPerMergeLimitSource(EsqlFlags.ESQL_MAX_BRANCH_COUNT_PER_MERGE.getKey());
+        if (plan.children().size() > maxBranches) {
+            String sourceText = plan.sourceText();
+            String errorMessage = sourceText.length() > Node.TO_STRING_MAX_WIDTH
+                ? sourceText.substring(0, Node.TO_STRING_MAX_WIDTH) + "..."
+                : sourceText;
+            failures.add(
+                Failure.fail(
+                    plan,
+                    "{} resolved to {} branches, exceeding the limit of {} set by the {}. Reduce the number of branches,"
+                        + " split the query, or change the setting",
+                    errorMessage,
+                    plan.children().size(),
+                    maxBranches,
+                    limitSource
+                )
+            );
+        }
     }
 
     /**
@@ -160,7 +179,7 @@ public final class Fork extends MergePlan implements TelemetryAware {
         }
         // Declaring nothing is declaring the standard analyzer, so it still disagrees with a sibling that names a
         // different one: the merged column can carry only one, and the other branch's values would be analyzed with
-        // an analyzer they never declared. A column with no values to analyze - one branch alignment filled with
+        // an analyzer they never declared. A column with no values to analyze - one a branch lacks, or fills with
         // nulls - is skipped by the caller rather than weakening the comparison here.
         String branchAnalyzer = analyzerOrStandard(branch);
         String mergedAnalyzer = analyzerOrStandard(merged);
@@ -176,23 +195,11 @@ public final class Fork extends MergePlan implements TelemetryAware {
     }
 
     /**
-     * Whether {@code attr}, a column of {@code branch}'s output, holds nothing but nulls. Branch alignment fills a
-     * column a branch lacks this way, so that every branch outputs the same names; a column written as an explicit
-     * {@code EVAL x = null} is indistinguishable and equally empty, so both are treated alike.
-     * <p>
-     * Matched on the attribute's id rather than its name: a branch may assign the name more than once, and only the
-     * assignment this attribute came from decides what the branch outputs. Matching by name would let an assignment
-     * a later one shadows answer for the column.
+     * FORK keeps merging {@code _score} as a plain reference for now, see {@link MergePlan#withScoreAttributeFromChildren}.
+     * TODO: this is a known issue (https://github.com/elastic/elasticsearch/issues/161746), and will fixed in the future.
      */
-    private static boolean producesOnlyNull(LogicalPlan branch, Attribute attr) {
-        Holder<Boolean> onlyNull = new Holder<>(false);
-        branch.forEachDown(Eval.class, eval -> {
-            for (Alias field : eval.fields()) {
-                if (field.id().equals(attr.id())) {
-                    onlyNull.set(Expressions.isGuaranteedNull(field.child()));
-                }
-            }
-        });
-        return onlyNull.get();
+    @Override
+    public boolean mergesScoreAsMetadata() {
+        return false;
     }
 }

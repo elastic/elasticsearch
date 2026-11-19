@@ -43,11 +43,13 @@ import org.elasticsearch.cluster.coordination.MasterHistory;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.coordination.Reconfigurator;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataMappingService;
 import org.elasticsearch.cluster.routing.OperationRouting;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.IndexBalanceConstraintSettings;
@@ -101,6 +103,8 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.MergePolicyConfig;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.codec.DocValuesBatchPrefetcher;
 import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.index.search.stats.SearchStatsSettings;
@@ -159,6 +163,8 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Encapsulates all valid cluster level settings.
@@ -229,7 +235,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
         }
     }
 
-    public static final Set<Setting<?>> BUILT_IN_CLUSTER_SETTINGS = Set.of(
+    private static final Set<Setting<?>> RELEASED_CLUSTER_SETTINGS = Set.of(
+        AllocationService.PRESERVE_DECISION_LABELS_SETTING,
         AllocationBalancingRoundSummaryService.ENABLE_BALANCER_ROUND_SUMMARIES_METRICS_SETTING,
         AllocationBalancingRoundSummaryService.ENABLE_BALANCER_ROUND_SUMMARIES_LOGGING_SETTING,
         AllocationBalancingRoundSummaryService.BALANCER_ROUND_SUMMARIES_LOG_INTERVAL_SETTING,
@@ -248,6 +255,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
         DataStreamAutoShardingService.CLUSTER_AUTO_SHARDING_MIN_WRITE_THREADS,
         DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_INCREASE_SHARDS_LOAD_METRIC,
         DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_DECREASE_SHARDS_LOAD_METRIC,
+        DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_MIN_NUMBER_OF_SHARDS,
+        DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_TIME_SERIES_MIN_NUMBER_OF_SHARDS,
         DesiredBalanceComputer.PROGRESS_LOG_INTERVAL_SETTING,
         DesiredBalanceComputer.MAX_BALANCE_COMPUTATION_TIME_DURING_INDEX_CREATION_SETTING,
         DesiredBalanceReconciler.UNDESIRED_ALLOCATIONS_LOG_INTERVAL_SETTING,
@@ -391,6 +400,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         ClusterApplierService.CLUSTER_APPLIER_THREAD_WATCHDOG_INTERVAL,
         ClusterApplierService.CLUSTER_APPLIER_THREAD_WATCHDOG_QUIET_TIME,
         ClusterService.USER_DEFINED_METADATA,
+        MetadataMappingService.PUT_MAPPING_DYNAMIC_MAPPINGS_BATCHING_ENABLED_SETTING,
         MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
         MasterService.MASTER_SERVICE_STARVATION_LOGGING_THRESHOLD_SETTING,
         MasterService.MASTER_SERVICE_EXECUTION_HISTORY_SIZE_SETTING,
@@ -532,6 +542,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
         SearchService.MAX_OPEN_SCROLL_CONTEXT,
         SearchService.ENABLE_REWRITE_AGGS_TO_FILTER_BY_FILTER,
         SearchService.MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING,
+        SearchService.ASYNC_SEARCH_DEFAULT_KEEP_ALIVE_SETTING,
+        SearchService.ASYNC_SEARCH_MAX_KEEP_ALIVE_SETTING,
         Node.WRITE_PORTS_FILE_SETTING,
         Node.NODE_EXTERNAL_ID_SETTING,
         Node.NODE_NAME_SETTING,
@@ -586,6 +598,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         SearchService.QUERY_PHASE_PARALLEL_COLLECTION_ENABLED,
         SearchService.FETCH_PHASE_CHUNKED_ENABLED,
         SearchService.FETCH_PHASE_MAX_IN_FLIGHT_CHUNKS,
+        DocValuesBatchPrefetcher.BUDGET_SETTING,
         SearchService.FETCH_PHASE_CHUNKED_TARGET_CHUNK_BYTES,
         SearchService.MEMORY_ACCOUNTING_BUFFER_SIZE,
         ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING,
@@ -625,6 +638,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         HandshakingTransportAddressConnector.PROBE_HANDSHAKE_TIMEOUT_SETTING,
         SnapshotsService.MAX_CONCURRENT_SNAPSHOT_OPERATIONS_SETTING,
         SnapshotsService.SNAPSHOT_MONOTONIC_END_TIME_SETTING,
+        SnapshotsService.ENCRYPTED_DATA_REQUIRED_SETTING,
         RepositoriesService.DEFAULT_REPOSITORY_SETTING,
         RestoreService.REFRESH_REPO_UUID_ON_RESTORE_SETTING,
         FsHealthService.ENABLED_SETTING,
@@ -687,9 +701,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
         ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING,
         ThreadPoolMergeExecutorService.INDICES_MERGE_THREAD_POOL_MAX_SIZE_FACTOR_SETTING,
         TransportService.ENABLE_STACK_OVERFLOW_AVOIDANCE,
-        DataStreamGlobalRetentionSettings.DATA_STREAMS_DEFAULT_RETENTION_SETTING,
-        DataStreamGlobalRetentionSettings.DATA_STREAMS_MAX_RETENTION_SETTING,
-        DataStreamGlobalRetentionSettings.FAILURE_STORE_DEFAULT_RETENTION_SETTING,
+        DataStreamLifecycleSettings.DATA_STREAMS_DEFAULT_RETENTION_SETTING,
+        DataStreamLifecycleSettings.DATA_STREAMS_MAX_RETENTION_SETTING,
+        DataStreamLifecycleSettings.FAILURE_STORE_DEFAULT_RETENTION_SETTING,
         ShardsAvailabilityHealthIndicatorService.PRIMARY_INACTIVE_BUFFER_TIME,
         ShardsAvailabilityHealthIndicatorService.REPLICA_INACTIVE_BUFFER_TIME,
         DataStreamFailureStoreSettings.DATA_STREAM_FAILURE_STORED_ENABLED_SETTING,
@@ -724,4 +738,13 @@ public final class ClusterSettings extends AbstractScopedSettings {
         SystemIndices.NUMBER_OF_REPLICAS_SETTING,
         SystemIndices.AUTO_EXPAND_REPLICAS_SETTING
     );
+
+    /**
+     * The escape hatch for the not-yet-released analyzer sharing feature is registered only while its feature flag is on, so it is
+     * not exposed publicly before the feature ships.
+     */
+    public static final Set<Setting<?>> BUILT_IN_CLUSTER_SETTINGS = AnalysisRegistry.SHARED_ANALYZERS_FEATURE_FLAG.isEnabled()
+        ? Stream.concat(RELEASED_CLUSTER_SETTINGS.stream(), Stream.of(AnalysisRegistry.SHARED_ANALYZERS_ENABLED_SETTING))
+            .collect(Collectors.toUnmodifiableSet())
+        : RELEASED_CLUSTER_SETTINGS;
 }

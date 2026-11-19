@@ -83,7 +83,6 @@ import java.util.stream.Stream;
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.cluster.metadata.Metadata.ALL;
 import static org.elasticsearch.cluster.project.ProjectStateRegistry.RESERVED_DIFF_VALUE_READER;
-import static org.elasticsearch.index.IndexSettings.PREFER_ILM_SETTING;
 
 public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<ProjectMetadata>, ChunkedToXContent, Accountable {
 
@@ -1154,9 +1153,10 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
      * data stream that's potentially managed by data stream lifecycle and the value of the
      * {@link org.elasticsearch.index.IndexSettings#PREFER_ILM_SETTING}
      */
-    public boolean isIndexManagedByILM(IndexMetadata indexMetadata) {
-        if (Strings.hasText(indexMetadata.getLifecyclePolicyName()) == false
-            || IndexSettings.MODE.get(indexMetadata.getSettings()) == IndexMode.LOOKUP) {
+    public boolean isIndexManagedByILM(IndexMetadata indexMetadata, boolean minimumLifecycleEnabled) {
+        IndexMode indexMode = indexMetadata.getIndexMode();
+        // Short-circuit follow-up checks
+        if (Strings.hasText(indexMetadata.getLifecyclePolicyName()) == false || indexMode == IndexMode.LOOKUP) {
             // in case of no ILM policy configured or lookup index, we short circuit this to *not* managed by ILM
             return false;
         }
@@ -1172,13 +1172,13 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         if (parentDataStream == null) {
             return true;
         }
-        DataStreamLifecycle lifecycle = parentDataStream.getDataLifecycleForIndex(indexMetadata.getIndex());
-        if (lifecycle != null && lifecycle.enabled()) {
-            // index has both ILM and data stream lifecycle configured so let's check which is preferred
-            return PREFER_ILM_SETTING.get(indexMetadata.getSettings());
-        }
-
-        return true;
+        DataStreamLifecycle lifecycle = parentDataStream.getEffectiveLifecycleForIndex(indexMetadata.getIndex(), minimumLifecycleEnabled);
+        return DataStream.lifecycleManagedBy(
+            indexMetadata.getLifecyclePolicyName(),
+            lifecycle,
+            indexMetadata.getSettings(),
+            indexMode
+        ) == DataStream.LifecycleManagedBy.ILM;
     }
 
     static boolean isStateEquals(ProjectMetadata project1, ProjectMetadata project2) {

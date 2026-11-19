@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.util.Check;
@@ -40,6 +42,8 @@ import java.util.concurrent.Executor;
  * during optimization. Since external sources execute on coordinator only, this filter
  * is never serialized - it's created during local physical optimization and consumed
  * immediately by the operator factory in the same JVM.
+ *
+ * <p>{@link #queryId()} is the coordinator task of the query, or {@code null} when the planner did not supply one.
  */
 public record SourceOperatorContext(
     String sourceType,
@@ -66,7 +70,9 @@ public record SourceOperatorContext(
     int maxRecordBytes,
     int parallelism,
     boolean deferredExtraction,
-    DeclaredReadSpec declaredReadSpec
+    DeclaredReadSpec declaredReadSpec,
+    TransportVersion minTransportVersion,
+    @Nullable TaskId queryId
 ) {
     /**
      * Single source of truth for the {@code external_max_concurrent_open_segments} default. Lives in this SPI (leaf)
@@ -88,6 +94,7 @@ public record SourceOperatorContext(
             ? Collections.unmodifiableSet(new LinkedHashSet<>(partitionColumnNames))
             : Set.of();
         declaredReadSpec = declaredReadSpec != null ? declaredReadSpec : DeclaredReadSpec.NONE;
+        minTransportVersion = minTransportVersion != null ? minTransportVersion : TransportVersion.current();
 
         if (batchSize <= 0) {
             throw new IllegalArgumentException("batchSize must be positive, got: " + batchSize);
@@ -145,7 +152,9 @@ public record SourceOperatorContext(
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             1,
             false,
-            DeclaredReadSpec.NONE
+            DeclaredReadSpec.NONE,
+            TransportVersion.current(),
+            null
         );
     }
 
@@ -187,7 +196,9 @@ public record SourceOperatorContext(
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             1,
             false,
-            DeclaredReadSpec.NONE
+            DeclaredReadSpec.NONE,
+            TransportVersion.current(),
+            null
         );
     }
 
@@ -228,7 +239,9 @@ public record SourceOperatorContext(
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             1,
             false,
-            DeclaredReadSpec.NONE
+            DeclaredReadSpec.NONE,
+            TransportVersion.current(),
+            null
         );
     }
 
@@ -267,7 +280,9 @@ public record SourceOperatorContext(
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             1,
             false,
-            DeclaredReadSpec.NONE
+            DeclaredReadSpec.NONE,
+            TransportVersion.current(),
+            null
         );
     }
 
@@ -305,6 +320,9 @@ public record SourceOperatorContext(
         private int parallelism = 1;
         private boolean deferredExtraction;
         private DeclaredReadSpec declaredReadSpec = DeclaredReadSpec.NONE;
+        private TransportVersion minTransportVersion = TransportVersion.current();
+        @Nullable
+        private TaskId queryId;
 
         public Builder sourceType(String sourceType) {
             this.sourceType = sourceType;
@@ -458,6 +476,20 @@ public record SourceOperatorContext(
             return this;
         }
 
+        /**
+         * The oldest transport version in the cluster of the node that reads, which decides how the reader binds a file
+         * when part of the query may be read by an older node. Defaults to this build's version.
+         */
+        public Builder minTransportVersion(TransportVersion minTransportVersion) {
+            this.minTransportVersion = minTransportVersion;
+            return this;
+        }
+
+        public Builder queryId(@Nullable TaskId queryId) {
+            this.queryId = queryId;
+            return this;
+        }
+
         public SourceOperatorContext build() {
             return new SourceOperatorContext(
                 sourceType,
@@ -484,7 +516,9 @@ public record SourceOperatorContext(
                 maxRecordBytes,
                 parallelism,
                 deferredExtraction,
-                declaredReadSpec
+                declaredReadSpec,
+                minTransportVersion,
+                queryId
             );
         }
     }

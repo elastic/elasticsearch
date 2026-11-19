@@ -1,0 +1,1 @@
+SET unmapped_fields="load"; FROM partial_mapping_sample_data | WHERE unmapped_event_duration IS NOT NULL

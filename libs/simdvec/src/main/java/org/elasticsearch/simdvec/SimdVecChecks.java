@@ -12,23 +12,11 @@ package org.elasticsearch.simdvec;
 import java.lang.foreign.MemorySegment;
 import java.util.Objects;
 
-import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static java.lang.foreign.ValueLayout.JAVA_LONG;
 
 final class SimdVecChecks {
 
     private SimdVecChecks() {}
-
-    /** Checks that every {@code offsets[i]} addresses a whole {@code rowBytes} row within {@code a}. */
-    static boolean validateBulkOffsets(MemorySegment a, MemorySegment offsets, int count, int pitch, long rowBytes) {
-        Objects.checkFromIndexSize(0L, (long) count * Integer.BYTES, offsets.byteSize());
-        long aSize = a.byteSize();
-        for (int i = 0; i < count; i++) {
-            int offset = offsets.getAtIndex(JAVA_INT, i);
-            Objects.checkFromIndexSize((long) offset * pitch, rowBytes, aSize);
-        }
-        return true;
-    }
 
     /** Checks that every address in {@code addresses} is non-null. */
     static boolean validateBulkSparse(MemorySegment addresses, int count) {

@@ -12,7 +12,7 @@ package org.elasticsearch.telemetry.apm.internal.instrumentation;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestRequest;
 
-record RequestAndRoute(RestRequest request, String matchedRoute, String urlPath, @Nullable String urlQuery) {
+record RequestAndRoute(RestRequest request, @Nullable String matchedRoute, String urlPath, @Nullable String urlQuery) {
 
     RequestAndRoute(RestRequest request, String matchedRoute) {
         this(request, matchedRoute, extractPath(request.uri()), extractQuery(request.uri()));

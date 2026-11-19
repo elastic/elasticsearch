@@ -90,7 +90,7 @@ public class ReindexIdTests extends AbstractAsyncBulkByPaginatedSearchActionTest
             randomTimeValue(),
             null,
             new ReindexSettings(),
-            new NoopCircuitBreaker("test")
+            NoopCircuitBreaker.INSTANCE
         );
         expectThrows(
             XContentParseException.class,
@@ -128,7 +128,7 @@ public class ReindexIdTests extends AbstractAsyncBulkByPaginatedSearchActionTest
             randomTimeValue(),
             null,
             new ReindexSettings(),
-            new NoopCircuitBreaker("test")
+            NoopCircuitBreaker.INSTANCE
         );
         expectThrows(
             UncheckedIOException.class,
@@ -203,7 +203,7 @@ public class ReindexIdTests extends AbstractAsyncBulkByPaginatedSearchActionTest
             randomPositiveTimeValue(),
             null,
             new ReindexSettings(),
-            new NoopCircuitBreaker("test")
+            NoopCircuitBreaker.INSTANCE
         );
     }
 }

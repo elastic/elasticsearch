@@ -34,7 +34,7 @@ import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
-import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitCleaner;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
@@ -58,9 +58,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.xpack.stateless.cluster.coordination.StatelessClusterConsistencyService.DELAYED_CLUSTER_CONSISTENCY_INTERVAL_SETTING;
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS;
 import static org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryTestUtils.getCacheService;
+import static org.elasticsearch.xpack.stateless.recovery.StatelessPrimaryRelocationSourceService.PREWARM_WAIT_TIMEOUT_SETTING;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationHandoffAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationPrewarmAction.PREWARM_RELOCATION_ACTION_NAME;
 import static org.hamcrest.Matchers.empty;
@@ -222,7 +224,7 @@ public class IndexingShardRelocationAvoidListIT extends AbstractStatelessPluginI
                 var handoffRequest = (TransportStatelessPrimaryRelocationHandoffAction.Request) request;
                 var latestBccBlob = handoffRequest.latestBccBlob();
                 Assert.assertNotNull(latestBccBlob);
-                passedBlobFiles.add(latestBccBlob.blobFile().termAndGeneration());
+                passedBlobFiles.add(latestBccBlob.bccBlob().termAndGeneration());
                 for (var blob : handoffRequest.otherBlobFiles()) {
                     passedBlobFiles.add(blob.termAndGeneration());
                 }
@@ -273,6 +275,10 @@ public class IndexingShardRelocationAvoidListIT extends AbstractStatelessPluginI
         var settings = Settings.builder()
             .put(STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 2)
             .put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), false)
+            // reduce the consistency check to delete faster if a blob shows up for deletion
+            .put(DELAYED_CLUSTER_CONSISTENCY_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(100))
+            // we hold the prewarm until after the relocation, so no reason for the source to wait
+            .put(PREWARM_WAIT_TIMEOUT_SETTING.getKey(), TimeValue.ZERO)
             .build();
 
         startMasterOnlyNode(settings);
@@ -363,7 +369,7 @@ public class IndexingShardRelocationAvoidListIT extends AbstractStatelessPluginI
         assertBusy(() -> {
             var prewarmBccBlob = prewarmBccBlobRef.get();
             assertThat(prewarmBccBlob, not(equalTo(null)));
-            var bccBlobName = BatchedCompoundCommit.blobNameFromGeneration(prewarmBccBlob.blobFile().generation());
+            var bccBlobName = BatchedCompoundCommit.blobNameFromGeneration(prewarmBccBlob.bccBlob().generation());
             assertTrue(blobsDeleted.stream().anyMatch(d -> d.endsWith(bccBlobName)));
         });
 
@@ -379,6 +385,7 @@ public class IndexingShardRelocationAvoidListIT extends AbstractStatelessPluginI
         // Unblock pre-warming message that now includes a path to the deleted blob
         prewarmBlockLatch.countDown();
         safeAwait(prewarmMessageFailedLatch);
+        // assert that no warming started for the deleted blob
         assertEquals(0, bccAccesses.get());
 
         ensureGreen(indexName);
@@ -417,7 +424,7 @@ public class IndexingShardRelocationAvoidListIT extends AbstractStatelessPluginI
                 var handoffRequest = (TransportStatelessPrimaryRelocationHandoffAction.Request) request;
                 var latestBccBlob = handoffRequest.latestBccBlob();
                 if (latestBccBlob != null) {
-                    handoffBlobGenerations.add(latestBccBlob.blobFile().termAndGeneration().generation());
+                    handoffBlobGenerations.add(latestBccBlob.bccBlob().termAndGeneration().generation());
                 }
                 for (var blob : handoffRequest.otherBlobFiles()) {
                     handoffBlobGenerations.add(blob.termAndGeneration().generation());
@@ -425,7 +432,7 @@ public class IndexingShardRelocationAvoidListIT extends AbstractStatelessPluginI
                 handler.messageReceived(request, channel, task);
             });
 
-        // Set up latches on the source node's plugin to pause inside getTrackedUploadedBlobFilesUpTo.
+        // Set up latches on the source node's plugin to pause inside getTrackedUploadedBccBlobsUpTo.
         // At that point markRelocating() has already set state=RELOCATING and maxGenerationToUpload,
         // so any new commit from a force merge will create a phantom entry.
         final var plugin = findPlugin(indexNodeA, AvoidListTestStatelessPlugin.class);
@@ -510,14 +517,14 @@ public class IndexingShardRelocationAvoidListIT extends AbstractStatelessPluginI
                 telemetryProvider
             ) {
                 @Override
-                public Set<BlobFile> getTrackedUploadedBlobFilesUpTo(ShardId shardId, long maxUploadedGeneration) {
+                public Set<BccBlob> getTrackedUploadedBccBlobsUpTo(ShardId shardId, long maxUploadedGeneration) {
                     CountDownLatch entered = getTrackedBlobFilesEnteredLatch.get();
                     CountDownLatch blocker = getTrackedBlobFilesBlockerLatch.get();
                     if (entered != null && blocker != null) {
                         entered.countDown();
                         safeAwait(blocker);
                     }
-                    return super.getTrackedUploadedBlobFilesUpTo(shardId, maxUploadedGeneration);
+                    return super.getTrackedUploadedBccBlobsUpTo(shardId, maxUploadedGeneration);
                 }
             };
         }

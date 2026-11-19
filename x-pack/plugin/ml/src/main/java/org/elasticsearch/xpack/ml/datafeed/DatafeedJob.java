@@ -66,6 +66,8 @@ class DatafeedJob {
 
     private static final Logger LOGGER = LogManager.getLogger(DatafeedJob.class);
     private static final int NEXT_TASK_DELAY_MS = 100;
+    private static final long INCOMPLETE_CHUNK_AUDIT_INTERVAL_MS = TimeValue.timeValueHours(24).millis();
+    private static final long NO_INCOMPLETE_CHUNK_AUDIT = -1L;
 
     private final AnomalyDetectionAuditor auditor;
     private final AnnotationPersister annotationPersister;
@@ -97,8 +99,12 @@ class DatafeedJob {
     private final AtomicBoolean running = new AtomicBoolean(true);
     private volatile boolean isIsolated;
     private volatile boolean haveEverSeenData;
+    // Re-audit persistent truncation at most once per day so operators are reminded without flooding the audit log.
+    private volatile long lastIncompleteChunkAuditMs = NO_INCOMPLETE_CHUNK_AUDIT;
     private volatile long consecutiveDelayedDataBuckets;
     private volatile SearchInterval searchInterval;
+    @Nullable
+    private volatile DataExtractor activeDataExtractor;
 
     DatafeedJob(
         String datafeedId,
@@ -152,6 +158,7 @@ class DatafeedJob {
     void isolate() {
         isIsolated = true;
         timingStatsReporter.disallowPersisting();
+        cancelActiveExtractor();
     }
 
     boolean isIsolated() {
@@ -177,8 +184,10 @@ class DatafeedJob {
     /**
      * Resolves the effective threshold of consecutive extraction failures after which the datafeed stops itself.
      * When the datafeed config leaves this unset, the default is roughly one day's worth of searches (at least one),
-     * so a persistently broken datafeed surfaces within a day rather than retrying indefinitely. A configured value
-     * is used verbatim; {@code -1} disables the behaviour so the datafeed retries indefinitely.
+     * so a persistently broken datafeed surfaces within a day rather than retrying indefinitely. A configured
+     * positive value is used verbatim. The config builder maps {@code -1} to the default (null), so a built config
+     * never holds a non-positive threshold; {@link DatafeedRunner} additionally treats any non-positive threshold as
+     * "never stop", which keeps us safe against a legacy {@code -1} arriving over the wire from an older node.
      */
     public long effectiveMaxConsecutiveExtractionFailures() {
         if (maxConsecutiveExtractionFailures != null) {
@@ -390,7 +399,11 @@ class DatafeedJob {
      *         otherwise <code>false</code> is returned
      */
     public boolean stop() {
-        return running.compareAndSet(true, false);
+        boolean stopped = running.compareAndSet(true, false);
+        if (stopped) {
+            cancelActiveExtractor();
+        }
+        return stopped;
     }
 
     public boolean isRunning() {
@@ -410,6 +423,7 @@ class DatafeedJob {
         long recordCount = 0;
         List<LinkedClusterState> linkedClusterStates = List.of();
         DataExtractor dataExtractor = dataExtractorFactory.newExtractor(start, end);
+        activeDataExtractor = dataExtractor;
         try {
             while (dataExtractor.hasNext()) {
                 if ((isIsolated || isRunning() == false) && dataExtractor.isCancelled() == false) {
@@ -431,6 +445,20 @@ class DatafeedJob {
                         );
                     }
                 } catch (Exception e) {
+                    // stop() and isolate() flip state before cancel(); unrelated task cancellation is an extraction failure.
+                    if (dataExtractor.isCancelled() || isRunning() == false || isIsolated) {
+                        LOGGER.debug(
+                            () -> format(
+                                "[%s] extraction aborted (running=%s, isolated=%s, cancelled=%s)",
+                                jobId,
+                                isRunning(),
+                                isIsolated,
+                                dataExtractor.isCancelled()
+                            ),
+                            e
+                        );
+                        return;
+                    }
                     LOGGER.warn(() -> "[" + jobId + "] error while extracting data", e);
                     // When extraction problems are encountered, we do not want to advance time.
                     // Instead, it is preferable to retry the given interval next time an extraction
@@ -515,7 +543,9 @@ class DatafeedJob {
                 }
             }
 
-            lastEndTimeMs = Math.max(lastEndTimeMs == null ? 0 : lastEndTimeMs, dataExtractor.getEndTime() - 1);
+            if (isRunning() && isIsolated == false && dataExtractor.isCancelled() == false) {
+                lastEndTimeMs = Math.max(lastEndTimeMs == null ? 0 : lastEndTimeMs, dataExtractor.getEndTime() - 1);
+            }
             LOGGER.debug(
                 "[{}] Complete iterating data extractor [{}], [{}], [{}], [{}], [{}]",
                 jobId,
@@ -527,6 +557,8 @@ class DatafeedJob {
             );
 
             CrossClusterSearchStats.ScopeChangeResult scopeChange = updateCrossClusterSearchStats(linkedClusterStates);
+
+            Optional<SearchInterval> incompleteSearchInterval = dataExtractor.getIncompleteSearchInterval();
 
             // We can now throw any stored error as we have updated time.
             if (error != null) {
@@ -546,6 +578,24 @@ class DatafeedJob {
                     handleFieldConflictsAfterScopeChange(scopeChange);
                     checkForAnomaliesAfterScopeChange(scopeChange);
                 }
+
+                // Only after post and flush succeeded, so an error path never reports the interval as skipped. A cancelled
+                // run is excluded: its end-time advance is not guaranteed, so it makes no claim about skipped intervals.
+                // Stop, cancel, or isolate before this block neither audits nor resets the episode flag, so the next
+                // truncated cycle may WARN again. Resetting on a non-claim cycle would duplicate WARNs.
+                if (dataExtractor.isCancelled() == false) {
+                    if (incompleteSearchInterval.isPresent() == false) {
+                        lastIncompleteChunkAuditMs = NO_INCOMPLETE_CHUNK_AUDIT;
+                    } else {
+                        long now = currentTimeSupplier.get();
+                        if (lastIncompleteChunkAuditMs < 0 || now - lastIncompleteChunkAuditMs >= INCOMPLETE_CHUNK_AUDIT_INTERVAL_MS) {
+                            lastIncompleteChunkAuditMs = now;
+                            notifyIncompleteEsqlChunk(incompleteSearchInterval.get());
+                        } else {
+                            LOGGER.debug("[{}] ES|QL chunk still incomplete for {}", jobId, incompleteSearchInterval.get());
+                        }
+                    }
+                }
             }
 
             if (recordCount == 0) {
@@ -554,6 +604,29 @@ class DatafeedJob {
         } finally {
             // Ensure the extractor is always destroyed to clean up scroll contexts
             dataExtractor.destroy();
+            activeDataExtractor = null;
+        }
+    }
+
+    /**
+     * Audits an extraction that ended on a chunk truncated at the row limit. The window has been posted and flushed and
+     * lastEndTimeMs has moved past it, so the rows beyond the limit are never extracted again. The user must be told.
+     */
+    private void notifyIncompleteEsqlChunk(SearchInterval interval) {
+        String message = Messages.getMessage(
+            Messages.DATAFEED_ESQL_INCOMPLETE_CHUNK,
+            Instant.ofEpochMilli(interval.startMs()),
+            Instant.ofEpochMilli(interval.endMs())
+        );
+        LOGGER.warn("[{}] {}", jobId, message);
+        auditor.warning(jobId, message);
+    }
+
+    private void cancelActiveExtractor() {
+        // Single read: run()'s finally nulls this field from the datafeed thread while stop()/isolate() call in.
+        DataExtractor extractor = activeDataExtractor;
+        if (extractor != null) {
+            extractor.cancel();
         }
     }
 

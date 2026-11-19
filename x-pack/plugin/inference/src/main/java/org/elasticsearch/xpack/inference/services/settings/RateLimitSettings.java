@@ -24,6 +24,7 @@ import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SettingsScope;
@@ -48,12 +49,14 @@ public class RateLimitSettings implements Writeable, ToXContentFragment {
 
     /**
      * Declares a {@link #FIELD_NAME} field on the given parser that produces a {@link RateLimitSettings} value.
-     * When the {@link #FIELD_NAME} object is present but empty (i.e. {@code "rate_limit": {}}), the setter receives
-     * {@code defaultValue} rather than {@code null}.
+     * When the {@link #FIELD_NAME} object is present but empty (i.e. {@code "rate_limit": {}}), explicitly {@code null}
+     * (i.e. {@code "rate_limit": null}), or contains a {@code null} {@link #REQUESTS_PER_MINUTE_FIELD}, the setter receives
+     * {@code defaultValue} rather than {@code null}. Clients such as Kibana send these shapes when the user leaves the field blank.
      *
      * @param parser       the parser on which to declare the field
      * @param setter       the consumer that stores the parsed {@link RateLimitSettings} on the target object
-     * @param defaultValue the value to use when {@link #REQUESTS_PER_MINUTE_FIELD} is absent from the parsed object
+     * @param defaultValue the value to use when {@link #FIELD_NAME} is {@code null} or {@link #REQUESTS_PER_MINUTE_FIELD} is absent or
+     *                     {@code null}
      */
     public static <V> void declareRateLimitSettings(
         AbstractObjectParser<V, ConfigurationParseContext> parser,
@@ -62,11 +65,12 @@ public class RateLimitSettings implements Writeable, ToXContentFragment {
     ) {
         var strictParser = RateLimitSettings.createParser(false, defaultValue);
         var lenientParser = RateLimitSettings.createParser(true, defaultValue);
-        parser.declareObject(
+        parser.declareObjectOrNull(
             setter,
-            // An explicitly empty rate_limit object ({}) resolves to the default rate limit rather than null, so the setter is never
-            // invoked with null.
+            // An explicitly empty rate_limit object ({}) or an explicit null resolves to the default rate limit rather than null, so the
+            // setter is never invoked with null.
             (p, c) -> (c == ConfigurationParseContext.PERSISTENT ? lenientParser : strictParser).apply(p, null),
+            defaultValue,
             new ParseField(RateLimitSettings.FIELD_NAME)
         );
     }
@@ -96,11 +100,12 @@ public class RateLimitSettings implements Writeable, ToXContentFragment {
 
     /**
      * Creates a parser for the {@code rate_limit} object. When {@code requests_per_minute} is not supplied (for example an explicitly
-     * empty {@code "rate_limit": {}} object), the parser returns {@code defaultValue} rather than {@code null}, so callers that store the
-     * parsed result do not have to treat an explicitly-provided rate limit object as a {@code null} value.
+     * empty {@code "rate_limit": {}} object) or is explicitly {@code null}, the parser returns {@code defaultValue} rather than
+     * {@code null}, so callers that store the parsed result do not have to treat an explicitly-provided rate limit object as a
+     * {@code null} value.
      *
      * @param ignoreUnknownFields whether unknown fields within the rate limit object are tolerated
-     * @param defaultValue the value to return when {@code requests_per_minute} is absent; may be {@code null}
+     * @param defaultValue the value to return when {@code requests_per_minute} is absent or {@code null}; may be {@code null}
      */
     public static ConstructingObjectParser<RateLimitSettings, ConfigurationParseContext> createParser(
         boolean ignoreUnknownFields,
@@ -114,7 +119,13 @@ public class RateLimitSettings implements Writeable, ToXContentFragment {
                 return requestsPerMinute != null ? new RateLimitSettings(requestsPerMinute) : defaultValue;
             }
         );
-        parser.declareLong(optionalConstructorArg(), new ParseField(REQUESTS_PER_MINUTE_FIELD));
+
+        parser.declareField(
+            optionalConstructorArg(),
+            p -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : p.longValue(),
+            new ParseField(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD),
+            ObjectParser.ValueType.LONG_OR_NULL
+        );
         return parser;
     }
 

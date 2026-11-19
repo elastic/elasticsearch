@@ -37,8 +37,8 @@ public final class AllocationGuard {
     /**
      * Charges a {@code def}-dispatched {@code +} before it runs, but only when it is actually a string concat (an operand is a
      * {@link String}, per {@link DefMath}'s rule) — so numeric {@code def + def} rebox is left untracked by design. The estimate
-     * reuses the statically-typed concat bound (see {@link AllocSizes#stringConcatOperandBytes}). Caller boxes primitive
-     * operands so both arrive as {@link Object}; emitted only when tracking is enabled.
+     * reuses the statically-typed concat bound (see {@link AllocSizes#stringConcatOperandBytes}). Emitted only when tracking is
+     * enabled.
      */
     public static void checkDefConcatAlloc(PainlessScript script, Object left, Object right) {
         if (left instanceof String || right instanceof String) {
@@ -51,24 +51,41 @@ public final class AllocationGuard {
     }
 
     /**
+     * The same check for a {@code def + primitive} in either order. A primitive's cost is fixed at compile time (see
+     * {@link AllocSizes#stringConcatPrimitiveBytes}), so it arrives as {@code primitiveBytes} and the value is never boxed.
+     */
+    public static void checkDefConcatAlloc(PainlessScript script, Object operand, long primitiveBytes) {
+        if (operand instanceof String) {
+            script.$checkAllocBytes(
+                AllocSizes.STRING_CONCAT_RESULT_OVERHEAD + AllocSizes.stringConcatOperandBytes(operand) + primitiveBytes
+            );
+        }
+    }
+
+    /**
      * Logs a {@code WARN} and throws a {@link PainlessError} describing an allocation that pushed a script over its limit.
      * {@link PainlessError} is an {@link Error}, so it cannot be caught from Painless source. Never returns normally. The
      * specific allocation that crossed the limit is not reported: it is whichever happened to tip the running total, not
      * necessarily the dominant cost, so naming it would mislead more than help.
      *
+     * @param scriptContextName the script's context
      * @param attemptedBytes the size of the allocation that tripped the limit
      * @param totalBytes the running total after charging the allocation
      * @param limitBytes the per-context limit
      */
-    public static void allocationLimitExceeded(long attemptedBytes, long totalBytes, long limitBytes) {
+    public static void allocationLimitExceeded(String scriptContextName, long attemptedBytes, long totalBytes, long limitBytes) {
         logger.warn(
-            "Painless script allocation limit exceeded: allocation of [{}] bytes brings running total to [{}] bytes (limit [{}] bytes)",
+            "Painless script allocation limit exceeded in context [{}]: allocation of [{}] bytes brings running total to [{}] bytes "
+                + "(limit [{}] bytes)",
+            scriptContextName,
             attemptedBytes,
             totalBytes,
             limitBytes
         );
         throw new PainlessError(
-            "script allocation limit exceeded: allocation of ["
+            "script allocation limit exceeded in context ["
+                + scriptContextName
+                + "]: allocation of ["
                 + attemptedBytes
                 + "] bytes brings the running total to ["
                 + totalBytes

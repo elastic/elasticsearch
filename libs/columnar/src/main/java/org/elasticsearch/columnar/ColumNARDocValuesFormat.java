@@ -28,11 +28,12 @@ import java.io.IOException;
  * {@link ColumnarFieldType} is resolved by the injected {@link ColumnarFieldTypeSelector}, served through
  * this library's own range-query and block-loader APIs. The typed doc-values shapes are rejected.
  *
- * <p>Pipeline selection is delegated to the injected {@link NumericPipelineSelector}, and the column type to
- * the injected {@link ColumnarFieldTypeSelector}. Both are supplied by the caller rather than read from a
+ * <p>Pipeline selection is delegated to the injected {@link NumericPipelineSelector}, the column type to
+ * the injected {@link ColumnarFieldTypeSelector}, and the string options, framing included, to the injected
+ * {@link StringColumnOptionsSelector}. All are supplied by the caller rather than read from a
  * {@link org.apache.lucene.index.FieldInfo} attribute, so the codec decision stays in the integration's
  * wiring and never leaks into the mapping layer. The no-arg SPI constructor is read-only (the producer reads
- * the type from column metadata); its selector fails fast if a write path ever reaches it.
+ * the type and the framing from column metadata); its selector fails fast if a write path ever reaches it.
  */
 public class ColumNARDocValuesFormat extends DocValuesFormat {
 
@@ -65,11 +66,24 @@ public class ColumNARDocValuesFormat extends DocValuesFormat {
     static final String META_EXTENSION = "cnm";
     static final String SKIP_CODEC = "ColumNARSkipIndex";
     static final String SKIP_EXTENSION = "cns";
+    /** What is kept per document: presence, slot counts, value addresses. */
+    static final String ADDRESSING_CODEC = "ColumNARAddressing";
+    static final String ADDRESSING_EXTENSION = "cna";
+    /** A plain column's value lengths, which place its values and say which slots are null. */
+    static final String LENGTHS_CODEC = "ColumNARLengths";
+    static final String LENGTHS_EXTENSION = "cnl";
+    /** What is kept per block or per chunk and locates everything else; small, and read up front. */
+    static final String NAVIGATION_CODEC = "ColumNARNavigation";
+    static final String NAVIGATION_EXTENSION = "cnn";
+
+    static final byte COLUMNAR_PAYLOAD = 0;
+    static final byte PLAIN = 1;
 
     private final NumericPipelineSelector pipelineSelector;
     private final ColumnarFieldTypeSelector typeSelector;
     private final int blockSize;
     private final StringColumnOptionsSelector stringSelector;
+    private final FormatVersion writeVersion;
 
     /** The bounds a string column's dictionary is chosen under when a field names none of its own. */
     public static final DictionaryPolicy DEFAULT_DICTIONARY_POLICY = StringColumnOptions.DEFAULT_DICTIONARY;
@@ -118,16 +132,22 @@ public class ColumNARDocValuesFormat extends DocValuesFormat {
             pipelineSelector,
             typeSelector,
             blockSize,
-            StringColumnOptionsSelector.always(StringColumnOptions.DEFAULT.withPolicies(dictionaryPolicy, summaryPolicy))
+            StringColumnOptionsSelector.always(StringColumnOptions.DEFAULT.withPolicies(dictionaryPolicy, summaryPolicy)),
+            FormatVersion.CURRENT
         );
     }
 
-    /** Every column is written as the selector for its kind says that field should be. */
+    /**
+     * Every column is written as the selector for its kind says that field should be, in the layout of
+     * {@code writeVersion}. A segment of any version from {@link FormatVersion#BASELINE} on is still read, whatever the
+     * version a format writes.
+     */
     public ColumNARDocValuesFormat(
         final NumericPipelineSelector pipelineSelector,
         final ColumnarFieldTypeSelector typeSelector,
         int blockSize,
-        final StringColumnOptionsSelector stringSelector
+        final StringColumnOptionsSelector stringSelector,
+        final FormatVersion writeVersion
     ) {
         super(ColumnarFormat.NAME);
         if (blockSize < MIN_BLOCK_SIZE || blockSize > MAX_BLOCK_SIZE || (blockSize & (blockSize - 1)) != 0) {
@@ -139,11 +159,12 @@ public class ColumNARDocValuesFormat extends DocValuesFormat {
         this.typeSelector = typeSelector;
         this.blockSize = blockSize;
         this.stringSelector = stringSelector;
+        this.writeVersion = writeVersion;
     }
 
     @Override
     public DocValuesConsumer fieldsConsumer(SegmentWriteState state) throws IOException {
-        return new ColumNARDocValuesConsumer(state, pipelineSelector, typeSelector, blockSize, stringSelector);
+        return new ColumNARDocValuesConsumer(state, pipelineSelector, typeSelector, blockSize, stringSelector, writeVersion);
     }
 
     @Override

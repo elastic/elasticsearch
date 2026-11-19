@@ -372,14 +372,12 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
         try {
             BroadcastResponse forceMergeResponse = client.projectClient(projectId).admin().indices().forceMerge(req).get();
             if (forceMergeResponse.getFailedShards() > 0) {
-                DefaultShardOperationFailedException[] failures = forceMergeResponse.getShardFailures();
+                List<DefaultShardOperationFailedException> failures = forceMergeResponse.getShardFailures();
                 String message = Strings.format(
                     "DLM failed to force merge %d shards for index [%s] due to failures [%s]",
                     forceMergeResponse.getFailedShards(),
                     forceMergeIndex,
-                    failures == null
-                        ? "unknown"
-                        : Arrays.stream(failures).map(DefaultShardOperationFailedException::toString).collect(Collectors.joining(","))
+                    failures.stream().map(DefaultShardOperationFailedException::toString).collect(Collectors.joining(","))
                 );
                 throw new ElasticsearchException(message);
             } else if (forceMergeResponse.getUnavailableShards() > 0) {
@@ -945,15 +943,21 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
     }
 
     /**
-     * Returns {@code true} if the snapshot with the given name is either no longer listed in
-     * {@link SnapshotsInProgress} for the specified repository, or is still listed but has
-     * reached a completed (non-running) state such as {@code SUCCESS} or {@code FAILED}.
+     * Returns {@code true} if the snapshot with the given name is no longer listed in
+     * {@link SnapshotsInProgress} for the specified repository.
+     * <p>
+     * An entry can reach a completed shard-level state (e.g. {@code SUCCESS}) before the snapshot is
+     * finalized in the repository and removed from cluster state. Until it is removed,
+     * {@code TransportGetSnapshotsAction} still reports the snapshot as {@link SnapshotState#IN_PROGRESS}
+     * via {@link SnapshotInfo#inProgress}, so we must wait for the entry to disappear rather than for
+     * its shard-level state to complete, or {@link #checkSnapshotInfoSuccess} will observe an
+     * internally-inconsistent, not-yet-finalized {@link SnapshotInfo} and fail.
      */
     private boolean isSnapshotNoLongerInProgress(ClusterState state, String repositoryName, String snapshotName) {
         SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(state);
         return snapshotsInProgress.forRepo(projectId, repositoryName)
             .stream()
-            .noneMatch(entry -> entry.snapshot().getSnapshotId().getName().equals(snapshotName) && entry.state().completed() == false);
+            .noneMatch(entry -> entry.snapshot().getSnapshotId().getName().equals(snapshotName));
     }
 
     /**

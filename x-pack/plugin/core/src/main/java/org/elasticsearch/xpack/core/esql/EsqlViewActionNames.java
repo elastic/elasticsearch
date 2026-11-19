@@ -12,6 +12,7 @@ package org.elasticsearch.xpack.core.esql;
  */
 public class EsqlViewActionNames {
     public static final String ESQL_PUT_VIEW_ACTION_NAME = "indices:admin/esql/view/put";
+    public static final String ESQL_VALIDATE_VIEW_ACTION_NAME = "indices:admin/esql/view/validate";
     public static final String ESQL_GET_VIEW_ACTION_NAME = "indices:admin/esql/view/get";
     public static final String ESQL_DELETE_VIEW_ACTION_NAME = "indices:admin/esql/view/delete";
 }

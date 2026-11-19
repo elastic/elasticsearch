@@ -396,13 +396,7 @@ public class DenseVectorFieldsApiTests extends ESSingleNodeTestCase {
                 assertVectorComponents(label, spec.floats(), decodeFloat32(decoded), spec.delta(ingestFormat), Float.class);
             }
         } else {
-            assertVectorComponents(
-                label,
-                spec.floats(),
-                values,
-                spec.delta(ingestFormat),
-                spec.isByteEncoded() ? Integer.class : Float.class
-            );
+            assertVectorComponents(label, spec.floats(), values, spec.delta(ingestFormat), spec.isByteEncoded() ? Byte.class : Float.class);
         }
     }
 

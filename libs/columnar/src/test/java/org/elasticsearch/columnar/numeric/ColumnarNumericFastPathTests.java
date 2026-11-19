@@ -22,15 +22,19 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.columnar.FormatVersion;
 import org.elasticsearch.columnar.substrate.BlockBytesCodec;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
+import org.elasticsearch.columnar.substrate.ColumnTestFiles;
 import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.columnar.ColumnarTestUtils.multiValuedCursor;
 import static org.elasticsearch.columnar.ColumnarTestUtils.randomValidBlockSize;
 import static org.elasticsearch.columnar.ColumnarTestUtils.readNumericMeta;
 import static org.elasticsearch.columnar.ColumnarTestUtils.singleValuedCursor;
@@ -46,7 +50,7 @@ import static org.elasticsearch.columnar.ColumnarTestUtils.sparseSingleValuedCur
 public class ColumnarNumericFastPathTests extends ESTestCase {
 
     private byte[] segmentId;
-    private final List<IndexInput> opened = new ArrayList<>();
+    private final List<Closeable> opened = new ArrayList<>();
 
     public void testRangeAndBulkAcrossWorkloads() throws IOException {
         for (int iter = 0; iter < 40; iter++) {
@@ -341,6 +345,103 @@ public class ColumnarNumericFastPathTests extends ESTestCase {
         }
     }
 
+    /**
+     * The per-document accessors read the values a document was written with, in the order it was written with them, whether
+     * the column is dense or sparse, single- or multi-valued, and however often and in whatever order a document's values are
+     * read. The column reports whether it is single-valued and whether it is dense.
+     */
+    public void testPerValueAccessors() throws IOException {
+        for (int iter = 0; iter < 20; iter++) {
+            final int maxDoc = randomFrom(1, 129, 200, between(300, 4000));
+            final double density = randomFrom(0.3, 0.95, 1.0);
+            final int maxValuesPerDoc = randomFrom(1, 1, 5);
+            final long[][] docValues = new long[maxDoc][];
+            for (int d = 0; d < maxDoc; d++) {
+                if (random().nextDouble() < density) {
+                    docValues[d] = new long[between(1, maxValuesPerDoc)];
+                    for (int i = 0; i < docValues[d].length; i++) {
+                        docValues[d][i] = between(-1000, 1000);
+                    }
+                }
+            }
+            final boolean dense = Arrays.stream(docValues).allMatch(v -> v != null);
+            final boolean singleValued = Arrays.stream(docValues).allMatch(v -> v == null || v.length == 1);
+
+            try (Directory dir = newDirectory()) {
+                try {
+                    final ColumnarNumericBinaryDocValues dv = writeAndOpenMultiValued(dir, docValues).dv();
+                    assertEquals("dense", dense, dv.isDense());
+                    assertEquals("single-valued", singleValued, dv.isSingleValued());
+                    for (int doc = 0; doc < maxDoc; doc++) {
+                        if (randomBoolean()) {
+                            continue; // skip documents so the reads don't always visit them in a row
+                        }
+                        assertEquals("doc " + doc + " has a value", docValues[doc] != null, dv.advanceExact(doc));
+                        if (docValues[doc] == null) {
+                            continue;
+                        }
+                        assertEquals("value count of doc " + doc, docValues[doc].length, dv.docValueCount());
+                        // Read each value more than once and out of order: the document's addressing is looked up once.
+                        for (int read = 0; read < 2; read++) {
+                            for (int i : shuffledIndices(docValues[doc].length)) {
+                                assertEquals("doc " + doc + " value " + i, docValues[doc][i], dv.valueAt(i));
+                            }
+                        }
+                        assertEquals("value count of doc " + doc + " after reading it", docValues[doc].length, dv.docValueCount());
+                    }
+                } finally {
+                    IOUtils.close(opened);
+                    opened.clear();
+                }
+            }
+        }
+    }
+
+    private static List<Integer> shuffledIndices(int count) {
+        final List<Integer> indices = new ArrayList<>(IntStream.range(0, count).boxed().toList());
+        Collections.shuffle(indices, random());
+        return indices;
+    }
+
+    private Opened writeAndOpenMultiValued(Directory dir, long[][] docValues) throws IOException {
+        segmentId = new byte[16];
+        random().nextBytes(segmentId);
+        int numDocsWithField = 0;
+        long numValues = 0;
+        for (long[] values : docValues) {
+            if (values != null) {
+                numDocsWithField++;
+                numValues += values.length;
+            }
+        }
+        NumericColumnMetadata written;
+        try (
+            ColumnTestFiles.Outputs out = ColumnTestFiles.create(dir, "num", segmentId);
+            IndexOutput skip = dir.createOutput("num.cns", IOContext.DEFAULT)
+        ) {
+            ColumnarCodecUtil.writeHeader(skip, "ColumNARSkipIndex", FormatVersion.CURRENT, segmentId, "");
+            written = NumericColumnWriter.write(
+                docValues.length,
+                numDocsWithField,
+                numValues,
+                true,
+                () -> multiValuedCursor(docValues),
+                NumericPipeline.defaultPipeline(randomValidBlockSize()),
+                BlockBytesCodec.forId(BlockBytesCodec.IDENTITY_ID),
+                null,
+                out.outputs(),
+                skip
+            );
+            ColumnarCodecUtil.writeFooter(skip);
+        }
+        try (IndexOutput meta = dir.createOutput("num.cnm", IOContext.DEFAULT)) {
+            ColumnarCodecUtil.writeHeader(meta, "ColumNARMeta", FormatVersion.CURRENT, segmentId, "");
+            written.writeTo(meta, FormatVersion.CURRENT);
+            ColumnarCodecUtil.writeFooter(meta);
+        }
+        return open(dir, docValues.length);
+    }
+
     private Opened writeAndOpenSparse(Directory dir, Long[] values, boolean withSkipper) throws IOException {
         segmentId = new byte[16];
         random().nextBytes(segmentId);
@@ -352,10 +453,9 @@ public class ColumnarNumericFastPathTests extends ESTestCase {
         }
         NumericColumnMetadata written;
         try (
-            IndexOutput out = dir.createOutput("num.cnd", IOContext.DEFAULT);
+            ColumnTestFiles.Outputs out = ColumnTestFiles.create(dir, "num", segmentId);
             IndexOutput skip = dir.createOutput("num.cns", IOContext.DEFAULT)
         ) {
-            ColumnarCodecUtil.writeHeader(out, "ColumNARData", FormatVersion.CURRENT, segmentId, "");
             ColumnarCodecUtil.writeHeader(skip, "ColumNARSkipIndex", FormatVersion.CURRENT, segmentId, "");
             written = NumericColumnWriter.write(
                 values.length,
@@ -366,17 +466,14 @@ public class ColumnarNumericFastPathTests extends ESTestCase {
                 NumericPipeline.defaultPipeline(randomValidBlockSize()),
                 BlockBytesCodec.forId(BlockBytesCodec.IDENTITY_ID),
                 withSkipper ? SkipIndexCodec.forId(SkipIndexCodec.MULTI_LEVEL_ID) : null,
-                dir,
-                IOContext.DEFAULT,
-                out,
+                out.outputs(),
                 skip
             );
-            ColumnarCodecUtil.writeFooter(out);
             ColumnarCodecUtil.writeFooter(skip);
         }
         try (IndexOutput meta = dir.createOutput("num.cnm", IOContext.DEFAULT)) {
             ColumnarCodecUtil.writeHeader(meta, "ColumNARMeta", FormatVersion.CURRENT, segmentId, "");
-            written.writeTo(meta);
+            written.writeTo(meta, FormatVersion.CURRENT);
             ColumnarCodecUtil.writeFooter(meta);
         }
         return open(dir, values.length);
@@ -521,7 +618,7 @@ public class ColumnarNumericFastPathTests extends ESTestCase {
     private record Opened(
         ColumnarNumericBinaryDocValues dv,
         NumericColumnMetadata meta,
-        IndexInput data,
+        ColumnTestFiles.Inputs data,
         IndexInput skipIndex,
         int maxDoc
     ) {}
@@ -531,10 +628,9 @@ public class ColumnarNumericFastPathTests extends ESTestCase {
         random().nextBytes(segmentId);
         NumericColumnMetadata written;
         try (
-            IndexOutput out = dir.createOutput("num.cnd", IOContext.DEFAULT);
+            ColumnTestFiles.Outputs out = ColumnTestFiles.create(dir, "num", segmentId);
             IndexOutput skip = dir.createOutput("num.cns", IOContext.DEFAULT)
         ) {
-            ColumnarCodecUtil.writeHeader(out, "ColumNARData", FormatVersion.CURRENT, segmentId, "");
             ColumnarCodecUtil.writeHeader(skip, "ColumNARSkipIndex", FormatVersion.CURRENT, segmentId, "");
             written = NumericColumnWriter.write(
                 values.length,
@@ -545,17 +641,14 @@ public class ColumnarNumericFastPathTests extends ESTestCase {
                 NumericPipeline.defaultPipeline(randomValidBlockSize()),
                 BlockBytesCodec.forId(BlockBytesCodec.IDENTITY_ID),
                 withSkipper ? SkipIndexCodec.forId(SkipIndexCodec.MULTI_LEVEL_ID) : null,
-                dir,
-                IOContext.DEFAULT,
-                out,
+                out.outputs(),
                 skip
             );
-            ColumnarCodecUtil.writeFooter(out);
             ColumnarCodecUtil.writeFooter(skip);
         }
         try (IndexOutput meta = dir.createOutput("num.cnm", IOContext.DEFAULT)) {
             ColumnarCodecUtil.writeHeader(meta, "ColumNARMeta", FormatVersion.CURRENT, segmentId, "");
-            written.writeTo(meta);
+            written.writeTo(meta, FormatVersion.CURRENT);
             ColumnarCodecUtil.writeFooter(meta);
         }
         return open(dir, values.length);
@@ -563,15 +656,13 @@ public class ColumnarNumericFastPathTests extends ESTestCase {
 
     private Opened open(Directory dir, int maxDoc) throws IOException {
         final NumericColumnMetadata read = readNumericMeta(dir, "num.cnm", segmentId, maxDoc);
-        IndexInput data = dir.openInput("num.cnd", IOContext.DEFAULT);
+        ColumnTestFiles.Inputs data = ColumnTestFiles.open(dir, "num", segmentId);
         opened.add(data);
-        CodecUtil.checksumEntireFile(data);
-        ColumnarCodecUtil.checkHeader(data, "ColumNARData", segmentId, "");
         IndexInput skipIndex = dir.openInput("num.cns", IOContext.DEFAULT);
         opened.add(skipIndex);
         CodecUtil.checksumEntireFile(skipIndex);
         ColumnarCodecUtil.checkHeader(skipIndex, "ColumNARSkipIndex", segmentId, "");
-        NumericColumnReader reader = new NumericColumnReader(read, data);
+        NumericColumnReader reader = new NumericColumnReader(read, data.inputs());
         ColumnIterator iterator = reader.iterator();
         return new Opened(
             new ColumnarNumericBinaryDocValues(reader, iterator, maxDoc, read.skipper(), skipIndex),

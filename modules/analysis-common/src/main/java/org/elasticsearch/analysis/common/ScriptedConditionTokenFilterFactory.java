@@ -58,6 +58,14 @@ public class ScriptedConditionTokenFilterFactory extends AbstractTokenFilterFact
     }
 
     @Override
+    public Object sharingKey() {
+        // Identity: the filters named in [filter] are resolved against the index's own filter map and need
+        // not appear in the analyzer's chain, so the analyzer key does not cover them. Keying on the names
+        // would let two indices whose same-named filters differ share one analyzer.
+        return this;
+    }
+
+    @Override
     public TokenFilterFactory getChainAwareTokenFilterFactory(
         IndexCreationContext context,
         TokenizerFactory tokenizer,
@@ -70,6 +78,7 @@ public class ScriptedConditionTokenFilterFactory extends AbstractTokenFilterFact
         allFilters = ReferringFilterResolver.enter(name(), allFilters);
         List<TokenFilterFactory> filters = new ArrayList<>();
         List<TokenFilterFactory> existingChain = new ArrayList<>(previousTokenFilters);
+        boolean degraded = false;
         for (String filter : filterNames) {
             TokenFilterFactory tff = allFilters.apply(filter);
             if (tff == null) {
@@ -80,7 +89,9 @@ public class ScriptedConditionTokenFilterFactory extends AbstractTokenFilterFact
             tff = tff.getChainAwareTokenFilterFactory(context, tokenizer, charFilters, existingChain, allFilters);
             filters.add(tff);
             existingChain.add(tff);
+            degraded |= tff.isDegraded();
         }
+        final boolean anyDegraded = degraded;
 
         return new TokenFilterFactory() {
             @Override
@@ -97,6 +108,11 @@ public class ScriptedConditionTokenFilterFactory extends AbstractTokenFilterFact
                     return in;
                 };
                 return new ScriptedConditionTokenFilter(tokenStream, filter, factory.newInstance());
+            }
+
+            @Override
+            public boolean isDegraded() {
+                return anyDegraded;
             }
         };
     }

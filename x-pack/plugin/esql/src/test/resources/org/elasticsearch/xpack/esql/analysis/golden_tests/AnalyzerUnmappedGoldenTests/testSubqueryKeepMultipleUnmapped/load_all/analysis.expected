@@ -1,0 +1,7 @@
+Limit[1000[INTEGER],false,false]
+\_Project[[emp_no{r}#0, language_code{r}#1, unmapped1{r}#2, unmapped2{r}#3]]
+  \_BranchPlan[[null=INDEX, unnamed_view_1=SUBQUERY]]
+    |_Eval[[TO_INTEGER(language_code{f(PotentiallyUnmappedKeywordEsField)}#4) AS language_code#5]]
+    | \_EsRelation[employees][avg_worked_seconds{f}#6, birth_date{f}#7, emp_no{f}#8, first_name{f}#9, gender{f}#10, height{f}#11, height.float{f}#12, height.half_float{f}#13, height.scaled_float{f}#14, hire_date{f}#15, is_rehired{f}#16, job_positions{f}#17, languages{f}#18, languages.byte{f}#19, languages.long{f}#20, languages.short{f}#21, last_name{f}#22, salary{f}#23, salary_change{f}#24, salary_change.int{f}#25, salary_change.keyword{f}#26, salary_change.long{f}#27, still_hired{f}#28, language_code{f(PotentiallyUnmappedKeywordEsField)}#4, unmapped1{f(PotentiallyUnmappedKeywordEsField)}#29, unmapped2{f(PotentiallyUnmappedKeywordEsField)}#30]
+    \_Project[[language_code{f}#31, unmapped1{f(PotentiallyUnmappedKeywordEsField)}#32, unmapped2{f(PotentiallyUnmappedKeywordEsField)}#33]]
+      \_EsRelation[languages][language_code{f}#31, language_name{f}#34, unmapped1{f(PotentiallyUnmappedKeywordEsField)}#32, unmapped2{f(PotentiallyUnmappedKeywordEsField)}#33]

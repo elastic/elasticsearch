@@ -39,7 +39,7 @@ import java.util.Locale;
 public enum GoogleModelGardenProvider {
     GOOGLE(
         CompletionResponseHandlerHolder.GOOGLE_VERTEX_AI_COMPLETION_HANDLER,
-        excludeReasoning -> ChatCompletionResponseHandlerHolder.GOOGLE_VERTEX_AI_CHAT_COMPLETION_HANDLER,
+        excludeReasoning -> new GoogleVertexAiUnifiedChatCompletionResponseHandler("Google Vertex AI chat completion", excludeReasoning),
         // Pass the full task settings so the entity can fall back to the configured maxTokens when
         // the per-request value is null.
         (unifiedChatInput, modelId, taskSettings) -> new GoogleVertexAiUnifiedChatCompletionRequestEntity(
@@ -150,10 +150,6 @@ public enum GoogleModelGardenProvider {
     }
 
     private static class ChatCompletionResponseHandlerHolder {
-        static final ResponseHandler GOOGLE_VERTEX_AI_CHAT_COMPLETION_HANDLER = new GoogleVertexAiUnifiedChatCompletionResponseHandler(
-            "Google Vertex AI chat completion"
-        );
-
         static final ResponseHandler META_CHAT_COMPLETION_HANDLER = new LlamaChatCompletionResponseHandler(
             "Google Model Garden Meta chat completion",
             OpenAiCompletionResponseEntity::fromResponse

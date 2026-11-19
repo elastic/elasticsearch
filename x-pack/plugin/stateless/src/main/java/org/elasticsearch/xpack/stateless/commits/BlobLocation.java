@@ -23,18 +23,18 @@ import java.util.Objects;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
- * Represents a file embedded in a {@code BlobFile} stored in the blobstore.
+ * Represents a file embedded in a {@link BccBlob} stored in the blobstore.
  *
  * In order to save costs for uploading multiple files (such as compound commits)
- * to the blobstore they are merged into a single {@code BlobFile}.
+ * to the blobstore they are merged into a single {@link BccBlob}}.
  *
- * Each of the original files could be located in {@code BlobFile} using offset and fileLength.
+ * Each of the original files could be located in {@link BccBlob}} using offset and fileLength.
  *
- * @param blobFile the blob file containing this location
+ * @param bccBlob the blob file containing this location
  * @param offset the offset inside the blob file where the file is written
  * @param fileLength the length of the embedded file
  */
-public record BlobLocation(BlobFile blobFile, long offset, long fileLength) implements Writeable, ToXContentObject {
+public record BlobLocation(BccBlob bccBlob, long offset, long fileLength) implements Writeable, ToXContentObject {
 
     public BlobLocation {
         assert offset >= 0 : "offset " + offset + " < 0";
@@ -44,39 +44,36 @@ public record BlobLocation(BlobFile blobFile, long offset, long fileLength) impl
     // private access only for deserialization
     private BlobLocation(long primaryTerm, String blobName, long offset, long fileLength) {
         this(
-            new BlobFile(
-                blobName,
-                new PrimaryTermAndGeneration(primaryTerm, StatelessCompoundCommit.parseGenerationFromBlobName(blobName))
-            ),
+            new BccBlob(blobName, new PrimaryTermAndGeneration(primaryTerm, BatchedCompoundCommit.parseGenerationFromBlobName(blobName))),
             offset,
             fileLength
         );
     }
 
     public long primaryTerm() {
-        return blobFile.primaryTerm();
+        return bccBlob.primaryTerm();
     }
 
     public String blobName() {
-        return blobFile.blobName();
+        return bccBlob.blobName();
     }
 
     /**
      * @return parse the generation from the blob name
      */
     public long compoundFileGeneration() {
-        return blobFile.generation();
+        return bccBlob.generation();
     }
 
     public PrimaryTermAndGeneration getBatchedCompoundCommitTermAndGeneration() {
-        return blobFile.termAndGeneration();
+        return bccBlob.termAndGeneration();
     }
 
     /**
      * Returns true if this BlobLocation fully contains the given BlobLocation.
      */
     public boolean contains(BlobLocation blobLocation) {
-        return Objects.equals(blobLocation.blobFile(), blobFile())
+        return Objects.equals(blobLocation.bccBlob(), bccBlob())
             && blobLocation.offset() >= offset()
             && blobLocation.offset() + blobLocation.fileLength() <= offset() + fileLength();
     }

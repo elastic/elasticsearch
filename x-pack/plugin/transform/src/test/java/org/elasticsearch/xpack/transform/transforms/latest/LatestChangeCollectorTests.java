@@ -25,7 +25,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -228,95 +227,6 @@ public class LatestChangeCollectorTests extends ESTestCase {
         } finally {
             secondPage.decRef();
         }
-    }
-
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/77329")
-    public void testGetIndicesToQuery() {
-        LatestChangeCollector changeCollector = new LatestChangeCollector("timestamp", List.of("orderId"));
-
-        long[] indexSequenceIds1 = { 25L, 25L, 25L };
-        long[] indexSequenceIds2 = { 324L, 2425L, 2225L };
-        long[] indexSequenceIds3 = { 244L, 225L, 2425L };
-        long[] indexSequenceIds4 = { 2005L, 2445L, 2425L };
-
-        long[] indexSequenceIds3_1 = { 246L, 255L, 2485L };
-        long[] indexSequenceIds4_1 = { 2105L, 2545L, 2525L };
-
-        assertThat(
-            changeCollector.getIndicesToQuery(
-                new TransformCheckpoint(
-                    "t_id",
-                    123513L,
-                    42L,
-                    Map.of(
-                        "index-1",
-                        indexSequenceIds1,
-                        "index-2",
-                        indexSequenceIds2,
-                        "index-3",
-                        indexSequenceIds3,
-                        "index-4",
-                        indexSequenceIds4
-                    ),
-                    123543L
-                ),
-                new TransformCheckpoint(
-                    "t_id",
-                    123456759L,
-                    43L,
-                    Map.of(
-                        "index-1",
-                        indexSequenceIds1,
-                        "index-2",
-                        indexSequenceIds2,
-                        "index-3",
-                        indexSequenceIds3,
-                        "index-4",
-                        indexSequenceIds4
-                    ),
-                    123456789L
-                )
-            ),
-            equalTo(Collections.emptySet())
-        );
-
-        assertThat(
-            changeCollector.getIndicesToQuery(
-                new TransformCheckpoint(
-                    "t_id",
-                    123513L,
-                    42L,
-                    Map.of(
-                        "index-1",
-                        indexSequenceIds1,
-                        "index-2",
-                        indexSequenceIds2,
-                        "index-3",
-                        indexSequenceIds3,
-                        "index-4",
-                        indexSequenceIds4
-                    ),
-                    123543L
-                ),
-                new TransformCheckpoint(
-                    "t_id",
-                    123456759L,
-                    43L,
-                    Map.of(
-                        "index-1",
-                        indexSequenceIds1,
-                        "index-2",
-                        indexSequenceIds2,
-                        "index-3",
-                        indexSequenceIds3_1,
-                        "index-4",
-                        indexSequenceIds4_1
-                    ),
-                    123456789L
-                )
-            ),
-            equalTo(Set.of("index-3", "index-4"))
-        );
     }
 
     private static SearchResponse createSearchResponse(List<Map<String, Object>> bucketKeys, Map<String, Object> afterKey) {

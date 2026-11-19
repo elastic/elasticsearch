@@ -426,22 +426,26 @@ public class StaleTranslogsGCIT extends AbstractStatelessPluginIntegTestCase {
         String indexNodeC = startIndexNode(); // will recover shard after node B leaves
         ensureStableCluster(4);
 
-        ObjectStoreService objectStoreServiceC = getObjectStoreService(indexNodeB);
+        ObjectStoreService objectStoreServiceC = getObjectStoreService(indexNodeC);
         MockRepository repositoryC = ObjectStoreTestUtils.getObjectStoreMockRepository(objectStoreServiceC);
         repositoryC.setBlockOnAnyFiles(); // recoveries will not progress
+        try {
+            internalCluster().stopNode(indexNodeB);
+            ensureStableCluster(3);
+            // Wait for C to hit the block so recovery stays incomplete throughout the GC check.
+            assertBusy(() -> assertTrue("recovery should be blocked on node C", repositoryC.blocked()));
+            ClusterHealthStatus health = clusterAdmin().health(new ClusterHealthRequest(TEST_REQUEST_TIMEOUT)).get().getStatus();
+            assertThat("health should be RED", health, equalTo(ClusterHealthStatus.RED));
 
-        internalCluster().stopNode(indexNodeB);
-        ensureStableCluster(3);
-        ClusterHealthStatus health = clusterAdmin().health(new ClusterHealthRequest(TEST_REQUEST_TIMEOUT)).get().getStatus();
-        assertThat("health should be RED", health, equalTo(ClusterHealthStatus.RED));
-
-        cleanStaleTranslogs(indexNodeA);
-        assertThat(
-            "The translog files of node B should not have been deleted",
-            objectStoreService.getTranslogBlobContainer(ephemeralIdB).listBlobs(OperationPurpose.TRANSLOG).keySet(),
-            is(not(empty()))
-        );
-        repositoryC.unblock();
+            cleanStaleTranslogs(indexNodeA);
+            assertThat(
+                "The translog files of node B should not have been deleted",
+                objectStoreService.getTranslogBlobContainer(ephemeralIdB).listBlobs(OperationPurpose.TRANSLOG).keySet(),
+                is(not(empty()))
+            );
+        } finally {
+            repositoryC.unblock();
+        }
         ensureGreen(indexName);
         assertThat(findIndexShard(resolveIndex(indexName), 0).docStats().getCount(), equalTo((long) numDocs));
 

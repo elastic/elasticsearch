@@ -14,11 +14,18 @@ import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene104.Lucene104PostingsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
+import org.apache.lucene.index.FieldInfo;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.columnar.ColumnarFieldType;
+import org.elasticsearch.columnar.numeric.NumericPipeline;
+import org.elasticsearch.columnar.numeric.NumericPipelineTemplate;
 import org.elasticsearch.columnar.string.StringColumnOptions;
+import org.elasticsearch.columnar.substrate.ChunkBounds;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
 import org.elasticsearch.index.codec.bloomfilter.ES94BloomFilterDocValuesFormat;
@@ -26,6 +33,7 @@ import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesFormatSelector;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat;
+import org.elasticsearch.index.codec.tsdb.es819.ES819Version3TSDBDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.pipeline.FieldContext;
 import org.elasticsearch.index.codec.tsdb.pipeline.MetricRole;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineDescriptor;
@@ -37,11 +45,13 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -93,7 +103,11 @@ public class PerFieldFormatSupplier {
     private final TSDBSyntheticIdPostingsFormat syntheticIdPostingsFormat;
     private final ES94BloomFilterDocValuesFormat idBloomFilterDocValuesFormat;
     private final DocValuesFormat tsdbDocValuesFormat;
-    private final DocValuesFormat stringColumnarDocValuesFormat;
+    @Nullable
+    private final DocValuesFormat idRandomAccessDocValuesFormat;
+    @Nullable
+    private final ColumnarFields columnarFields;
+    private final DocValuesFormat columnarDocValuesFormat;
 
     @SuppressWarnings("this-escape")
     public PerFieldFormatSupplier(MapperService mapperService, BigArrays bigArrays, @Nullable ThreadPool threadPool) {
@@ -109,11 +123,21 @@ public class PerFieldFormatSupplier {
         this.tsdbDocValuesFormat = mapperService == null
             ? null
             : TSDBDocValuesFormatSelector.select(mapperService.getIndexSettings(), this::resolveFieldContext);
-        // Built per supplier for the same reason the TSDB format is: the options it writes a string column
-        // with are resolved against this index's mapping, so the format cannot be shared between indices.
-        this.stringColumnarDocValuesFormat = mapperService == null
+        this.idRandomAccessDocValuesFormat = mapperService != null
+            && mapperService.getIndexSettings().getMode() == IndexMode.VECTORDB_COLUMNAR
+                ? ES819Version3TSDBDocValuesFormat.forRandomAccessColumn()
+                : null;
+        // Built per supplier for the same reason the TSDB format is: how it writes each column is resolved
+        // against this index's mapping, so the format cannot be shared between indices.
+        this.columnarFields = mapperService == null ? null : new ColumnarFields(mapperService);
+        this.columnarDocValuesFormat = columnarFields == null
             ? null
-            : ColumnarDocValuesFormatSelector.select(mapperService.getIndexSettings(), this::resolveStringColumnOptions);
+            : ColumnarDocValuesFormatSelector.select(
+                mapperService.getIndexSettings(),
+                columnarFields::fieldType,
+                columnarFields::numericPipeline,
+                columnarFields::stringOptions
+            );
         var bloomFilterSettings = mapperService == null ? null : mapperService.getIndexSettings().syntheticIdBloomFilterSettings();
         this.idBloomFilterDocValuesFormat = bloomFilterSettings == null
             ? new ES94BloomFilterDocValuesFormat(bigArrays, IdFieldMapper.NAME) // fallback to the defaults if no settings are present
@@ -187,10 +211,13 @@ public class PerFieldFormatSupplier {
             if (mapper instanceof CompletionFieldMapper) {
                 return completionPostingsFormat;
             }
+            IndexSettings indexSettings = mapperService.getIndexSettings();
+            IndexVersion indexVersion = indexSettings.getIndexVersionCreated();
             if (mapper instanceof IdFieldMapper
-                && mapperService.getIndexSettings()
-                    .getIndexVersionCreated()
-                    .between(IndexVersions.ID_FIELD_USE_ES812_POSTINGS_FORMAT, IndexVersions.ID_FIELD_USE_DEFAULT_POSTINGS_FORMAT)) {
+                && (indexVersion.between(
+                    IndexVersions.ID_FIELD_USE_ES812_POSTINGS_FORMAT,
+                    IndexVersions.ID_FIELD_USE_DEFAULT_POSTINGS_FORMAT
+                ) || IndexSettings.createdInStateful95(indexVersion, indexSettings.isStateless()))) {
                 // The default posting format doesn't handle randomly generated IDs well during merging. Several cases have been reported
                 // where a single merge thread uses disproportionate jvm heap memory just for Lucene103BlockTreeTermsWriter.TermsWriter.
                 return es812PostingsFormat;
@@ -210,7 +237,8 @@ public class PerFieldFormatSupplier {
             // but based on dimension fields and timestamp field, so during indexing
             // version/seq_no/term needs to be looked up and having a bloom filter
             // can speed this up significantly.
-            return indexSettings.getMode().isTsdb()
+            return (indexSettings.getMode().isTsdb()
+                || IndexSettings.isBloomFilterIdFieldWithDataStreamTimestampEnabled(indexSettings.getNodeSettings()))
                 && IdFieldMapper.NAME.equals(field)
                 && IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING.get(indexSettings.getSettings());
         } else {
@@ -240,34 +268,23 @@ public class PerFieldFormatSupplier {
             return idBloomFilterDocValuesFormat;
         }
 
-        if (stringColumnarDocValuesFormat != null && columnarStringOptionsOf(field) != null) {
-            return stringColumnarDocValuesFormat;
+        if (columnarDocValuesFormat != null && columnarFields.stores(field)) {
+            return columnarDocValuesFormat;
         }
 
         if (useTSDBDocValuesFormat(field)) {
-            return tsdbDocValuesFormat;
+            return idRandomAccessDocValuesFormat != null && IdFieldMapper.NAME.equals(field)
+                ? idRandomAccessDocValuesFormat
+                : tsdbDocValuesFormat;
         }
 
         return docValuesFormat;
     }
 
-    /**
-     * What the named field asked to be written with, or {@code null} when it is not stored as a ColumNAR
-     * string column. The field answers both, so routing it to the codec and writing it the way it asked
-     * cannot come apart.
-     */
+    /** How the ColumNAR codec stores this index's fields, or {@code null} without a mapping to ask. */
     @Nullable
-    StringColumnOptions columnarStringOptionsOf(final String field) {
-        return mapperService.mappingLookup().getMapper(field) instanceof FieldMapper mapper ? mapper.columnarStringOptions() : null;
-    }
-
-    /**
-     * How a string column is written, asked once per field by the codec. A field that is not stored as one is
-     * never asked, so the defaults here are only ever a fallback for a mapping that changed underneath.
-     */
-    private StringColumnOptions resolveStringColumnOptions(final String field, final ColumnarFieldType type) {
-        final StringColumnOptions options = columnarStringOptionsOf(field);
-        return options != null ? options : StringColumnOptions.DEFAULT;
+    ColumnarFields columnarFields() {
+        return columnarFields;
     }
 
     FieldContext resolveFieldContext(final String fieldName, final int blockSize) {
@@ -320,7 +337,11 @@ public class PerFieldFormatSupplier {
     }
 
     private boolean excludeFields(String fieldName) {
-        return fieldName.startsWith("_") && INCLUDE_META_FIELDS.contains(fieldName) == false;
+        // The _unmapped sink holds ordinary user data despite its leading underscore, so it and all of its subfields - _keyed, the ignored
+        // values, the .counts companion - are matched by prefix rather than enumerated, which would go stale as encodings add subfields.
+        return fieldName.startsWith("_")
+            && INCLUDE_META_FIELDS.contains(fieldName) == false
+            && fieldName.startsWith(FlattenedFieldMapper.UNMAPPED_SINK_NAME) == false;
     }
 
     private boolean excludeMapperTypes(String fieldName) {
@@ -339,5 +360,148 @@ public class PerFieldFormatSupplier {
             }
         }
         return null;
+    }
+
+    /**
+     * Answers the ColumNAR codec's questions about one index's fields from its mapping: which fields the codec stores,
+     * as what kind of column, and how each column is written. The mapper answers both whether a field is routed to the
+     * codec and how it is written, so the two cannot come apart.
+     */
+    static final class ColumnarFields {
+
+        // vectordb queries fetch a few top-k documents rather than scanning, so string columns are written in
+        // small chunks to make each read decompress fewer values. The byte bound caps what a single read of a
+        // plain or escaped value decompresses at 32KB, however long the values are.
+        private static final int VECTORDB_MAX_VALUES_PER_CHUNK = 128;
+        private static final int VECTORDB_MAX_CHUNK_BYTES = 32 * 1024;
+        private static final ChunkBounds VECTORDB_PLAIN_CHUNKS = new ChunkBounds(VECTORDB_MAX_CHUNK_BYTES, VECTORDB_MAX_VALUES_PER_CHUNK);
+        /** Escaped values are reached one at a time, so they are chunked no larger than the values. */
+        private static final ChunkBounds VECTORDB_ESCAPE_CHUNKS = new ChunkBounds(VECTORDB_MAX_CHUNK_BYTES, VECTORDB_MAX_VALUES_PER_CHUNK);
+        private static final int VECTORDB_COMPRESSED_ORDINAL_BLOCK_SIZE = 512;
+
+        private final MapperService mapperService;
+
+        ColumnarFields(final MapperService mapperService) {
+            this.mapperService = mapperService;
+        }
+
+        /** Whether the ColumNAR codec stores the named field, as a string column or a numeric one. */
+        boolean stores(final String field) {
+            return stringOptionsOf(field) != null || numericTypeOf(field) != null;
+        }
+
+        /**
+         * What the named field asked to be written with, or {@code null} when it is not stored as a ColumNAR
+         * string column.
+         */
+        @Nullable
+        StringColumnOptions stringOptionsOf(final String field) {
+            final MappingLookup lookup = mapperService.mappingLookup();
+            final Mapper mapper = lookup.getMapper(field);
+            if (mapper != null) {
+                return mapper instanceof FieldMapper fieldMapper ? fieldMapper.columnarStringOptions() : null;
+            }
+            // A field a mapper writes under its own path has no mapper of its own; the nearest mapped ancestor answers for it.
+            for (int dot = field.lastIndexOf('.'); dot > 0; dot = field.lastIndexOf('.', dot - 1)) {
+                final Mapper owner = lookup.getMapper(field.substring(0, dot));
+                if (owner != null) {
+                    return owner instanceof FieldMapper fieldMapper ? fieldMapper.internalColumnarStringOptions(field) : null;
+                }
+            }
+            return null;
+        }
+
+        /**
+         * The kind of numeric column the named field is written as, or {@code null} when the ColumNAR codec doesn't
+         * store it as one. A {@link NumberFieldMapper} field is stored as a numeric column when it writes
+         * {@link NumberFieldMapper.DocValuesDiskFormat#BINARY} doc values, which only {@code long} fields do so far.
+         */
+        @Nullable
+        ColumnarFieldType numericTypeOf(final String field) {
+            if (mapperService.mappingLookup().getMapper(field) instanceof NumberFieldMapper numberFieldMapper
+                && numberFieldMapper.fieldType().diskFormat() == NumberFieldMapper.DocValuesDiskFormat.BINARY) {
+                return switch (numberFieldMapper.type()) {
+                    case LONG -> ColumnarFieldType.LONG;
+                    case HALF_FLOAT, FLOAT, DOUBLE, BYTE, SHORT, INTEGER -> throw new IllegalStateException(
+                        "field [" + field + "] of type [" + numberFieldMapper.type().typeName() + "] can't write binary doc values"
+                    );
+                };
+            }
+            return null;
+        }
+
+        /**
+         * The kind of column a field routed to the ColumNAR codec is written as, asked by the codec at write and merge. A
+         * field the codec doesn't store is never asked, and asking about one fails rather than guessing.
+         */
+        ColumnarFieldType fieldType(final FieldInfo fieldInfo) {
+            final String field = fieldInfo.getName();
+            if (stringOptionsOf(field) != null) {
+                return ColumnarFieldType.STRING;
+            }
+            final ColumnarFieldType numericType = numericTypeOf(field);
+            if (numericType == null) {
+                throw new IllegalStateException("field [" + field + "] is written by the ColumNAR codec but its mapper has no column type");
+            }
+            return numericType;
+        }
+
+        /**
+         * The pipeline a numeric column is encoded with, following the rules {@code StaticPipelineConfigResolver} applies
+         * for ES95: {@code @timestamp} and counters, which mostly rise, take the split-delta pipeline, and everything else
+         * the baseline.
+         */
+        NumericPipelineTemplate numericPipeline(final String field, final ColumnarFieldType type) {
+            return switch (type) {
+                case LONG -> {
+                    final boolean counter = mapperService.mappingLookup().getMapper(field) instanceof NumberFieldMapper numberFieldMapper
+                        && numberFieldMapper.fieldType().getMetricType() == TimeSeriesParams.MetricType.COUNTER;
+                    yield DataStream.TIMESTAMP_FIELD_NAME.equals(field) || counter
+                        ? NumericPipeline::monotonicLongPipeline
+                        : NumericPipeline::defaultPipeline;
+                }
+                // TODO: choose ALP pipelines for double gauges and counters once doubles are stored here.
+                case DOUBLE -> NumericPipeline::defaultPipeline;
+                case STRING -> throw new IllegalStateException("field [" + field + "] is a string column, not a numeric one");
+            };
+        }
+
+        /**
+         * How a string column is written, asked once per field by the codec. A field that is not stored as one is
+         * never asked, and asking about one fails rather than guessing the options. The primary field of the index sort
+         * has its plain column bounded by block, because the sort puts its values in order.
+         */
+        StringColumnOptions stringOptions(final String field, final ColumnarFieldType type) {
+            final StringColumnOptions fieldOptions = stringOptionsOf(field);
+            if (fieldOptions == null) {
+                throw new IllegalStateException(
+                    "field [" + field + "] is written as a ColumNAR string column but its mapper has no string options"
+                );
+            }
+            final StringColumnOptions options = mapperService.getIndexSettings().getIndexSortConfig().hasPrimarySortOnField(field)
+                ? fieldOptions.withPlainSkipIndex(true)
+                : fieldOptions;
+            if (mapperService.getIndexSettings().getMode() != IndexMode.VECTORDB_COLUMNAR) {
+                return options;
+            }
+            final StringColumnOptions.Sizes sizes = options.sizes();
+            return options.withSizes(
+                new StringColumnOptions.Sizes(
+                    sizes.valuesPerBlock(),
+                    smaller(sizes.plainChunks(), VECTORDB_PLAIN_CHUNKS),
+                    smaller(sizes.escapeChunks(), VECTORDB_ESCAPE_CHUNKS),
+                    sizes.packedOrdinalBlockSize(),
+                    Math.min(sizes.compressedOrdinalBlockSize(), VECTORDB_COMPRESSED_ORDINAL_BLOCK_SIZE),
+                    sizes.escapeRankBlockSize(),
+                    sizes.slotCountsBlockSize(),
+                    sizes.lengthBlockSize()
+                )
+            );
+        }
+
+        /** A mode only ever shrinks a field's chunks: a field written in smaller ones, such as a payload, keeps them. */
+        private static ChunkBounds smaller(final ChunkBounds field, final ChunkBounds mode) {
+            return new ChunkBounds(Math.min(field.targetBytes(), mode.targetBytes()), Math.min(field.maxValues(), mode.maxValues()));
+        }
     }
 }

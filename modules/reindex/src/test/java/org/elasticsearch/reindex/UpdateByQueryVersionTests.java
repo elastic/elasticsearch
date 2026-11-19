@@ -60,7 +60,7 @@ public class UpdateByQueryVersionTests extends AbstractAsyncBulkByPaginatedSearc
                 randomPositiveTimeValue(),
                 null,
                 new ReindexSettings(),
-                new NoopCircuitBreaker("test")
+                NoopCircuitBreaker.INSTANCE
             );
         }
 

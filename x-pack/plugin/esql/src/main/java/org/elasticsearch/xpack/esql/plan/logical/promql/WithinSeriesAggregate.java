@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult;
 
 import java.util.List;
 
@@ -40,7 +41,7 @@ import java.util.List;
  */
 public final class WithinSeriesAggregate extends PromqlFunctionCall {
 
-    private List<Attribute> output;
+    private volatile List<Attribute> output;
 
     public WithinSeriesAggregate(Source source, LogicalPlan child, PromqlFunctionDefinition definition, List<Expression> parameters) {
         super(source, child, definition, parameters);
@@ -74,5 +75,10 @@ public final class WithinSeriesAggregate extends PromqlFunctionCall {
     public boolean isIdentityTransparent() {
         // Per-series aggregation (e.g. rate): series identity passes through unchanged.
         return true;
+    }
+
+    @Override
+    public IntermediateResult translate(TranslationContext context) {
+        return translateValueFunction(context);
     }
 }

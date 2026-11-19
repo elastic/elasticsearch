@@ -28,6 +28,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.externalResolutionFor;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 
 /**
@@ -407,6 +408,38 @@ public class PushdownGoldenTests extends UnmappedGoldenTestCase {
             """, STAGES, "text_no");
     }
 
+    /**
+     * IN with a null in the list is pushed as a terms query without the null. That is exact for IN, but its negation is not:
+     * NOT IN must keep the IN in a filter so non-matching rows evaluate to null and are excluded.
+     */
+    public void testInWithNullPushdown() {
+        runGoldenTest("""
+                FROM employees
+                | KEEP emp_no
+                | WHERE emp_no IN (10001, null)
+            """, STAGES, "in");
+        runGoldenTest("""
+                FROM employees
+                | KEEP emp_no
+                | WHERE emp_no NOT IN (10001, 10002)
+            """, STAGES, "not_in_without_null");
+        runGoldenTest("""
+                FROM employees
+                | KEEP emp_no
+                | WHERE emp_no NOT IN (10001, null)
+            """, STAGES, "not_in");
+        runGoldenTest("""
+                FROM employees
+                | KEEP emp_no
+                | WHERE NOT (emp_no IN (10001, null) AND emp_no < 10003)
+            """, STAGES, "not_of_and");
+        runGoldenTest("""
+                FROM employees
+                | KEEP emp_no, languages
+                | WHERE NOT (emp_no IN (10001, null) OR languages == 2)
+            """, STAGES, "not_of_or");
+    }
+
     /** Registers {@code golden_salaries} as an external dataset so {@code FROM golden_salaries} becomes an external relation. */
     private static ProjectMetadata salariesDatasetMetadata() {
         DataSource dataSource = new DataSource("golden_ds", "test", null, Map.of());
@@ -440,7 +473,8 @@ public class PushdownGoldenTests extends UnmappedGoldenTestCase {
                 return "parquet";
             }
         };
-        return new ExternalSourceResolution(
+        return externalResolutionFor(
+            salariesDatasetMetadata(),
             Map.of(SALARIES_RESOURCE, new ExternalSourceResolution.ResolvedSource(metadata, FileList.UNRESOLVED, Map.of()))
         );
     }

@@ -7,8 +7,13 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.xpack.esql.datasources.spi.AdmissionGate;
+import org.elasticsearch.xpack.esql.datasources.spi.AdmissionTracker;
+import org.elasticsearch.xpack.esql.datasources.spi.QueryAdmission;
 
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -24,7 +29,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * will register separate budgets for each source plan node. This is intentional — each source
  * operates independently and may target different files/prefixes.
  */
-class ConcurrencyBudgetAllocator {
+class ConcurrencyBudgetAllocator implements AdmissionGate {
 
     private static final Logger logger = LogManager.getLogger(ConcurrencyBudgetAllocator.class);
 
@@ -32,30 +37,47 @@ class ConcurrencyBudgetAllocator {
 
     private final int totalBudget;
     private final long acquireTimeoutMs;
+    private final AdmissionTracker tracker;
+    private final String scheme;
     private final Set<QueryConcurrencyBudget> activeBudgets = ConcurrentHashMap.newKeySet();
 
     ConcurrencyBudgetAllocator(int totalBudget, long acquireTimeoutMs) {
+        this(totalBudget, acquireTimeoutMs, AdmissionTracker.NOOP);
+    }
+
+    ConcurrencyBudgetAllocator(int totalBudget, long acquireTimeoutMs, AdmissionTracker tracker) {
+        this(totalBudget, acquireTimeoutMs, tracker, null);
+    }
+
+    ConcurrencyBudgetAllocator(int totalBudget, long acquireTimeoutMs, AdmissionTracker tracker, String scheme) {
         this.totalBudget = totalBudget;
         this.acquireTimeoutMs = acquireTimeoutMs;
+        this.tracker = tracker == null ? AdmissionTracker.NOOP : tracker;
+        this.scheme = scheme;
+        this.tracker.register(this);
     }
 
     ConcurrencyBudgetAllocator(int totalBudget) {
-        this(totalBudget, 60_000L);
+        this(totalBudget, QueryAdmission.DEFAULT_ACQUIRE_TIMEOUT_MS);
     }
 
     /**
      * Registers a new source-node and returns its concurrency budget. Existing budgets are
-     * rebalanced to accommodate the new entrant.
+     * rebalanced to accommodate the new entrant. {@code queryId} is stall/debug identity only.
      */
     QueryConcurrencyBudget register() {
+        return register(null);
+    }
+
+    QueryConcurrencyBudget register(@Nullable TaskId queryId) {
         if (totalBudget <= 0) {
             return QueryConcurrencyBudget.UNLIMITED;
         }
-        QueryConcurrencyBudget budget = new QueryConcurrencyBudget(MIN_PERMITS_PER_QUERY, acquireTimeoutMs, this);
+        QueryConcurrencyBudget budget = new QueryConcurrencyBudget(MIN_PERMITS_PER_QUERY, acquireTimeoutMs, this, tracker, queryId);
         activeBudgets.add(budget);
         rebalance();
         int count = activeBudgets.size();
-        logger.debug("Registered query budget, active sources [{}], per-source permits [{}]", count, computePerQuery(count));
+        logger.debug("Registered query budget [{}], active sources [{}], per-source permits [{}]", queryId, count, computePerQuery(count));
         return budget;
     }
 
@@ -66,7 +88,12 @@ class ConcurrencyBudgetAllocator {
         if (activeBudgets.remove(budget)) {
             rebalance();
             int count = activeBudgets.size();
-            logger.debug("Deregistered query budget, active sources [{}], per-source permits [{}]", count, computePerQuery(count));
+            logger.debug(
+                "Deregistered query budget [{}], active sources [{}], per-source permits [{}]",
+                budget.queryId(),
+                count,
+                computePerQuery(count)
+            );
         }
     }
 
@@ -102,5 +129,19 @@ class ConcurrencyBudgetAllocator {
 
     int totalBudget() {
         return totalBudget;
+    }
+
+    @Override
+    public String name() {
+        return scheme == null ? AdmissionTracker.GATE_BUDGET : AdmissionTracker.budget(scheme);
+    }
+
+    @Override
+    public int holders() {
+        int held = 0;
+        for (QueryConcurrencyBudget budget : activeBudgets) {
+            held += budget.holders();
+        }
+        return held;
     }
 }

@@ -36,7 +36,7 @@ public final class MvLastLongEvaluator extends AbstractMultivalueFunction.Abstra
   public Block evalNullable(Block fieldVal) {
     LongBlock v = (LongBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+    try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(positionCount, true)) {
       for (int p = 0; p < positionCount; p++) {
         if (v.isNull(p)) {
           builder.appendNull();
@@ -59,7 +59,7 @@ public final class MvLastLongEvaluator extends AbstractMultivalueFunction.Abstra
   public Block evalNotNullable(Block fieldVal) {
     LongBlock v = (LongBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    try (LongVector.FixedBuilder builder = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
+    try (LongVector.FixedBuilder builder = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount, true)) {
       for (int p = 0; p < positionCount; p++) {
         int valueCount = v.getValueCount(p);
         int first = v.getFirstValueIndex(p);

@@ -128,7 +128,14 @@ public class StatelessClusterConsistencyService extends AbstractLifecycleCompone
             listenersToCall.add(l);
         }
         pendingDelayedListeners = false;
-        ReadLease readLease = new ReadLease(timeout, listener.delegateFailureAndWrap((delegate, lease) -> {
+        // listenersToCall holds this check's own listener plus the listeners of delayed checks (from the stale commit cleaner and the
+        // translog file delete task), which were taken off the queue above. No later check will see those delayed listeners again, so
+        // if the lease cannot be read they must be failed here too. Their owners retry on failure but wait forever if never called.
+        final ActionListener<Void> allListeners = ActionListener.wrap(
+            ignored -> ActionListener.onResponse(listenersToCall, null),
+            e -> ActionListener.onFailure(listenersToCall, e)
+        );
+        ReadLease readLease = new ReadLease(timeout, allListeners.delegateFailureAndWrap((delegate, lease) -> {
             final var startingStateLease = new StatelessLease(
                 startingTerm,
                 startingNodeLeftGeneration,

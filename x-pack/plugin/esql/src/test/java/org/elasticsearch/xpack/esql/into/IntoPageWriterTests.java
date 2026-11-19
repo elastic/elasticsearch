@@ -9,33 +9,23 @@ package org.elasticsearch.xpack.esql.into;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.test.ComputeTestCase;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -46,12 +36,14 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.xpack.esql.into.IntoPageWriter.Factory.Indexing.INDEX;
+import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.CREATED;
+import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.REFUSED;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -63,15 +55,13 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class IntoPageWriterTests extends ComputeTestCase {
-    private static final String DESTINATION = "dst";
-    private static final ShardId SHARD = new ShardId(DESTINATION, "uuid", 0);
     private static final List<Attribute> COLUMNS = List.of(
         new ReferenceAttribute(Source.EMPTY, "host", DataType.KEYWORD),
         new ReferenceAttribute(Source.EMPTY, "ts", DataType.DATETIME)
     );
 
     private ThreadPool threadPool;
-    private CapturingClient client;
+    private IntoTestUtils.CapturingClient client;
     private BlockFactory blockFactory;
     private DriverContext driverContext;
     private IntoPageWriter.Factory sink;
@@ -80,10 +70,10 @@ public class IntoPageWriterTests extends ComputeTestCase {
     @Before
     public void setUpWriter() {
         threadPool = new TestThreadPool(getTestName());
-        client = new CapturingClient(threadPool);
+        client = new IntoTestUtils.CapturingClient(threadPool);
         blockFactory = blockFactory();
         driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blockFactory, null);
-        sink = IntoPageWriter.Factory.createFactory(client, DESTINATION, COLUMNS);
+        sink = IntoPageWriter.Factory.createFactory(client, IntoTestUtils.DESTINATION, COLUMNS, INDEX);
         writer = sink.create(driverContext);
     }
 
@@ -96,55 +86,6 @@ public class IntoPageWriterTests extends ComputeTestCase {
         }
         if (threadPool != null) {
             ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
-        }
-    }
-
-    private enum Outcome {
-        CREATED,
-        REFUSED
-    }
-
-    private static class CapturingClient extends NoOpClient {
-        final List<BulkRequest> bulks = new ArrayList<>();
-        final List<ActionListener<BulkResponse>> listeners = new ArrayList<>();
-
-        CapturingClient(ThreadPool threadPool) {
-            super(threadPool);
-        }
-
-        @Override
-        @SuppressWarnings("unchecked")
-        protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
-            ActionType<Response> action,
-            Request request,
-            ActionListener<Response> listener
-        ) {
-            assertThat(action, equalTo(TransportBulkAction.TYPE));
-            bulks.add((BulkRequest) request);
-            listeners.add((ActionListener<BulkResponse>) listener);
-        }
-
-        void answer(Outcome... outcomes) {
-            BulkRequest bulk = bulks.removeFirst();
-            assertThat(bulk.numberOfActions(), equalTo(outcomes.length));
-            BulkItemResponse[] items = new BulkItemResponse[outcomes.length];
-            for (int i = 0; i < outcomes.length; i++) {
-                DocWriteRequest.OpType opType = bulk.requests().get(i).opType();
-                items[i] = switch (outcomes[i]) {
-                    case CREATED -> BulkItemResponse.success(i, opType, new IndexResponse(SHARD, "id-" + i, 0, 1, 1, true));
-                    case REFUSED -> BulkItemResponse.failure(
-                        i,
-                        opType,
-                        new BulkItemResponse.Failure(DESTINATION, "id-" + i, new IllegalArgumentException("mapper_parsing_exception"))
-                    );
-                };
-            }
-            listeners.removeFirst().onResponse(new BulkResponse(items, 1));
-        }
-
-        void fail(Exception e) {
-            bulks.removeFirst();
-            listeners.removeFirst().onFailure(e);
         }
     }
 
@@ -163,7 +104,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
         assertThat(client.bulks, hasSize(1));
         List<DocWriteRequest<?>> requests = client.bulks.getFirst().requests();
         assertThat(requests.stream().map(DocWriteRequest::opType).toList(), everyItem(equalTo(DocWriteRequest.OpType.CREATE)));
-        assertThat(requests.stream().map(DocWriteRequest::index).toList(), everyItem(equalTo(DESTINATION)));
+        assertThat(requests.stream().map(DocWriteRequest::index).toList(), everyItem(equalTo(IntoTestUtils.DESTINATION)));
         assertThat(
             requests.stream().map(request -> ((IndexRequest) request).sourceAsMap()).toList(),
             equalTo(
@@ -181,13 +122,13 @@ public class IntoPageWriterTests extends ComputeTestCase {
         IsBlockedResult blocked = writer.isBlocked();
         assertFalse(blocked.listener().isDone());
 
-        client.answer(Outcome.CREATED);
+        client.answer(CREATED);
         assertTrue(blocked.listener().isDone());
         assertThat(writer.isBlocked(), equalTo(Operator.NOT_BLOCKED));
         assertThat(driverContext.breaker().getUsed(), greaterThan(0L));
 
-        client.answer(Outcome.CREATED);
-        client.answer(Outcome.CREATED);
+        client.answer(CREATED);
+        client.answer(CREATED);
         assertThat(driverContext.breaker().getUsed(), equalTo(0L));
     }
 
@@ -202,14 +143,14 @@ public class IntoPageWriterTests extends ComputeTestCase {
         assertThat(sourceBytes, greaterThan(0L));
         assertThat(driverContext.breaker().getUsed(), equalTo(sourceBytes));
 
-        client.answer(Outcome.CREATED, Outcome.CREATED);
+        client.answer(CREATED, CREATED);
         assertThat(driverContext.breaker().getUsed(), equalTo(0L));
     }
 
     public void testCircuitBreakerTripReleasesReservedRows() {
         writer.consume(page("h1"));
         long oneRow = driverContext.breaker().getUsed();
-        client.answer(Outcome.CREATED);
+        client.answer(CREATED);
         assertThat(oneRow, greaterThan(0L));
 
         BlockFactory limited = blockFactory(ByteSizeValue.ofBytes(oneRow));
@@ -217,6 +158,32 @@ public class IntoPageWriterTests extends ComputeTestCase {
         expectThrows(CircuitBreakingException.class, () -> limitedWriter.consume(page("h1", "h2")));
         assertThat(client.bulks, empty());
         assertThat(limited.breaker().getUsed(), equalTo(0L));
+    }
+
+    public void testLocalCircuitBreakersShareParentRequestBreakerLimit() {
+        writer.consume(page("h1"));
+        long oneRow = driverContext.breaker().getUsed();
+        client.answer(CREATED);
+        assertThat(oneRow, greaterThan(0L));
+
+        BlockFactory shared = blockFactory(ByteSizeValue.ofBytes(oneRow * 2));
+        LocalCircuitBreaker local1 = new LocalCircuitBreaker(shared.breaker(), 1, 2);
+        LocalCircuitBreaker local2 = new LocalCircuitBreaker(shared.breaker(), 1, 2);
+        try {
+            IntoPageWriter first = sink.create(new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, shared.newChildFactory(local1), null));
+            IntoPageWriter second = sink.create(new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, shared.newChildFactory(local2), null));
+            first.consume(page("h1"));
+            local2.addEstimateBytesAndMaybeBreak(1, "driver");
+
+            expectThrows(CircuitBreakingException.class, () -> second.consume(page("h2")));
+            assertThat(client.bulks, hasSize(1));
+        } finally {
+            client.answer(CREATED);
+            local2.addWithoutBreaking(-1);
+            local1.close();
+            local2.close();
+        }
+        assertThat(shared.breaker().getUsed(), equalTo(0L));
     }
 
     public void testCrankyBreakerReleasesAndStatsMatchWrittenRows() {
@@ -233,13 +200,13 @@ public class IntoPageWriterTests extends ComputeTestCase {
                 break;
             }
             int actions = client.bulks.getFirst().numberOfActions();
-            client.answer(Outcome.CREATED);
+            client.answer(CREATED);
             written += actions;
         }
         assertTrue(tripped);
         assertThat(client.bulks, empty());
         assertThat(crankyFactory.breaker().getUsed(), equalTo(0L));
-        assertThat(sink.stats(), equalTo(new IntoStats(written, written)));
+        assertThat(crankyWriter.stats(), equalTo(new IntoStats(written, written)));
     }
 
     public void testFinishWaitsForOutstandingBulks() {
@@ -248,22 +215,22 @@ public class IntoPageWriterTests extends ComputeTestCase {
         writer.finish();
         IsBlockedResult blocked = writer.isBlocked();
 
-        client.answer(Outcome.CREATED);
+        client.answer(CREATED);
         assertFalse(writer.isFinished());
         assertFalse(blocked.listener().isDone());
         assertTrue(driverContext.hasPendingAsyncActions());
 
-        client.answer(Outcome.CREATED);
+        client.answer(CREATED);
         assertTrue(writer.isFinished());
         assertTrue(blocked.listener().isDone());
         assertFalse(driverContext.hasPendingAsyncActions());
         assertThat(sink.failure(), nullValue());
-        assertThat(sink.stats(), equalTo(new IntoStats(2, 2)));
+        assertThat(writer.stats(), equalTo(new IntoStats(2, 2)));
     }
 
     public void testRefusedRowFailsAndLaterPagesAreDropped() {
         writer.consume(page("ok", "bad"));
-        client.answer(Outcome.CREATED, Outcome.REFUSED);
+        client.answer(CREATED, REFUSED);
         ElasticsearchStatusException failure = asInstanceOf(ElasticsearchStatusException.class, sink.failure());
         assertThat(failure.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(failure.getMessage(), containsString("mapper_parsing_exception"));
@@ -289,7 +256,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
 
         assertThat(client.bulks, empty());
         assertTrue(writer.isFinished());
-        assertThat(sink.stats(), equalTo(new IntoStats(0, 0)));
+        assertThat(writer.stats(), equalTo(new IntoStats(0, 0)));
     }
 
     private Page page(String... hosts) {

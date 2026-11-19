@@ -18,7 +18,7 @@ import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.TestUtils;
-import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
 
@@ -97,7 +97,7 @@ public final class SearchShardCacheWarmingITPlugin extends TestUtils.StatelessPl
             StatelessCompoundCommit commit,
             BlobStoreCacheDirectory directory,
             WarmingRatioProvider warmingRatioProvider,
-            @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
+            @Nullable Map<BccBlob, WarmTarget> endTargetsToWarm,
             boolean preWarmForIdLookup,
             ActionListener<Void> listener
         ) {

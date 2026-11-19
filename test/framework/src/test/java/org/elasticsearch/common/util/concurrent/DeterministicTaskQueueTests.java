@@ -15,6 +15,7 @@ import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -26,6 +27,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.contains;
@@ -83,6 +85,85 @@ public class DeterministicTaskQueueTests extends ESTestCase {
 
         assertThat(strings, containsInAnyOrder("foo", "bar", "baz", "quux"));
         return strings;
+    }
+
+    public void testRandomPriorityRunsEveryTask() {
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue(DeterministicTaskQueue.TaskSelectionPolicy.RANDOM_PRIORITY);
+        final Set<String> strings = new HashSet<>();
+
+        taskQueue.scheduleNow(() -> {
+            strings.add("foo");
+            taskQueue.scheduleNow(() -> strings.add("foo-child"));
+        });
+        taskQueue.scheduleNow(() -> strings.add("bar"));
+        taskQueue.scheduleAt(randomLongBetween(1, 100), () -> strings.add("baz"));
+
+        taskQueue.runAllTasks();
+        assertThat(strings, containsInAnyOrder("foo", "foo-child", "bar", "baz"));
+        assertFalse(taskQueue.hasRunnableTasks());
+        assertFalse(taskQueue.hasDeferredTasks());
+    }
+
+    public void testRandomPriorityIsDeterministic() {
+        final long seed = randomLong();
+        assertThat(executeAndGetOrder(new Random(seed)), equalTo(executeAndGetOrder(new Random(seed))));
+    }
+
+    private List<Integer> executeAndGetOrder(Random random) {
+        final var taskQueue = new DeterministicTaskQueue(random, DeterministicTaskQueue.TaskSelectionPolicy.RANDOM_PRIORITY);
+        final var order = new ArrayList<Integer>();
+        for (int i = 0; i < 20; i++) {
+            final var task = i;
+            taskQueue.scheduleNow(() -> order.add(task));
+        }
+        taskQueue.runAllRunnableTasks();
+        return order;
+    }
+
+    /**
+     * Create a task with low priority(L) and chain of tasks with higher priority (C0->C1->...->Cm)
+     * and ensures that L is executed after Cm.
+     */
+    public void testRandomPriorityTasksChain() {
+        final var chainLength = between(1, 20);
+        final var priorityOfL = randomDoubleBetween(0.0, 0.2, true);
+        final var chainPriorities = IntStream.range(0, chainLength)
+            .mapToDouble(i -> randomDoubleBetween(priorityOfL, 1.0, false))
+            .toArray();
+
+        // L becomes runnable first, then each link in turn
+        final var draws = DoubleStream.concat(DoubleStream.of(priorityOfL), Arrays.stream(chainPriorities)).iterator();
+        final var taskQueue = new DeterministicTaskQueue(
+            new Random(0),
+            new DeterministicTaskQueue.TaskSelector.RandomPriority(new Random(0) {
+                @Override
+                public double nextDouble() {
+                    return draws.nextDouble();
+                }
+            })
+        );
+
+        final var actualOrder = new ArrayList<String>();
+        taskQueue.scheduleNow(() -> actualOrder.add("L"));
+        taskQueue.scheduleNow(new Runnable() {
+            private int link = 1;
+
+            @Override
+            public void run() {
+                actualOrder.add("C" + link);
+                if (link++ < chainLength) {
+                    taskQueue.scheduleNow(this);
+                }
+            }
+        });
+        taskQueue.runAllRunnableTasks();
+
+        final var expectedOrder = new ArrayList<String>();
+        for (int link = 1; link <= chainLength; link++) {
+            expectedOrder.add("C" + link);
+        }
+        expectedOrder.add("L");
+        assertThat(actualOrder, equalTo(expectedOrder));
     }
 
     public void testStartsAtTimeZero() {

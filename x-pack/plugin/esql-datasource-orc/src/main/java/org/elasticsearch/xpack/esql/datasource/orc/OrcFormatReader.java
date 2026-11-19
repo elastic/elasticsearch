@@ -167,6 +167,11 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         return parsedFooters.get(key);
     }
 
+    /** The footer byte cache shared by this reader and all readers derived from it. Test assertions only. */
+    FooterByteCache footerBytesForTests() {
+        return footerBytes;
+    }
+
     private final BlockFactory blockFactory;
     private final SearchArgument pushedFilter;
     private final OrcPushedExpressions pushedExpressions;
@@ -336,6 +341,24 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             dynamicThreshold,
             declaredDateFormats,
             Set.copyOf(physicalDeclaredColumns),
+            parsedFooters,
+            footerBytes
+        );
+    }
+
+    @Override
+    public OrcFormatReader withBlockFactory(@Nullable BlockFactory factory) {
+        if (factory == null || factory == blockFactory) {
+            return this;
+        }
+        // Footer caches stay the node instances created by the root constructor.
+        return new OrcFormatReader(
+            factory,
+            pushedFilter,
+            pushedExpressions,
+            dynamicThreshold,
+            declaredDateFormats,
+            declaredTypeColumns,
             parsedFooters,
             footerBytes
         );
@@ -1921,10 +1944,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             // coercionWarnings()). Mirrors the Parquet readers so the two columnar formats cannot
             // drift.
             DataType fileType = leafType != null ? convertOrcTypeToEsql(leafType) : null;
-            if (fileType != null
-                && dataType != fileType
-                && DeclaredTypeCoercions.fusedInDecode(fileType, dataType, dateFormatter != null) == false
-                && DeclaredTypeCoercions.supports(fileType, dataType)) {
+            if (DeclaredTypeCoercions.needsBlockCast(fileType, dataType, dateFormatter != null)) {
                 Block physical = createBlockAs(vector, fileType, rowCount, ancestorNulls, leafType, dateFormatter, columnName, null);
                 try {
                     return DeclaredTypeCoercions.castBlock(

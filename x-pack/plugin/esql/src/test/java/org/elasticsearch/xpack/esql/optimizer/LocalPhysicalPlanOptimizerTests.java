@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TemporalityAttribute;
+import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -79,6 +80,7 @@ import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.io.stream.ExpressionQueryBuilder;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ExtractAggregateCommonFilter;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.InsertPartialWindowAggregates;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ExtractDimensionFieldsAfterAggregation;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
@@ -112,6 +114,7 @@ import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnpackDimsExec;
 import org.elasticsearch.xpack.esql.plan.physical.UriPartsExec;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
@@ -3416,6 +3419,63 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     }
 
     /**
+     * The {@code _timeseries} container behind a {@code WITHOUT} grouping is read after the time-series aggregation,
+     * once per {@code _tsid}, and never extracted below it.
+     */
+    public void testTimeSeriesMetadataReadOncePerSeries() {
+        assumeTrue("requires WITHOUT grouping", EsqlCapabilities.Cap.ESQL_WITHOUT_GROUPING.isEnabled());
+        var plan = plannerOptimizerTimeSeries.plan(
+            "TS k8s | STATS avg_cost = AVG(network.cost) BY WITHOUT(pod, region)",
+            EsqlTestUtils.TEST_SEARCH_STATS,
+            metricsAnalyzerAt(TransportVersion.current()).buildAnalyzer()
+        );
+        var readDims = plan.collect(ReadDimsExec.class);
+        assertThat(readDims, hasSize(1));
+        assertThat(readDims.getFirst().dims().getFirst(), instanceOf(TimeSeriesMetadataAttribute.class));
+        assertTrue(GoldenTestCase.checkTimeSeriesMetadataLoadOncePerTimeSeries(plan));
+    }
+
+    /**
+     * Without {@link ExtractDimensionFieldsAfterAggregation} the {@code _timeseries} container is extracted below the
+     * time-series aggregation, once per sample, and the check the golden tests run on every local plan fails.
+     */
+    @SuppressWarnings("unchecked")
+    public void testTimeSeriesMetadataReadPerSampleFailsCheck() {
+        assumeTrue("requires WITHOUT grouping", EsqlCapabilities.Cap.ESQL_WITHOUT_GROUPING.isEnabled());
+        var physicalPlan = new TestPlannerOptimizer(config, metricsAnalyzerAt(TransportVersion.current()).buildAnalyzer()).distributedPlan(
+            "TS k8s | STATS avg_cost = AVG(network.cost) BY WITHOUT(pod, region)"
+        );
+        var logicalOptimizer = new LocalLogicalPlanOptimizer(
+            new LocalLogicalOptimizerContext(config, FoldContext.small(), EsqlTestUtils.TEST_SEARCH_STATS)
+        );
+        // an optimizer that filters out the ExtractDimensionFieldsAfterAggregation rule
+        var physicalOptimizer = new LocalPhysicalPlanOptimizer(
+            new LocalPhysicalOptimizerContext(
+                PlannerSettings.DEFAULTS,
+                new EsqlFlags(true),
+                config,
+                FoldContext.small(),
+                EsqlTestUtils.TEST_SEARCH_STATS
+            )
+        ) {
+            @Override
+            protected List<Batch<PhysicalPlan>> batches() {
+                var oldBatches = super.batches();
+                List<Batch<PhysicalPlan>> newBatches = new ArrayList<>(oldBatches.size());
+                for (var batch : oldBatches) {
+                    List<Rule<?, PhysicalPlan>> rules = new ArrayList<>(List.of(batch.rules()));
+                    rules.removeIf(r -> r instanceof ExtractDimensionFieldsAfterAggregation);
+                    newBatches.add(batch.with(rules.toArray(Rule[]::new)));
+                }
+                return newBatches;
+            }
+        };
+        var plan = PlannerUtils.localPlan(physicalPlan, logicalOptimizer, physicalOptimizer, null);
+        assertThat(plan.collect(ReadDimsExec.class), hasSize(0));
+        assertFalse(GoldenTestCase.checkTimeSeriesMetadataLoadOncePerTimeSeries(plan));
+    }
+
+    /**
      * A window that is not an exact multiple of the time bucket ({@code 7m = 5m + 2m}) is decomposed by
      * {@code InsertPartialWindowAggregates} into the full windowed aggregate plus a partial sibling with no window,
      * filtered to the trailing remainder. Both execute as ordinary aggregates on the data node (INITIAL) and are
@@ -3462,6 +3522,32 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         );
         var exchange = as(finalAgg.child(), ExchangeExec.class);
         assertThat(exchange.output(), equalTo(finalAgg.intermediateAttributes()));
+    }
+
+    /**
+     * The exchange that {@code InsertPartialWindowAggregates} rebuilds around the widened aggregate is the same hop as the one it
+     * replaces, so it keeps the exchange id and plan id. Otherwise the plan logs of the stages before and after the rule would
+     * show two different hops.
+     */
+    public void testInsertPartialWindowAggregatesKeepsTheIdentityOfTheExchange() {
+        var analyzer = metricsAnalyzerAt(DimensionValues.DIMENSION_VALUES_VERSION).buildAnalyzer();
+        PhysicalPlan before = plannerOptimizerTimeSeries.physicalPlan(
+            "TS k8s | STATS sum(rate(network.total_bytes_in, 7 minute)) BY TBUCKET(5 minute)",
+            analyzer
+        );
+        PhysicalPlan after = new InsertPartialWindowAggregates().apply(before);
+
+        List<ExchangeExec> exchangesBefore = new ArrayList<>();
+        before.forEachDown(ExchangeExec.class, exchangesBefore::add);
+        List<ExchangeExec> exchangesAfter = new ArrayList<>();
+        after.forEachDown(ExchangeExec.class, exchangesAfter::add);
+        assertThat(exchangesBefore, hasSize(1));
+        assertThat(exchangesAfter, hasSize(1));
+        ExchangeExec exchangeBefore = exchangesBefore.get(0);
+        ExchangeExec exchangeAfter = exchangesAfter.get(0);
+        assertNotSame("the rule should have planted a partial sibling and rebuilt the exchange", exchangeBefore, exchangeAfter);
+        assertThat(exchangeAfter.exchange(), equalTo(exchangeBefore.exchange()));
+        assertThat(exchangeAfter.planId(), equalTo(exchangeBefore.planId()));
     }
 
     /**

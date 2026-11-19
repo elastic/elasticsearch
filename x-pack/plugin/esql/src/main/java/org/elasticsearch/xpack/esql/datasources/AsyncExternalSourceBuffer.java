@@ -16,6 +16,7 @@ import org.elasticsearch.compute.operator.SuppressedFailures;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.datasources.cache.StripeStatsStaging;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderStatus;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
@@ -111,10 +112,10 @@ public final class AsyncExternalSourceBuffer {
 
     /**
      * Per-file captured source metadata contributions, populated by the background reader thread as
-     * iterators close. Each path's value is a list of flat {@code _stats.*} maps — one per chunk for
-     * parallel parsing, one per split for macro-splits, one for whole-file reads. The coordinator
-     * merges them via {@code SourceStatisticsSerializer.mergeStatistics} before enriching the
-     * {@code SchemaCacheEntry}.
+     * iterators close. Each path's value is a list of flat {@code _stats.*} maps — one per stripe for
+     * parallel parsing, once {@link StripeStatsStaging} has joined the pieces the chunks saw of it, one per
+     * split for macro-splits, one for whole-file reads. The coordinator merges them via
+     * {@code SourceStatisticsSerializer.mergeStatistics} before enriching the {@code SchemaCacheEntry}.
      */
     private final ConcurrentMap<String, List<Map<String, Object>>> capturedSourceMetadata = new ConcurrentHashMap<>();
     private volatile Map<String, List<Map<String, Object>>> cachedMetadataSnapshot = Map.of();

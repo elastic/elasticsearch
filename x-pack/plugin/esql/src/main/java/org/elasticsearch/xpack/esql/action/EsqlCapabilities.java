@@ -3840,6 +3840,14 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_LOAD_ALL_ONLY_KEEP_AND_DROP_REACH_KEYS(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
 
         /**
+         * Under {@code unmapped_fields="LOAD_ALL"}, {@code DEDUP} compares the {@code _unmapped_fields} column like any other, so two
+         * rows that differ only in unmapped fields are not duplicates. It used to leave the column out of the comparison, and returned
+         * the value of an arbitrary row of each group. Only meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL_V2} is available. See
+         * <a href="https://github.com/elastic/elasticsearch/issues/165558">#165558</a>.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_DEDUP_COMPARES_UNMAPPED_FIELDS(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+
+        /**
          * Support for {@code GROK}, {@code DISSECT}, {@code MV_EXPAND} and {@code SAMPLE} under {@code unmapped_fields="LOAD_ALL"}.
          * {@code GROK} and {@code DISSECT} read an input field (mapped or unmapped) and add named columns, which shadow an unmapped
          * field of the same name. Expanding a mapped multivalued field with {@code MV_EXPAND} repeats the {@code _unmapped_fields}

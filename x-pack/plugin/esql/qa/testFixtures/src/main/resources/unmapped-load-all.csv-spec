@@ -7119,12 +7119,15 @@ x             | "{""tag"":""t""}"
 null          | null
 ;
 
-dedupIgnoresUnmappedFieldsColumn
+// Rows 1 and 2 have the same other and different unmapped fields, so DEDUP keeps both. The count shows it, and which row LIMIT keeps
+// does not matter.
+dedupComparesUnmappedFieldsColumn
 required_capability: optional_fields_load_all_single_source_column
 required_capability: optional_fields_load_all_compound_output_limit_by_dedup
 required_capability: dedup_command
 required_capability: optional_fields_load_all_inline_stats
 required_capability: optional_fields_load_all_unmapped_fields_last
+required_capability: optional_fields_load_all_dedup_compares_unmapped_fields
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_compound_outputs
@@ -7132,13 +7135,15 @@ FROM unmapped_compound_outputs
 | KEEP other, pa*
 | DEDUP
 | INLINE STATS c = COUNT(*)
+| LIMIT 1
 ;
 
 other:keyword | c:long | _unmapped_fields:_source
-x             | 1 | {any}                   
+x             | 2      | {any}
 ;
 
-dedupIgnoresUnmappedFieldsColumnThenKeep
+// KEEP after DEDUP drops the unmapped fields, so DEDUP does not see the column and rows 1 and 2 collapse.
+dedupThenKeepDoesNotSeeTheUnmappedFieldsColumn
 required_capability: optional_fields_load_all_single_source_column
 required_capability: optional_fields_load_all_compound_output_limit_by_dedup
 required_capability: dedup_command
@@ -7155,7 +7160,8 @@ other:keyword
 x
 ;
 
-dedupIgnoresUnmappedFieldsColumnThenStats
+// STATS after DEDUP does not return the unmapped fields, so DEDUP does not see the column either.
+dedupThenStatsDoesNotSeeTheUnmappedFieldsColumn
 required_capability: optional_fields_load_all_single_source_column
 required_capability: optional_fields_load_all_compound_output_limit_by_dedup
 required_capability: dedup_command
@@ -7178,16 +7184,18 @@ required_capability: optional_fields_load_all_compound_output_limit_by_dedup
 required_capability: dedup_command
 required_capability: optional_fields_load_all_inline_stats
 required_capability: optional_fields_load_all_unmapped_fields_last
+required_capability: optional_fields_load_all_dedup_compares_unmapped_fields
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_compound_outputs
 | KEEP pa*
 | DEDUP
 | INLINE STATS c = COUNT(*)
+| LIMIT 1
 ;
 
 c:long | _unmapped_fields:_source
-1 | {any}                   
+3      | {any}
 ;
 
 // Naming an unmapped field anywhere in the query, even after DEDUP, makes it a column of its own, so DEDUP keys on it.
@@ -7211,40 +7219,50 @@ x             | old.example
 x             | old.example2
 ;
 
-dedupAfterForkIgnoresUnmappedFieldsColumn
+dedupAfterForkComparesUnmappedFieldsColumn
 required_capability: optional_fields_load_all_single_source_column
 required_capability: optional_fields_load_all_compound_output_limit_by_dedup
 required_capability: dedup_command
 required_capability: optional_fields_load_all_fork
 required_capability: fork_v9
+required_capability: optional_fields_load_all_dedup_compares_unmapped_fields
+required_capability: optional_fields_load_all_inline_stats
+required_capability: optional_fields_load_all_unmapped_fields_last
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_compound_outputs
 | FORK (WHERE id == "1") (WHERE id == "2")
 | KEEP other, pa*
 | DEDUP
+| INLINE STATS c = COUNT(*)
+| LIMIT 1
 ;
 
-other:keyword | _unmapped_fields:_source
-x             | {any}
+other:keyword | c:long | _unmapped_fields:_source
+x             | 2      | {any}
 ;
 
-dedupAfterSubqueryIgnoresUnmappedFieldsColumn
+dedupAfterSubqueryComparesUnmappedFieldsColumn
 required_capability: optional_fields_load_all_single_source_column
 required_capability: optional_fields_load_all_compound_output_limit_by_dedup
 required_capability: dedup_command
 required_capability: optional_fields_load_all_subqueries
 required_capability: subquery_in_from_command
+required_capability: optional_fields_load_all_dedup_compares_unmapped_fields
+required_capability: optional_fields_load_all_inline_stats
+required_capability: optional_fields_load_all_unmapped_fields_last
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_compound_outputs, (FROM unmapped_compound_outputs | WHERE id == "2")
 | WHERE id == "1" OR id == "2"
 | KEEP other, pa*
 | DEDUP
+| INLINE STATS c = COUNT(*)
+| LIMIT 1
 ;
 
-other:keyword | _unmapped_fields:_source
-x             | {any}
+other:keyword | c:long | _unmapped_fields:_source
+x             | 2      | {any}
 ;
 
 disabledSourceWithIncludesAndExcludesSiblings_withDedup
@@ -7398,20 +7416,26 @@ https://example.org/b         | "{""tag"":""t""}"
 https://other.example.org/x   | null
 ;
 
-dedupAcrossIndicesIgnoresUnmappedFieldsColumn
+// The same url in both indices, with unmapped fields in one and none in the other: DEDUP keeps both rows.
+dedupAcrossIndicesComparesUnmappedFieldsColumn
 required_capability: optional_fields_load_all_single_source_column
 required_capability: optional_fields_load_all_compound_output_limit_by_dedup
 required_capability: dedup_command
+required_capability: optional_fields_load_all_dedup_compares_unmapped_fields
+required_capability: optional_fields_load_all_inline_stats
+required_capability: optional_fields_load_all_unmapped_fields_last
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_compound_outputs, unmapped_compound_inputs
 | WHERE url == "http://www.example.com:8080/a"
 | KEEP url, pa*
 | DEDUP
+| INLINE STATS c = COUNT(*)
+| LIMIT 1
 ;
 
-url:keyword                   | _unmapped_fields:_source
-http://www.example.com:8080/a | {any}
+url:keyword                   | c:long | _unmapped_fields:_source
+http://www.example.com:8080/a | 2      | {any}
 ;
 
 // Each FORK branch adds its own output columns, which the other branch null-fills.

@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
-import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
@@ -684,26 +683,33 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         assertWarnings(DetermineUnmappedFieldsToKeep.UNMAPPED_FIELDS_NAME_TAKEN_WARNING);
     }
 
-    public void testDedupDoesNotKeyOnUnmappedFieldsAttribute() {
-        assertDedupKeys("FROM test | KEEP emp_no, first_name* | DEDUP", List.of("emp_no", "first_name"));
-    }
-
-    public void testDedupAfterSubqueriesDoesNotKeyOnUnmappedFieldsAttribute() {
-        assertDedupKeys("FROM (FROM test), (FROM test) | KEEP emp_no, first_name* | DEDUP", List.of("emp_no", "first_name"));
-    }
-
-    public void testDedupAfterForkDoesNotKeyOnUnmappedFieldsAttribute() {
+    public void testDedupKeysOnUnmappedFieldsAttribute() {
         assertDedupKeys(
-            "FROM test | FORK (WHERE emp_no > 0) (WHERE emp_no < 0) | KEEP emp_no, first_name*, _fork | DEDUP",
-            List.of("emp_no", "first_name", "_fork")
+            "FROM test | KEEP emp_no, first_name* | DEDUP",
+            List.of("emp_no", "first_name", UnmappedFieldsAttribute.ATTRIBUTE_NAME)
         );
     }
 
-    public void testDedupOverOnlyUnmappedFieldsAttributeKeepsOneRow() {
+    public void testDedupAfterSubqueriesKeysOnUnmappedFieldsAttribute() {
+        assertDedupKeys(
+            "FROM (FROM test), (FROM test) | KEEP emp_no, first_name* | DEDUP",
+            List.of("emp_no", "first_name", UnmappedFieldsAttribute.ATTRIBUTE_NAME)
+        );
+    }
+
+    public void testDedupAfterForkKeysOnUnmappedFieldsAttribute() {
+        assertDedupKeys(
+            "FROM test | FORK (WHERE emp_no > 0) (WHERE emp_no < 0) | KEEP emp_no, first_name*, _fork | DEDUP",
+            List.of("emp_no", "first_name", "_fork", UnmappedFieldsAttribute.ATTRIBUTE_NAME)
+        );
+    }
+
+    public void testDedupOverOnlyUnmappedFieldsAttributeKeysOnIt() {
         LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM test | KEEP unmapped* | DEDUP"));
         Dedup dedup = EsqlTestUtils.singleValue(plan.collect(Dedup.class));
         assertThat(unmappedFieldsAttributes(dedup), hasSize(1));
-        as(dedup.surrogate(), Limit.class);
+        LimitBy limitBy = as(dedup.surrogate(), LimitBy.class);
+        assertThat(Expressions.names(limitBy.groupings()), equalTo(List.of(UnmappedFieldsAttribute.ATTRIBUTE_NAME)));
     }
 
     public void testDedupKeysOnSourceFieldNamedUnmappedFields() {

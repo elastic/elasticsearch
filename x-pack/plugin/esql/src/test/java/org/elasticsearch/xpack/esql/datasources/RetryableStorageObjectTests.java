@@ -3879,6 +3879,83 @@ public class RetryableStorageObjectTests extends ESTestCase {
         }
     }
 
+    public void testByteBufferAsyncReadCompletionRestoresIssuingThreadContext() throws Exception {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        ExecutorService sdkThread = Executors.newSingleThreadExecutor();
+        try {
+            // A real object cannot be used: the test must control the completing thread, which runs with an empty ThreadContext.
+            StorageObject inner = new AbstractTestStorageObject() {
+                @Override
+                public InputStream newStream() {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public InputStream newStream(long position, long length) {
+                    return new ByteArrayInputStream(new byte[(int) length]);
+                }
+
+                @Override
+                public long length() {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public Instant lastModified() {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public boolean exists() {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public StoragePath path() {
+                    return StoragePath.of("s3://bucket/key");
+                }
+
+                @Override
+                public int readBytes(long position, ByteBuffer target) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public void readBytesAsync(
+                    long position,
+                    long length,
+                    DirectBufferFactory factory,
+                    Executor executor,
+                    ActionListener<DirectReadBuffer> listener
+                ) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public StorageObjectMetrics metrics() {
+                    return new StorageObjectMetrics(0, 0, 0, 0);
+                }
+            };
+            RetryableStorageObject obj = new RetryableStorageObject(inner, new RetryPolicy(3, 1, 10), RetryScheduler.DIRECT, threadContext);
+            threadContext.putHeader(CONTEXT_HEADER, "issuing-user");
+            PlainActionFuture<String> observed = new PlainActionFuture<>();
+            Executor sdkExecutor = command -> sdkThread.execute(() -> {
+                try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+                    command.run();
+                }
+            });
+            obj.readBytesAsync(
+                0,
+                ByteBuffer.allocate(4),
+                sdkExecutor,
+                ActionListener.wrap(n -> observed.onResponse(threadContext.getHeader(CONTEXT_HEADER)), observed::onFailure)
+            );
+            assertThat(observed.get(10, TimeUnit.SECONDS), equalTo("issuing-user"));
+        } finally {
+            terminate(sdkThread);
+        }
+    }
+
     public void testAsyncReadWithoutThreadContextDoesNotRestore() throws Exception {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         ExecutorService sdkThread = Executors.newSingleThreadExecutor();

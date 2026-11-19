@@ -378,6 +378,14 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
     }
 
     @Override
+    public void readBytesAsync(long position, ByteBuffer target, Executor executor, ActionListener<Integer> listener) {
+        ActionListener<Integer> callerListener = threadContext == null
+            ? listener
+            : new ContextPreservingActionListener<>(threadContext.newRestorableContext(false), listener);
+        StorageObject.super.readBytesAsync(position, target, executor, callerListener);
+    }
+
+    @Override
     public Releasable startReadBytesAsync(
         long position,
         long length,

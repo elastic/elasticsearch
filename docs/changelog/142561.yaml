@@ -1,0 +1,5 @@
+area: Geo
+issues: []
+pr: 142561
+summary: Support shape doc-values with recoverable geometries
+type: enhancement

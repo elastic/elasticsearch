@@ -89,7 +89,7 @@ public abstract class ShapeValues<T extends ShapeValues.ShapeValue> {
     public T missing(String missing) {
         try {
             final Geometry geometry = WellKnownText.fromWKT(geometryValidator(), true, missing);
-            final BinaryShapeDocValuesField field = new BinaryShapeDocValuesField("missing", encoder);
+            final BinaryShapeDocValuesField field = new BinaryShapeDocValuesField("missing", encoder, false);
             field.add(missingShapeIndexer.indexShape(geometry), geometry);
             final T value = supplier.get();
             value.reset(field.binaryValue());

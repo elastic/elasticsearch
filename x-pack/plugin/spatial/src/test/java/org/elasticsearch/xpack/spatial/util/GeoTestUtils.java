@@ -38,22 +38,25 @@ import org.elasticsearch.xpack.spatial.index.fielddata.CartesianShapeValues;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 
 import java.io.IOException;
+import java.util.List;
 
 public class GeoTestUtils {
 
     public static GeometryDocValueReader geometryDocValueReader(Geometry geometry, CoordinateEncoder encoder) throws IOException {
         GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, "test");
+        Geometry normalized = indexer.normalize(geometry);
         CentroidCalculator centroidCalculator = new CentroidCalculator();
         centroidCalculator.add(geometry);
         GeometryDocValueReader reader = new GeometryDocValueReader();
-        reader.reset(GeometryDocValueWriter.write(indexer.indexShape(geometry), encoder, centroidCalculator));
+        reader.reset(GeometryDocValueWriter.write(indexer.getIndexableFields(normalized), encoder, centroidCalculator, List.of(geometry)));
         return reader;
     }
 
     public static BinaryShapeDocValuesField binaryGeoShapeDocValuesField(String name, Geometry geometry) {
         GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, name);
+        Geometry normalized = indexer.normalize(geometry);
         BinaryShapeDocValuesField field = new BinaryShapeDocValuesField(name, CoordinateEncoder.GEO);
-        field.add(indexer.indexShape(geometry), geometry);
+        field.add(indexer.getIndexableFields(normalized), geometry);
         return field;
     }
 

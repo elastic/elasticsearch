@@ -214,6 +214,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
                 geoFormatterFactory,
                 context.isSourceSynthetic(),
                 context.isStrictColumnar(),
+                version,
                 meta.get()
             );
             hasScript = script.get() != null;
@@ -246,6 +247,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             FieldValues<Geometry> scriptValues,
             GeoFormatterFactory<Geometry> geoFormatterFactory,
             boolean isSyntheticSource,
+            IndexVersion indexCreatedVersion,
             Map<String, String> meta
         ) {
             this(
@@ -259,6 +261,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
                 geoFormatterFactory,
                 isSyntheticSource,
                 false,
+                indexCreatedVersion,
                 meta
             );
         }
@@ -274,9 +277,10 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             GeoFormatterFactory<Geometry> geoFormatterFactory,
             boolean isSyntheticSource,
             boolean isColumnar,
+            IndexVersion indexCreatedVersion,
             Map<String, String> meta
         ) {
-            super(name, IndexType.points(indexed, hasDocValues), isStored, parser, orientation, meta);
+            super(name, IndexType.points(indexed, hasDocValues), isStored, parser, orientation, indexCreatedVersion, meta);
             this.scriptValues = scriptValues;
             this.geoFormatterFactory = geoFormatterFactory;
             this.isSyntheticSource = isSyntheticSource;
@@ -515,10 +519,14 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             final String name = fieldType().name();
             BinaryShapeDocValuesField docValuesField = (BinaryShapeDocValuesField) context.doc().getByKey(name);
             if (docValuesField == null) {
-                docValuesField = new BinaryShapeDocValuesField(name, CoordinateEncoder.GEO);
+                docValuesField = new BinaryShapeDocValuesField(
+                    name,
+                    CoordinateEncoder.GEO,
+                    fieldType().supportsGeometryDocValueReconstruction()
+                );
                 context.doc().addWithKey(name, docValuesField);
             }
-            // we need to pass the original geometry to compute more precisely the centroid, e.g if lon > 180
+            // we pass the original geometry for both precise centroid calculation, and persisted geometry topology
             docValuesField.add(fields, geometry);
 
             if (fieldType().isColumnar() && context.mappingLookup().isMultiField(name) == false) {

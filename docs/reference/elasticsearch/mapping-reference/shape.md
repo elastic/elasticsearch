@@ -25,6 +25,8 @@ Like the [`geo_shape`](/reference/elasticsearch/mapping-reference/geo-shape.md) 
 | `ignore_malformed` | If true, malformed GeoJSON or WKT shapes are ignored. Iffalse (default), malformed GeoJSON and WKT shapes throw an exception and reject theentire document. | `false` |
 | `ignore_z_value` | If `true` (default) three dimension points will be accepted (stored in source)but only latitude and longitude values will be indexed; the third dimension is ignored. If `false`,geopoints containing any more than latitude and longitude (two dimensions) values throw an exceptionand reject the whole document. | `true` |
 | `coerce` | If `true` unclosed linear rings in polygons will be automatically closed. | `false` |
+| `index` | Should the field be quickly searchable? Accepts `true` (default) and `false`. Fields that only have [`doc_values`](/reference/elasticsearch/mapping-reference/doc-values.md) enabled can still be queried, albeit slower. | `true` |
+| `doc_values` | Should the field be stored on disk in a column-stride fashion, so that it can later be used for aggregations, scripting, or {{esql}} spatial functions? Refer to [Doc values](#shape-doc-values). | `true` |
 
 
 ## Indexing approach [shape-indexing-approach]
@@ -53,6 +55,10 @@ PUT /example
 % TESTSETUP
 
 This mapping definition maps the geometry field to the shape type. The indexer uses single precision floats for the vertex values so accuracy is guaranteed to the same precision as `float` values provided by the java virtual machine approximately (typically 1E-38).
+
+## Doc values [shape-doc-values]
+
+When `doc_values` is enabled, each shape is also stored on disk as a tree of the triangles in its triangular mesh, encoded as single precision floats like the index. Aggregations such as [`cartesian_bounds`](/reference/aggregations/search-aggregations-metrics-cartesian-bounds-aggregation.md) and [`cartesian_centroid`](/reference/aggregations/search-aggregations-metrics-cartesian-centroid-aggregation.md) read these doc values instead of the `_source`.
 
 
 ## Input Structure [shape-input-structure]

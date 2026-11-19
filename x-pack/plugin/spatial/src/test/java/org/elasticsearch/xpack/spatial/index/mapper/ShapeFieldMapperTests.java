@@ -21,6 +21,8 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.lucene.spatial.BinaryShapeDocValuesField;
+import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.junit.AssumptionViolatedException;
 
@@ -258,6 +260,32 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
 
         hasDocValues = ((AbstractGeometryFieldMapper<?>) fieldMapper).fieldType().hasDocValues();
         assertFalse(hasDocValues);
+    }
+
+    /**
+     * Indices created before {@link IndexVersions#GEOMETRY_DOC_VALUES_V2} keep writing the legacy doc-values format,
+     * so that their on-disk format matches what the index version declares.
+     */
+    public void testDocValuesFormatFollowsIndexVersion() throws IOException {
+        assertDocValuesFormat(IndexVersionUtils.randomPreviousCompatibleWriteVersion(IndexVersions.GEOMETRY_DOC_VALUES_V2), false);
+        assertDocValuesFormat(IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.GEOMETRY_DOC_VALUES_V2), true);
+    }
+
+    private void assertDocValuesFormat(IndexVersion version, boolean expectV2) throws IOException {
+        DocumentMapper mapper = createDocumentMapper(version, fieldMapping(b -> {
+            b.field("type", getFieldName());
+            b.field("doc_values", true);
+        }));
+        ParsedDocument doc = mapper.parse(source(b -> b.field(FIELD_NAME, "POLYGON ((0 0, 10 0, 10 10, 0 10, 0 0))")));
+        List<IndexableField> docValues = doc.rootDoc()
+            .getFields(FIELD_NAME)
+            .stream()
+            .filter(f -> f instanceof BinaryShapeDocValuesField)
+            .toList();
+        assertThat(docValues, hasSize(1));
+        GeometryDocValueReader reader = new GeometryDocValueReader();
+        reader.reset(docValues.getFirst().binaryValue());
+        assertThat("index version " + version, reader.isV2Format(), equalTo(expectV2));
     }
 
     public void testShapeMapperMerge() throws Exception {

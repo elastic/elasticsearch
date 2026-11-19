@@ -2989,7 +2989,11 @@ public class LocalExecutionPlanner {
             context.plannerSettings,
             configuration
         );
-        return source.with(new NestedExpandOperator.Factory(docChannel, children, expand.path(), types), layout.build());
+        int rowSize = Math.max(1, expand.output().stream().mapToInt(attribute -> attribute.dataType().estimatedSize()).sum());
+        return source.with(
+            new NestedExpandOperator.Factory(docChannel, children, expand.path(), context.pageSize(expand, rowSize)),
+            layout.build()
+        );
     }
 
     private PhysicalOperation planTimeSeriesCollapse(TimeSeriesCollapseExec collapse, LocalExecutionPlannerContext context) {

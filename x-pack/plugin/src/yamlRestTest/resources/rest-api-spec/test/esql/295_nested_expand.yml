@@ -209,6 +209,33 @@ setup:
   - match: { values.2: ["2", null, null] }
 
 ---
+"Pages smaller than the objects of a parent still give every object once, in order":
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "nested_expand", "_id": "3" } }
+          - { "id": "3", "items": [ { "sku": "c", "qty": 3 }, { "sku": "d", "qty": 4 }, { "sku": "e", "qty": 5 }, { "sku": "f", "qty": 6 }, { "sku": "g", "qty": 7 } ] }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_expand | NESTED_EXPAND items | KEEP id, items.sku, items.qty | SORT id, items.sku'
+          pragma:
+            page_size: 2
+          accept_pragma_risks: true
+  - length: { values: 8 }
+  - match: { values.0: ["1", "a", 1] }
+  - match: { values.1: ["1", "b", 2] }
+  - match: { values.2: ["2", null, null] }
+  - match: { values.3: ["3", "c", 3] }
+  - match: { values.4: ["3", "d", 4] }
+  - match: { values.5: ["3", "e", 5] }
+  - match: { values.6: ["3", "f", 6] }
+  - match: { values.7: ["3", "g", 7] }
+
+---
 "A query without NESTED_EXPAND does not expose nested fields":
   - do:
       catch: /Unknown column \[items.sku\]/

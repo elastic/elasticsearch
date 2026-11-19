@@ -12,8 +12,10 @@ import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocVector;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.AlwaysReferencedIndexedByShardId;
@@ -58,6 +60,7 @@ import java.util.stream.IntStream;
 public final class NestedChildren implements Releasable {
     /** Children per page, so a parent with many objects does not need them all in memory at once. */
     static final int PAGE_SIZE = 1024;
+    static final String BREAKER_LABEL = "nested_children";
 
     /**
      * One shard's filters selecting parents and the children of this nested field, both {@code null} where it is not mapped.
@@ -68,9 +71,10 @@ public final class NestedChildren implements Releasable {
     public record Factory(IndexedByShardId<Shard> shards, @Nullable ValuesSourceReaderOperator.Factory reader) {
         public NestedChildren get(DriverContext context) {
             if (reader == null) {
-                return new NestedChildren(context, shards, null, 0);
+                return new NestedChildren(context, shards, null, new ElementType[0]);
             }
-            return new NestedChildren(context, shards, (ValuesSourceReaderOperator) reader.get(context), reader.fields().size());
+            ElementType[] types = reader.fields().stream().map(ValuesSourceReaderOperator.FieldInfo::type).toArray(ElementType[]::new);
+            return new NestedChildren(context, shards, (ValuesSourceReaderOperator) reader.get(context), types);
         }
     }
 
@@ -218,14 +222,24 @@ public final class NestedChildren implements Releasable {
     private final IndexedByShardId<Shard> shards;
     @Nullable
     private final ValuesSourceReaderOperator reader;
+    private final ElementType[] types;
     /** Block 0 of each loaded page is the parent positions and the child fields follow it. */
     private final int[] projection;
+    /** Block 0 of each page the reader gives is the child documents and the child fields follow it. */
+    private final int[] fieldsProjection;
 
-    private NestedChildren(DriverContext context, IndexedByShardId<Shard> shards, @Nullable ValuesSourceReaderOperator reader, int fields) {
+    private NestedChildren(
+        DriverContext context,
+        IndexedByShardId<Shard> shards,
+        @Nullable ValuesSourceReaderOperator reader,
+        ElementType[] types
+    ) {
         this.context = context;
         this.shards = shards;
         this.reader = reader;
-        this.projection = IntStream.range(1, 2 + fields).toArray();
+        this.types = types;
+        this.projection = IntStream.range(1, 2 + types.length).toArray();
+        this.fieldsProjection = IntStream.range(1, 1 + types.length).toArray();
     }
 
     /**
@@ -342,6 +356,282 @@ public final class NestedChildren implements Releasable {
             consumer.accept(page);
         } finally {
             page.releaseBlocks();
+        }
+    }
+
+    /**
+     * A page of rows {@link Expansion#next} gives: row {@code i} of the page belongs to the parent at position
+     * {@code positions[offset + i]}. {@code fields} holds a block of {@code count} rows for each child field and is owned
+     * by the caller. {@code positions} is only valid until the next call to {@link Expansion#next}.
+     */
+    record Rows(int[] positions, int offset, int count, Block[] fields) {}
+
+    /**
+     * Expands the parents of {@code parents} into at most {@code maxRows} rows per call, one row per child in parent order,
+     * and one row of nulls for a parent without children. Unlike {@link #read}, it keeps its place in the parents, so a
+     * parent with more children than {@code maxRows} is read over several calls.
+     */
+    Expansion expand(DocVector parents, int maxRows) {
+        parents.ensureAttached("NESTED");
+        return new Expansion(parents, maxRows);
+    }
+
+    final class Expansion implements Releasable {
+        private static final int ARRAYS = 5;
+
+        private final DocVector parents;
+        private final int maxRows;
+        private final long reserved;
+        /** Parent position of each row of the batch. */
+        private final int[] rowParents;
+        /** Index in {@link #docs} of the child each row of the batch holds, or -1 for the row of a parent without children. */
+        private final int[] rowChildren;
+        private final int[] childShards;
+        private final int[] childSegments;
+        private final int[] docs;
+        private int rows;
+        private int children;
+        private int nextRow;
+        private int pendingChildren;
+        private boolean closed;
+
+        private int parent;
+        private boolean entered;
+        @Nullable
+        private BitSet siblings;
+        private int parentDoc;
+        private int nextChild;
+        private int shardId;
+        private int segment;
+
+        private Expansion(DocVector parents, int maxRows) {
+            if (maxRows < 1) {
+                throw new IllegalArgumentException("maxRows must be positive but was [" + maxRows + "]");
+            }
+            this.parents = parents;
+            this.maxRows = maxRows;
+            this.reserved = (long) ARRAYS * maxRows * Integer.BYTES;
+            context.breaker().addEstimateBytesAndMaybeBreak(reserved, BREAKER_LABEL);
+            this.rowParents = new int[maxRows];
+            this.rowChildren = new int[maxRows];
+            this.childShards = new int[maxRows];
+            this.childSegments = new int[maxRows];
+            this.docs = new int[maxRows];
+        }
+
+        boolean hasNext() {
+            return nextRow < rows || parent < parents.getPositionCount();
+        }
+
+        /**
+         * The next rows, at most {@code maxRows} of them, fewer when the reader splits the children it loaded into several pages.
+         */
+        Rows next() {
+            context.checkForEarlyTermination();
+            if (nextRow == rows) {
+                fill();
+            }
+            int start = nextRow;
+            if (reader == null) {
+                nextRow = rows;
+                return new Rows(rowParents, start, rows - start, new Block[0]);
+            }
+            if (pendingChildren == 0) {
+                nextRow = rows;
+                return new Rows(rowParents, start, rows - start, nulls(rows - start));
+            }
+            Page loaded = loadNext();
+            try {
+                int available = loaded.getPositionCount();
+                int end = start;
+                for (int taken = 0; end < rows && (rowChildren[end] < 0 || taken < available); end++) {
+                    if (rowChildren[end] >= 0) {
+                        taken++;
+                    }
+                }
+                pendingChildren -= available;
+                nextRow = end;
+                Block[] fields = fields(loaded, start, end);
+                loaded = null;
+                return new Rows(rowParents, start, end - start, fields);
+            } finally {
+                if (loaded != null) {
+                    loaded.releaseBlocks();
+                }
+            }
+        }
+
+        private Block[] nulls(int count) {
+            Block[] nulls = new Block[types.length];
+            try {
+                for (int f = 0; f < nulls.length; f++) {
+                    nulls[f] = context.blockFactory().newConstantNullBlock(count);
+                }
+                Block[] result = nulls;
+                nulls = null;
+                return result;
+            } finally {
+                if (nulls != null) {
+                    Releasables.closeExpectNoException(nulls);
+                }
+            }
+        }
+
+        /** The fields of rows {@code start} to {@code end}, which take their children from {@code loaded} in order. */
+        private Block[] fields(Page loaded, int start, int end) {
+            int count = end - start;
+            if (count == loaded.getPositionCount()) {
+                Block[] blocks = new Block[types.length];
+                for (int f = 0; f < blocks.length; f++) {
+                    blocks[f] = loaded.getBlock(f);
+                    blocks[f].incRef();
+                }
+                loaded.releaseBlocks();
+                return blocks;
+            }
+            Block.Builder[] builders = new Block.Builder[types.length];
+            Block[] blocks = new Block[types.length];
+            try {
+                for (int f = 0; f < builders.length; f++) {
+                    builders[f] = types[f].newBlockBuilder(count, context.blockFactory());
+                }
+                int from = 0;
+                for (int row = start; row < end;) {
+                    if (rowChildren[row] < 0) {
+                        for (Block.Builder builder : builders) {
+                            builder.appendNull();
+                        }
+                        row++;
+                        continue;
+                    }
+                    int run = row;
+                    while (row < end && rowChildren[row] >= 0) {
+                        row++;
+                    }
+                    for (int f = 0; f < builders.length; f++) {
+                        builders[f].copyFrom(loaded.getBlock(f), from, from + row - run);
+                    }
+                    from += row - run;
+                }
+                for (int f = 0; f < blocks.length; f++) {
+                    blocks[f] = builders[f].build();
+                }
+                loaded.releaseBlocks();
+                Block[] result = blocks;
+                blocks = null;
+                return result;
+            } finally {
+                Releasables.closeExpectNoException(builders);
+                if (blocks != null) {
+                    Releasables.closeExpectNoException(blocks);
+                }
+            }
+        }
+
+        private Page loadNext() {
+            Page out = reader.getOutput();
+            if (out == null) {
+                throw new IllegalStateException("the reader gave fewer children than were asked for");
+            }
+            try {
+                return out.projectBlocks(fieldsProjection);
+            } finally {
+                out.releaseBlocks();
+            }
+        }
+
+        /** Takes the rows of the next {@code maxRows} children and parents without children, and hands the children to the reader. */
+        private void fill() {
+            rows = 0;
+            children = 0;
+            nextRow = 0;
+            try {
+                while (rows < maxRows && parent < parents.getPositionCount()) {
+                    if (entered == false) {
+                        enter();
+                    }
+                    rowParents[rows] = parent;
+                    if (siblings == null) {
+                        rowChildren[rows++] = -1;
+                        parent++;
+                        entered = false;
+                        continue;
+                    }
+                    rowChildren[rows++] = children;
+                    childShards[children] = shardId;
+                    childSegments[children] = segment;
+                    docs[children++] = nextChild;
+                    nextChild = siblings.nextSetBit(nextChild + 1);
+                    if (nextChild >= parentDoc) {
+                        parent++;
+                        entered = false;
+                    }
+                }
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+            pendingChildren = children;
+            if (reader != null && children > 0) {
+                feed();
+            }
+        }
+
+        /** Finds the first child of the parent at {@link #parent}, if it has one. */
+        private void enter() throws IOException {
+            entered = true;
+            siblings = null;
+            shardId = parents.shards().getInt(parent);
+            segment = parents.segments().getInt(parent);
+            parentDoc = parents.docs().getInt(parent);
+            Shard shard = shards.get(shardId);
+            if (shard.children() == null || parentDoc == 0) {
+                return;
+            }
+            LeafReaderContext leaf = shard.reader().leaves().get(segment);
+            BitSet bits = shard.children().getBitSet(leaf);
+            if (bits == null) {
+                return;
+            }
+            int first = shard.parents().getBitSet(leaf).prevSetBit(parentDoc - 1) + 1;
+            int child = bits.nextSetBit(first);
+            if (child < parentDoc) {
+                siblings = bits;
+                nextChild = child;
+            }
+        }
+
+        private void feed() {
+            BlockFactory blockFactory = context.blockFactory();
+            IntVector shardVector = null;
+            IntVector segmentVector = null;
+            IntVector docVector = null;
+            DocVector childDocs = null;
+            try {
+                shardVector = blockFactory.newIntArrayVector(Arrays.copyOf(childShards, children), children);
+                segmentVector = blockFactory.newIntArrayVector(Arrays.copyOf(childSegments, children), children);
+                docVector = blockFactory.newIntArrayVector(Arrays.copyOf(docs, children), children);
+                childDocs = new DocVector(
+                    AlwaysReferencedIndexedByShardId.INSTANCE,
+                    shardVector,
+                    segmentVector,
+                    docVector,
+                    DocVector.config().mayContainDuplicates(parents.mayContainDuplicates())
+                );
+                shardVector = segmentVector = docVector = null;
+                Page input = new Page(childDocs.asBlock());
+                childDocs = null;
+                reader.addInput(input);
+            } finally {
+                Releasables.closeExpectNoException(shardVector, segmentVector, docVector, childDocs);
+            }
+        }
+
+        @Override
+        public void close() {
+            if (closed == false) {
+                closed = true;
+                context.breaker().addWithoutBreaking(-reserved);
+            }
         }
     }
 

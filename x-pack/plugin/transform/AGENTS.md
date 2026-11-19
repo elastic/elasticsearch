@@ -2,6 +2,28 @@
 
 Guidance for coding agents working in `x-pack/plugin/transform/` (Gradle `:x-pack:plugin:transform`, esplugin artifact `transform`). The repository-root `AGENTS.md` is authoritative for build toolchain, formatting, logging, transport-version, and general testing conventions — this file does not repeat them. Read the root `AGENTS.md` first; the notes below are transform-specific.
 
+## What transforms promise (preserve these in every change)
+
+A transform turns source indices into a summarized destination index — entity-centric (`pivot`) or latest-document-per-key (`latest`) — and, in continuous mode, keeps it eventually consistent with the source without anyone watching it. Changes must keep these guarantees:
+
+1. **The destination is a recomputation of the source.** Exactly one dest document per `group_by` / `unique_key` bucket, with a deterministic `_id` from `IDGenerator`, written as a full-document replace (`DocumentConversionUtils`). An aggregation that yields several values per bucket writes them into that one document; never fan a bucket out into multiple documents (`AggregationResultUtils`).
+2. **No silent data loss in continuous mode.** Checkpoint windows tile contiguously and half-open: from the previous checkpoint's stored upper bound to `now - sync.time.delay` (`TimeSyncConfig.getRangeQuery`). The delay is what protects documents that are indexed but not yet searchable; do not shorten, skip, or bypass it as an optimization.
+3. **Re-processing is idempotent.** The pagination cursor (composite `after_key`) only advances after a page has been both searched and indexed; a failed page is retried from the same cursor. Retries and overlapping re-reads must remain safe.
+4. **Optimizations never trade correctness for speed.** Model them on `align_checkpoints`: on by default, applied only where a precondition proves them safe, and exposed as a setting that can only *disable* them.
+5. **Transforms run unattended.** Transient failures retry with backoff (`TransformFailureHandler`); permanent failures fail fast with a descriptive reason. Users learn about problems through `TransformAuditor` messages, `_stats`, and health — not the server log.
+6. **Transforms run as their creator.** Source and destination access uses the stored headers/credentials of the user who created or last updated the transform (`ClientHelper.executeWithHeadersAsync`). Never access user data with elevated internal privileges; the transform origin alone is for the `.transform-*` internal indices.
+7. **Mixed-version clusters keep working.** Configs persist in `.transform-internal-*` and `TransformTaskParams` live in cluster state. Gate new wire fields on a `TransportVersion`. Never throw from a `PersistentTaskParams.writeTo` (it breaks cluster-state publication to older nodes); reject unsupported requests in `masterOperation` instead. `TransformConfig.getVersion()` is stamped at PUT and can gate version-dependent behavior.
+
+## Public contract: update together
+
+When a change alters a request, response, config field, setting, or user-visible behavior, update:
+
+- **REST spec JSON (this repo):** `rest-api-spec/src/main/resources/rest-api-spec/api/transform.*.json` and `cat.transforms.json`.
+- **API specification (`elastic/elasticsearch-specification`):** `specification/transform/<api>/` for requests/responses; `specification/transform/_types/Transform.ts` for the config and per-transform `Settings`. Annotate new fields with `@availability` and `@server_default`. The API reference docs are generated from this repo.
+- **Node/cluster settings docs (this repo):** `docs/reference/elasticsearch/configuration-reference/transforms-settings.md`.
+- **Conceptual docs (`elastic/docs-content`):** `explore-analyze/transforms/` — limitations, checkpoints, scaling guidance.
+- **Contract tests:** YAML REST specs in `src/yamlRestTest/resources/rest-api-spec/test/transform/`, and the xpack-core serialization tests (`AbstractChunkedSerializingTestCase` subclasses). A new transport-version-gated field must be nulled in `mutateForVersion` for every type that embeds it, or BWC serialization tests fail.
+
 ## Build & Test Commands
 
 The Gradle project path is `:x-pack:plugin:transform`. Run from the repository root. The top-level project declares three test source sets: `test` (unit), `internalClusterTest`, and `yamlRestTest`. `javaRestTest`/`integTest` tasks belong to the `qa/` subprojects, not here.

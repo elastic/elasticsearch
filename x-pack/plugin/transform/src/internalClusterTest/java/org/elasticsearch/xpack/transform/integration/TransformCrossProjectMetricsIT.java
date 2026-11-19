@@ -16,11 +16,17 @@ import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
+import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
+import org.elasticsearch.xpack.core.transform.transforms.QueryConfig;
+import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.latest.LatestConfig;
 import org.elasticsearch.xpack.transform.TransformSingleNodeTestCase;
 import org.elasticsearch.xpack.transform.telemetry.TransformCrossProjectMetrics;
 
 import java.util.Collection;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
@@ -115,6 +121,61 @@ public class TransformCrossProjectMetricsIT extends TransformSingleNodeTestCase 
         }, 30, TimeUnit.SECONDS);
 
         deleteTransform(transformId);
+    }
+
+    public void testCpsGaugesPublishForCompletedBatchTransform() throws Exception {
+        assumeTrue("Only relevant when CPS feature flag is on", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
+        var telemetry = getInstanceFromNode(PluginsService.class).filterPlugins(TestTelemetryPlugin.class).findFirst().orElseThrow();
+
+        var transformSrc = "reviews_cps_metrics_batch";
+        createSourceIndex(transformSrc);
+        indexRandomDiceDoc(transformSrc);
+
+        var transformId = "transform_cps_metrics_batch";
+        createTransform(
+            TransformConfig.builder()
+                .setId(transformId)
+                .setDest(new DestConfig(transformId, null, null))
+                .setSource(
+                    new SourceConfig(
+                        new String[] { transformSrc },
+                        QueryConfig.matchAll(),
+                        Map.of(),
+                        IndicesOptions.CPS_LENIENT_EXPAND_OPEN,
+                        null
+                    )
+                )
+                .setLatestConfig(new LatestConfig(List.of("roll"), "time"))
+                .build()
+        );
+        startTransform(transformId);
+
+        try {
+            // a batch transform deregisters as soon as its only checkpoint completes, usually well before the next poll;
+            // the poll still counts it once. No UIAM service locally -> legacy; no linked projects -> origin
+            assertBusy(() -> {
+                telemetry.resetMeter();
+                telemetry.collect();
+                assertThat(
+                    measurement(telemetry, TransformCrossProjectMetrics.TRANSFORM_CPS_UIAM_AUTH_CURRENT, "auth_type", "legacy"),
+                    equalTo(1L)
+                );
+                assertThat(
+                    measurement(telemetry, TransformCrossProjectMetrics.TRANSFORM_CPS_ACTIVE_CURRENT, "scope", "origin"),
+                    equalTo(1L)
+                );
+            }, 30, TimeUnit.SECONDS);
+
+            // counted by one poll only -> a later poll caches zero counts -> node emits nothing
+            assertBusy(() -> {
+                telemetry.resetMeter();
+                telemetry.collect();
+                assertThat(telemetry.getLongAsyncGaugeMeasurement(TransformCrossProjectMetrics.TRANSFORM_CPS_UIAM_AUTH_CURRENT), empty());
+                assertThat(telemetry.getLongAsyncGaugeMeasurement(TransformCrossProjectMetrics.TRANSFORM_CPS_ACTIVE_CURRENT), empty());
+            }, 30, TimeUnit.SECONDS);
+        } finally {
+            deleteTransform(transformId);
+        }
     }
 
     private static long measurement(TestTelemetryPlugin telemetry, String metric, String attribute, String value) {

@@ -765,6 +765,31 @@ public class DatafeedManagerTests extends ESTestCase {
         verifyNoInteractions(harness.datafeedConfigProvider(), harness.jobConfigProvider(), harness.client());
     }
 
+    public void testPutEsqlDatafeedWithNonUtcTimeZoneShouldRejectBeforeMintingCredential() {
+        assumeTrue("feature under test must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
+        SecurityEnabledPutHarness harness = newSecurityEnabledPutHarness(cpsWithSecurityEnabledSettings());
+        when(harness.credentialManager().hasCloudManagedCredential(any())).thenReturn(true);
+        DatafeedConfig datafeed = new DatafeedConfig.Builder("test-datafeed", "test-job").setEsqlQuery(
+            "SET time_zone=\"Europe/Berlin\"; FROM logs-*"
+        ).setSourceTimeField("@timestamp").setGroupingInterval(TimeValue.timeValueHours(1)).build();
+
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        harness.manager()
+            .putDatafeed(
+                new PutDatafeedAction.Request(datafeed),
+                mockClusterStateWithNoTasks(),
+                mockSecurityContextWithUser("df-user"),
+                harness.threadPool(),
+                ActionListener.wrap(r -> fail("expected failure"), failure::set)
+            );
+
+        assertThat(failure.get(), instanceOf(ElasticsearchStatusException.class));
+        assertThat(((ElasticsearchStatusException) failure.get()).status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(failure.get().getMessage(), containsString("UTC"));
+        // A rule ML enforces on the query alone must fail before a key is minted that would have to be revoked.
+        verifyNoInteractions(harness.apiKeyService(), harness.datafeedConfigProvider(), harness.jobConfigProvider());
+    }
+
     /**
      * The ES|QL {@code LIMIT 0} probe runs inside {@code validateDatafeedJobAndEsqlQuery} and must see the caller's security headers;
      * a failing validation must stop the put before anything is persisted or a credential is minted.

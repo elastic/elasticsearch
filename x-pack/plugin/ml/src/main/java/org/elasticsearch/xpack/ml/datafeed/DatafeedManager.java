@@ -273,7 +273,9 @@ public class DatafeedManager {
                 }
             });
         } else {
-            putDatafeed(request, threadPool.getThreadContext().getHeaders(), state, listener);
+            if (validateEsqlQueryStructure(request, listener)) {
+                putDatafeed(request, threadPool.getThreadContext().getHeaders(), state, listener);
+            }
         }
     }
 
@@ -666,6 +668,11 @@ public class DatafeedManager {
                 false,
                 false
             );
+            // After the access check, because parsing resolves views whose existence must not be disclosed to a caller without access,
+            // and before the cloud credential is minted, so a query ML rejects does not mint a key only to revoke it.
+            if (validateEsqlQueryStructure(request, listener) == false) {
+                return;
+            }
             CredentialTransitions.Intent intent = CredentialTransitions.decideForCreate(ctx);
             credentialTransitions.executePut(intent, request, clusterState, threadPool, securityContext, this::putDatafeed, listener);
         } else {
@@ -710,13 +717,6 @@ public class DatafeedManager {
         ClusterState clusterState,
         ActionListener<PutDatafeedAction.Response> listener
     ) {
-        // After authorization: parsing resolves views, whose existence must not be disclosed to a caller without access.
-        try {
-            esqlQueryValidator.validateQueryStructure(request.getDatafeed().getEsqlQuery(), crossProjectMlEnabled());
-        } catch (Exception e) {
-            listener.onFailure(e);
-            return;
-        }
         DatafeedConfig.validateAggregations(request.getDatafeed().getParsedAggregations(xContentRegistry));
         warnIfProjectRoutingIsInert(request.getDatafeed().getProjectRouting());
 
@@ -754,6 +754,17 @@ public class DatafeedManager {
         };
 
         checkJobDoesNotHaveADatafeed(request.getDatafeed().getJobId(), ActionListener.wrap(jobOk, listener::onFailure));
+    }
+
+    /** Fails {@code listener} and returns {@code false} when the ES|QL query breaks a rule ML enforces on the query alone. */
+    private boolean validateEsqlQueryStructure(PutDatafeedAction.Request request, ActionListener<?> listener) {
+        try {
+            esqlQueryValidator.validateQueryStructure(request.getDatafeed().getEsqlQuery(), crossProjectMlEnabled());
+            return true;
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return false;
+        }
     }
 
     private void warnIfProjectRoutingIsInert(@Nullable String projectRouting) {

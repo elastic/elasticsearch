@@ -341,4 +341,93 @@ public class CsvLogicalRecordReaderTests extends ESTestCase {
         String input = "ok,1\n" + "\"" + "x".repeat(18) + "\\\nzz\",2\n" + "fin,3\n";
         assertDrainsToFin(newEscapingReader(input), 32L);
     }
+
+    private static CsvLogicalRecordReader newBracketEscapingReader(String input) {
+        return new CsvLogicalRecordReader(
+            new BufferedReader(new StringReader(input)),
+            '"',
+            ',',
+            '\\',
+            20,
+            StandardCharsets.UTF_8,
+            true,
+            true
+        );
+    }
+
+    private static void assertBracketAwareDrainsToFin(CsvLogicalRecordReader reader, String input) throws IOException {
+        assertEquals("ok,1", reader.readRecord(true));
+        expectThrows(CsvRecordTooLargeException.class, () -> reader.readRecord(true));
+        assertEquals((long) input.indexOf("fin,3"), reader.bytesRead());
+        assertEquals("fin,3", reader.readRecord(true));
+    }
+
+    public void testRecordTooLargeInQuotedFieldDrainsPastALaterMultiLineBracket() throws IOException {
+        String input = "ok,1\n" + "\"" + "x".repeat(30) + "\nzz\",[a\nb],2\n" + "fin,3\n";
+        assertBracketAwareDrainsToFin(newCappedReader(input, 20), input);
+    }
+
+    public void testRecordTooLargeInBracketDrainsPastALaterMultiLineQuotedField() throws IOException {
+        String input = "ok,1\n" + "[" + "x".repeat(30) + "],\"a\nb\",2\n" + "fin,3\n";
+        assertBracketAwareDrainsToFin(newCappedReader(input, 20), input);
+    }
+
+    public void testRecordTooLargeInQuotedFieldDrainsPastABracketWithSeveralLineBreaks() throws IOException {
+        String input = "ok,1\n" + "\"" + "x".repeat(30) + "\nzz\",[a\nb\nc]\n" + "fin,3\n";
+        assertBracketAwareDrainsToFin(newCappedReader(input, 20), input);
+    }
+
+    public void testRecordTooLargeInBracketIgnoresAQuoteInsideTheBracket() throws IOException {
+        String input = "ok,1\n" + "[" + "x".repeat(30) + "\"\n\"],2\n" + "fin,3\n";
+        assertBracketAwareDrainsToFin(newCappedReader(input, 20), input);
+    }
+
+    public void testRecordTooLargeInQuotedFieldIgnoresABracketInsideTheQuotes() throws IOException {
+        String input = "ok,1\n" + "\"" + "x".repeat(30) + "[\n\",2\n" + "fin,3\n";
+        assertBracketAwareDrainsToFin(newCappedReader(input, 20), input);
+    }
+
+    public void testRecordTooLargeInQuotedFieldDrainsPastAnEscapedQuoteThenABracket() throws IOException {
+        String input = "ok,1\n" + "\"" + "x".repeat(30) + "\\\"\nzz\",[a\nb]\n" + "fin,3\n";
+        assertBracketAwareDrainsToFin(newBracketEscapingReader(input), input);
+    }
+
+    public void testTwoConsecutiveOversizedMultiLineRecordsAreEachDrained() throws IOException {
+        String input = "ok,1\n" + "\"" + "x".repeat(30) + "\nzz\",1\n" + "[" + "x".repeat(30) + "\nzz],2\n" + "fin,3\n";
+        CsvLogicalRecordReader reader = newCappedReader(input, 20);
+
+        assertEquals("ok,1", reader.readRecord(true));
+        expectThrows(CsvRecordTooLargeException.class, () -> reader.readRecord(true));
+        assertEquals((long) input.indexOf("[x"), reader.bytesRead());
+        expectThrows(CsvRecordTooLargeException.class, () -> reader.readRecord(true));
+        assertEquals((long) input.indexOf("fin,3"), reader.bytesRead());
+        assertEquals("fin,3", reader.readRecord(true));
+    }
+
+    public void testMultiLineRecordUnderTheCapIsReadWholeAfterAnOversizedOne() throws IOException {
+        String input = "ok,1\n" + "\"" + "x".repeat(30) + "\nzz\",1\n" + "\"ok\nline\",2\n" + "fin,3\n";
+        CsvLogicalRecordReader reader = newCappedReader(input, 20);
+
+        assertEquals("ok,1", reader.readRecord(true));
+        expectThrows(CsvRecordTooLargeException.class, () -> reader.readRecord(true));
+        assertEquals((long) input.indexOf("\"ok\nline"), reader.bytesRead());
+        String multiLine = reader.readRecord(true);
+        assertTrue(multiLine, multiLine.contains("ok\nline"));
+        assertEquals("fin,3", reader.readRecord(true));
+    }
+
+    public void testRecordTooLargeInQuotedFieldWithAnOpenBracketAtEofTerminates() throws IOException {
+        String input = "ok,1\n" + "\"" + "x".repeat(30) + "\nzz\",[a\nb";
+        CsvLogicalRecordReader reader = newCappedReader(input, 20);
+
+        assertEquals("ok,1", reader.readRecord(true));
+        expectThrows(CsvRecordTooLargeException.class, () -> reader.readRecord(true));
+        assertEquals((long) input.length(), reader.bytesRead());
+        assertNull(reader.readRecord(true));
+    }
+
+    public void testRecordTooLargeInQuotedFieldDrainsPastALaterBracketWithCrlf() throws IOException {
+        String input = "ok,1\r\n" + "\"" + "x".repeat(30) + "\r\nzz\",[a\r\nb]\r\n" + "fin,3\r\n";
+        assertBracketAwareDrainsToFin(newCappedReader(input, 20), input);
+    }
 }

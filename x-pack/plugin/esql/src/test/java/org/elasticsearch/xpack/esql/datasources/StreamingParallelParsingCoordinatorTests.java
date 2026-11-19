@@ -857,6 +857,130 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
+     * Same as {@link #testCloseDuringZstdDecodeAbortsTransportNotDecoder} but the iterator has no
+     * {@code StorageObject}. Close must still abort the raw GET through the {@code DecompressedStream}
+     * wrapper instead of skipping transport abort.
+     */
+    public void testCloseAbortsRawWhenDecompressedStreamHasNoStorageObject() throws Exception {
+        byte[] original = "x\n".repeat(256).getBytes(StandardCharsets.UTF_8);
+        byte[] compressed = zstdBytes(original);
+        CountDownLatch parked = new CountDownLatch(1);
+        CountDownLatch resume = new CountDownLatch(1);
+        AtomicInteger rawAborts = new AtomicInteger();
+        StorageObject raw = new AbstractTestStorageObject() {
+            @Override
+            public InputStream newStream() {
+                return new FilterInputStream(new ByteArrayInputStream(compressed)) {
+                    @Override
+                    public int read(byte[] b, int off, int len) throws IOException {
+                        parked.countDown();
+                        try {
+                            if (resume.await(15, TimeUnit.SECONDS) == false) {
+                                throw new IOException("raw read was not unblocked by close");
+                            }
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            throw new IOException("interrupted", e);
+                        }
+                        throw new IOException("aborted");
+                    }
+
+                    @Override
+                    public void close() throws IOException {
+                        resume.countDown();
+                        super.close();
+                    }
+                };
+            }
+
+            @Override
+            public void abortStream(InputStream stream) throws IOException {
+                rawAborts.incrementAndGet();
+                stream.close();
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) {
+                return newStream();
+            }
+
+            @Override
+            public long length() {
+                return compressed.length;
+            }
+
+            @Override
+            public Instant lastModified() {
+                return Instant.EPOCH;
+            }
+
+            @Override
+            public boolean exists() {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return StoragePath.of("mem://zstd-close-no-storage-object");
+            }
+        };
+        ThreadSensitiveZstdCodec codec = new ThreadSensitiveZstdCodec();
+        DecompressingStorageObject decompressing = new DecompressingStorageObject(raw, codec);
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            CloseableIterator<Page> iter = StreamingParallelParsingCoordinator.parallelRead(
+                new LineFormatReader(512),
+                decompressing::newStream,
+                null,
+                List.of("line"),
+                50,
+                2,
+                executor,
+                ErrorPolicy.STRICT,
+                null,
+                0L,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                null,
+                -1L,
+                StripeColumnScope.PROJECTED,
+                StreamingParallelParsingCoordinator.WarningSinks.NONE,
+                StreamingSegmentatorAdmission.unbounded(),
+                new NoopCircuitBreaker("streaming-parse-test"),
+                ExternalReadCounters.NOOP,
+                null
+            );
+            safeAwait(parked);
+            CountDownLatch closed = new CountDownLatch(1);
+            AtomicReference<Exception> closeFailure = new AtomicReference<>();
+            Thread closeThread = new Thread(() -> {
+                try {
+                    iter.close();
+                } catch (Exception e) {
+                    closeFailure.set(e);
+                } finally {
+                    closed.countDown();
+                }
+            }, "zstd-no-so-closer");
+            closeThread.start();
+            try {
+                assertTrue("close() must return promptly after aborting the raw GET", closed.await(5, TimeUnit.SECONDS));
+            } finally {
+                closeThread.join(TimeUnit.SECONDS.toMillis(5));
+            }
+            assertFalse("closer must exit after aborting the raw GET", closeThread.isAlive());
+            assertNull(closeFailure.get());
+            assertThat("raw GET must be aborted from close without a StorageObject", rawAborts.get(), Matchers.greaterThanOrEqualTo(1));
+            assertFalse("decoder must not be closed while the segmentator is in read()", codec.closedWhileRead.get());
+            assertNotNull("segmentator finally must close the decoder", codec.decoderCloseThread.get());
+            assertNotEquals(closeThread, codec.decoderCloseThread.get());
+            assertNull(iter.tryAdvance());
+        } finally {
+            resume.countDown();
+            executor.shutdownNow();
+        }
+    }
+
+    /**
      * Interrupt the closer while the zstd segmentator is still in {@code read()}. Abort does not
      * wake the GET, so {@code tasksOutstanding} stays above zero; close must skip the decoder backstop.
      */

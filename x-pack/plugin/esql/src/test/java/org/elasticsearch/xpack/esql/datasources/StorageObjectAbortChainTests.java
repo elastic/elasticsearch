@@ -174,15 +174,16 @@ public class StorageObjectAbortChainTests extends ESTestCase {
         InputStream stream = chain.newStream();
         assertArrayEquals(original, stream.readAllBytes());
         // The gzip decoder reads its input to -1 itself, so it hits the reset and the retry layer resumes during the
-        // read. Only what close() adds is the release's.
+        // read. Resume abortStream-discards the reset GET; only what close() adds is the release's.
         int opensBeforeClose = raw.opens.get();
         long retriesBeforeClose = retryable.metrics().retryCount();
+        int abortsBeforeClose = raw.abortCalls.get();
         stream.close();
 
         assertTrue("the end-of-body read must have hit the reset", raw.endOfBodyFaulted.get());
         assertEquals("a fault on the end-of-body read must not re-open the object", opensBeforeClose, raw.opens.get());
         assertEquals("a fault on the end-of-body read must not count a retry", retriesBeforeClose, retryable.metrics().retryCount());
-        assertEquals("abortStream must be invoked exactly once", 1, raw.abortCalls.get());
+        assertEquals("teardown must abort the current GET exactly once", abortsBeforeClose + 1, raw.abortCalls.get());
     }
 
     /**

@@ -3779,7 +3779,11 @@ public class RetryableStorageObjectTests extends ESTestCase {
         @Override
         public void abortStream(InputStream stream) {
             lastAborted = stream;
-            release.countDown();
+            // Discarding the faulted first GET must not unpark the resume open. Only an abort
+            // after the resume newStream has started (opens >= 2) releases the park.
+            if (opens >= 2) {
+                release.countDown();
+            }
         }
 
         @Override

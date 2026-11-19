@@ -1082,13 +1082,12 @@ public final class StreamingParallelParsingCoordinator {
                 return;
             }
             try {
-                if (storageObject instanceof DecompressingStorageObject decompressing) {
-                    decompressing.abortTransport(stream);
+                if (DecompressingStorageObject.isDecompressedStream(stream)) {
+                    // Wrapper owns the raw GET even when this coordinator has no StorageObject.
+                    DecompressingStorageObject.abortRawTransport(stream);
                 } else if (storageObject != null) {
                     storageObject.abortStream(stream);
-                } else if (DecompressingStorageObject.isDecompressedStream(stream) == false) {
-                    // Raw test streams. A DecompressedStream without a StorageObject is closed later
-                    // on the segmentator thread; closing it here is a native use-after-free.
+                } else {
                     stream.close();
                 }
             } catch (Exception e) {

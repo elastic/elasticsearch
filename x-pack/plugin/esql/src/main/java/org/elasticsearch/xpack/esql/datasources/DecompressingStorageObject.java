@@ -232,8 +232,8 @@ final class DecompressingStorageObject implements StorageObject {
      * thread that owns it. Does not claim {@link DecompressedStream}'s closed CAS.
      */
     void abortTransport(InputStream stream) throws IOException {
-        if (stream instanceof DecompressedStream ds) {
-            ds.abortRawOnly();
+        if (isDecompressedStream(stream)) {
+            abortRawTransport(stream);
             return;
         }
         abortStream(stream);
@@ -242,6 +242,17 @@ final class DecompressingStorageObject implements StorageObject {
     /** True when {@code stream} is this class's decoder wrapper. Parse close must not {@code close()} it. */
     static boolean isDecompressedStream(InputStream stream) {
         return stream instanceof DecompressedStream;
+    }
+
+    /**
+     * Abort the raw GET of a {@link DecompressedStream} without closing the decoder. No-op when
+     * {@code stream} is not that wrapper. Safe when parse close has no {@link StorageObject}: the
+     * wrapper still owns the raw stream.
+     */
+    static void abortRawTransport(InputStream stream) throws IOException {
+        if (stream instanceof DecompressedStream ds) {
+            ds.abortRawOnly();
+        }
     }
 
     /**

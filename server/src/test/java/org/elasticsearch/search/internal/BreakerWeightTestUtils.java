@@ -34,7 +34,8 @@ import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Helpers shared by the tests of the {@link ContextIndexSearcher} weights that charge per-leaf execution RAM
- * to the request breaker ({@link PointRangeBreakerWeightTests}, {@link MultiTermBreakerWeightTests}).
+ * to the request breaker ({@link PointRangeBreakerWeightTests}, {@link MultiTermBreakerWeightTests},
+ * {@link PointsExecutionBreakerTests}).
  */
 final class BreakerWeightTestUtils {
 

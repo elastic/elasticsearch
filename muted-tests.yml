@@ -662,19 +662,10 @@ tests:
   method: testFailedQueryMidScanIsMetered
   issue: https://github.com/elastic/elasticsearch/issues/166565
 - class: org.elasticsearch.search.heappressure.ManyBitsetClausesHeapPressureIT
-  method: testIpTermsClauses
-  issue: https://github.com/elastic/elasticsearch/issues/166396
-- class: org.elasticsearch.search.heappressure.ManyBitsetClausesHeapPressureIT
-  method: testLongTermsClauses
-  issue: https://github.com/elastic/elasticsearch/issues/166396
-- class: org.elasticsearch.search.heappressure.ManyBitsetClausesHeapPressureIT
   method: testGeoDistanceClauses
   issue: https://github.com/elastic/elasticsearch/issues/166396
 - class: org.elasticsearch.search.heappressure.ManyBitsetClausesHeapPressureIT
   method: testGeoShapeOnGeoPointClauses
-  issue: https://github.com/elastic/elasticsearch/issues/166396
-- class: org.elasticsearch.search.heappressure.ManyBitsetClausesHeapPressureIT
-  method: testLongRangeFieldClauses
   issue: https://github.com/elastic/elasticsearch/issues/166396
 - class: org.elasticsearch.search.heappressure.AggregationBitsetHeapPressureIT
   method: testSignificantTermsBackgroundFilters

@@ -13,7 +13,6 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.CollectionTerminatedException;
@@ -22,11 +21,9 @@ import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.ConjunctionUtils;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchNoDocsQuery;
-import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
@@ -40,8 +37,8 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.search.BitsIterator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.lucene.search.CostlyMultiTermQueries;
 import org.elasticsearch.search.dfs.AggregatedDfs;
+import org.elasticsearch.search.internal.ExecutionEstimators.ExecutionCharge;
 import org.elasticsearch.search.profile.Timer;
 import org.elasticsearch.search.profile.query.ProfileWeight;
 import org.elasticsearch.search.profile.query.QueryProfileBreakdown;
@@ -384,17 +381,12 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         if (executionAccounting.breaker() == null) {
             return weight;
         }
-        PointRangeQuery pointRangeQuery = pointRangeQueryOrNull(query);
-        if (pointRangeQuery != null) {
-            executionAccounting.ensureCreated();
-            return new PointRangeBreakerWeight(this, weight, pointRangeQuery, query instanceof IndexOrDocValuesQuery);
+        final ExecutionCharge charge = ExecutionEstimators.forQuery(query);
+        if (charge == null) {
+            return weight;
         }
-        Query multiTermQuery = multiTermQueryOrNull(unwrapBoost(query));
-        if (multiTermQuery != null) {
-            executionAccounting.ensureCreated();
-            return new MultiTermBreakerWeight(this, weight, multiTermQuery, unwrapBoost(query) instanceof IndexOrDocValuesQuery);
-        }
-        return weight;
+        executionAccounting.ensureCreated();
+        return new ExecutionBreakerWeight(this, weight, charge);
     }
 
     /**
@@ -412,35 +404,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     /** Test-only */
     boolean hasLeafExecutionAccounting() {
         return executionAccounting.hasLeafAccounting();
-    }
-
-    private static PointRangeQuery pointRangeQueryOrNull(Query query) {
-        if (query instanceof PointRangeQuery prq) {
-            return prq;
-        }
-        if (query instanceof IndexOrDocValuesQuery iodvq && iodvq.getIndexQuery() instanceof PointRangeQuery prq) {
-            return prq;
-        }
-        return null;
-    }
-
-    @Nullable
-    private static Query multiTermQueryOrNull(Query query) {
-        if (query instanceof IndexOrDocValuesQuery iodvq) {
-            query = iodvq.getIndexQuery();
-        }
-        return CostlyMultiTermQueries.isCostlyMultiTermQuery(query) ? query : null;
-    }
-
-    /**
-     * Unwraps {@link BoostQuery} only. {@link ConstantScoreQuery#createWeight} recurses through this override, so its child is
-     * already wrapped once; unwrapping it here too would double-charge.
-     */
-    private static Query unwrapBoost(Query query) {
-        while (query instanceof BoostQuery boostQuery) {
-            query = boostQuery.getQuery();
-        }
-        return query;
     }
 
     /**

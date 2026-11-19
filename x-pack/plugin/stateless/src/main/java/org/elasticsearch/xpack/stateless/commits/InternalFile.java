@@ -20,9 +20,7 @@ import java.io.IOException;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
- * A file stored inside a blob, with its length. It is not part of {@link StatelessCompoundCommit} because blobs other than compound
- * commits store files too. Its natural order is by length and then by name, and its XContent encoding is persisted in the header of
- * compound commits.
+ * A file stored inside a blob, with its length. Its natural order is by length and then by name.
  */
 record InternalFile(String name, long length) implements Writeable, ToXContentObject, Comparable<InternalFile> {
 

@@ -39,10 +39,7 @@ public interface MergedSegmentListener {
     /// A listener that does nothing.
     MergedSegmentListener NOOP = (segment, isAborted, listener) -> listener.onResponse(null);
 
-    /// @param segment   the reader of the segment produced by the merge, whose files are complete. It is only valid until the listener is
-    ///                  completed, after which it is released: it must not be used after that, nor retained. The segment info that it
-    ///                  gives is the one of the index writer, whose deletes are not carried over yet and are changed when the merge is
-    ///                  committed.
+    /// @param segment   the reader of the segment produced by the merge, whose files are complete. It must not be retained.
     /// @param isAborted whether the merge is aborted, e.g. because the engine is closing. The listener must still be completed.
     /// @param listener  completed once the segment can be committed, or with the failure if what had to happen first could not
     void onNewSegmentMerged(SegmentReader segment, BooleanSupplier isAborted, ActionListener<Void> listener);

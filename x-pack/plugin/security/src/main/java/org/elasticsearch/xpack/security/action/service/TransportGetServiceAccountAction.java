@@ -15,6 +15,7 @@ import org.elasticsearch.core.Predicates;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.security.action.service.AuthorizedServiceAccounts;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountAction;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountRequest;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountResponse;
@@ -33,6 +34,9 @@ import java.util.function.Predicate;
  * Reports the service accounts a request selects. Built-in accounts are known to every node, while user-managed ones
  * have to be read from the account store, so a request naming both kinds is answered from two sources and merged.
  * When asked, the profile uids of the user-managed accounts' authors are looked up subsequently.
+ * <p>
+ * A request that authorization restricted to the caller's authorized accounts reports only those. The response is not
+ * paged, so dropping the other accounts after the read leaves nothing inconsistent.
  */
 public class TransportGetServiceAccountAction extends HandledTransportAction<GetServiceAccountRequest, GetServiceAccountResponse> {
 
@@ -59,7 +63,8 @@ public class TransportGetServiceAccountAction extends HandledTransportAction<Get
 
     @Override
     protected void doExecute(Task task, GetServiceAccountRequest request, ActionListener<GetServiceAccountResponse> listener) {
-        final List<ServiceAccountInfo> builtInInfos = request.getType().contains(ServiceAccountType.BUILT_IN)
+        final AuthorizedServiceAccounts authorizedAccounts = request.getAuthorizedAccounts();
+        final List<ServiceAccountInfo> builtInInfos = request.getType().contains(ServiceAccountType.BUILT_IN) && authorizedAccounts == null
             ? builtInAccountInfos(request)
             : List.of();
         if (request.getType().contains(ServiceAccountType.USER_MANAGED) == false) {
@@ -69,7 +74,10 @@ public class TransportGetServiceAccountAction extends HandledTransportAction<Get
         serviceAccountService.getUserManagedAccountInfos(
             request.getNamespace(),
             request.getServiceName(),
-            listener.delegateFailureAndWrap((delegate, userManagedInfos) -> {
+            listener.delegateFailureAndWrap((delegate, allUserManagedInfos) -> {
+                final List<ServiceAccountInfo> userManagedInfos = authorizedAccounts == null
+                    ? allUserManagedInfos
+                    : allUserManagedInfos.stream().filter(info -> authorizedAccounts.test(info.principal())).toList();
                 if (request.withProfileUid()) {
                     ServiceAccountAuthorProfileUids.resolve(
                         profileService,

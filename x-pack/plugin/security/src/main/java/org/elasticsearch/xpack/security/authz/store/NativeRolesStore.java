@@ -92,6 +92,7 @@ import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClust
 import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.NONE;
 import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.ROLE_REMOTE_CLUSTER_PRIVS;
 import static org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges.DatasourcePrivileges.ESQL_DATASOURCE_PRIVILEGE;
+import static org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges.ManageServiceAccountsPrivilege.SERVICE_ACCOUNT_MANAGE_PRIVILEGE;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.PRIMARY_SHARDS;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.SEARCH_SHARDS;
 import static org.elasticsearch.xpack.security.support.SecurityMigrations.ROLE_METADATA_FLATTENED_MIGRATION_VERSION;
@@ -507,7 +508,15 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                                     + ESQL_DATASOURCE_PRIVILEGE.toReleaseVersion()
                                     + "] or higher to support the datasource privilege"
                             );
-                        }
+                        } else if (Arrays.stream(role.getConditionalClusterPrivileges())
+                            .anyMatch(privilege -> privilege instanceof ConfigurableClusterPrivileges.ManageServiceAccountsPrivilege)
+                            && clusterService.state().getMinTransportVersion().supports(SERVICE_ACCOUNT_MANAGE_PRIVILEGE) == false) {
+                                return new IllegalStateException(
+                                    "all nodes must have version ["
+                                        + SERVICE_ACCOUNT_MANAGE_PRIVILEGE.toReleaseVersion()
+                                        + "] or higher to support the service account manage privilege"
+                                );
+                            }
         try {
             DLSRoleQueryValidator.validateQueryField(role.getIndicesPrivileges(), xContentRegistry);
         } catch (ElasticsearchException | IllegalArgumentException e) {

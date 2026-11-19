@@ -179,6 +179,11 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, SearchPlu
                 ),
                 new NamedWriteableRegistry.Entry(
                     ConfigurableClusterPrivilege.class,
+                    ConfigurableClusterPrivileges.ManageServiceAccountsPrivilege.WRITEABLE_NAME,
+                    ConfigurableClusterPrivileges.ManageServiceAccountsPrivilege::createFrom
+                ),
+                new NamedWriteableRegistry.Entry(
+                    ConfigurableClusterPrivilege.class,
                     ConfigurableClusterPrivileges.DatasourcePrivileges.WRITEABLE_NAME,
                     ConfigurableClusterPrivileges.DatasourcePrivileges::createFrom
                 ),

@@ -34,6 +34,21 @@ import org.elasticsearch.xpack.core.security.action.role.DeleteRoleAction;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleRequest;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleAction;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleRequest;
+import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenRequest;
+import org.elasticsearch.xpack.core.security.action.service.CreateUserManagedServiceAccountTokenAction;
+import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenRequest;
+import org.elasticsearch.xpack.core.security.action.service.DeleteUserManagedServiceAccountAction;
+import org.elasticsearch.xpack.core.security.action.service.DeleteUserManagedServiceAccountRequest;
+import org.elasticsearch.xpack.core.security.action.service.DeleteUserManagedServiceAccountTokenAction;
+import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountAction;
+import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsAction;
+import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsRequest;
+import org.elasticsearch.xpack.core.security.action.service.PutUserManagedServiceAccountAction;
+import org.elasticsearch.xpack.core.security.action.service.PutUserManagedServiceAccountRequest;
+import org.elasticsearch.xpack.core.security.action.service.QueryServiceAccountAction;
+import org.elasticsearch.xpack.core.security.action.service.ServiceAccountReadRequest;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount.ServiceAccountId;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
@@ -102,6 +117,11 @@ public final class ConfigurableClusterPrivileges {
     ) throws IOException {
         builder.startObject();
         for (Category category : Category.values()) {
+            if (category == Category.SERVICE_ACCOUNT && privileges.stream().noneMatch(p -> p.getCategory() == Category.SERVICE_ACCOUNT)) {
+                // Written only when present: an empty object is a field that older nodes cannot parse and that the strict
+                // security index mapping rejects until it is upgraded.
+                continue;
+            }
             if (category == Category.DATASOURCE) {
                 builder.startArray(category.field.getPreferredName());
                 for (ConfigurableClusterPrivilege privilege : privileges) {
@@ -134,7 +154,14 @@ public final class ConfigurableClusterPrivileges {
         while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
             expectedToken(parser.currentToken(), parser, XContentParser.Token.FIELD_NAME);
 
-            expectFieldName(parser, Category.APPLICATION.field, Category.PROFILE.field, Category.ROLE.field, Category.DATASOURCE.field);
+            expectFieldName(
+                parser,
+                Category.APPLICATION.field,
+                Category.PROFILE.field,
+                Category.ROLE.field,
+                Category.DATASOURCE.field,
+                Category.SERVICE_ACCOUNT.field
+            );
             if (Category.APPLICATION.field.match(parser.currentName(), parser.getDeprecationHandler())) {
                 expectedToken(parser.nextToken(), parser, XContentParser.Token.START_OBJECT);
                 while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
@@ -164,6 +191,14 @@ public final class ConfigurableClusterPrivileges {
                 DatasourcePrivileges datasourcePrivileges = DatasourcePrivileges.parseArray(parser);
                 if (datasourcePrivileges != null) {
                     privileges.add(datasourcePrivileges);
+                }
+            } else if (Category.SERVICE_ACCOUNT.field.match(parser.currentName(), parser.getDeprecationHandler())) {
+                expectedToken(parser.nextToken(), parser, XContentParser.Token.START_OBJECT);
+                while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                    expectedToken(parser.currentToken(), parser, XContentParser.Token.FIELD_NAME);
+
+                    expectFieldName(parser, ManageServiceAccountsPrivilege.Fields.MANAGE);
+                    privileges.add(ManageServiceAccountsPrivilege.parse(parser));
                 }
             }
         }
@@ -944,6 +979,214 @@ public final class ConfigurableClusterPrivileges {
             ParseField INDICES = new ParseField("indices");
             ParseField PRIVILEGES = new ParseField("privileges");
             ParseField NAMES = new ParseField("names");
+        }
+    }
+
+    /**
+     * Delegates the administration of user-managed service accounts and their tokens without handing out
+     * {@code manage_security}. The grant names the accounts its holder may write, as wildcard-aware patterns over the
+     * {@code namespace/service-name} principal, and the roles they may give those accounts, as patterns of the same kind
+     * over role names. An administrator approves the role patterns once; the holder can then write the named accounts
+     * freely but never give one a role the patterns do not match. The holder's own privileges are never consulted.
+     * <p>
+     * A write replaces the account wholesale and authorization sees only the request, so every role the request lists
+     * must match the grant, not only the ones being added: a holder cannot keep an unmatched role on an account they write.
+     * Each grant is checked on its own, so holding two grants does not allow writing one grant's roles on the other's
+     * accounts.
+     * A role pattern also covers roles created after the grant, and is matched against names alone, so a pattern such as
+     * {@code *} covers every role, reserved roles such as {@code superuser} included.
+     * <p>
+     * The holder may create tokens for every account the grant names, whatever roles the account holds: roles are
+     * checked when an account is written, not when a token is created for it. The names are therefore an ownership
+     * boundary. An account that someone else gave roles beyond the grant, an administrator or the holder of another grant
+     * with overlapping names, is one whose tokens this holder can create too, so names should cover accounts that belong
+     * to the holder alone. The holder may delete the tokens of the same accounts, so that what they create they can also
+     * revoke, and list their token names, which deleting a token requires. Listing is shared with built-in accounts under
+     * one action, so it refuses the built-in namespace whatever the names cover.
+     * <p>
+     * The holder may delete the accounts the grant names, whatever roles they hold, by the same ownership reasoning: a
+     * write already replaces such an account wholesale.
+     * <p>
+     * The holder may also get and query the accounts the grant names. Those requests select accounts rather than
+     * naming them, so this grants them only once authorization has restricted them to the covered accounts through
+     * {@link ServiceAccountReadRequest#restrictToAuthorizedAccounts}.
+     */
+    public static class ManageServiceAccountsPrivilege implements ConfigurableClusterPrivilege {
+        public static final String WRITEABLE_NAME = "manage-service-accounts-privilege";
+
+        public static final TransportVersion SERVICE_ACCOUNT_MANAGE_PRIVILEGE = TransportVersion.fromName(
+            "service_account_manage_privilege"
+        );
+
+        private final Set<String> names;
+        private final Set<String> roles;
+        private final Predicate<TransportRequest> requestPredicate;
+
+        public ManageServiceAccountsPrivilege(Set<String> names, Set<String> roles) {
+            if (names == null || names.isEmpty()) {
+                throw new IllegalArgumentException(
+                    "service account manage privileges must refer to at least one service account name or pattern"
+                );
+            }
+            if (roles == null) {
+                throw new IllegalArgumentException("service account manage privileges must define the roles that may be assigned");
+            }
+            this.names = Collections.unmodifiableSet(names);
+            this.roles = Collections.unmodifiableSet(roles);
+            final Predicate<String> namePredicate = StringMatcher.of(names);
+            final Predicate<String> rolePredicate = StringMatcher.of(roles);
+            this.requestPredicate = request -> {
+                if (request instanceof final PutUserManagedServiceAccountRequest putRequest) {
+                    return namePredicate.test(putRequest.getAccountId().asPrincipal())
+                        && putRequest.getRoles().stream().allMatch(rolePredicate);
+                } else if (request instanceof final CreateServiceAccountTokenRequest tokenRequest) {
+                    return namePredicate.test(
+                        new ServiceAccountId(tokenRequest.getNamespace(), tokenRequest.getServiceName()).asPrincipal()
+                    );
+                } else if (request instanceof final DeleteServiceAccountTokenRequest tokenRequest) {
+                    return namePredicate.test(
+                        new ServiceAccountId(tokenRequest.getNamespace(), tokenRequest.getServiceName()).asPrincipal()
+                    );
+                } else if (request instanceof final DeleteUserManagedServiceAccountRequest deleteRequest) {
+                    return namePredicate.test(deleteRequest.getAccountId().asPrincipal());
+                } else if (request instanceof final GetServiceAccountCredentialsRequest credentialsRequest) {
+                    return ServiceAccountSettings.BUILTIN_NAMESPACE.equals(credentialsRequest.getNamespace()) == false
+                        && namePredicate.test(
+                            new ServiceAccountId(credentialsRequest.getNamespace(), credentialsRequest.getServiceName()).asPrincipal()
+                        );
+                } else if (request instanceof final ServiceAccountReadRequest readRequest) {
+                    return readRequest.getAuthorizedAccounts() != null;
+                }
+                return false;
+            };
+        }
+
+        @Override
+        public Category getCategory() {
+            return Category.SERVICE_ACCOUNT;
+        }
+
+        public Set<String> getNames() {
+            return names;
+        }
+
+        public Set<String> getRoles() {
+            return roles;
+        }
+
+        @Override
+        public String getWriteableName() {
+            return WRITEABLE_NAME;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeStringCollection(names);
+            out.writeStringCollection(roles);
+        }
+
+        public static ManageServiceAccountsPrivilege createFrom(StreamInput in) throws IOException {
+            final Set<String> names = in.readCollectionAsSet(StreamInput::readString);
+            final Set<String> roles = in.readCollectionAsSet(StreamInput::readString);
+            return new ManageServiceAccountsPrivilege(names, roles);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder.startObject(Fields.MANAGE.getPreferredName())
+                .field(Fields.NAMES.getPreferredName(), names)
+                .field(Fields.ROLES.getPreferredName(), roles)
+                .endObject();
+        }
+
+        public static ManageServiceAccountsPrivilege parse(XContentParser parser) throws IOException {
+            expectedToken(parser.currentToken(), parser, XContentParser.Token.FIELD_NAME);
+            expectFieldName(parser, Fields.MANAGE);
+            expectedToken(parser.nextToken(), parser, XContentParser.Token.START_OBJECT);
+            String[] names = null;
+            String[] roles = null;
+            while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                expectedToken(parser.currentToken(), parser, XContentParser.Token.FIELD_NAME);
+                expectFieldName(parser, Fields.NAMES, Fields.ROLES);
+                final boolean isNames = Fields.NAMES.match(parser.currentName(), parser.getDeprecationHandler());
+                expectedToken(parser.nextToken(), parser, XContentParser.Token.START_ARRAY);
+                final String[] values = XContentUtils.readStringArray(parser, false);
+                if (isNames) {
+                    names = values;
+                } else {
+                    roles = values;
+                }
+            }
+            if (names == null || roles == null) {
+                throw new XContentParseException(
+                    parser.getTokenLocation(),
+                    "failed to parse privilege. ["
+                        + Fields.MANAGE.getPreferredName()
+                        + "] requires both ["
+                        + Fields.NAMES.getPreferredName()
+                        + "] and ["
+                        + Fields.ROLES.getPreferredName()
+                        + "]"
+                );
+            }
+            return new ManageServiceAccountsPrivilege(new LinkedHashSet<>(Arrays.asList(names)), new LinkedHashSet<>(Arrays.asList(roles)));
+        }
+
+        @Override
+        public String toString() {
+            return "{"
+                + getCategory()
+                + ":"
+                + Fields.MANAGE.getPreferredName()
+                + ":"
+                + Fields.NAMES.getPreferredName()
+                + "="
+                + Strings.collectionToDelimitedString(names, ",")
+                + ":"
+                + Fields.ROLES.getPreferredName()
+                + "="
+                + Strings.collectionToDelimitedString(roles, ",")
+                + "}";
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            final ManageServiceAccountsPrivilege that = (ManageServiceAccountsPrivilege) o;
+            return names.equals(that.names) && roles.equals(that.roles);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(names, roles);
+        }
+
+        @Override
+        public ClusterPermission.Builder buildPermission(final ClusterPermission.Builder builder) {
+            return builder.add(
+                this,
+                Set.of(
+                    PutUserManagedServiceAccountAction.NAME,
+                    DeleteUserManagedServiceAccountAction.NAME,
+                    CreateUserManagedServiceAccountTokenAction.NAME,
+                    DeleteUserManagedServiceAccountTokenAction.NAME,
+                    GetServiceAccountCredentialsAction.NAME,
+                    GetServiceAccountAction.NAME,
+                    QueryServiceAccountAction.NAME
+                ),
+                requestPredicate
+            );
+        }
+
+        private interface Fields {
+            ParseField MANAGE = new ParseField("manage");
+            ParseField NAMES = new ParseField("names");
+            ParseField ROLES = new ParseField("roles");
         }
     }
 }

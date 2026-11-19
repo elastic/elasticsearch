@@ -18,6 +18,7 @@ import org.elasticsearch.search.sort.FieldSortBuilder;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -30,7 +31,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * <p>
  * Local-only: the node that receives the REST request runs the search itself, so the request is never serialized.
  */
-public final class QueryServiceAccountRequest extends UntypedActionRequest {
+public final class QueryServiceAccountRequest extends UntypedActionRequest implements ServiceAccountReadRequest {
 
     @Nullable
     private final QueryBuilder queryBuilder;
@@ -43,6 +44,8 @@ public final class QueryServiceAccountRequest extends UntypedActionRequest {
     @Nullable
     private final SearchAfterBuilder searchAfterBuilder;
     private final boolean withProfileUid;
+    @Nullable
+    private AuthorizedServiceAccounts authorizedAccounts;
 
     public QueryServiceAccountRequest(
         @Nullable QueryBuilder queryBuilder,
@@ -92,6 +95,17 @@ public final class QueryServiceAccountRequest extends UntypedActionRequest {
 
     public boolean withProfileUid() {
         return withProfileUid;
+    }
+
+    @Override
+    @Nullable
+    public AuthorizedServiceAccounts getAuthorizedAccounts() {
+        return authorizedAccounts;
+    }
+
+    @Override
+    public void restrictToAuthorizedAccounts(AuthorizedServiceAccounts authorizedAccounts) {
+        this.authorizedAccounts = Objects.requireNonNull(authorizedAccounts);
     }
 
     @Override

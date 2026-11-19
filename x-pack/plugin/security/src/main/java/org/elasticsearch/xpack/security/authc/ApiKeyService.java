@@ -163,6 +163,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.MANAGE_ROLES_PRIVILEGE;
 import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.ROLE_REMOTE_CLUSTER_PRIVS;
 import static org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges.DatasourcePrivileges.ESQL_DATASOURCE_PRIVILEGE;
+import static org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges.ManageServiceAccountsPrivilege.SERVICE_ACCOUNT_MANAGE_PRIVILEGE;
 import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.security.SecurityFeatures.CERTIFICATE_IDENTITY_FIELD_FEATURE;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.PRIMARY_SHARDS;
@@ -495,6 +496,17 @@ public class ApiKeyService implements Closeable {
             );
             return false;
         }
+        if (transportVersion.supports(SERVICE_ACCOUNT_MANAGE_PRIVILEGE) == false
+            && hasGlobalServiceAccountManagePrivilege(roleDescriptors)) {
+            listener.onFailure(
+                new IllegalArgumentException(
+                    "all nodes must have version ["
+                        + SERVICE_ACCOUNT_MANAGE_PRIVILEGE.toReleaseVersion()
+                        + "] or higher to support the service account manage privilege for API keys"
+                )
+            );
+            return false;
+        }
         return true;
     }
 
@@ -550,6 +562,13 @@ public class ApiKeyService implements Closeable {
             && roleDescriptors.stream()
                 .flatMap(roleDescriptor -> Arrays.stream(roleDescriptor.getConditionalClusterPrivileges()))
                 .anyMatch(privilege -> privilege instanceof ConfigurableClusterPrivileges.DatasourcePrivileges);
+    }
+
+    private static boolean hasGlobalServiceAccountManagePrivilege(Collection<RoleDescriptor> roleDescriptors) {
+        return roleDescriptors != null
+            && roleDescriptors.stream()
+                .flatMap(roleDescriptor -> Arrays.stream(roleDescriptor.getConditionalClusterPrivileges()))
+                .anyMatch(privilege -> privilege instanceof ConfigurableClusterPrivileges.ManageServiceAccountsPrivilege);
     }
 
     private static IllegalArgumentException validateWorkflowsRestrictionConstraints(

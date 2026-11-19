@@ -71,6 +71,8 @@ import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.service.AuthorizedServiceAccounts;
+import org.elasticsearch.xpack.core.security.action.service.ServiceAccountReadRequest;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
@@ -93,6 +95,7 @@ import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
+import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
@@ -515,6 +518,19 @@ public class AuthorizationService {
                     final QueryApiKeyRequest queryApiKeyRequest = (QueryApiKeyRequest) request;
                     if (false == queryApiKeyRequest.isFilterForCurrentUser()) {
                         queryApiKeyRequest.setFilterForCurrentUser();
+                        authzEngine.authorizeClusterAction(requestInfo, authzInfo, l);
+                        return;
+                    }
+                }
+                if (false == result.isGranted()
+                    && request instanceof ServiceAccountReadRequest readRequest
+                    && readRequest.getAuthorizedAccounts() == null) {
+                    final Role role = RBACEngine.maybeGetRBACEngineRole(authzInfo);
+                    final AuthorizedServiceAccounts authorizedAccounts = role == null
+                        ? null
+                        : AuthorizedServiceAccountsResolver.resolve(role, action, request, authentication);
+                    if (authorizedAccounts != null) {
+                        readRequest.restrictToAuthorizedAccounts(authorizedAccounts);
                         authzEngine.authorizeClusterAction(requestInfo, authzInfo, l);
                         return;
                     }

@@ -32,6 +32,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.CancellableTask;
@@ -589,7 +590,12 @@ public final class ExchangeService extends AbstractLifecycleComponent {
                 if (page != null) {
                     page.releaseBlocks();
                 }
-            }, e -> logger.debug("failed to finish unused exchange sink [{}] on [{}]", exchangeId, connection.getNode(), e)), in -> {
+            },
+                e -> logger.debug(
+                    () -> Strings.format("failed to finish unused exchange sink [%s] on [%s]", exchangeId, connection.getNode()),
+                    e
+                )
+            ), in -> {
                 try (BlockStreamInput bsi = new BlockStreamInput(in, blockFactory)) {
                     return new ExchangeResponse(bsi);
                 }

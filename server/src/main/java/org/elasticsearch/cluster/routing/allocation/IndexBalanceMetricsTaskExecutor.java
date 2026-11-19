@@ -194,7 +194,9 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
         final var indexBalanceMetricsTask = (Task) task;
         final var existingTask = executorNodeTask.getAndSet(indexBalanceMetricsTask);
         if (existingTask != null) {
-            assert existingTask.stopped : "We should never start a new task when there's still one running";
+            // The previous allocation of the task can legitimately still be running here: the node service starts the new task before
+            // the asynchronous cancellation of the old one has been processed. Completing the old task stops it. If this sends a
+            // completion request for the old allocation id, the master rejects it, which is harmless.
             existingTask.markAsCompleted();
         }
         indexBalanceMetricsTask.startScheduledComputation();

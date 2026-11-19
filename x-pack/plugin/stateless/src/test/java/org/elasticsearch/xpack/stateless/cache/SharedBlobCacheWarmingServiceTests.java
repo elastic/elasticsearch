@@ -1662,7 +1662,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     Map.of(
                         "file",
                         new BlobLocation(
-                            new BccBlob(BatchedCompoundCommit.blobNameFromGeneration(termAndGen.generation()), termAndGen),
+                            new BlobFile(BatchedCompoundCommit.blobNameFromGeneration(termAndGen.generation()), termAndGen),
                             offset,
                             fileLength
                         )

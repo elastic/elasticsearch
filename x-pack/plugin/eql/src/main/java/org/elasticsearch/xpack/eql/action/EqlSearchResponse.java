@@ -100,11 +100,11 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         parser.declareString(optionalConstructorArg(), ID);
         parser.declareBoolean(constructorArg(), IS_RUNNING);
         parser.declareBoolean(constructorArg(), IS_PARTIAL);
-        parser.declareObjectArray(optionalConstructorArg(), (p, c) -> ShardSearchFailure.EMPTY_ARRAY, SHARD_FAILURES);
+        parser.declareObjectArray(optionalConstructorArg(), (p, c) -> List.of(), SHARD_FAILURES);
         PARSER = parser.build();
     }
 
-    public EqlSearchResponse(Hits hits, long tookInMillis, boolean isTimeout, ShardSearchFailure[] shardFailures) {
+    public EqlSearchResponse(Hits hits, long tookInMillis, boolean isTimeout, List<ShardSearchFailure> shardFailures) {
         this(hits, tookInMillis, isTimeout, null, false, false, shardFailures);
     }
 
@@ -115,7 +115,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         String asyncExecutionId,
         boolean isRunning,
         boolean isPartial,
-        ShardSearchFailure[] shardFailures
+        List<ShardSearchFailure> shardFailures
     ) {
         super();
         this.hits = hits == null ? Hits.EMPTY : hits;
@@ -124,7 +124,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         this.asyncExecutionId = asyncExecutionId;
         this.isRunning = isRunning;
         this.isPartial = isPartial;
-        this.shardFailures = shardFailures;
+        this.shardFailures = shardFailures == null ? ShardSearchFailure.EMPTY_ARRAY : shardFailures.toArray(ShardSearchFailure.EMPTY_ARRAY);
     }
 
     public EqlSearchResponse(StreamInput in) throws IOException {

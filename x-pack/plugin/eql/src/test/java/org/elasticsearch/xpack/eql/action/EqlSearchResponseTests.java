@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.eql.action;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -229,7 +228,7 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
             hits = new EqlSearchResponse.Hits(randomEvents(xType), null, totalHits);
         }
         if (randomBoolean()) {
-            return new EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean(), ShardSearchFailure.EMPTY_ARRAY);
+            return new EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean(), List.of());
         } else {
             return new EqlSearchResponse(
                 hits,
@@ -238,7 +237,7 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
                 randomAlphaOfLength(10),
                 randomBoolean(),
                 randomBoolean(),
-                ShardSearchFailure.EMPTY_ARRAY
+                List.of()
             );
         }
     }
@@ -262,7 +261,7 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
             hits = new EqlSearchResponse.Hits(null, seq, totalHits);
         }
         if (randomBoolean()) {
-            return new EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean(), ShardSearchFailure.EMPTY_ARRAY);
+            return new EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean(), List.of());
         } else {
             return new EqlSearchResponse(
                 hits,
@@ -271,7 +270,7 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
                 randomAlphaOfLength(10),
                 randomBoolean(),
                 randomBoolean(),
-                ShardSearchFailure.EMPTY_ARRAY
+                List.of()
             );
         }
     }
@@ -315,7 +314,7 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
             instance.id(),
             instance.isRunning(),
             instance.isPartial(),
-            ShardSearchFailure.EMPTY_ARRAY
+            List.of()
         );
     }
 

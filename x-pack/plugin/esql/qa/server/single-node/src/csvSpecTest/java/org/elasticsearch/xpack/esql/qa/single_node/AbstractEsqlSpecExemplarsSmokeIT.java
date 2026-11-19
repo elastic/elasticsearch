@@ -93,6 +93,10 @@ public abstract class AbstractEsqlSpecExemplarsSmokeIT extends AbstractEsqlSpecI
             testCase.datasetSources.isEmpty() == false
         );
         CsvTestUtils.assumeTrueLogging("Only TS ... | STATS and PROMQL queries aggregate metrics", isMetricsQuery(testCase.query));
+        CsvTestUtils.assumeFalseLogging(
+            "The redirect to the exemplars fixture doesn't see a PROMQL index passed as a query parameter",
+            testCase.promqlIndexIsParam()
+        );
     }
 
     /**

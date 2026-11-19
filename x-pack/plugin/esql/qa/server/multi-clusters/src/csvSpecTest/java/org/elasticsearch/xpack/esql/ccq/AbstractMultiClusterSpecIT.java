@@ -477,6 +477,7 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
             return false;
         }
         String firstCommand = LEADING_SET_STATEMENTS.matcher(testCase.query.split("\\|")[0]).replaceFirst("").trim();
+        // Also true for a "?" inside a string literal: a rare case, where it only skips a test that could run.
         return SourceCommand.isSourceCommand(firstCommand.split("\\s+", 2)[0]) && firstCommand.contains("?");
     }
 

@@ -696,7 +696,21 @@ public final class CsvSpecReader {
          * Test variants that find or rewrite field names in the query text don't see these names.
          */
         public boolean paramsCanBeNames() {
+            // Also true for a "??" inside a string literal: a rare case, where it only skips a test that could run.
             return params.isEmpty() == false && (query.contains("??") || params.stream().anyMatch(Param::declaredAsName));
+        }
+
+        private static final Pattern PROMQL_INDEX_PARAM = Pattern.compile(
+            "\\bPROMQL\\b[^|]*?\\bindex\\s*=\\s*\\?",
+            Pattern.CASE_INSENSITIVE | Pattern.DOTALL
+        );
+
+        /**
+         * Whether a {@code PROMQL} command takes its index from a query parameter, like {@code PROMQL index = ?idx}.
+         * Test variants that find the indices in the query text don't see that index.
+         */
+        public boolean promqlIndexIsParam() {
+            return params.isEmpty() == false && PROMQL_INDEX_PARAM.matcher(query).find();
         }
 
         /**

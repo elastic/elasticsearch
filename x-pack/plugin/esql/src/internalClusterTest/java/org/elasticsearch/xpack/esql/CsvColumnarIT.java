@@ -275,14 +275,6 @@ public class CsvColumnarIT extends CsvIT {
     );
 
     /**
-     * A {@code PROMQL} command that takes its index from a query parameter, like {@code PROMQL index = ?idx}.
-     */
-    private static final Pattern PROMQL_INDEX_PARAM = Pattern.compile(
-        "\\bPROMQL\\b[^|]*?\\bindex\\s*=\\s*\\?",
-        Pattern.CASE_INSENSITIVE | Pattern.DOTALL
-    );
-
-    /**
      * Extracts double-quoted index names that immediately follow a {@code FROM} or {@code TS}
      * keyword and are terminated by a pipe, closing paren, or end-of-input.
      *
@@ -502,8 +494,8 @@ public class CsvColumnarIT extends CsvIT {
         if (testCase.skipColumnar != null) {
             return false;
         }
-        // PROMQL index=?param: the dataset resolution below doesn't see the index name in the parameter's value.
-        if (testCase.params.isEmpty() == false && PROMQL_INDEX_PARAM.matcher(testCase.query).find()) {
+        // The dataset resolution below doesn't see an index name in a parameter's value.
+        if (testCase.promqlIndexIsParam()) {
             return true;
         }
         // Wildcard view patterns (e.g. view_k8s_max_*) are not resolvable via the exact-key

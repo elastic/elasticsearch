@@ -288,6 +288,13 @@ public class CsvSpecReaderTests extends ESTestCase {
         assertTrue(parseWithParams("FROM foo | KEEP ?x", "param: x = {\"Pattern\": \"a*\"}").paramsCanBeNames());
     }
 
+    public void testPromqlIndexIsParam() {
+        assertTrue(parseWithParams("PROMQL index=?idx step=1m (avg(x))", "param: idx = \"k8s\"").promqlIndexIsParam());
+        assertTrue(parseWithParams("PROMQL step=1m index = ?idx (avg(x))", "param: idx = \"k8s\"").promqlIndexIsParam());
+        assertFalse(parseWithParams("PROMQL index=k8s step=?step (avg(x))", "param: step = \"1m\"").promqlIndexIsParam());
+        assertFalse(parseWithParams("PROMQL index=?idx (avg(x))").promqlIndexIsParam());
+    }
+
     // makeWarningsOptional() tests
 
     public void testMakeWarningsOptionalConvertsExactStringsToPatterns() {

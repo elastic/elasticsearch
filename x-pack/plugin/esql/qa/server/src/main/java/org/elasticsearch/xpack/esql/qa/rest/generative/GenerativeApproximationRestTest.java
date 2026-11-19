@@ -79,6 +79,7 @@ public abstract class GenerativeApproximationRestTest extends EsqlSpecTestCase {
             ForkTestUtils.shouldSkipForkTest(testCase, adminClient());
             assumeTrue("Subqueries in approximation require inline stats capability", APPROXIMATION_INLINE_STATS_V2.isEnabled());
             assumeTrue("Subquery must start with FROM", query.toUpperCase(Locale.ROOT).startsWith("FROM "));
+            // Positional parameters (?1) would work when repeated, but they're rare enough to skip with the anonymous ones.
             assumeTrue(
                 "The subqueries repeat the query, which needs each unnamed parameter twice",
                 testCase.params.isEmpty() || testCase.params.getFirst().name() != null

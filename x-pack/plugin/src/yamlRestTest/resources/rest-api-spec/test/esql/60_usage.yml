@@ -847,13 +847,15 @@ took:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ usage_queries_by_client ]
-      reason: "Queries are split by client from the X-elastic-product-origin header"
+          capabilities: [ usage_queries_rest_origin ]
+      reason: "Queries are split by client from the X-elastic-product-origin header, and rest counts every query"
 
   - do: { xpack.usage: { } }
-  - length: { esql.queries: 9 }
+  - length: { esql.queries: 10 }
   - set: { esql.queries.rest.total: rest_total }
   - set: { esql.queries.rest.failed: rest_failed }
+  - set: { esql.queries.rest_origin.total: rest_origin_total }
+  - set: { esql.queries.rest_origin.failed: rest_origin_failed }
   - set: { esql.queries.kibana.total: kibana_total }
   - set: { esql.queries.kibana.failed: kibana_failed }
   - set: { esql.queries.fleet.total: fleet_total }
@@ -868,11 +870,13 @@ took:
 
   - do: { xpack.usage: { } }
   - gt: { esql.queries.rest.total: $rest_total }
+  - gt: { esql.queries.rest_origin.total: $rest_origin_total }
   - match: { esql.queries.kibana.total: $kibana_total }
   - match: { esql.queries.fleet.total: $fleet_total }
   - match: { esql.queries.other.total: $other_total }
   - gt: { esql.queries._all.total: $all_total }
   - set: { esql.queries.rest.total: rest_total }
+  - set: { esql.queries.rest_origin.total: rest_origin_total }
   - set: { esql.queries._all.total: all_total }
 
   - do:
@@ -883,11 +887,13 @@ took:
           query: 'ROW a = 1 | LIMIT 1'
 
   - do: { xpack.usage: { } }
-  - match: { esql.queries.rest.total: $rest_total }
+  - gt: { esql.queries.rest.total: $rest_total }
+  - match: { esql.queries.rest_origin.total: $rest_origin_total }
   - gt: { esql.queries.kibana.total: $kibana_total }
   - match: { esql.queries.fleet.total: $fleet_total }
   - match: { esql.queries.other.total: $other_total }
   - gt: { esql.queries._all.total: $all_total }
+  - set: { esql.queries.rest.total: rest_total }
   - set: { esql.queries.kibana.total: kibana_total }
   - set: { esql.queries._all.total: all_total }
 
@@ -899,11 +905,13 @@ took:
           query: 'ROW a = 1 | LIMIT 1'
 
   - do: { xpack.usage: { } }
-  - match: { esql.queries.rest.total: $rest_total }
+  - gt: { esql.queries.rest.total: $rest_total }
+  - match: { esql.queries.rest_origin.total: $rest_origin_total }
   - match: { esql.queries.kibana.total: $kibana_total }
   - gt: { esql.queries.fleet.total: $fleet_total }
   - match: { esql.queries.other.total: $other_total }
   - gt: { esql.queries._all.total: $all_total }
+  - set: { esql.queries.rest.total: rest_total }
   - set: { esql.queries._all.total: all_total }
 
   - do:
@@ -914,7 +922,8 @@ took:
           query: 'ROW a = 1 | LIMIT 1'
 
   - do: { xpack.usage: { } }
-  - match: { esql.queries.rest.total: $rest_total }
+  - gt: { esql.queries.rest.total: $rest_total }
+  - match: { esql.queries.rest_origin.total: $rest_origin_total }
   - match: { esql.queries.kibana.total: $kibana_total }
   - gt: { esql.queries.other.total: $other_total }
   - gt: { esql.queries._all.total: $all_total }
@@ -929,5 +938,6 @@ took:
 
   - do: { xpack.usage: { } }
   - gt: { esql.queries.kibana.failed: $kibana_failed }
-  - match: { esql.queries.rest.failed: $rest_failed }
+  - gt: { esql.queries.rest.failed: $rest_failed }
+  - match: { esql.queries.rest_origin.failed: $rest_origin_failed }
   - match: { esql.queries.other.failed: $other_failed }

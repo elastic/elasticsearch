@@ -22,10 +22,10 @@ import static org.hamcrest.Matchers.is;
 
 public class QueryCallerClassifierTests extends ESTestCase {
 
-    public void testNoOriginIsRest() {
-        assertThat(QueryCallerClassifier.clientFromOrigin(null), is(QueryMetric.REST));
-        assertThat(QueryCallerClassifier.clientFromOrigin(""), is(QueryMetric.REST));
-        assertThat(QueryCallerClassifier.clientFromOrigin("   "), is(QueryMetric.REST));
+    public void testNoOriginIsRestOrigin() {
+        assertThat(QueryCallerClassifier.clientFromOrigin(null), is(QueryMetric.REST_ORIGIN));
+        assertThat(QueryCallerClassifier.clientFromOrigin(""), is(QueryMetric.REST_ORIGIN));
+        assertThat(QueryCallerClassifier.clientFromOrigin("   "), is(QueryMetric.REST_ORIGIN));
     }
 
     public void testKibanaOrigins() {
@@ -57,13 +57,14 @@ public class QueryCallerClassifierTests extends ESTestCase {
         assertThat(QueryCallerClassifier.clientFromOrigin("elastic"), is(QueryMetric.OTHER));
         assertThat(QueryCallerClassifier.clientFromOrigin("-kibana"), is(QueryMetric.OTHER));
         assertThat(QueryCallerClassifier.clientFromOrigin("rest"), is(QueryMetric.OTHER));
+        assertThat(QueryCallerClassifier.clientFromOrigin("rest_origin"), is(QueryMetric.OTHER));
         assertThat(QueryCallerClassifier.clientFromOrigin("other"), is(QueryMetric.OTHER));
         assertThat(QueryCallerClassifier.clientFromOrigin(randomAlphaOfLengthBetween(1, 5) + "_" + randomUUID()), is(QueryMetric.OTHER));
     }
 
     public void testEveryKnownProductOriginHasItsOwnClient() {
         Set<String> productClients = Arrays.stream(QueryMetric.values())
-            .filter(client -> client != QueryMetric.OTHER && client != QueryMetric.REST)
+            .filter(client -> client != QueryMetric.OTHER && client != QueryMetric.REST_ORIGIN)
             .map(QueryMetric::toString)
             .collect(Collectors.toSet());
         assertThat(productClients, equalTo(MetricAttributes.KNOWN_PRODUCT_ORIGINS));
@@ -74,7 +75,7 @@ public class QueryCallerClassifierTests extends ESTestCase {
 
     public void testClassifyReadsProductOriginHeader() {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        assertThat(QueryCallerClassifier.classify(threadContext), equalTo(new QueryCaller(QueryMetric.REST)));
+        assertThat(QueryCallerClassifier.classify(threadContext), equalTo(new QueryCaller(QueryMetric.REST_ORIGIN)));
         try (var ignored = threadContext.stashContext()) {
             threadContext.putHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, "kibana");
             assertThat(QueryCallerClassifier.classify(threadContext), equalTo(new QueryCaller(QueryMetric.KIBANA)));
@@ -90,6 +91,6 @@ public class QueryCallerClassifierTests extends ESTestCase {
     }
 
     public void testClassifyWithoutThreadContextIsRest() {
-        assertThat(QueryCallerClassifier.classify(null), equalTo(new QueryCaller(QueryMetric.REST)));
+        assertThat(QueryCallerClassifier.classify(null), equalTo(new QueryCaller(QueryMetric.REST_ORIGIN)));
     }
 }

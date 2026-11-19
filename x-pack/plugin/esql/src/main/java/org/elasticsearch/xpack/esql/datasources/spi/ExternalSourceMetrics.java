@@ -1103,7 +1103,7 @@ public final class ExternalSourceMetrics {
         return switch (client) {
             case KIBANA -> CLIENT_KIBANA;
             case FLEET, LOGSTASH, OBSERVABILITY, CONNECTORS, ELASTIC_SYNTHETICS, OTHER -> CLIENT_OTHER;
-            case REST -> CLIENT_NONE;
+            case REST_ORIGIN -> CLIENT_NONE;
         };
     }
 

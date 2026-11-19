@@ -25,7 +25,7 @@ import java.util.Locale;
 public final class QueryCallerClassifier {
 
     private static final List<QueryMetric> PRODUCT_CLIENTS = Arrays.stream(QueryMetric.values())
-        .filter(client -> client != QueryMetric.OTHER && client != QueryMetric.REST)
+        .filter(client -> client != QueryMetric.OTHER && client != QueryMetric.REST_ORIGIN)
         .toList();
 
     private QueryCallerClassifier() {}
@@ -40,14 +40,14 @@ public final class QueryCallerClassifier {
     }
 
     /**
-     * Folds the {@code X-elastic-product-origin} header into a client: absent or blank is {@link QueryMetric#REST}; a product in
+     * Folds the {@code X-elastic-product-origin} header into a client: absent or blank is {@link QueryMetric#REST_ORIGIN}; a product in
      * {@link MetricAttributes#KNOWN_PRODUCT_ORIGINS}, or that product followed by {@code -} and anything (for example
      * {@code kibana-fleet} or {@code logstash-output-elasticsearch}), compared case-insensitively, is that product's client; any
      * other value is {@link QueryMetric#OTHER}.
      */
     public static QueryMetric clientFromOrigin(@Nullable String origin) {
         if (origin == null || origin.isBlank()) {
-            return QueryMetric.REST;
+            return QueryMetric.REST_ORIGIN;
         }
         String normalized = origin.strip().toLowerCase(Locale.ROOT);
         for (QueryMetric client : PRODUCT_CLIENTS) {

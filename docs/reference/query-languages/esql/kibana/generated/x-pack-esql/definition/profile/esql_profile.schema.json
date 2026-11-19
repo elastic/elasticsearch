@@ -752,16 +752,7 @@
     "OperatorStatus_fetch" : {
       "type" : "object",
       "properties" : {
-        "process_nanos" : {
-          "type" : "integer"
-        },
-        "process_time" : {
-          "type" : "string"
-        },
         "pages_received" : {
-          "type" : "integer"
-        },
-        "pages_completed" : {
           "type" : "integer"
         },
         "rows_received" : {
@@ -785,7 +776,7 @@
         "gather_time" : {
           "type" : "string"
         },
-        "requests" : {
+        "nodes" : {
           "type" : "array",
           "items" : {
             "type" : "object",
@@ -831,15 +822,13 @@
         }
       },
       "required" : [
-        "process_nanos",
         "pages_received",
-        "pages_completed",
         "rows_received",
         "documents",
         "pages_emitted",
         "plan_nanos",
         "gather_nanos",
-        "requests"
+        "nodes"
       ],
       "additionalProperties" : false
     },

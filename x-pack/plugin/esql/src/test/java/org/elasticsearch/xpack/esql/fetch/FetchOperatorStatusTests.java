@@ -26,20 +26,18 @@ import static org.hamcrest.Matchers.nullValue;
 public class FetchOperatorStatusTests extends AbstractWireSerializingTestCase<FetchOperator.Status> {
     public void testToXContent() {
         FetchOperator.Status status = new FetchOperator.Status(
-            1,
-            1,
-            800_000,
+            2,
             10,
             9,
-            1,
+            2,
             12_000,
             30_000,
-            List.of(new FetchOperator.NodeRequest("node-0", 2, 4, 700_000, 500_000, 200_000))
+            List.of(new FetchOperator.NodeFetchStats("node-0", 2, 4, 700_000, 500_000, 200_000))
         );
         assertThat(Strings.toString(status), equalTo("""
-            {"process_nanos":800000,"pages_received":1,"pages_completed":1,"rows_received":10,"documents":9,"pages_emitted":1,\
-            "plan_nanos":12000,"gather_nanos":30000,"requests":[{"node":"node-0","shards":2,"documents":4,"request_nanos":700000,\
-            "took_nanos":500000,"setup_nanos":200000}]}"""));
+            {"pages_received":2,"rows_received":10,"documents":9,"pages_emitted":2,"plan_nanos":12000,"gather_nanos":30000,\
+            "nodes":[{"node":"node-0","shards":2,"documents":4,"request_nanos":700000,"took_nanos":500000,\
+            "setup_nanos":200000}]}"""));
     }
 
     /**
@@ -73,59 +71,43 @@ public class FetchOperatorStatusTests extends AbstractWireSerializingTestCase<Fe
     @Override
     protected FetchOperator.Status createTestInstance() {
         return new FetchOperator.Status(
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
+            randomNonNegativeInt(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeInt(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
-            randomList(0, 4, FetchOperatorStatusTests::randomNodeRequest)
+            randomList(0, 4, FetchOperatorStatusTests::randomNodeFetchStats)
         );
     }
 
     @Override
     protected FetchOperator.Status mutateInstance(FetchOperator.Status instance) {
-        long receivedPages = instance.receivedPages();
-        long completedPages = instance.completedPages();
-        long processNanos = instance.processNanos();
+        int pagesReceived = instance.pagesReceived();
         long rowsReceived = instance.rowsReceived();
         long documents = instance.documents();
         int pagesEmitted = instance.pagesEmitted();
         long planNanos = instance.planNanos();
         long gatherNanos = instance.gatherNanos();
-        List<FetchOperator.NodeRequest> requests = instance.requests();
-        switch (between(0, 8)) {
-            case 0 -> receivedPages = randomValueOtherThan(receivedPages, ESTestCase::randomNonNegativeLong);
-            case 1 -> completedPages = randomValueOtherThan(completedPages, ESTestCase::randomNonNegativeLong);
-            case 2 -> processNanos = randomValueOtherThan(processNanos, ESTestCase::randomNonNegativeLong);
-            case 3 -> rowsReceived = randomValueOtherThan(rowsReceived, ESTestCase::randomNonNegativeLong);
-            case 4 -> documents = randomValueOtherThan(documents, ESTestCase::randomNonNegativeLong);
-            case 5 -> pagesEmitted = randomValueOtherThan(pagesEmitted, ESTestCase::randomNonNegativeInt);
-            case 6 -> planNanos = randomValueOtherThan(planNanos, ESTestCase::randomNonNegativeLong);
-            case 7 -> gatherNanos = randomValueOtherThan(gatherNanos, ESTestCase::randomNonNegativeLong);
-            case 8 -> {
-                requests = new ArrayList<>(requests);
-                requests.add(randomNodeRequest());
+        List<FetchOperator.NodeFetchStats> nodes = instance.nodes();
+        switch (between(0, 6)) {
+            case 0 -> pagesReceived = randomValueOtherThan(pagesReceived, ESTestCase::randomNonNegativeInt);
+            case 1 -> rowsReceived = randomValueOtherThan(rowsReceived, ESTestCase::randomNonNegativeLong);
+            case 2 -> documents = randomValueOtherThan(documents, ESTestCase::randomNonNegativeLong);
+            case 3 -> pagesEmitted = randomValueOtherThan(pagesEmitted, ESTestCase::randomNonNegativeInt);
+            case 4 -> planNanos = randomValueOtherThan(planNanos, ESTestCase::randomNonNegativeLong);
+            case 5 -> gatherNanos = randomValueOtherThan(gatherNanos, ESTestCase::randomNonNegativeLong);
+            case 6 -> {
+                nodes = new ArrayList<>(nodes);
+                nodes.add(randomNodeFetchStats());
             }
             default -> throw new IllegalArgumentException();
         }
-        return new FetchOperator.Status(
-            receivedPages,
-            completedPages,
-            processNanos,
-            rowsReceived,
-            documents,
-            pagesEmitted,
-            planNanos,
-            gatherNanos,
-            requests
-        );
+        return new FetchOperator.Status(pagesReceived, rowsReceived, documents, pagesEmitted, planNanos, gatherNanos, nodes);
     }
 
-    private static FetchOperator.NodeRequest randomNodeRequest() {
-        return new FetchOperator.NodeRequest(
+    private static FetchOperator.NodeFetchStats randomNodeFetchStats() {
+        return new FetchOperator.NodeFetchStats(
             randomAlphaOfLength(6),
             randomNonNegativeInt(),
             randomNonNegativeInt(),

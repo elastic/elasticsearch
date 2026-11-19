@@ -21,7 +21,6 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Groups the documents of a cut into one fetch request per node, and remembers which response row each row of the cut
@@ -30,6 +29,8 @@ import java.util.Set;
  * A node gets the documents of each of its shards sorted by segment and doc, the order it loads them fastest and
  * returns their rows in. A document that several rows reference is asked for once. The nodes answer with their rows in
  * request order, so the rows of the cut find their values by position, without a position column on the wire.
+ * <p>
+ * Each reader context appears in one request only, so every request asks its node to free its contexts once it answered.
  */
 final class FetchBatchPlanner {
     private FetchBatchPlanner() {}
@@ -47,10 +48,6 @@ final class FetchBatchPlanner {
             }
             return docs;
         }
-
-        List<ShardSearchContextId> contextIds() {
-            return shards.stream().map(FetchRequest.ShardDocs::contextId).toList();
-        }
     }
 
     /**
@@ -66,9 +63,8 @@ final class FetchBatchPlanner {
     /**
      * @param pages      the rows of the cut
      * @param docChannel the channel of the documents, which left the nodes that read them
-     * @param lastReads  the reader contexts no later batch reads, which their nodes free once they answered
      */
-    static Batch plan(List<Page> pages, int docChannel, Set<ShardSearchContextId> lastReads) {
+    static Batch plan(List<Page> pages, int docChannel) {
         int rows = 0;
         for (Page page : pages) {
             rows += page.getPositionCount();
@@ -119,7 +115,7 @@ final class FetchBatchPlanner {
         for (NodeAccumulator node : nodes.values()) {
             List<FetchRequest.ShardDocs> shards = new ArrayList<>(node.shards.size());
             for (ShardAccumulator shard : node.shards.values()) {
-                shards.add(shard.sort(responseRow, lastReads.contains(shard.origin.contextId())));
+                shards.add(shard.sort(responseRow));
                 responseRow += shard.distinctDocs;
                 deduplicated |= shard.distinctDocs < shard.rows;
             }
@@ -173,9 +169,8 @@ final class FetchBatchPlanner {
          * Sorts the documents by segment and doc, the order the node returns their rows in, and drops the duplicates.
          *
          * @param firstResponseRow the response row of the first document of this shard
-         * @param freeAfterFetch   whether the node frees the context once it answered
          */
-        FetchRequest.ShardDocs sort(int firstResponseRow, boolean freeAfterFetch) {
+        FetchRequest.ShardDocs sort(int firstResponseRow) {
             this.firstResponseRow = firstResponseRow;
             Arrays.sort(docs);
             distinctDocs = 0;
@@ -190,7 +185,8 @@ final class FetchBatchPlanner {
                 segments[i] = (int) (docs[i] >>> 32);
                 docIds[i] = (int) docs[i];
             }
-            return new FetchRequest.ShardDocs(origin.shardId(), origin.contextId(), freeAfterFetch, segments, docIds);
+            // no other request reads the context, so the node frees it once it answered
+            return new FetchRequest.ShardDocs(origin.shardId(), origin.contextId(), true, segments, docIds);
         }
 
         int responseRowOf(long segmentAndDoc) {

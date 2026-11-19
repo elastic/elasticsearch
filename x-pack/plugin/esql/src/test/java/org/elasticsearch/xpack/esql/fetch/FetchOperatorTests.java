@@ -8,11 +8,20 @@
 package org.elasticsearch.xpack.esql.fetch;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.transport.NoNodeAvailableException;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.VersionInformation;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -25,34 +34,44 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.test.ComputeTestCase;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchContextMissingException;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.test.ClusterServiceUtils;
+import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
+import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.Closeable;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -60,32 +79,86 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
- * The coordinator's fetch, with a client that answers each request on another thread the way a data node does: the
- * rows of each shard in request order, with values that name their document.
+ * The coordinator's fetch over transport. The operator sends its requests through {@link QueryFetchClient} and
+ * {@link FetchService#sendFetch} to three data nodes, each a {@link MockTransportService} that answers like
+ * {@link FetchService}: the rows of each shard in request order, with values that name their document, and the warnings of
+ * its fetch driver. The tracker of the execution records the contexts it frees instead of sending the free requests.
  */
 public class FetchOperatorTests extends ComputeTestCase {
     private static final List<ElementType> FETCHED_TYPES = List.of(ElementType.BYTES_REF, ElementType.LONG);
-    private static final List<DocOrigin> ORIGINS = List.of(origin("n1", 0), origin("n1", 1), origin("n2", 2), origin("n3", 3));
+    private static final List<Attribute> FETCHED = List.of(attribute("id", DataType.KEYWORD), attribute("value", DataType.LONG));
+    private static final long TOOK_NANOS = 5_000;
+    private static final long SETUP_NANOS = 1_000;
+    private static final String EVERY_NODE_WARNING = "a warning of every node";
 
     private ThreadPool threadPool;
+    private BlockFactory blockFactory;
+    private MockTransportService coordinator;
+    private final List<DataNode> dataNodes = new ArrayList<>();
+    private ClusterService clusterService;
+    private final CancellableTask rootTask = new CancellableTask(
+        1,
+        "transport",
+        "indices:data/read/esql",
+        "",
+        TaskId.EMPTY_TASK_ID,
+        Map.of()
+    );
+    /**
+     * The contexts the trackers freed, in order.
+     */
+    private final List<ShardSearchContextId> freed = new CopyOnWriteArrayList<>();
+    /**
+     * The tracker of the execution of the last {@link #client}. Each execution gets its own, which ends one cut.
+     */
+    private FetchContextTracker tracker;
+    private final List<FetchContextTracker> trackers = new ArrayList<>();
+    private final QueryDrivers drivers = new QueryDrivers();
+    /**
+     * The documents of the tests live on two shards of the first data node and one shard of each of the others.
+     */
+    private List<DocOrigin> origins;
+
     /** The status of the operator the last {@link #run} drove, read just before it closed. */
     private FetchOperator.Status lastStatus;
     /** The warnings the driver of the last {@link #run} collected. */
     private List<String> lastWarnings;
 
     @Before
-    public void startThreadPool() {
+    public void startNodes() {
         threadPool = new TestThreadPool(getTestName());
+        blockFactory = blockFactory();
+        coordinator = startTransport("coordinator");
+        DiscoveryNodes.Builder nodes = DiscoveryNodes.builder()
+            .add(coordinator.getLocalNode())
+            .localNodeId(coordinator.getLocalNode().getId());
+        for (int n = 1; n <= 3; n++) {
+            DataNode dataNode = new DataNode("n" + n);
+            dataNodes.add(dataNode);
+            nodes.add(dataNode.transport.getLocalNode());
+            AbstractSimpleTransportTestCase.connectToNode(coordinator, dataNode.transport.getLocalNode());
+        }
+        clusterService = ClusterServiceUtils.createClusterService(threadPool, coordinator.getLocalNode());
+        ClusterServiceUtils.setState(clusterService, ClusterState.builder(clusterService.state()).nodes(nodes));
+        origins = List.of(origin(0, 0), origin(0, 1), origin(1, 2), origin(2, 3));
     }
 
     @After
-    public void stopThreadPool() {
+    public void stopNodes() throws Exception {
+        // a response that still waits would hold its transport thread
+        dataNodes.forEach(DataNode::release);
+        trackers.forEach(FetchContextTracker::close);
+        List<Closeable> closeables = new ArrayList<>();
+        closeables.add(clusterService);
+        closeables.add(coordinator);
+        dataNodes.forEach(n -> closeables.add(n.transport));
+        IOUtils.close(closeables);
         terminate(threadPool);
     }
 
@@ -93,10 +166,8 @@ public class FetchOperatorTests extends ComputeTestCase {
      * The rows keep their order and their columns, and get the values of their own documents appended.
      */
     public void testAppendsTheFetchedColumnsInTheOrderOfTheCut() throws Exception {
-        BlockFactory blockFactory = blockFactory();
-        FakeClient client = new FakeClient(blockFactory);
         List<List<Ref>> input = randomInput();
-        List<Page> output = run(blockFactory, client, input);
+        List<Page> output = run(client(), input);
         try {
             assertThat(rows(output), equalTo(input.stream().flatMap(List::stream).toList()));
             assertThat(output.size(), equalTo(input.size()));
@@ -106,408 +177,71 @@ public class FetchOperatorTests extends ComputeTestCase {
     }
 
     /**
-     * The client can find a node after the batch was sent, on another thread. The rows still keep their order.
+     * Nothing goes out before the input ends. Then each node that holds documents of the cut gets one request, with all of
+     * its documents, the index expressions of the query and the attributes to load. No other request reads its contexts,
+     * so it asks the node to free them once it answered.
      */
-    public void testNodesFoundAfterTheBatchWasSentStillFetchEveryRowInOrder() throws Exception {
-        BlockFactory blockFactory = blockFactory();
-        FakeClient client = new FakeClient(blockFactory);
-        client.lateNodes = true;
-        List<List<Ref>> input = randomInput();
-        List<Page> output = run(blockFactory, client, input);
+    public void testSendsOneRequestPerNodeOnceTheInputEnded() throws Exception {
+        DriverContext driverContext = driverContext();
+        Operator operator = factory(client()).get(driverContext);
         try {
-            assertThat(rows(output), equalTo(input.stream().flatMap(List::stream).toList()));
-            assertThat(output.size(), equalTo(input.size()));
-        } finally {
-            output.forEach(Page::releaseBlocks);
-        }
-    }
+            List<Ref> first = List.of(new Ref(origins.get(0), 0, 1), new Ref(origins.get(2), 0, 2));
+            List<Ref> second = List.of(new Ref(origins.get(1), 1, 3), new Ref(origins.get(0), 0, 4));
+            operator.addInput(trackedPage(first));
+            operator.addInput(trackedPage(second));
+            assertTrue(operator.needsInput());
+            assertThat(allRequests(), empty());
 
-    /**
-     * A page leaves at once, alone, when no batch fetches: the first page of the cut, and a page that arrives once the
-     * driver has the output of every batch before it.
-     */
-    public void testAPageLeavesAtOnceWhenNoBatchFetches() throws Exception {
-        BlockFactory blockFactory = blockFactory();
-        FakeClient client = new FakeClient(blockFactory);
-        client.holdResponses = new CountDownLatch(1);
-        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
-        Operator operator = factory(client, batching(between(1, FetchOperator.MAX_BATCHES_IN_FLIGHT), 100)).get(driverContext);
-        try {
-            List<Ref> first = List.of(new Ref(ORIGINS.get(0), 0, 1), new Ref(ORIGINS.get(2), 0, 2));
-            operator.addInput(page(blockFactory, first));
-            assertThat(requestedDocuments(client), containsInAnyOrder(Set.of(first.get(0)), Set.of(first.get(1))));
-            client.holdResponses.countDown();
-            assertThat(releasedRows(takeOutput(operator, 1)), equalTo(first));
-
-            client.holdResponses = new CountDownLatch(1);
-            List<Ref> next = List.of(new Ref(ORIGINS.get(3), 0, 3));
-            operator.addInput(page(blockFactory, next));
-            assertThat(client.requests, hasSize(3));
-            assertThat(requestedDocuments(client).getLast(), equalTo(Set.of(next.getFirst())));
-            client.holdResponses.countDown();
-            assertThat(releasedRows(takeOutput(operator, 1)), equalTo(next));
-        } finally {
-            client.holdResponses.countDown();
-            operator.close();
-            awaitResponses(driverContext);
-        }
-    }
-
-    /**
-     * While a batch fetches, the small pages that arrive wait. Once it ends they leave together as one batch, with one
-     * request per node.
-     */
-    public void testPagesThatWaitLeaveTogetherWhenABatchEnds() throws Exception {
-        BlockFactory blockFactory = blockFactory();
-        FakeClient client = new FakeClient(blockFactory);
-        client.holdResponses = new CountDownLatch(1);
-        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
-        Operator operator = factory(client, batching(between(1, FetchOperator.MAX_BATCHES_IN_FLIGHT), 100)).get(driverContext);
-        try {
-            List<Ref> first = List.of(new Ref(ORIGINS.get(3), 0, 1));
-            List<Ref> second = List.of(new Ref(ORIGINS.get(0), 0, 2), new Ref(ORIGINS.get(2), 0, 3));
-            List<Ref> third = List.of(new Ref(ORIGINS.get(1), 0, 4), new Ref(ORIGINS.get(2), 0, 5));
-            operator.addInput(page(blockFactory, first));
-            operator.addInput(page(blockFactory, second));
-            operator.addInput(page(blockFactory, third));
-            assertThat(
-                "the later pages wait for the first batch",
-                client.requests.stream().map(Request::nodeId).toList(),
-                equalTo(List.of("n3"))
-            );
-
-            client.holdResponses.countDown();
-            List<Ref> rows = releasedRows(takeOutput(operator, 3));
-            assertThat(rows, equalTo(concat(first, second, third)));
-            List<Request> secondBatch = client.requests.subList(1, client.requests.size());
-            assertThat(secondBatch.stream().map(Request::nodeId).toList(), containsInAnyOrder("n1", "n2"));
-            for (Request request : secondBatch) {
-                Set<Ref> expected = request.nodeId().equals("n1")
-                    ? Set.of(second.get(0), third.get(0))
-                    : Set.of(second.get(1), third.get(1));
-                assertThat(documents(request), equalTo(expected));
-            }
-        } finally {
-            client.holdResponses.countDown();
-            operator.close();
-            awaitResponses(driverContext);
-        }
-    }
-
-    /**
-     * While a batch fetches, the pages that wait leave as soon as they fill the row budget of a batch, so full pages
-     * fetch side by side.
-     */
-    public void testPagesThatFillABatchLeaveWhileAnotherFetches() throws Exception {
-        BlockFactory blockFactory = blockFactory();
-        FakeClient client = new FakeClient(blockFactory);
-        client.holdResponses = new CountDownLatch(1);
-        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
-        Operator operator = factory(client, batching(between(2, FetchOperator.MAX_BATCHES_IN_FLIGHT), 2)).get(driverContext);
-        try {
-            List<Ref> first = List.of(new Ref(ORIGINS.get(0), 0, 1));
-            List<Ref> second = List.of(new Ref(ORIGINS.get(2), 0, 2));
-            List<Ref> third = List.of(new Ref(ORIGINS.get(2), 0, 3));
-            operator.addInput(page(blockFactory, first));
-            operator.addInput(page(blockFactory, second));
-            assertThat("one row waits, below the row budget", requestedDocuments(client), equalTo(List.of(Set.copyOf(first))));
-            operator.addInput(page(blockFactory, third));
-            assertThat(
-                "two rows fill a batch, which leaves while the first one fetches",
-                requestedDocuments(client),
-                equalTo(List.of(Set.copyOf(first), Set.of(second.getFirst(), third.getFirst())))
-            );
-
-            client.holdResponses.countDown();
-            assertThat(releasedRows(takeOutput(operator, 3)), equalTo(concat(first, second, third)));
-        } finally {
-            client.holdResponses.countDown();
-            operator.close();
-            awaitResponses(driverContext);
-        }
-    }
-
-    /**
-     * However many full pages wait, no more batches fetch at once than the batching allows.
-     */
-    public void testNoMoreBatchesFetchAtOnceThanAllowed() throws Exception {
-        BlockFactory blockFactory = blockFactory();
-        FakeClient client = new FakeClient(blockFactory);
-        client.holdResponses = new CountDownLatch(1);
-        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
-        int maxBatchesInFlight = between(1, FetchOperator.MAX_BATCHES_IN_FLIGHT);
-        // a page of one row fills a batch
-        Operator operator = factory(client, batching(maxBatchesInFlight, 1)).get(driverContext);
-        try {
-            List<List<Ref>> input = new ArrayList<>();
-            for (int p = 0; p < maxBatchesInFlight + between(1, 3); p++) {
-                input.add(List.of(new Ref(ORIGINS.get(0), 0, p)));
-            }
-            for (List<Ref> page : input) {
-                operator.addInput(page(blockFactory, page));
-            }
-            assertThat(client.requests, hasSize(maxBatchesInFlight));
-
-            client.holdResponses.countDown();
-            assertThat(releasedRows(takeOutput(operator, input.size())), equalTo(input.stream().flatMap(List::stream).toList()));
-            assertThat("a batch per page in the end", client.requests, hasSize(input.size()));
-        } finally {
-            client.holdResponses.countDown();
-            operator.close();
-            awaitResponses(driverContext);
-        }
-    }
-
-    /**
-     * A batch takes the pages that wait, in order, while their rows fit its row budget. The next page starts the next batch.
-     */
-    public void testABatchTakesPagesUpToItsRowBudget() throws Exception {
-        BlockFactory blockFactory = blockFactory();
-        FakeClient client = new FakeClient(blockFactory);
-        client.holdResponses = new CountDownLatch(1);
-        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
-        Operator operator = factory(client, batching(1, 5)).get(driverContext);
-        try {
-            List<Ref> first = List.of(new Ref(ORIGINS.get(0), 0, 1));
-            List<Ref> second = List.of(new Ref(ORIGINS.get(0), 0, 10), new Ref(ORIGINS.get(0), 0, 11));
-            List<Ref> third = List.of(new Ref(ORIGINS.get(0), 0, 20), new Ref(ORIGINS.get(0), 0, 21));
-            List<Ref> fourth = List.of(new Ref(ORIGINS.get(0), 0, 30), new Ref(ORIGINS.get(0), 0, 31));
-            for (List<Ref> page : List.of(first, second, third, fourth)) {
-                operator.addInput(page(blockFactory, page));
-            }
-
-            client.holdResponses.countDown();
-            assertThat(releasedRows(takeOutput(operator, 4)), equalTo(concat(first, second, third, fourth)));
-            assertThat(
-                "the second and third pages fit five rows, the fourth doesn't",
-                requestedDocuments(client),
-                equalTo(List.of(Set.copyOf(first), Set.copyOf(concat(second, third)), Set.copyOf(fourth)))
-            );
-        } finally {
-            client.holdResponses.countDown();
-            operator.close();
-            awaitResponses(driverContext);
-        }
-    }
-
-    /**
-     * A page with more rows than the row budget still leaves, alone.
-     */
-    public void testAPageAboveTheRowBudgetLeavesAlone() throws Exception {
-        BlockFactory blockFactory = blockFactory();
-        FakeClient client = new FakeClient(blockFactory);
-        client.holdResponses = new CountDownLatch(1);
-        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
-        Operator operator = factory(client, batching(1, 2)).get(driverContext);
-        try {
-            List<Ref> first = List.of(new Ref(ORIGINS.get(0), 0, 1));
-            List<Ref> large = new ArrayList<>();
-            for (int d = 10; d < 15; d++) {
-                large.add(new Ref(ORIGINS.get(0), 0, d));
-            }
-            List<Ref> last = List.of(new Ref(ORIGINS.get(0), 0, 20));
-            for (List<Ref> page : List.of(first, large, last)) {
-                operator.addInput(page(blockFactory, page));
-            }
-
-            client.holdResponses.countDown();
-            assertThat(releasedRows(takeOutput(operator, 3)), equalTo(concat(first, large, last)));
-            assertThat(requestedDocuments(client), equalTo(List.of(Set.copyOf(first), Set.copyOf(large), Set.copyOf(last))));
-        } finally {
-            client.holdResponses.countDown();
-            operator.close();
-            awaitResponses(driverContext);
-        }
-    }
-
-    /**
-     * Each page of a batch comes out as its own page, with its own rows, in the order of the cut.
-     */
-    public void testThePagesOfABatchComeOutOneByOneInOrder() throws Exception {
-        BlockFactory blockFactory = blockFactory();
-        FakeClient client = new FakeClient(blockFactory);
-        client.holdResponses = new CountDownLatch(1);
-        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
-        Operator operator = factory(client, batching(1, 1000)).get(driverContext);
-        try {
-            List<List<Ref>> input = new ArrayList<>();
-            // the first page fetches while the others wait, so they leave in one batch, with at least two later pages
-            input.add(List.of(new Ref(randomFrom(ORIGINS), 0, 0)));
-            int batched = between(3, 6);
-            int empty = between(1, batched);
-            for (int p = 1; p <= batched; p++) {
-                List<Ref> refs = new ArrayList<>();
-                int rows = p == empty ? 0 : between(1, 10);
-                for (int r = 0; r < rows; r++) {
-                    refs.add(new Ref(randomFrom(ORIGINS), between(0, 3), between(0, 500)));
-                }
-                input.add(refs);
-            }
-            for (List<Ref> page : input) {
-                operator.addInput(page(blockFactory, page));
-            }
-
-            client.holdResponses.countDown();
-            List<Page> output = takeOutput(operator, input.size());
-            try {
-                for (int p = 0; p < input.size(); p++) {
-                    assertThat("page " + p, rows(List.of(output.get(p))), equalTo(input.get(p)));
-                }
-            } finally {
-                output.forEach(Page::releaseBlocks);
-            }
-            List<String> secondBatch = client.requests.stream().skip(1).map(Request::nodeId).toList();
-            assertThat("one request per node for the batched pages", Set.copyOf(secondBatch), hasSize(secondBatch.size()));
-        } finally {
-            client.holdResponses.countDown();
-            operator.close();
-            awaitResponses(driverContext);
-        }
-    }
-
-    /**
-     * A batch that fails the query fails every page of it, and the pages that wait, which never leave. Not even once
-     * another batch that was in flight ends.
-     */
-    public void testAFailedBatchFailsThePagesThatWait() throws Exception {
-        BlockFactory blockFactory = blockFactory();
-        FakeClient client = new FakeClient(blockFactory);
-        client.failingNode = "n2";
-        CountDownLatch holdN1 = new CountDownLatch(1);
-        CountDownLatch holdN2 = new CountDownLatch(1);
-        client.holdResponsesOf.put("n1", holdN1);
-        client.holdResponsesOf.put("n2", holdN2);
-        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
-        // a page of one row fills a batch, so the first two pages fetch side by side and the third waits
-        Operator operator = factory(client, batching(2, 1)).get(driverContext);
-        try {
-            operator.addInput(page(blockFactory, List.of(new Ref(ORIGINS.get(0), 0, 1))));
-            operator.addInput(page(blockFactory, List.of(new Ref(ORIGINS.get(2), 0, 2))));
-            operator.addInput(page(blockFactory, List.of(new Ref(ORIGINS.get(0), 0, 3))));
             operator.finish();
-            assertThat(client.requests.stream().map(Request::nodeId).toList(), equalTo(List.of("n1", "n2")));
-
-            holdN2.countDown();
-            awaitUnblocked(operator);
-            Exception e = expectThrows(Exception.class, operator::getOutput);
-            assertThat(e.getMessage(), equalTo("rejected by [n2]"));
-            holdN1.countDown();
-            // the batch of n1 ends after the failure, and would send the page that waited if it still waited
-            awaitResponses(driverContext);
-            assertThat(
-                "the page that waited never left",
-                client.requests.stream().map(Request::nodeId).toList(),
-                equalTo(List.of("n1", "n2"))
-            );
-        } finally {
-            holdN1.countDown();
-            holdN2.countDown();
-            operator.close();
-            awaitResponses(driverContext);
-        }
-    }
-
-    /**
-     * Closing the operator fails the pages that wait, so their driver can complete, and releases the pages gathered for
-     * the later pages of a batch that never came out.
-     */
-    public void testClosingReleasesThePagesThatWaitAndThoseGathered() throws Exception {
-        BlockFactory blockFactory = blockFactory();
-        FakeClient client = new FakeClient(blockFactory);
-        client.holdResponses = new CountDownLatch(1);
-        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
-        Operator operator = factory(client, batching(1, 100)).get(driverContext);
-        try {
-            List<Ref> first = List.of(new Ref(ORIGINS.get(0), 0, 1));
-            List<Ref> second = List.of(new Ref(ORIGINS.get(0), 0, 2));
-            List<Ref> third = List.of(new Ref(ORIGINS.get(0), 0, 3));
-            for (List<Ref> page : List.of(first, second, third)) {
-                operator.addInput(page(blockFactory, page));
-            }
-            client.holdResponses.countDown();
-            // the second page is the first of its batch, so the operator gathers the third one with it and keeps it
+            assertFalse(operator.needsInput());
             assertThat(releasedRows(takeOutput(operator, 2)), equalTo(concat(first, second)));
 
-            client.holdResponses = new CountDownLatch(1);
-            operator.addInput(page(blockFactory, List.of(new Ref(ORIGINS.get(0), 0, 4))));
-            operator.addInput(page(blockFactory, List.of(new Ref(ORIGINS.get(0), 0, 5))));
-            assertThat("the fifth page waits for the fourth", client.requests, hasSize(3));
+            assertThat(dataNodes.get(0).requests, hasSize(1));
+            assertThat(dataNodes.get(1).requests, hasSize(1));
+            assertThat(dataNodes.get(2).requests, empty());
+            FetchRequest request = dataNodes.get(0).requests.getFirst();
+            assertThat(documents(request), equalTo(Set.of(first.get(0), second.get(0), second.get(1))));
+            assertThat(request.shards().stream().map(FetchRequest.ShardDocs::freeAfterFetch).toList(), everyItem(equalTo(true)));
+            assertThat(request.sessionId(), equalTo("query-session"));
+            assertThat(request.indices(), equalTo(new String[] { "index*" }));
+            assertThat(request.attributes().stream().map(Attribute::name).toList(), equalTo(List.of("id", "value")));
         } finally {
             operator.close();
-            client.holdResponses.countDown();
             awaitResponses(driverContext);
         }
-        assertThat("the page that waited never left", client.requests, hasSize(3));
-        // the test case checks that closing released the pages
     }
 
     /**
-     * A batch takes the rows whose fetched columns fill about one target page, and at least the minimum page size.
+     * Rows that share a document ask for it once, and each gets its values.
      */
-    public void testTheRowBudgetFillsAboutOneTargetPage() {
-        List<Attribute> narrow = List.of(attribute("payload", DataType.KEYWORD), attribute("count", DataType.LONG));
-        int rowSize = DataType.KEYWORD.estimatedSize() + DataType.LONG.estimatedSize();
-        int maxBatchRows = FetchOperator.Batching.Streaming.forFetched(narrow).maxBatchRows();
-        assertThat("the rows fit a target page", (long) maxBatchRows * rowSize, lessThanOrEqualTo((long) Operator.TARGET_PAGE_SIZE));
-        assertThat("one more row doesn't", (long) (maxBatchRows + 1) * rowSize, greaterThan((long) Operator.TARGET_PAGE_SIZE));
-
-        List<Attribute> wide = new ArrayList<>();
-        for (int i = 0; i < 16; i++) {
-            wide.add(attribute("text_" + i, DataType.TEXT));
-        }
-        assertThat(
-            "fewer rows fill the target page",
-            Operator.TARGET_PAGE_SIZE / (16 * DataType.TEXT.estimatedSize()),
-            lessThan(Operator.MIN_TARGET_PAGE_SIZE)
-        );
-        assertThat(FetchOperator.Batching.Streaming.forFetched(wide).maxBatchRows(), equalTo(Operator.MIN_TARGET_PAGE_SIZE));
+    public void testRowsThatShareADocumentAskForItOnce() throws Exception {
+        Ref shared = new Ref(origins.get(2), 0, 7);
+        List<List<Ref>> input = List.of(List.of(shared, new Ref(origins.get(2), 0, 8)), List.of(shared));
+        List<Page> output = run(client(), input);
+        assertThat(releasedRows(output), equalTo(concat(input.get(0), input.get(1))));
+        assertThat(documents(dataNodes.get(1).requests.getFirst()), equalTo(Set.of(shared, new Ref(origins.get(2), 0, 8))));
+        assertThat(lastStatus.documents(), equalTo(2L));
     }
 
     /**
-     * Batching limits under which no batch could leave, or no page could wait, are rejected.
+     * The first page goes out only once every node answered.
      */
-    public void testBatchingRejectsLimitsThatCantFetch() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new FetchOperator.Batching.Streaming(4, 0, 10));
-        assertThat(e.getMessage(), equalTo("maxBatchesInFlight must be positive but was [0]"));
-        e = expectThrows(IllegalArgumentException.class, () -> new FetchOperator.Batching.Streaming(1, 2, 10));
-        assertThat(e.getMessage(), equalTo("maxPagesHeld [1] must be at least maxBatchesInFlight [2]"));
-        e = expectThrows(IllegalArgumentException.class, () -> new FetchOperator.Batching.Streaming(4, 2, 0));
-        assertThat(e.getMessage(), equalTo("maxBatchRows must be positive but was [0]"));
-        e = expectThrows(IllegalArgumentException.class, () -> new FetchOperator.Batching.WholeCut(0));
-        assertThat(e.getMessage(), equalTo("maxPagesHeld must be positive but was [0]"));
-    }
-
-    /**
-     * A whole cut sends nothing while its input goes on. Once the input ended, it fetches every page in one batch, with
-     * one request per node that holds some of its documents.
-     */
-    public void testAWholeCutWaitsForTheEndOfItsInput() throws Exception {
-        BlockFactory blockFactory = blockFactory();
-        FakeClient client = new FakeClient(blockFactory);
-        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
-        Operator operator = factory(client, wholeCut()).get(driverContext);
+    public void testWaitsForEveryNodeBeforeTheFirstPage() throws Exception {
+        DataNode n2 = dataNodes.get(1);
+        n2.hold();
+        DriverContext driverContext = driverContext();
+        Operator operator = factory(client()).get(driverContext);
         try {
-            List<Ref> first = List.of(new Ref(ORIGINS.get(0), 0, 1), new Ref(ORIGINS.get(2), 0, 2));
-            List<Ref> second = List.of(new Ref(ORIGINS.get(1), 0, 3), new Ref(ORIGINS.get(2), 0, 4));
-            List<Ref> third = List.of(new Ref(ORIGINS.get(3), 0, 5));
-            for (List<Ref> page : List.of(first, second, third)) {
-                operator.addInput(page(blockFactory, page));
-            }
-            assertThat("the cut goes on", client.requests, empty());
-
+            List<Ref> refs = List.of(new Ref(origins.get(0), 0, 1), new Ref(origins.get(2), 0, 2));
+            operator.addInput(trackedPage(refs));
             operator.finish();
+            assertBusy(() -> assertThat(n2.requests, hasSize(1)));
+            assertBusy(() -> assertThat(dataNodes.get(0).requests, hasSize(1)));
+            assertNull(operator.getOutput());
+            assertFalse(operator.isFinished());
 
-            assertThat(releasedRows(takeOutput(operator, 3)), equalTo(concat(first, second, third)));
-            assertThat(client.requests.stream().map(Request::nodeId).toList(), containsInAnyOrder("n1", "n2", "n3"));
-            for (Request request : client.requests) {
-                Set<Ref> expected = switch (request.nodeId()) {
-                    case "n1" -> Set.of(first.get(0), second.get(0));
-                    case "n2" -> Set.of(first.get(1), second.get(1));
-                    case "n3" -> Set.copyOf(third);
-                    default -> throw new AssertionError("no documents on [" + request.nodeId() + "]");
-                };
-                assertThat(documents(request), equalTo(expected));
-            }
+            n2.release();
+            assertThat(releasedRows(takeOutput(operator, 1)), equalTo(refs));
         } finally {
             operator.close();
             awaitResponses(driverContext);
@@ -515,253 +249,71 @@ public class FetchOperatorTests extends ComputeTestCase {
     }
 
     /**
-     * The operator can't take another page while it holds as many as it may. A whole cut of more pages sends a batch each
-     * time that many wait, and the rest once the input ended.
+     * The end of the input frees the contexts that none of the rows read. Each node frees the contexts of its request once
+     * it answered, so the tracker frees no others.
      */
-    public void testAWholeCutOfMorePagesThanTheOperatorHoldsSendsWhenFull() throws Exception {
-        BlockFactory blockFactory = blockFactory();
-        FakeClient client = new FakeClient(blockFactory);
-        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
-        Operator operator = factory(client, new FetchOperator.Batching.WholeCut(2)).get(driverContext);
+    public void testTheEndOfTheInputFreesTheContextsNoRowReads() throws Exception {
+        DocOrigin unread = origins.get(3);
+        List<Ref> refs = List.of(new Ref(origins.get(0), 0, 1), new Ref(origins.get(2), 0, 2));
+        DriverContext driverContext = driverContext();
+        Operator operator = factory(client()).get(driverContext);
         try {
-            List<Ref> first = List.of(new Ref(ORIGINS.get(0), 0, 1));
-            List<Ref> second = List.of(new Ref(ORIGINS.get(0), 0, 2));
-            List<Ref> third = List.of(new Ref(ORIGINS.get(0), 0, 3));
-            operator.addInput(page(blockFactory, first));
-            assertThat("one page waits", client.requests, empty());
-            operator.addInput(page(blockFactory, second));
-            assertThat("two pages fill the operator", requestedDocuments(client), equalTo(List.of(Set.copyOf(concat(first, second)))));
-            List<Page> output = new ArrayList<>(takeOutput(operator, 2));
-            assertTrue("the operator takes a page again", operator.needsInput());
-
-            operator.addInput(page(blockFactory, third));
+            Page page = pageNamingAnOriginNoRowReads(refs, unread);
+            tracker.track(page);
+            operator.addInput(page);
             operator.finish();
-
-            output.addAll(takeOutput(operator, 1));
-            assertThat(releasedRows(output), equalTo(concat(first, second, third)));
-            assertThat(requestedDocuments(client), equalTo(List.of(Set.copyOf(concat(first, second)), Set.copyOf(third))));
+            assertThat(freed, contains(unread.contextId()));
+            assertThat(releasedRows(takeOutput(operator, 1)), equalTo(refs));
         } finally {
             operator.close();
             awaitResponses(driverContext);
         }
+        assertThat(freed, contains(unread.contextId()));
     }
 
     /**
-     * A whole cut goes out once its input ended, as the only batch, so it reads every context for the last time.
+     * A request that failed may never have reached its node, so its contexts go once the operator closes.
      */
-    public void testAWholeCutReadsEveryContextForTheLastTime() throws Exception {
-        BlockFactory blockFactory = blockFactory();
-        FakeClient client = new FakeClient(blockFactory);
-        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
-        Operator operator = factory(client, wholeCut()).get(driverContext);
-        try {
-            operator.addInput(page(blockFactory, List.of(new Ref(ORIGINS.get(0), 0, 1), new Ref(ORIGINS.get(2), 0, 2))));
-            operator.addInput(page(blockFactory, List.of(new Ref(ORIGINS.get(1), 0, 3), new Ref(ORIGINS.get(0), 0, 4))));
+    public void testTheContextsOfAFailedRequestGoWhenTheOperatorCloses() {
+        dataNodes.get(1).rejects = true;
+        List<List<Ref>> input = List.of(List.of(new Ref(origins.get(0), 0, 1), new Ref(origins.get(2), 0, 2)));
+        expectThrows(IllegalStateException.class, () -> run(client(), input));
+        assertThat(freed, hasItem(origins.get(2).contextId()));
+    }
 
+    /**
+     * An operator that closes before its input ended sends nothing, and every context goes.
+     */
+    public void testClosingBeforeTheInputEndedSendsNothing() {
+        DriverContext driverContext = driverContext();
+        Operator operator = factory(client()).get(driverContext);
+        try {
+            operator.addInput(trackedPage(List.of(new Ref(origins.get(0), 0, 1), new Ref(origins.get(2), 0, 2))));
+        } finally {
+            operator.close();
+            awaitResponses(driverContext);
+        }
+        assertThat(allRequests(), empty());
+        assertThat(freed, containsInAnyOrder(origins.get(0).contextId(), origins.get(2).contextId()));
+    }
+
+    /**
+     * The operator releases the responses that arrived when it closes before it gathered, and the response that arrives
+     * after it closed.
+     */
+    public void testClosingBeforeTheGatherReleasesTheResponses() throws Exception {
+        DataNode n2 = dataNodes.get(1);
+        n2.hold();
+        DriverContext driverContext = driverContext();
+        Operator operator = factory(client()).get(driverContext);
+        try {
+            operator.addInput(trackedPage(List.of(new Ref(origins.get(0), 0, 1), new Ref(origins.get(2), 0, 2))));
             operator.finish();
-
-            releasedRows(takeOutput(operator, 2));
-            assertThat(client.requests, hasSize(2));
-            for (Request request : client.requests) {
-                assertThat(freeAfterFetchOf(request).values(), everyItem(equalTo(true)));
-            }
+            assertBusy(() -> assertThat(n2.requests, hasSize(1)));
+            assertNull(operator.getOutput());
         } finally {
             operator.close();
-            awaitResponses(driverContext);
-        }
-    }
-
-    /**
-     * A streamed batch that goes out before the input ended frees nothing, because a later page can read the same shard.
-     */
-    public void testAStreamedBatchBeforeTheEndOfTheInputFreesNothing() throws Exception {
-        BlockFactory blockFactory = blockFactory();
-        FakeClient client = new FakeClient(blockFactory);
-        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
-        Operator operator = factory(client, batching(between(1, FetchOperator.MAX_BATCHES_IN_FLIGHT), 100)).get(driverContext);
-        try {
-            operator.addInput(page(blockFactory, List.of(new Ref(ORIGINS.get(0), 0, 1), new Ref(ORIGINS.get(2), 0, 2))));
-            releasedRows(takeOutput(operator, 1));
-
-            assertThat(client.requests, hasSize(2));
-            for (Request request : client.requests) {
-                assertThat(freeAfterFetchOf(request).values(), everyItem(equalTo(false)));
-            }
-        } finally {
-            operator.close();
-            awaitResponses(driverContext);
-        }
-    }
-
-    /**
-     * Pages that wait while the input ends leave once a batch ended. They read for the last time the contexts that no other
-     * page reads, even those an earlier batch read.
-     */
-    public void testAStreamedBatchAfterTheEndOfTheInputFreesWhatNoOtherPageReads() throws Exception {
-        BlockFactory blockFactory = blockFactory();
-        FakeClient client = new FakeClient(blockFactory);
-        client.holdResponses = new CountDownLatch(1);
-        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
-        Operator operator = factory(client, batching(1, 100)).get(driverContext);
-        try {
-            operator.addInput(page(blockFactory, List.of(new Ref(ORIGINS.get(0), 0, 1), new Ref(ORIGINS.get(2), 0, 2))));
-            operator.addInput(page(blockFactory, List.of(new Ref(ORIGINS.get(0), 0, 3), new Ref(ORIGINS.get(3), 0, 4))));
-            operator.finish();
-            assertThat("the second page waits for the first batch", client.requests, hasSize(2));
-
-            client.holdResponses.countDown();
-            releasedRows(takeOutput(operator, 2));
-
-            assertThat(client.requests, hasSize(4));
-            for (Request first : client.requests.subList(0, 2)) {
-                assertThat(freeAfterFetchOf(first).values(), everyItem(equalTo(false)));
-            }
-            for (Request second : client.requests.subList(2, 4)) {
-                assertThat(freeAfterFetchOf(second).values(), everyItem(equalTo(true)));
-            }
-        } finally {
-            client.holdResponses.countDown();
-            operator.close();
-            awaitResponses(driverContext);
-        }
-    }
-
-    /**
-     * A batch that goes out once the input ended keeps a context that a batch still in flight reads, so the node doesn't
-     * free it under that batch. The end of the fetch lets it go.
-     */
-    public void testAContextABatchInFlightReadsStaysOpen() throws Exception {
-        BlockFactory blockFactory = blockFactory();
-        FakeClient client = new FakeClient(blockFactory);
-        CountDownLatch holdN1 = new CountDownLatch(1);
-        CountDownLatch holdN2 = new CountDownLatch(1);
-        client.holdResponsesOf.put("n1", holdN1);
-        client.holdResponsesOf.put("n2", holdN2);
-        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
-        // a page of one row fills a batch, and two batches fetch at once
-        Operator operator = factory(client, batching(2, 1)).get(driverContext);
-        try {
-            operator.addInput(page(blockFactory, List.of(new Ref(ORIGINS.get(2), 0, 1))));
-            operator.addInput(page(blockFactory, List.of(new Ref(ORIGINS.get(0), 0, 2))));
-            operator.addInput(page(blockFactory, List.of(new Ref(ORIGINS.get(0), 0, 3))));
-            operator.finish();
-            assertThat("the third page waits for a batch to end", client.requests, hasSize(2));
-
-            holdN2.countDown();
-            assertBusy(() -> assertThat(client.requests, hasSize(3)));
-            assertThat(
-                "the second batch still reads it",
-                freeAfterFetchOf(client.requests.get(2)),
-                equalTo(Map.of(ORIGINS.get(0).contextId(), false))
-            );
-
-            holdN1.countDown();
-            releasedRows(takeOutput(operator, 3));
-        } finally {
-            holdN1.countDown();
-            holdN2.countDown();
-            operator.close();
-            awaitResponses(driverContext);
-        }
-    }
-
-    /**
-     * An operator that closes before its input ended, because the query failed or was cancelled, sends none of the pages
-     * of a whole cut that wait.
-     */
-    public void testAWholeCutThatClosesBeforeItsInputEndedSendsNothing() throws Exception {
-        BlockFactory blockFactory = blockFactory();
-        FakeClient client = new FakeClient(blockFactory);
-        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
-        Operator operator = factory(client, wholeCut()).get(driverContext);
-        operator.addInput(page(blockFactory, List.of(new Ref(ORIGINS.get(0), 0, 1), new Ref(ORIGINS.get(2), 0, 2))));
-
-        operator.close();
-        awaitResponses(driverContext);
-
-        assertThat(client.requests, empty());
-        assertThat(client.ends, contains("fetch"));
-    }
-
-    /**
-     * When the input ends, the operator names the reader contexts that the rows of the cut read, and no others: a page can
-     * name an origin that none of its rows reads. It names them once.
-     */
-    public void testTheEndOfTheCutNamesTheContextsItsRowsRead() throws Exception {
-        BlockFactory blockFactory = blockFactory();
-        FakeClient client = new FakeClient(blockFactory);
-        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
-        Operator operator = factory(client, batching(between(1, FetchOperator.MAX_BATCHES_IN_FLIGHT), 100)).get(driverContext);
-        try {
-            List<Ref> first = List.of(new Ref(ORIGINS.get(0), 0, 1), new Ref(ORIGINS.get(2), 0, 2));
-            List<Ref> second = List.of(new Ref(ORIGINS.get(1), 1, 3), new Ref(ORIGINS.get(0), 0, 4));
-            operator.addInput(pageNamingAnOriginNoRowReads(blockFactory, first, ORIGINS.get(3)));
-            operator.addInput(page(blockFactory, second));
-            assertThat("the cut goes on", client.cutsEnded, empty());
-
-            operator.finish();
-            operator.finish();
-
-            Set<ShardSearchContextId> read = Set.of(ORIGINS.get(0).contextId(), ORIGINS.get(1).contextId(), ORIGINS.get(2).contextId());
-            assertThat(client.cutsEnded, contains(read));
-            assertThat(releasedRows(takeOutput(operator, 2)), equalTo(concat(first, second)));
-        } finally {
-            operator.close();
-            awaitResponses(driverContext);
-        }
-        assertThat(client.ends, contains("cut", "fetch"));
-    }
-
-    /**
-     * Closing the operator ends its fetch, also when it closes before its input ended. Its cut didn't end then, and the end
-     * of the fetch lets every context go.
-     */
-    public void testClosingEndsTheFetch() throws Exception {
-        BlockFactory blockFactory = blockFactory();
-        FakeClient client = new FakeClient(blockFactory);
-        client.holdResponses = new CountDownLatch(1);
-        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
-        Operator operator = factory(client, batching(between(1, FetchOperator.MAX_BATCHES_IN_FLIGHT), 100)).get(driverContext);
-        boolean inputEnded = randomBoolean();
-        try {
-            List<Ref> rows = List.of(new Ref(ORIGINS.get(0), 0, 1), new Ref(ORIGINS.get(2), 0, 2));
-            operator.addInput(page(blockFactory, rows));
-            if (inputEnded) {
-                operator.finish();
-                client.holdResponses.countDown();
-                assertThat(releasedRows(takeOutput(operator, 1)), equalTo(rows));
-            }
-            assertThat("the fetch goes on", client.ends, inputEnded ? contains("cut") : empty());
-        } finally {
-            operator.close();
-            client.holdResponses.countDown();
-            awaitResponses(driverContext);
-        }
-        if (inputEnded) {
-            assertThat(client.ends, contains("cut", "fetch"));
-            assertThat(client.cutsEnded, contains(Set.of(ORIGINS.get(0).contextId(), ORIGINS.get(2).contextId())));
-        } else {
-            assertThat(client.ends, contains("fetch"));
-        }
-    }
-
-    /**
-     * A page of a streamed cut sends its requests as soon as it arrives, without waiting for the rest of the cut.
-     */
-    public void testFetchesEachPageAsItArrives() throws Exception {
-        BlockFactory blockFactory = blockFactory();
-        FakeClient client = new FakeClient(blockFactory);
-        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
-        Operator operator = factory(client, batching(between(1, FetchOperator.MAX_BATCHES_IN_FLIGHT), 100)).get(driverContext);
-        try {
-            operator.addInput(page(blockFactory, List.of(new Ref(ORIGINS.get(0), 0, 1), new Ref(ORIGINS.get(2), 0, 2))));
-            assertThat(client.requests.stream().map(Request::nodeId).toList(), containsInAnyOrder("n1", "n2"));
-            awaitUnblocked(operator);
-            Page page = operator.getOutput();
-            assertThat(page.getPositionCount(), equalTo(2));
-            page.releaseBlocks();
-        } finally {
-            operator.close();
+            n2.release();
             awaitResponses(driverContext);
         }
     }
@@ -771,15 +323,13 @@ public class FetchOperatorTests extends ComputeTestCase {
      * node, not only those of the node that answered last.
      */
     public void testMergesTheResponseHeadersOfEveryNode() throws Exception {
-        BlockFactory blockFactory = blockFactory();
-        FakeClient client = new FakeClient(blockFactory);
-        client.responseHeader = "X-Fetched-By";
-        try (ThreadContext.StoredContext ignored = threadPool.getThreadContext().stashContext()) {
+        ThreadContext threadContext = threadPool.getThreadContext();
+        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
             List<List<Ref>> input = List.of(
-                List.of(new Ref(ORIGINS.get(0), 0, 1), new Ref(ORIGINS.get(2), 0, 2), new Ref(ORIGINS.get(3), 0, 3))
+                List.of(new Ref(origins.get(0), 0, 1), new Ref(origins.get(2), 0, 2), new Ref(origins.get(3), 0, 3))
             );
-            run(blockFactory, client, input).forEach(Page::releaseBlocks);
-            assertThat(threadPool.getThreadContext().getResponseHeaders().get("X-Fetched-By"), containsInAnyOrder("n1", "n2", "n3"));
+            run(client(), input).forEach(Page::releaseBlocks);
+            assertThat(threadContext.getResponseHeaders().get("X-Fetched-By"), containsInAnyOrder("n1", "n2", "n3"));
         }
     }
 
@@ -788,21 +338,11 @@ public class FetchOperatorTests extends ComputeTestCase {
      * response rather than in its headers. The operator adds the warnings of every node to its own driver, each one once.
      */
     public void testAddsTheWarningsOfEveryNodeToTheDriver() throws Exception {
-        BlockFactory blockFactory = blockFactory();
-        FakeClient client = new FakeClient(blockFactory);
         List<List<Ref>> input = List.of(
-            List.of(new Ref(ORIGINS.get(0), 0, 1), new Ref(ORIGINS.get(2), 0, 2), new Ref(ORIGINS.get(3), 0, 3))
+            List.of(new Ref(origins.get(0), 0, 1), new Ref(origins.get(2), 0, 2), new Ref(origins.get(3), 0, 3))
         );
-        run(blockFactory, client, input).forEach(Page::releaseBlocks);
-        assertThat(
-            lastWarnings,
-            containsInAnyOrder(
-                FakeClient.EVERY_NODE_WARNING,
-                FakeClient.warningOf("n1"),
-                FakeClient.warningOf("n2"),
-                FakeClient.warningOf("n3")
-            )
-        );
+        run(client(), input).forEach(Page::releaseBlocks);
+        assertThat(lastWarnings, containsInAnyOrder(EVERY_NODE_WARNING, warningOf("n1"), warningOf("n2"), warningOf("n3")));
     }
 
     /**
@@ -810,9 +350,7 @@ public class FetchOperatorTests extends ComputeTestCase {
      * pages.
      */
     public void testAnEmptyCutSendsNothing() throws Exception {
-        BlockFactory blockFactory = blockFactory();
-        FakeClient client = new FakeClient(blockFactory);
-        List<Page> output = run(blockFactory, client, List.of(List.of()));
+        List<Page> output = run(client(), List.of(List.of()));
         try {
             assertThat(output.size(), equalTo(1));
             assertThat(output.getFirst().getPositionCount(), equalTo(0));
@@ -820,183 +358,87 @@ public class FetchOperatorTests extends ComputeTestCase {
         } finally {
             output.forEach(Page::releaseBlocks);
         }
-        assertThat(run(blockFactory, client, List.of()), empty());
-        assertThat(client.requests, empty());
+        assertThat(run(client(), List.of()), empty());
+        assertThat(allRequests(), empty());
     }
 
     /**
      * Any failure of a fetch fails the query: a shard whose context is gone, which fails the request of its node, a request
-     * a node rejected, a node that left, a request that can't be sent, and a response without a row for every document.
+     * a node rejected, a node that left, and a request that can't be sent. Each request completes its drivers once.
      */
-    public void testAnyFailureFailsTheFetch() throws Exception {
-        BlockFactory blockFactory = blockFactory();
-        List<List<Ref>> input = List.of(List.of(new Ref(ORIGINS.get(0), 0, 1), new Ref(ORIGINS.get(2), 0, 2)));
+    public void testAnyFailureFailsTheFetch() {
+        List<List<Ref>> input = List.of(List.of(new Ref(origins.get(0), 0, 1), new Ref(origins.get(2), 0, 2)));
 
-        FakeClient missingShard = new FakeClient(blockFactory);
-        missingShard.failingShard = ORIGINS.get(2).contextId();
-        Exception e = expectThrows(Exception.class, () -> run(blockFactory, missingShard, input));
+        dataNodes.get(1).missingContext = origins.get(2).contextId();
+        Exception e = expectThrows(Exception.class, () -> run(client(), input));
         assertThat(e, instanceOf(SearchContextMissingException.class));
+        dataNodes.get(1).missingContext = null;
 
-        FakeClient rejected = new FakeClient(blockFactory);
-        rejected.failingNode = "n1";
-        e = expectThrows(Exception.class, () -> run(blockFactory, rejected, input));
+        dataNodes.get(0).rejects = true;
+        e = expectThrows(Exception.class, () -> run(client(), input));
         assertThat(e.getMessage(), equalTo("rejected by [n1]"));
+        dataNodes.get(0).rejects = false;
 
-        FakeClient nodeLeft = new FakeClient(blockFactory);
-        nodeLeft.goneNode = "n2";
-        e = expectThrows(Exception.class, () -> run(blockFactory, nodeLeft, input));
+        String left = dataNodes.get(1).id();
+        Supplier<DiscoveryNodes> withoutN2 = () -> DiscoveryNodes.builder(clusterService.state().nodes()).remove(left).build();
+        e = expectThrows(Exception.class, () -> run(client(withoutN2, this::send), input));
         assertThat(e, instanceOf(NoNodeAvailableException.class));
 
-        FakeClient notSent = new FakeClient(blockFactory);
-        notSent.throwingNode = "n1";
-        e = expectThrows(Exception.class, () -> run(blockFactory, notSent, input));
+        String throwing = dataNodes.get(0).id();
+        QueryFetchClient.Sender cannotSend = (target, request, parentTask, listener) -> {
+            if (target.getId().equals(throwing)) {
+                throw new IllegalStateException("can't send to [n1]");
+            }
+            send(target, request, parentTask, listener);
+        };
+        e = expectThrows(Exception.class, () -> run(client(() -> clusterService.state().nodes(), cannotSend), input));
         assertThat(e.getMessage(), equalTo("can't send to [n1]"));
-        assertThat("the query fails, so the other nodes get nothing to load", notSent.requests, empty());
 
-        FakeClient missingRows = new FakeClient(blockFactory);
-        missingRows.shortNode = "n2";
-        e = expectThrows(Exception.class, () -> run(blockFactory, missingRows, input));
-        assertThat(e.getMessage(), equalTo("node [n2] returned [0] rows for [1] documents"));
-        // the test case checks that the failures released every page
+        // each request completed its drivers once, also the one that never reached its node
+        assertThat(drivers.completed, hasSize(allRequests().size() + 1));
     }
 
     /**
-     * A driver that asks for output once the responses completed gets the failure, not the rows of the other nodes.
+     * The status shows the cut, the documents the requests asked for, and the fetch from each node.
      */
-    public void testTheFailureComesBeforeTheRows() throws Exception {
-        BlockFactory blockFactory = blockFactory();
-        FakeClient client = new FakeClient(blockFactory);
-        client.failingNode = "n2";
-        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
-        Operator operator = factory(client).get(driverContext);
-        try {
-            operator.addInput(page(blockFactory, List.of(new Ref(ORIGINS.get(0), 0, 1), new Ref(ORIGINS.get(2), 0, 2))));
-            operator.finish();
-            awaitUnblocked(operator);
-            Exception e = expectThrows(Exception.class, operator::getOutput);
-            assertThat(e.getMessage(), equalTo("rejected by [n2]"));
-        } finally {
-            operator.close();
-            awaitResponses(driverContext);
-        }
-    }
-
-    /**
-     * When a listener throws, the transport completes it again with the failure. The second completion changes nothing.
-     */
-    public void testASecondCompletionIsIgnored() throws Exception {
-        BlockFactory blockFactory = blockFactory();
-        FakeClient client = new FakeClient(blockFactory);
-        client.completeTwice = true;
-        List<List<Ref>> input = List.of(List.of(new Ref(ORIGINS.get(0), 0, 1), new Ref(ORIGINS.get(2), 0, 2)));
-        List<Page> output = run(blockFactory, client, input);
-        try {
-            assertThat(rows(output), equalTo(input.getFirst()));
-        } finally {
-            output.forEach(Page::releaseBlocks);
-        }
-    }
-
-    /**
-     * A query that ends before the driver gathers, because something else failed, releases what the nodes returned.
-     */
-    public void testClosingBeforeTheGatherReleasesTheResponses() throws Exception {
-        BlockFactory blockFactory = blockFactory();
-        FakeClient client = new FakeClient(blockFactory);
-        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
-        Operator operator = factory(client).get(driverContext);
-        operator.addInput(page(blockFactory, List.of(new Ref(ORIGINS.get(0), 0, 1), new Ref(ORIGINS.get(2), 0, 2))));
-        operator.finish();
-        awaitUnblocked(operator);
-
-        operator.close();
-        awaitResponses(driverContext);
-        // the test case checks that closing released the pages
-    }
-
-    /**
-     * A response that arrives after the operator closed, for example because the query was cancelled, releases its
-     * own pages.
-     */
-    public void testALateResponseReleasesItsPages() throws Exception {
-        BlockFactory blockFactory = blockFactory();
-        FakeClient client = new FakeClient(blockFactory);
-        CountDownLatch release = new CountDownLatch(1);
-        client.holdResponses = release;
-        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
-        Operator operator = factory(client).get(driverContext);
-        operator.addInput(page(blockFactory, List.of(new Ref(ORIGINS.get(0), 0, 1))));
-        operator.finish();
-        assertFalse(operator.isBlocked().listener().isDone());
-
-        operator.close();
-        release.countDown();
-        awaitResponses(driverContext);
-        // the test case checks that the response released its pages
-    }
-
-    /**
-     * The status shows how the cut became requests, and the time each node reported.
-     */
-    public void testStatusShowsTheRequests() throws Exception {
-        BlockFactory blockFactory = blockFactory();
-        FakeClient client = new FakeClient(blockFactory);
+    public void testStatusShowsTheFetchOfEachNode() throws Exception {
         List<List<Ref>> input = List.of(
-            List.of(new Ref(ORIGINS.get(0), 0, 1), new Ref(ORIGINS.get(1), 0, 2), new Ref(ORIGINS.get(0), 0, 1)),
-            List.of(new Ref(ORIGINS.get(2), 3, 4))
+            List.of(new Ref(origins.get(0), 0, 1), new Ref(origins.get(1), 0, 2)),
+            List.of(new Ref(origins.get(2), 0, 3), new Ref(origins.get(0), 0, 1))
         );
-        run(blockFactory, client, input).forEach(Page::releaseBlocks);
+        run(client(), input).forEach(Page::releaseBlocks);
 
-        assertThat(lastStatus.receivedPages(), equalTo(2L));
-        assertThat(lastStatus.completedPages(), equalTo(2L));
+        assertThat(lastStatus.pagesReceived(), equalTo(2));
         assertThat(lastStatus.rowsReceived(), equalTo(4L));
-        assertThat("rows of the same document fetch it once", lastStatus.documents(), equalTo(3L));
+        assertThat(lastStatus.documents(), equalTo(3L));
         assertThat(lastStatus.pagesEmitted(), equalTo(2));
-        assertThat(lastStatus.requests().stream().map(FetchOperator.NodeRequest::node).toList(), containsInAnyOrder("n1", "n2"));
-        for (FetchOperator.NodeRequest request : lastStatus.requests()) {
-            assertThat(request.shards(), equalTo(request.node().equals("n1") ? 2 : 1));
-            assertThat(request.documents(), equalTo(request.node().equals("n1") ? 2 : 1));
-            assertThat(request.tookNanos(), equalTo(FakeClient.TOOK_NANOS));
-            assertThat(request.setupNanos(), equalTo(FakeClient.SETUP_NANOS));
-            assertThat(request.requestNanos(), greaterThan(0L));
+        List<FetchOperator.NodeFetchStats> nodes = lastStatus.nodes();
+        assertThat(nodes.stream().map(FetchOperator.NodeFetchStats::node).toList(), containsInAnyOrder("n1", "n2"));
+        for (FetchOperator.NodeFetchStats node : nodes) {
+            assertThat(node.shards(), equalTo(node.node().equals("n1") ? 2 : 1));
+            assertThat(node.documents(), equalTo(node.node().equals("n1") ? 2 : 1));
+            assertThat(node.requestNanos(), greaterThan(0L));
+            assertThat(node.tookNanos(), equalTo(TOOK_NANOS));
+            assertThat(node.setupNanos(), lessThan(node.tookNanos()));
         }
-        assertThat(lastStatus.processNanos(), greaterThan(0L));
-        assertThat(lastStatus.planNanos(), greaterThan(0L));
-        assertThat(lastStatus.gatherNanos(), greaterThan(0L));
-    }
-
-    public void testDescribe() {
-        assertThat(
-            factory(new FakeClient(blockFactory())).describe(),
-            equalTo("FetchOperator[docChannel=0, fetchedTypes=[BYTES_REF, LONG]]")
-        );
+        assertThat(drivers.completed, hasSize(2));
     }
 
     /**
-     * Runs the cut through the operator and returns its output, like a driver does: it adds a page while the operator
-     * takes one, waits while it is blocked, and finishes it after the last page.
+     * Runs the cut through the operator and returns its output, like a driver does: the exchange shows each page to the
+     * tracker, the operator takes every page, and once its input finished, the driver waits while it is blocked.
      */
-    private List<Page> run(BlockFactory blockFactory, FakeClient client, List<List<Ref>> input) throws Exception {
-        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+    private List<Page> run(QueryFetchClient client, List<List<Ref>> input) throws Exception {
+        DriverContext driverContext = driverContext();
         List<Page> output = new ArrayList<>();
         Operator operator = factory(client).get(driverContext);
         try {
-            Iterator<List<Ref>> pages = input.iterator();
+            for (List<Ref> refs : input) {
+                operator.addInput(trackedPage(refs));
+            }
+            operator.finish();
             while (operator.isFinished() == false) {
-                if (pages.hasNext() && operator.needsInput()) {
-                    operator.addInput(page(blockFactory, pages.next()));
-                    continue;
-                }
-                if (pages.hasNext() == false) {
-                    operator.finish();
-                }
-                IsBlockedResult blocked = operator.isBlocked();
-                if (blocked.listener().isDone() == false) {
-                    PlainActionFuture<Void> unblocked = new PlainActionFuture<>();
-                    blocked.listener().addListener(unblocked);
-                    unblocked.actionGet(TimeValue.timeValueSeconds(10));
-                    continue;
-                }
+                awaitUnblocked(operator);
                 Page page = operator.getOutput();
                 if (page != null) {
                     output.add(page);
@@ -1030,43 +472,6 @@ public class FetchOperatorTests extends ComputeTestCase {
         responded.actionGet(TimeValue.timeValueSeconds(10));
     }
 
-    private FetchOperator.Factory factory(FetchOperator.Client client) {
-        return factory(client, randomBatching());
-    }
-
-    private FetchOperator.Factory factory(FetchOperator.Client client, FetchOperator.Batching batching) {
-        return new FetchOperator.Factory(0, FETCHED_TYPES, List.of(), batching, client);
-    }
-
-    /**
-     * Either kind of batching. The behavior the tests that use it check doesn't depend on how the pages group.
-     */
-    private static FetchOperator.Batching randomBatching() {
-        if (randomBoolean()) {
-            return new FetchOperator.Batching.WholeCut(between(1, FetchOperator.MAX_PAGES_HELD));
-        }
-        int maxBatchesInFlight = between(1, FetchOperator.MAX_BATCHES_IN_FLIGHT);
-        return new FetchOperator.Batching.Streaming(
-            between(maxBatchesInFlight, FetchOperator.MAX_PAGES_HELD),
-            maxBatchesInFlight,
-            between(1, 100)
-        );
-    }
-
-    /**
-     * Streaming batching with room for every page a test holds.
-     */
-    private static FetchOperator.Batching batching(int maxBatchesInFlight, int maxBatchRows) {
-        return new FetchOperator.Batching.Streaming(FetchOperator.MAX_PAGES_HELD, maxBatchesInFlight, maxBatchRows);
-    }
-
-    /**
-     * Whole-cut batching with room for every page a test holds.
-     */
-    private static FetchOperator.Batching wholeCut() {
-        return new FetchOperator.Batching.WholeCut(FetchOperator.MAX_PAGES_HELD);
-    }
-
     /**
      * Takes the next {@code count} pages out of the operator, and waits for each one like a driver does.
      */
@@ -1090,40 +495,261 @@ public class FetchOperatorTests extends ComputeTestCase {
         }
     }
 
+    private DriverContext driverContext() {
+        return new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+    }
+
+    private FetchOperator.Factory factory(QueryFetchClient client) {
+        return new FetchOperator.Factory(0, FETCHED_TYPES, FETCHED, client);
+    }
+
+    private QueryFetchClient client() {
+        return client(() -> clusterService.state().nodes(), this::send);
+    }
+
     /**
-     * The documents of each request, in the order the requests went out.
+     * The client of a new execution, with its own tracker, which records the contexts it frees instead of sending the
+     * free requests.
      */
-    private static List<Set<Ref>> requestedDocuments(FakeClient client) {
-        return client.requests.stream().map(FetchOperatorTests::documents).toList();
+    private QueryFetchClient client(Supplier<DiscoveryNodes> nodes, QueryFetchClient.Sender sender) {
+        tracker = new FetchContextTracker(new SearchTransportService(coordinator, null, null) {
+            @Override
+            public void sendFreeContext(
+                Transport.Connection connection,
+                ShardSearchContextId contextId,
+                ActionListener<SearchFreeContextResponse> listener
+            ) {
+                // the tracker doesn't wait for the answer, so the test doesn't send one
+                freed.add(contextId);
+            }
+        }, clusterService);
+        trackers.add(tracker);
+        return new QueryFetchClient(
+            sender,
+            threadPool.getThreadContext(),
+            nodes,
+            new QueryFetchScope(rootTask, "query-session", EsqlTestUtils.TEST_CFG, drivers, tracker),
+            new OriginalIndices(new String[] { "index*" }, SearchRequest.DEFAULT_INDICES_OPTIONS)
+        );
+    }
+
+    /**
+     * Sends a request the way {@link FetchService} does, reading the response into the block factory of the driver.
+     */
+    private void send(DiscoveryNode target, FetchRequest request, Task parentTask, ActionListener<FetchResponse> listener) {
+        FetchService.sendFetch(coordinator, blockFactory, target, request, parentTask, listener);
+    }
+
+    private MockTransportService startTransport(String name) {
+        Settings settings = Settings.builder().put("node.name", name).build();
+        List<NamedWriteableRegistry.Entry> writeables = new ArrayList<>();
+        writeables.addAll(new SearchModule(Settings.EMPTY, List.of()).getNamedWriteables());
+        // the data nodes read the attributes of the requests
+        writeables.addAll(new EsqlPlugin().getNamedWriteables());
+        MockTransportService transport = MockTransportService.createNewService(
+            settings,
+            MockTransportService.newMockTransport(settings, TransportVersion.current(), threadPool, new NamedWriteableRegistry(writeables)),
+            VersionInformation.CURRENT,
+            threadPool,
+            null,
+            Set.of()
+        );
+        transport.start();
+        transport.acceptIncomingRequests();
+        return transport;
+    }
+
+    private List<FetchRequest> allRequests() {
+        return dataNodes.stream().flatMap(n -> n.requests.stream()).toList();
+    }
+
+    /**
+     * A data node that answers fetch requests like {@link FetchService}.
+     */
+    private class DataNode {
+        private final String name;
+        private final MockTransportService transport;
+        private final BlockFactory responseBlocks = blockFactory();
+        private final List<FetchRequest> requests = new CopyOnWriteArrayList<>();
+        /** Its responses wait for this latch. */
+        private volatile CountDownLatch held;
+        /** A request that names this context fails as a whole, like a node fails it when the context is gone. */
+        private volatile ShardSearchContextId missingContext;
+        /** Its requests fail with a rejection. */
+        private volatile boolean rejects;
+
+        DataNode(String name) {
+            this.name = name;
+            this.transport = startTransport(name);
+            transport.registerRequestHandler(
+                FetchService.FETCH_ACTION_NAME,
+                threadPool.generic(),
+                FetchRequest::new,
+                (request, channel, task) -> answer(request, channel)
+            );
+        }
+
+        String id() {
+            return transport.getLocalNode().getId();
+        }
+
+        void hold() {
+            held = new CountDownLatch(1);
+        }
+
+        void release() {
+            CountDownLatch latch = held;
+            if (latch != null) {
+                latch.countDown();
+            }
+        }
+
+        private void answer(FetchRequest request, TransportChannel channel) throws Exception {
+            requests.add(request);
+            CountDownLatch latch = held;
+            if (latch != null) {
+                assertTrue(latch.await(10, TimeUnit.SECONDS));
+            }
+            threadPool.getThreadContext().addResponseHeader("X-Fetched-By", name);
+            if (rejects) {
+                channel.sendResponse(new IllegalStateException("rejected by [" + name + "]"));
+                return;
+            }
+            for (FetchRequest.ShardDocs shard : request.shards()) {
+                if (shard.contextId().equals(missingContext)) {
+                    channel.sendResponse(new SearchContextMissingException(shard.contextId()));
+                    return;
+                }
+            }
+            FetchResponse response = respond(request);
+            try {
+                channel.sendResponse(response);
+            } finally {
+                response.decRef();
+            }
+        }
+
+        /**
+         * The rows of each shard in request order, with values that name their document.
+         */
+        private FetchResponse respond(FetchRequest request) {
+            List<Page> pages = new ArrayList<>();
+            for (FetchRequest.ShardDocs shard : request.shards()) {
+                try (
+                    BytesRefBlock.Builder ids = responseBlocks.newBytesRefBlockBuilder(shard.docCount());
+                    LongBlock.Builder values = responseBlocks.newLongBlockBuilder(shard.docCount())
+                ) {
+                    for (int d = 0; d < shard.docCount(); d++) {
+                        ids.appendBytesRef(new BytesRef(docId(shard.shardId(), shard.segments()[d], shard.docs()[d])));
+                        values.appendLong(value(shard.shardId(), shard.segments()[d], shard.docs()[d]));
+                    }
+                    pages.add(new Page(ids.build(), values.build()));
+                }
+            }
+            DriverCompletionInfo completionInfo = DriverCompletionInfo.EMPTY.withAdditionalWarnings(
+                List.of(EVERY_NODE_WARNING, warningOf(name))
+            );
+            return new FetchResponse(pages, completionInfo, TOOK_NANOS, SETUP_NANOS);
+        }
+    }
+
+    private static String warningOf(String nodeName) {
+        return "a warning of " + nodeName;
+    }
+
+    private static String docId(ShardId shardId, int segment, int doc) {
+        return "doc-" + shardId.id() + "-" + segment + "-" + doc;
+    }
+
+    private static long value(ShardId shardId, int segment, int doc) {
+        return shardId.id() * 1_000_000L + segment * 1_000L + doc;
+    }
+
+    /**
+     * Stands in for the compute listener of the query, which counts the drivers of each listener it hands out.
+     */
+    private static class QueryDrivers implements Supplier<ActionListener<DriverCompletionInfo>> {
+        private final List<DriverCompletionInfo> completed = new CopyOnWriteArrayList<>();
+
+        @Override
+        public ActionListener<DriverCompletionInfo> get() {
+            return ActionListener.assertOnce(ActionListener.wrap(completed::add, e -> { throw new AssertionError(e); }));
+        }
+    }
+
+    private record Ref(DocOrigin origin, int segment, int doc) {}
+
+    private DocOrigin origin(int dataNode, int shard) {
+        return new DocOrigin(
+            "",
+            dataNodes.get(dataNode).id(),
+            new ShardId("index", "uuid", shard),
+            new ShardSearchContextId("session", shard)
+        );
+    }
+
+    private List<List<Ref>> randomInput() {
+        List<List<Ref>> input = new ArrayList<>();
+        int pages = between(1, 4);
+        for (int p = 0; p < pages; p++) {
+            List<Ref> refs = new ArrayList<>();
+            int rows = between(0, 40);
+            for (int r = 0; r < rows; r++) {
+                refs.add(new Ref(randomFrom(origins), between(0, 3), between(0, 500)));
+            }
+            input.add(refs);
+        }
+        return input;
+    }
+
+    /**
+     * A page of {@code refs}, which the tracker saw arrive, as the exchange shows it every page.
+     */
+    private Page trackedPage(List<Ref> refs) {
+        Page page = page(refs, null);
+        tracker.track(page);
+        return page;
+    }
+
+    /**
+     * A page of {@code refs} whose origins also name {@code unread}, an origin that none of its rows reads.
+     */
+    private Page pageNamingAnOriginNoRowReads(List<Ref> refs, DocOrigin unread) {
+        assertFalse("no row may read it", refs.stream().anyMatch(r -> r.origin().equals(unread)));
+        return page(refs, unread);
+    }
+
+    private Page page(List<Ref> refs, DocOrigin extraOrigin) {
+        List<DocOrigin> pageOrigins = new ArrayList<>();
+        for (Ref ref : refs) {
+            if (pageOrigins.contains(ref.origin()) == false) {
+                pageOrigins.add(ref.origin());
+            }
+        }
+        if (extraOrigin != null) {
+            pageOrigins.add(extraOrigin);
+        }
+        try (DocBlock.Builder builder = DocBlock.newBlockBuilder(blockFactory, refs.size())) {
+            for (Ref ref : refs) {
+                builder.appendShard(pageOrigins.indexOf(ref.origin())).appendSegment(ref.segment()).appendDoc(ref.doc());
+            }
+            // rows may share a document
+            return new Page(builder.build(DocVector.config().origins(DocOrigins.of(pageOrigins)).mayContainDuplicates()));
+        }
     }
 
     /**
      * The documents one request asked for.
      */
-    private static Set<Ref> documents(Request request) {
+    private Set<Ref> documents(FetchRequest request) {
         Set<Ref> documents = new HashSet<>();
         for (FetchRequest.ShardDocs shard : request.shards()) {
-            DocOrigin origin = originOf(shard);
+            DocOrigin origin = origins.stream().filter(o -> o.contextId().equals(shard.contextId())).findFirst().orElseThrow();
             for (int d = 0; d < shard.docCount(); d++) {
                 documents.add(new Ref(origin, shard.segments()[d], shard.docs()[d]));
             }
         }
         return documents;
-    }
-
-    /**
-     * Whether the node of one request frees the context of each of its shards once it answered.
-     */
-    private static Map<ShardSearchContextId, Boolean> freeAfterFetchOf(Request request) {
-        Map<ShardSearchContextId, Boolean> freeAfterFetch = new HashMap<>();
-        for (FetchRequest.ShardDocs shard : request.shards()) {
-            freeAfterFetch.put(shard.contextId(), shard.freeAfterFetch());
-        }
-        return freeAfterFetch;
-    }
-
-    private static DocOrigin originOf(FetchRequest.ShardDocs shard) {
-        return ORIGINS.stream().filter(o -> o.contextId().equals(shard.contextId())).findFirst().orElseThrow();
     }
 
     @SafeVarargs
@@ -1133,215 +759,6 @@ public class FetchOperatorTests extends ComputeTestCase {
             rows.addAll(page);
         }
         return rows;
-    }
-
-    private static Attribute attribute(String name, DataType type) {
-        return new ReferenceAttribute(Source.EMPTY, name, type);
-    }
-
-    private record Ref(DocOrigin origin, int segment, int doc) {
-        String id() {
-            return "doc-" + origin.shardId().id() + "-" + segment + "-" + doc;
-        }
-
-        long value() {
-            return origin.shardId().id() * 1_000_000L + segment * 1_000L + doc;
-        }
-    }
-
-    private record Request(String nodeId, List<FetchRequest.ShardDocs> shards) {}
-
-    /**
-     * Answers like a data node, on another thread.
-     */
-    private class FakeClient implements FetchOperator.Client {
-        static final long TOOK_NANOS = 5_000;
-        static final long SETUP_NANOS = 1_000;
-        static final String EVERY_NODE_WARNING = "a warning of every node";
-        private final BlockFactory blockFactory;
-        private final List<Request> requests = new CopyOnWriteArrayList<>();
-        /** A request that names this context fails as a whole, like a data node fails it when the context is gone. */
-        private ShardSearchContextId failingShard;
-        /** The request to this node fails with a rejection. */
-        private String failingNode;
-        private String goneNode;
-        /** Every node is found on another thread, after the batch was sent. */
-        private boolean lateNodes;
-        /** The request to this node fails before it is sent. */
-        private String throwingNode;
-        /** This node returns no row for the first shard it loads. */
-        private String shortNode;
-        private boolean completeTwice;
-        private CountDownLatch holdResponses;
-        /** The responses of each node in the map wait for its latch. */
-        private final Map<String, CountDownLatch> holdResponsesOf = new ConcurrentHashMap<>();
-        /** The reader contexts that each end of the cut named. */
-        private final List<Set<ShardSearchContextId>> cutsEnded = new CopyOnWriteArrayList<>();
-        /** The ends of the cut and of the fetch, in the order the operator reported them. */
-        private final List<String> ends = new CopyOnWriteArrayList<>();
-        /** Each node answers with this response header, its id as the value. */
-        private String responseHeader;
-
-        FakeClient(BlockFactory blockFactory) {
-            this.blockFactory = blockFactory;
-        }
-
-        @Override
-        public ThreadContext threadContext() {
-            return threadPool.getThreadContext();
-        }
-
-        @Override
-        public void node(FetchNode node, ActionListener<DiscoveryNode> listener) {
-            if (node.nodeId().equals(goneNode)) {
-                listener.onFailure(new NoNodeAvailableException("node [" + node.nodeId() + "] left the cluster"));
-            } else if (lateNodes) {
-                // a lookup that answers later, on another thread
-                threadPool.generic()
-                    .execute(() -> listener.onResponse(DiscoveryNodeUtils.builder(node.nodeId()).name(node.nodeId()).build()));
-            } else {
-                listener.onResponse(DiscoveryNodeUtils.builder(node.nodeId()).name(node.nodeId()).build());
-            }
-        }
-
-        @Override
-        public void fetch(
-            DiscoveryNode node,
-            String clusterAlias,
-            List<FetchRequest.ShardDocs> shards,
-            List<Attribute> attributes,
-            ActionListener<FetchResponse> listener
-        ) {
-            if (node.getId().equals(throwingNode)) {
-                throw new IllegalStateException("can't send to [" + node.getId() + "]");
-            }
-            requests.add(new Request(node.getId(), shards));
-            threadPool.generic().execute(() -> {
-                try {
-                    if (holdResponses != null) {
-                        holdResponses.await(10, TimeUnit.SECONDS);
-                    }
-                    CountDownLatch holdNode = holdResponsesOf.get(node.getId());
-                    if (holdNode != null) {
-                        holdNode.await(10, TimeUnit.SECONDS);
-                    }
-                    if (responseHeader != null) {
-                        threadPool.getThreadContext().addResponseHeader(responseHeader, node.getId());
-                    }
-                    if (node.getId().equals(failingNode)) {
-                        listener.onFailure(new IllegalStateException("rejected by [" + node.getId() + "]"));
-                        return;
-                    }
-                    for (FetchRequest.ShardDocs shard : shards) {
-                        if (shard.contextId().equals(failingShard)) {
-                            listener.onFailure(new SearchContextMissingException(shard.contextId()));
-                            return;
-                        }
-                    }
-                    FetchResponse response = respond(node.getId(), shards);
-                    try {
-                        listener.onResponse(response);
-                    } finally {
-                        response.decRef();
-                    }
-                    if (completeTwice) {
-                        listener.onFailure(new IllegalStateException("a second completion"));
-                    }
-                } catch (Exception e) {
-                    listener.onFailure(e);
-                }
-            });
-        }
-
-        @Override
-        public void cutEnded(Set<ShardSearchContextId> read) {
-            cutsEnded.add(Set.copyOf(read));
-            ends.add("cut");
-        }
-
-        @Override
-        public void fetchEnded() {
-            ends.add("fetch");
-        }
-
-        private FetchResponse respond(String nodeId, List<FetchRequest.ShardDocs> shards) {
-            List<Page> pages = new ArrayList<>();
-            for (FetchRequest.ShardDocs shard : shards) {
-                if (nodeId.equals(shortNode) && shard == shards.getFirst()) {
-                    continue;
-                }
-                DocOrigin origin = originOf(shard);
-                try (
-                    BytesRefBlock.Builder ids = blockFactory.newBytesRefBlockBuilder(shard.docCount());
-                    LongBlock.Builder values = blockFactory.newLongBlockBuilder(shard.docCount())
-                ) {
-                    for (int d = 0; d < shard.docCount(); d++) {
-                        Ref ref = new Ref(origin, shard.segments()[d], shard.docs()[d]);
-                        ids.appendBytesRef(new BytesRef(ref.id()));
-                        values.appendLong(ref.value());
-                    }
-                    pages.add(new Page(ids.build(), values.build()));
-                }
-            }
-            // Every node warns. In the tests that release responses as the operator closes, a response can arrive after the
-            // driver finished its context, which takes no more warnings.
-            DriverCompletionInfo completionInfo = DriverCompletionInfo.EMPTY.withAdditionalWarnings(
-                List.of(EVERY_NODE_WARNING, warningOf(nodeId))
-            );
-            return new FetchResponse(pages, completionInfo, TOOK_NANOS, SETUP_NANOS);
-        }
-
-        static String warningOf(String nodeId) {
-            return "a warning of " + nodeId;
-        }
-    }
-
-    private static List<List<Ref>> randomInput() {
-        List<List<Ref>> input = new ArrayList<>();
-        int pages = between(1, 4);
-        for (int p = 0; p < pages; p++) {
-            List<Ref> refs = new ArrayList<>();
-            int rows = between(0, 40);
-            for (int r = 0; r < rows; r++) {
-                refs.add(new Ref(randomFrom(ORIGINS), between(0, 3), between(0, 500)));
-            }
-            input.add(refs);
-        }
-        return input;
-    }
-
-    private static Page page(BlockFactory blockFactory, List<Ref> refs) {
-        List<DocOrigin> origins = new ArrayList<>();
-        try (DocBlock.Builder builder = DocBlock.newBlockBuilder(blockFactory, refs.size())) {
-            for (Ref ref : refs) {
-                if (origins.contains(ref.origin()) == false) {
-                    origins.add(ref.origin());
-                }
-                builder.appendShard(origins.indexOf(ref.origin())).appendSegment(ref.segment()).appendDoc(ref.doc());
-            }
-            // rows may share a document
-            return new Page(builder.build(DocVector.config().origins(DocOrigins.of(origins)).mayContainDuplicates()));
-        }
-    }
-
-    /**
-     * A page of {@code refs} whose origins also name {@code unread}, an origin that none of its rows reads.
-     */
-    private static Page pageNamingAnOriginNoRowReads(BlockFactory blockFactory, List<Ref> refs, DocOrigin unread) {
-        List<DocOrigin> origins = new ArrayList<>();
-        for (Ref ref : refs) {
-            if (origins.contains(ref.origin()) == false) {
-                origins.add(ref.origin());
-            }
-        }
-        assertFalse("no row may read it", origins.contains(unread));
-        origins.add(unread);
-        try (DocBlock.Builder builder = DocBlock.newBlockBuilder(blockFactory, refs.size())) {
-            for (Ref ref : refs) {
-                builder.appendShard(origins.indexOf(ref.origin())).appendSegment(ref.segment()).appendDoc(ref.doc());
-            }
-            return new Page(builder.build(DocVector.config().origins(DocOrigins.of(origins)).mayContainDuplicates()));
-        }
     }
 
     /**
@@ -1366,16 +783,21 @@ public class FetchOperatorTests extends ComputeTestCase {
             BytesRefBlock ids = page.getBlock(1);
             LongBlock values = page.getBlock(2);
             for (int p = 0; p < page.getPositionCount(); p++) {
-                Ref ref = new Ref(docs.origin(p), docs.segments().getInt(p), docs.docs().getInt(p));
-                assertThat(ids.getBytesRef(ids.getFirstValueIndex(p), scratch).utf8ToString(), equalTo(ref.id()));
-                assertThat(values.getLong(values.getFirstValueIndex(p)), equalTo(ref.value()));
-                rows.add(ref);
+                DocOrigin origin = docs.origin(p);
+                int segment = docs.segments().getInt(p);
+                int doc = docs.docs().getInt(p);
+                assertThat(
+                    ids.getBytesRef(ids.getFirstValueIndex(p), scratch).utf8ToString(),
+                    equalTo(docId(origin.shardId(), segment, doc))
+                );
+                assertThat(values.getLong(values.getFirstValueIndex(p)), equalTo(value(origin.shardId(), segment, doc)));
+                rows.add(new Ref(origin, segment, doc));
             }
         }
         return Collections.unmodifiableList(rows);
     }
 
-    private static DocOrigin origin(String nodeId, int shard) {
-        return new DocOrigin("", nodeId, new ShardId("index", "uuid", shard), new ShardSearchContextId("session", shard));
+    private static Attribute attribute(String name, DataType type) {
+        return new ReferenceAttribute(Source.EMPTY, name, type);
     }
 }

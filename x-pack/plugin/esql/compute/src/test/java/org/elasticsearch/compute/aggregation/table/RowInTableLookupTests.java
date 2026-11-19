@@ -14,6 +14,7 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
@@ -25,6 +26,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CyclicBarrier;
 import java.util.stream.IntStream;
@@ -92,23 +94,25 @@ public class RowInTableLookupTests extends ESTestCase {
         }
     }
 
+    /**
+     * A key repeated in the build table returns every build row that has it, and a key repeated in the probe gets the same
+     * matches each time.
+     */
     public void testRepeatedCompositeKeysReturnEveryMatchingRow() {
-        try (
-            IntBlock firstKey = blockFactory.newIntArrayVector(new int[] { 1, 1, 2, 1, 2 }, 5).asBlock();
-            BytesRefBlock secondKey = bytes("a", "b", "a", "a", "a");
-            RowInTableLookup lookup = RowInTableLookup.build(blockFactory, new Block[] { firstKey, secondKey }, true);
-            Page probe = new Page(blockFactory.newIntArrayVector(new int[] { 1, 1, 2, 2, 1 }, 5).asBlock(), bytes("a", "b", "a", "b", "a"));
-            ReleasableIterator<IntBlock> blocks = lookup.lookup(probe, blockFactory, ByteSizeValue.ofKb(1));
-            IntBlock matches = blocks.next()
-        ) {
-            assertThat(matches.getPositionCount(), equalTo(5));
-            assertThat(toJavaObject(matches, 0), equalTo(List.of(0, 3)));
-            assertThat(toJavaObject(matches, 1), equalTo(1));
-            assertThat(toJavaObject(matches, 2), equalTo(List.of(2, 4)));
-            assertNull(toJavaObject(matches, 3));
-            assertThat(toJavaObject(matches, 4), equalTo(List.of(0, 3)));
-            assertFalse(blocks.hasNext());
-        }
+        assertRepeatedKeyLookup(
+            List.of(
+                row(1, "a"), // 0
+                row(1, "b"), // 1
+                row(2, "a"), // 2
+                row(1, "a"), // 3
+                row(2, "a")  // 4
+            ),
+            probe(1, "a").matches(0, 3),
+            probe(1, "b").matches(1),
+            probe(2, "a").matches(2, 4),
+            probe(2, "b").matchesNothing(),
+            probe(1, "a").matches(0, 3)
+        );
     }
 
     public void testConcurrentRepeatedKeyLookups() {
@@ -215,12 +219,51 @@ public class RowInTableLookupTests extends ESTestCase {
         }
     }
 
-    private BytesRefBlock bytes(String... keys) {
-        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(keys.length)) {
-            for (String key : keys) {
-                builder.appendBytesRef(new BytesRef(key));
+    /**
+     * Builds a repeated-key lookup from {@code buildRows}, probes it with every row in {@code probes} as one page, and
+     * checks that each probe row gets exactly the build rows it expects.
+     */
+    private void assertRepeatedKeyLookup(List<List<Object>> buildRows, ProbeRow... probes) {
+        Block[] buildKeys = BlockUtils.fromList(blockFactory, buildRows);
+        try (
+            RowInTableLookup lookup = RowInTableLookup.build(blockFactory, buildKeys, true);
+            Page probe = new Page(BlockUtils.fromList(blockFactory, Arrays.stream(probes).map(ProbeRow::key).toList()));
+            ReleasableIterator<IntBlock> blocks = lookup.lookup(probe, blockFactory, ByteSizeValue.ofKb(1));
+            IntBlock matches = blocks.next()
+        ) {
+            List<List<Integer>> actual = new ArrayList<>();
+            for (int p = 0; p < matches.getPositionCount(); p++) {
+                int first = matches.getFirstValueIndex(p);
+                List<Integer> buildRowsForProbe = new ArrayList<>();
+                for (int i = first; i < first + matches.getValueCount(p); i++) {
+                    buildRowsForProbe.add(matches.getInt(i));
+                }
+                actual.add(buildRowsForProbe);
             }
-            return builder.build();
+            assertThat(actual, equalTo(Arrays.stream(probes).map(ProbeRow::expectedMatches).toList()));
+            assertFalse(blocks.hasNext());
+        } finally {
+            Releasables.close(buildKeys);
+        }
+    }
+
+    /** One build or probe row's key values, in key column order. */
+    private static List<Object> row(Object... keys) {
+        return List.of(keys);
+    }
+
+    private static ProbeRow probe(Object... keys) {
+        return new ProbeRow(row(keys), List.of());
+    }
+
+    /** A probe row's key and the build rows it should match, in ascending order. */
+    private record ProbeRow(List<Object> key, List<Integer> expectedMatches) {
+        ProbeRow matches(int... buildRows) {
+            return new ProbeRow(key, Arrays.stream(buildRows).boxed().toList());
+        }
+
+        ProbeRow matchesNothing() {
+            return new ProbeRow(key, List.of());
         }
     }
 

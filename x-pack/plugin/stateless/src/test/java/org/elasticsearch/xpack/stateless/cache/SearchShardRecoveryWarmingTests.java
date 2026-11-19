@@ -191,7 +191,8 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 threadPool,
                 clusterSettings,
                 onlyRole(DiscoveryNodeRole.SEARCH_ROLE),
-                ByteSizeValue.ZERO
+                ByteSizeValue.ZERO,
+                TelemetryProvider.NOOP
             )
         ) {
             @Override
@@ -266,6 +267,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 null,
                 mock(WarmingRatioProvider.class),
                 null,
+                SourceShardWarmingInfo.NOT_REQUESTED,
                 resume
             );
             // recovery is resumed
@@ -334,6 +336,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                     new BlobFile(BatchedCompoundCommit.blobNameFromGeneration(1), new PrimaryTermAndGeneration(0, 1)),
                     WarmTarget.withUnknownTimestamp(1L, 1L)
                 ),
+                SourceShardWarmingInfo.NOT_REQUESTED,
                 resume
             );
             // recovery is NOT resumed
@@ -393,6 +396,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                     new BlobFile(BatchedCompoundCommit.blobNameFromGeneration(1), new PrimaryTermAndGeneration(0, 1)),
                     WarmTarget.withUnknownTimestamp(1L, 1L)
                 ),
+                SourceShardWarmingInfo.NOT_REQUESTED,
                 resume
             );
             // recovery resumed (synchronously)
@@ -454,6 +458,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                     new BlobFile(BatchedCompoundCommit.blobNameFromGeneration(1), new PrimaryTermAndGeneration(0, 1)),
                     new WarmTarget(1L, 1L, 1L)
                 ),
+                SourceShardWarmingInfo.NOT_REQUESTED,
                 resume
             );
             // make sure warming started running
@@ -741,14 +746,16 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 threadPool,
                 clusterSettings,
                 onlyRole(DiscoveryNodeRole.SEARCH_ROLE),
-                ByteSizeValue.ZERO
+                ByteSizeValue.ZERO,
+                TelemetryProvider.NOOP
             ) {
                 @Override
                 public SearchRecoveryTimeout searchRecoveryTimeout(
                     ClusterState state,
                     IndexShard indexShard,
                     long totalBytesToWarm,
-                    @Nullable SearchRecoveryTimeout previous
+                    @Nullable SearchRecoveryTimeout previous,
+                    SourceShardWarmingInfo sourceShardWarmingInfo
                 ) {
                     return planForBytesToWarmAndPreviousPlan.apply(totalBytesToWarm, previous);
                 }

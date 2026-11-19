@@ -31,6 +31,7 @@ import io.netty.handler.codec.http.HttpObject;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
+import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpVersion;
 
 import org.elasticsearch.ExceptionsHelper;
@@ -49,8 +50,12 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import static io.netty.handler.codec.http.HttpHeaderNames.HOST;
 import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
@@ -157,7 +162,17 @@ class Netty4HttpClient implements Closeable {
             }
 
             if (latch.await(30L, TimeUnit.SECONDS) == false) {
-                fail("Failed to get all expected responses.");
+                final Map<HttpResponseStatus, Long> responsesByStatus = new ArrayList<>(content).stream()
+                    .collect(Collectors.groupingBy(FullHttpResponse::status, TreeMap::new, Collectors.counting()));
+                fail(
+                    String.format(
+                        Locale.ROOT,
+                        "Failed to get all expected responses: sent [%d] requests, [%d] responses still pending, received responses %s",
+                        requests.size(),
+                        latch.getCount(),
+                        responsesByStatus
+                    )
+                );
             }
 
         } finally {

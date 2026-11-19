@@ -396,6 +396,33 @@ public class LetParserTests extends AbstractStatementParserTests {
         expectValidationError("LET `a.b` = (FROM idx | LIMIT 1); ROW x = 1", "mismatched input");
     }
 
+    // Binding names are referenced through FROM, so names FROM cannot read are rejected at the declaration
+
+    public void testBindingNameStartingWithUnderscore() {
+        expectValidationError("LET _tmp = (FROM idx | LIMIT 1); ROW x = 1", "LET binding name [_tmp] must not start with '_', '-', or '+'");
+        expectValidationError(
+            "LET __tmp = (FROM idx | LIMIT 1); FROM __tmp",
+            "LET binding name [__tmp] must not start with '_', '-', or '+'"
+        );
+    }
+
+    public void testBindingNameIsFromKeyword() {
+        for (String keyword : List.of("metadata", "with")) {
+            expectValidationError(
+                "LET " + keyword + " = (ROW x = 1); ROW y = 1",
+                "LET binding name [" + keyword + "] is a reserved keyword in FROM"
+            );
+        }
+    }
+
+    public void testBindingNamesUsableInFrom() {
+        for (String name : List.of("@tmp", "a_", "a1", "from", "let", "row", "by", "on")) {
+            EsqlStatement statement = statement("LET " + name + " = (ROW x = 1); FROM " + name);
+            assertThat(statement.letBindings(), hasSize(1));
+            assertThat(statement.letBindings().get(0).name(), equalTo(name));
+        }
+    }
+
     public void testLetInsideViewBodyParsed() {
         // parseView is called by EsqlParser, not the test parser. Verify that LET is accepted
         // in a view body and that the parsed statement carries the bindings.

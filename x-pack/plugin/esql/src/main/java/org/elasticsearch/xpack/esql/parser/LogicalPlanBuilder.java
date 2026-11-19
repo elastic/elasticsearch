@@ -13,6 +13,7 @@ import org.antlr.v4.runtime.tree.ParseTree;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.TimeValue;
@@ -165,6 +166,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
      */
     public static final int MAX_QUERY_DEPTH = 500;
 
+    /**
+     * Words lexed as keywords in {@code FROM} mode (see {@code lexer/From.g4}). A binding with one of these names
+     * could be declared but never referenced, because {@code FROM <name>} would not parse.
+     */
+    private static final Set<String> FROM_MODE_KEYWORDS = Set.of("metadata", "with");
+
     private static final String HIGHLIGHT_PREFIX_KEYWORD = "prefix";
     private static final String DENSE_VECTOR_SUFFIX_KEYWORD = "suffix";
 
@@ -234,6 +241,14 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         String name = ctx.UNQUOTED_IDENTIFIER().getText();
         if (name.equals(name.toLowerCase(Locale.ROOT)) == false) {
             throw new ParsingException(source, "LET binding name [{}] must be lowercase", name);
+        }
+        // Bindings are referenced through FROM, so the name must also be usable there as an index name
+        MetadataCreateIndexService.validateIndexOrAliasName(
+            name,
+            (n, reason) -> new ParsingException(source, "LET binding name [{}] {}", n, reason)
+        );
+        if (FROM_MODE_KEYWORDS.contains(name)) {
+            throw new ParsingException(source, "LET binding name [{}] is a reserved keyword in FROM", name);
         }
         LogicalPlan plan = visitSubquery(ctx.subquery());
         return new LetBinding(source, name, plan);

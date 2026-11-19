@@ -21,7 +21,8 @@ come before the `LET` directives.
 
 `name`
 :   The binding name. It must be a lowercase, unquoted identifier, and each name can
-    be declared only once in a query.
+    be declared only once in a query. Because a binding is read through `FROM`, its
+    name can't start with `_` and can't be `metadata` or `with`.
 
 `<query>`
 :   The binding body: a complete {{esql}} query in parentheses, starting with a
@@ -39,6 +40,11 @@ A binding name can be referenced anywhere a subquery can read a source:
   one-element value list, not a reference to the binding.
 * In the body of a later `LET` binding.
 
+Each reference runs the binding's query again, and the results aren't shared between
+references. A binding whose rows can change from one run to the next, for example one
+that uses `SAMPLE`, or `LIMIT` without `SORT`, can return different rows at each
+reference.
+
 Bindings are resolved in the order they are declared: a binding body can reference
 only bindings declared before it. A reference to a binding declared later, or to the
 binding itself, is an error.
@@ -53,8 +59,8 @@ not see them; a view body can declare its own `LET` bindings.
 
 ## Limitations
 
-* A binding cannot be the source of a `TS` command.
-* A binding cannot be the right-hand side of a `LOOKUP JOIN`.
+* A binding can't be the source of a `TS` command.
+* A binding can't be the right-hand side of a `LOOKUP JOIN`.
 
 ## Examples
 

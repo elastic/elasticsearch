@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 166486
-summary: Update ES|QL LET named subqueries from SNAPSHOT-only to GA
+summary: Make named subqueries in ES|QL generally available
 type: feature

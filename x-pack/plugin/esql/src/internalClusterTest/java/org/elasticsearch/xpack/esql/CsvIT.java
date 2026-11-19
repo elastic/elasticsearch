@@ -16,6 +16,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
+import org.elasticsearch.action.bulk.BatchIndexingEnabled;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -357,12 +358,16 @@ public class CsvIT extends ESTestCase {
             new NodeConfigurationSource() {
                 @Override
                 public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-                    return Settings.builder()
+                    Settings.Builder settings = Settings.builder()
                         .put("xpack.security.enabled", false)
                         .put("xpack.license.self_generated.type", "trial")
                         .put("ingest.geoip.downloader.enabled", false)
-                        .put(PlannerSettings.PARALLEL_OPERATOR_PROMOTION_THRESHOLD_ROWS.getKey(), 0)
-                        .build();
+                        .put(PlannerSettings.PARALLEL_OPERATOR_PROMOTION_THRESHOLD_ROWS.getKey(), 0);
+                    if (BatchIndexingEnabled.FEATURE_FLAG.isEnabled()) {
+                        // The test cluster randomly turns this kill switch off, but INTO only writes through batch indexing.
+                        settings.put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), true);
+                    }
+                    return settings.build();
                 }
 
                 @Override

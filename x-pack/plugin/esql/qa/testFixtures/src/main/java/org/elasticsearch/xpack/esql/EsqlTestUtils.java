@@ -579,7 +579,20 @@ public final class EsqlTestUtils {
         }
 
         public TestSearchStatsWithMinMax(Map<String, Object> minValues, Map<String, Object> maxValues, boolean supportsLoaderConfig) {
-            super(supportsLoaderConfig);
+            this(minValues, maxValues, supportsLoaderConfig, false);
+        }
+
+        /**
+         * @param multiValue whether every field is reported as possibly multivalued, see
+         *                   {@link TestSearchStats#TestSearchStats(boolean, boolean)}.
+         */
+        public TestSearchStatsWithMinMax(
+            Map<String, Object> minValues,
+            Map<String, Object> maxValues,
+            boolean supportsLoaderConfig,
+            boolean multiValue
+        ) {
+            super(supportsLoaderConfig, multiValue);
             this.minValues = minValues;
             this.maxValues = maxValues;
         }

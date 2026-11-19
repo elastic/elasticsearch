@@ -113,6 +113,54 @@ public class PromqlParserUtils {
         return Duration.ofMillis(millis);
     }
 
+    /** The bases PromQL reads number literals and string escape sequences in. */
+    enum NumberBase {
+        OCTAL(8),
+        DECIMAL(10),
+        HEXADECIMAL(16);
+
+        private final int radix;
+
+        NumberBase(int radix) {
+            this.radix = radix;
+        }
+
+        int radix() {
+            return radix;
+        }
+
+        boolean isDigit(char c) {
+            return Character.digit(c, radix) >= 0;
+        }
+    }
+
+    /**
+     * Drops the underscores that, like in Prometheus, may separate the digits of a number, as in 1_000 or 0x_1F.
+     * An underscore must sit between two digits of the base, or right after the 0x of a hexadecimal number;
+     * anything else, such as 1__000 or 1_000_, is rejected rather than silently dropped.
+     */
+    static String stripDigitSeparators(Source source, String number, NumberBase base) {
+        int first = number.indexOf('_');
+        if (first < 0) {
+            return number;
+        }
+        StringBuilder digits = new StringBuilder(number.length() - 1).append(number, 0, first);
+        for (int i = first; i < number.length(); i++) {
+            char c = number.charAt(i);
+            if (c != '_') {
+                digits.append(c);
+                continue;
+            }
+            boolean afterPrefix = base == NumberBase.HEXADECIMAL && i == 2 && (number.charAt(1) == 'x' || number.charAt(1) == 'X');
+            boolean afterDigit = i > 0 && (base.isDigit(number.charAt(i - 1)) || afterPrefix);
+            boolean beforeDigit = i + 1 < number.length() && base.isDigit(number.charAt(i + 1));
+            if (afterDigit == false || beforeDigit == false) {
+                throw new ParsingException(source, "Invalid number [{}], an underscore must separate two digits", number);
+            }
+        }
+        return digits.toString();
+    }
+
     static String unquote(Source source) {
         // remove leading and trailing ' for strings and also eliminate escaped single quotes
         if (source == null) {
@@ -120,7 +168,8 @@ public class PromqlParserUtils {
         }
 
         String text = source.text();
-        boolean unescaped = text.startsWith("`");
+        char quote = text.charAt(0);
+        boolean unescaped = quote == '`';
 
         // remove leading/trailing chars
         text = text.substring(1, text.length() - 1);
@@ -161,11 +210,12 @@ public class PromqlParserUtils {
                     case '\\':
                         sb.append('\\');
                         break;
-                    case '\'':
-                        sb.append('\'');
-                        break;
-                    case '"':
-                        sb.append('"');
+                    // like Prometheus, only the quote that opened the string can be escaped
+                    case '\'', '"':
+                        if (chars[i] != quote) {
+                            throw new ParsingException(source, "Unknown escape sequence [\\{}]", chars[i]);
+                        }
+                        sb.append(chars[i]);
                         break;
                     case 'x':
                     case 'u':
@@ -174,14 +224,14 @@ public class PromqlParserUtils {
                         // get the current chat and move to the next offset
                         int ch = chars[i++];
                         int count = ch == 'U' ? 8 : (ch == 'u' ? 4 : 2);
-                        sb.append(fromRadix(source, chars, i, count, 16));
+                        sb.append(fromRadix(source, chars, i, count, NumberBase.HEXADECIMAL));
                         i += count - 1;
                         break;
                     default:
                         // octal declaration - eats 3 chars
                         // there's no escape character, no need to move the offset
                         count = 3;
-                        sb.append(fromRadix(source, chars, i, count, 8));
+                        sb.append(fromRadix(source, chars, i, count, NumberBase.OCTAL));
                         i += count - 1;
                 }
                 i++;
@@ -193,7 +243,7 @@ public class PromqlParserUtils {
     }
 
     // parse the given number of strings to
-    private static String fromRadix(Source source, char[] chars, int offset, int count, int radix) {
+    private static String fromRadix(Source source, char[] chars, int offset, int count, NumberBase base) {
         if (offset + count > chars.length) {
             throw new ParsingException(
                 source,
@@ -207,14 +257,19 @@ public class PromqlParserUtils {
         String toParse = new String(chars, offset, count);
         int code;
         try {
-            code = Integer.parseInt(toParse, radix);
+            code = Integer.parseInt(toParse, base.radix());
         } catch (NumberFormatException ex) {
             throw new ParsingException(source, "Invalid unicode character code [{}]", toParse);
+        }
+        // like Prometheus, an octal escape stops at 255 and a code point must not be a surrogate or beyond Unicode
+        int max = base == NumberBase.OCTAL ? 0xFF : Character.MAX_CODE_POINT;
+        if (code > max || (code >= Character.MIN_SURROGATE && code <= Character.MAX_SURROGATE)) {
+            throw new ParsingException(source, "Escape sequence [{}] is an invalid Unicode code point", toParse);
         }
 
         // For \x escapes (2-digit hex), validate UTF-8 compliance
         // Single-byte UTF-8 characters must be in range 0x00-0x7F
-        if (radix == 16 && count == 2) {
+        if (base == NumberBase.HEXADECIMAL && count == 2) {
             if (code >= 0x80 && code <= 0xFF) {
                 throw new ParsingException(
                     source,

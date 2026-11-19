@@ -242,9 +242,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {yaml=aggregations/terms/Basic test}
   issue: https://github.com/elastic/elasticsearch/issues/161650
-- class: org.elasticsearch.xpack.stateless.commits.StatelessCommitNotificationsIT
-  method: testVbccRemainsServableUntilSearchTierNotificationCompletes
-  issue: https://github.com/elastic/elasticsearch/issues/161667
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardDisruptionIT
   method: testReshardWithDisruption
   issue: https://github.com/elastic/elasticsearch/issues/161494
@@ -669,13 +666,59 @@ tests:
   - :x-pack:plugin:async-search:internalClusterTest
   method: testUpdateStoreKeepAlive
   issue: https://github.com/elastic/elasticsearch/issues/166452
-- class: org.elasticsearch.xpack.esql.tree.PlanFieldSafePublicationTests
+- class: org.elasticsearch.xpack.esql.action.ExternalAsyncStopAndCancelIT
   tasks:
-  - :x-pack:plugin:esql:test
-  method: testLazyFieldsAreVolatileOrSafe
-  issue: https://github.com/elastic/elasticsearch/issues/166479
-- class: org.elasticsearch.xpack.esql.tree.PlanFieldSafePublicationTests
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testSyncTaskCancelHardFailsWithNoRows
+  issue: https://github.com/elastic/elasticsearch/issues/166559
+- class: org.elasticsearch.xpack.esql.plugin.EsqlQueryMetricsCollectorIT
   tasks:
-  - :x-pack:plugin:esql:test
-  method: testLazyFieldsArePublishedOnce
-  issue: https://github.com/elastic/elasticsearch/issues/166481
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testFailedQueryMidScanIsMetered
+  issue: https://github.com/elastic/elasticsearch/issues/166565
+- class: org.elasticsearch.search.heappressure.ManyBitsetClausesHeapPressureIT
+  method: testIpTermsClauses
+  issue: https://github.com/elastic/elasticsearch/issues/166396
+- class: org.elasticsearch.search.heappressure.ManyBitsetClausesHeapPressureIT
+  method: testLongTermsClauses
+  issue: https://github.com/elastic/elasticsearch/issues/166396
+- class: org.elasticsearch.search.heappressure.ManyBitsetClausesHeapPressureIT
+  method: testGeoDistanceClauses
+  issue: https://github.com/elastic/elasticsearch/issues/166396
+- class: org.elasticsearch.search.heappressure.ManyBitsetClausesHeapPressureIT
+  method: testGeoShapeOnGeoPointClauses
+  issue: https://github.com/elastic/elasticsearch/issues/166396
+- class: org.elasticsearch.search.heappressure.ManyBitsetClausesHeapPressureIT
+  method: testLongRangeFieldClauses
+  issue: https://github.com/elastic/elasticsearch/issues/166396
+- class: org.elasticsearch.search.heappressure.AggregationBitsetHeapPressureIT
+  method: testSignificantTermsBackgroundFilters
+  issue: https://github.com/elastic/elasticsearch/issues/166396
+- class: org.elasticsearch.search.heappressure.AggregationBitsetHeapPressureIT
+  method: testTermsIncludeLists
+  issue: https://github.com/elastic/elasticsearch/issues/166396
+- class: org.elasticsearch.join.heappressure.HasChildHeapPressureIT
+  method: testHasChildClausesWithoutScores
+  issue: https://github.com/elastic/elasticsearch/issues/166396
+- class: org.elasticsearch.join.heappressure.HasChildHeapPressureIT
+  method: testHasChildClausesWithAvgScores
+  issue: https://github.com/elastic/elasticsearch/issues/166396
+- class: org.elasticsearch.index.query.bitmapterms.heappressure.BitmapTermsHeapPressureIT
+  method: testBitmapTermsClauses
+  issue: https://github.com/elastic/elasticsearch/issues/166396
+- class: org.elasticsearch.xpack.spatial.heappressure.GeoShapeHeapPressureIT
+  method: testIntersectsPolygonClauses
+  issue: https://github.com/elastic/elasticsearch/issues/166396
+- class: org.elasticsearch.xpack.spatial.heappressure.GeoShapeHeapPressureIT
+  method: testContainsPointClauses
+  issue: https://github.com/elastic/elasticsearch/issues/166396
+- class: org.elasticsearch.action.bulk.ShardBatchMapperParseTests
+  tasks:
+  - :server:test
+  method: testRequiredFieldWithoutValueCausesColumnarFallback
+  issue: https://github.com/elastic/elasticsearch/issues/166579
+- class: org.elasticsearch.action.bulk.ShardBatchMapperParseTests
+  tasks:
+  - :server:test
+  method: testRequiredFieldWithoutValueAppearsInIgnoredOnIgnoreFailure
+  issue: https://github.com/elastic/elasticsearch/issues/166451

@@ -1,5 +1,5 @@
 area: Security
 issues: []
 pr: 166458
-summary: Return 429 for failed profile lookups that are all 429s
+summary: Return 429 for failed profile lookups that are all 429s when resolving API keys and service account author lookups.
 type: enhancement

@@ -727,7 +727,10 @@ final class CsvLogicalRecordReader {
         }
     }
 
-    /** Quote-blind drain used when the line-span guard is off. {@code ch} is already included in {@code counted}. */
+    /**
+     * Quote-blind drain to the next physical line terminator, used when the line-span guard is armed, the tipping character is
+     * outside a quoted field and escapes are not recognised. {@code ch} is already included in {@code counted}.
+     */
     private int drainPhysicalLine(int counted, int ch) throws IOException {
         if (ch == '\r') {
             return drainCarriageReturn(counted);

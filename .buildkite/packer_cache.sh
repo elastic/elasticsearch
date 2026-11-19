@@ -39,7 +39,7 @@ for branch in "${branches[@]}"; do
     fi
     sleep 60
   done
-  "checkout/${branch}/gradlew" --stop
+  "checkout/${branch}/gradlew" --stop || true
   pkill -f '.*GradleDaemon.*' || true
   rm -rf "checkout/${branch}"
 done

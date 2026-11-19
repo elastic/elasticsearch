@@ -583,8 +583,9 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             if (closed.get()) {
                 throw new CancellationException("read cancelled");
             }
+            ResponseInputStream<GetObjectResponse> stream;
             try {
-                return joinTrackedGet(request);
+                stream = joinTrackedGet(request);
             } catch (RuntimeException e) {
                 Throwable unwrapped = unwrapCompletionWrappers(e);
                 if (unwrapped instanceof CancellationException cancelled) {
@@ -613,7 +614,17 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                 if (delay.isPositive()) {
                     sleepUntilClosedOrDelay(delay);
                 }
+                continue;
             }
+            try {
+                asyncRetryStrategy.recordSuccess(RecordSuccessRequest.create(token));
+            } catch (RuntimeException e) {
+                // recordSuccess() failing is not expected in practice, but abort the GET now so
+                // the truncated Netty body cannot pin a connection until acquisition timeout.
+                stream.abort();
+                throw e;
+            }
+            return stream;
         }
     }
 

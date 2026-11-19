@@ -7,9 +7,17 @@
 
 package org.elasticsearch.xpack.esql.datasource.s3;
 
+import software.amazon.awssdk.awscore.retry.AwsRetryStrategy;
 import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.core.async.AsyncResponseTransformer;
 import software.amazon.awssdk.http.Abortable;
+import software.amazon.awssdk.retries.api.AcquireInitialTokenRequest;
+import software.amazon.awssdk.retries.api.AcquireInitialTokenResponse;
+import software.amazon.awssdk.retries.api.BackoffStrategy;
+import software.amazon.awssdk.retries.api.RecordSuccessRequest;
+import software.amazon.awssdk.retries.api.RecordSuccessResponse;
+import software.amazon.awssdk.retries.api.RefreshRetryTokenRequest;
+import software.amazon.awssdk.retries.api.RefreshRetryTokenResponse;
 import software.amazon.awssdk.retries.api.RetryStrategy;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -232,6 +240,67 @@ public class S3StorageObjectAbortStreamTests extends ESTestCase {
         assertFalse(t2.isAlive());
         assertTrue(first.isCancelled());
         assertTrue(second.isCancelled());
+    }
+
+    /**
+     * Blocking GET shares {@code s3-streaming-get} with every object. {@code refreshRetryToken}
+     * takes tokens; only {@code recordSuccess} returns them. Without that call, ~100 retried GETs
+     * open the circuit and IAM-lag 403s stop retrying.
+     */
+    @SuppressWarnings("unchecked")
+    public void testBlockingGetRecordsRetrySuccessAfterRetry() throws IOException {
+        S3AsyncClient async = mock(S3AsyncClient.class);
+        GetObjectResponse resp = GetObjectResponse.builder().contentLength(4L).build();
+        ResponseInputStream<GetObjectResponse> body = new ResponseInputStream<>(
+            resp,
+            software.amazon.awssdk.http.AbortableInputStream.create(new ByteArrayInputStream("data".getBytes(StandardCharsets.UTF_8)))
+        );
+        AtomicInteger attempts = new AtomicInteger();
+        when(async.getObject(any(GetObjectRequest.class), any(AsyncResponseTransformer.class))).thenAnswer(inv -> {
+            if (attempts.getAndIncrement() == 0) {
+                return CompletableFuture.failedFuture(new IOException("transient"));
+            }
+            return CompletableFuture.completedFuture(body);
+        });
+        AtomicInteger successes = new AtomicInteger();
+        RetryStrategy delegate = AwsRetryStrategy.standardRetryStrategy()
+            .toBuilder()
+            .backoffStrategy(BackoffStrategy.retryImmediately())
+            .throttlingBackoffStrategy(BackoffStrategy.retryImmediately())
+            .build();
+        RetryStrategy counting = new RetryStrategy() {
+            @Override
+            public AcquireInitialTokenResponse acquireInitialToken(AcquireInitialTokenRequest request) {
+                return delegate.acquireInitialToken(request);
+            }
+
+            @Override
+            public RefreshRetryTokenResponse refreshRetryToken(RefreshRetryTokenRequest request) {
+                return delegate.refreshRetryToken(request);
+            }
+
+            @Override
+            public RecordSuccessResponse recordSuccess(RecordSuccessRequest request) {
+                successes.incrementAndGet();
+                return delegate.recordSuccess(request);
+            }
+
+            @Override
+            public int maxAttempts() {
+                return delegate.maxAttempts();
+            }
+
+            @Override
+            public Builder<?, ?> toBuilder() {
+                return delegate.toBuilder();
+            }
+        };
+        S3StorageObject obj = new S3StorageObject(mockS3, async, counting, BUCKET, KEY, PATH);
+        try (InputStream in = obj.newStream()) {
+            assertEquals('d', in.read());
+        }
+        assertEquals(2, attempts.get());
+        assertEquals(1, successes.get());
     }
 
     private static long apmBytesReadTotal(RecordingMeterRegistry registry) {

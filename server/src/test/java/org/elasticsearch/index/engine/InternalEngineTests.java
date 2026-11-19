@@ -633,17 +633,15 @@ public class InternalEngineTests extends EngineTestCase {
         indexDoc(engine, indexForDoc(doc));
         engine.close();
 
-        final AtomicReference<Exception> reportedFailure = new AtomicReference<>();
-        engine = new InternalEngine(EngineConfig.builder(engine.config()).eventListener(new Engine.EventListener() {
-            @Override
-            public void onFlushFailed(Exception e, boolean closedCleanly) {
-                assertFalse("the engine is open", closedCleanly);
-                reportedFailure.set(e);
-            }
-        }).build());
+        final RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        engine = new InternalEngine(EngineConfig.builder(engine.config()).flushMetrics(new FlushMetrics(meterRegistry)).build());
         expectThrows(PendingTranslogRecoveryException.class, engine::ensureCanFlush);
         expectThrows(PendingTranslogRecoveryException.class, () -> engine.flush(true, true));
-        assertThat(reportedFailure.get(), instanceOf(PendingTranslogRecoveryException.class));
+        assertThat(
+            "a pending translog recovery is not a flush failure",
+            meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, FlushMetrics.FLUSH_FAILURE_TOTAL),
+            empty()
+        );
         if (randomBoolean()) {
             recoverFromTranslog(engine, translogHandler, Long.MAX_VALUE);
         } else {

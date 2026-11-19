@@ -25,6 +25,7 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCache;
@@ -1840,16 +1841,6 @@ public abstract class Engine implements Closeable {
          * Called when a fatal exception occurred
          */
         default void onFailedEngine(String reason, @Nullable Exception e) {}
-
-        /**
-         * Called when a flush failed.
-         *
-         * @param e             the failure
-         * @param closedCleanly {@code true} if the engine was closing or closed without having failed when the flush failed, for
-         *                      example during a relocation or shutdown. An {@link AlreadyClosedException} in that state is expected;
-         *                      one on an open engine comes from a tragically closed index writer or translog.
-         */
-        default void onFlushFailed(Exception e, boolean closedCleanly) {}
     }
 
     public abstract static class SearcherSupplier implements Releasable {

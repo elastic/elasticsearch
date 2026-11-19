@@ -103,7 +103,6 @@ import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.FlushMetrics;
 import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.engine.MergeMetrics;
-import org.elasticsearch.index.engine.PendingTranslogRecoveryException;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.engine.RefreshFailedEngineException;
 import org.elasticsearch.index.engine.SafeCommitInfo;
@@ -4196,19 +4195,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 }
             }
         }
-
-        /**
-         * Counts a flush failure unless it is expected during normal operation: a pending translog recovery, or an
-         * {@link AlreadyClosedException} while the engine is closing cleanly (relocation, shutdown). An {@link AlreadyClosedException}
-         * on an engine that is not closing comes from a tragically closed index writer or translog and is counted.
-         */
-        @Override
-        public void onFlushFailed(Exception e, boolean closedCleanly) {
-            final boolean expectedClose = closedCleanly && e instanceof AlreadyClosedException;
-            if (expectedClose == false && e instanceof PendingTranslogRecoveryException == false) {
-                flushMetrics.onFailure(indexSettings.getMode(), e);
-            }
-        }
     }
 
     private static void persistMetadata(
@@ -4302,6 +4288,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             .mapperService(mapperService())
             .engineResetLock(engineResetLock)
             .mergeMetrics(mergeMetrics)
+            .flushMetrics(flushMetrics)
             .indexDeletionPolicyWrapper(Function.identity())
             .build();
     }

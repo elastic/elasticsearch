@@ -46,10 +46,7 @@ public class DetachClusterCommand extends ElasticsearchNodeCommand {
         final ClusterState newClusterState = ClusterState.builder(oldClusterState)
             .metadata(updateMetadata(oldClusterState.metadata()))
             .build();
-        terminal.println(
-            Terminal.Verbosity.VERBOSE,
-            "[old cluster state = " + oldClusterState + ", new cluster state = " + newClusterState + "]"
-        );
+        printOldAndNewClusterStates(terminal, oldClusterState, newClusterState);
 
         confirm(terminal, CONFIRMATION_MSG);
 
@@ -68,6 +65,16 @@ public class DetachClusterCommand extends ElasticsearchNodeCommand {
             .term(0)
             .build();
         return Metadata.builder(oldMetadata).coordinationMetadata(coordinationMetadata).clusterUUIDCommitted(false).build();
+    }
+
+    // package-private for tests
+    static void printOldAndNewClusterStates(Terminal terminal, ClusterState oldClusterState, ClusterState newClusterState) {
+        if (terminal.isPrintable(Terminal.Verbosity.VERBOSE)) {
+            terminal.println(
+                Terminal.Verbosity.VERBOSE,
+                "[old cluster state = " + oldClusterState + ", new cluster state = " + newClusterState + "]"
+            );
+        }
     }
 
     // package-private for tests

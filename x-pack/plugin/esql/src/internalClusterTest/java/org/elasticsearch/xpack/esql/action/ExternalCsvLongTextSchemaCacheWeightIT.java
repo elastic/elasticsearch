@@ -28,7 +28,6 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQuery
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.hamcrest.Matchers.not;
 
 /**
  * End-to-end guard: after a MIN/MAX harvest over CSV files whose
@@ -92,9 +91,7 @@ public class ExternalCsvLongTextSchemaCacheWeightIT extends AbstractExternalData
         );
         // A read does not publish a text extremum wider than a kilobyte, so what reaches the statistics store
         // for these files is counts and no extrema: small, and therefore retained. Every file keeps its
-        // measurements. That is what the limit buys: an oversized extremum makes the whole measurement exceed
-        // the per-entry ceiling and takes the row count and every other column's statistics with it, so all
-        // eight files cache nothing and the next query re-measures all of them.
+        // measurements.
         assertThat(
             "every file must retain its measurements now that the oversized extrema are not in them",
             (Integer) stats.get("statistics_cache.count"),
@@ -108,8 +105,8 @@ public class ExternalCsvLongTextSchemaCacheWeightIT extends AbstractExternalData
         // The count above is what rules out a retained wide extremum, and it is worth saying why rather
         // than adding a byte bound that reads precise and cannot fail. A record carrying a megabyte value
         // weighs far more than the per-entry ceiling, so the store refuses it at admission instead of
-        // admitting and weighing it -- which is how this assertion used to read, with the count at zero.
-        // Every file having a record at all is therefore the evidence that none of them carries one.
+        // admitting and weighing it. Every file having a record at all is therefore the evidence that none
+        // of them carries one.
         long retainedStatistics = ExternalSourceCacheTestAccess.retainedStatisticsWeightBytes(cacheService);
         logger.info("retained statistics weight after the wide-text harvest: {} bytes", retainedStatistics);
         long statisticsBudget = (Long) stats.get("statistics_budget_bytes");
@@ -132,7 +129,6 @@ public class ExternalCsvLongTextSchemaCacheWeightIT extends AbstractExternalData
                 rows.get(0).get(1),
                 equalTo(expectedMax)
             );
-            assertThat("and neither end is the one narrow note", rows.get(0).get(0), not(equalTo(narrowNote)));
             assertThat(
                 "the column is unservable, so the answer comes from a scan rather than the record",
                 response.documentsFound(),
@@ -146,7 +142,8 @@ public class ExternalCsvLongTextSchemaCacheWeightIT extends AbstractExternalData
         // FormatReadContext defaults to StripeColumnScope.PROJECTED -- so the record would hold `tag` alone
         // and a regression dropping every extremum whenever one column is too wide would pass. So ask for
         // both columns, which harvests both into one record: `tag` published, `note` withheld. This one
-        // scans, because `note` is unservable and the fold is all-or-nothing per aggregate.
+        // scans, but `tag` has not been harvested until now and that alone stops the substitution, so the
+        // scan is no evidence about `note`. The record it writes is what the next query reads.
         try (
             var response = run(
                 syncEsqlQueryRequest("FROM " + dataset + " | STATS MIN(tag), MAX(tag), MIN(note), MAX(note)"),
@@ -160,7 +157,7 @@ public class ExternalCsvLongTextSchemaCacheWeightIT extends AbstractExternalData
             assertThat(rows.get(0).get(2), equalTo(expectedMin));
             assertThat(rows.get(0).get(3), equalTo(expectedMax));
             assertThat(
-                "a withheld extremum takes the whole aggregate down with it, so this scans every row",
+                "the first read that projects `tag` scans every row, which is what puts both columns in one record",
                 response.documentsFound(),
                 equalTo((long) FILE_COUNT)
             );
@@ -173,6 +170,28 @@ public class ExternalCsvLongTextSchemaCacheWeightIT extends AbstractExternalData
             assertThat("a narrow text column beside a withheld one keeps its minimum", rows.get(0).get(0), equalTo(expectedTagMin));
             assertThat("a narrow text column beside a withheld one keeps its maximum", rows.get(0).get(1), equalTo(expectedTagMax));
             assertThat("and is answered from statistics rather than scanned", response.documentsFound(), equalTo(0L));
+        }
+
+        // The combined query again, now that the query above has proved `tag` is servable from the record.
+        // The first run of it scanned for two reasons at once -- `tag` unharvested, `note` withheld -- so it
+        // could not say which. Here only `note` is left, so a scan is attributable to the withheld extremum.
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM " + dataset + " | STATS MIN(tag), MAX(tag), MIN(note), MAX(note)"),
+                TimeValue.timeValueMinutes(5)
+            )
+        ) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows.size(), equalTo(1));
+            assertThat(rows.get(0).get(0), equalTo(expectedTagMin));
+            assertThat(rows.get(0).get(1), equalTo(expectedTagMax));
+            assertThat(rows.get(0).get(2), equalTo(expectedMin));
+            assertThat(rows.get(0).get(3), equalTo(expectedMax));
+            assertThat(
+                "a servable `tag` beside a withheld `note` still scans, so the withheld end is what costs the read",
+                response.documentsFound(),
+                equalTo((long) FILE_COUNT)
+            );
         }
     }
 }

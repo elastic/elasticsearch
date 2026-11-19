@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 166427
-summary: Omit a text column's minimum and maximum from cached statistics when the value exceeds 1 KB
+summary: Omit a bound from an external CSV, TSV or NDJSON column's cached statistics when that bound is wider than 1 KB
 type: bug

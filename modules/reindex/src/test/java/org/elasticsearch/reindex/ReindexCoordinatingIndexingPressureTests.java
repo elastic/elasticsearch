@@ -54,6 +54,8 @@ import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.reindex.PaginatedHitSource.Hit;
+import org.elasticsearch.reindex.PaginatedHitSourceDropHitsTests.Cursor;
+import org.elasticsearch.reindex.PaginatedHitSourceDropHitsTests.HeldAsyncResponse;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.UpdateByQueryScript;
 import org.elasticsearch.tasks.TaskManager;
@@ -65,6 +67,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 
+import java.lang.ref.WeakReference;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -80,6 +83,7 @@ import java.util.function.BiConsumer;
 
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.reindex.PaginatedHitSourceDropHitsTests.assertUnreachable;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -835,6 +839,126 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
             assertThat(harness.chargedBytes(), equalTo(preexisting));
         }
         assertThat(pressure.stats().getCurrentCoordinatingBytes(), equalTo(0L));
+    }
+
+    public void testRefusedReserveAfterAnUpdateByQueryPageHoldsNoHitSources() throws Exception {
+        int pageSize = between(1, 5);
+        assertRefusedReserveHoldsNoHitSources(updateRequest(pageSize), pageSize, 1L);
+    }
+
+    public void testRefusedReserveAfterAReindexPageHoldsNoHitSources() throws Exception {
+        int pageSize = between(1, 5);
+        assertRefusedReserveHoldsNoHitSources(reindexRequest(pageSize), pageSize, -1L);
+    }
+
+    public void testRefusedReserveAfterADeleteByQueryPageHoldsNoHitSources() throws Exception {
+        int pageSize = between(1, 5);
+        DeleteByQueryRequest request = new DeleteByQueryRequest(randomAlphaOfLength(6));
+        request.getSearchRequest().source().size(pageSize);
+        request.setRetryBackoffInitialTime(TimeValue.timeValueMillis(randomIntBetween(1, 40)));
+        assertRefusedReserveHoldsNoHitSources(request, pageSize, 1L);
+    }
+
+    /**
+     * The worker finishes a page of hits that keep their source after release, as hits from a remote cluster do. Another task then
+     * fills the coordinating budget, so the reserve for the next page is refused and the worker waits. The callback that asks for the
+     * next page is queued for that wait and the hit source's own response is still held, so the page stays referenced. The wait must
+     * hold no page bytes, and neither the hits nor their sources may be reachable, or the page sits in memory uncharged. The search
+     * still has to continue once the reserve fits, with the cursor the finished page carried.
+     */
+    private void assertRefusedReserveHoldsNoHitSources(AbstractBulkByPaginatedSearchRequest<?> request, int pageSize, long version)
+        throws Exception {
+        ScriptedClock clock = new ScriptedClock();
+        IndexingPressure pressure = pressure(rawEstimate(clock.getThreadPool(), pageSize) + between(1, 4_096));
+        Harness harness = new Harness(clock, pressure, request, NoopCircuitBreaker.INSTANCE, null);
+        AtomicReference<Releasable> otherTask = new AtomicReference<>();
+        harness.client.handler = (bulk, listener) -> {
+            if (otherTask.get() == null) {
+                // Another task takes the whole budget just before this page lets go of its own charge, so the next estimate cannot fit.
+                otherTask.set(pressure.markCoordinatingOperationStarted(1, pressure.getCoordinatingLimitInBytes(), true));
+            }
+            listener.onResponse(harness.success(bulk));
+        };
+        harness.onDone = () -> {
+            harness.action.setScroll(null);
+            harness.finishWithEmptyPage();
+        };
+        CountingHit following = harness.hit(bytes(between(32, 256)), version);
+        harness.action.setScroll("more");
+        harness.start();
+        assertThat(harness.client.searches.size(), equalTo(1));
+
+        int hitCount = between(1, pageSize);
+        Cursor cursor = Cursor.random();
+        AtomicInteger releases = new AtomicInteger();
+        AtomicReference<HeldAsyncResponse> held = new AtomicReference<>();
+        List<WeakReference<Object>> weak = feedRemoteStylePage(harness, hitCount, version, cursor, releases, held, () -> {
+            harness.feed(List.of(following));
+        });
+
+        assertNotNull("the page should have been sent as a bulk", otherTask.get());
+        assertThat("every hit of the finished page is released", releases.get(), equalTo(hitCount));
+        assertThat("the search must not continue while the reserve is refused", held.get().doneCalls.get(), equalTo(0));
+        assertTrue("the refused reserve has to be tried again", harness.queue.hasDeferredTasks());
+        assertFalse(harness.listener.isDone());
+        assertThat("only the other task's bytes are held", harness.chargedBytes(), equalTo(pressure.getCoordinatingLimitInBytes()));
+        assertUnreachable("a hit or source of the finished page", weak);
+
+        otherTask.get().close();
+        harness.queue.advanceTime();
+
+        assertThat(held.get().doneCalls.get(), equalTo(1));
+        assertThat(held.get().cursorSeenByDone.scrollId(), equalTo(cursor.scrollId()));
+        assertThat(held.get().cursorSeenByDone.searchAfter(), equalTo(cursor.searchAfter()));
+        assertThat(held.get().cursorSeenByDone.pitId(), equalTo(cursor.pitId()));
+        BulkByPaginatedSearchResponse response = harness.listener.actionGet(TimeValue.ZERO);
+        assertThat(response.getUpdated() + response.getDeleted() + response.getCreated(), equalTo(hitCount + 1L));
+        assertThat(following.releases.get(), equalTo(1));
+        assertThat(harness.chargedBytes(), equalTo(0L));
+    }
+
+    /**
+     * Hands the worker a page of released-on-demand remote style hits. The hits and sources are only reachable through the response
+     * that {@code held} keeps, so this is a method of its own: nothing but the weak references leaves it.
+     */
+    private static List<WeakReference<Object>> feedRemoteStylePage(
+        Harness harness,
+        int hitCount,
+        long version,
+        Cursor cursor,
+        AtomicInteger releases,
+        AtomicReference<HeldAsyncResponse> held,
+        Runnable onDone
+    ) {
+        List<WeakReference<Object>> weak = new ArrayList<>();
+        List<Hit> hits = new ArrayList<>();
+        String index = harness.action.mainRequest.getSearchRequest().indices()[0];
+        for (int i = 0; i < hitCount; i++) {
+            BytesReference source = new BytesArray("{\"f\":\"" + randomAlphaOfLength(between(1, 200)) + "\"}");
+            Hit hit = new RemoteStyleHit(
+                index,
+                "id-" + i + "-" + randomAlphaOfLength(4),
+                version,
+                source,
+                new Object[] { randomLong() },
+                releases
+            );
+            weak.add(new WeakReference<>(hit));
+            weak.add(new WeakReference<>(source));
+            hits.add(hit);
+        }
+        PaginatedHitSource.Response response = new PaginatedHitSource.Response(
+            false,
+            List.of(),
+            hitCount,
+            hits,
+            cursor.scrollId(),
+            cursor.searchAfter(),
+            cursor.pitId()
+        );
+        held.set(new HeldAsyncResponse(response, onDone));
+        harness.action.onPaginatedSearchResponse(held.get());
+        return weak;
     }
 
     public void testBuildBulkCircuitBreakerReturnsToTheBudgetHeldBeforeTheSearch() {

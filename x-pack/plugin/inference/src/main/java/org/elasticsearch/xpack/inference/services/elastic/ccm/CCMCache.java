@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.ccm;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
@@ -17,6 +15,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -27,6 +26,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.inference.InferenceFeatures;
 import org.elasticsearch.xpack.inference.common.BroadcastMessageAction;
@@ -161,12 +162,13 @@ public class CCMCache {
                 ClearCCMCacheAction.INSTANCE,
                 ClearCCMCacheAction.request(ClearCCMMessage.INSTANCE, null),
                 ActionListener.wrap(ack -> {
-                    logger.debug("Successfully refreshed inference CCM cache for project {}.", projectResolver::getProjectId);
+                    logger.debug("Successfully refreshed inference CCM cache for project {}.", projectResolver.getProjectId());
                     listener.onResponse(null);
                 }, e -> {
-                    logger.atWarn()
-                        .withThrowable(e)
-                        .log("Failed to refresh inference CCM cache for project {}.", projectResolver::getProjectId);
+                    logger.warn(
+                        () -> Strings.format("Failed to refresh inference CCM cache for project %s.", projectResolver.getProjectId()),
+                        e
+                    );
                     listener.onFailure(e);
                 })
             );

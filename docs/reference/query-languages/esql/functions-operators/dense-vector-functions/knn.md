@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `KNN` function [esql-knn]
 
-:::{include} ../../_snippets/functions/layout/knn.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/knn.md
 :::

@@ -1,5 +1,5 @@
 
-apply plugin: 'elasticsearch.legacy-java-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 
 dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
@@ -7,9 +7,10 @@ dependencies {
   javaRestTestImplementation project(path: xpackModule('transform:qa:common'))
 }
 
-testClusters.configureEach {
-  testDistribution = 'DEFAULT'
-  setting 'xpack.security.enabled', 'true'
-  setting 'xpack.license.self_generated.type', 'trial'
-  user username: "x_pack_rest_user", password: "x-pack-test-password"
+tasks.named('javaRestTest') {
+  // TransformUsageIT exercises _xpack/usage, which fans out to every xpack feature's
+  // usage transport action (cluster:monitor/xpack/usage/<feature>). Only the DEFAULT
+  // distribution registers them all; with the integ-test distribution the request fails
+  // with "failed to find action [cluster:monitor/xpack/usage/<feature>]".
+  usesDefaultDistribution("TransformUsageIT exercises _xpack/usage across all xpack features")
 }

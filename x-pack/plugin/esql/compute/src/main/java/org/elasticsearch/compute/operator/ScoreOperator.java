@@ -12,15 +12,17 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.core.Releasable;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
 
 /**
- * Evaluates scores for a ExpressionScorer. The scores are added to the existing scores in the input page
+ * Adds the scores produced by a score {@link ExpressionEvaluator} (an evaluator yielding a {@link DoubleBlock}
+ * of per-row scores) to the existing scores in the input page. A row whose existing score is {@code null} has
+ * nothing to add onto and stays {@code null}.
  */
 public class ScoreOperator extends AbstractPageMappingOperator {
 
-    public record ScoreOperatorFactory(ExpressionScorer.Factory scorerFactory, int scoreBlockPosition) implements OperatorFactory {
+    public record ScoreOperatorFactory(ExpressionEvaluator.Factory scorerFactory, int scoreBlockPosition) implements OperatorFactory {
 
         @Override
         public Operator get(DriverContext driverContext) {
@@ -34,10 +36,10 @@ public class ScoreOperator extends AbstractPageMappingOperator {
     }
 
     private final BlockFactory blockFactory;
-    private final ExpressionScorer scorer;
+    private final ExpressionEvaluator scorer;
     private final int scoreBlockPosition;
 
-    public ScoreOperator(BlockFactory blockFactory, ExpressionScorer scorer, int scoreBlockPosition) {
+    public ScoreOperator(BlockFactory blockFactory, ExpressionEvaluator scorer, int scoreBlockPosition) {
         this.blockFactory = blockFactory;
         this.scorer = scorer;
         this.scoreBlockPosition = scoreBlockPosition;
@@ -46,8 +48,9 @@ public class ScoreOperator extends AbstractPageMappingOperator {
     @Override
     protected Page process(Page page) {
         assert page.getBlockCount() > scoreBlockPosition : "Expected to get a score block in position " + scoreBlockPosition;
-        assert page.getBlock(scoreBlockPosition).asVector() instanceof DoubleVector
-            : "Expected a DoubleVector as a score block, got " + page.getBlock(scoreBlockPosition).asVector();
+        if (page.getBlock(scoreBlockPosition).areAllValuesNull()) {
+            return page;
+        }
 
         Block[] blocks = new Block[page.getBlockCount()];
         for (int i = 0; i < page.getBlockCount(); i++) {
@@ -62,14 +65,30 @@ public class ScoreOperator extends AbstractPageMappingOperator {
     }
 
     private Block calculateScoresBlock(Page page) {
-        try (DoubleBlock evalScores = scorer.score(page); DoubleBlock existingScores = page.getBlock(scoreBlockPosition)) {
+        try (DoubleBlock evalScores = (DoubleBlock) scorer.eval(page); DoubleBlock existingScores = page.getBlock(scoreBlockPosition)) {
             // TODO Optimize for constant scores?
             int rowCount = page.getPositionCount();
-            DoubleVector.Builder builder = blockFactory.newDoubleVectorFixedBuilder(rowCount);
-            for (int i = 0; i < rowCount; i++) {
-                builder.appendDouble(existingScores.getDouble(i) + evalScores.getDouble(i));
+            DoubleVector existingVector = existingScores.asVector();
+            if (existingVector != null) {
+                DoubleVector.Builder builder = blockFactory.newDoubleVectorFixedBuilder(rowCount);
+                for (int i = 0; i < rowCount; i++) {
+                    builder.appendDouble(existingVector.getDouble(i) + evalScores.getDouble(i));
+                }
+                return builder.build().asBlock();
             }
-            return builder.build().asBlock();
+            // A row can arrive without a score baseline: a subquery union branch that did not ask for METADATA _score
+            // null-fills the column, as does a federated relation answered by a node that predates runtime scoring for
+            // it. Such a row has no score to add onto, so it stays null rather than starting from zero.
+            try (DoubleBlock.Builder builder = blockFactory.newDoubleBlockBuilder(rowCount)) {
+                for (int i = 0; i < rowCount; i++) {
+                    if (existingScores.isNull(i)) {
+                        builder.appendNull();
+                    } else {
+                        builder.appendDouble(existingScores.getDouble(existingScores.getFirstValueIndex(i)) + evalScores.getDouble(i));
+                    }
+                }
+                return builder.build();
+            }
         }
     }
 
@@ -81,21 +100,5 @@ public class ScoreOperator extends AbstractPageMappingOperator {
     @Override
     public void close() {
         Releasables.closeExpectNoException(scorer, super::close);
-    }
-
-    /**
-     * Evaluates the score of an expression one {@link Page} at a time.
-     */
-    public interface ExpressionScorer extends Releasable {
-        /** A Factory for creating ExpressionScorers. */
-        interface Factory {
-            ExpressionScorer get(DriverContext context);
-        }
-
-        /**
-         * Scores the expression.
-         * @return the returned Block has its own reference and the caller is responsible for releasing it.
-         */
-        DoubleBlock score(Page page);
     }
 }

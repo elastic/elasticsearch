@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.oteldata.otlp.docbuilder;
 import io.opentelemetry.proto.common.v1.AnyValue;
 import io.opentelemetry.proto.common.v1.InstrumentationScope;
 import io.opentelemetry.proto.common.v1.KeyValue;
-import io.opentelemetry.proto.common.v1.KeyValueList;
 import io.opentelemetry.proto.logs.v1.LogRecord;
 import io.opentelemetry.proto.logs.v1.SeverityNumber;
 import io.opentelemetry.proto.resource.v1.Resource;
@@ -74,20 +73,6 @@ public class LogDocumentBuilder extends OTelDocumentBuilder {
         builder.endObject();
     }
 
-    /**
-     * Builds a document for the bodymap mapping mode, where the log body map becomes the complete Elasticsearch document.
-     */
-    public void buildBodyMapLogDocument(XContentBuilder builder, LogRecord logRecord) throws IOException {
-        AnyValue body = logRecord.getBody();
-        // Keep this guard for direct callers even though transport actions pre-validate bodymap records.
-        if (body.getValueCase() != AnyValue.ValueCase.KVLIST_VALUE) {
-            throw new IllegalArgumentException("invalid log record body type for 'bodymap' mapping mode: " + body.getValueCase());
-        }
-        builder.startObject();
-        buildBodyMapObject(builder, body.getKvlistValue());
-        builder.endObject();
-    }
-
     private void buildBody(XContentBuilder builder, LogRecord logRecord) throws IOException {
         AnyValue body = logRecord.getBody();
         AnyValue.ValueCase valueCase = body.getValueCase();
@@ -140,10 +125,4 @@ public class LogDocumentBuilder extends OTelDocumentBuilder {
         buildAnyValue(builder, body);
     }
 
-    private void buildBodyMapObject(XContentBuilder builder, KeyValueList values) throws IOException {
-        for (KeyValue keyValue : values.getValuesList()) {
-            builder.field(keyValue.getKey());
-            buildAnyValue(builder, keyValue.getValue());
-        }
-    }
 }

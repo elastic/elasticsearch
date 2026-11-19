@@ -14,9 +14,11 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexWriteLoad;
+import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -153,6 +155,32 @@ public class DataStreamAutoShardingService {
         Setting.Property.NodeScope
     );
 
+    /**
+     * The minimum number of shards auto-sharding will recommend when decreasing the number of shards of a data stream. Auto-sharding
+     * never recommends a decrease below this value. It does not recommend an increase to reach it either: a data stream that already has
+     * fewer shards than this minimum is left as is until the write load justifies an increase.
+     */
+    public static final Setting<Integer> DATA_STREAMS_AUTO_SHARDING_MIN_NUMBER_OF_SHARDS = Setting.intSetting(
+        "data_streams.auto_sharding.min_number_of_shards",
+        1,
+        1,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * The minimum number of shards auto-sharding will recommend when decreasing the number of shards of a {@link IndexMode#TIME_SERIES}
+     * data stream. A positive value takes precedence over {@link #DATA_STREAMS_AUTO_SHARDING_MIN_NUMBER_OF_SHARDS} for time series data
+     * streams.
+     */
+    public static final Setting<Integer> DATA_STREAMS_AUTO_SHARDING_TIME_SERIES_MIN_NUMBER_OF_SHARDS = Setting.intSetting(
+        "data_streams.auto_sharding.time_series.min_number_of_shards",
+        1,
+        1,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     private final ClusterService clusterService;
     private final boolean isAutoShardingEnabled;
     private final LongSupplier nowSupplier;
@@ -164,6 +192,8 @@ public class DataStreamAutoShardingService {
     private volatile List<String> dataStreamExcludePatterns;
     private volatile WriteLoadMetric increaseShardsMetric;
     private volatile WriteLoadMetric decreaseShardsMetric;
+    private volatile int minNumberOfShards;
+    private volatile int timeSeriesMinNumberOfShards;
 
     public DataStreamAutoShardingService(Settings settings, ClusterService clusterService, LongSupplier nowSupplier) {
         this(settings, clusterService, nowSupplier, createPeriodicLoggingDecisionConsumer(nowSupplier));
@@ -190,6 +220,8 @@ public class DataStreamAutoShardingService {
         this.dataStreamExcludePatterns = DATA_STREAMS_AUTO_SHARDING_EXCLUDES_SETTING.get(settings);
         this.increaseShardsMetric = DATA_STREAMS_AUTO_SHARDING_INCREASE_SHARDS_LOAD_METRIC.get(settings);
         this.decreaseShardsMetric = DATA_STREAMS_AUTO_SHARDING_DECREASE_SHARDS_LOAD_METRIC.get(settings);
+        this.minNumberOfShards = DATA_STREAMS_AUTO_SHARDING_MIN_NUMBER_OF_SHARDS.get(settings);
+        this.timeSeriesMinNumberOfShards = DATA_STREAMS_AUTO_SHARDING_TIME_SERIES_MIN_NUMBER_OF_SHARDS.get(settings);
         this.nowSupplier = nowSupplier;
         this.decisionLogger = decisionLogger;
     }
@@ -207,6 +239,13 @@ public class DataStreamAutoShardingService {
             .addSettingsUpdateConsumer(DATA_STREAMS_AUTO_SHARDING_INCREASE_SHARDS_LOAD_METRIC, this::updateIncreaseShardsMetric);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(DATA_STREAMS_AUTO_SHARDING_DECREASE_SHARDS_LOAD_METRIC, this::updateDecreaseShardsMetric);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(DATA_STREAMS_AUTO_SHARDING_MIN_NUMBER_OF_SHARDS, this::updateMinNumberOfShards);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(
+                DATA_STREAMS_AUTO_SHARDING_TIME_SERIES_MIN_NUMBER_OF_SHARDS,
+                this::updateTimeSeriesMinNumberOfShards
+            );
     }
 
     // package-private for testing
@@ -251,6 +290,9 @@ public class DataStreamAutoShardingService {
          *     (see {@link IndexingStats.Stats#getRecentWriteLoad()})
          * @param writeIndexPeakLoad The peak load metric for the write index (see {@link IndexingStats.Stats#getPeakWriteLoad()})
          * @param currentNumberOfWriteIndexShards The number of shards for the current write index
+         * @param minNumberOfShards The minimum number of shards a decrease recommendation may target for this data stream (see the
+         *     {@link #DATA_STREAMS_AUTO_SHARDING_MIN_NUMBER_OF_SHARDS} and
+         *     {@link #DATA_STREAMS_AUTO_SHARDING_TIME_SERIES_MIN_NUMBER_OF_SHARDS} cluster settings)
          */
         record Inputs(
             TimeValue increaseShardsCooldown,
@@ -264,7 +306,8 @@ public class DataStreamAutoShardingService {
             double writeIndexAllTimeLoad,
             double writeIndexRecentLoad,
             double writeIndexPeakLoad,
-            int currentNumberOfWriteIndexShards
+            int currentNumberOfWriteIndexShards,
+            int minNumberOfShards
         ) {}
 
         /**
@@ -288,7 +331,8 @@ public class DataStreamAutoShardingService {
          * @param maxLoadWithinCooldown The load considered for the decrease shards calculation (i.e. a load metric determined by
          *     {@link Decision.Inputs#increaseShardsMetric}, either for the write index or an older one within the cooldown period) and a
          *     record of which index that corresponded to
-         * @param optimalShardCountForDecrease The optimal shard count determined based on the load
+         * @param optimalShardCountForDecrease The optimal shard count determined based on the load, raised to the minimum number of
+         *     shards from {@link Decision.Inputs#minNumberOfShards} if the load alone would call for fewer
          * @param decreaseResult If the optimal shard count is less than the current shard count, a recommendation to decrease the number
          *     of shards (possibly after a cooldown period); otherwise, null
          */
@@ -312,7 +356,7 @@ public class DataStreamAutoShardingService {
         @Override
         public String toString() {
             return Strings.format(
-                "For data stream %s: %s based on [inc/dec cooldowns %s/%s, %d-%d threads, "
+                "For data stream %s: %s based on [inc/dec cooldowns %s/%s, %d-%d threads, min shards %d, "
                     + "write index %s has all-time/recent/peak loads %g/%g/%g, current shards %d, "
                     + "increase calculation gives %d shards using %s load %g for write index%s]",
                 inputs.dataStream,
@@ -321,6 +365,7 @@ public class DataStreamAutoShardingService {
                 inputs.decreaseShardsCooldown,
                 inputs.minWriteThreads,
                 inputs.maxWriteThreads,
+                inputs.minNumberOfShards,
                 inputs.writeIndex,
                 inputs.writeIndexAllTimeLoad,
                 inputs.writeIndexRecentLoad,
@@ -370,6 +415,9 @@ public class DataStreamAutoShardingService {
      *
      * <p>The NO_CHANGE_REQUIRED type will potentially report the remaining cooldown always report a cool down period of TimeValue.ZERO (as
      * there'll be no new auto sharding event)
+     *
+     * <p>A decrease recommendation never targets fewer shards than {@link #DATA_STREAMS_AUTO_SHARDING_MIN_NUMBER_OF_SHARDS} (or
+     * {@link #DATA_STREAMS_AUTO_SHARDING_TIME_SERIES_MIN_NUMBER_OF_SHARDS} for time series data streams).
      */
     public AutoShardingResult calculate(ProjectState state, DataStream dataStream, @Nullable IndexStats writeIndexStats) {
 
@@ -387,7 +435,8 @@ public class DataStreamAutoShardingService {
             return NOT_APPLICABLE_RESULT;
         }
 
-        if (dataStream.getIndexMode() == IndexMode.LOOKUP) {
+        IndexMode indexMode = resolveIndexMode(state.metadata(), dataStream);
+        if (indexMode == IndexMode.LOOKUP) {
             logger.debug("Data stream [{}] has indexing mode LOOKUP; auto-sharding is not applicable.", dataStream.getName());
             return NOT_APPLICABLE_RESULT;
         }
@@ -418,11 +467,33 @@ public class DataStreamAutoShardingService {
             writeIndexAllTimeLoad,
             writeIndexRecentLoad,
             writeIndexPeakLoad,
-            writeIndex.getNumberOfShards()
+            writeIndex.getNumberOfShards(),
+            resolveMinNumberOfShards(indexMode)
         );
         Decision decision = innerCalculate(state.metadata(), dataStream, inputs);
         decisionLogger.accept(decision);
         return decision.result();
+    }
+
+    /**
+     * Attempt to resolve the index mode the next backing index will have after rollover (from the matching template merged with the
+     * data stream settings) or, if that's not possible, just use the current value from the data stream.
+     */
+    @Nullable
+    private static IndexMode resolveIndexMode(ProjectMetadata project, DataStream dataStream) {
+        String templateName = MetadataIndexTemplateService.findV2Template(project, dataStream.getName(), false);
+        if (templateName != null) {
+            ComposableIndexTemplate template = project.templatesV2().get(templateName);
+            if (template != null) {
+                ComposableIndexTemplate templateWithSettings = template.mergeSettings(dataStream.getSettings());
+                return project.retrieveIndexModeFromTemplate(templateWithSettings);
+            }
+        }
+        return dataStream.getIndexMode();
+    }
+
+    private int resolveMinNumberOfShards(@Nullable IndexMode indexMode) {
+        return indexMode == IndexMode.TIME_SERIES ? timeSeriesMinNumberOfShards : minNumberOfShards;
     }
 
     private static double sumLoadMetrics(IndexStats stats, Function<IndexingStats.Stats, Double> loadMetric) {
@@ -533,10 +604,10 @@ public class DataStreamAutoShardingService {
             inputs,
             nowSupplier
         );
-        int optimalShardCountForDecrease = computeOptimalNumberOfShards(
-            inputs.minWriteThreads(),
-            inputs.maxWriteThreads(),
-            maxLoadWithinCooldownForDecrease.load()
+        // never recommend going below the configured minimum, but do not recommend an increase to reach it either
+        int optimalShardCountForDecrease = Math.max(
+            computeOptimalNumberOfShards(inputs.minWriteThreads(), inputs.maxWriteThreads(), maxLoadWithinCooldownForDecrease.load()),
+            inputs.minNumberOfShards()
         );
         if (optimalShardCountForDecrease < inputs.currentNumberOfWriteIndexShards()) {
             return new Decision.DecreaseCalculation(
@@ -671,6 +742,14 @@ public class DataStreamAutoShardingService {
 
     private void updateDecreaseShardsMetric(WriteLoadMetric newMetric) {
         this.decreaseShardsMetric = newMetric;
+    }
+
+    private void updateMinNumberOfShards(int newMinNumberOfShards) {
+        this.minNumberOfShards = newMinNumberOfShards;
+    }
+
+    private void updateTimeSeriesMinNumberOfShards(int newTimeSeriesMinNumberOfShards) {
+        this.timeSeriesMinNumberOfShards = newTimeSeriesMinNumberOfShards;
     }
 
     private static Double pickMetric(

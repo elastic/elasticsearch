@@ -96,10 +96,6 @@ Refer to the [{{es}} API documentation](https://www.elastic.co/docs/api/doc/elas
 
 To use this connector as a **self-managed connector**, see [*Self-managed connectors*](/reference/search-connectors/self-managed-connectors.md).
 
-::::{tip}
-Users must set `track_commit_timestamp` to `on`. To do this, run `ALTER SYSTEM SET track_commit_timestamp = on;` in PostgreSQL server.
-
-::::
 
 
 For additional operations, see.
@@ -245,21 +241,13 @@ Note: You can change other default configurations by simply uncommenting specifi
 ::::
 
 
-::::{dropdown} Step 3: Run the Docker image
+:::::{dropdown} Step 3: Run the Docker image
 Run the Docker image with the Connector Service using the following command:
 
-```sh subs=true
-docker run \
--v ~/connectors-config:/config \
---network "elastic" \
---tty \
---rm \
-docker.elastic.co/integrations/elastic-connectors:{{version.stack}} \
-/app/bin/elastic-ingest \
--c /config/config.yml
-```
+:::{include} _snippets/connectors-docker-run.md
+:::
 
-::::
+:::::
 
 
 Refer to [`DOCKER.md`](https://github.com/elastic/connectors/tree/main/docs/DOCKER.md) in the `elastic/connectors` repo for more details.
@@ -277,7 +265,12 @@ We also have a quickstart self-managed option using Docker Compose, so you can s
 
 * Tables must be owned by a PostgreSQL user.
 * Tables with no primary key defined are skipped.
-* To fetch the last updated time in PostgreSQL, `track_commit_timestamp` must be set to `on`. Otherwise, all data will be indexed in every sync.
+
+#### Sync types [es-connectors-postgresql-client-sync-types]
+
+[Full syncs](/reference/search-connectors/content-syncs.md#es-connectors-sync-types-full) are supported by default for all connectors.
+
+This connector does not currently support [incremental syncs](/reference/search-connectors/content-syncs.md#es-connectors-sync-types-incremental).
 
 ::::{note}
 * Files bigger than 10 MB won’t be extracted.

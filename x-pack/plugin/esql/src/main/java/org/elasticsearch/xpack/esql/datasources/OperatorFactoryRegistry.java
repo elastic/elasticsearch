@@ -81,6 +81,7 @@ public class OperatorFactoryRegistry {
                 // fall back to the full path string for connectors that don't set it.
                 Object targetObj = context.config().get("target");
                 String target = targetObj != null ? targetObj.toString() : context.path().toString();
+                // QueryRequest carries the still-encrypted config; connectors take secrets from open(), not request.config().
                 QueryRequest request = new QueryRequest(
                     target,
                     projectedColumns,
@@ -107,6 +108,13 @@ public class OperatorFactoryRegistry {
 
     public boolean hasPluginFactory(String sourceType) {
         return sourceType != null && (sourceFactories.containsKey(sourceType) || pluginFactories.containsKey(sourceType));
+    }
+
+    /**
+     * Whether a source type resolves to the built-in file factory used for registered datasets.
+     */
+    public boolean isFileSourceFactory(String sourceType) {
+        return sourceType != null && sourceFactories.get(sourceType) instanceof FileSourceFactory;
     }
 
     public Map<String, ExternalSourceFactory> sourceFactories() {

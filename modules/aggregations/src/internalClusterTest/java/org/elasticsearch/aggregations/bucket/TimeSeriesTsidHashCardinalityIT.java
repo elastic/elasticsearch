@@ -27,6 +27,7 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.junit.Before;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -41,10 +42,18 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 
+import static org.elasticsearch.common.util.CollectionUtils.appendToCopy;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 public class TimeSeriesTsidHashCardinalityIT extends ESSingleNodeTestCase {
+
+    /** The tests here create {@link TimeSeriesAggregationBuilder}s, which emit the deprecation warning. */
+    @Override
+    protected List<String> filteredWarnings() {
+        return appendToCopy(super.filteredWarnings(), TimeSeriesAggregationBuilder.DEPRECATION_MESSAGE);
+    }
+
     private static final String START_TIME = "2021-01-01T00:00:00Z";
     private static final String END_TIME = "2021-12-31T23:59:59Z";
     private String beforeIndex, afterIndex;
@@ -64,9 +73,8 @@ public class TimeSeriesTsidHashCardinalityIT extends ESSingleNodeTestCase {
         return false;
     }
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void setupTimeSeriesData() throws Exception {
         beforeIndex = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         afterIndex = randomAlphaOfLength(12).toLowerCase(Locale.ROOT);
         startTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(START_TIME);

@@ -13,7 +13,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.BlobCacheUtils;
-import org.elasticsearch.blobcache.common.ByteBufferReference;
+import org.elasticsearch.blobcache.common.BufferFillScope;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
@@ -26,9 +26,12 @@ import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
 import org.elasticsearch.xpack.searchablesnapshots.store.IndexInputStats;
 import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.foreign.MemorySegment;
 import java.nio.ByteBuffer;
+import java.util.function.IntFunction;
 
 public final class FrozenIndexInput extends MetadataCachingIndexInput implements DirectAccessInput {
 
@@ -108,14 +111,39 @@ public final class FrozenIndexInput extends MetadataCachingIndexInput implements
     }
 
     @Override
-    public boolean withByteBufferSlice(long offset, long length, CheckedConsumer<ByteBuffer, IOException> action) throws IOException {
-        return cacheFile.withByteBufferSlice(offset + this.offset, Math.toIntExact(length), action);
+    public boolean withMemorySegmentSlice(
+        long offset,
+        long length,
+        IntFunction<MemorySegment> scratch,
+        CheckedConsumer<MemorySegment, IOException> action
+    ) throws IOException {
+        final int len = Math.toIntExact(length);
+        if (cacheFile.withMemorySegmentSlice(offset + this.offset, len, action)) {
+            return true;
+        }
+        if (len < getBufferSize()) {
+            // cheaper through readBytes, which refills the buffer once and serves the following reads from it
+            return false;
+        }
+        if (offset + len > length()) {
+            throw new EOFException("read past EOF: " + this);
+        }
+        final MemorySegment copy = scratch.apply(len);
+        assert copy.byteSize() == len : "scratch segment of " + copy.byteSize() + " bytes, expected " + len;
+        readAt(copy.asByteBuffer(), offset + this.offset);
+        action.accept(copy);
+        return true;
     }
 
     @Override
-    public boolean withByteBufferSlices(long[] offsets, int length, int count, CheckedConsumer<ByteBuffer[], IOException> action)
-        throws IOException {
-        if (DirectAccessInput.checkSlicesArgs(offsets, count)) {
+    public boolean withSliceAddresses(
+        long[] offsets,
+        int length,
+        int count,
+        MemorySegment addressesScratch,
+        CheckedConsumer<MemorySegment, IOException> action
+    ) throws IOException {
+        if (DirectAccessInput.checkSlicesArgs(offsets, count, addressesScratch)) {
             return false;
         }
         long[] adjusted = offsets;
@@ -125,12 +153,11 @@ public final class FrozenIndexInput extends MetadataCachingIndexInput implements
                 adjusted[i] = offsets[i] + this.offset;
             }
         }
-        return cacheFile.withByteBufferSlices(adjusted, length, count, action);
+        return cacheFile.withSliceAddresses(adjusted, length, count, addressesScratch, action);
     }
 
     @Override
-    protected void readWithoutBlobCache(ByteBuffer b) throws Exception {
-        final long position = getAbsolutePosition();
+    protected void readWithoutBlobCache(ByteBuffer b, long position) throws Exception {
         final int length = b.remaining();
         if (cacheFile.tryRead(b, position)) {
             // fast-path succeeded, increment stats and return
@@ -142,10 +169,10 @@ public final class FrozenIndexInput extends MetadataCachingIndexInput implements
 
     // slow path for readWithoutBlobCache, extracted to a separate method to make the fast-path inline better
     private void readWithoutBlobCacheSlow(ByteBuffer b, long position, int length) throws Exception {
-        // Semaphore that, when all permits are acquired, ensures that async callbacks (such as those used by readCacheFile) are not
-        // accessing the byte buffer anymore that was passed to readWithoutBlobCache
-        // In particular, it's important to acquire all permits before adapting the ByteBuffer's offset
-        final ByteBufferReference byteBufferReference = new ByteBufferReference(b);
+        // Async callbacks (such as those used by readCacheFile) may run on other threads, and may still be running if this read fails,
+        // so they only write to the buffer through fillScope. Completing it waits for them and stops any later one, and only then
+        // advances the buffer's position.
+        final BufferFillScope fillScope = BufferFillScope.of(b);
         logger.trace("readInternal: read [{}-{}] from [{}]", position, position + length, this);
         try {
             final ByteRange rangeToWrite = BlobCacheUtils.computeRange(
@@ -168,7 +195,7 @@ public final class FrozenIndexInput extends MetadataCachingIndexInput implements
                     length,
                     cacheFile
                 );
-                final int read = SharedBytes.readCacheFile(channel, pos, relativePos, len, byteBufferReference);
+                final int read = SharedBytes.readCacheFile(channel, pos, relativePos, len, fillScope);
                 stats.addCachedBytesRead(read);
                 return read;
             },
@@ -205,9 +232,9 @@ public final class FrozenIndexInput extends MetadataCachingIndexInput implements
                 fileInfo.physicalName()
             );
             assert bytesRead == length : bytesRead + " vs " + length;
-            byteBufferReference.finish(bytesRead);
+            fillScope.complete(bytesRead);
         } finally {
-            byteBufferReference.finish(0);
+            fillScope.complete(0);
         }
     }
 

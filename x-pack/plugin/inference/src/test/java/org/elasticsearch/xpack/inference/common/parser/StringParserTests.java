@@ -7,13 +7,16 @@
 
 package org.elasticsearch.xpack.inference.common.parser;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
 import java.util.List;
 
 import static org.elasticsearch.xpack.inference.common.parser.ObjectParserUtils.pathToKey;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -123,5 +126,31 @@ public class StringParserTests extends ESTestCase {
         assertThat(errorMessage, containsString(pathToKey(ROOT, PROPERTIES)));
         assertThat(errorMessage, containsString(String.valueOf(WRONG_TYPE_ITEM)));
         assertThat(errorMessage, containsString(INTEGER_CLASS_NAME));
+    }
+
+    public void testValidateStringIsNotNullOrEmpty_NullValue_ThrowsException() {
+        var e = expectThrows(IllegalArgumentException.class, () -> StringParser.validateStringIsNotNullOrEmpty(null, MODEL_ID));
+        assertThat(
+            e.getMessage(),
+            equalTo(Strings.format("[%s] does not contain the required setting [%s]", ModelConfigurations.SERVICE_SETTINGS, MODEL_ID))
+        );
+    }
+
+    public void testValidateStringIsNotNullOrEmpty_EmptyValue_ThrowsException() {
+        var e = expectThrows(IllegalArgumentException.class, () -> StringParser.validateStringIsNotNullOrEmpty("", MODEL_ID));
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                Strings.format(
+                    "[%s] Invalid value empty string. [%s] must be a non-empty string",
+                    ModelConfigurations.SERVICE_SETTINGS,
+                    MODEL_ID
+                )
+            )
+        );
+    }
+
+    public void testValidateStringIsNotNullOrEmpty_NonEmptyValue_DoesNotThrow() {
+        StringParser.validateStringIsNotNullOrEmpty(randomAlphaOfLength(8), MODEL_ID);
     }
 }

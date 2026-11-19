@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `STARTS_WITH` function [esql-starts_with]
 
-:::{include} ../../_snippets/functions/layout/starts_with.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/starts_with.md
 :::

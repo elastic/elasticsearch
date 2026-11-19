@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `DERIV` function [esql-deriv]
 
-:::{include} ../../_snippets/functions/layout/deriv.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/deriv.md
 :::

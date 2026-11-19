@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
@@ -136,8 +137,15 @@ public class DatafeedNodeSelector {
     @Nullable
     private AssignmentFailure checkAssignment() {
         PriorityFailureCollector priorityFailureCollector = new PriorityFailureCollector();
-        priorityFailureCollector.add(verifyIndicesActive());
 
+        // Perform the cheap job-state checks first. If the job is not open (or its task state is
+        // stale) the datafeed cannot be assigned regardless of the state of its indices, so there
+        // is no point paying the cost of resolving the datafeed's index patterns against the full
+        // cluster state in verifyIndicesActive(). This matters during mass reassignment events
+        // (for example when ML upgrade mode is disabled, or when ML nodes leave and rejoin the
+        // cluster) where every unassigned datafeed is re-evaluated on every cluster-state update:
+        // skipping the index resolution for datafeeds whose jobs are not yet (re)opened avoids a
+        // large amount of redundant work on the master's cluster-state applier thread.
         JobTaskState jobTaskState = null;
         JobState jobState = JobState.CLOSED;
         if (jobTask != null) {
@@ -164,12 +172,26 @@ public class DatafeedNodeSelector {
             priorityFailureCollector.add(new AssignmentFailure(reason, true));
         }
 
+        // Only resolve and verify the datafeed's indices if the job is in a state where the
+        // datafeed could actually be assigned. The job-state checks above only ever produce
+        // critical failures, so if one fired we already have our answer and can skip the
+        // expensive index resolution.
+        if (priorityFailureCollector.get() == null) {
+            priorityFailureCollector.add(verifyIndicesActive());
+        }
+
         return priorityFailureCollector.get();
     }
 
     @Nullable
     private AssignmentFailure verifyIndicesActive() {
+        // ES|QL datafeeds use an empty index list; concrete sources are resolved at query time (#160858).
+        if (datafeedIndices.isEmpty()) {
+            return null;
+        }
         boolean hasRemoteIndices = datafeedIndices.stream().anyMatch(RemoteClusterLicenseChecker::isRemoteIndex);
+        // CPS flat-world names are unqualified; data may live only on a linked project.
+        boolean cannotVerifyLocally = hasRemoteIndices || indicesOptions.resolveCrossProjectIndexExpression();
         String[] index = datafeedIndices.stream()
             // We cannot verify remote indices
             .filter(i -> RemoteClusterLicenseChecker.isRemoteIndex(i) == false)
@@ -181,7 +203,7 @@ public class DatafeedNodeSelector {
             concreteIndices = resolver.concreteIndexNames(clusterState, indicesOptions, true, index);
 
             // If we have remote indices we cannot check those. We should not fail as they may contain data.
-            if (hasRemoteIndices == false && concreteIndices.length == 0) {
+            if (cannotVerifyLocally == false && concreteIndices.length == 0) {
                 return new AssignmentFailure(
                     "cannot start datafeed ["
                         + datafeedId
@@ -192,6 +214,14 @@ public class DatafeedNodeSelector {
                 );
             }
         } catch (Exception e) {
+            // In CPS mode an unqualified name may resolve only on a linked project, so a local
+            // IndexNotFoundException is expected and must not block assignment. Qualified alias:index
+            // names are filtered out of `index` above and never resolved here, so a remote index
+            // elsewhere in the datafeed does not justify ignoring a genuinely missing local index.
+            if (indicesOptions.resolveCrossProjectIndexExpression()
+                && org.elasticsearch.ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
+                return null;
+            }
             String msg = format(
                 "failed resolving indices given [%s] and indices_options [%s]",
                 arrayToCommaDelimitedString(index),

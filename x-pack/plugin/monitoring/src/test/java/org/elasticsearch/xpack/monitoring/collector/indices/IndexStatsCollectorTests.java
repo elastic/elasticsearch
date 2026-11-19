@@ -112,7 +112,7 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
                 }
             }
         }
-        when(indicesStatsResponse.getShardFailures()).thenReturn(new DefaultShardOperationFailedException[0]);
+        when(indicesStatsResponse.getShardFailures()).thenReturn(List.of());
 
         final String[] indexNames = indicesMetadata.keySet().toArray(new String[0]);
         when(projectMetadata.getConcreteAllIndices()).thenReturn(indexNames);
@@ -172,7 +172,7 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
 
         assertWarnings(
             "[xpack.monitoring.collection.index.stats.timeout] setting was deprecated in Elasticsearch and will be removed "
-                + "in a future release. See the deprecation documentation for the next major version."
+                + "in a future release. See the breaking changes documentation for the next major version."
         );
     }
 
@@ -186,12 +186,13 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
         final MonitoringDoc.Node node = randomMonitoringNode(random());
 
         when(indicesStatsResponse.getShardFailures()).thenReturn(
-            new DefaultShardOperationFailedException[] {
+            List.of(
                 new DefaultShardOperationFailedException(
                     "test",
                     0,
                     new FailedNodeException(node.getUUID(), "msg", new ElasticsearchTimeoutException("test timeout"))
-                ) }
+                )
+            )
         );
 
         final IndicesStatsRequestBuilder indicesStatsRequestBuilder = spy(new IndicesStatsRequestBuilder(mock(ElasticsearchClient.class)));
@@ -213,7 +214,7 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
 
         assertWarnings(
             "[xpack.monitoring.collection.index.stats.timeout] setting was deprecated in Elasticsearch and will be removed "
-                + "in a future release. See the deprecation documentation for the next major version."
+                + "in a future release. See the breaking changes documentation for the next major version."
         );
     }
 

@@ -1,0 +1,144 @@
+setup:
+  - requires:
+      cluster_features: [ "semantic_field.semantic_field_mapper" ]
+      reason: a semantic field stores its original input in doc values so _source can be rebuilt in columnar index modes
+
+  - do:
+      inference.put:
+        task_type: embedding
+        inference_id: embedding-inference-id
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 4,
+              "similarity": "cosine",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      indices.create:
+        index: test-semantic-columnar-index
+        body:
+          settings:
+            index.mode: columnar
+          mappings:
+            properties:
+              my_field:
+                type: semantic
+                inference_id: embedding-inference-id
+
+  # columnar_stored materializes the rebuilt _source blob at ingest (from doc values) rather than per query.
+  - do:
+      indices.create:
+        index: test-semantic-columnar-stored-index
+        body:
+          settings:
+            index.mode: columnar
+            index.mapping.source.mode: columnar_stored
+          mappings:
+            properties:
+              my_field:
+                type: semantic
+                inference_id: embedding-inference-id
+
+---
+"Text and image values are rebuilt from doc values in columnar":
+  - do:
+      index:
+        index: test-semantic-columnar-index
+        id: mixed_1
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          my_field:
+            - "a cat"
+            - type: image
+              value: "data:image/jpeg;base64,ZG9nIHJ1bm5pbmcgaW4gYSBwYXJr"
+            - "a dog"
+        refresh: true
+
+  - do:
+      get:
+        index: test-semantic-columnar-index
+        id: mixed_1
+  - match: { _source.my_field.0: "a cat" }
+  - match: { _source.my_field.1.type: image }
+  - match: { _source.my_field.1.format: base64 }
+  - match: { _source.my_field.1.value: "data:image/jpeg;base64,ZG9nIHJ1bm5pbmcgaW4gYSBwYXJr" }
+  - match: { _source.my_field.2: "a dog" }
+  # Exactly the original document: @timestamp + the field, three array elements, and the image element only {type, format, value}.
+  - length: { _source: 2 }
+  - length: { _source.my_field: 3 }
+  - length: { _source.my_field.1: 3 }
+
+---
+"Text and image values are rebuilt in columnar_stored (blob materialized at ingest)":
+  - do:
+      index:
+        index: test-semantic-columnar-stored-index
+        id: text_1
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          my_field: "a cat on a windowsill"
+        refresh: true
+
+  - do:
+      get:
+        index: test-semantic-columnar-stored-index
+        id: text_1
+  # Only the original document is rebuilt (@timestamp + the field); _inference_fields and internal sub-fields are not present.
+  - match: { _source.my_field: "a cat on a windowsill" }
+  - length: { _source: 2 }
+
+  # The base64 payload is stored decoded and regenerated on read, so the image data URI must come back unchanged.
+  - do:
+      index:
+        index: test-semantic-columnar-stored-index
+        id: image_1
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          my_field:
+            type: image
+            value: "data:image/jpeg;base64,Y2F0IG9uIGEgd2luZG93c2lsbA=="
+        refresh: true
+
+  - do:
+      get:
+        index: test-semantic-columnar-stored-index
+        id: image_1
+  - match: { _source.my_field.type: image }
+  - match: { _source.my_field.format: base64 }
+  - match: { _source.my_field.value: "data:image/jpeg;base64,Y2F0IG9uIGEgd2luZG93c2lsbA==" }
+  - length: { _source: 2 }
+  - length: { _source.my_field: 3 }
+
+  # A mixed array keeps document order and types through the ingest-time reconstruction.
+  - do:
+      index:
+        index: test-semantic-columnar-stored-index
+        id: mixed_1
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          my_field:
+            - "a cat"
+            - type: image
+              value: "data:image/jpeg;base64,ZG9nIHJ1bm5pbmcgaW4gYSBwYXJr"
+            - "a dog"
+        refresh: true
+
+  - do:
+      get:
+        index: test-semantic-columnar-stored-index
+        id: mixed_1
+  - match: { _source.my_field.0: "a cat" }
+  - match: { _source.my_field.1.type: image }
+  - match: { _source.my_field.1.format: base64 }
+  - match: { _source.my_field.1.value: "data:image/jpeg;base64,ZG9nIHJ1bm5pbmcgaW4gYSBwYXJr" }
+  - match: { _source.my_field.2: "a dog" }
+  - length: { _source: 2 }
+  - length: { _source.my_field: 3 }
+  - length: { _source.my_field.1: 3 }

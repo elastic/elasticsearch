@@ -11,6 +11,7 @@ import java.lang.StringBuilder;
 import java.util.List;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.ExponentialHistogramBlock;
@@ -121,7 +122,6 @@ public final class DeltaOnlyHistogramMergeOverTimeExponentialHistogramGroupingAg
 
   @Override
   public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
-    state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
     Block valueUncast = page.getBlock(channels.get(0));
     ExponentialHistogramBlock value = (ExponentialHistogramBlock) valueUncast;
@@ -170,7 +170,6 @@ public final class DeltaOnlyHistogramMergeOverTimeExponentialHistogramGroupingAg
 
   @Override
   public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
-    state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
     Block valueUncast = page.getBlock(channels.get(0));
     ExponentialHistogramBlock value = (ExponentialHistogramBlock) valueUncast;
@@ -212,7 +211,6 @@ public final class DeltaOnlyHistogramMergeOverTimeExponentialHistogramGroupingAg
 
   @Override
   public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
-    state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
     Block valueUncast = page.getBlock(channels.get(0));
     ExponentialHistogramBlock value = (ExponentialHistogramBlock) valueUncast;
@@ -225,6 +223,16 @@ public final class DeltaOnlyHistogramMergeOverTimeExponentialHistogramGroupingAg
       int valuesPosition = groupPosition + positionOffset;
       DeltaOnlyHistogramMergeOverTimeExponentialHistogramAggregator.combineIntermediate(state, groupId, value.getExponentialHistogram(value.getFirstValueIndex(valuesPosition), valueScratch), seen.getBoolean(valuesPosition));
     }
+  }
+
+  @Override
+  public GroupingAggregatorFunction.AddInput prepareProcessIntermediateInputPage(
+      SeenGroupIds seenGroupIds, Page page) {
+    BooleanVector seen = ((BooleanBlock) page.getBlock(channels.get(1))).asVector();
+    if (seen == null || seen.isConstant() == false || seen.getBoolean(0) == false) {
+      state.enableGroupIdTracking(seenGroupIds);
+    }
+    return new GroupingAggregatorFunction.IntermediateAddInput(this, seenGroupIds, page);
   }
 
   private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds,

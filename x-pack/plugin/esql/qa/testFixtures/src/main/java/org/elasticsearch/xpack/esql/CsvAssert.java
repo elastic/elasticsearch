@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Types;
@@ -59,7 +60,7 @@ import static org.apache.lucene.geo.GeoEncodingUtils.decodeLongitude;
 import static org.apache.lucene.geo.GeoEncodingUtils.encodeLatitude;
 import static org.apache.lucene.geo.GeoEncodingUtils.encodeLongitude;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
-import static org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
+import static org.elasticsearch.xpack.esql.CsvTestUtils.TestResults;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.Type;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.Type.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.Type.UNSIGNED_LONG;
@@ -76,17 +77,18 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.histogramT
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public final class CsvAssert {
     private CsvAssert() {}
 
-    public static void assertMetadata(ExpectedResults expected, List<String> actualNames, List<Type> actualTypes, Logger logger) {
+    public static void assertMetadata(TestResults expected, List<String> actualNames, List<Type> actualTypes, Logger logger) {
         assertMetadata(expected, actualNames, actualTypes, List.of(), logger);
     }
 
     public static void assertMetadata(
-        ExpectedResults expected,
+        TestResults expected,
         List<String> actualNames,
         List<Type> actualTypes,
         List<Page> pages,
@@ -191,10 +193,25 @@ public final class CsvAssert {
         }
     }
 
+    public static void assertDocumentsFound(String expected, long actual) {
+        if (expected != null) {
+            assertTrue(
+                format(null, "Different numbers of documents found; expected {} but actual was {}", expected, actual),
+                CsvAssert.equals(CsvTestUtils.Type.LONG.convert(expected), actual, false)
+            );
+        }
+    }
+
+    public static void assertApproximationApplied(String expected, Boolean actual) {
+        if (expected != null) {
+            assertEquals("Incorrect approximation_applied", expected, String.valueOf(actual));
+        }
+    }
+
     private record DataFailure(int row, int column, Object expected, Object actual) {}
 
     public static void assertData(
-        ExpectedResults expected,
+        TestResults expected,
         List<List<Object>> actualValues,
         boolean ignoreOrder,
         boolean ignoreValueOrder,
@@ -204,7 +221,7 @@ public final class CsvAssert {
     }
 
     public static void assertDataWithValueConverter(
-        ExpectedResults expected,
+        TestResults expected,
         List<List<Object>> actualValues,
         boolean ignoreOrder,
         boolean ignoreValueOrder,
@@ -264,8 +281,9 @@ public final class CsvAssert {
                     }
                     return new BigDecimal(d).round(new MathContext(7, RoundingMode.HALF_DOWN)).doubleValue();
                 } else if (value instanceof String s) {
-                    if ("NaN".equals(s)) {
-                        return Double.NaN;
+                    Double nonFinite = nonFiniteDouble(s);
+                    if (nonFinite != null) {
+                        return nonFinite;
                     }
                     return new BigDecimal(s).round(new MathContext(7, RoundingMode.HALF_DOWN)).doubleValue();
                 }
@@ -276,8 +294,11 @@ public final class CsvAssert {
                 }
             }
             if (type == CsvTestUtils.Type.DOUBLE) {
-                if (value instanceof String s && "NaN".equals(s)) {
-                    return Double.NaN;
+                if (value instanceof String s) {
+                    Double nonFinite = nonFiniteDouble(s);
+                    if (nonFinite != null) {
+                        return nonFinite;
+                    }
                 }
                 return ((Number) value).doubleValue();
             }
@@ -288,6 +309,19 @@ public final class CsvAssert {
                 return ((Number) value).longValue();
             }
             return value.toString();
+        }
+
+        /**
+         * JSON has no representation for non-finite doubles, so REST responses serialize them as the
+         * strings {@code "NaN"}, {@code "Infinity"} and {@code "-Infinity"}; map those back to doubles.
+         */
+        private static Double nonFiniteDouble(String s) {
+            return switch (s) {
+                case "NaN" -> Double.NaN;
+                case "Infinity" -> Double.POSITIVE_INFINITY;
+                case "-Infinity" -> Double.NEGATIVE_INFINITY;
+                default -> null;
+            };
         }
 
         private static String normalizedPoint(CsvTestUtils.Type type, double x, double y) {
@@ -305,7 +339,7 @@ public final class CsvAssert {
     }
 
     private static void assertData(
-        ExpectedResults expected,
+        TestResults expected,
         List<List<Object>> actualValues,
         boolean ignoreOrder,
         boolean ignoreValueOrder,
@@ -421,7 +455,7 @@ public final class CsvAssert {
     private static void dataFailure(
         String description,
         List<DataFailure> dataFailures,
-        ExpectedResults expectedValues,
+        TestResults expectedValues,
         List<List<Object>> actualValues,
         BiFunction<Type, Object, Object> valueTransformer
     ) {
@@ -592,8 +626,13 @@ public final class CsvAssert {
                 LongRangeBlockBuilder.LongRange.class,
                 x -> EsqlDataTypeConverter.dateRangeToString((LongRangeBlockBuilder.LongRange) x)
             );
+            case DOUBLE_RANGE -> rebuildExpected(
+                expectedValue,
+                DoubleRangeBlockBuilder.DoubleRange.class,
+                x -> EsqlDataTypeConverter.doubleRangeToString((DoubleRangeBlockBuilder.DoubleRange) x)
+            );
             case INTEGER, LONG, DOUBLE, FLOAT, HALF_FLOAT, SCALED_FLOAT, KEYWORD, TEXT, SEMANTIC_TEXT, IP_RANGE, JSON, NULL, BOOLEAN,
-                DENSE_VECTOR, TDIGEST, UNSUPPORTED, FLATTENED -> expectedValue;
+                DENSE_VECTOR, TDIGEST, UNSUPPORTED, FLATTENED, SOURCE -> expectedValue;
         };
     }
 
@@ -614,24 +653,33 @@ public final class CsvAssert {
                 String.class,
                 x -> DEFAULT_DATE_NANOS_FORMATTER.formatNanos(DEFAULT_DATE_NANOS_FORMATTER.parseNanos((String) x))
             );
-            case FLATTENED -> {
-                if (actualValue instanceof Map<?, ?> map) {
-                    // REST tests come back as a LinkedHashMap and our assertions are json strings.
-                    // So we convert to json strings. This preserves order *because* of the LinkedHashMap.
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> typedMap = (Map<String, Object>) map;
-                    try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                        builder.map(typedMap);
-                        yield BytesReference.bytes(builder).utf8ToString();
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
+            case FLATTENED, SOURCE -> {
+                if (actualValue instanceof List<?> list) {
+                    // REST tests return List<Map> for multi-value flattened (e.g. from mv_append)
+                    yield list.stream().map(CsvAssert::convertActualFlattenedValue).toList();
                 }
-                // CsvIT: value is already a JSON string from the block loader — compare directly
-                yield actualValue;
+                yield convertActualFlattenedValue(actualValue);
             }
             default -> actualValue;
         };
+    }
+
+    private static Object convertActualFlattenedValue(Object value) {
+        if (value instanceof Map<?, ?> map) {
+            // REST tests come back as a LinkedHashMap and our assertions are json strings.
+            // So we convert to json strings. This preserves order *because* of the LinkedHashMap.
+            @SuppressWarnings("unchecked")
+            Map<String, Object> typedMap = (Map<String, Object>) map;
+            try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+                builder.map(typedMap);
+                return BytesReference.bytes(builder).utf8ToString();
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+        // A FLATTENED value under CsvIT is already a JSON string from the block loader, so compare it directly. A SOURCE value is always
+        // a Map and never reaches this point.
+        return value;
     }
 
     private static Object rebuildExpected(Object expectedValue, Class<?> clazz, Function<Object, Object> mapper) {

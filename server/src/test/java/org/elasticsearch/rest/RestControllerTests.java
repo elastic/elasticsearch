@@ -10,15 +10,28 @@
 package org.elasticsearch.rest;
 
 import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.MapMessage;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.logging.MockAppender;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -26,8 +39,11 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.ParsedContentReservation;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.http.HttpBody;
 import org.elasticsearch.http.HttpHeadersValidationException;
@@ -40,18 +56,24 @@ import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.rest.RestHandler.Route;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.instrumentation.HttpServerInstrumentation;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
-import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.transport.BytesRefRecycler;
+import org.elasticsearch.transport.Transports;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.yaml.YamlXContent;
 import org.junit.After;
@@ -66,8 +88,15 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.FutureTask;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
@@ -76,17 +105,22 @@ import static org.elasticsearch.rest.RestController.ELASTIC_PRODUCT_HTTP_HEADER_
 import static org.elasticsearch.rest.RestController.HANDLER_NAME_KEY;
 import static org.elasticsearch.rest.RestController.REQUEST_METHOD_KEY;
 import static org.elasticsearch.rest.RestController.STATUS_CODE_KEY;
+import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.OPTIONS;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.mock;
@@ -103,7 +137,7 @@ public class RestControllerTests extends ESTestCase {
     private UsageService usageService;
     private TestThreadPool threadPool;
     private NodeClient client;
-    private Tracer tracer;
+    private HttpServerInstrumentation instrumentation;
     private LongCounter requestsCounter;
     private TelemetryProvider telemetryProvider;
     private List<RestRequest.Method> methodList;
@@ -127,11 +161,11 @@ public class RestControllerTests extends ESTestCase {
         HttpServerTransport httpServerTransport = new TestHttpServerTransport();
         threadPool = createThreadPool();
         client = new NoOpNodeClient(threadPool);
-        tracer = mock(Tracer.class);
+        instrumentation = mock(HttpServerInstrumentation.class);
         requestsCounter = mock(LongCounter.class);
         telemetryProvider = mock(TelemetryProvider.class);
         var mockMeterRegister = mock(MeterRegistry.class);
-        when(telemetryProvider.getTracer()).thenReturn(tracer);
+        when(telemetryProvider.getHttpServerInstrumentation()).thenReturn(instrumentation);
         when(telemetryProvider.getMeterRegistry()).thenReturn(mockMeterRegister);
         when(mockMeterRegister.registerLongCounter(eq(RestController.METRIC_REQUESTS_TOTAL), anyString(), anyString())).thenReturn(
             requestsCounter
@@ -316,29 +350,7 @@ public class RestControllerTests extends ESTestCase {
         });
         AssertingChannel channel = new AssertingChannel(fakeRequest, randomBoolean(), RestStatus.BAD_REQUEST);
         restController.dispatchRequest(fakeRequest, channel, threadContext);
-        verify(tracer).startTrace(
-            eq(threadContext),
-            eq(channel.request()),
-            eq("GET /"),
-            eq(
-                Map.of(
-                    "http.method",
-                    "GET",
-                    "http.request.method",
-                    "GET",
-                    "http.flavour",
-                    "1.1",
-                    "network.protocol.version",
-                    "1.1",
-                    "http.url",
-                    "/",
-                    "url.full",
-                    "/",
-                    "url.path",
-                    "/"
-                )
-            )
-        );
+        verify(instrumentation).start(eq(fakeRequest), isNull());
     }
 
     public void testRequestWithDisallowedMultiValuedHeaderButSameValues() {
@@ -360,6 +372,58 @@ public class RestControllerTests extends ESTestCase {
         AssertingChannel channel = new AssertingChannel(fakeRequest, randomBoolean(), RestStatus.OK);
         restController.dispatchRequest(fakeRequest, channel, threadContext);
         assertTrue(channel.getSendResponseCalled());
+    }
+
+    public void testDispatchExposesHandlerNameToChannel() {
+        final AtomicReference<String> observed = new AtomicReference<>();
+        restController.registerHandler(new Route(GET, "/handler_name"), new RestHandler() {
+            @Override
+            public String getName() {
+                return "test_handler_action";
+            }
+
+            @Override
+            public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) {
+                observed.set(channel.handlerName());
+                channel.sendResponse(new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+            }
+        });
+        final RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).withPath("/handler_name").build();
+        final AssertingChannel channel = new AssertingChannel(fakeRequest, randomBoolean(), RestStatus.OK);
+
+        restController.dispatchRequest(fakeRequest, channel, threadContext);
+
+        assertThat(observed.get(), equalTo("test_handler_action"));
+    }
+
+    public void testDispatchedFailureRecordsHandlerName() throws Exception {
+        final Logger suppressedLogger = LogManager.getLogger("rest.suppressed");
+        final MockAppender appender = new MockAppender("rest_controller_suppressed");
+        appender.start();
+        Loggers.addAppender(suppressedLogger, appender);
+        try {
+            restController.registerHandler(new Route(GET, "/failing_handler"), new RestHandler() {
+                @Override
+                public String getName() {
+                    return "failing_test_action";
+                }
+
+                @Override
+                public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws IOException {
+                    channel.sendResponse(new RestResponse(channel, new ElasticsearchException("boom")));
+                }
+            });
+            final RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).withPath("/failing_handler").build();
+            final AssertingChannel channel = new AssertingChannel(fakeRequest, randomBoolean(), RestStatus.INTERNAL_SERVER_ERROR);
+
+            restController.dispatchRequest(fakeRequest, channel, threadContext);
+
+            final MapMessage<?, ?> logged = (MapMessage<?, ?>) appender.getLastEventAndReset().getMessage();
+            assertEquals("failing_test_action", logged.getData().get("elasticsearch.rest.handler"));
+        } finally {
+            Loggers.removeAppender(suppressedLogger, appender);
+            appender.stop();
+        }
     }
 
     public void testRegisterAsDeprecatedHandler() {
@@ -488,6 +552,390 @@ public class RestControllerTests extends ESTestCase {
         httpServerTransport.start();
         assertThat(wrapperCalled.get(), is(true));
         assertThat(handlerCalled.get(), is(callHandler));
+    }
+
+    public void testParsedContentIsChargedUntilResponseIsSent() {
+        CircuitBreaker requestBreaker = circuitBreakerService.getBreaker(CircuitBreaker.REQUEST);
+        AtomicLong chargedBeforeResponse = new AtomicLong(-1);
+        restController.registerHandler(new Route(GET, "/parse"), (request, channel, client) -> {
+            try (XContentParser parser = request.contentParser()) {
+                parser.map();
+            }
+            // The parser is closed, but the parsed request stays on the heap until the response is sent, and so does its charge.
+            chargedBeforeResponse.set(requestBreaker.getUsed());
+            channel.sendResponse(new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+        });
+        // Small enough for the in-flight requests breaker of this test.
+        RestRequest request = testRestRequest("/parse", "{\"a\":\"b\"}", XContentType.JSON);
+        AssertingChannel channel = new AssertingChannel(request, randomBoolean(), RestStatus.OK);
+
+        restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
+
+        assertThat(chargedBeforeResponse.get(), greaterThan(0L));
+        assertEquals(0, requestBreaker.getUsed());
+    }
+
+    public void testOnlyRequestWithContentOrSourceParamHasParsedContentReservation() {
+        List<ParsedContentReservation> reservations = new ArrayList<>();
+        List<List<Long>> charges = new ArrayList<>();
+        restController.registerHandler(new Route(GET, "/parse"), (request, channel, client) -> {
+            ParsedContentReservation reservation = client.threadPool()
+                .getThreadContext()
+                .getTransient(ParsedContentReservation.TRANSIENT_NAME);
+            reservations.add(reservation);
+            // What the reservation holds after each of the parsers the request creates has read the content or the source parameter.
+            List<Long> charged = new ArrayList<>();
+            request.withContentOrSourceParamParserOrNull(parser -> {
+                if (parser != null) {
+                    parser.map();
+                    charged.add(reservation.reservedBytes());
+                }
+            });
+            if (request.hasContentOrSourceParam()) {
+                try (XContentParser parser = request.contentOrSourceParamParser()) {
+                    parser.map();
+                }
+                charged.add(reservation.reservedBytes());
+            }
+            if (request.hasContent()) {
+                try (XContentParser parser = request.contentParser()) {
+                    parser.map();
+                }
+                charged.add(reservation.reservedBytes());
+                // A copy of the request, such as one that filters its content, charges the same reservation.
+                try (XContentParser parser = new FilteredRestRequest(request, Set.of()).contentParser()) {
+                    parser.map();
+                }
+                charged.add(reservation.reservedBytes());
+            }
+            charges.add(charged);
+            channel.sendResponse(new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+        });
+        ThreadContext threadContext = client.threadPool().getThreadContext();
+        String content = "{\"a\":\"b\"}";
+        for (RestRequest request : List.of(
+            new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withPath("/parse").build(),
+            testRestRequest("/parse", content, XContentType.JSON),
+            new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withPath("/parse")
+                .withParams(new HashMap<>(Map.of("source", content, "source_content_type", "application/json")))
+                .build()
+        )) {
+            try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+                restController.dispatchRequest(request, new AssertingChannel(request, randomBoolean(), RestStatus.OK), threadContext);
+            }
+        }
+        // A request without content has nothing to parse, so it gets no reservation.
+        assertNull(reservations.get(0));
+        assertThat(charges.get(0), empty());
+        // A body or a source parameter is charged by every parser created for it.
+        assertNotNull(reservations.get(1));
+        assertThat(charges.get(1), hasSize(4));
+        assertNotNull(reservations.get(2));
+        assertThat(charges.get(2), hasSize(2));
+        for (List<Long> charged : charges.subList(1, 3)) {
+            assertThat(charged.get(0), greaterThan(0L));
+            for (int i = 1; i < charged.size(); i++) {
+                assertThat(charged.toString(), charged.get(i), greaterThan(charged.get(i - 1)));
+            }
+        }
+    }
+
+    public void testMultiSearchLinesChargeTheRequest() throws IOException {
+        String header = "{\"index\":\"test\"}";
+        String body = "{\"size\":1,\"timeout\":\"1s\"}";
+        int searches = 2;
+        List<Long> charged = new ArrayList<>();
+        // The in-flight limit of the shared controller is smaller than the content.
+        RestController controller = new RestController(null, client, parsedContentBreakerService(), usageService, telemetryProvider);
+        controller.registerHandler(new Route(GET, "/_msearch"), (request, channel, client) -> {
+            ParsedContentReservation reservation = client.threadPool()
+                .getThreadContext()
+                .getTransient(ParsedContentReservation.TRANSIENT_NAME);
+            RestMultiSearchAction.parseRequest(request, true, usageService.getSearchUsageHolder(), feature -> true, Optional.empty());
+            charged.add(reservation.reservedBytes());
+            channel.sendResponse(new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+        });
+        RestRequest request = testRestRequest("/_msearch", (header + "\n" + body + "\n").repeat(searches), XContentType.JSON);
+        ThreadContext threadContext = client.threadPool().getThreadContext();
+        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+            controller.dispatchRequest(request, new AssertingChannel(request, true, RestStatus.OK), threadContext);
+        }
+        // The parser of every header and body line charges the request.
+        assertThat(charged, equalTo(List.of(searches * (lineCharge(header) + lineCharge(body)))));
+    }
+
+    /** What a line of content is charged when it is read on its own. */
+    private static long lineCharge(String line) throws IOException {
+        try (ParsedContentReservation reservation = new ParsedContentReservation(new NoopCircuitBreaker(CircuitBreaker.REQUEST), true)) {
+            try (
+                XContentParser parser = reservation.track(
+                    XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, line)
+                )
+            ) {
+                while (parser.nextToken() != null) {
+                    // Read every token.
+                }
+            }
+            return reservation.reservedBytes();
+        }
+    }
+
+    public void testParsedContentTripsRequestBreaker() {
+        HierarchyCircuitBreakerService breakerService = parsedContentBreakerService();
+        CircuitBreaker requestBreaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
+        RestController controller = new RestController(null, client, breakerService, usageService, telemetryProvider);
+        controller.registerHandler(new Route(GET, "/parse"), valuesHandler(true, () -> {}));
+        ThreadContext threadContext = client.threadPool().getThreadContext();
+
+        RestRequest small = testRestRequest("/parse", values(100), XContentType.JSON);
+        AssertingChannel smallChannel = new AssertingChannel(small, true, RestStatus.OK);
+        // As the HTTP layer does, each request is dispatched in a context of its own.
+        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+            controller.dispatchRequest(small, smallChannel, threadContext);
+        }
+        assertTrue(smallChannel.getSendResponseCalled());
+        assertEquals(0, requestBreaker.getTrippedCount());
+
+        // Each value is charged about 140 bytes, so this is about four times the limit, from under 1mb of content.
+        RestRequest request = testRestRequest("/parse", values(60_000), XContentType.JSON);
+        // The object parser wraps the trip in an XContentParseException, and the response must still be a 429.
+        AssertingChannel channel = new AssertingChannel(request, true, RestStatus.TOO_MANY_REQUESTS);
+        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+            controller.dispatchRequest(request, channel, threadContext);
+        }
+
+        assertTrue(channel.getSendResponseCalled());
+        assertThat(channel.getRestResponse().content().utf8ToString(), containsString(ParsedContentReservation.LABEL));
+        assertEquals(1, requestBreaker.getTrippedCount());
+        assertEquals(0, requestBreaker.getUsed());
+    }
+
+    public void testParsedContentOfHandlerThatCannotTripIsChargedWithoutBreaking() {
+        HierarchyCircuitBreakerService breakerService = parsedContentBreakerService();
+        CircuitBreaker requestBreaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
+        RestController controller = new RestController(null, client, breakerService, usageService, telemetryProvider);
+        AtomicLong usedOnceParsed = new AtomicLong();
+        controller.registerHandler(new Route(GET, "/parse"), valuesHandler(false, () -> usedOnceParsed.set(requestBreaker.getUsed())));
+        RestRequest request = testRestRequest("/parse", values(60_000), XContentType.JSON);
+        AssertingChannel channel = new AssertingChannel(request, true, RestStatus.OK);
+
+        controller.dispatchRequest(request, channel, client.threadPool().getThreadContext());
+
+        assertTrue(channel.getSendResponseCalled());
+        // Charged over the limit without a trip, and released with the response.
+        assertThat(usedOnceParsed.get(), greaterThan(requestBreaker.getLimit()));
+        assertEquals(0, requestBreaker.getTrippedCount());
+        assertEquals(0, requestBreaker.getUsed());
+    }
+
+    public void testEncodedChunksAreChargedUntilReleased() throws Exception {
+        HierarchyCircuitBreakerService breakerService = parsedContentBreakerService();
+        CircuitBreaker requestBreaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
+        RestController controller = new RestController(null, client, breakerService, usageService, telemetryProvider);
+        // Each part is a single 3mb item, over the 1 MB charge floor and the breaker's 2mb limit, so it is encoded as one chunk and
+        // charged whatever the size hint.
+        ChunkedRestResponseBodyPart secondPart = new TextPart(randomAlphaOfLength(3 * 1024 * 1024), null);
+        ChunkedRestResponseBodyPart firstPart = new TextPart(randomAlphaOfLength(3 * 1024 * 1024), secondPart);
+        controller.registerHandler(
+            new Route(GET, "/chunked"),
+            (request, channel, client) -> channel.sendResponse(RestResponse.chunked(RestStatus.OK, firstPart, null))
+        );
+        RestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withPath("/chunked").build();
+        AssertingChannel channel = new AssertingChannel(request, true, RestStatus.OK);
+        controller.dispatchRequest(request, channel, client.threadPool().getThreadContext());
+        assertTrue(channel.getSendResponseCalled());
+        assertEquals(0, requestBreaker.getUsed());
+
+        List<ReleasableBytesReference> chunks = new ArrayList<>();
+        try (RestResponse response = channel.getRestResponse()) {
+            ChunkedRestResponseBodyPart body = response.chunkedContent();
+            chunks.add(encodeOnNetworkThread(body));
+            assertTrue(body.isPartComplete());
+            assertFalse(body.isLastPart());
+            assertEquals(chunks.getFirst().length(), requestBreaker.getUsed());
+
+            PlainActionFuture<ChunkedRestResponseBodyPart> nextPart = new PlainActionFuture<>();
+            body.getNextPart(nextPart);
+            ChunkedRestResponseBodyPart next = safeGet(nextPart);
+            chunks.add(encodeOnNetworkThread(next));
+            assertTrue(next.isPartComplete());
+            assertTrue(next.isLastPart());
+
+            // Both chunks are charged, over the limit without a trip, and each is released with its chunk.
+            assertEquals(chunks.get(0).length() + chunks.get(1).length(), requestBreaker.getUsed());
+            assertThat(requestBreaker.getUsed(), greaterThan(requestBreaker.getLimit()));
+            assertEquals(0, requestBreaker.getTrippedCount());
+            chunks.removeFirst().close();
+            assertEquals(chunks.getFirst().length(), requestBreaker.getUsed());
+        } finally {
+            Releasables.close(chunks);
+        }
+        assertEquals(0, requestBreaker.getUsed());
+    }
+
+    public void testChunkIsNotChargedIfBodyFailsAfterEncoding() throws Exception {
+        HierarchyCircuitBreakerService breakerService = parsedContentBreakerService();
+        CircuitBreaker requestBreaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
+        RestController controller = new RestController(null, client, breakerService, usageService, telemetryProvider);
+        String item = randomAlphaOfLength(between(RestController.MIN_CHARGED_BYTES, 2 * RestController.MIN_CHARGED_BYTES));
+        // Fails once its chunk is encoded, when the response stats ask whether it was the last part.
+        ChunkedRestResponseBodyPart failing = new TextPart(item, null) {
+            @Override
+            public boolean isLastPart() {
+                if (isPartComplete()) {
+                    throw new IllegalStateException("simulated failure after encoding");
+                }
+                return super.isLastPart();
+            }
+        };
+        controller.registerHandler(
+            new Route(GET, "/chunked"),
+            (request, channel, client) -> channel.sendResponse(RestResponse.chunked(RestStatus.OK, failing, null))
+        );
+        RestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withPath("/chunked").build();
+        AssertingChannel channel = new AssertingChannel(request, true, RestStatus.OK);
+        controller.dispatchRequest(request, channel, client.threadPool().getThreadContext());
+        assertTrue(channel.getSendResponseCalled());
+
+        RestResponse response = channel.getRestResponse();
+        try {
+            ExecutionException e = expectThrows(ExecutionException.class, () -> encodeOnNetworkThread(response.chunkedContent()));
+            assertThat(e.getCause(), instanceOf(IllegalStateException.class));
+            // The chunk never reaches the HTTP layer, so nothing would release a charge for it.
+            assertEquals(0, requestBreaker.getUsed());
+        } finally {
+            // Closed on a network thread, as the HTTP layer does, since the response stats check that once a chunk is recorded.
+            onNetworkThread(() -> {
+                response.close();
+                return null;
+            });
+        }
+    }
+
+    public void testOnlyChunksOfAtLeastTheMinimumAreCharged() throws Exception {
+        HierarchyCircuitBreakerService breakerService = parsedContentBreakerService();
+        CircuitBreaker requestBreaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
+        RestController controller = new RestController(null, client, breakerService, usageService, telemetryProvider);
+        AtomicInteger itemBytes = new AtomicInteger();
+        controller.registerHandler(
+            new Route(GET, "/chunked"),
+            (request, channel, client) -> channel.sendResponse(
+                RestResponse.chunked(RestStatus.OK, new TextPart(randomAlphaOfLength(itemBytes.get()), null), null)
+            )
+        );
+        for (int bytes : new int[] { RestController.MIN_CHARGED_BYTES - 1, RestController.MIN_CHARGED_BYTES }) {
+            itemBytes.set(bytes);
+            RestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withPath("/chunked").build();
+            AssertingChannel channel = new AssertingChannel(request, true, RestStatus.OK);
+            // As the HTTP layer does, each request is dispatched in a context of its own.
+            try (ThreadContext.StoredContext ignored = client.threadPool().getThreadContext().stashContext()) {
+                controller.dispatchRequest(request, channel, client.threadPool().getThreadContext());
+            }
+            try (
+                RestResponse response = channel.getRestResponse();
+                ReleasableBytesReference chunk = encodeOnNetworkThread(response.chunkedContent())
+            ) {
+                assertEquals(bytes, chunk.length());
+                assertEquals(bytes < RestController.MIN_CHARGED_BYTES ? 0 : bytes, requestBreaker.getUsed());
+            }
+            assertEquals(0, requestBreaker.getUsed());
+        }
+    }
+
+    /** A body part with the single text item {@code item}, followed by {@code next} if it is not {@code null}. */
+    private static class TextPart implements ChunkedRestResponseBodyPart {
+
+        private final ChunkedRestResponseBodyPart text;
+        @Nullable
+        private final ChunkedRestResponseBodyPart next;
+
+        TextPart(String item, @Nullable ChunkedRestResponseBodyPart next) {
+            this.text = ChunkedRestResponseBodyPart.fromTextChunks(
+                RestResponse.TEXT_CONTENT_TYPE,
+                Iterators.single(writer -> writer.write(item))
+            );
+            this.next = next;
+        }
+
+        @Override
+        public boolean isPartComplete() {
+            return text.isPartComplete();
+        }
+
+        @Override
+        public boolean isLastPart() {
+            return next == null;
+        }
+
+        @Override
+        public void getNextPart(ActionListener<ChunkedRestResponseBodyPart> listener) {
+            listener.onResponse(next);
+        }
+
+        @Override
+        public ReleasableBytesReference encodeChunk(int sizeHint, Recycler<BytesRef> recycler) throws IOException {
+            return text.encodeChunk(sizeHint, recycler);
+        }
+
+        @Override
+        public String getResponseContentTypeString() {
+            return text.getResponseContentTypeString();
+        }
+    }
+
+    /** Encodes the next chunk of {@code body} on a network thread, as the HTTP layer does. */
+    private static ReleasableBytesReference encodeOnNetworkThread(ChunkedRestResponseBodyPart body) throws Exception {
+        return onNetworkThread(() -> body.encodeChunk(randomIntBetween(1, 1024), BytesRefRecycler.NON_RECYCLING_INSTANCE));
+    }
+
+    /** Runs {@code task} on a thread named as a network thread, for the code that asserts it runs on one. */
+    private static <T> T onNetworkThread(Callable<T> task) throws Exception {
+        FutureTask<T> future = new FutureTask<>(task);
+        new Thread(future, Transports.TEST_MOCK_TRANSPORT_THREAD_PREFIX + "[test]").start();
+        return future.get(10, TimeUnit.SECONDS);
+    }
+
+    /** A request breaker limit of 2mb, checked against charges only, so that the results do not depend on the test JVM's heap. */
+    private static HierarchyCircuitBreakerService parsedContentBreakerService() {
+        return new HierarchyCircuitBreakerService(
+            CircuitBreakerMetrics.NOOP,
+            Settings.builder()
+                .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "2mb")
+                .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
+                .build(),
+            List.of(),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+    }
+
+    /** A handler that parses the {@code values} of the content with an object parser and runs {@code onceParsed} before it responds. */
+    private static RestHandler valuesHandler(boolean canTripCircuitBreaker, Runnable onceParsed) {
+        ObjectParser<List<String>, Void> objectParser = new ObjectParser<>("test", ArrayList::new);
+        objectParser.declareStringArray(List::addAll, new ParseField("values"));
+        return new RestHandler() {
+            @Override
+            public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+                try (XContentParser parser = request.contentParser()) {
+                    objectParser.parse(parser, null);
+                }
+                onceParsed.run();
+                channel.sendResponse(new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+            }
+
+            @Override
+            public boolean canTripCircuitBreaker() {
+                return canTripCircuitBreaker;
+            }
+        };
+    }
+
+    /** {@code {"values": [...]}} with {@code count} values. */
+    private static String values(int count) {
+        StringBuilder content = new StringBuilder("{\"values\":[");
+        for (int i = 0; i < count; i++) {
+            content.append(i == 0 ? "" : ",").append("\"value-").append(i).append('"');
+        }
+        return content.append("]}").toString();
     }
 
     public void testDispatchRequestAddsAndFreesBytesOnSuccess() {
@@ -889,6 +1337,11 @@ public class RestControllerTests extends ESTestCase {
             }
 
             @Override
+            public String getScheme() {
+                return "http";
+            }
+
+            @Override
             public HttpBody body() {
                 if (hasContent) {
                     return HttpBody.fromBytesReference(new BytesArray("test"));
@@ -971,8 +1424,8 @@ public class RestControllerTests extends ESTestCase {
 
         final AssertingChannel channel = new AssertingChannel(request, randomBoolean(), RestStatus.METHOD_NOT_ALLOWED);
         restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
-        verify(tracer).startTrace(any(), any(RestRequest.class), anyString(), anyMap());
-        verify(tracer).addError(any(RestRequest.class), any(IllegalArgumentException.class));
+        verify(instrumentation).start(any(RestRequest.class), isNull());
+        verify(instrumentation).recordException(any(RestRequest.class), any(IllegalArgumentException.class));
     }
 
     public void testDispatchCompatibleHandler() {
@@ -1115,6 +1568,299 @@ public class RestControllerTests extends ESTestCase {
         );
     }
 
+    public void testFormEncodedBodySupportRequiresMatchingGetRoute() {
+        final RestController restController = new RestController(null, client, circuitBreakerService, usageService, telemetryProvider);
+        final RestHandler handler = new FormEncodedHandler(List.of(new Route(POST, "/form-only")));
+
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> restController.registerHandler(handler));
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "handler [org.elasticsearch.rest.RestControllerTests$FormEncodedHandler] supports read-only form-encoded POST bodies "
+                    + "but route [POST /form-only] does not have a matching GET route"
+            )
+        );
+    }
+
+    public void testFormEncodedBodySupportRequiresMatchingGetRouteForReplacedRoutes() {
+        final RestController restController = new RestController(null, client, circuitBreakerService, usageService, telemetryProvider);
+        final RestHandler handler = new FormEncodedHandler(
+            List.of(
+                new Route(GET, "/form"),
+                Route.builder(POST, "/form").replaces(POST, "/old-form", RestApiVersion.minimumSupported()).build()
+            )
+        );
+
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> restController.registerHandler(handler));
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "handler [org.elasticsearch.rest.RestControllerTests$FormEncodedHandler] supports read-only form-encoded POST bodies "
+                    + "but route [POST /old-form] does not have a matching GET route"
+            )
+        );
+    }
+
+    public void testFormEncodedBodySupportRejectsNonGetPostRoutes() {
+        final RestController restController = new RestController(null, client, circuitBreakerService, usageService, telemetryProvider);
+        final RestHandler handler = new FormEncodedHandler(
+            List.of(new Route(GET, "/form"), new Route(POST, "/form"), new Route(DELETE, "/form"))
+        );
+
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> restController.registerHandler(handler));
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "handler [org.elasticsearch.rest.RestControllerTests$FormEncodedHandler] supports read-only form-encoded POST bodies "
+                    + "but route [DELETE /form] is not a GET or POST route"
+            )
+        );
+    }
+
+    public void testDispatchAllowsFormEncodedBodyWhenInterceptorAllowsSafelistedContentType() {
+        final RestController restController = restControllerAllowingSafelistedContentTypes();
+        final RestHandler handler = new FormEncodedHandler(List.of(new Route(GET, "/form"), new Route(POST, "/form")), request -> {
+            assertThat(request.param("query"), equalTo("from_body"));
+            assertThat(request.repeatedParamAsList("match[]"), equalTo(List.of("from_body_one", "from_body_two")));
+        });
+        restController.registerHandler(handler);
+
+        final RestRequest request = formPostRequest(
+            "/form",
+            "query=from_body&match%5B%5D=from_body_one&match%5B%5D=from_body_two",
+            RestController.FORM_URLENCODED_MEDIA_TYPE
+        );
+
+        final AssertingChannel channel = new AssertingChannel(request, randomBoolean(), RestStatus.OK);
+        restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
+        assertTrue(channel.getSendResponseCalled());
+    }
+
+    public void testDispatchRejectsFormEncodedBodyWhenInterceptorRejectsSafelistedContentType() {
+        final RestController restController = new RestController(null, client, circuitBreakerService, usageService, telemetryProvider);
+        restController.registerHandler(
+            new FormEncodedHandler(
+                List.of(new Route(GET, "/form"), new Route(POST, "/form")),
+                request -> fail("handler should not be called")
+            )
+        );
+
+        final RestRequest request = formPostRequest("/form", "query=from_body", RestController.FORM_URLENCODED_MEDIA_TYPE);
+        final AssertingChannel channel = new AssertingChannel(request, randomBoolean(), RestStatus.NOT_ACCEPTABLE);
+        restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
+        assertTrue(channel.getSendResponseCalled());
+    }
+
+    public void testDispatchRejectsFormEncodedBodyForNonOptedInHandlerEvenWhenInterceptorAllowsSafelistedContentType() {
+        final RestController restController = restControllerAllowingSafelistedContentTypes();
+        restController.registerHandler(new Route(POST, "/form"), (request, channel, client) -> fail("handler should not be called"));
+
+        final RestRequest request = formPostRequest("/form", "query=from_body", RestController.FORM_URLENCODED_MEDIA_TYPE);
+        final AssertingChannel channel = new AssertingChannel(request, randomBoolean(), RestStatus.NOT_ACCEPTABLE);
+        restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
+        assertTrue(channel.getSendResponseCalled());
+    }
+
+    public void testDispatchRejectsFormEncodedBodyForNonPostMethodsEvenWhenInterceptorAllowsSafelistedContentType() {
+        final RestController restController = restControllerAllowingSafelistedContentTypes();
+        restController.registerHandler(new Route(DELETE, "/form"), (request, channel, client) -> fail("handler should not be called"));
+
+        final RestRequest request = formRequest(DELETE, "/form", "query=from_body", RestController.FORM_URLENCODED_MEDIA_TYPE);
+        final AssertingChannel channel = new AssertingChannel(request, randomBoolean(), RestStatus.NOT_ACCEPTABLE);
+        restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
+        assertTrue(channel.getSendResponseCalled());
+    }
+
+    public void testDispatchRejectsOtherSafelistedBodyTypesWhenHandlerDoesNotAcceptThem() {
+        final RestController restController = restControllerAllowingSafelistedContentTypes();
+        restController.registerHandler(
+            new FormEncodedHandler(
+                List.of(new Route(GET, "/form"), new Route(POST, "/form")),
+                request -> fail("handler should not receive non-form safelisted content")
+            )
+        );
+
+        for (String mediaType : List.of("multipart/form-data", "text/plain")) {
+            final RestRequest request = formPostRequest("/form", "query=from_body", mediaType);
+            final AssertingChannel channel = new AssertingChannel(request, randomBoolean(), RestStatus.NOT_ACCEPTABLE);
+            restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
+            assertTrue(channel.getSendResponseCalled());
+        }
+    }
+
+    public void testDispatchRejectsSafelistedBodyTypesEvenWhenHandlerAcceptsThem() {
+        final RestController restController = restControllerAllowingSafelistedContentTypes();
+        restController.registerHandler(new Route(POST, "/plain"), new RestHandler() {
+            @Override
+            public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) {
+                fail("handler should not receive safelisted content without the form-encoded POST opt-in");
+            }
+
+            @Override
+            public boolean mediaTypesValid(RestRequest request) {
+                return request.getParsedContentType() != null
+                    && request.getParsedContentType().mediaTypeWithoutParameters().equals("text/plain");
+            }
+        });
+
+        final RestRequest request = formRequest(POST, "/plain", "plain text", "text/plain");
+        final AssertingChannel channel = new AssertingChannel(request, randomBoolean(), RestStatus.NOT_ACCEPTABLE);
+        restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
+        assertTrue(channel.getSendResponseCalled());
+    }
+
+    public void testDispatchRejectsDuplicateFormEncodedBodyParameters() {
+        final RestController restController = restControllerAllowingSafelistedContentTypes();
+        restController.registerHandler(
+            new FormEncodedHandler(
+                List.of(new Route(GET, "/form"), new Route(POST, "/form")),
+                request -> fail("duplicate form-encoded parameter should be rejected before the handler is called")
+            )
+        );
+
+        final RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/form")
+            .withMethod(POST)
+            .withMultiParams(RequestParams.fromQueryString("query=from_uri"))
+            .withContent(new BytesArray("query=from_body"), null)
+            .withHeaders(Collections.singletonMap("Content-Type", Collections.singletonList(RestController.FORM_URLENCODED_MEDIA_TYPE)))
+            .build();
+
+        final AssertingChannel channel = new AssertingChannel(request, randomBoolean(), RestStatus.BAD_REQUEST);
+        restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
+        assertTrue(channel.getSendResponseCalled());
+    }
+
+    public void testDirectRegistrationRejectsReadOnlyFormEncodedBodySupportWithoutDeclaredPostRoute() {
+        final RestController restController = new RestController(null, client, circuitBreakerService, usageService, telemetryProvider);
+        final RestHandler handler = new DirectlyRegisteredFormEncodedHandler();
+
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> restController.registerHandler(POST, "/form", RestApiVersion.current(), handler)
+        );
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "handler [org.elasticsearch.rest.RestControllerTests$DirectlyRegisteredFormEncodedHandler] supports read-only "
+                    + "form-encoded POST bodies but does not define any POST routes"
+            )
+        );
+    }
+
+    public void testDirectRegistrationRejectsUndeclaredReadOnlyFormEncodedRoute() {
+        final RestController restController = new RestController(null, client, circuitBreakerService, usageService, telemetryProvider);
+        final RestHandler handler = new FormEncodedHandler(List.of(new Route(GET, "/declared"), new Route(POST, "/declared")));
+
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> restController.registerHandler(POST, "/undeclared", RestApiVersion.current(), handler)
+        );
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "handler [org.elasticsearch.rest.RestControllerTests$FormEncodedHandler] supports read-only form-encoded POST bodies "
+                    + "but registered route [POST /undeclared] is not declared by the handler"
+            )
+        );
+    }
+
+    public void testDispatchRejectsMalformedFormEncodedBody() {
+        final RestController restController = restControllerAllowingSafelistedContentTypes();
+        restController.registerHandler(new FormEncodedHandler(List.of(new Route(GET, "/form"), new Route(POST, "/form"))));
+
+        final RestRequest request = formPostRequest("/form", "query=%", RestController.FORM_URLENCODED_MEDIA_TYPE);
+
+        final AssertingChannel channel = new AssertingChannel(request, randomBoolean(), RestStatus.BAD_REQUEST);
+        restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
+        assertTrue(channel.getSendResponseCalled());
+    }
+
+    /**
+     * A handler with fixed declared parameters, used to check which parameters the capabilities check reports as supported.
+     * A {@code null} set means the handler does not declare its parameters.
+     */
+    private static class DeclaredParametersHandler extends BaseRestHandler {
+        private final String path;
+        private final Set<String> queryParameters;
+        private final Set<String> allParameters;
+
+        DeclaredParametersHandler(String path, Set<String> queryParameters, Set<String> allParameters) {
+            this.path = path;
+            this.queryParameters = queryParameters;
+            this.allParameters = allParameters;
+        }
+
+        @Override
+        public String getName() {
+            return "declared_parameters_handler";
+        }
+
+        @Override
+        public List<Route> routes() {
+            return List.of(new Route(GET, path));
+        }
+
+        @Override
+        public Set<String> supportedQueryParameters() {
+            return queryParameters;
+        }
+
+        @Override
+        public Set<String> allSupportedParameters() {
+            return allParameters;
+        }
+
+        @Override
+        protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
+            return channel -> {};
+        }
+    }
+
+    private boolean checkSupported(String path, Set<String> parameters) {
+        return restController.checkSupported(GET, path, parameters, Set.of(), RestApiVersion.current());
+    }
+
+    public void testCheckSupportedAcceptsParameters() {
+        restController.registerHandler(
+            new DeclaredParametersHandler(
+                "/declared/{path_param}",
+                Set.of("query_param"),
+                Set.of("query_param", "path_param", "response_param")
+            )
+        );
+
+        assertTrue(checkSupported("/declared/x", Set.of()));
+        assertTrue(checkSupported("/declared/x", Set.of("query_param")));
+        // the handler accepts these in a request, even though they are not query parameters
+        assertTrue(checkSupported("/declared/x", Set.of("path_param", "response_param")));
+        // every handler that declares its parameters accepts these
+        for (String common : List.of("format", "filter_path", "pretty", "human", "error_trace")) {
+            assertTrue(common, checkSupported("/declared/x", Set.of(common)));
+        }
+        assertTrue(checkSupported("/declared/x", Set.of("query_param", "pretty", "error_trace")));
+    }
+
+    public void testCheckSupportedRejectsUnknownParameters() {
+        restController.registerHandler(
+            new DeclaredParametersHandler("/declared/{path_param}", Set.of("query_param"), Set.of("query_param", "path_param"))
+        );
+
+        assertFalse(checkSupported("/declared/x", Set.of("unknown")));
+        assertFalse(checkSupported("/declared/x", Set.of("query_param", "pretty", "unknown")));
+        // end users cannot set the internal markers, so they are not reported as supported
+        for (String internal : RestRequest.INTERNAL_MARKER_REQUEST_PARAMETERS) {
+            assertFalse(internal, checkSupported("/declared/x", Set.of(internal)));
+        }
+    }
+
+    public void testCheckSupportedWithoutDeclaredParameters() {
+        // if query parameters set is null, it just reports everything as supported
+        // TODO: remove this test when the default implementation of supportedQueryParameters is updated
+        restController.registerHandler(new DeclaredParametersHandler("/undeclared", null, null));
+
+        assertThat(checkSupported("/undeclared", Set.of(randomAlphaOfLength(8), "pretty")), is(true));
+    }
+
     public void testRegisterWithReservedPath() {
         final RestController restController = new RestController(null, client, circuitBreakerService, usageService, telemetryProvider);
         for (String path : RestController.RESERVED_PATHS) {
@@ -1216,6 +1962,84 @@ public class RestControllerTests extends ESTestCase {
 
         // Multi-values must survive the per-iteration reset that PathTrie triggers
         assertThat(params.getAll("format"), equalTo(List.of("json", "yaml")));
+    }
+
+    private RestController restControllerAllowingSafelistedContentTypes() {
+        return new RestController(new RestInterceptor() {
+            @Override
+            public void intercept(RestRequest request, RestChannel channel, RestHandler targetHandler, ActionListener<Boolean> listener) {
+                listener.onResponse(Boolean.TRUE);
+            }
+
+            @Override
+            public boolean allowsBrowserSafelistedContentType(RestRequest request) {
+                return true;
+            }
+        }, client, circuitBreakerService, usageService, telemetryProvider);
+    }
+
+    private RestRequest formPostRequest(String path, String body, String contentType) {
+        return formRequest(POST, path, body, contentType);
+    }
+
+    private RestRequest formRequest(RestRequest.Method method, String path, String body, String contentType) {
+        return new FakeRestRequest.Builder(xContentRegistry()).withPath(path)
+            .withMethod(method)
+            .withContent(new BytesArray(body), null)
+            .withHeaders(Collections.singletonMap("Content-Type", Collections.singletonList(contentType)))
+            .build();
+    }
+
+    private static final class FormEncodedHandler extends BaseRestHandler {
+        private final List<Route> routes;
+        private final Consumer<RestRequest> requestAssertions;
+
+        private FormEncodedHandler(List<Route> routes) {
+            this(routes, request -> {});
+        }
+
+        private FormEncodedHandler(List<Route> routes, Consumer<RestRequest> requestAssertions) {
+            this.routes = routes;
+            this.requestAssertions = requestAssertions;
+        }
+
+        @Override
+        public String getName() {
+            return "formEncodedHandler";
+        }
+
+        @Override
+        public List<Route> routes() {
+            return routes;
+        }
+
+        @Override
+        public boolean supportsReadOnlyFormEncodedPostBody() {
+            return true;
+        }
+
+        @Override
+        public boolean canTripCircuitBreaker() {
+            return false;
+        }
+
+        @Override
+        protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
+            requestAssertions.accept(request);
+            return channel -> channel.sendResponse(new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+        }
+    }
+
+    private static final class DirectlyRegisteredFormEncodedHandler implements RestHandler {
+        @Override
+        public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) {
+            throw new AssertionError("directly registered form-encoded POST handler should be rejected during registration");
+        }
+
+        @Override
+        public boolean supportsReadOnlyFormEncodedPostBody() {
+            return true;
+        }
     }
 
     @ServerlessScope(Scope.PUBLIC)

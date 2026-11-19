@@ -1,0 +1,13 @@
+TS k8s
+| WHERE cluster NOT IN (FROM
+                           (TS k8s
+                            | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
+                            | WHERE max_bytes > 10500
+                            | KEEP cluster),
+                           (TS k8s
+                            | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
+                            | WHERE max_bytes < 8000
+                            | KEEP cluster)
+                       )
+| STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
+| SORT cluster

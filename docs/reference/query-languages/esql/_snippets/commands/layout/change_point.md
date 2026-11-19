@@ -68,10 +68,20 @@ When a `BY` clause is provided, these rules apply per group. {applies_to}`stack:
 
 The following example detects a step change in a metric:
 
-:::{include} ../examples/change_point.csv-spec/changePointForDocs.md
+:::{include} ../../generated/x-pack-esql/commands/examples/change_point.csv-spec/changePointForDocs.md
+:::
+
+The following example detects two step changes in a metric: {applies_to}`stack: ga 9.6` {applies_to}`serverless: ga`
+
+:::{include} ../../generated/x-pack-esql/commands/examples/change_point.csv-spec/changePointForDocsMultipleChanges.md
 :::
 
 The following example detects a step change independently for each group: {applies_to}`stack: ga 9.5` {applies_to}`serverless: ga`
 
-:::{include} ../examples/change_point.csv-spec/changePointForDocsByGroup.md
+:::{include} ../../generated/x-pack-esql/commands/examples/change_point.csv-spec/changePointForDocsByGroup.md
+:::
+
+The following example detects two step changes independently for each group: {applies_to}`stack: ga 9.6` {applies_to}`serverless: ga`
+
+:::{include} ../../generated/x-pack-esql/commands/examples/change_point.csv-spec/changePointForDocsByGroupMultipleChanges.md
 :::

@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `SINH` function [esql-sinh]
 
-:::{include} ../../_snippets/functions/layout/sinh.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/sinh.md
 :::

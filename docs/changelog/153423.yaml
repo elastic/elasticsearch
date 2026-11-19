@@ -1,0 +1,5 @@
+area: Vector Search
+issues: []
+pr: 153423
+summary: Apply sequential read advice during vector merges
+type: bug

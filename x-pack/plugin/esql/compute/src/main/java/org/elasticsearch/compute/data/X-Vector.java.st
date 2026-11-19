@@ -94,9 +94,21 @@ $if(BytesRef)$
      */
     OrdinalBytesRefVector asOrdinals();
 
+    /**
+     * An estimate of the bytes this vector's values spell, as opposed to the memory it holds, taken without
+     * reading the values one by one. Exact unless the values are read through a dictionary, where each one
+     * counts as the dictionary's average term.
+     */
+    long estimateTotalValueBytes();
+
 $endif$
     @Override
-    $Type$Vector filter(boolean mayContainDuplicates, int... positions);
+    $Type$Vector filter(boolean mayContainDuplicates, int[] positions, int offset, int length);
+
+    @Override
+    default $Type$Vector filter(boolean mayContainDuplicates, int... positions) {
+        return filter(mayContainDuplicates, positions, 0, positions.length);
+    }
 
     @Override
     $Type$Block keepMask(BooleanVector mask);

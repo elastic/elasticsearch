@@ -23,10 +23,14 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.ExecutionException;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -34,7 +38,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 @LuceneTestCase.SuppressFileSystems(value = "HandleLimitFS") // we sometimes have >2048 open files
 public class SearchWithRandomDisconnectsIT extends AbstractDisruptionTestCase {
 
-    public void testSearchWithRandomDisconnects() throws InterruptedException, ExecutionException {
+    public void testSearchWithRandomDisconnects() throws Exception {
         // make sure we have a couple data nodes
         int minDataNodes = randomIntBetween(3, 7);
         internalCluster().ensureAtLeastNumDataNodes(minDataNodes);
@@ -53,50 +57,87 @@ public class SearchWithRandomDisconnectsIT extends AbstractDisruptionTestCase {
             }
         }
         assertFalse(bulkRequestBuilder.get().hasFailures());
+        // Initialize the clients for each node to prevent deadlocks between InternalTestCluster.validateClusterFormed() (called as part of
+        // InternalTestCluster.clearDisruptionScheme()) and InternalTestCluster.NodeAndClient.getOrBuildNodeClient() (called as part of
+        // prepareSearch())
+        for (String node : internalCluster().getNodeNames()) {
+            client(node);
+        }
         final AtomicBoolean done = new AtomicBoolean();
         final int concurrentSearches = randomIntBetween(2, 5);
-        final List<PlainActionFuture<Void>> futures = new ArrayList<>(concurrentSearches);
-        for (int i = 0; i < concurrentSearches; i++) {
-            final PlainActionFuture<Void> finishFuture = new PlainActionFuture<>();
-            futures.add(finishFuture);
-            prepareRandomSearch().execute(new ActionListener<>() {
-                @Override
-                public void onResponse(SearchResponse searchResponse) {
-                    runMoreSearches();
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    runMoreSearches();
-                }
-
-                private void runMoreSearches() {
-                    while (done.get() == false) {
-                        final ListenableFuture<SearchResponse> f = new ListenableFuture<>();
-                        prepareRandomSearch().execute(f);
-                        if (f.isDone() == false) {
-                            f.addListener(this);
-                            return;
-                        }
+        // Capture the last submitted search for each concurrent search future so any exceptions encountered aren't lost
+        final Map<PlainActionFuture<Void>, AtomicReference<Future<?>>> futures = new HashMap<>(concurrentSearches);
+        // Do not call runMoreSearches() inline on the transport thread as it may block Netty event loops
+        final ExecutorService searchExecutor = Executors.newFixedThreadPool(concurrentSearches);
+        Exception searchException = null;
+        try {
+            for (int i = 0; i < concurrentSearches; i++) {
+                final PlainActionFuture<Void> finishFuture = new PlainActionFuture<>();
+                AtomicReference<Future<?>> lastSubmitted = new AtomicReference<>();
+                futures.put(finishFuture, lastSubmitted);
+                prepareRandomSearch().execute(new ActionListener<>() {
+                    @Override
+                    public void onResponse(SearchResponse searchResponse) {
+                        lastSubmitted.getAndSet(searchExecutor.submit(this::runMoreSearches));
                     }
-                    finishFuture.onResponse(null);
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        lastSubmitted.getAndSet(searchExecutor.submit(this::runMoreSearches));
+                    }
+
+                    private void runMoreSearches() {
+                        while (done.get() == false) {
+                            final ListenableFuture<SearchResponse> f = new ListenableFuture<>();
+                            prepareRandomSearch().execute(f);
+                            if (f.isDone() == false) {
+                                f.addListener(this);
+                                return;
+                            }
+                        }
+                        finishFuture.onResponse(null);
+                    }
+                });
+            }
+            for (int i = 0, n = randomIntBetween(20, 50); i < n; i++) {
+                NetworkDisruption networkDisruption = new NetworkDisruption(
+                    isolateNode(internalCluster().getRandomNodeName()),
+                    NetworkDisruption.DISCONNECT
+                );
+                setDisruptionScheme(networkDisruption);
+                networkDisruption.startDisrupting();
+                networkDisruption.stopDisrupting();
+                internalCluster().clearDisruptionScheme();
+                ensureFullyConnectedCluster();
+            }
+        } finally {
+            // Stop the background searches before teardown, on every exit path: a search left running
+            // into teardown hits the closing cluster and crashes the whole suite with a fatal AssertionError.
+            done.set(true);
+            for (Map.Entry<PlainActionFuture<Void>, AtomicReference<Future<?>>> entry : futures.entrySet()) {
+                try {
+                    Future<?> future = entry.getValue().get();
+                    if (future != null) {
+                        future.get(SAFE_AWAIT_TIMEOUT.getMillis(), TimeUnit.MILLISECONDS);
+                    }
+                } catch (Exception e) {
+                    // Preserve exceptions thrown when submitting a search
+                    if (searchException == null) {
+                        searchException = e;
+                    } else {
+                        searchException.addSuppressed(e);
+                    }
                 }
-            });
+                try {
+                    entry.getKey().get(SAFE_AWAIT_TIMEOUT.getMillis(), TimeUnit.MILLISECONDS);
+                } catch (Exception e) {
+                    // best-effort drain
+                }
+            }
+            searchExecutor.shutdown();
         }
-        for (int i = 0, n = randomIntBetween(20, 50); i < n; i++) {
-            NetworkDisruption networkDisruption = new NetworkDisruption(
-                isolateNode(internalCluster().getRandomNodeName()),
-                NetworkDisruption.DISCONNECT
-            );
-            setDisruptionScheme(networkDisruption);
-            networkDisruption.startDisrupting();
-            networkDisruption.stopDisrupting();
-            internalCluster().clearDisruptionScheme();
-            ensureFullyConnectedCluster();
-        }
-        done.set(true);
-        for (PlainActionFuture<Void> future : futures) {
-            future.get();
+        if (searchException != null) {
+            throw searchException;
         }
         ensureGreen(new TimeValue(DISRUPTION_HEALING_OVERHEAD.millis() + 2000L * indexNames.length), indexNames);
         assertAcked(indicesAdmin().prepareDelete(indexNames));

@@ -26,7 +26,6 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.http.MockResponse;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
@@ -92,8 +91,8 @@ public class ContextualAiServiceTests extends InferenceServiceTestCase {
             var topN = randomNonNegativeIntOrNull();
             var returnDocuments = randomOptionalBoolean();
             var request = new RerankRequest(
-                List.of(new InferenceString(DataType.TEXT, inputOne), new InferenceString(DataType.TEXT, inputTwo)),
-                new InferenceString(DataType.TEXT, query),
+                List.of(InferenceString.ofText(inputOne), InferenceString.ofText(inputTwo)),
+                InferenceString.ofText(query),
                 topN,
                 returnDocuments,
                 new HashMap<>()
@@ -113,10 +112,7 @@ public class ContextualAiServiceTests extends InferenceServiceTestCase {
 
             assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().getFirst().getUri().getQuery());
-            assertThat(
-                webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE),
-                equalTo(XContentType.JSON.mediaTypeWithoutParameters())
-            );
+            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE), equalTo("application/json; charset=UTF-8"));
             assertThat(
                 webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION),
                 CoreMatchers.is(Strings.format("Bearer %s", TEST_API_KEY))

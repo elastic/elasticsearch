@@ -12,7 +12,10 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
+import org.elasticsearch.xpack.esql.analysis.LetResolver;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
+import org.elasticsearch.xpack.esql.view.ViewResolver;
 
 import java.util.List;
 import java.util.Map;
@@ -25,11 +28,12 @@ import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.DISSECT;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.DROP;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.ENRICH;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.EVAL;
-import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.FORK;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.FROM;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.GROK;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.INLINE_STATS;
+import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.IN_SUBQUERY;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.KEEP;
+import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.LET;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.LIMIT;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.LIMIT_BY;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.LOOKUP_JOIN;
@@ -273,7 +277,7 @@ public class VerifierMetricsTests extends ESTestCase {
         Counters c = esql("""
             TS k8s
             | STATS sum(avg_over_time(network.cost))""");
-        assertMetrics(c, Map.of(STATS, 1L, TS, 1L), Map.of("sum", 1L, "avg_over_time", 1L));
+        assertMetrics(c, Map.of(STATS, 1L, FROM, 1L), Map.of("sum", 1L, "avg", 1L));
     }
 
     public void testTimeSeriesNoAggregate() {
@@ -285,21 +289,143 @@ public class VerifierMetricsTests extends ESTestCase {
     }
 
     public void testBinaryPlanAfterSubqueryInFromCommand() {
-        assumeTrue("requires SUBQUERY IN FROM capability", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-
         Counters c = esql("""
              from employees
                       , (from employees | stats max = max(salary) by languages)
                       , (from employees | stats min = min(salary) by languages)
             | where min > 0 and max < 100000
             """);
-        assertMetrics(c, Map.of(EVAL, 1L, STATS, 1L, WHERE, 1L, FROM, 1L, SUBQUERY, 1L, FORK, 1L), Map.of("max", 1L, "min", 1L));
+        assertMetrics(c, Map.of(STATS, 1L, WHERE, 1L, FROM, 1L, SUBQUERY, 1L), Map.of("max", 1L, "min", 1L));
     }
 
     public void testPromql() {
         Counters c = esql("""
             PROMQL index=k8s step=5m sum(network.cost)""");
-        assertMetrics(c, Map.of(PROMQL, 1L, TS, 1L));
+        var expectedFeatures = Map.of(PROMQL, 1L, FROM, 1L, EVAL, 1L, WHERE, 1L);
+        assertMetrics(c, expectedFeatures, Map.of("sum", 1L, "last_over_time", 1L, "to_double", 1L, "bucket", 1L));
+    }
+
+    public void testInSubquery() {
+        Counters c = esql("from employees | where emp_no IN (from employees | stats max(emp_no))");
+        assertMetrics(c, Map.of(STATS, 1L, WHERE, 1L, FROM, 1L, IN_SUBQUERY, 1L), Map.of("max", 1L));
+    }
+
+    public void testNotInSubquery() {
+        Counters c = esql("from employees | where emp_no NOT IN (from employees | stats max(emp_no))");
+        assertMetrics(c, Map.of(STATS, 1L, WHERE, 1L, FROM, 1L, IN_SUBQUERY, 1L), Map.of("max", 1L));
+    }
+
+    public void testMixedInAndNotInSubqueries() {
+        Counters c = esql("""
+            from employees
+            | where emp_no IN (from employees | stats max(emp_no))
+              and languages NOT IN (from employees | stats min(languages))
+            """);
+        assertMetrics(c, Map.of(STATS, 1L, WHERE, 1L, FROM, 1L, IN_SUBQUERY, 1L), Map.of("max", 1L, "min", 1L));
+    }
+
+    public void testMultipleNotInSubqueries() {
+        Counters c = esql("""
+            from employees
+            | where emp_no NOT IN (from employees | stats max(emp_no))
+            | where languages NOT IN (from employees | stats min(languages))
+            """);
+        assertMetrics(c, Map.of(STATS, 1L, WHERE, 1L, FROM, 1L, IN_SUBQUERY, 1L), Map.of("max", 1L, "min", 1L));
+    }
+
+    public void testMultipleInSubqueries() {
+        Counters c = esql("""
+            from employees
+            | where emp_no IN (from employees | stats max(emp_no))
+              and languages IN (from employees | stats min(languages))
+            """);
+        assertMetrics(c, Map.of(STATS, 1L, WHERE, 1L, FROM, 1L, IN_SUBQUERY, 1L), Map.of("max", 1L, "min", 1L));
+    }
+
+    public void testInSubqueryInEval() {
+        Counters c = esql("from employees | eval m = emp_no IN (from employees | keep languages)");
+        assertMetrics(c, Map.of(EVAL, 1L, FROM, 1L, IN_SUBQUERY, 1L, KEEP, 1L), Map.of());
+    }
+
+    public void testNotInSubqueryInEval() {
+        Counters c = esql("from employees | eval m = emp_no NOT IN (from employees | stats max(emp_no))");
+        assertMetrics(c, Map.of(STATS, 1L, EVAL, 1L, FROM, 1L, IN_SUBQUERY, 1L), Map.of("max", 1L));
+    }
+
+    public void testInSubqueryInEvalBeforeWhere() {
+        Counters c = esql("from employees | eval m = emp_no IN (from employees | stats max(emp_no)) | where salary > 50000");
+        assertMetrics(c, Map.of(STATS, 1L, EVAL, 1L, WHERE, 1L, FROM, 1L, IN_SUBQUERY, 1L), Map.of("max", 1L));
+    }
+
+    public void testInSubqueryInCaseInEval() {
+        Counters c = esql("from employees | eval m = case(emp_no IN (from employees | stats max(emp_no)), \"yes\", \"no\")");
+        assertMetrics(c, Map.of(STATS, 1L, EVAL, 1L, FROM, 1L, IN_SUBQUERY, 1L), Map.of("max", 1L, "case", 1L));
+    }
+
+    public void testInSubqueryInCoalesceInEval() {
+        Counters c = esql("from employees | eval m = coalesce(emp_no IN (from employees | stats max(emp_no)), false)");
+        assertMetrics(c, Map.of(STATS, 1L, EVAL, 1L, FROM, 1L, IN_SUBQUERY, 1L), Map.of("max", 1L, "coalesce", 1L));
+    }
+
+    public void testInSubqueryInIsNullInEval() {
+        Counters c = esql("from employees | eval m = (emp_no IN (from employees | stats max(emp_no))) IS NULL");
+        assertMetrics(c, Map.of(STATS, 1L, EVAL, 1L, FROM, 1L, IN_SUBQUERY, 1L), Map.of("max", 1L));
+    }
+
+    public void testInSubqueryInIsNotNullInEval() {
+        Counters c = esql("from employees | eval m = (emp_no IN (from employees | stats max(emp_no))) IS NOT NULL");
+        assertMetrics(c, Map.of(STATS, 1L, EVAL, 1L, FROM, 1L, IN_SUBQUERY, 1L), Map.of("max", 1L));
+    }
+
+    public void testInSubqueryInStatsWhereDoesNotCountWhere() {
+        Counters c = esql("from employees | stats c = count(*) where emp_no in (from employees | stats max(emp_no))");
+        assertMetrics(c, Map.of(STATS, 1L, FROM, 1L, IN_SUBQUERY, 1L), Map.of("count", 1L, "max", 1L));
+    }
+
+    public void testInSubqueryInStatsWhereAndWhereCountWhere() {
+        Counters c = esql("from employees | where salary > 0 | stats c = count(*) where emp_no in (from employees | stats max(emp_no))");
+        assertMetrics(c, Map.of(STATS, 1L, WHERE, 1L, FROM, 1L, IN_SUBQUERY, 1L), Map.of("count", 1L, "max", 1L));
+    }
+
+    public void testInSubqueryInInlineStatsWhere() {
+        Counters c = esql("""
+                from employees
+                | inline stats count(*) where emp_no IN (from employees | KEEP emp_no)
+            """);
+        assertMetrics(c, Map.of(INLINE_STATS, 1L, FROM, 1L, IN_SUBQUERY, 1L, KEEP, 1L), Map.of("count", 1L));
+    }
+
+    public void testInSubqueryInInlineStatsWhereBeforeWhere() {
+        Counters c = esql("""
+                from employees
+                | inline stats count = count(*) where emp_no IN (from employees | stats max(emp_no))
+                | where count > 1
+            """);
+        assertMetrics(c, Map.of(INLINE_STATS, 1L, FROM, 1L, IN_SUBQUERY, 1L, WHERE, 1L, STATS, 1L), Map.of("count", 1L, "max", 1L));
+    }
+
+    public void testNotInSubqueryInInlineStatsWhere() {
+        Counters c = esql("""
+                from employees
+                | inline stats count(*) where emp_no NOT IN (from employees | SORT emp_no | LIMIT 3 | KEEP emp_no)
+            """);
+        assertMetrics(c, Map.of(INLINE_STATS, 1L, FROM, 1L, IN_SUBQUERY, 1L, SORT, 1L, LIMIT, 1L, KEEP, 1L), Map.of("count", 1L));
+    }
+
+    public void testInto() {
+        assumeTrue("INTO is only enabled in snapshot builds", EsqlCapabilities.Cap.INTO_COMMAND.isEnabled());
+        Counters c = esql("ROW a = 1 | INTO dst");
+        assertMetrics(c, Map.of(FeatureMetric.INTO, 1L, ROW, 1L));
+    }
+
+    public void testLet() {
+        assumeTrue("requires NAMED_SUBQUERY_LET capability", EsqlCapabilities.Cap.NAMED_SUBQUERY_LET.isEnabled());
+        Counters c = esql("""
+            LET top = (from employees | sort salary DESC | limit 3);
+            LET bottom = (from employees | sort salary ASC | limit 3);
+            from top, (from bottom)
+            """);
+        assertMetrics(c, Map.of(LET, 1L, SORT, 1L, LIMIT, 1L, FROM, 1L, SUBQUERY, 1L));
     }
 
     private void assertMetrics(Counters c, Map<FeatureMetric, Long> expectedFeatures) {
@@ -341,13 +467,27 @@ public class VerifierMetricsTests extends ESTestCase {
             metrics = new Metrics(TEST_FUNCTION_REGISTRY, true, true);
             verifier = new Verifier(metrics, new XPackLicenseState(() -> 0L));
         }
+        // Mirror EsqlSession: LET and IN_SUBQUERY are not visible to the analyzer/verifier plan walk, so each is incremented
+        // once per query from the parsed statement. LET is counted when the statement has bindings, before LetResolver
+        // substitutes them into the plan. IN_SUBQUERY is counted on the LET-resolved plan, before InSubquery is resolved into
+        // SemiJoin/AntiJoin/MarkJoin. Then analyze.
+        // WHERE is counted by the analyzer/verifier plan walk via FeatureMetric.WHERE matching Filter/SemiJoin/AntiJoin in the
+        // post-resolution plan; a WHERE-originating MarkJoin retains its enclosing Filter.
+        var statement = TEST_PARSER.createStatement(esql);
+        if (metrics != null && statement.letBindings().isEmpty() == false) {
+            metrics.inc(LET);
+        }
+        var parsed = LetResolver.resolve(statement.plan(), statement.letBindings(), ViewResolver.DEFAULT_MAX_PLAN_NODES_COUNT);
+        if (metrics != null && InSubqueryResolver.hasInSubquery(parsed)) {
+            metrics.inc(IN_SUBQUERY);
+        }
         analyzer().addIndex("metrics", "mapping-basic.json", IndexMode.TIME_SERIES)
             .addK8s()
             .addEmployees()
             .addAnalysisTestsEnrichResolution()
             .addLanguagesLookup()
             .buildAnalyzer(verifier)
-            .analyze(TEST_PARSER.parseQuery(esql));
+            .analyze(InSubqueryResolver.resolve(parsed));
 
         return metrics == null ? null : metrics.stats();
     }

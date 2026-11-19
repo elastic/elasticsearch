@@ -12,13 +12,14 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.HistogramValue;
@@ -27,13 +28,13 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexHistogramFieldData;
 import org.elasticsearch.index.fielddata.LeafHistogramFieldData;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.DocumentParsingException;
+import org.elasticsearch.index.mapper.FallbackPostMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.IgnoreMalformedStoredValues;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
@@ -73,10 +74,6 @@ public class HistogramFieldMapper extends FieldMapper {
     // use the same default as numbers
     private static final Setting<Boolean> COERCE_SETTING = NumberFieldMapper.COERCE_SETTING;
 
-    private static HistogramFieldMapper toType(FieldMapper in) {
-        return (HistogramFieldMapper) in;
-    }
-
     public static class Builder extends FieldMapper.Builder {
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
@@ -87,19 +84,14 @@ public class HistogramFieldMapper extends FieldMapper {
          * Only the metric type histogram is supported.
          */
         private final Parameter<TimeSeriesParams.MetricType> metric;
-        private final IndexVersion indexCreatedVersion;
+        private final IndexSettings indexSettings;
 
-        public Builder(String name, boolean ignoreMalformedByDefault, boolean coerceByDefault, IndexVersion indexCreatedVersion) {
+        public Builder(String name, boolean ignoreMalformedByDefault, boolean coerceByDefault, IndexSettings indexSettings) {
             super(name);
-            this.indexCreatedVersion = indexCreatedVersion;
-            this.ignoreMalformed = Parameter.explicitBoolParam(
-                "ignore_malformed",
-                true,
-                m -> toType(m).ignoreMalformed,
-                ignoreMalformedByDefault
-            );
-            this.coerce = Parameter.explicitBoolParam("coerce", true, m -> toType(m).coerce, coerceByDefault);
-            this.metric = TimeSeriesParams.metricParam(m -> toType(m).metricType, TimeSeriesParams.MetricType.HISTOGRAM);
+            this.indexSettings = indexSettings;
+            this.ignoreMalformed = Parameter.explicitBoolParam("ignore_malformed", true, ignoreMalformedByDefault);
+            this.coerce = Parameter.explicitBoolParam("coerce", true, coerceByDefault);
+            this.metric = TimeSeriesParams.metricParam(TimeSeriesParams.MetricType.HISTOGRAM);
         }
 
         public Builder metric(TimeSeriesParams.MetricType metric) {
@@ -129,31 +121,20 @@ public class HistogramFieldMapper extends FieldMapper {
     }
 
     public static final TypeParser PARSER = new TypeParser(
-        (n, c) -> new Builder(
-            n,
-            IGNORE_MALFORMED_SETTING.get(c.getSettings()),
-            COERCE_SETTING.get(c.getSettings()),
-            c.getIndexSettings().getIndexVersionCreated()
-        ),
+        (n, c) -> new Builder(n, IGNORE_MALFORMED_SETTING.get(c.getSettings()), COERCE_SETTING.get(c.getSettings()), c.getIndexSettings()),
         notInMultiFields(CONTENT_TYPE)
     );
 
     private final Explicit<Boolean> ignoreMalformed;
-    private final boolean ignoreMalformedByDefault;
 
     private final Explicit<Boolean> coerce;
-    private final boolean coerceByDefault;
-    private final TimeSeriesParams.MetricType metricType;
-    private final IndexVersion indexCreatedVersion;
+    private final IndexSettings indexSettings;
 
     public HistogramFieldMapper(String simpleName, MappedFieldType mappedFieldType, BuilderParams builderParams, Builder builder) {
         super(simpleName, mappedFieldType, builderParams);
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
-        this.ignoreMalformedByDefault = builder.ignoreMalformed.getDefaultValue().value();
-        this.indexCreatedVersion = builder.indexCreatedVersion;
+        this.indexSettings = builder.indexSettings;
         this.coerce = builder.coerce.getValue();
-        this.coerceByDefault = builder.coerce.getDefaultValue().value();
-        this.metricType = builder.metric.get();
     }
 
     @Override
@@ -168,11 +149,6 @@ public class HistogramFieldMapper extends FieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
-    }
-
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), ignoreMalformedByDefault, coerceByDefault, indexCreatedVersion).metric(metricType).init(this);
     }
 
     @Override
@@ -229,6 +205,11 @@ public class HistogramFieldMapper extends FieldMapper {
                                     }
 
                                     @Override
+                                    public DocIdSetIterator docIdIterator() {
+                                        return values;
+                                    }
+
+                                    @Override
                                     public HistogramValue histogram() throws IOException {
                                         try {
                                             value.reset(values.binaryValue());
@@ -269,6 +250,11 @@ public class HistogramFieldMapper extends FieldMapper {
                                         value.reset(values.binaryValue());
                                         return value;
                                     }
+
+                                    @Override
+                                    public DocIdSetIterator docIdIterator() {
+                                        return values;
+                                    }
                                 };
                             } catch (IOException e) {
                                 throw new UncheckedIOException("Unable to loead histogram doc values", e);
@@ -276,7 +262,7 @@ public class HistogramFieldMapper extends FieldMapper {
                         }
 
                         @Override
-                        public SortedBinaryDocValues getBytesValues() {
+                        public SortableBinaryDocValues getBytesValues() {
                             throw new UnsupportedOperationException(
                                 "String representation of doc values " + "for [" + CONTENT_TYPE + "] fields is not supported"
                             );
@@ -335,9 +321,10 @@ public class HistogramFieldMapper extends FieldMapper {
     }
 
     @Override
-    public void parse(DocumentParserContext context) throws IOException {
+    public ParseResult parse(DocumentParserContext context) throws IOException {
         context.path().add(leafName());
 
+        boolean wasAlreadyIgnored = context.getIgnoredFields().contains(fullPath());
         boolean shouldStoreMalformedDataForSyntheticSource = context.mappingLookup().isSourceSynthetic() && ignoreMalformed();
         XContentParser.Token token;
         XContentSubParser subParser = null;
@@ -347,7 +334,7 @@ public class HistogramFieldMapper extends FieldMapper {
             token = context.parser().currentToken();
             if (token == XContentParser.Token.VALUE_NULL) {
                 context.path().remove();
-                return;
+                return ParseResult.INDEXED;
             }
             // should be an object
             ensureExpectedToken(XContentParser.Token.START_OBJECT, token, context.parser());
@@ -410,12 +397,13 @@ public class HistogramFieldMapper extends FieldMapper {
             }
 
             if (malformedDataForSyntheticSource != null) {
-                IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, fullPath(), malformedDataForSyntheticSource);
+                FallbackPostMapper.capture(context, fullPath(), FallbackPostMapper.Reason.MALFORMED, malformedDataForSyntheticSource);
             }
 
             context.addIgnoredField(fieldType().name());
         }
         context.path().remove();
+        return resolveIgnoredResult(context, wasAlreadyIgnored);
     }
 
     static BytesRef encodeBytesRef(List<Double> values, List<Long> counts) throws IOException {
@@ -461,7 +449,7 @@ public class HistogramFieldMapper extends FieldMapper {
                 leafName(),
                 fullPath(),
                 new HistogramSyntheticFieldLoader(),
-                CompositeSyntheticFieldLoader.malformedValuesLayer(fullPath(), indexCreatedVersion)
+                CompositeSyntheticFieldLoader.malformedFallbackLayer(this, indexSettings)
             )
         );
     }

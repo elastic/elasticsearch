@@ -70,18 +70,22 @@ public abstract class LogicalPlan extends QueryPlan<LogicalPlan> implements Reso
     }
 
     public final boolean childrenResolved() {
-        if (lazyChildrenResolved == null) {
-            lazyChildrenResolved = Boolean.valueOf(Resolvables.resolved(children()));
+        Boolean childrenResolved = lazyChildrenResolved;
+        if (childrenResolved == null) {
+            childrenResolved = Boolean.valueOf(Resolvables.resolved(children()));
+            lazyChildrenResolved = childrenResolved;
         }
-        return lazyChildrenResolved;
+        return childrenResolved;
     }
 
     @Override
     public boolean resolved() {
-        if (lazyResolved == null) {
-            lazyResolved = expressionsResolved() && childrenResolved();
+        Boolean resolved = lazyResolved;
+        if (resolved == null) {
+            resolved = expressionsResolved() && childrenResolved();
+            lazyResolved = resolved;
         }
-        return lazyResolved;
+        return resolved;
     }
 
     public abstract boolean expressionsResolved();
@@ -91,4 +95,8 @@ public abstract class LogicalPlan extends QueryPlan<LogicalPlan> implements Reso
 
     @Override
     public abstract boolean equals(Object obj);
+
+    public boolean skipTelemetry() {
+        return false;
+    }
 }

@@ -25,7 +25,6 @@ import org.junit.Before;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.Collections;
 
 import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_TYPE_SETTING;
 import static org.elasticsearch.discovery.DiscoveryModule.SINGLE_NODE_DISCOVERY_TYPE;
@@ -63,7 +62,7 @@ public class TransportGetServiceAccountCredentialsActionTests extends ESTestCase
         TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         transportGetServiceAccountCredentialsAction = new TransportGetServiceAccountCredentialsAction(
             transportService,
-            new ActionFilters(Collections.emptySet()),
+            ActionFilters.EMPTY,
             serviceAccountService
         );
     }

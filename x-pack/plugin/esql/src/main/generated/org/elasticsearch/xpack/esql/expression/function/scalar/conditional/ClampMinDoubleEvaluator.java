@@ -69,12 +69,13 @@ public final class ClampMinDoubleEvaluator implements ExpressionEvaluator {
   }
 
   public DoubleBlock eval(int positionCount, DoubleBlock fieldBlock, DoubleBlock minBlock) {
-    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
+        if (fieldBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (fieldBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -82,10 +83,11 @@ public final class ClampMinDoubleEvaluator implements ExpressionEvaluator {
               result.appendNull();
               continue position;
         }
+        if (minBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (minBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -102,7 +104,7 @@ public final class ClampMinDoubleEvaluator implements ExpressionEvaluator {
   }
 
   public DoubleVector eval(int positionCount, DoubleVector fieldVector, DoubleVector minVector) {
-    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
+    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         double field = fieldVector.getDouble(p);
         double min = minVector.getDouble(p);
@@ -124,7 +126,7 @@ public final class ClampMinDoubleEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }

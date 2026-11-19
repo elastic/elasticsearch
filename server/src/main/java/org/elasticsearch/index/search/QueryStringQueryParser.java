@@ -49,6 +49,7 @@ import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.ZeroTermsQueryOption;
+import org.elasticsearch.lucene.search.FuzzyQueries;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -506,9 +507,16 @@ public class QueryStringQueryParser extends QueryParser {
     @Override
     protected Query newFuzzyQuery(Term term, float minimumSimilarity, int prefixLength) {
         int numEdits = Fuzziness.fromEdits((int) minimumSimilarity).asDistance(term.text());
-        return fuzzyRewriteMethod == null
-            ? new FuzzyQuery(term, numEdits, prefixLength, fuzzyMaxExpansions, fuzzyTranspositions)
-            : new FuzzyQuery(term, numEdits, prefixLength, fuzzyMaxExpansions, fuzzyTranspositions, fuzzyRewriteMethod);
+        return FuzzyQueries.create(
+            term,
+            numEdits,
+            prefixLength,
+            fuzzyMaxExpansions,
+            fuzzyTranspositions,
+            fuzzyRewriteMethod,
+            context,
+            term.field()
+        );
     }
 
     @Override
@@ -575,7 +583,11 @@ public class QueryStringQueryParser extends QueryParser {
                 source = getAnalyzer().tokenStream(field, termStr);
                 source.reset();
             } catch (IOException e) {
-                return super.getPrefixQuery(field, termStr);
+                return currentFieldType.prefixQuery(
+                    getAnalyzer().normalize(field, termStr).utf8ToString(),
+                    getMultiTermRewriteMethod(),
+                    context
+                );
             }
             tlist = new ArrayList<>();
             List<String> currentPos = new ArrayList<>();
@@ -636,7 +648,12 @@ public class QueryStringQueryParser extends QueryParser {
             } else {
                 List<BooleanClause> innerClauses = new ArrayList<>();
                 for (String token : plist) {
-                    innerClauses.add(new BooleanClause(super.getPrefixQuery(field, token), BooleanClause.Occur.SHOULD));
+                    innerClauses.add(
+                        new BooleanClause(
+                            currentFieldType.prefixQuery(token, getMultiTermRewriteMethod(), context),
+                            BooleanClause.Occur.SHOULD
+                        )
+                    );
                 }
                 posQuery = getBooleanQuery(innerClauses);
             }

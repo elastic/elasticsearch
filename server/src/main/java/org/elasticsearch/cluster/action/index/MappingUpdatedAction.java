@@ -25,7 +25,6 @@ import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.injection.guice.Inject;
-import org.elasticsearch.xcontent.XContentType;
 
 /**
  * Called by shards in the cluster when their mapping was dynamically updated and it needs to be updated
@@ -108,7 +107,7 @@ public class MappingUpdatedAction {
     protected void sendUpdateMapping(Index index, CompressedXContent mappingUpdate, ActionListener<Void> listener) {
         PutMappingRequest putMappingRequest = new PutMappingRequest();
         putMappingRequest.setConcreteIndex(index);
-        putMappingRequest.source(mappingUpdate.string(), XContentType.JSON);
+        putMappingRequest.source(mappingUpdate.string());
         putMappingRequest.masterNodeTimeout(dynamicMappingUpdateTimeout);
         // TODO: This is only in TransportShardBulkAction#performSequentialOnPrimary. We previously had a 0 ackTimeout
         // and then only waited for the primary to apply the mapping changes. But what guaranteed replicas would not fail?

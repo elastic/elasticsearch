@@ -362,8 +362,7 @@ public final class FollowersChecker {
                         followerCheckTimeout,
                         transportService.getThreadPool(),
                         TransportResponseHandler.TRANSPORT_WORKER,
-                        responseHandler,
-                        () -> {/* not cancellable */}
+                        responseHandler
                     ),
                     ignored -> ActionResponse.Empty.INSTANCE,
                     TransportResponseHandler.TRANSPORT_WORKER

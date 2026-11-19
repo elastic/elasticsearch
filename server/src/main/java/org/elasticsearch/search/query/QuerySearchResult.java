@@ -218,13 +218,20 @@ public final class QuerySearchResult extends SearchPhaseResult {
         return topDocsAndMaxScore;
     }
 
-    public void topDocs(TopDocsAndMaxScore topDocs, DocValueFormat[] sortValueFormats) {
+    /**
+     * @param sortValueFormats the formats to render the sort values of the collected docs with, or <code>null</code> if this shard
+     *                         reports none. A shard that collected field docs must report one format per sort field.
+     */
+    public void topDocs(TopDocsAndMaxScore topDocs, @Nullable DocValueFormat[] sortValueFormats) {
         setTopDocs(topDocs);
         if (topDocs.topDocs.scoreDocs.length > 0 && topDocs.topDocs.scoreDocs[0] instanceof FieldDoc) {
             int numFields = ((FieldDoc) topDocs.topDocs.scoreDocs[0]).fields.length;
-            if (numFields != sortValueFormats.length) {
+            if (sortValueFormats == null || numFields != sortValueFormats.length) {
                 throw new IllegalArgumentException(
-                    "The number of sort fields does not match: " + numFields + " != " + sortValueFormats.length
+                    "The number of sort fields does not match: "
+                        + numFields
+                        + " != "
+                        + (sortValueFormats == null ? "null" : sortValueFormats.length)
                 );
             }
         }
@@ -465,7 +472,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
             hasProfileResults = profileShardResults != null;
             serviceTimeEWMA = in.readZLong();
             nodeQueueSize = in.readInt();
-            setShardSearchRequest(in.readOptionalWriteable(ShardSearchRequest::new));
+            readShardSearchRequest(in);
             setRescoreDocIds(new RescoreDocIds(in));
             rankShardResult = in.readOptionalNamedWriteable(RankShardResult.class);
             if (versionSupportsBatchedExecution(in.getTransportVersion())) {
@@ -474,6 +481,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
             if (in.getTransportVersion().supports(TIMESTAMP_RANGE_TELEMETRY)) {
                 timeRangeFilterFromMillis = in.readOptionalLong();
             }
+            readDirectoryMetrics(in);
             success = true;
         } finally {
             if (success == false) {
@@ -533,7 +541,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
         out.writeOptionalWriteable(profileShardResults);
         out.writeZLong(serviceTimeEWMA);
         out.writeInt(nodeQueueSize);
-        out.writeOptionalWriteable(getShardSearchRequest());
+        writeShardSearchRequest(out);
         getRescoreDocIds().writeTo(out);
         out.writeOptionalNamedWriteable(rankShardResult);
         if (versionSupportsBatchedExecution(out.getTransportVersion())) {
@@ -542,6 +550,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
         if (out.getTransportVersion().supports(TIMESTAMP_RANGE_TELEMETRY)) {
             out.writeOptionalLong(timeRangeFilterFromMillis);
         }
+        writeDirectoryMetrics(out);
     }
 
     @Nullable

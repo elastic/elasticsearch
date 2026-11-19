@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 162364
+summary: Enable `unmapped_fields="LOAD_ALL"`
+type: feature

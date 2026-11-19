@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 160375
+summary: Scope Parquet/ORC footer cache by storage identity to prevent cross-data-source cache collisions
+type: bug

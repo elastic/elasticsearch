@@ -12,6 +12,7 @@ package org.elasticsearch.inference.telemetry;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.InferenceRequestMetadata;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -26,6 +27,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import static org.elasticsearch.inference.InferenceRequestMetadata.Field.PRODUCT_ORIGIN;
+import static org.elasticsearch.inference.InferenceRequestMetadata.Field.PRODUCT_USE_CASE;
 import static org.elasticsearch.telemetry.metric.MetricAttributesUtils.normalizeProductOrigin;
 
 /**
@@ -118,7 +121,7 @@ public class InferenceStats {
         this.constantAttributes = Objects.requireNonNull(constantAttributes);
     }
 
-    public static InferenceStats create(MeterRegistry meterRegistry, String stackVersion, boolean isProductionRelease) {
+    public static InferenceStats create(MeterRegistry meterRegistry, NodeTelemetryAttributes attributes) {
         return new InferenceStats(
             meterRegistry.registerLongCounter(
                 INFERENCE_REQUEST_COUNT_TOTAL,
@@ -135,14 +138,7 @@ public class InferenceStats {
                 "Inference API time spent waiting for Trained Model Deployments",
                 "ms"
             ),
-            Map.of(
-                MetricAttributes.ES_STACK_VERSION,
-                stackVersion,
-                MetricAttributes.ES_PRODUCTION_RELEASE,
-                isProductionRelease,
-                MetricAttributes.ES_PLUGIN_NAME,
-                ES_PLUGIN_NAME_VALUE
-            )
+            attributes.asMap()
         );
     }
 
@@ -221,20 +217,21 @@ public class InferenceStats {
         }
 
         /**
-         * Adds product attribution attributes from the given context. Values are normalized against
-         * {@link #KNOWN_PRODUCT_USE_CASES} and {@link MetricAttributes#KNOWN_PRODUCT_ORIGINS};
+         * Adds the product use case and product origin from the given metadata; no other field becomes a metric attribute.
+         * Values are normalized against {@link #KNOWN_PRODUCT_USE_CASES} and {@link MetricAttributes#KNOWN_PRODUCT_ORIGINS};
          * anything not in the allowlist is recorded as {@link #OTHER_VALUE} to bound APM attribute cardinality.
          * Either field may be absent; they are recorded independently.
          */
-        public B withProductContext(@Nullable InferenceProductContext ctx) {
-            if (ctx == null) {
+        public B withRequestMetadata(@Nullable InferenceRequestMetadata metadata) {
+            if (metadata == null) {
                 return cast();
             }
 
-            withProductUseCase(ctx.productUseCase());
+            withProductUseCase(metadata.get(PRODUCT_USE_CASE));
 
-            if (Strings.isNullOrEmpty(ctx.productOrigin()) == false) {
-                attributes.put(MetricAttributes.ES_PRODUCT_ORIGIN, normalizeProductOrigin(ctx.productOrigin(), OTHER_VALUE));
+            var origin = metadata.get(PRODUCT_ORIGIN);
+            if (Strings.isNullOrEmpty(origin) == false) {
+                attributes.put(MetricAttributes.ES_PRODUCT_ORIGIN, normalizeProductOrigin(origin, OTHER_VALUE));
             }
 
             return cast();

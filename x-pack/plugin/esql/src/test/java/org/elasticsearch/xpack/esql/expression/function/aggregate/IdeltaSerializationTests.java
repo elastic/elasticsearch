@@ -21,7 +21,7 @@ public class IdeltaSerializationTests extends AbstractExpressionSerializationTes
         Expression filter = randomChild();
         Expression window = randomChild();
         Expression timestamp = randomChild();
-        return new Idelta(source, field, filter, window, timestamp);
+        return new Idelta(source, field, timestamp, filter, window);
     }
 
     @Override
@@ -37,6 +37,6 @@ public class IdeltaSerializationTests extends AbstractExpressionSerializationTes
             case 2 -> window = randomValueOtherThan(window, AbstractExpressionSerializationTests::randomChild);
             case 3 -> timestamp = randomValueOtherThan(timestamp, AbstractExpressionSerializationTests::randomChild);
         }
-        return new Idelta(source, field, filter, window, timestamp);
+        return new Idelta(source, field, timestamp, filter, window);
     }
 }

@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `DATE_PARSE` function [esql-date_parse]
 
-:::{include} ../../_snippets/functions/layout/date_parse.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/date_parse.md
 :::

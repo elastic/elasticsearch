@@ -13,6 +13,7 @@ parser grammar EsqlBaseParser;
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 }
 
 options {
@@ -25,7 +26,7 @@ import Expression,
        Promql;
 
 statements
-    : setCommand* singleStatement EOF
+    : setCommand* letCommand* singleStatement EOF
     ;
 
 singleStatement
@@ -45,7 +46,8 @@ sourceCommand
     | promqlCommand
     // in development
     | {this.isDevVersion()}? explainCommand
-    | {this.isExternalDataSourcesEnabled()}? externalCommand
+    | {EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled()}? externalCommand
+    | {EsqlCapabilities.Cap.EQL_COMMAND.isEnabled()}? eqlCommand
     ;
 
 processingCommand
@@ -74,10 +76,18 @@ processingCommand
     | registeredDomainCommand
     | tsInfoCommand
     | userAgentCommand
+    | tsCollapseCommand
+    | ipLocationCommand
     | mmrCommand
+    | highlightCommand
+    | denseVectorCommand
     // in development
     | {this.isDevVersion()}? lookupCommand
-    | {this.isDevVersion()}? insistCommand
+    | dedupCommand
+    | {this.isDevVersion()}? fillNullCommand
+    | {this.isDevVersion()}? describeCommand
+    | {this.isDevVersion()}? intoCommand
+    | {this.isDevVersion()}? nestedExpandCommand
     ;
 
 whereCommand
@@ -112,6 +122,10 @@ externalCommand
     : DEV_EXTERNAL stringOrParameter commandNamedParameters
     ;
 
+eqlCommand
+    : DEV_EQL indexPattern (COMMA indexPattern)* stringOrParameter metadata? commandNamedParameters
+    ;
+
 indexPatternAndMetadataFields
     : indexPatternOrSubquery (COMMA indexPatternOrSubquery)* metadata?
     ;
@@ -122,7 +136,14 @@ indexPatternOrSubquery
     ;
 
 subquery
-    : LP fromCommand (PIPE processingCommand)* RP
+    : LP subquerySourceCommand (PIPE processingCommand)* RP
+    ;
+
+subquerySourceCommand
+    : fromCommand
+    | rowCommand
+    | timeSeriesCommand
+    | {EsqlCapabilities.Cap.EQL_COMMAND.isEnabled()}? eqlCommand
     ;
 
 indexPattern
@@ -196,8 +217,15 @@ identifier
 
 identifierPattern
     : ID_PATTERN
+    | expressionModeIdentifierPattern
     | parameter
     | doubleParameter
+    ;
+
+// HIGHLIGHT remains in EXPRESSION_MODE after ON, where identifier patterns are emitted as identifier/ASTERISK tokens.
+expressionModeIdentifierPattern
+    : identifier? ASTERISK (identifier | ASTERISK)*
+    | identifier
     ;
 
 parameter
@@ -277,6 +305,10 @@ grokCommand
 
 mvExpandCommand
     : MV_EXPAND qualifiedName
+    ;
+
+nestedExpandCommand
+    : DEV_NESTED_EXPAND qualifiedName
     ;
 
 explainCommand
@@ -370,6 +402,14 @@ tsInfoCommand
     : TS_INFO
     ;
 
+tsCollapseCommand
+    : TS_COLLAPSE
+    ;
+
+describeCommand
+    : DEV_DESCRIBE
+    ;
+
 //
 // In development
 //
@@ -377,8 +417,28 @@ lookupCommand
     : DEV_LOOKUP tableName=indexPattern ON matchFields=qualifiedNamePatterns
     ;
 
-insistCommand
-    : DEV_INSIST qualifiedNamePatterns
+dedupCommand
+    : DEDUP
+    ;
+
+intoCommand
+    : DEV_INTO indexPattern
+    ;
+
+highlightCommand
+    : HIGHLIGHT (prefixKeyword=identifier ASSIGN prefix=string)? queryExpression=booleanExpression? (ON highlightFields=qualifiedNamePatterns)? commandNamedParameters
+    ;
+
+qualifiedNames
+    : qualifiedName (COMMA qualifiedName)*
+    ;
+
+fillNullCommand
+    : DEV_FILLNULL fillNullValue ON qualifiedNamePatterns
+    ;
+
+fillNullValue
+    : NULL | DEFAULT | integerValue | decimalValue | booleanValue | string | parameter
     ;
 
 uriPartsCommand
@@ -393,12 +453,24 @@ userAgentCommand
     : USER_AGENT qualifiedName ASSIGN primaryExpression commandNamedParameters
     ;
 
+ipLocationCommand
+    : IP_LOCATION qualifiedName ASSIGN primaryExpression commandNamedParameters
+    ;
+
 setCommand
     : SET setField SEMICOLON
     ;
 
 setField
     : identifier ASSIGN ( constant | mapExpression )
+    ;
+
+letCommand
+    : DEV_LET letBinding SEMICOLON
+    ;
+
+letBinding
+    : UNQUOTED_IDENTIFIER ASSIGN subquery
     ;
 
 mmrCommand
@@ -408,4 +480,18 @@ mmrCommand
 mmrQueryVectorParams
     : parameter                           # mmrQueryVectorParameter
     | primaryExpression                   # mmrQueryVectorExpression
+    ;
+
+// The field list is optional in the grammar only so the command can report its own errors: an absent list and a
+// literal input both parse here and are rejected in the builder, where the message can name the actual problem.
+denseVectorCommand
+    : DENSE_VECTOR denseVectorNaming? qualifiedNames? commandNamedParameters
+    ;
+
+// `ON` closes the suffix clause instead of separating two operands, so it sits inside the optional
+// group: without it, `DENSE_VECTOR title, description` would have to spell a bare `ON`.
+denseVectorNaming
+    : targetField=qualifiedName ASSIGN                      # denseVectorTargetName
+    | suffixKeyword=identifier ASSIGN suffix=string ON      # denseVectorSuffix
+    | (targetField=qualifiedName ASSIGN)? literalInput=string  # denseVectorLiteralInput
     ;

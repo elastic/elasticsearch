@@ -18,14 +18,15 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.reindex.AbstractAsyncBulkByScrollActionTestCase;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.AbstractAsyncBulkByPaginatedSearchActionTestCase;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentType;
@@ -34,6 +35,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.doThrow;
@@ -43,7 +45,7 @@ import static org.mockito.Mockito.when;
 /**
  * Reindex tests for picking ids.
  */
-public class ReindexIdTests extends AbstractAsyncBulkByScrollActionTestCase<ReindexRequest, BulkByScrollResponse> {
+public class ReindexIdTests extends AbstractAsyncBulkByPaginatedSearchActionTestCase<ReindexRequest, BulkByPaginatedSearchResponse> {
     public void testEmptyStateCopiesId() throws Exception {
         final ProjectState projectState = ClusterState.EMPTY_STATE.projectState(Metadata.DEFAULT_PROJECT_ID);
         assertThat(action(projectState).buildRequest(doc()).getId(), equalTo(doc().getId()));
@@ -86,11 +88,13 @@ public class ReindexIdTests extends AbstractAsyncBulkByScrollActionTestCase<Rein
             listener(),
             null,
             randomTimeValue(),
-            null
+            null,
+            new ReindexSettings(),
+            NoopCircuitBreaker.INSTANCE
         );
         expectThrows(
             XContentParseException.class,
-            equalTo("[1:5] failed to convert hit [source_index][doc_123] from JSON to CBOR"),
+            containsString("failed to convert hit [source_index][doc_123] from JSON to CBOR"),
             () -> action.buildRequest(hit)
         );
     }
@@ -122,7 +126,9 @@ public class ReindexIdTests extends AbstractAsyncBulkByScrollActionTestCase<Rein
             listener(),
             null,
             randomTimeValue(),
-            null
+            null,
+            new ReindexSettings(),
+            NoopCircuitBreaker.INSTANCE
         );
         expectThrows(
             UncheckedIOException.class,
@@ -195,7 +201,9 @@ public class ReindexIdTests extends AbstractAsyncBulkByScrollActionTestCase<Rein
             listener(),
             randomBoolean() ? null : Version.CURRENT,
             randomPositiveTimeValue(),
-            null
+            null,
+            new ReindexSettings(),
+            NoopCircuitBreaker.INSTANCE
         );
     }
 }

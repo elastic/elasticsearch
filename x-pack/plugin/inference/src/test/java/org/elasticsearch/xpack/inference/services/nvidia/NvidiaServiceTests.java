@@ -7,26 +7,32 @@
 
 package org.elasticsearch.xpack.inference.services.nvidia;
 
-import org.apache.http.HttpHeaders;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
-import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
+import org.elasticsearch.inference.InferenceServiceConfigurationTests;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.RerankRequest;
 import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.rest.RestStatus;
@@ -37,6 +43,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.services.InferenceEventsAssertion;
@@ -47,9 +54,14 @@ import org.elasticsearch.xpack.inference.services.nvidia.embeddings.NvidiaEmbedd
 import org.elasticsearch.xpack.inference.services.nvidia.embeddings.NvidiaEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.nvidia.embeddings.NvidiaEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.nvidia.embeddings.NvidiaEmbeddingsTaskSettings;
+import org.elasticsearch.xpack.inference.services.nvidia.rerank.NvidiaRerankModel;
+import org.elasticsearch.xpack.inference.services.nvidia.rerank.NvidiaRerankModelTests;
+import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
+import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -59,6 +71,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.ExceptionsHelper.unwrapCause;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.inference.InferenceStringTests.createRandomUsingDataTypes;
 import static org.elasticsearch.inference.TaskType.CHAT_COMPLETION;
 import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
@@ -69,6 +82,7 @@ import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
+import static org.elasticsearch.xpack.inference.services.contextualai.ContextualAiRerankTestFixtures.TEST_API_KEY;
 import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaServiceParameterizedTestConfiguration.API_KEY_VALUE;
 import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaServiceParameterizedTestConfiguration.DIMENSIONS_VALUE;
 import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaServiceParameterizedTestConfiguration.MODEL_VALUE;
@@ -78,11 +92,13 @@ import static org.elasticsearch.xpack.inference.services.nvidia.request.NvidiaRe
 import static org.elasticsearch.xpack.inference.services.nvidia.request.NvidiaRequestFields.INPUT_TYPE_FIELD_NAME;
 import static org.elasticsearch.xpack.inference.services.nvidia.request.NvidiaRequestFields.MODEL_FIELD_NAME;
 import static org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettingsTests.getSecretSettingsMap;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isA;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
 
 public class NvidiaServiceTests extends InferenceServiceTestCase {
 
@@ -144,10 +160,12 @@ public class NvidiaServiceTests extends InferenceServiceTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = new NvidiaService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var model = createChatCompletionModel(getUrl(webServer), API_KEY_VALUE, MODEL_VALUE);
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
             service.unifiedCompletionInfer(
                 model,
-                UnifiedCompletionRequest.of(List.of(new Message(new ContentString(CONTENT_VALUE), ROLE_VALUE, null, null))),
+                UnifiedCompletionRequest.streaming(
+                    UnifiedCompletionRequestBody.of(List.of(new Message(new ContentString(CONTENT_VALUE), ROLE_VALUE, null, null)))
+                ),
                 null,
                 listener
             );
@@ -182,7 +200,9 @@ public class NvidiaServiceTests extends InferenceServiceTestCase {
             var latch = new CountDownLatch(1);
             service.unifiedCompletionInfer(
                 model,
-                UnifiedCompletionRequest.of(List.of(new Message(new ContentString(CONTENT_VALUE), ROLE_VALUE, null, null))),
+                UnifiedCompletionRequest.streaming(
+                    UnifiedCompletionRequestBody.of(List.of(new Message(new ContentString(CONTENT_VALUE), ROLE_VALUE, null, null)))
+                ),
                 null,
                 ActionListener.runAfter(ActionTestUtils.assertNoSuccessListener(e -> {
                     try (var builder = XContentFactory.jsonBuilder()) {
@@ -260,10 +280,12 @@ public class NvidiaServiceTests extends InferenceServiceTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = new NvidiaService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var model = createChatCompletionModel(getUrl(webServer), API_KEY_VALUE, MODEL_VALUE);
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
             service.unifiedCompletionInfer(
                 model,
-                UnifiedCompletionRequest.of(List.of(new Message(new ContentString(CONTENT_VALUE), ROLE_VALUE, null, null))),
+                UnifiedCompletionRequest.streaming(
+                    UnifiedCompletionRequestBody.of(List.of(new Message(new ContentString(CONTENT_VALUE), ROLE_VALUE, null, null)))
+                ),
                 null,
                 listener
             );
@@ -325,6 +347,111 @@ public class NvidiaServiceTests extends InferenceServiceTestCase {
 
         streamCompletion().hasNoErrors().hasEvent("""
             {"completion":[{"delta":"Deep"}]}""");
+    }
+
+    public void testRerankInfer() throws IOException {
+        var responseJson = """
+            {
+                "rankings": [
+                    {
+                        "index": 1,
+                        "logit": 0.93017578125
+                    },
+                    {
+                        "index": 0,
+                        "logit": -9.6953125
+                    }
+                ]
+            }
+            """;
+
+        try (var service = createInferenceService()) {
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var modelId = randomAlphaOfLength(8);
+            var model = NvidiaRerankModelTests.createRerankModel(getUrl(webServer), TEST_API_KEY, modelId);
+
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
+
+            var inputOne = "abc";
+            var inputTwo = "def";
+            var query = "some query";
+            var topN = randomNonNegativeInt();
+            var returnDocuments = randomBoolean();
+            var request = new RerankRequest(
+                List.of(InferenceString.ofText(inputOne), InferenceString.ofText(inputTwo)),
+                InferenceString.ofText(query),
+                topN,
+                returnDocuments,
+                new HashMap<>()
+            );
+            service.rerankInfer(model, request, null, listener);
+
+            var result = listener.actionGet(TEST_REQUEST_TIMEOUT);
+            assertThat(result, CoreMatchers.instanceOf(RankedDocsResults.class));
+
+            var rankedDocsResults = (RankedDocsResults) result;
+            var rankedDocs = rankedDocsResults.getRankedDocs();
+            assertThat(rankedDocs.size(), is(2));
+            assertThat(rankedDocs.get(0).relevanceScore(), is(0.93017578125F));
+            assertThat(rankedDocs.get(0).index(), is(1));
+            assertThat(rankedDocs.get(1).relevanceScore(), is(-9.6953125F));
+            assertThat(rankedDocs.get(1).index(), is(0));
+
+            assertThat(webServer.requests(), hasSize(1));
+            assertNull(webServer.requests().getFirst().getUri().getQuery());
+            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE), equalTo("application/json; charset=UTF-8"));
+            assertThat(
+                webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION),
+                is(org.elasticsearch.core.Strings.format("Bearer %s", TEST_API_KEY))
+            );
+
+            var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
+            Map<String, Object> expectedRequestMap = new HashMap<>(
+                Map.of(
+                    "query",
+                    Map.of("text", query),
+                    "passages",
+                    List.of(Map.of("text", inputOne), Map.of("text", inputTwo)),
+                    "model",
+                    modelId
+                )
+            );
+            assertThat(requestMap, is(expectedRequestMap));
+        }
+    }
+
+    public void testRerankInfer_ThrowsError_WithNonTextQuery() throws IOException {
+        var textInputs = randomList(1, 5, () -> createRandomUsingDataTypes(EnumSet.of(DataType.TEXT)));
+        var nonTextQuery = createRandomUsingDataTypes(EnumSet.complementOf(EnumSet.of(DataType.TEXT)));
+        testRerankInfer_ThrowsError_WithNonTextInputOrQuery(textInputs, nonTextQuery);
+    }
+
+    public void testRerankInfer_ThrowsError_WithNonTextInputs() throws IOException {
+        var nonTextInputs = randomList(1, 5, () -> createRandomUsingDataTypes(EnumSet.complementOf(EnumSet.of(DataType.TEXT))));
+        var textQuery = createRandomUsingDataTypes(EnumSet.of(DataType.TEXT));
+        testRerankInfer_ThrowsError_WithNonTextInputOrQuery(nonTextInputs, textQuery);
+    }
+
+    public void testRerankInfer_ThrowsError_WithNonTextInputsAndQuery() throws IOException {
+        var nonTextInputs = randomList(1, 5, () -> createRandomUsingDataTypes(EnumSet.complementOf(EnumSet.of(DataType.TEXT))));
+        var nonTextQuery = createRandomUsingDataTypes(EnumSet.complementOf(EnumSet.of(DataType.TEXT)));
+        testRerankInfer_ThrowsError_WithNonTextInputOrQuery(nonTextInputs, nonTextQuery);
+    }
+
+    private void testRerankInfer_ThrowsError_WithNonTextInputOrQuery(List<InferenceString> inputs, InferenceString query)
+        throws IOException {
+        var model = mock(NvidiaRerankModel.class);
+
+        try (var service = createInferenceService()) {
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
+
+            service.rerankInfer(model, new RerankRequest(inputs, query, null, null, new HashMap<>()), null, listener);
+
+            var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
+            assertThat(thrownException.status(), is(RestStatus.BAD_REQUEST));
+            assertThat(thrownException.getMessage(), is("The nvidia service does not support rerank with non-text inputs or queries"));
+        }
     }
 
     public void testChunkedInfer_ChunkingSettingsNotSet() throws IOException {
@@ -393,10 +520,9 @@ public class NvidiaServiceTests extends InferenceServiceTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
+            TestPlainActionFuture<List<ChunkedInference>> listener = new TestPlainActionFuture<>();
             service.chunkedInfer(
                 model,
-                null,
                 List.of(new ChunkInferenceInput(FIRST_PART_OF_INPUT_VALUE), new ChunkInferenceInput(SECOND_PART_OF_INPUT_VALUE)),
                 new HashMap<>(),
                 null,
@@ -436,10 +562,7 @@ public class NvidiaServiceTests extends InferenceServiceTestCase {
 
             assertThat(webServer.requests(), hasSize(1));
             assertThat(webServer.requests().getFirst().getUri().getQuery(), is(nullValue()));
-            assertThat(
-                webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE),
-                is(XContentType.JSON.mediaTypeWithoutParameters())
-            );
+            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE), is("application/json; charset=UTF-8"));
             assertThat(
                 webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION),
                 is(Strings.format("Bearer %s", API_KEY_VALUE))
@@ -453,6 +576,48 @@ public class NvidiaServiceTests extends InferenceServiceTestCase {
         }
     }
 
+    public void testUpdateModelWithEmbeddingDetails_NullDimensionsAndExplicitSimilarity_DoesNotThrow() throws IOException {
+        // Users cannot set dimensions when creating an nvidia endpoint, so dimensions is null until the first embedding is seen.
+        // When similarity is set explicitly this used to unbox the null Integer and throw a NullPointerException.
+        try (var service = createInferenceService()) {
+            var similarity = randomFrom(SimilarityMeasure.values());
+            var model = createEmbeddingsModelWithDimensionsAndSimilarity(null, similarity);
+            var embeddingSize = randomIntBetween(1, 4096);
+
+            var updatedModel = service.updateModelWithEmbeddingDetails(model, embeddingSize);
+
+            assertThat(updatedModel, instanceOf(NvidiaEmbeddingsModel.class));
+            assertThat(updatedModel.getServiceSettings().dimensions(), is(embeddingSize));
+            assertThat(updatedModel.getServiceSettings().similarity(), is(similarity));
+        }
+    }
+
+    public void testUpdateModelWithEmbeddingDetails_UnchangedSimilarityAndDimensions_ReturnsSameModel() throws IOException {
+        try (var service = createInferenceService()) {
+            var embeddingSize = randomIntBetween(1, 4096);
+            var model = createEmbeddingsModelWithDimensionsAndSimilarity(embeddingSize, SimilarityMeasure.DOT_PRODUCT);
+
+            var updatedModel = service.updateModelWithEmbeddingDetails(model, embeddingSize);
+
+            assertThat(updatedModel, CoreMatchers.sameInstance(model));
+        }
+    }
+
+    private static NvidiaEmbeddingsModel createEmbeddingsModelWithDimensionsAndSimilarity(
+        Integer dimensions,
+        SimilarityMeasure similarity
+    ) {
+        return new NvidiaEmbeddingsModel(
+            INFERENCE_ID_VALUE,
+            TEXT_EMBEDDING,
+            NvidiaService.NAME,
+            new NvidiaEmbeddingsServiceSettings(MODEL_VALUE, URL_VALUE, dimensions, similarity, null, null),
+            NvidiaEmbeddingsTaskSettings.EMPTY_SETTINGS,
+            null,
+            new DefaultSecretSettings(new SecureString(API_KEY_VALUE.toCharArray()))
+        );
+    }
+
     public void testGetConfiguration() throws Exception {
         try (var service = createInferenceService()) {
             String content = XContentHelper.stripWhitespace("""
@@ -460,6 +625,11 @@ public class NvidiaServiceTests extends InferenceServiceTestCase {
                        "service": "nvidia",
                        "name": "NVIDIA",
                        "task_types": ["text_embedding", "rerank", "completion", "chat_completion"],
+                       "features": {
+                           "non_streaming_chat": {
+                               "supported": true
+                           }
+                       },
                        "configurations": {
                            "api_key": {
                                "description": "API Key for the provider you're connecting to.",
@@ -501,7 +671,7 @@ public class NvidiaServiceTests extends InferenceServiceTestCase {
                        }
                    }
                 """);
-            InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(
+            InferenceServiceConfiguration configuration = InferenceServiceConfigurationTests.fromXContentBytes(
                 new BytesArray(content),
                 XContentType.JSON
             );
@@ -520,19 +690,8 @@ public class NvidiaServiceTests extends InferenceServiceTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = new NvidiaService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var model = NvidiaChatCompletionModelTests.createCompletionModel(getUrl(webServer), API_KEY_VALUE, MODEL_VALUE);
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                model,
-                null,
-                null,
-                null,
-                List.of(FIRST_PART_OF_INPUT_VALUE),
-                true,
-                new HashMap<>(),
-                InputType.INGEST,
-                null,
-                listener
-            );
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
+            service.infer(model, List.of(FIRST_PART_OF_INPUT_VALUE), true, new HashMap<>(), InputType.INGEST, null, listener);
 
             return InferenceEventsAssertion.assertThat(listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT)).hasFinishedStream();
         }

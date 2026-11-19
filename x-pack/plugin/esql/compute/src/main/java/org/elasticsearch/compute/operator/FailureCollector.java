@@ -127,8 +127,8 @@ public final class FailureCollector {
                 if (++collected <= maxExceptions) {
                     if (first == null) {
                         first = e;
-                    } else if (first != e) {
-                        first.addSuppressed(e);
+                    } else {
+                        SuppressedFailures.attach(first, e);
                     }
                 }
             }

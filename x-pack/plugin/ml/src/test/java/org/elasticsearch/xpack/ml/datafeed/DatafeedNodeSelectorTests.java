@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.datafeed;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
@@ -18,19 +19,24 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.test.ESTestCase;
@@ -59,6 +65,7 @@ import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.createSched
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class DatafeedNodeSelectorTests extends ESTestCase {
 
@@ -459,6 +466,80 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
         assertNotNull(result.getExecutorNode());
     }
 
+    public void testDatafeedCpsUnqualifiedLinkedOnlyIndexIsAssignable() {
+        Job job = createScheduledJob("job_id").build(new Date());
+        DatafeedConfig df = createDatafeed("datafeed_id", job.getId(), Collections.singletonList("linked-only-flights"));
+
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        addJobTask(job.getId(), "node_id", JobState.OPENED, tasksBuilder);
+        tasks = tasksBuilder.build();
+
+        givenClusterState("foo", 1, 0);
+
+        IndicesOptions cpsIndicesOptions = IndicesOptions.builder(SearchRequest.DEFAULT_INDICES_OPTIONS)
+            .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+            .build();
+
+        PersistentTasksCustomMetadata.Assignment result = new DatafeedNodeSelector(
+            clusterState,
+            resolver,
+            df.getId(),
+            df.getJobId(),
+            df.getIndices(),
+            cpsIndicesOptions
+        ).selectNode(makeCandidateNodes("node_id", "other_node_id"));
+        assertEquals("node_id", result.getExecutorNode());
+        new DatafeedNodeSelector(clusterState, resolver, df.getId(), df.getJobId(), df.getIndices(), cpsIndicesOptions)
+            .checkDatafeedTaskCanBeCreated();
+    }
+
+    public void testDatafeedCpsUnqualifiedWildcardWithNoLocalMatchesIsAssignable() {
+        Job job = createScheduledJob("job_id").build(new Date());
+        DatafeedConfig df = createDatafeed("datafeed_id", job.getId(), Collections.singletonList("linked-only-*"));
+
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        addJobTask(job.getId(), "node_id", JobState.OPENED, tasksBuilder);
+        tasks = tasksBuilder.build();
+
+        givenClusterState("foo", 1, 0);
+
+        IndicesOptions cpsIndicesOptions = IndicesOptions.builder(SearchRequest.DEFAULT_INDICES_OPTIONS)
+            .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+            .build();
+
+        PersistentTasksCustomMetadata.Assignment result = new DatafeedNodeSelector(
+            clusterState,
+            resolver,
+            df.getId(),
+            df.getJobId(),
+            df.getIndices(),
+            cpsIndicesOptions
+        ).selectNode(makeCandidateNodes("node_id", "other_node_id"));
+        assertEquals("node_id", result.getExecutorNode());
+        new DatafeedNodeSelector(clusterState, resolver, df.getId(), df.getJobId(), df.getIndices(), cpsIndicesOptions)
+            .checkDatafeedTaskCanBeCreated();
+    }
+
+    public void testEsqlDatafeedWithoutIndicesAndUnassignedShardsShouldBeAssignable() {
+        Job job = createScheduledJob("job_id").build(new Date());
+
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        addJobTask(job.getId(), "node_id", JobState.OPENED, tasksBuilder);
+        tasks = tasksBuilder.build();
+
+        givenClusterState("foo", 1, 0, List.of(new Tuple<>(0, ShardRoutingState.UNASSIGNED)));
+
+        PersistentTasksCustomMetadata.Assignment result = new DatafeedNodeSelector(
+            clusterState,
+            resolver,
+            "datafeed_id",
+            job.getId(),
+            List.of(),
+            SearchRequest.DEFAULT_INDICES_OPTIONS
+        ).selectNode(makeCandidateNodes("node_id", "other_node_id"));
+        assertEquals("node_id", result.getExecutorNode());
+    }
+
     public void testSelectNode_jobTaskStale() {
         Job job = createScheduledJob("job_id").build(new Date());
         DatafeedConfig df = createDatafeed("datafeed_id", job.getId(), Collections.singletonList("foo"));
@@ -568,6 +649,116 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
                 )
             )
         );
+    }
+
+    public void testSelectNode_GivenJobNotOpenedShortCircuitsIndexCheck() {
+        // When the job is not open the datafeed cannot be assigned regardless of its indices, so the
+        // cheap job-state failure is reported and the expensive index resolution is skipped entirely.
+        // Here the index also does not exist, yet the reported reason is the job state, not the missing
+        // index, and the resolver must not be consulted at all - on either the selectNode or the
+        // task-creation path.
+        Job job = createScheduledJob("job_id").build(new Date());
+        DatafeedConfig df = createDatafeed("datafeed_id", job.getId(), Collections.singletonList("not_foo"));
+
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        JobState jobState = randomFrom(JobState.FAILED, JobState.CLOSED);
+        addJobTask(job.getId(), "node_id", jobState, tasksBuilder);
+        tasks = tasksBuilder.build();
+
+        givenClusterState("foo", 1, 0);
+
+        CountingIndexNameExpressionResolver countingResolver = new CountingIndexNameExpressionResolver();
+        PersistentTasksCustomMetadata.Assignment result = new DatafeedNodeSelector(
+            clusterState,
+            countingResolver,
+            df.getId(),
+            df.getJobId(),
+            df.getIndices(),
+            SearchRequest.DEFAULT_INDICES_OPTIONS
+        ).selectNode(makeCandidateNodes("node_id", "other_node_id"));
+        assertNull(result.getExecutorNode());
+        assertEquals(
+            "cannot start datafeed [datafeed_id], because the job's [job_id] state is [" + jobState + "] while state [opened] is required",
+            result.getExplanation()
+        );
+        assertEquals("index resolution must be skipped when the job is not open", 0, countingResolver.resolveCount);
+
+        ElasticsearchException e = expectThrows(
+            ElasticsearchException.class,
+            () -> new DatafeedNodeSelector(
+                clusterState,
+                countingResolver,
+                df.getId(),
+                df.getJobId(),
+                df.getIndices(),
+                SearchRequest.DEFAULT_INDICES_OPTIONS
+            ).checkDatafeedTaskCanBeCreated()
+        );
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "No node found to start datafeed [datafeed_id], allocation explanation "
+                    + "[cannot start datafeed [datafeed_id], because the job's [job_id] state is ["
+                    + jobState
+                    + "] while state [opened] is required]"
+            )
+        );
+        assertEquals("index resolution must be skipped on the task-creation path too", 0, countingResolver.resolveCount);
+    }
+
+    public void testSelectNode_GivenJobStaleShortCircuitsIndexCheck() {
+        // A stale job task state is also a critical failure, so the index resolution is skipped even
+        // when the datafeed's index does not exist. This is the dominant case during mass reassignment.
+        Job job = createScheduledJob("job_id").build(new Date());
+        DatafeedConfig df = createDatafeed("datafeed_id", job.getId(), Collections.singletonList("not_foo"));
+
+        String nodeId = randomBoolean() ? "node_id2" : null;
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        addJobTask(job.getId(), nodeId, JobState.OPENED, tasksBuilder);
+        // Set to lower allocationId, so job task is stale:
+        tasksBuilder.updateTaskState(MlTasks.jobTaskId(job.getId()), new JobTaskState(JobState.OPENED, 0, null, Instant.now()));
+        tasks = tasksBuilder.build();
+
+        givenClusterState("foo", 1, 0);
+
+        CountingIndexNameExpressionResolver countingResolver = new CountingIndexNameExpressionResolver();
+        PersistentTasksCustomMetadata.Assignment result = new DatafeedNodeSelector(
+            clusterState,
+            countingResolver,
+            df.getId(),
+            df.getJobId(),
+            df.getIndices(),
+            SearchRequest.DEFAULT_INDICES_OPTIONS
+        ).selectNode(makeCandidateNodes("node_id1", "node_id2", "node_id3"));
+        assertNull(result.getExecutorNode());
+        assertEquals("cannot start datafeed [datafeed_id], because the job's [job_id] state is stale", result.getExplanation());
+        assertEquals("index resolution must be skipped when the job task state is stale", 0, countingResolver.resolveCount);
+    }
+
+    public void testSelectNode_GivenOpenJobResolvesIndices() {
+        // Positive control for the two short-circuit tests above: when the job is open and non-stale the
+        // datafeed is assignable, so the selector does resolve the datafeed's indices. This proves the
+        // counting resolver actually observes resolution, so a zero count elsewhere is meaningful.
+        Job job = createScheduledJob("job_id").build(new Date());
+        DatafeedConfig df = createDatafeed("datafeed_id", job.getId(), Collections.singletonList("foo"));
+
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        addJobTask(job.getId(), "node_id", JobState.OPENED, tasksBuilder);
+        tasks = tasksBuilder.build();
+
+        givenClusterState("foo", 1, 0);
+
+        CountingIndexNameExpressionResolver countingResolver = new CountingIndexNameExpressionResolver();
+        PersistentTasksCustomMetadata.Assignment result = new DatafeedNodeSelector(
+            clusterState,
+            countingResolver,
+            df.getId(),
+            df.getJobId(),
+            df.getIndices(),
+            SearchRequest.DEFAULT_INDICES_OPTIONS
+        ).selectNode(makeCandidateNodes("node_id", "other_node_id"));
+        assertEquals("node_id", result.getExecutorNode());
+        assertThat(countingResolver.resolveCount, greaterThan(0));
     }
 
     public void testSelectNode_GivenMlUpgradeMode() {
@@ -761,7 +952,8 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
                     true,
                     RecoverySource.EmptyStoreRecoverySource.INSTANCE,
                     new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""),
-                    ShardRouting.Role.DEFAULT
+                    ShardRouting.Role.DEFAULT,
+                    RecoveryPriority.UNASSIGNED_NEW_PRIMARY
                 );
             }
 
@@ -788,5 +980,29 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
             );
         }
         return candidateNodes;
+    }
+
+    /**
+     * A resolver that counts how many times the datafeed index verification resolves index expressions.
+     * Used to assert that {@link DatafeedNodeSelector} skips index resolution entirely for datafeeds
+     * whose jobs are not assignable, which is the performance behaviour this test class guards.
+     */
+    private static class CountingIndexNameExpressionResolver extends IndexNameExpressionResolver {
+        private int resolveCount;
+
+        CountingIndexNameExpressionResolver() {
+            super(new ThreadContext(Settings.EMPTY), EmptySystemIndices.INSTANCE, TestProjectResolvers.DEFAULT_PROJECT_ONLY);
+        }
+
+        @Override
+        public String[] concreteIndexNames(
+            ClusterState state,
+            IndicesOptions options,
+            boolean includeDataStreams,
+            String... indexExpressions
+        ) {
+            resolveCount++;
+            return super.concreteIndexNames(state, options, includeDataStreams, indexExpressions);
+        }
     }
 }

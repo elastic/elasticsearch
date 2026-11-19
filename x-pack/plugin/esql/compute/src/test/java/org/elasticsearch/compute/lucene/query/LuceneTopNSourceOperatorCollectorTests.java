@@ -22,6 +22,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.search.DocValueFormat;
@@ -37,6 +38,7 @@ import java.util.Optional;
 import java.util.concurrent.CyclicBarrier;
 import java.util.function.Function;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -71,14 +73,14 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
         List<SortBuilder<?>> sorts = List.of(new FieldSortBuilder("s"));
         var factory = createFactory(randomBoolean(), sorts, DataPartitioning.SHARD);
         var provider = factory.perShardCollectorProvider;
-        Sort fieldSort = new Sort(new SortedNumericSortField("s", SortField.Type.LONG, false, SortedNumericSelector.Type.MIN));
+        Sort scoreSort = new Sort(SortField.FIELD_SCORE, SortField.FIELD_DOC);
 
-        var manager1 = provider.getTopFieldCollectorManager(fieldSort);
+        var manager1 = provider.getTopFieldCollectorManager(scoreSort);
         assertThat(manager1, notNullValue());
-        var manager2 = provider.getTopFieldCollectorManager(fieldSort);
+        var manager2 = provider.getTopFieldCollectorManager(scoreSort);
         assertThat(manager1, sameInstance(manager2));
         manager1.newCollector();
-        var manager3 = provider.getTopFieldCollectorManager(fieldSort);
+        var manager3 = provider.getTopFieldCollectorManager(scoreSort);
         assertThat(manager1, sameInstance(manager3));
     }
 
@@ -87,7 +89,7 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
         var provider = factory.perShardCollectorProvider;
 
         Sort sort1 = new Sort(SortField.FIELD_SCORE);
-        Sort sort2 = new Sort(SortField.FIELD_DOC);
+        Sort sort2 = new Sort(SortField.FIELD_SCORE, SortField.FIELD_DOC);
 
         var manager1 = provider.getTopFieldCollectorManager(sort1);
         var manager2 = provider.getTopFieldCollectorManager(sort2);
@@ -112,7 +114,7 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
         var factory = createFactory(randomBoolean(), List.of(new FieldSortBuilder("s")), DataPartitioning.SHARD);
         var provider = factory.perShardCollectorProvider;
         assertThat(provider.topFieldCollectorManagers.isEmpty(), equalTo(true));
-        Sort sort = new Sort(SortField.FIELD_DOC);
+        Sort sort = new Sort(SortField.FIELD_SCORE, SortField.FIELD_DOC);
 
         var manager = provider.getTopFieldCollectorManager(sort);
 
@@ -209,7 +211,7 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
         var factory = createFactory(randomBoolean(), List.of(new FieldSortBuilder("s")), DataPartitioning.SHARD);
         var provider = factory.perShardCollectorProvider;
 
-        Sort sort = new Sort(SortField.FIELD_DOC);
+        Sort sort = new Sort(SortField.FIELD_SCORE, SortField.FIELD_DOC);
         int numThreads = 20;
         var barrier = new CyclicBarrier(numThreads);
         var managers = new ArrayList<TopFieldCollectorManager>();
@@ -318,13 +320,58 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
 
             assertThat(sharedProvider, notNullValue());
 
-            var sort = new Sort(new SortedNumericSortField("s", SortField.Type.LONG, false, SortedNumericSelector.Type.MIN));
+            var sort = new Sort(SortField.FIELD_SCORE, SortField.FIELD_DOC);
             var manager1 = sharedProvider.getTopFieldCollectorManager(sort);
             var manager2 = sharedProvider.getTopFieldCollectorManager(sort);
             assertThat(manager1, sameInstance(manager2));
         } finally {
             IOUtils.close(operators);
         }
+    }
+
+    /**
+     * A manager keeps every collector it creates, so collectors of a field sort don't share one: nothing keeps a collector once
+     * its operator is done with it.
+     */
+    public void testFieldSortCollectorsDoNotShareAManager() throws IOException {
+        var factory = createFactory(false, List.of(new FieldSortBuilder("s")), DataPartitioning.SHARD);
+        var provider = factory.perShardCollectorProvider;
+        Sort fieldSort = new Sort(new SortedNumericSortField("s", SortField.Type.LONG, false, SortedNumericSelector.Type.MIN));
+        int collectors = between(1, 10);
+        for (int i = 0; i < collectors; i++) {
+            provider.newTopDocsCollector(fieldSort);
+        }
+        assertThat(provider.topFieldCollectorManagers.isEmpty(), equalTo(true));
+    }
+
+    /**
+     * Collectors that sort by ascending score share nothing through a manager, Lucene only shares the minimum competitive score
+     * of a descending score sort, so they don't share one either.
+     */
+    public void testAscendingScoreSortCollectorsDoNotShareAManager() throws IOException {
+        var factory = createFactory(false, List.of(), DataPartitioning.SHARD);
+        var provider = factory.perShardCollectorProvider;
+        Sort ascendingScoreSort = new Sort(new SortField(null, SortField.Type.SCORE, true), SortField.FIELD_DOC);
+        int collectors = between(1, 10);
+        for (int i = 0; i < collectors; i++) {
+            provider.newTopDocsCollector(ascendingScoreSort);
+        }
+        assertThat(provider.topFieldCollectorManagers.isEmpty(), equalTo(true));
+    }
+
+    /**
+     * Collectors that sort by descending score first share their manager, through which they share the minimum competitive score.
+     */
+    public void testScoreSortCollectorsShareAManager() throws IOException {
+        var factory = createFactory(false, List.of(), DataPartitioning.SHARD);
+        var provider = factory.perShardCollectorProvider;
+        Sort scoreSort = new Sort(SortField.FIELD_SCORE, SortField.FIELD_DOC);
+        int collectors = between(1, 10);
+        for (int i = 0; i < collectors; i++) {
+            provider.newTopDocsCollector(scoreSort);
+        }
+        assertThat(provider.topFieldCollectorManagers.size(), equalTo(1));
+        assertThat(provider.topFieldCollectorManagers.keySet(), contains(scoreSort));
     }
 
     private void setupIndex(int numDocs) throws IOException {
@@ -368,7 +415,9 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
             randomIntBetween(10, 100),
             sorts,
             randomLongBetween(10, 20),
-            needsScore
+            needsScore,
+            () -> 0L,
+            QueryWarnings.EMIT
         );
     }
 

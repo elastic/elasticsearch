@@ -87,9 +87,9 @@ public final class CombineDisjunctions extends OptimizerRules.OptimizerExpressio
                         // If the data type is IP, convert the internal IP format in Equals and IN to the format that is compatible with
                         // CIDRMatch, and store them in a separate map, so that they can be combined into existing CIDRMatch later.
                         if (value instanceof BytesRef bytesRef) {
-                            value = ipToString(bytesRef);
+                            value = new BytesRef(ipToString(bytesRef));
                         }
-                        ips.computeIfAbsent(eq.left(), k -> new LinkedHashSet<>()).add(new Literal(Source.EMPTY, value, DataType.IP));
+                        ips.computeIfAbsent(eq.left(), k -> new LinkedHashSet<>()).add(new Literal(Source.EMPTY, value, DataType.KEYWORD));
                     }
                 } else {
                     ors.add(exp);
@@ -105,9 +105,9 @@ public final class CombineDisjunctions extends OptimizerRules.OptimizerExpressio
                         Object value = i.fold(ctx.foldCtx());
                         // Same as Equals.
                         if (value instanceof BytesRef bytesRef) {
-                            value = ipToString(bytesRef);
+                            value = new BytesRef(ipToString(bytesRef));
                         }
-                        values.add(new Literal(Source.EMPTY, value, DataType.IP));
+                        values.add(new Literal(Source.EMPTY, value, DataType.KEYWORD));
                     }
                     ips.computeIfAbsent(in.value(), k -> new LinkedHashSet<>()).addAll(values);
                 }

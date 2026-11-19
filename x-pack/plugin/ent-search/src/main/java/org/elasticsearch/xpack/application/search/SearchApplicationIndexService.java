@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.application.search;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.DocWriteRequest;
@@ -149,7 +149,7 @@ public class SearchApplicationIndexService {
             builder.startObject();
             {
                 builder.startObject("_meta");
-                builder.field("version", Version.CURRENT.toString());
+                builder.field("version", Build.current().version());
                 builder.field(SystemIndexDescriptor.VERSION_META_KEY, SEARCH_APPLICATION_INDEX_MAPPINGS_VERSION);
                 builder.endObject();
 

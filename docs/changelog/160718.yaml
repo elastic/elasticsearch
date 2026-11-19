@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 159891
+pr: 160718
+summary: Extend the coordinator fetch charge through the response write
+type: enhancement

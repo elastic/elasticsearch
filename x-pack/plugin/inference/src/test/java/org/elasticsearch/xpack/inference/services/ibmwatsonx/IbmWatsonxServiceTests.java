@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.ibmwatsonx;
 
-import org.apache.http.HttpHeaders;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
@@ -27,6 +27,7 @@ import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
+import org.elasticsearch.inference.InferenceServiceConfigurationTests;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InputType;
@@ -42,6 +43,7 @@ import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
@@ -138,7 +140,7 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
                             API_VERSION_VALUE
                         )
                     ),
-                    new HashMap<>(Map.of()),
+                    new HashMap<>(),
                     getSecretSettingsMap(API_KEY_VALUE)
                 ),
                 modelListener
@@ -174,7 +176,7 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
                             API_VERSION_VALUE
                         )
                     ),
-                    new HashMap<>(Map.of()),
+                    new HashMap<>(),
                     getSecretSettingsMap(API_KEY_VALUE)
                 ),
                 modelListener
@@ -212,7 +214,7 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
                             API_VERSION_VALUE
                         )
                     ),
-                    new HashMap<>(Map.of()),
+                    new HashMap<>(),
                     createRandomChunkingSettingsMap(),
                     getSecretSettingsMap(API_KEY_VALUE)
                 ),
@@ -233,7 +235,7 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
                 TaskType.SPARSE_EMBEDDING,
                 getRequestConfigMap(
                     new HashMap<>(Map.of(ServiceFields.MODEL_ID, "model")),
-                    new HashMap<>(Map.of()),
+                    new HashMap<>(),
                     getSecretSettingsMap("secret")
                 ),
                 failureListener
@@ -263,9 +265,11 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
                 secretSettings
             );
 
-            var failureListener = getModelListenerForException(
-                ElasticsearchStatusException.class,
-                "Configuration contains settings [{extra_key=value}] unknown to the [watsonxai] service"
+            // With the strict REQUEST ObjectParser, unknown keys colocated with the service settings (such as an extra secret key) are
+            // rejected by the parser itself as an unknown field rather than by the framework's leftover-key check.
+            var failureListener = getModelListenerForExceptionWithMessageEnding(
+                XContentParseException.class,
+                Strings.format("[%s] unknown field [extra_key]", ModelConfigurations.SERVICE_SETTINGS)
             );
             service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, failureListener);
         }
@@ -618,7 +622,7 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
         try (var service = new IbmWatsonxService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
 
-            service.infer(model, null, null, null, List.of(""), false, new HashMap<>(), InputType.INGEST, null, listener);
+            service.infer(model, List.of(""), false, new HashMap<>(), InputType.INGEST, null, listener);
 
             var thrownException = expectThrows(ValidationException.class, () -> listener.actionGet(TIMEOUT));
             MatcherAssert.assertThat(
@@ -665,12 +669,15 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
                 getUrl(webServer)
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(model, null, null, null, List.of(input), false, new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
+            service.infer(model, List.of(input), false, new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
             var result = listener.actionGet(TIMEOUT);
 
             assertThat(result.asMap(), is(buildExpectationFloat(List.of(new float[] { 0.0123F, -0.0123F }))));
             assertThat(webServer.requests(), hasSize(1));
-            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), Matchers.equalTo(XContentType.JSON.mediaType()));
+            assertThat(
+                webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
+                Matchers.equalTo("application/json; charset=UTF-8")
+            );
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             assertThat(requestMap, aMapWithSize(3));
@@ -721,8 +728,8 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
             var inputTwo = randomAlphanumericOfLength(8);
             var query = randomAlphanumericOfLength(8);
             var request = new RerankRequest(
-                List.of(new InferenceString(DataType.TEXT, inputOne), new InferenceString(DataType.TEXT, inputTwo)),
-                new InferenceString(DataType.TEXT, query),
+                List.of(InferenceString.ofText(inputOne), InferenceString.ofText(inputTwo)),
+                InferenceString.ofText(query),
                 null,
                 null,
                 null
@@ -740,7 +747,7 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
 
             assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().getFirst().getUri().getQuery());
-            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE), equalTo("application/json; charset=UTF-8"));
 
             var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
             var expectedRequestMap = buildExpectedRequestMap(
@@ -848,7 +855,7 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
         );
         try (var service = new IbmWatsonxService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
-            service.chunkedInfer(model, null, List.of(), new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
+            service.chunkedInfer(model, List.of(), new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
 
             var results = listener.actionGet(TIMEOUT);
             assertThat(results, empty());
@@ -894,7 +901,7 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
                 getUrl(webServer)
             );
             PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
-            service.chunkedInfer(model, null, input, new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
+            service.chunkedInfer(model, input, new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
 
             var results = listener.actionGet(TIMEOUT);
             assertThat(results, hasSize(2));
@@ -930,7 +937,10 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
             }
 
             assertThat(webServer.requests(), hasSize(1));
-            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), Matchers.equalTo(XContentType.JSON.mediaType()));
+            assertThat(
+                webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
+                Matchers.equalTo("application/json; charset=UTF-8")
+            );
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             assertThat(requestMap, aMapWithSize(3));
@@ -961,7 +971,7 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
                 getUrl(webServer)
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(model, null, null, null, List.of("abc"), false, new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
+            service.infer(model, List.of("abc"), false, new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
 
             var error = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(error.getMessage(), containsString("Resource not found at "));
@@ -977,6 +987,11 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
                        "service": "watsonxai",
                        "name": "IBM watsonx",
                        "task_types": ["text_embedding", "rerank", "completion", "chat_completion"],
+                       "features": {
+                           "non_streaming_chat": {
+                               "supported": true
+                           }
+                       },
                        "configurations": {
                            "project_id": {
                                "description": "",
@@ -1026,7 +1041,7 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
                        }
                    }
                 """);
-            InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(
+            InferenceServiceConfiguration configuration = InferenceServiceConfigurationTests.fromXContentBytes(
                 new BytesArray(content),
                 XContentType.JSON
             );
@@ -1045,6 +1060,13 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
         return ActionListener.<Model>wrap((model) -> fail("Model parsing should have failed"), e -> {
             assertThat(e, Matchers.instanceOf(exceptionClass));
             assertThat(e.getMessage(), is(expectedMessage));
+        });
+    }
+
+    private static ActionListener<Model> getModelListenerForExceptionWithMessageEnding(Class<?> exceptionClass, String expectedEnding) {
+        return ActionListener.<Model>wrap((model) -> fail("Model parsing should have failed"), e -> {
+            assertThat(e, Matchers.instanceOf(exceptionClass));
+            assertThat(e.getMessage(), Matchers.endsWith(expectedEnding));
         });
     }
 

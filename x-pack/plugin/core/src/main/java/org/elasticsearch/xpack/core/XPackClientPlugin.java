@@ -25,12 +25,13 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.aggregatemetric.AggregateMetricFeatureSetUsage;
 import org.elasticsearch.xpack.core.analytics.AnalyticsFeatureSetUsage;
+import org.elasticsearch.xpack.core.application.ColumnarFeatureSetUsage;
 import org.elasticsearch.xpack.core.application.EnterpriseSearchFeatureSetUsage;
+import org.elasticsearch.xpack.core.application.LogsDBColumnarFeatureSetUsage;
 import org.elasticsearch.xpack.core.application.LogsDBFeatureSetUsage;
 import org.elasticsearch.xpack.core.application.ProfilingUsage;
 import org.elasticsearch.xpack.core.archive.ArchiveFeatureSetUsage;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
-import org.elasticsearch.xpack.core.crypto.PrimaryEncryptionKeyMetadata;
 import org.elasticsearch.xpack.core.datastreams.DataStreamFeatureSetUsage;
 import org.elasticsearch.xpack.core.datastreams.DataStreamLifecycleFeatureSetUsage;
 import org.elasticsearch.xpack.core.datatiers.DataTiersFeatureSetUsage;
@@ -156,17 +157,6 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, SearchPlu
                 new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.INFERENCE, InferenceFeatureSetUsage::new),
                 // monitoring
                 new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.MONITORING, MonitoringFeatureSetUsage::new),
-                // primary encryption key
-                new NamedWriteableRegistry.Entry(
-                    Metadata.ProjectCustom.class,
-                    PrimaryEncryptionKeyMetadata.TYPE,
-                    PrimaryEncryptionKeyMetadata::new
-                ),
-                new NamedWriteableRegistry.Entry(
-                    NamedDiff.class,
-                    PrimaryEncryptionKeyMetadata.TYPE,
-                    PrimaryEncryptionKeyMetadata::readDiffFrom
-                ),
                 // security
                 new NamedWriteableRegistry.Entry(ClusterState.Custom.class, TokenMetadata.TYPE, TokenMetadata::new),
                 new NamedWriteableRegistry.Entry(NamedDiff.class, TokenMetadata.TYPE, TokenMetadata::readDiffFrom),
@@ -186,6 +176,11 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, SearchPlu
                     ConfigurableClusterPrivilege.class,
                     ConfigurableClusterPrivileges.ManageRolesPrivilege.WRITEABLE_NAME,
                     ConfigurableClusterPrivileges.ManageRolesPrivilege::createFrom
+                ),
+                new NamedWriteableRegistry.Entry(
+                    ConfigurableClusterPrivilege.class,
+                    ConfigurableClusterPrivileges.DatasourcePrivileges.WRITEABLE_NAME,
+                    ConfigurableClusterPrivileges.DatasourcePrivileges::createFrom
                 ),
                 // security : role-mappings
                 new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, RoleMappingMetadata.TYPE, RoleMappingMetadata::new),
@@ -349,11 +344,13 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, SearchPlu
                     SecurityMigrationTaskParams::new
                 ),
                 new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.LOGSDB, LogsDBFeatureSetUsage::new),
+                new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.LOGSDB_COLUMNAR, LogsDBColumnarFeatureSetUsage::new),
                 new NamedWriteableRegistry.Entry(
                     XPackFeatureUsage.class,
                     XPackField.GPU_VECTOR_INDEXING,
                     GpuVectorIndexingFeatureSetUsage::new
-                )
+                ),
+                new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.COLUMNAR, ColumnarFeatureSetUsage::new)
             ),
             getChunkingSettingsNamedWriteables().stream()
         ).filter(Objects::nonNull).toList();
@@ -417,12 +414,6 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, SearchPlu
                 PersistentTaskState.class,
                 new ParseField(SnapshotUpgradeTaskState.NAME),
                 SnapshotUpgradeTaskState::fromXContent
-            ),
-            // primary encryption key
-            new NamedXContentRegistry.Entry(
-                Metadata.ProjectCustom.class,
-                new ParseField(PrimaryEncryptionKeyMetadata.TYPE),
-                PrimaryEncryptionKeyMetadata::fromXContent
             ),
             // watcher
             new NamedXContentRegistry.Entry(

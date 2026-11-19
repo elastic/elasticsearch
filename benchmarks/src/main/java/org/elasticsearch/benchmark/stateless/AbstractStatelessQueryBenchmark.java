@@ -18,8 +18,9 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.xpack.stateless.lucene.StatelessDirectoryFactory;
 import org.openjdk.jmh.annotations.AuxCounters;
@@ -72,7 +73,7 @@ import java.util.stream.Stream;
 public abstract class AbstractStatelessQueryBenchmark {
 
     static {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
     }
 
     public enum CacheState {
@@ -85,6 +86,10 @@ public abstract class AbstractStatelessQueryBenchmark {
 
     @Param({ "0" })
     public long firstByteLatencyMs;
+
+    /** Cache size in bytes passed to the stateless directory; 0 means auto-size to fit the whole index. */
+    @Param({ "0" })
+    public long cacheSizeBytes;
 
     private Path dataPath;
     private Path workPath;
@@ -122,9 +127,14 @@ public abstract class AbstractStatelessQueryBenchmark {
     @Setup(Level.Invocation)
     public final void setupInvocation() throws IOException {
         System.setProperty(StatelessDirectoryFactory.FIRST_BYTE_LATENCY_MS_PROP, Long.toString(firstByteLatencyMs));
+        if (cacheSizeBytes > 0) {
+            System.setProperty(StatelessDirectoryFactory.CACHE_SIZE_BYTES_PROP, Long.toString(cacheSizeBytes));
+        } else {
+            System.clearProperty(StatelessDirectoryFactory.CACHE_SIZE_BYTES_PROP);
+        }
         deleteRecursively(workPath);
         Files.createDirectories(workPath);
-        directory = StatelessDirectoryFactory.create(dataPath, workPath);
+        directory = StatelessDirectoryFactory.newSearchDirectory(dataPath, workPath, extraNodeSettings());
         if (cacheState == CacheState.HOT) {
             preWarm(directory);
         }
@@ -150,7 +160,11 @@ public abstract class AbstractStatelessQueryBenchmark {
     @Benchmark
     public final Object runBenchmark(CacheCounters counters) throws IOException {
         SharedBlobCacheService.Stats before = StatelessDirectoryFactory.statsFor(directory);
+        int downloadsBefore = StatelessDirectoryFactory.downloads();
+        int roundsBefore = StatelessDirectoryFactory.downloadRounds();
         Object result = runQuery(searcher);
+        counters.downloads = StatelessDirectoryFactory.downloads() - downloadsBefore;
+        counters.downloadRounds = StatelessDirectoryFactory.downloadRounds() - roundsBefore;
         SharedBlobCacheService.Stats after = StatelessDirectoryFactory.statsFor(directory);
         if (before != null && after != null) {
             counters.bytesRead = after.readBytes() - before.readBytes();
@@ -182,6 +196,15 @@ public abstract class AbstractStatelessQueryBenchmark {
 
     /** Subclass hook: populate query-side state. Runs once per trial, after the (possibly cached) index is ready. */
     protected void prepareQuery() throws IOException {}
+
+    /**
+     * Subclass hook: extra node settings to merge into the simulated directory's configuration on every invocation.
+     * Caller-supplied keys override the factory defaults. Sample use is to set {@code node.roles}, for example to
+     * {@code search} when the benchmark needs to exercise code paths gated on {@code hasSearchRole}.
+     */
+    protected Settings extraNodeSettings() {
+        return Settings.EMPTY;
+    }
 
     private static void preWarm(Directory dir) throws IOException {
         byte[] buf = new byte[64 * 1024];
@@ -236,6 +259,10 @@ public abstract class AbstractStatelessQueryBenchmark {
         public long bytesDownloaded;
         public long cacheMisses;
         public long regionWrites;
+        /** Blob-store requests that paid the first-byte latency. */
+        public long downloads;
+        /** Bursts of requests starting while none is in flight. */
+        public long downloadRounds;
 
         @Setup(Level.Invocation)
         public void reset() {
@@ -243,6 +270,8 @@ public abstract class AbstractStatelessQueryBenchmark {
             bytesDownloaded = 0;
             cacheMisses = 0;
             regionWrites = 0;
+            downloads = 0;
+            downloadRounds = 0;
         }
     }
 }

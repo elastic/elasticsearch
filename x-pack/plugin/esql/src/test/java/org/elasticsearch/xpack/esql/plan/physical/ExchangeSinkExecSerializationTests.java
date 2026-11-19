@@ -13,6 +13,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.SerializationTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 
 import java.io.IOException;
@@ -88,8 +90,17 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
          *  1026343b - added time series field type to EsField  #129649
          *  1033593b - added qualifier back to FieldAttribute #132925
          *  1033595b - added split indices to EsRelation #138396
+         *  1152296b - turn InvalidMappedFields into UnsupportedAttributes like in production #146117
+         *  1152297b - added shardCounts to EsRelation (1 byte for empty-map VInt)
+         *  1152897b - make IndexProperties Writeable: inline VInt(0) per 601 indices (+601 -1 for removed trailing map)
+         *  1152898b - added slice selection to EsRelation (1 byte for the absent optional string)
+         *  1159898b - added passthrough flag to EsField
+         *  1160499b - added created index version
+         *  1162302b - use the current index version (4-byte VInt per index)
+         *  1169302b - added single valued flag to EsField (1 byte per field)
+         *  1169303b - added exchange reference to ExchangeSinkExec (1 byte for the absent reference)
          */
-        testManyTypeConflicts(false, ByteSizeValue.ofBytes(1033595));
+        testManyTypeConflicts(false, ByteSizeValue.ofBytes(1169303L));
     }
 
     /**
@@ -111,8 +122,17 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
          *  1971523b - added time series field type to EsField  #129649
          *  1986023b - added qualifier back to FieldAttribute #132925
          *  1986025b - added split indices to EsRelation #138396
+         *  2303919b - turn InvalidMappedFields into UnsupportedAttributes like in production #146117
+         *  2303920b - added shardCounts to EsRelation (1 byte for empty-map VInt)
+         *  2304520b - make IndexProperties Writeable: inline VInt(0) per 601 indices (+601 -1 for removed trailing map)
+         *  2304521b - added slice selection to EsRelation (1 byte for the absent optional string)
+         *  2311521b - added passthrough flag to EsField
+         *  2312122b - added created index version
+         *  2313925b - use the current index version (4-byte VInt per index)
+         *  2320925b - added single valued flag to EsField (1 byte per field)
+         *  2320926b - added exchange reference to ExchangeSinkExec (1 byte for the absent reference)
          */
-        testManyTypeConflicts(true, ByteSizeValue.ofBytes(1986025));
+        testManyTypeConflicts(true, ByteSizeValue.ofBytes(2320926L));
     }
 
     private void testManyTypeConflicts(boolean withParent, ByteSizeValue expected) throws IOException {
@@ -136,13 +156,18 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
          *  43665025b - added time series field type to EsField  #129649
          *  43927169b - added qualifier back to FieldAttribute #132925
          *  43927171b - added split indices to EsRelation #138396
+         *  43927172b - added shardCounts to EsRelation (1 byte for empty-map VInt)
+         *  43927171b - make IndexProperties Writeable: 0 indices, -1 for removed trailing map header
+         *  44189316b - added passthrough flag to EsField
+         *  44451460b - added single valued flag to EsField (1 byte per field)
+         *  44451461b - added exchange reference to ExchangeSinkExec (1 byte for the absent reference)
          */
 
         int depth = 6;
         int childrenPerLevel = 8;
 
         EsIndex index = deeplyNestedIndex(depth, childrenPerLevel);
-        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(43927171L));
+        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(44451461L));
     }
 
     /**
@@ -161,13 +186,18 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
          *  351b - added time series field type to EsField  #129649
          *  352b - added qualifier back to FieldAttribute #132925
          *  354b - added split indices to EsRelation #138396
+         *  355b - added shardCounts to EsRelation (1 byte for empty-map VInt)
+         *  354b - make IndexProperties Writeable: 0 indices, -1 for removed trailing map header
+         *  356b - added passthrough flag to EsField
+         *  357b - added single valued flag to EsField (1 byte per field)
+         *  358b - added exchange reference to ExchangeSinkExec (1 byte for the absent reference)
          */
 
         int depth = 6;
         int childrenPerLevel = 9;
 
         EsIndex index = deeplyNestedIndex(depth, childrenPerLevel);
-        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(354), false);
+        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(358), false);
     }
 
     /**
@@ -180,6 +210,11 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
          * History:
          * 4996b - initial
          * 4998b - added split indices to EsRelation #138396
+         * 4999b - added shardCounts to EsRelation (1 byte for empty-map VInt)
+         * 5098b - make IndexProperties Writeable: inline VInt(0) per 100 indices (+100 -1 for removed trailing map)
+         * 5199b - added created index version
+         * 5499b - use the current index version (4-byte VInt per index)
+         * 5500b - added exchange reference to ExchangeSinkExec (1 byte for the absent reference)
          */
 
         var index = EsIndexGenerator.esIndex(
@@ -189,7 +224,7 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
                 .mapToObj(i -> "partial-.ds-index-service-logs-2025.01.01-000" + i)
                 .collect(toMap(Function.identity(), i -> IndexMode.STANDARD))
         );
-        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(4998));
+        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(5500));
     }
 
     /**
@@ -223,12 +258,20 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
             IndexMode.STANDARD,
             Map.of(),
             Map.of(),
-            index.indexNameWithModes(),
+            index.indexProperties(),
             keepAttributes
         );
         Limit limit = new Limit(randomSource(), new Literal(randomSource(), 10, DataType.INTEGER), relation);
         Project project = new Project(randomSource(), limit, limit.output());
-        FragmentExec fragmentExec = new FragmentExec(project);
+        // Mirror the analyzer's UnionTypesCleanup: convert any InvalidMappedField-backed FieldAttribute into an UnsupportedAttribute so
+        // that the serialized plan matches what production sends over the wire (and round-trip equality holds). The fixtures here only
+        // produce genuine type conflicts (no single-type potentially-unmapped fields), so flagTypeConflicts() is sufficient and we don't
+        // need the full cleanTypeConflicts(...) logic from UnionTypesCleanup.
+        LogicalPlan cleanedProject = project.transformUp(
+            LogicalPlan.class,
+            p -> p.transformExpressionsOnly(FieldAttribute.class, FieldAttribute::flagTypeConflicts)
+        );
+        FragmentExec fragmentExec = new FragmentExec(cleanedProject);
         ExchangeSinkExec exchangeSinkExec = new ExchangeSinkExec(randomSource(), fragmentExec.output(), false, fragmentExec);
         try (BytesStreamOutput out = new BytesStreamOutput(); PlanStreamOutput pso = new PlanStreamOutput(out, configuration())) {
             pso.writeNamedWriteable(exchangeSinkExec);

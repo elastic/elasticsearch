@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `ST_YMIN` function [esql-st_ymin]
 
-:::{include} ../../_snippets/functions/layout/st_ymin.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/st_ymin.md
 :::

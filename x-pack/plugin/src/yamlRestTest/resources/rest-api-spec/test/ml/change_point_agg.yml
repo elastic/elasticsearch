@@ -32,6 +32,44 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      indices.create:
+        index: index-sparse-errors
+        body:
+          mappings:
+            properties:
+              errors:
+                type: long
+              time:
+                type: date
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Content-Type: application/json
+      bulk:
+        index: index-sparse-errors
+        refresh: true
+        body: |
+          {"index":{}}
+          {"time":"2026-01-01T00:00:00Z","errors":3}
+          {"index":{}}
+          {"time":"2026-01-01T00:01:00Z","errors":4}
+          {"index":{}}
+          {"time":"2026-01-01T00:02:00Z","errors":3}
+          {"index":{}}
+          {"time":"2026-01-01T00:03:00Z","errors":5}
+          {"index":{}}
+          {"time":"2026-01-01T00:20:00Z","errors":80}
+          {"index":{}}
+          {"time":"2026-01-01T00:21:00Z","errors":75}
+          {"index":{}}
+          {"time":"2026-01-01T00:22:00Z","errors":90}
+          {"index":{}}
+          {"time":"2026-01-01T00:23:00Z","errors":85}
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
         Content-Type: application/json
       bulk:
         index: store
@@ -261,6 +299,66 @@ setup:
             }
           }
   - is_true: aggregations.change_point.type.indeterminable
+---
+"Test change_point honors gap_policy over sparse buckets":
+
+  - do:
+      search:
+        index: index-sparse-errors
+        size: 0
+        body: >
+          {
+            "aggs": {
+              "errors_per_minute": {
+                "date_histogram": {
+                  "field": "time",
+                  "fixed_interval": "1m",
+                  "min_doc_count": 0,
+                  "extended_bounds": { "min": "2026-01-01T00:00:00Z", "max": "2026-01-01T00:29:00Z" }
+                },
+                "aggs": {
+                  "error_count": {
+                    "sum": {
+                      "field": "errors"
+                    }
+                  }
+                }
+              },
+              "over_metric_default": {
+                "change_point": {
+                  "buckets_path": "errors_per_minute>error_count"
+                }
+              },
+              "over_metric_keep_values": {
+                "change_point": {
+                  "buckets_path": "errors_per_minute>error_count",
+                  "gap_policy": "keep_values"
+                }
+              },
+              "over_metric_insert_zeros": {
+                "change_point": {
+                  "buckets_path": "errors_per_minute>error_count",
+                  "gap_policy": "insert_zeros"
+                }
+              },
+              "over_count": {
+                "change_point": {
+                  "buckets_path": "errors_per_minute>_count"
+                }
+              }
+            }
+          }
+  # Only 8 of the 30 one-minute buckets hold a document. The default policy drops the other 22,
+  # leaving fewer values than the detector needs.
+  - is_true: aggregations.over_metric_default.type.indeterminable
+  # Both of these keep the empty buckets, whose sum reports a real, finite 0.0.
+  - is_true: aggregations.over_metric_keep_values.type
+  - is_false: aggregations.over_metric_keep_values.type.indeterminable
+  - is_true: aggregations.over_metric_insert_zeros.type
+  - is_false: aggregations.over_metric_insert_zeros.type.indeterminable
+  # _count is never treated as missing, so it worked before the fix and must keep working.
+  - is_true: aggregations.over_count.type
+  - is_false: aggregations.over_count.type.indeterminable
 ---
 "Test change_point with terms":
   - do:

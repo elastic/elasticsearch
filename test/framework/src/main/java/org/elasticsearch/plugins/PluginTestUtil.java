@@ -9,7 +9,7 @@
 
 package org.elasticsearch.plugins;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.Build;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 
@@ -40,7 +40,7 @@ public class PluginTestUtil {
             "version",
             "1.0.0",
             "elasticsearch.version",
-            Version.CURRENT.toString(),
+            Build.current().version(),
             "java.version",
             System.getProperty("java.specification.version"),
             "classname",

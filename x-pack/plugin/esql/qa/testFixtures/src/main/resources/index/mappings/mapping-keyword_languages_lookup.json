@@ -1,0 +1,10 @@
+{
+    "properties" : {
+        "language_code" : {
+            "type" : "keyword"
+        },
+        "language_name" : {
+            "type" : "keyword"
+        }
+    }
+}

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.action;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.RerankRequest;
@@ -17,6 +16,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.telemetry.InferenceStats;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.RerankAction;
@@ -35,6 +35,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.assertArg;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -76,13 +77,7 @@ public class TransportRerankActionTests extends BaseTransportInferenceActionTest
         // We need to return a real RerankRequest to prevent NPEs in the doInference() call for services that do not support the new rerank
         // code path. Once all services have been converted, this mocking can be removed.
         when(mock.getRerankRequest()).thenReturn(
-            new RerankRequest(
-                List.of(new InferenceString(DataType.TEXT, "input")),
-                new InferenceString(DataType.TEXT, "input"),
-                null,
-                null,
-                Map.of()
-            )
+            new RerankRequest(List.of(InferenceString.ofText("input")), InferenceString.ofText("input"), null, null, Map.of())
         );
         return mock;
     }
@@ -154,5 +149,15 @@ public class TransportRerankActionTests extends BaseTransportInferenceActionTest
             assertThat(attributes.get("status_code"), is(200));
             assertThat(attributes.get("error_type"), nullValue());
         }));
+    }
+
+    public void testRerankInferenceRunsAsChildOfActionTask() {
+        mockService(listener -> listener.onResponse(mock()));
+        var service = serviceRegistry.getService(serviceId).orElseThrow();
+
+        doExecute(taskType);
+
+        // doExecute runs the action with a mocked task, whose id is 0
+        verify(service).rerankInfer(any(), any(), any(), eq(new TaskId("local_node", 0L)), any());
     }
 }

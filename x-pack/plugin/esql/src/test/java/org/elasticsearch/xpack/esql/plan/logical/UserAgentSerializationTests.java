@@ -11,13 +11,14 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.evaluator.command.UserAgentFunctionBridge;
-import org.elasticsearch.xpack.esql.expression.function.FieldAttributeTests;
 
 import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Objects;
 import java.util.SequencedMap;
+
+import static org.elasticsearch.xpack.esql.expression.function.FieldAttributeTestUtils.createFieldAttribute;
 
 public class UserAgentSerializationTests extends CompoundOutputEvalSerializationTests<UserAgent> {
 
@@ -48,7 +49,7 @@ public class UserAgentSerializationTests extends CompoundOutputEvalSerialization
 
         switch (between(0, 5)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
-            case 1 -> input = randomValueOtherThan(input, () -> FieldAttributeTests.createFieldAttribute(0, false));
+            case 1 -> input = randomValueOtherThan(input, () -> createFieldAttribute(0, false));
             case 2 -> {
                 final int nameSize = outputFieldNames.size();
                 outputFieldNames = randomValueOtherThan(

@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
 import org.junit.Before;
@@ -113,10 +114,7 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractXpackFullClus
                 }
             }, 90, TimeUnit.SECONDS);
         } else {
-            ensureHealth(".ml-inference-*,.ml-config*", (request -> {
-                request.addParameter("wait_for_status", "yellow");
-                request.addParameter("timeout", "120s");
-            }));
+            ensureYellowAndNoInitializingShards(".ml-inference-*,.ml-config*", "120s");
             waitForDeploymentStarted(modelId);
             assertBusy(() -> {
                 try {
@@ -132,12 +130,9 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractXpackFullClus
     @SuppressWarnings("unchecked")
     private void waitForDeploymentStarted(String modelId) throws Exception {
         assertBusy(() -> {
-            Response response;
-            try {
-                response = getTrainedModelStats(modelId);
-            } catch (ResponseException e) {
-                throw new AssertionError("Model stats not available yet", e);
-            }
+            Request request = new Request("GET", "/_ml/trained_models/" + modelId + "/_stats");
+            // Transient 404/503 while ML indices relocate or the plugin is still recovering after restart.
+            var response = performRequestRaisingAssertionOnTransientStatus(request, RestStatus.NOT_FOUND, RestStatus.SERVICE_UNAVAILABLE);
             Map<String, Object> map = entityAsMap(response);
             List<Map<String, Object>> stats = (List<Map<String, Object>>) map.get("trained_model_stats");
             assertThat(stats, hasSize(1));
@@ -219,13 +214,6 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractXpackFullClus
         String endpoint = "/_ml/trained_models/" + modelId + "/deployment/_stop";
         Request request = new Request("POST", endpoint);
         client().performRequest(request);
-    }
-
-    private Response getTrainedModelStats(String modelId) throws IOException {
-        Request request = new Request("GET", "/_ml/trained_models/" + modelId + "/_stats");
-        var response = client().performRequest(request);
-        assertOK(response);
-        return response;
     }
 
     private Response infer(String input, String modelId) throws IOException {

@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `ST_YMAX` function [esql-st_ymax]
 
-:::{include} ../../_snippets/functions/layout/st_ymax.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/st_ymax.md
 :::

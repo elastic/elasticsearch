@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.inference.services.custom.request;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
+import org.elasticsearch.xpack.inference.external.http.sender.CompletionInput;
 
 import java.util.List;
 import java.util.Map;
@@ -19,17 +19,17 @@ import static org.hamcrest.Matchers.is;
 public class CompletionParametersTests extends ESTestCase {
 
     public void testJsonParameters_SingleValue() {
-        var parameters = CompletionParameters.of(new ChatCompletionInput(List.of("hello")));
+        var parameters = CompletionParameters.of(new CompletionInput(List.of("hello")));
         assertThat(parameters.jsonParameters(), is(Map.of(INPUT, "\"hello\"")));
     }
 
     public void testJsonParameters_RetrievesFirstEntryFromList() {
-        var parameters = CompletionParameters.of(new ChatCompletionInput(List.of("hello", "hi")));
+        var parameters = CompletionParameters.of(new CompletionInput(List.of("hello", "hi")));
         assertThat(parameters.jsonParameters(), is(Map.of(INPUT, "\"hello\"")));
     }
 
     public void testJsonParameters_EmptyList() {
-        var parameters = CompletionParameters.of(new ChatCompletionInput(List.of()));
+        var parameters = CompletionParameters.of(new CompletionInput(List.of()));
         assertThat(parameters.jsonParameters(), is(Map.of(INPUT, "\"\"")));
     }
 }

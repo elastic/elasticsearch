@@ -20,10 +20,12 @@ import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 public class KuromojiCompletionFilterFactory extends AbstractTokenFilterFactory {
 
     private final Mode mode;
+    private final Object sharingKey;
 
     public KuromojiCompletionFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name);
         mode = getMode(settings);
+        this.sharingKey = new Key(mode);
     }
 
     public static JapaneseCompletionFilter.Mode getMode(Settings settings) {
@@ -44,4 +46,10 @@ public class KuromojiCompletionFilterFactory extends AbstractTokenFilterFactory 
         return new JapaneseCompletionFilter(tokenStream, mode);
     }
 
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(Mode mode) {}
 }

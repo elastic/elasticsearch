@@ -113,16 +113,17 @@ The following list contains the available S3 client settings. Those that must be
 `s3.client.CLIENT_NAME.path_style_access`
 :   Whether to force the use of the path style access pattern. If `true`, the path style access pattern will be used. If `false`, the access pattern will be automatically determined by the AWS Java SDK (See [AWS documentation](https://docs.aws.amazon.com/AWSJavaSDK/latest/javadoc/com/amazonaws/services/s3/AmazonS3Builder.html#setPathStyleAccessEnabled-java.lang.Boolean-) for details). Defaults to `false`.
 
-::::{note}
-:name: repository-s3-path-style-deprecation
+`s3.client.CLIENT_NAME.disable_chunked_encoding` {applies_to}`stack: deprecated 9.6`
+:   Whether chunked encoding should be used. If `false`, chunked encoding is used whenever appropriate. If `true`, chunked encoding is not used, which means that snapshot operations consume more resources and take longer to complete. Only use this setting if you are using a storage service that does not support chunked encoding, which indicates it is not fully S3-compatible. Your data is at risk if you use storage which is not fully S3-compatible. Refer to [S3-compatible services](docs-content://deploy-manage/tools/snapshot-and-restore/s3-repository.md#repository-s3-compatible-services) for more information. Defaults to `false`.
 
-In versions `7.0`, `7.1`, `7.2` and `7.3` all bucket operations used the [now-deprecated](https://aws.amazon.com/blogs/aws/amazon-s3-path-deprecation-plan-the-rest-of-the-story/) path style access pattern. If your deployment requires the path style access pattern then you should set this setting to `true` when upgrading.
-::::
+`s3.client.CLIENT_NAME.always_sign_requests` {applies_to}`stack: ga 9.5`
+:   {{es}} usually uses HTTPS to protect the integrity of all network traffic to a S3 repository, but if you access your repository using plain HTTP it will protect the integrity of request payloads uses a separate signature mechanism. If `always_sign_requests` is set to `true`, {{es}} will use this additional signature mechanism even for requests sent over HTTPS which do not need it. Defaults to `false`.
 
+`s3.client.CLIENT_NAME.legacy_content_md5` {applies_to}`stack: ga =9.5.6!, deprecated 9.5.7!+`
+:   Whether to compute a legacy MD5 checksum for requests that need a checksum, such as `DeleteObjects`. Only use this setting if you are using a storage service that requires legacy checksums, which indicates it is not fully S3-compatible. Your data is at risk if you use storage which is not fully S3-compatible. Refer to [S3-compatible services](docs-content://deploy-manage/tools/snapshot-and-restore/s3-repository.md#repository-s3-compatible-services) for more information. Defaults to `false`.
 
-`s3.client.CLIENT_NAME.disable_chunked_encoding`
-:   Whether chunked encoding should be disabled or not. If `false`, chunked encoding is enabled and will be used where appropriate. If `true`, chunked encoding is disabled and will not be used, which may mean that snapshot operations consume more resources and take longer to complete. It should only be set to `true` if you are using a storage service that does not support chunked encoding. See the [AWS Java SDK documentation](https://docs.aws.amazon.com/AWSJavaSDK/latest/javadoc/com/amazonaws/services/s3/AmazonS3Builder.html#disableChunkedEncoding--) for details. Defaults to `false`.
-
+`s3.client.CLIENT_NAME.unsafely_omit_request_body_checksums` {applies_to}`stack: ga =9.5.8!, deprecated 9.5.9!+`
+:   Whether to omit the checksums that the AWS Java SDK sends with request bodies by default. If `false`, the checksums are sent. If `true`, a checksum is only sent for requests where the S3 API requires one, such as `DeleteObjects`. The checksums protect uploads against corruption, so omitting them is considered to be unsafe. Only use this setting if you are using a storage service that rejects them, which indicates it is not fully S3-compatible. Your data is at risk if you use storage which is not fully S3-compatible. Refer to [S3-compatible services](docs-content://deploy-manage/tools/snapshot-and-restore/s3-repository.md#repository-s3-compatible-services) for more information. The AWS SDK's `AWS_REQUEST_CHECKSUM_CALCULATION` environment variable, `aws.requestChecksumCalculation` system property and profile file setting have no effect on S3 repositories, so this setting alone decides. Defaults to `false`.
 
 ## Repository settings [repository-s3-repository-settings]
 
@@ -196,10 +197,34 @@ The following settings are supported:
 :   The S3 repository supports all [S3 canned ACLs](https://docs.aws.amazon.com/AmazonS3/latest/dev/acl-overview.html#canned-acl) : `private`, `public-read`, `public-read-write`, `authenticated-read`, `log-delivery-write`, `bucket-owner-read`, `bucket-owner-full-control`. Defaults to `private`. You could specify a canned ACL using the `canned_acl` setting. When the S3 repository creates buckets and objects, it adds the canned ACL into the buckets and objects.
 
 `storage_class`
-:   Sets the S3 storage class for objects written to the repository. Values may be `standard`, `reduced_redundancy`, `standard_ia`, `onezone_ia` and `intelligent_tiering`. Defaults to `standard`. Refer to [S3 storage classes](docs-content://deploy-manage/tools/snapshot-and-restore/s3-repository.md#repository-s3-storage-classes) for more information.
+:   Sets the S3 storage class for objects in the repository. `data_storage_class` and `metadata_storage_class` override this setting if specified, and it is generally recommended to set those values instead.
+
+    Accepted values are `standard`, `standard_ia`, `reduced_redundancy`, `onezone_ia`, `intelligent_tiering`, `glacier_ir`, `outposts`, and `snow`.
+
+    Defaults to `standard` if not specified.
+
+    Refer to [S3 storage classes](docs-content://deploy-manage/tools/snapshot-and-restore/s3-repository.md#repository-s3-storage-classes) for more information.
+
+`data_storage_class` {applies_to}`stack: ga 9.5`
+:   Sets the S3 storage class for data blobs in the repository. These blobs hold the files that make up each snapshotted shard and make up most of the repository volume, but are only read when restoring a shard or accessing its contents (for example, searchable snapshots read this data).
+
+    Accepted values are `standard`, `standard_ia`, `reduced_redundancy`, `onezone_ia`, `intelligent_tiering`, `glacier_ir`, `outposts`, and `snow`.
+
+    Defaults to the value of `storage_class` if not specified.
+
+    Refer to [S3 storage classes](docs-content://deploy-manage/tools/snapshot-and-restore/s3-repository.md#repository-s3-storage-classes) for more information.
+
+`metadata_storage_class` {applies_to}`stack: ga 9.5`
+:   Sets the S3 storage class for metadata blobs in the repository. These are generally smaller in size than data blobs but might be read more frequently for operations such as listing repository contents, taking snapshots, or otherwise manipulating the repository.
+
+    Accepted values are `standard`, `standard_ia`, `reduced_redundancy`, `onezone_ia`, `intelligent_tiering`, `glacier_ir`, `outposts`, and `snow`.
+
+    Defaults to the value of `storage_class` if not specified.
+
+    Refer to [S3 storage classes](docs-content://deploy-manage/tools/snapshot-and-restore/s3-repository.md#repository-s3-storage-classes) for more information.
 
 `delete_objects_max_size`
-:   (integer) Sets the maxmimum batch size, betewen 1 and 1000, used for `DeleteObjects` requests. Defaults to 1000 which is the maximum number supported by the [AWS DeleteObjects API](https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteObjects.html).
+:   (integer) Sets the maxmimum batch size, between 1 and 1000, used for `DeleteObjects` requests. Defaults to 1000 which is the maximum number supported by the [AWS DeleteObjects API](https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteObjects.html).
 
 `max_multipart_upload_cleanup_size`
 :   (integer) Sets the maximum number of possibly-dangling multipart uploads to clean up in each batch of snapshot deletions. Defaults to `1000` which is the maximum number supported by the [AWS ListMultipartUploads API](https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListMultipartUploads.html). If set to `0`, {{es}} will not attempt to clean up dangling multipart uploads.
@@ -217,7 +242,7 @@ The following settings are supported:
 :   ([time value](/reference/elasticsearch/rest-apis/api-conventions.md#time-units)) Sets the time to wait before trying again if an attempt to read a [linearizable register](docs-content://deploy-manage/tools/snapshot-and-restore/s3-repository.md#repository-s3-linearizable-registers) fails. Defaults to `5s`.
 
 `unsafely_incompatible_with_s3_conditional_writes` {applies_to}`stack: ga =9.2.3!, deprecated 9.2.4!+`
-:   (boolean) {{es}} uses AWS S3's [support for conditional writes](https://docs.aws.amazon.com/AmazonS3/latest/userguide/conditional-writes.html) to protect against repository corruption. If your repository is based on a storage system which claims to be S3-compatible but does not accept conditional writes, set this setting to `true` to make {{es}} perform unconditional writes, bypassing the repository corruption protection, while you work with your storage supplier to address this incompatibility with AWS S3. Defaults to `false`.
+:   (boolean) {{es}} uses AWS S3's [support for conditional writes](https://docs.aws.amazon.com/AmazonS3/latest/userguide/conditional-writes.html) to protect against repository corruption. If your repository is based on a storage system which claims to be S3-compatible but does not accept conditional writes, set this setting to `true` to make {{es}} perform unconditional writes, bypassing the repository corruption protection, while you work with your storage supplier to address this incompatibility with AWS S3. Your data is at risk if you use storage which is not fully S3-compatible. Refer to [S3-compatible services](docs-content://deploy-manage/tools/snapshot-and-restore/s3-repository.md#repository-s3-compatible-services) for more information. Defaults to `false`.
 
 ::::{admonition} Overriding client settings in repository settings.
 {applies_to}`stack: deprecated`

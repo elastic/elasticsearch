@@ -38,7 +38,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ModelCreator;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
-import org.elasticsearch.xpack.inference.services.validation.CustomServiceIntegrationValidator;
+import org.elasticsearch.xpack.inference.services.validation.CustomServiceRerankIntegrationValidator;
 
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -158,11 +158,6 @@ public class CustomService extends SenderService<CustomModel> implements Reranki
     }
 
     @Override
-    public boolean supportsNewRerankCodePath() {
-        return true;
-    }
-
-    @Override
     protected void doChunkedInfer(
         Model model,
         List<ChunkInferenceInput> inputs,
@@ -185,12 +180,17 @@ public class CustomService extends SenderService<CustomModel> implements Reranki
         List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
             inputs,
             customModel.getServiceSettings().getBatchSize(),
+            getRegexReadLimitFactor(),
             customModel.getConfigurations().getChunkingSettings()
         ).batchRequestsWithListeners(listener);
 
         for (var request : batchedRequests) {
             var action = new SenderExecutableAction(getSender(), manager, failedToSendRequestErrorMessage);
-            action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
+            action.execute(
+                new EmbeddingsInput(request.batch().inputs(), request.batch().ramBytesUsed(), inputType),
+                timeout,
+                request.listener()
+            );
         }
     }
 
@@ -212,10 +212,27 @@ public class CustomService extends SenderService<CustomModel> implements Reranki
         }
     }
 
+    /**
+     * Return the default similarity measure for the embedding type.
+     * Float embeddings (and null, which defaults to float) use cosine similarity since we cannot guarantee
+     * third-party providers return unit-length vectors. Non-float types (BYTE, BIT, BINARY) keep dot_product.
+     *
+     * @param embeddingType the custom service embedding type, or null if not specified
+     * @return The default similarity.
+     */
+    static SimilarityMeasure defaultSimilarity(CustomServiceEmbeddingType embeddingType) {
+        if (embeddingType == null || embeddingType == CustomServiceEmbeddingType.FLOAT) {
+            return SimilarityMeasure.COSINE;
+        }
+        return SimilarityMeasure.DOT_PRODUCT;
+    }
+
     private static CustomServiceSettings getCustomServiceSettings(CustomModel customModel, int embeddingSize) {
         var serviceSettings = customModel.getServiceSettings();
         var similarityFromModel = serviceSettings.similarity();
-        var similarityToUse = similarityFromModel == null ? SimilarityMeasure.DOT_PRODUCT : similarityFromModel;
+        var similarityToUse = similarityFromModel == null
+            ? defaultSimilarity(serviceSettings.getResponseJsonParser().getEmbeddingType())
+            : similarityFromModel;
 
         return new CustomServiceSettings(
             new CustomServiceSettings.TextEmbeddingSettings(similarityToUse, embeddingSize, serviceSettings.getMaxInputTokens()),
@@ -270,7 +287,7 @@ public class CustomService extends SenderService<CustomModel> implements Reranki
     @Override
     public ServiceIntegrationValidator getServiceIntegrationValidator(TaskType taskType) {
         if (taskType == TaskType.RERANK) {
-            return new CustomServiceIntegrationValidator();
+            return new CustomServiceRerankIntegrationValidator();
         }
 
         return null;

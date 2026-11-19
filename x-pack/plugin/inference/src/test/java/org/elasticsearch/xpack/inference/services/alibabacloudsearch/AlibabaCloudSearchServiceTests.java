@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.alibabacloudsearch;
 
-import org.apache.http.HttpHeaders;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.TestPlainActionFuture;
@@ -24,6 +24,7 @@ import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
+import org.elasticsearch.inference.InferenceServiceConfigurationTests;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InputType;
@@ -67,7 +68,6 @@ import org.elasticsearch.xpack.inference.services.alibabacloudsearch.sparse.Alib
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.sparse.AlibabaCloudSearchSparseModelTests;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.sparse.AlibabaCloudSearchSparseServiceSettingsTests;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.sparse.AlibabaCloudSearchSparseTaskSettingsTests;
-import org.junit.Assume;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
@@ -361,7 +361,7 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
         try (var service = new AlibabaCloudSearchService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
 
-            service.infer(model, null, null, null, List.of(""), false, new HashMap<>(), InputType.CLASSIFICATION, null, listener);
+            service.infer(model, List.of(""), false, new HashMap<>(), InputType.CLASSIFICATION, null, listener);
 
             var thrownException = expectThrows(ValidationException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(
@@ -380,7 +380,7 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
         try (var service = new AlibabaCloudSearchService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
 
-            service.infer(model, null, null, null, List.of(""), false, new HashMap<>(), InputType.CLASSIFICATION, null, listener);
+            service.infer(model, List.of(""), false, new HashMap<>(), InputType.CLASSIFICATION, null, listener);
 
             var thrownException = expectThrows(ValidationException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(
@@ -533,8 +533,8 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
             var inputTwo = randomAlphanumericOfLength(8);
             var query = randomAlphanumericOfLength(8);
             var request = new RerankRequest(
-                List.of(new InferenceString(DataType.TEXT, inputOne), new InferenceString(DataType.TEXT, inputTwo)),
-                new InferenceString(DataType.TEXT, query),
+                List.of(InferenceString.ofText(inputOne), InferenceString.ofText(inputTwo)),
+                InferenceString.ofText(query),
                 null,
                 null,
                 null
@@ -552,7 +552,7 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
 
             assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().getFirst().getUri().getQuery());
-            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE), equalTo("application/json; charset=UTF-8"));
             assertThat(
                 webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION),
                 is(Strings.format("Bearer %s", API_KEY_VALUE))
@@ -586,7 +586,7 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
         try (var service = new AlibabaCloudSearchService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var model = createModelForTaskType(randomFrom(TaskType.SPARSE_EMBEDDING, TaskType.TEXT_EMBEDDING), null);
 
-            service.chunkedInfer(model, null, List.of(), new HashMap<>(), InputTypeTests.randomWithIngestAndSearch(), null, listener);
+            service.chunkedInfer(model, List.of(), new HashMap<>(), InputTypeTests.randomWithIngestAndSearch(), null, listener);
 
         }
         assertThat(listener.actionGet(TIMEOUT), empty());
@@ -601,7 +601,7 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
             var model = createModelForTaskType(taskType, chunkingSettings);
 
             TestPlainActionFuture<List<ChunkedInference>> listener = new TestPlainActionFuture<>();
-            service.chunkedInfer(model, null, input, new HashMap<>(), InputTypeTests.randomWithIngestAndSearch(), null, listener);
+            service.chunkedInfer(model, input, new HashMap<>(), InputTypeTests.randomWithIngestAndSearch(), null, listener);
 
             var results = listener.actionGet(TIMEOUT);
             assertThat(results, instanceOf(List.class));
@@ -691,7 +691,7 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
                     }
                     """
             );
-            InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(
+            InferenceServiceConfiguration configuration = InferenceServiceConfigurationTests.fromXContentBytes(
                 new BytesArray(content),
                 XContentType.JSON
             );
@@ -829,7 +829,9 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
             HOST_VALUE,
             WORKSPACE_NAME_VALUE
         );
-        serviceSettingsMap.put(SIMILARITY, similarity == null ? null : similarity.toString());
+        if (similarity != null) {
+            serviceSettingsMap.put(SIMILARITY, similarity.toString());
+        }
         return new AlibabaCloudSearchEmbeddingsModel(
             "modelId",
             TaskType.TEXT_EMBEDDING,
@@ -840,12 +842,6 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
             null,
             ConfigurationParseContext.REQUEST
         );
-    }
-
-    // TODO: https://github.com/elastic/elasticsearch/issues/146306
-    @Override
-    public void testUpdateModelWithEmbeddingDetails_NonNullSimilarityInOriginalModel_KeepsSimilarity() {
-        Assume.assumeTrue("Skipped due to https://github.com/elastic/elasticsearch/issues/146306", false);
     }
 
     @Override

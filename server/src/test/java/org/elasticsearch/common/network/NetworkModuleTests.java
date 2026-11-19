@@ -33,6 +33,8 @@ import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -48,15 +50,13 @@ import java.util.function.Supplier;
 public class NetworkModuleTests extends ESTestCase {
     private ThreadPool threadPool;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void createThreadPool() throws Exception {
         threadPool = new TestThreadPool(NetworkModuleTests.class.getName());
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void terminateThreadPool() throws Exception {
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 

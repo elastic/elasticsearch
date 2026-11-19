@@ -60,9 +60,7 @@ public class SemanticTextChunkingLegacyFormatIT extends SemanticTextLegacyFormat
         "Elasticsearch is a free, open-source search engine and analytics tool that stores and indexes data.";
 
     @After
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void deleteChunkingTestIndices() throws Exception {
         for (String suffix : List.of("-ds", "-dd", "-cs", "-cd", "-nd", "-i1", "-i2")) {
             IntegrationTestUtils.deleteIndex(client(), indexName + suffix);
         }

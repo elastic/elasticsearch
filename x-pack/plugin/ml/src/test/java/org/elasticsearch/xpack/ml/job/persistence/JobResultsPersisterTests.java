@@ -6,8 +6,12 @@
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.TransportBulkAction;
@@ -28,14 +32,19 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.DocumentParsingException;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
+import org.elasticsearch.xpack.core.ml.datafeed.EsqlDatafeedSourceCheckpoint;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
@@ -64,6 +73,8 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -132,6 +143,18 @@ public class JobResultsPersisterTests extends ESTestCase {
         assertTrue(s.matches(".*initial_anomaly_score.:18\\.12.*"));
         assertTrue(s.matches(".*anomaly_score.:14\\.15.*"));
         assertTrue(s.matches(".*raw_anomaly_score.:19\\.19.*"));
+        assertNotNull("event.ingested must be set on bucket influencer", bi.getEventIngested());
+    }
+
+    public void testPersistBucketSetsEventIngested() {
+        Bucket bucket = new Bucket(JOB_ID, new Date(), 600);
+        bucket.setAnomalyScore(10.0);
+        // No records → no copy is made, setEventIngested is called on the original bucket object
+        assertNull(bucket.getEventIngested());
+
+        persister.bulkPersisterBuilder(JOB_ID).persistBucket(bucket).executeRequest();
+
+        assertNotNull("event.ingested must be set on bucket after persist", bucket.getEventIngested());
     }
 
     public void testPersistRecords() {
@@ -186,6 +209,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         assertTrue(s.matches(".*partition_field_value.:.partValue.*"));
         assertTrue(s.matches(".*over_field_name.:.overName.*"));
         assertTrue(s.matches(".*over_field_value.:.overValue.*"));
+        assertNotNull("event.ingested must be set on record after persist", r1.getEventIngested());
     }
 
     public void testPersistInfluencers() {
@@ -209,6 +233,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         assertTrue(s.matches(".*influencer_field_value.:.infValue1.*"));
         assertTrue(s.matches(".*initial_influencer_score.:55\\.5.*"));
         assertTrue(s.matches(".*influencer_score.:16\\.0.*"));
+        assertNotNull("event.ingested must be set on influencer after persist", inf.getEventIngested());
     }
 
     public void testExecuteRequest_ClearsBulkRequest() {
@@ -237,6 +262,89 @@ public class JobResultsPersisterTests extends ESTestCase {
         verify(client).projectResolver();
         inOrder.verify(client).execute(eq(TransportBulkAction.TYPE), bulkRequestCaptor.capture(), any());
         verifyNoMoreInteractions(client);
+    }
+
+    /**
+     * A document that the index permanently rejects (here: a keyword value over Lucene's maximum term length)
+     * must not be resubmitted by later {@code executeRequest} calls together with newer results.
+     */
+    public void testExecuteRequest_PermanentlyRejectedItemIsNotResubmitted() {
+        Bucket poisonBucket = new Bucket(JOB_ID, new Date(1_000_000L), 600);
+        Bucket newerBucket = new Bucket(JOB_ID, new Date(2_000_000L), 600);
+        String poisonId = poisonBucket.getId();
+        String newerId = newerBucket.getId();
+
+        Exception immenseTerm = new IllegalArgumentException(
+            "Document contains at least one immense term in field=\"by_field_value\" (whose UTF8 encoding is longer than the max length "
+                + "32766)"
+        );
+        mockBulkFailingFor(poisonId, new DocumentParsingException(XContentLocation.UNKNOWN, "failed to parse field", immenseTerm));
+
+        JobResultsPersister.Builder builder = persister.bulkPersisterBuilder(JOB_ID);
+
+        // First bulk contains the poison document and is reported as a failure
+        builder.persistBucket(poisonBucket);
+        expectThrows(ElasticsearchException.class, builder::executeRequest);
+
+        // Newer results arrive and are flushed; the rejected document must not travel with them
+        builder.persistBucket(newerBucket);
+        try {
+            builder.executeRequest();
+        } catch (ElasticsearchException e) {
+            // reported through the assertions below by what was sent
+        }
+
+        verify(client, times(2)).execute(eq(TransportBulkAction.TYPE), bulkRequestCaptor.capture(), any());
+        BulkRequest second = bulkRequestCaptor.getAllValues().get(1);
+        List<String> secondIds = second.requests().stream().map(DocWriteRequest::id).toList();
+        assertThat("newer document is sent in the second bulk", secondIds, hasItem(newerId));
+        assertThat("permanently rejected document is not resubmitted", secondIds, not(hasItem(poisonId)));
+    }
+
+    /**
+     * Makes the mock client answer every bulk request item by item: the item with the given id fails with the given cause,
+     * all others succeed.
+     */
+    private void mockBulkFailingFor(String failingId, Exception cause) {
+        doAnswer(invocationOnMock -> {
+            BulkRequest request = (BulkRequest) invocationOnMock.getArguments()[1];
+            BulkItemResponse[] items = new BulkItemResponse[request.numberOfActions()];
+            for (int i = 0; i < items.length; i++) {
+                String id = request.requests().get(i).id();
+                if (failingId.equals(id)) {
+                    items[i] = BulkItemResponse.failure(
+                        i,
+                        DocWriteRequest.OpType.INDEX,
+                        new BulkItemResponse.Failure(".ml-anomalies-shared", id, cause)
+                    );
+                } else {
+                    items[i] = BulkItemResponse.success(
+                        i,
+                        DocWriteRequest.OpType.INDEX,
+                        new IndexResponse(new ShardId(".ml-anomalies-shared", "uuid", 0), id, 0, 0, 1, true)
+                    );
+                }
+            }
+            @SuppressWarnings("unchecked")
+            ActionListener<BulkResponse> listener = (ActionListener<BulkResponse>) invocationOnMock.getArguments()[2];
+            listener.onResponse(new BulkResponse(items, 0L));
+            return null;
+        }).when(client).execute(eq(TransportBulkAction.TYPE), any(), any());
+    }
+
+    /**
+     * An item that fails irrecoverably for a reason other than being an invalid document (here: 404, e.g. a missing results index)
+     * stays queued so that a later call can still deliver it once the cause is resolved.
+     */
+    public void testExecuteRequest_NonDocumentIrrecoverableFailureKeepsItems() {
+        Bucket bucket = new Bucket(JOB_ID, new Date(1_000_000L), 600);
+        mockBulkFailingFor(bucket.getId(), new ElasticsearchStatusException("no such index", RestStatus.NOT_FOUND));
+
+        JobResultsPersister.Builder builder = persister.bulkPersisterBuilder(JOB_ID);
+        builder.persistBucket(bucket);
+        expectThrows(ElasticsearchException.class, builder::executeRequest);
+
+        assertThat(builder.getBulkRequest().numberOfActions(), equalTo(1));
     }
 
     public void testPersistTimingStats() {
@@ -286,6 +394,30 @@ public class JobResultsPersisterTests extends ESTestCase {
                 )
             )
         );
+    }
+
+    public void testPersistEsqlDatafeedSourceCheckpointShouldWriteThroughResultsWriteAlias() {
+        EsqlDatafeedSourceCheckpoint checkpoint = new EsqlDatafeedSourceCheckpoint(JOB_ID, "foo-df", 3_600_000L, "fp");
+        persister.persistEsqlDatafeedSourceCheckpoint(
+            checkpoint,
+            WriteRequest.RefreshPolicy.IMMEDIATE,
+            ActionTestUtils.assertNoFailureListener(r -> {})
+        );
+
+        verify(client).execute(eq(TransportBulkAction.TYPE), bulkRequestCaptor.capture(), any());
+        IndexRequest indexRequest = (IndexRequest) bulkRequestCaptor.getValue().requests().get(0);
+        assertThat(indexRequest.index(), equalTo(AnomalyDetectorsIndex.resultsWriteAlias(JOB_ID)));
+        assertThat(indexRequest.id(), equalTo(EsqlDatafeedSourceCheckpoint.documentId(JOB_ID)));
+        assertThat(indexRequest.sourceAsMap().get("result_type"), equalTo(EsqlDatafeedSourceCheckpoint.TYPE.getPreferredName()));
+        assertThat(bulkRequestCaptor.getValue().getRefreshPolicy(), equalTo(WriteRequest.RefreshPolicy.IMMEDIATE));
+    }
+
+    public void testPersistEsqlDatafeedSourceCheckpointSyncShouldUseRefreshNone() {
+        EsqlDatafeedSourceCheckpoint checkpoint = new EsqlDatafeedSourceCheckpoint(JOB_ID, "foo-df", 3_600_000L, "fp");
+        persister.persistEsqlDatafeedSourceCheckpoint(checkpoint);
+
+        verify(client).execute(eq(TransportBulkAction.TYPE), bulkRequestCaptor.capture(), any());
+        assertThat(bulkRequestCaptor.getValue().getRefreshPolicy(), equalTo(WriteRequest.RefreshPolicy.NONE));
     }
 
     public void testPersistDatafeedTimingStats() {

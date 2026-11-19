@@ -46,8 +46,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
-import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.NoOpEngine;
 import org.elasticsearch.index.shard.IndexShard;
@@ -234,7 +234,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                         throw new RuntimeException(e);
                     }
 
-                    return new NoOpEngine(EngineTestCase.copy(config, () -> -1L));
+                    return new NoOpEngine(EngineConfig.builder(config).globalCheckpointSupplier(() -> -1L).build());
                 }
             });
         }

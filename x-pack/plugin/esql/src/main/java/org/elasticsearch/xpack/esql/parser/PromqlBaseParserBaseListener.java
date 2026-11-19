@@ -205,6 +205,18 @@ public class PromqlBaseParserBaseListener implements PromqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterLabelListItem(PromqlBaseParser.LabelListItemContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitLabelListItem(PromqlBaseParser.LabelListItemContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterLabels(PromqlBaseParser.LabelsContext ctx) { }
   /**
    * {@inheritDoc}
@@ -229,6 +241,18 @@ public class PromqlBaseParserBaseListener implements PromqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterLabelValue(PromqlBaseParser.LabelValueContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitLabelValue(PromqlBaseParser.LabelValueContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterLabelName(PromqlBaseParser.LabelNameContext ctx) { }
   /**
    * {@inheritDoc}
@@ -248,6 +272,30 @@ public class PromqlBaseParserBaseListener implements PromqlBaseParserListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitIdentifier(PromqlBaseParser.IdentifierContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterMetricName(PromqlBaseParser.MetricNameContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitMetricName(PromqlBaseParser.MetricNameContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterGroupingLabel(PromqlBaseParser.GroupingLabelContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitGroupingLabel(PromqlBaseParser.GroupingLabelContext ctx) { }
   /**
    * {@inheritDoc}
    *

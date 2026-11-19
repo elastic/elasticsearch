@@ -18,7 +18,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -141,7 +141,7 @@ public class MockedRequestActionBasedRerankerIT extends AbstractRerankerIT {
         }
     }
 
-    public static class TestRerankingActionRequest extends LegacyActionRequest {
+    public static class TestRerankingActionRequest extends UntypedActionRequest {
 
         private final List<String> docFeatures;
 

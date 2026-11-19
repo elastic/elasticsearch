@@ -10,7 +10,7 @@ package org.elasticsearch.repositories.blobstore.testkit.integrity;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -43,7 +43,7 @@ class TransportRepositoryVerifyIntegrityResponseChunkAction extends HandledTrans
         this.activeRepositoryVerifyIntegrityTasks = activeRepositoryVerifyIntegrityTasks;
     }
 
-    static class Request extends LegacyActionRequest {
+    static class Request extends UntypedActionRequest {
         private final long coordinatingTaskId;
         private final RepositoryVerifyIntegrityResponseChunk chunkContents;
 

@@ -1,0 +1,106 @@
+---
+"Attachment larger than limit is rejected":
+  - requires:
+      cluster_features: [ "ingest.attachment.max_field_size_feature" ]
+      reason: "new field added"
+  - do:
+      ingest.simulate:
+        body: >
+          {
+            "pipeline": {
+              "processors": [
+                {
+                  "attachment": {
+                    "field": "data",
+                    "properties": ["content"],
+                    "max_field_bytes": 10,
+                    "remove_binary": true
+                  }
+                }
+              ]
+            },
+            "docs": [
+              {
+                "_source": {
+                  "data": "QUFBQUFBQUFBQUFBQUFBQQ=="
+                }
+              }
+            ]
+          }
+  - is_true: docs.0.error
+  - match: { docs.0.error.type: parse_exception }
+  - match: { docs.0.error.reason: "field [data] has an attachment field size of [24] bytes exceeding the maximum allowed processor size of [10] bytes" }
+
+---
+"Attachment succeeds when binary size is within limits":
+  - requires:
+      cluster_features: [ "ingest.attachment.max_field_size_feature" ]
+      reason: "new field added"
+  - do:
+      ingest.simulate:
+        body: >
+          {
+            "pipeline": {
+              "processors": [
+                {
+                  "attachment": {
+                    "field": "data",
+                    "properties": ["content"],
+                    "max_field_bytes": 20,
+                    "remove_binary": true
+                  }
+                }
+              ]
+            },
+            "docs": [
+              {
+                "_source": {
+                  "data": "SGVsbG8gd29ybGQ="
+                }
+              }
+            ]
+          }
+  - length: { docs: 1 }
+  - is_false: docs.0.error
+  - is_true: docs.0.doc._source.attachment.content
+
+---
+"Attachment on_failure runs when binary size exceeds limit":
+  - requires:
+      cluster_features: [ "ingest.attachment.max_field_size_feature" ]
+      reason: "new field added"
+  - do:
+      ingest.simulate:
+        body: >
+          {
+            "pipeline": {
+              "processors": [
+                {
+                  "attachment": {
+                    "field": "data",
+                    "properties": ["content"],
+                    "max_field_bytes": 10,
+                    "remove_binary": true,
+                    "on_failure": [
+                      {
+                        "set": {
+                          "field": "caught",
+                          "value": true
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            "docs": [
+              {
+                "_source": {
+                  "data": "QUFBQUFBQUFBQUFBQUFBQQ=="
+                }
+              }
+            ]
+          }
+  - length: { docs: 1 }
+  - is_false: docs.0.error
+  - match: { docs.0.doc._source.caught: true }

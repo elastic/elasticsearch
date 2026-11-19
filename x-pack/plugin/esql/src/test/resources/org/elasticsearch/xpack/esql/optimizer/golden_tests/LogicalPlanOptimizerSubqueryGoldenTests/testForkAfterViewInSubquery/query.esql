@@ -1,0 +1,1 @@
+FROM (FROM view_0 | FORK (WHERE emp_no > 0) (WHERE emp_no <= 0)), (FROM employees)

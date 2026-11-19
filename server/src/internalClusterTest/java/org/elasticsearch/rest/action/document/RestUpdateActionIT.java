@@ -66,8 +66,7 @@ public class RestUpdateActionIT extends ESIntegTestCase {
             }""");
         getRestClient().performRequest(create);
 
-        Request seedDoc = new Request("POST", "/slice-update-it/_doc/1");
-        seedDoc.addParameter("_slice", "s1");
+        Request seedDoc = new Request("POST", "/slice-update-it/s1/_doc/1");
         seedDoc.setJsonEntity("""
             {
               "field": "value"
@@ -87,8 +86,7 @@ public class RestUpdateActionIT extends ESIntegTestCase {
         );
         assertThat(missingSliceBody, containsString("[_slice] is required when [index.slice.enabled] is true"));
 
-        Request invalidSlice = new Request("POST", "/slice-update-it/_update/1");
-        invalidSlice.addParameter("_slice", "_all");
+        Request invalidSlice = new Request("POST", "/slice-update-it/_all/_update/1");
         invalidSlice.setJsonEntity("""
             {
               "doc": {
@@ -118,8 +116,7 @@ public class RestUpdateActionIT extends ESIntegTestCase {
         );
         assertThat(routingProvidedBody, containsString("[routing] is not allowed when [index.slice.enabled] is true"));
 
-        Request validSlice = new Request("POST", "/slice-update-it/_update/1");
-        validSlice.addParameter("_slice", "s1");
+        Request validSlice = new Request("POST", "/slice-update-it/s1/_update/1");
         validSlice.setJsonEntity("""
             {
               "doc": {
@@ -149,8 +146,7 @@ public class RestUpdateActionIT extends ESIntegTestCase {
             }""");
         getRestClient().performRequest(seedDoc);
 
-        Request request = new Request("POST", "/slice-update-disabled/_update/1");
-        request.addParameter("_slice", "s1");
+        Request request = new Request("POST", "/slice-update-disabled/s1/_update/1");
         request.setJsonEntity("""
             {
               "doc": {
@@ -164,8 +160,7 @@ public class RestUpdateActionIT extends ESIntegTestCase {
 
     public void testUpdateSliceParamRejectedWhenFeatureFlagDisabled() throws Exception {
         assumeFalse("slice indexing feature flag must be disabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        Request request = new Request("POST", "/test_index/_update/1");
-        request.addParameter("_slice", "s1");
+        Request request = new Request("POST", "/test_index/s1/_update/1");
         request.setJsonEntity("""
             {
               "doc": {

@@ -1,3 +1,14 @@
 ALL-UNNAMED:
   - manage_threads
   - outbound_network
+  - files:
+    # EKS IRSA: operator symlinks /var/run/secrets/eks.amazonaws.com/serviceaccount/token here.
+    - relative_path: "esql-datasource-s3/aws-web-identity-token-file"
+      relative_to: "config"
+      mode: "read"
+    # EKS Pod Identity: operator symlinks
+    # /var/run/secrets/pods.eks.amazonaws.com/serviceaccount/eks-pod-identity-token here.
+    # Read by EsqlContainerCredentialsProvider — no JVM-wide system-property redirect.
+    - relative_path: "esql-datasource-s3/eks-pod-identity-token"
+      relative_to: "config"
+      mode: "read"

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.downsample;
 
 import org.apache.lucene.internal.hppc.IntArrayList;
 import org.apache.lucene.internal.hppc.IntObjectHashMap;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.common.Strings;
@@ -52,6 +53,7 @@ public class TDigestHistogramFieldDownsamplerTests extends ESTestCase {
         );
         producer.collect(docValues, IntArrayList.from(1, 2));
         assertFalse(producer.isEmpty());
+        assertTrue(producer.isDone());
 
         var builder = new XContentBuilder(XContentType.JSON.xContent(), new ByteArrayOutputStream());
         builder.startObject();
@@ -59,6 +61,8 @@ public class TDigestHistogramFieldDownsamplerTests extends ESTestCase {
         builder.endObject();
         var content = Strings.toString(builder);
         assertThat(content, equalTo("{\"my-histogram\":{\"counts\":[1,2],\"values\":[1.0,2.0]}}"));
+        producer.reset();
+        assertFalse(producer.isDone());
     }
 
     public void testAggregateProducerForLegacyHistogram() throws IOException {
@@ -79,6 +83,7 @@ public class TDigestHistogramFieldDownsamplerTests extends ESTestCase {
         );
         producer.collect(docValues, IntArrayList.from(1, 2));
         assertFalse(producer.isEmpty());
+        assertFalse(producer.isDone());
 
         var builder = new XContentBuilder(XContentType.JSON.xContent(), new ByteArrayOutputStream());
         builder.startObject();
@@ -101,7 +106,6 @@ public class TDigestHistogramFieldDownsamplerTests extends ESTestCase {
         );
         assertTrue(producer.isEmpty());
         assertEquals("my-histogram", producer.name());
-
         var docValues = createValuesInstance(
             IntArrayList.from(1, 2),
             new HistogramValue[] {
@@ -110,6 +114,7 @@ public class TDigestHistogramFieldDownsamplerTests extends ESTestCase {
         );
         producer.collect(docValues, IntArrayList.from(1, 2));
         assertFalse(producer.isEmpty());
+        assertTrue(producer.isDone());
 
         var builder = new XContentBuilder(XContentType.JSON.xContent(), new ByteArrayOutputStream());
         builder.startObject();
@@ -117,6 +122,8 @@ public class TDigestHistogramFieldDownsamplerTests extends ESTestCase {
         builder.endObject();
         var content = Strings.toString(builder);
         assertThat(content, equalTo("{\"my-histogram\":{\"counts\":[1,2],\"centroids\":[1.0,2.0]}}"));
+        producer.reset();
+        assertFalse(producer.isDone());
     }
 
     public void testAggregateProducerForTDigest() throws IOException {
@@ -139,6 +146,7 @@ public class TDigestHistogramFieldDownsamplerTests extends ESTestCase {
         );
         producer.collect(docValues, IntArrayList.from(1, 2));
         assertFalse(producer.isEmpty());
+        assertFalse(producer.isDone());
 
         var builder = new XContentBuilder(XContentType.JSON.xContent(), new ByteArrayOutputStream());
         builder.startObject();
@@ -169,6 +177,11 @@ public class TDigestHistogramFieldDownsamplerTests extends ESTestCase {
             @Override
             public HistogramValue histogram() {
                 return docIdToValue.get(currentDocId);
+            }
+
+            @Override
+            public DocIdSetIterator docIdIterator() {
+                return null;
             }
         };
     }

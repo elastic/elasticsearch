@@ -31,10 +31,10 @@ public class AggregateMetricDoubleBlockBuilder extends AbstractBlockBuilder impl
         sumBuilder = null;
         countBuilder = null;
         try {
-            minBuilder = new DoubleBlockBuilder(estimatedSize, blockFactory);
-            maxBuilder = new DoubleBlockBuilder(estimatedSize, blockFactory);
-            sumBuilder = new DoubleBlockBuilder(estimatedSize, blockFactory);
-            countBuilder = new IntBlockBuilder(estimatedSize, blockFactory);
+            minBuilder = new DoubleBlockBuilder(estimatedSize, blockFactory, false);
+            maxBuilder = new DoubleBlockBuilder(estimatedSize, blockFactory, false);
+            sumBuilder = new DoubleBlockBuilder(estimatedSize, blockFactory, false);
+            countBuilder = new IntBlockBuilder(estimatedSize, blockFactory, false);
         } finally {
             if (countBuilder == null) {
                 Releasables.closeWhileHandlingException(minBuilder, maxBuilder, sumBuilder, countBuilder);
@@ -114,6 +114,19 @@ public class AggregateMetricDoubleBlockBuilder extends AbstractBlockBuilder impl
             count().appendInt(block.countBlock().getInt(position));
         }
         return this;
+    }
+
+    @Override
+    public AbstractBlockBuilder cancelPositionEntry() {
+        // AggregateMetricDoubleBlockBuilder delegates to inner builders; the inherited cancelPositionEntry rolls back
+        // only the outer valueCount and not the inner builders' state. Throw to make misuse obvious.
+        throw new UnsupportedOperationException("cancelPositionEntry is not supported by AggregateMetricDoubleBlockBuilder");
+    }
+
+    @Override
+    public boolean reopenLastPositionEntry() {
+        // See cancelPositionEntry: the inherited implementation would leave the inner builders behind.
+        throw new UnsupportedOperationException("reopenLastPositionEntry is not supported by AggregateMetricDoubleBlockBuilder");
     }
 
     @Override

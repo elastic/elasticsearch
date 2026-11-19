@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `LTRIM` function [esql-ltrim]
 
-:::{include} ../../_snippets/functions/layout/ltrim.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/ltrim.md
 :::

@@ -17,6 +17,7 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
@@ -26,6 +27,7 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.Queries;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.io.stream.ExpressionQueryBuilder;
@@ -67,6 +69,10 @@ import static org.elasticsearch.xpack.esql.core.util.Queries.Clause.FILTER;
 import static org.elasticsearch.xpack.esql.core.util.Queries.Clause.MUST;
 import static org.elasticsearch.xpack.esql.core.util.Queries.Clause.SHOULD;
 import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class FilterTests extends ESTestCase {
@@ -94,6 +100,8 @@ public class FilterTests extends ESTestCase {
             new AnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
                 TEST_FUNCTION_REGISTRY,
+                PromqlFunctionRegistry.INSTANCE,
+                EsqlTestUtils.TEST_ANALYSIS_REGISTRY,
                 indexResolutions(test),
                 Map.of(),
                 EsqlTestUtils.emptyPolicyResolution(),
@@ -343,6 +351,29 @@ public class FilterTests extends ESTestCase {
         assertEquals(LAST_NAME, innerFilter.fieldName());
         assertEquals("""
             last_name LIKE ("a+", "b+")""", innerFilter.getExpression().toString());
+    }
+
+    public void testIsNotNullCanMatchFilterDeserializesAsPlainExists() throws IOException {
+        var plan = plan(LoggerMessageFormat.format(null, """
+             FROM test
+            |WHERE {} IS NOT NULL
+            """, EMP_NO), null);
+
+        var filter = filterQueryForTransportNodes(TransportVersion.current(), plan);
+        assertThat(filter, instanceOf(ExistsQueryBuilder.class));
+        assertThat(filter.getClass(), not(equalTo(ExistsQueryBuilder.class)));
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeNamedWriteable(filter);
+            try (
+                StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), SerializationTestUtils.writableRegistry())
+            ) {
+                QueryBuilder read = in.readNamedWriteable(QueryBuilder.class);
+                assertThat(read.getClass(), equalTo(ExistsQueryBuilder.class));
+                assertThat(((ExistsQueryBuilder) read).fieldName(), equalTo(EMP_NO));
+                assertThat(in.available(), is(0));
+            }
+        }
     }
 
     /**

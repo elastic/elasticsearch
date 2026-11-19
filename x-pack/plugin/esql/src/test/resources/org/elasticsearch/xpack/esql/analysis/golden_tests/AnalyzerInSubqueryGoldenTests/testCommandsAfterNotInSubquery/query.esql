@@ -1,0 +1,5 @@
+FROM employees
+| WHERE emp_no NOT IN (FROM employees | KEEP emp_no)
+| EVAL doubled = salary * 2
+| SORT doubled
+| LIMIT 5

@@ -1,7 +1,7 @@
 ---
 "Refresh":
-
-
+ - requires:
+    test_runner_features: [ "allowed_warnings" ]
 
  - do:
       indices.create:
@@ -14,6 +14,8 @@
                   number_of_replicas: 0
                   # make sure that we don't have shard relocations; otherwise search can be executed by a relocated shard
                   routing.rebalance.enable: none
+      allowed_warnings:
+        - "[index.number_of_routing_shards] setting was deprecated in Elasticsearch and will be removed in a future release. See the deprecation documentation for the next major version."
  - do:
       cluster.health:
           wait_for_status: green

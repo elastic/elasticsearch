@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -41,6 +42,9 @@ public class AbsentTests extends AbstractAggregationTestCase {
         ArrayList<TestCaseSupplier> suppliers = new ArrayList<>();
         FunctionAppliesTo histogramPreviewAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", false);
         FunctionAppliesTo histogramGaAppliesTo = appliesTo(FunctionAppliesToLifecycle.GA, "9.4.0", "", true);
+        FunctionAppliesTo flattenedPreviewAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.5.0", "", false);
+        FunctionAppliesTo dateRangeAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.5.0", "", false);
+        FunctionAppliesTo counterAppliesTo = appliesTo(FunctionAppliesToLifecycle.GA, "9.7.0", "", true);
 
         Stream.of(
             MultiRowTestCaseSupplier.nullCases(1, 1000),
@@ -48,9 +52,12 @@ public class AbsentTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.longCases(1, 1000, Long.MIN_VALUE, Long.MAX_VALUE, true),
             MultiRowTestCaseSupplier.ulongCases(1, 1000, BigInteger.ZERO, UNSIGNED_LONG_MAX, true),
             MultiRowTestCaseSupplier.doubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE, true),
+            MultiRowTestCaseSupplier.counterCases(1, 1000).stream().map(s -> s.withAppliesTo(counterAppliesTo)).toList(),
             MultiRowTestCaseSupplier.aggregateMetricDoubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE),
             MultiRowTestCaseSupplier.dateCases(1, 1000),
             MultiRowTestCaseSupplier.dateNanosCases(1, 1000),
+            MultiRowTestCaseSupplier.dateRangeCases(1, 1000).stream().map(s -> s.withAppliesTo(dateRangeAppliesTo)).toList(),
+            MultiRowTestCaseSupplier.doubleRangeCases(1, 1000),
             MultiRowTestCaseSupplier.denseVectorCases(1, 1000),
             MultiRowTestCaseSupplier.booleanCases(1, 1000),
             MultiRowTestCaseSupplier.ipCases(1, 1000),
@@ -63,6 +70,7 @@ public class AbsentTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.geohexCases(1, 1000),
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.KEYWORD),
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT),
+            MultiRowTestCaseSupplier.flattenedCases(1, 1000),
             MultiRowTestCaseSupplier.exponentialHistogramCases(1, 100)
                 .stream()
                 .map(s -> s.withAppliesTo(histogramPreviewAppliesTo).withAppliesTo(histogramGaAppliesTo))
@@ -83,11 +91,13 @@ public class AbsentTests extends AbstractAggregationTestCase {
             DataType.BOOLEAN,
             DataType.CARTESIAN_POINT,
             DataType.CARTESIAN_SHAPE,
-            DataType.DATE_NANOS,
+            DataType.DATE_RANGE,
             DataType.DATETIME,
             DataType.DATE_NANOS,
             DataType.DENSE_VECTOR,
             DataType.DOUBLE,
+            DataType.DOUBLE_RANGE,
+            DataType.FLATTENED,
             DataType.GEO_POINT,
             DataType.GEO_SHAPE,
             DataType.INTEGER,
@@ -105,14 +115,17 @@ public class AbsentTests extends AbstractAggregationTestCase {
                 ? TestCaseSupplier.TypedData.multiRow(List.of(), dataType, "field")
                     .withAppliesTo(histogramPreviewAppliesTo)
                     .withAppliesTo(histogramGaAppliesTo)
+                : dataType == DataType.FLATTENED
+                    ? TestCaseSupplier.TypedData.multiRow(List.of(), dataType, "field")
+                        .withAppliesTo(flattenedPreviewAppliesTo)
+                        .withPreview()
                 : TestCaseSupplier.TypedData.multiRow(List.of(), dataType, "field");
-            suppliers.add(
-                new TestCaseSupplier(
-                    "No rows (" + dataType + ")",
-                    List.of(dataType),
-                    () -> new TestCaseSupplier.TestCase(List.of(field), "Present", DataType.BOOLEAN, equalTo(true))
-                )
-            );
+            suppliers.add(new TestCaseSupplier("No rows (" + dataType + ")", List.of(dataType), () -> {
+                if (dataType == DataType.FLATTENED) {
+                    assumeTrue("Requires FLATTENED_DATATYPE capability", EsqlCapabilities.Cap.FLATTENED_DATATYPE.isEnabled());
+                }
+                return new TestCaseSupplier.TestCase(List.of(field), "Present", DataType.BOOLEAN, equalTo(true));
+            }));
         }
 
         // "No rows" expects 0 here instead of null

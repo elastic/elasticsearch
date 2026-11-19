@@ -38,6 +38,7 @@ import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -406,9 +407,10 @@ public class IndexingDiskControllerIT extends AbstractStatelessPluginIntegTestCa
             RepositoriesService repositoriesService,
             ThreadPool threadPool,
             ClusterService clusterService,
-            ProjectResolver projectResolver
+            ProjectResolver projectResolver,
+            MeterRegistry meterRegistry
         ) {
-            return new TestObjectStoreService(settings, repositoriesService, threadPool, clusterService, projectResolver);
+            return new TestObjectStoreService(settings, repositoriesService, threadPool, clusterService, projectResolver, meterRegistry);
         }
     }
 
@@ -417,7 +419,7 @@ public class IndexingDiskControllerIT extends AbstractStatelessPluginIntegTestCa
      */
     public static class TestObjectStoreService extends ObjectStoreService {
 
-        private final List<BlockedListener<Void>> blockedListeners = new ArrayList<>();
+        private final List<BlockedListener<BccUploadObjectStoreTiming>> blockedListeners = new ArrayList<>();
         private boolean blocked;
 
         public TestObjectStoreService(
@@ -425,9 +427,10 @@ public class IndexingDiskControllerIT extends AbstractStatelessPluginIntegTestCa
             RepositoriesService repositoriesService,
             ThreadPool threadPool,
             ClusterService clusterService,
-            ProjectResolver projectResolver
+            ProjectResolver projectResolver,
+            MeterRegistry meterRegistry
         ) {
-            super(settings, repositoriesService, threadPool, clusterService, projectResolver);
+            super(settings, repositoriesService, threadPool, clusterService, projectResolver, meterRegistry);
         }
 
         synchronized void block() {
@@ -453,7 +456,7 @@ public class IndexingDiskControllerIT extends AbstractStatelessPluginIntegTestCa
             Directory directory,
             long commitStartNanos,
             VirtualBatchedCompoundCommit pendingCommit,
-            ActionListener<Void> listener
+            ActionListener<BccUploadObjectStoreTiming> listener
         ) {
             synchronized (this) {
                 if (blocked) {

@@ -1,0 +1,2 @@
+SET unmapped_fields="nullify"; FROM employees, (FROM languages | WHERE does_not_exist::LONG > 0)
+| KEEP emp_no, language_code

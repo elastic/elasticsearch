@@ -18,6 +18,9 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.SecureSetting;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
@@ -41,6 +44,10 @@ public class InitialNodeSecurityAutoConfiguration {
 
     private static final Logger LOGGER = LogManager.getLogger(InitialNodeSecurityAutoConfiguration.class);
     private static final BackoffPolicy BACKOFF_POLICY = BackoffPolicy.exponentialBackoff();
+    private static final Setting<SecureString> ENCRYPTION_AUTO_CONFIG_PASSWORD = SecureSetting.secureString(
+        "cluster.state.encryption.password.autoconfigured",
+        null
+    );
 
     private InitialNodeSecurityAutoConfiguration() {
         throw new IllegalStateException("Class should not be instantiated");
@@ -135,6 +142,7 @@ public class InitialNodeSecurityAutoConfiguration {
                                     kibanaEnrollmentToken,
                                     nodeEnrollmentToken,
                                     httpsCaFingerprint,
+                                    ENCRYPTION_AUTO_CONFIG_PASSWORD.exists(environment.settings()),
                                     console
                                 );
                             }, e -> LOGGER.error("Unexpected exception during security auto-configuration", e))
@@ -211,6 +219,7 @@ public class InitialNodeSecurityAutoConfiguration {
         String kibanaEnrollmentToken,
         String nodeEnrollmentToken,
         String caCertFingerprint,
+        boolean encryptionAutoConfigured,
         ConsoleLoader.Console console
     ) {
         // Use eye-catching pictograms to output the configuration information, but only if the
@@ -242,6 +251,10 @@ public class InitialNodeSecurityAutoConfiguration {
         builder.append(System.lineSeparator());
         builder.append(successBullet + " Authentication is enabled and cluster connections are encrypted.");
         builder.append(System.lineSeparator());
+        if (encryptionAutoConfigured) {
+            builder.append(successBullet + " Cluster state encryption has been automatically configured.");
+            builder.append(System.lineSeparator());
+        }
         builder.append(System.lineSeparator());
         if (elasticPassword == null) {
             builder.append(

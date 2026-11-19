@@ -15,7 +15,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.ReindexRequestBuilder;
 import org.elasticsearch.index.reindex.UpdateByQueryRequestBuilder;
 import org.elasticsearch.plugins.Plugin;
@@ -461,7 +461,7 @@ public class SemanticTextInferenceLegacyFormatIT extends SemanticTextLegacyForma
                 )
                 .get();
 
-            BulkByScrollResponse ubqResponse = new UpdateByQueryRequestBuilder(client()).source(mappingUpdateIndex).get();
+            BulkByPaginatedSearchResponse ubqResponse = new UpdateByQueryRequestBuilder(client()).source(mappingUpdateIndex).get();
             assertThat(ubqResponse.getUpdated(), equalTo(1L));
 
             GetResponse getResponse = client().prepareGet(mappingUpdateIndex, "doc_1").get();
@@ -490,7 +490,7 @@ public class SemanticTextInferenceLegacyFormatIT extends SemanticTextLegacyForma
             )
             .get();
 
-        BulkByScrollResponse ubqResponse = new UpdateByQueryRequestBuilder(client()).source(indexName)
+        BulkByPaginatedSearchResponse ubqResponse = new UpdateByQueryRequestBuilder(client()).source(indexName)
             .script(new Script(ScriptType.INLINE, UBQ_SCRIPT_LANG, UPDATE_SEMANTIC_FIELDS_SCRIPT, Map.of()))
             .get();
         assertThat(ubqResponse.getUpdated(), equalTo(1L));

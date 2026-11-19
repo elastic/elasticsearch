@@ -48,10 +48,8 @@ public class SyncPluginsActionTests extends ESTestCase {
     private PluginsConfig config;
     private MockTerminal terminal;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initPluginsEnvironment() throws Exception {
         Path home = createTempDir();
         Settings settings = Settings.builder().put("path.home", home).build();
         env = TestEnvironment.newEnvironment(settings);

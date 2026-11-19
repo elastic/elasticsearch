@@ -51,7 +51,7 @@ public class BytesRefArrowBufTests extends ESTestCase {
     @Before
     public void setup() {
         allocator = new RootAllocator();
-        blockFactory = new BlockFactory(new NoopCircuitBreaker("test-noop"), BigArrays.NON_RECYCLING_INSTANCE);
+        blockFactory = new BlockFactory(NoopCircuitBreaker.INSTANCE, BigArrays.NON_RECYCLING_INSTANCE);
     }
 
     @After
@@ -95,6 +95,7 @@ public class BytesRefArrowBufTests extends ESTestCase {
                 assertBytesRef("hello", vector, 0, scratch);
                 assertBytesRef("world", vector, 1, scratch);
                 assertBytesRef("", vector, 2, scratch);
+                assertEquals(10, vector.estimateTotalValueBytes());
 
                 // assertKeepMask(vector); TODO doesn't return "this"
                 assertFilter(vector);
@@ -207,6 +208,7 @@ public class BytesRefArrowBufTests extends ESTestCase {
                 assertEquals(0, block.getValueCount(2));
                 assertFalse(block.isNull(3));
                 assertBytesRef("baz", block, 3, scratch);
+                assertEquals(9, block.estimateTotalValueBytes());
             }
         }
     }
@@ -468,6 +470,7 @@ public class BytesRefArrowBufTests extends ESTestCase {
                 assertBytesRef("baz", block, block.getFirstValueIndex(3) + 1, scratch);
 
                 assertEquals(5, block.getTotalValueCount());
+                assertEquals(19, block.estimateTotalValueBytes());
             }
         }
     }

@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.hamcrest.Matchers.containsString;
 
 public class TranslateTimeSeriesCollapseTests extends ESTestCase {
@@ -57,7 +57,7 @@ public class TranslateTimeSeriesCollapseTests extends ESTestCase {
 
         QlIllegalArgumentException ex = expectThrows(
             QlIllegalArgumentException.class,
-            () -> new TranslateTimeSeriesCollapse().apply(collapse, unboundLogicalOptimizerContext())
+            () -> new TranslateTimeSeriesCollapse().apply(collapse, analyzer().buildContext())
         );
         assertThat(ex.getMessage(), containsString("TimeSeriesCollapse requires a PromqlCommand child"));
         assertThat(ex.getMessage(), containsString(EsRelation.class.getName()));

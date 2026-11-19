@@ -71,7 +71,7 @@ public class ClusterFormationFailureHelper {
 
     /**
      * Works with the {@link JoinHelper} to log the latest node-join attempt failure and cluster state debug information. Must call
-     * {@link ClusterFormationState#start()} to begin.
+     * {@link #start()} to begin.
      *
      * @param settings provides the period in which to log cluster formation errors.
      * @param clusterFormationStateSupplier information about the current believed cluster state (See {@link ClusterFormationState})

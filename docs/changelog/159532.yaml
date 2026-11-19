@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 159532
+summary: Honor `METADATA` collisions on external datasets
+type: enhancement

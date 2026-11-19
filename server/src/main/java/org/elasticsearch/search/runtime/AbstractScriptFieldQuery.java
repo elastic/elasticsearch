@@ -24,6 +24,7 @@ import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.script.AbstractFieldScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -63,6 +64,7 @@ public abstract class AbstractScriptFieldQuery<S extends AbstractFieldScript> ex
 
     @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
+        final Runnable cancellationCheck = (searcher instanceof ContextIndexSearcher cis) ? cis::checkCancelled : null;
         return new ConstantScoreWeight(this, boost) {
             @Override
             public boolean isCacheable(LeafReaderContext ctx) {
@@ -72,6 +74,7 @@ public abstract class AbstractScriptFieldQuery<S extends AbstractFieldScript> ex
             @Override
             public ScorerSupplier scorerSupplier(LeafReaderContext ctx) throws IOException {
                 S scriptContext = scriptContextFunction.apply(ctx);
+                scriptContext._setCancellationCheck(cancellationCheck);
                 DocIdSetIterator approximation = DocIdSetIterator.all(ctx.reader().maxDoc());
                 Scorer scorer = new ConstantScoreScorer(score(), scoreMode, createTwoPhaseIterator(scriptContext, approximation));
                 return new DefaultScorerSupplier(scorer);

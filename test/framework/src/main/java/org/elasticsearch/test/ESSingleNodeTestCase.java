@@ -19,6 +19,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteComposableIndexTemplateAction;
+import org.elasticsearch.action.bulk.BatchIndexingEnabled;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
@@ -66,7 +67,9 @@ import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.junit.After;
 import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -129,9 +132,8 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         }
     }
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public final void startTestNode() throws Exception {
         // the seed has to be created regardless of whether it will be used or not, for repeatability
         long seed = random().nextLong();
         // Create the node lazily, on the first test. This is ok because we do not randomize any settings,
@@ -141,15 +143,14 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         }
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public final void stopTestNode() throws Exception {
         logger.trace("[{}#{}]: cleaning up after test", getTestClass().getSimpleName(), getTestName());
         awaitIndexShardCloseAsyncTasks();
         ensureNoInitializingShards();
         ensureAllFreeContextActionsAreConsumed();
 
         ensureAllContextsReleased(getInstanceFromNode(SearchService.class));
-        super.tearDown();
         var deleteDataStreamsRequest = new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, "*");
         deleteDataStreamsRequest.indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN);
         try {
@@ -236,6 +237,15 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         return true;
     }
 
+    /**
+     * Determines whether the columnar ID mode should be randomized in the test setup.
+     *
+     * @return {@code true} if the columnar ID mode should be randomized; otherwise, returns {@code false}.
+     */
+    protected boolean randomizeColumnarIdMode() {
+        return true;
+    }
+
     @Override
     protected List<String> filteredWarnings() {
         return Stream.concat(
@@ -272,8 +282,12 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             // turn it off for these tests.
             .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
             .putList(DISCOVERY_SEED_HOSTS_SETTING.getKey()) // empty list disables a port scan for other nodes
-            .putList(INITIAL_MASTER_NODES_SETTING.getKey(), nodeName)
-            .put(nodeSettings());// allow test cases to provide their own settings or override these
+            .putList(INITIAL_MASTER_NODES_SETTING.getKey(), nodeName);
+        // covers the non-batch path for indices that opt into batch indexing by default, such as columnar ones
+        if (randomBoolean()) {
+            settingBuilder.put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), false);
+        }
+        settingBuilder.put(nodeSettings());// allow test cases to provide their own settings or override these
 
         boolean enableConcurrentSearch = enableConcurrentSearch();
         if (enableConcurrentSearch) {
@@ -294,6 +308,9 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             plugins.add(ConcurrentSearchTestPlugin.class);
         }
         plugins.add(MockScriptService.TestPlugin.class);
+        if (randomizeColumnarIdMode()) {
+            plugins.add(ESIntegTestCase.RandomizeColumnarIdModePlugin.class);
+        }
         Node node = new MockNode(settings, plugins, forbidPrivateIndexSettings(), TEST_ENTITLEMENTS.addEntitledNodePaths(settings, null));
         try {
             node.start();

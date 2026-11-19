@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
-import org.elasticsearch.test.TransportVersionUtils;
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 
 /**
@@ -18,24 +20,28 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
  * </p>
  */
 public class SubstituteTransportVersionAwareGoldenTests extends GoldenTestCase {
+    private static final String ESQL_SUM_LONG_OVERFLOW_FIX = "esql_sum_long_overflow_fix";
+
+    @ParametersFactory(argumentFormatting = "%1$s")
+    public static Iterable<Object[]> parameters() {
+        return goldenModes();
+    }
+
+    public SubstituteTransportVersionAwareGoldenTests(@Name("mode") String mode) {
+        super(mode);
+    }
+
     public void testSumGetsReplacedWithSafeLong() {
         builder("""
             FROM employees
             | STATS sum = SUM(languages.long)
-            """).transportVersion(TransportVersionUtils.randomVersionSupporting(Sum.ESQL_SUM_LONG_OVERFLOW_FIX)).run();
-    }
-
-    public void testSumStaysWithOverflowingLong() {
-        builder("""
-            FROM employees
-            | STATS sum = SUM(languages.long)
-            """).transportVersion(TransportVersionUtils.randomVersionNotSupporting(Sum.ESQL_SUM_LONG_OVERFLOW_FIX)).run();
+            """).expectationChangesAt(ESQL_SUM_LONG_OVERFLOW_FIX).run();
     }
 
     public void testSumGetsReplacedWithSafeLongAndMultipleAggsAndGroups() {
         builder("""
             FROM employees
             | STATS sum_a = SUM(languages.long), sum_b = SUM(emp_no) BY emp_no
-            """).transportVersion(TransportVersionUtils.randomVersionSupporting(Sum.ESQL_SUM_LONG_OVERFLOW_FIX)).run();
+            """).since(Sum.ESQL_SUM_LONG_OVERFLOW_FIX).run();
     }
 }

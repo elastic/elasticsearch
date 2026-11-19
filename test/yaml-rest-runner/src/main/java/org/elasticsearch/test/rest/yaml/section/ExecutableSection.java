@@ -37,6 +37,11 @@ public interface ExecutableSection {
         new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("lt"), LessThanAssertion::parse),
         new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("lte"), LessThanOrEqualToAssertion::parse),
         new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("contains"), ContainsAssertion::parse),
+        new NamedXContentRegistry.Entry(
+            ExecutableSection.class,
+            new ParseField(MatchesInAnyOrderAssertion.NAME),
+            MatchesInAnyOrderAssertion::parse
+        ),
         new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("length"), LengthAssertion::parse),
         new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("close_to"), CloseToAssertion::parse),
         new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("exists"), ExistsAssertion::parse),

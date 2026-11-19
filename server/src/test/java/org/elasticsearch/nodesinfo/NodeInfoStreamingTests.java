@@ -174,7 +174,8 @@ public class NodeInfoStreamingTests extends ESTestCase {
                         randomBoolean(),
                         randomBoolean(),
                         isStable,
-                        PluginDescriptor.DeploymentTarget.ALL
+                        PluginDescriptor.DeploymentTarget.ALL,
+                        Collections.emptyList()
                     )
                 );
             }
@@ -197,7 +198,8 @@ public class NodeInfoStreamingTests extends ESTestCase {
                         randomBoolean(),
                         randomBoolean(),
                         isStable,
-                        PluginDescriptor.DeploymentTarget.ALL
+                        PluginDescriptor.DeploymentTarget.ALL,
+                        Collections.emptyList()
                     )
                 );
             }

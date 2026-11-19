@@ -14,8 +14,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.datageneration.Mapping;
 import org.elasticsearch.index.mapper.BinaryDVBlockLoaderTestCase;
+import org.elasticsearch.index.mapper.BlockLoaderTestCase;
 import org.elasticsearch.index.mapper.BlockLoaderTestRunner;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
@@ -103,36 +103,49 @@ public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestC
     @Override
     protected Object expected(Map<String, Object> fieldMapping, Object value, TestContext testContext) {
         var nullValue = (String) fieldMapping.get("null_value");
-        // null_value is only applied during indexing into doc values. When the block loader
-        // uses the source path (syntheticSource=false with STORED preference or no doc values),
-        // null leaf values are simply dropped.
-        boolean useDocValues = hasDocValues(fieldMapping, true);
-        if (params.syntheticSource() == false) {
-            useDocValues = useDocValues
-                && fieldMapping.get("ignore_above") == null
-                && params.preference() != MappedFieldType.FieldExtractPreference.STORED;
-        }
-        if (nullValue != null && useDocValues) {
+        // null_value is applied via doc values (substituted at index time by FlattenedFieldParser)
+        // and via the source path (substituted at read time by FlattenedSourceValueFetcher).
+        // Apply it unconditionally here to match both code paths.
+        if (nullValue != null) {
             value = applyFlattenedNullValue(value, nullValue);
         }
         ValuesMode mode = ValuesMode.from(fieldMapping, params);
-        return flattenAndStringify(value, mode);
+        var ignoreAboveRaw = fieldMapping.get("ignore_above");
+        int ignoreAbove = (ignoreAboveRaw instanceof Number n && params.indexMode().isStrictColumnar() == false)
+            ? n.intValue()
+            : Integer.MAX_VALUE;
+        return flattenAndStringify(value, mode, ignoreAbove);
     }
 
     private enum ValuesMode {
-        /** Keep values in source order, preserve duplicates and nulls (preserve_leaf_arrays: exact). */
-        AS_IS,
-        /** Sort values and remove duplicates. Both SortedSetDocValues and SortedBinaryDocValues
+        /**
+         * Columnar inline ordering (strict-columnar + exact): values in source order.
+         */
+        AS_IS_INLINE,
+        /**
+         * Offsets-sidecar ordering (non-columnar + exact): values are restored to their original
+         * source order via the offsets sidecar.
+         */
+        AS_IS_OFFSETS,
+        /** Sort values and remove duplicates. Both SortedSetDocValues and SortableBinaryDocValues
          *  use SORTED_UNIQUE ordering for flattened fields. */
         SORTED_UNIQUE;
 
+        boolean isExact() {
+            return this == AS_IS_INLINE || this == AS_IS_OFFSETS;
+        }
+
         static ValuesMode from(Map<String, Object> fieldMapping, Params params) {
-            if ("exact".equals(fieldMapping.get("preserve_leaf_arrays"))) {
-                // preserve_leaf_arrays: exact preserves duplicates, null slots, and original order
-                // in both the doc values path (via offset stream) and the source path.
-                return AS_IS;
+            boolean indexKeepsArray = BlockLoaderTestCase.indexKeepsArray(params.blTestCaseParams());
+            var configuredValue = fieldMapping.get("preserve_leaf_arrays");
+
+            boolean exactByDefault = params.indexMode().isStrictColumnar() || indexKeepsArray;
+            boolean isExact = configuredValue == null ? exactByDefault : "exact".equals(configuredValue);
+            if (isExact == false) {
+                return SORTED_UNIQUE;
             }
-            return SORTED_UNIQUE;
+            // Inline ordering requires columnar index mode AND binary doc values.
+            return params.indexMode().isStrictColumnar() && params.binaryDocValues() ? AS_IS_INLINE : AS_IS_OFFSETS;
         }
     }
 
@@ -166,10 +179,10 @@ public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestC
      * because the block loader produces one JSON blob per document.
      */
     @SuppressWarnings("unchecked")
-    private static Object flattenAndStringify(Object value, ValuesMode mode) {
+    private static Object flattenAndStringify(Object value, ValuesMode mode, int ignoreAbove) {
         return switch (value) {
             case null -> null;
-            case Map<?, ?> map -> flattenMaps(List.of((Map<String, Object>) map), mode);
+            case Map<?, ?> map -> flattenMaps(List.of((Map<String, Object>) map), mode, ignoreAbove);
             case List<?> list -> {
                 List<Map<String, Object>> maps = new ArrayList<>();
                 for (Object item : list) {
@@ -177,17 +190,22 @@ public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestC
                         maps.add((Map<String, Object>) item);
                     }
                 }
-                yield maps.isEmpty() ? null : flattenMaps(maps, mode);
+                yield maps.isEmpty() ? null : flattenMaps(maps, mode, ignoreAbove);
             }
             default -> value;
         };
     }
 
-    private static LinkedHashMap<String, Object> flattenMaps(List<Map<String, Object>> maps, ValuesMode mode) {
+    private static LinkedHashMap<String, Object> flattenMaps(List<Map<String, Object>> maps, ValuesMode mode, int ignoreAbove) {
         TreeMap<BytesRef, List<BytesRef>> flat = new TreeMap<>();
         for (Map<String, Object> map : maps) {
             flattenSource("", map, flat, mode);
         }
+        // Like a keyword field, the root has no value that ignore_above left out
+        for (List<BytesRef> values : flat.values()) {
+            values.removeIf(v -> v != null && v.utf8ToString().length() > ignoreAbove);
+        }
+        flat.values().removeIf(List::isEmpty);
         if (flat.isEmpty()) {
             return null;
         }
@@ -222,28 +240,31 @@ public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestC
                 for (Object item : list) {
                     if (item != null) {
                         result.computeIfAbsent(new BytesRef(key), k -> new ArrayList<>()).add(new BytesRef(item.toString()));
-                    } else if (mode == ValuesMode.AS_IS) {
+                    } else if (mode.isExact()) {
                         result.computeIfAbsent(new BytesRef(key), k -> new ArrayList<>()).add(null);
                     }
                 }
             } else if (value != null) {
                 result.computeIfAbsent(new BytesRef(key), k -> new ArrayList<>()).add(new BytesRef(value.toString()));
-            } else if (mode == ValuesMode.AS_IS) {
+            } else if (mode.isExact()) {
                 result.computeIfAbsent(new BytesRef(key), k -> new ArrayList<>()).add(null);
             }
         }
     }
 
     private static void collapseValues(TreeMap<BytesRef, List<BytesRef>> result, ValuesMode mode) {
-        if (mode == ValuesMode.AS_IS) {
-            // preserve_leaf_arrays: exact — offset stream restores original order, dups, and nulls
-            return;
-        }
-        for (Map.Entry<BytesRef, List<BytesRef>> entry : result.entrySet()) {
-            List<BytesRef> list = entry.getValue();
-            TreeSet<BytesRef> unique = new TreeSet<>(list);
-            list.clear();
-            list.addAll(unique);
+        switch (mode) {
+            case AS_IS_INLINE, AS_IS_OFFSETS -> {
+                // Values stay in document order
+            }
+            case SORTED_UNIQUE -> {
+                for (Map.Entry<BytesRef, List<BytesRef>> entry : result.entrySet()) {
+                    List<BytesRef> list = entry.getValue();
+                    TreeSet<BytesRef> unique = new TreeSet<>(list);
+                    list.clear();
+                    list.addAll(unique);
+                }
+            }
         }
     }
 
@@ -264,10 +285,44 @@ public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestC
         runner.run(new BytesRef("{\"a\":[\"1\",\"4\"],\"b\":\"2\",\"c\":\"3\"}"));
     }
 
+    /**
+     * With {@code preserve_leaf_arrays: exact}, array-order offsets for a key are encoded relative to the
+     * values seen by a single {@code parseCreateField} call. When the flattened field's top-level value is an
+     * array of objects (field multiplicity), {@code parseCreateField} runs once per array element, each time
+     * with a fresh offsets-tracking context, while the keyed values across all elements are merged into one
+     * document-wide sorted-unique set. The offsets from one element are then decoded against a value set they
+     * were never computed against, silently dropping values from other elements. The block loader shares the
+     * same reconstruction path ({@link org.elasticsearch.index.mapper.flattened.FlattenedFieldSyntheticWriterHelper})
+     * as synthetic source, so it is affected identically. See
+     * <a href="https://github.com/elastic/elasticsearch/issues/153014">#153014</a>.
+     */
+    public void testBlockLoaderPreserveLeafArraysExactWithFieldMultiplicity() throws IOException {
+        runner.breaker(newLimitedBreaker(TEST_BREAKER_SIZE));
+        runner.document(Map.of("field", List.of(Map.of("key", List.of("b", "a")), Map.of("key", "c"))));
+        runner.fieldName("field");
+
+        Map<String, Object> flattenedMapping = Map.of("type", "flattened", "preserve_leaf_arrays", "exact");
+        Mapping mapping = new Mapping(
+            Map.of("_doc", Map.of("properties", Map.of("field", flattenedMapping))),
+            Map.of("field", flattenedMapping)
+        );
+
+        String expected = "{\"key\":[\"b\",\"a\",\"c\"]}";
+
+        var settings = getSettingsForParams();
+        runner.mapperService(createMapperService(settings.build(), XContentFactory.jsonBuilder().map(mapping.raw())));
+        runner.run(new BytesRef(expected));
+    }
+
     public void testBlockLoaderDottedKeyAndNestedObject() throws IOException {
         runner.breaker(newLimitedBreaker(TEST_BREAKER_SIZE));
-        // "a.b" as a dotted key and "a":{"b":...} as a nested object both flatten to the same key
-        runner.document(Map.of("field", Map.of("a.b", "cat", "a", Map.of("b", "dog"))));
+        // "a.b" as a dotted key and "a":{"b":...} as a nested object both flatten to the same key.
+        // LinkedHashMap ensures "a.b" is serialized before "a" so insertion order matches sorted
+        // order — the expected value is valid for both LOSSY (sorted) and EXACT (insertion-order) modes.
+        var fieldValue = new LinkedHashMap<String, Object>();
+        fieldValue.put("a.b", "cat");
+        fieldValue.put("a", Map.of("b", "dog"));
+        runner.document(Map.of("field", fieldValue));
         runner.fieldName("field");
 
         Mapping mapping = new Mapping(
@@ -275,7 +330,6 @@ public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestC
             Map.of("field", Map.of("type", "flattened"))
         );
 
-        // Both paths produce keyed value "a.b" — doc values deduplicates and sorts
         String expected = "{\"a.b\":[\"cat\",\"dog\"]}";
 
         var settings = getSettingsForParams();
@@ -294,6 +348,79 @@ public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestC
         );
 
         String expected = "{\"a.x\":\"10\",\"b.y\":\"20\"}";
+
+        var settings = getSettingsForParams();
+        runner.mapperService(createMapperService(settings.build(), XContentFactory.jsonBuilder().map(mapping.raw())));
+        runner.run(new BytesRef(expected));
+    }
+
+    public void testBlockLoaderForcesSourceWhenMappedTextSubfieldPresent() throws IOException {
+        assumeFalse("a bare text sub-field is not allowed under synthetic source", params.syntheticSource());
+        assumeFalse("columnar-stored source does not retain a bare text sub-field", params.isColumnarStored());
+
+        runner.breaker(newLimitedBreaker(TEST_BREAKER_SIZE));
+        Map<String, Object> labels = Map.of("env", "prod", "status_code", 200, "message", "hello");
+        runner.document(Map.of("field", labels));
+        runner.fieldName("field");
+
+        // status_code is a mapped long (doc values), message is a mapped text (no doc values, not stored), env is unmapped.
+        Map<String, Object> flattenedMapping = Map.of(
+            "type",
+            "flattened",
+            "properties",
+            Map.of("status_code", Map.of("type", "long"), "message", Map.of("type", "text"))
+        );
+        Mapping mapping = new Mapping(
+            Map.of("_doc", Map.of("properties", Map.of("field", flattenedMapping))),
+            Map.of("field", flattenedMapping)
+        );
+
+        String expected = "{\"env\":\"prod\",\"message\":\"hello\",\"status_code\":\"200\"}";
+
+        var settings = getSettingsForParams();
+        runner.mapperService(createMapperService(settings.build(), XContentFactory.jsonBuilder().map(mapping.raw())));
+        runner.run(new BytesRef(expected));
+    }
+
+    public void testBlockLoaderStringifiesMappedRootViaSource() throws IOException {
+        runner.breaker(newLimitedBreaker(TEST_BREAKER_SIZE));
+        // status is a mapped keyword, code a mapped long; unmapped_key lands in the keyed channel.
+        runner.document(Map.of("field", Map.of("status", "ok", "code", 200, "unmapped_key", "some_value")));
+        runner.fieldName("field");
+
+        Map<String, Object> flattenedMapping = Map.of(
+            "type",
+            "flattened",
+            "properties",
+            Map.of("status", Map.of("type", "keyword"), "code", Map.of("type", "long"))
+        );
+        Mapping mapping = new Mapping(
+            Map.of("_doc", Map.of("properties", Map.of("field", flattenedMapping))),
+            Map.of("field", flattenedMapping)
+        );
+
+        String expected = "{\"code\":\"200\",\"status\":\"ok\",\"unmapped_key\":\"some_value\"}";
+
+        var settings = getSettingsForParams();
+        runner.mapperService(createMapperService(settings.build(), XContentFactory.jsonBuilder().map(mapping.raw())));
+        runner.run(new BytesRef(expected));
+    }
+
+    public void testBlockLoaderMappedPropertyOnlyViaSource() throws IOException {
+        runner.breaker(newLimitedBreaker(TEST_BREAKER_SIZE));
+        // Only the mapped keyword sub-field has a value; the keyed channel is empty.
+        runner.document(Map.of("field", Map.of("status", "active")));
+        runner.fieldName("field");
+
+        Map<String, Object> flattenedMapping = Map.of("type", "flattened", "properties", Map.of("status", Map.of("type", "keyword")));
+        Mapping mapping = new Mapping(
+            Map.of("_doc", Map.of("properties", Map.of("field", flattenedMapping))),
+            Map.of("field", flattenedMapping)
+        );
+
+        // A mapped sub-field forces _source even with no unmapped keys, so the single mapped leaf renders as a string
+        // and the blob is identical on every loading path.
+        String expected = "{\"status\":\"active\"}";
 
         var settings = getSettingsForParams();
         runner.mapperService(createMapperService(settings.build(), XContentFactory.jsonBuilder().map(mapping.raw())));

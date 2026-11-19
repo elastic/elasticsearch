@@ -9,8 +9,11 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules.TransformDirection.DOWN;
 
 /**
@@ -30,6 +33,11 @@ public final class PartiallyFoldCase extends OptimizerRules.OptimizerExpressionR
 
     @Override
     protected Expression rule(Case c, LogicalOptimizerContext ctx) {
-        return c.partiallyFold(ctx.foldCtx());
+        Expression folded = c.partiallyFold(ctx.foldCtx());
+        // obey the Case.resolveType() and resolveValueType() contract where a TEXT data type is never generated if the folding arm is TEXT
+        if (folded.dataType() == TEXT && c.dataType() == KEYWORD) {
+            return new ToString(folded.source(), folded, ctx.configuration());
+        }
+        return folded;
     }
 }

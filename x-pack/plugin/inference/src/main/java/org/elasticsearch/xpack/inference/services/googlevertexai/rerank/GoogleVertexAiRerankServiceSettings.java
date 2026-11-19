@@ -8,11 +8,11 @@
 package org.elasticsearch.xpack.inference.services.googlevertexai.rerank;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -27,6 +27,7 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.PROJECT_ID;
 
 public class GoogleVertexAiRerankServiceSettings extends FilteredXContentObject
@@ -42,8 +43,8 @@ public class GoogleVertexAiRerankServiceSettings extends FilteredXContentObject
     public static GoogleVertexAiRerankServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         var validationException = new ValidationException();
 
-        var projectId = extractRequiredString(map, PROJECT_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        var modelId = extractOptionalString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var projectId = extractRequiredString(map, PROJECT_ID, SERVICE_SETTINGS, validationException);
+        var modelId = extractOptionalString(map, MODEL_ID, SERVICE_SETTINGS, validationException);
         var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, context);
 
         validationException.throwIfValidationErrorsExist();
@@ -150,5 +151,10 @@ public class GoogleVertexAiRerankServiceSettings extends FilteredXContentObject
     @Override
     public int hashCode() {
         return Objects.hash(projectId, modelId, rateLimitSettings);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 }

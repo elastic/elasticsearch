@@ -1,6 +1,10 @@
 ### `LIKE` [esql-like]
+```{applies_to}
+stack: ga
+serverless: ga
+```
 
-:::{image} ../../../images/operators/like.svg
+:::{image} /reference/query-languages/esql/images/generated/x-pack-esql/operators/like.svg
 :alt: Embedded
 :class: text-center
 :::
@@ -13,11 +17,11 @@ The following wildcard characters are supported:
 * `?` matches one character.
 
 
-:::{include} ../types/like.md
+:::{include} ../../generated/x-pack-esql/operators/types/like.md
 :::
 
-:::{include} ../examples/like.md
+:::{include} ../../generated/x-pack-esql/operators/examples/like.md
 :::
 
-:::{include} ../detailedDescription/like.md
+:::{include} ../../generated/x-pack-esql/operators/detailedDescription/like.md
 :::

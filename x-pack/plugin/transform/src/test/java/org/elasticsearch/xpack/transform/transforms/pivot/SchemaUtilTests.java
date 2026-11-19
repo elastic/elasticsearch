@@ -17,6 +17,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesBuilder;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -27,6 +28,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.transform.transforms.QueryConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.AggregationConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.DateHistogramGroupSource;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfig;
@@ -118,6 +120,7 @@ public class SchemaUtilTests extends ESTestCase {
                     client,
                     emptyMap(),
                     new SourceConfig(new String[] { "index-1", "index-2" }),
+                    IndicesOptions.LENIENT_EXPAND_OPEN,
                     null,
                     listener
                 ),
@@ -130,6 +133,7 @@ public class SchemaUtilTests extends ESTestCase {
                     client,
                     emptyMap(),
                     new SourceConfig(new String[] { "index-1", "index-2" }),
+                    IndicesOptions.LENIENT_EXPAND_OPEN,
                     new String[] {},
                     listener
                 ),
@@ -142,6 +146,7 @@ public class SchemaUtilTests extends ESTestCase {
                     client,
                     emptyMap(),
                     new SourceConfig(new String[] { "index-1", "index-2" }),
+                    IndicesOptions.LENIENT_EXPAND_OPEN,
                     new String[] { "field-1", "field-2" },
                     listener
                 ),
@@ -159,6 +164,7 @@ public class SchemaUtilTests extends ESTestCase {
                     client,
                     emptyMap(),
                     new SourceConfig(new String[] { "index-1", "index-2" }, QueryConfig.matchAll(), runtimeMappings, null),
+                    IndicesOptions.LENIENT_EXPAND_OPEN,
                     new String[] { "field-1", "field-2" },
                     listener
                 ),
@@ -168,6 +174,55 @@ public class SchemaUtilTests extends ESTestCase {
                         mappings,
                         allOf(hasEntry("field-1", "long"), hasEntry("field-2", "keyword"), hasEntry("field-3", "boolean"))
                     );
+                }
+            );
+        }
+    }
+
+    public void testGetSourceFieldMappingsIncludesProjectRouting() throws InterruptedException {
+        assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
+        String projectRouting = "_alias:_origin";
+        try (var threadPool = createThreadPool()) {
+            final var client = new FieldCapsMockClient(threadPool, emptySet());
+            this.<Map<String, String>>assertAsync(
+                listener -> SchemaUtil.getSourceFieldMappings(
+                    client,
+                    emptyMap(),
+                    new SourceConfig(
+                        new String[] { "index-1" },
+                        QueryConfig.matchAll(),
+                        emptyMap(),
+                        IndicesOptions.CPS_LENIENT_EXPAND_OPEN,
+                        projectRouting
+                    ),
+                    IndicesOptions.CPS_LENIENT_EXPAND_OPEN,
+                    new String[] { "field-1" },
+                    listener
+                ),
+                mappings -> {
+                    assertNotNull(client.lastFieldCapsRequest);
+                    assertThat(client.lastFieldCapsRequest.getProjectRouting(), is(equalTo(projectRouting)));
+                    assertThat(client.lastFieldCapsRequest.indicesOptions(), is(equalTo(IndicesOptions.CPS_LENIENT_EXPAND_OPEN)));
+                }
+            );
+        }
+    }
+
+    public void testGetSourceFieldMappingsWithoutProjectRouting() throws InterruptedException {
+        try (var threadPool = createThreadPool()) {
+            final var client = new FieldCapsMockClient(threadPool, emptySet());
+            this.<Map<String, String>>assertAsync(
+                listener -> SchemaUtil.getSourceFieldMappings(
+                    client,
+                    emptyMap(),
+                    new SourceConfig(new String[] { "index-1" }),
+                    IndicesOptions.LENIENT_EXPAND_OPEN,
+                    new String[] { "field-1" },
+                    listener
+                ),
+                mappings -> {
+                    assertNotNull(client.lastFieldCapsRequest);
+                    assertNull(client.lastFieldCapsRequest.getProjectRouting());
                 }
             );
         }
@@ -249,6 +304,7 @@ public class SchemaUtilTests extends ESTestCase {
                     new SettingsConfig.Builder().setDeduceMappings(randomBoolean() ? randomBoolean() : null).build(),
                     pivotConfig,
                     new SourceConfig(new String[] { "index-1", "index-2" }),
+                    IndicesOptions.LENIENT_EXPAND_OPEN,
                     listener
                 ),
                 mappings -> assertThat(mappings, is(equalTo(expectedMappings)))
@@ -259,6 +315,7 @@ public class SchemaUtilTests extends ESTestCase {
     private static class FieldCapsMockClient extends NoOpClient {
 
         private final Set<String> fieldsWithoutMappings;
+        volatile FieldCapabilitiesRequest lastFieldCapsRequest;
 
         FieldCapsMockClient(ThreadPool threadPool, Set<String> fieldsWithoutMappings) {
             super(threadPool);
@@ -273,6 +330,7 @@ public class SchemaUtilTests extends ESTestCase {
             ActionListener<Response> listener
         ) {
             if (request instanceof FieldCapabilitiesRequest fieldCapsRequest) {
+                lastFieldCapsRequest = fieldCapsRequest;
                 Map<String, Map<String, FieldCapabilities>> responseMap = new HashMap<>();
                 for (String field : fieldCapsRequest.fields()) {
                     if (fieldsWithoutMappings.contains(field)) {

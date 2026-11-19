@@ -18,7 +18,6 @@ import org.elasticsearch.action.search.OpenPointInTimeResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponse.Clusters;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.TestCircuitBreaker;
@@ -294,7 +293,7 @@ public class CircuitBreakerTests extends ESTestCase {
             ActionListener<Response> listener
         ) {
             if (request instanceof OpenPointInTimeRequest) {
-                OpenPointInTimeResponse response = new OpenPointInTimeResponse(pitId, 1, 1, 0, 0);
+                OpenPointInTimeResponse response = new OpenPointInTimeResponse(pitId, 1, 1, 0, 0, SearchResponse.Clusters.EMPTY);
                 listener.onResponse((Response) response);
             } else if (request instanceof ClosePointInTimeRequest) {
                 ClosePointInTimeResponse response = new ClosePointInTimeResponse(true, 1);
@@ -324,7 +323,7 @@ public class CircuitBreakerTests extends ESTestCase {
                     0,
                     0,
                     0,
-                    ShardSearchFailure.EMPTY_ARRAY,
+                    List.of(),
                     Clusters.EMPTY,
                     searchRequest.pointInTimeBuilder().getEncodedId(),
                     null,

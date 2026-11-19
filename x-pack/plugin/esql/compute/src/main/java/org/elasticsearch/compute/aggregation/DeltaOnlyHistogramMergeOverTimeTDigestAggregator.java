@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
@@ -31,8 +32,20 @@ import org.elasticsearch.core.Releasable;
 )
 public class DeltaOnlyHistogramMergeOverTimeTDigestAggregator {
 
-    public static final String CUMULATIVE_UNSUPPORTED_WARNING = "Cumulative temporality is not supported for the tdigest type."
-        + " The affected time series are excluded from the aggregation.";
+    /**
+     * Emitted once per query (see {@link Warnings#registerWarning(String)}) when cumulative T-Digests are skipped. The message must stay
+     * constant so that the deduplication in {@link Warnings#registerWarning(String)} keeps it from being repeated for every value.
+     * Cumulative T-Digests almost always come from casting {@code exponential_histogram} fields, which is why the message points users
+     * to the exponential histogram type instead. Shared with the CCS backwards compatibility filter in the ES|QL plugin so that both
+     * code paths skip cumulative T-Digests with the same warning.
+     */
+    public static final String CUMULATIVE_TEMPORALITY_WARNING =
+        "T-Digests with unsupported cumulative temporality were encountered and ignored."
+            + " You are probably converting data stored as exponential_histogram using ::tdigest or TO_TDIGEST."
+            + " Please use ::exponential_histogram or TO_EXPONENTIAL_HISTOGRAM instead."
+            + " See "
+            + ReferenceDocs.ESQL_HISTOGRAM_FIELDS_HISTORICAL_DATA
+            + " for more information.";
 
     public static TemporalityAwareTDigestGroupingState initGrouping(BigArrays bigArrays, DriverContext driverContext, Warnings warnings) {
         return new TemporalityAwareTDigestGroupingState(bigArrays, driverContext, warnings);
@@ -53,7 +66,7 @@ public class DeltaOnlyHistogramMergeOverTimeTDigestAggregator {
             if (current.cachedTemporalityAccessor.get(position) == Temporality.DELTA) {
                 current.delegate.add(groupId, value);
             } else {
-                current.warnings.registerException(IllegalArgumentException.class, CUMULATIVE_UNSUPPORTED_WARNING);
+                current.warnings.registerWarning(CUMULATIVE_TEMPORALITY_WARNING);
             }
         } catch (InvalidTemporalityException e) {
             current.warnings.registerException(e);

@@ -96,7 +96,11 @@ EXPORT int64_t vec_dotd2q4_packed(const int8_t* a, const int8_t* query, int32_t 
     return (int64_t)dotd2q4_packed_inner(a, query, packed_len);
 }
 
-template <typename TData, const int8_t*(*mapper)(const TData*, const int32_t, const int32_t*, const int32_t), int batches = 2>
+template <
+    typename TData,
+    const int8_t*(*mapper)(const TData*, const int32_t, const int32_t*, const int32_t),
+    int batches = 2,
+    int32_t(*out_mapper)(const int32_t*, const int32_t) = compact_output>
 static inline void dotd2q4_packed_bulk_impl(
     const TData* docs,
     const int8_t* query,
@@ -125,8 +129,8 @@ static inline void dotd2q4_packed_bulk_impl(
         if (has_next) {
             apply_indexed<batches>([&](auto I) {
                 next_doc_ptrs[I] = mapper(docs, c + batches + I, offsets, pitch);
-                prefetch(next_doc_ptrs[I], lines_to_fetch);
             });
+            head_prefetch<batches, 1>(next_doc_ptrs);
         }
 
         __m256i acc32[batches];
@@ -150,6 +154,9 @@ static inline void dotd2q4_packed_bulk_impl(
             const int end = std::min(i + chunk, blk);
 
             for (; i < end; i += stride) {
+                if (has_next) {
+                    spread_prefetch_step<batches, 1, stride>(next_doc_ptrs, i, lines_to_fetch);
+                }
                 __m256i query_s0 = _mm256_loadu_si256((const __m256i*)(query + i));
                 __m256i query_s1 = _mm256_loadu_si256((const __m256i*)(query + i + packed_len));
                 __m256i query_s2 = _mm256_loadu_si256((const __m256i*)(query + i + 2 * packed_len));
@@ -197,7 +204,7 @@ static inline void dotd2q4_packed_bulk_impl(
         }
 
         apply_indexed<batches>([&](auto I) {
-            results[c + I] = (f32_t)res[I];
+            results[out_mapper(offsets, c + I)] = (f32_t)res[I];
         });
         if (has_next) {
             std::copy_n(next_doc_ptrs, batches, current_doc_ptrs);
@@ -206,7 +213,7 @@ static inline void dotd2q4_packed_bulk_impl(
 
     for (; c < count; c++) {
         const int8_t* doc = mapper(docs, c, offsets, pitch);
-        results[c] = (f32_t)dotd2q4_packed_inner(doc, query, packed_len);
+        results[out_mapper(offsets, c)] = (f32_t)dotd2q4_packed_inner(doc, query, packed_len);
     }
 }
 
@@ -220,16 +227,18 @@ EXPORT void vec_dotd2q4_packed_bulk(
     dotd2q4_packed_bulk_impl<int8_t, sequential_mapper>(docs, query, packed_len, packed_len, NULL, count, results);
 }
 
-EXPORT void vec_dotd2q4_packed_bulk_offsets(
+EXPORT void vec_dotd2q4_packed_bulk_masked(
     const int8_t* docs,
     const int8_t* query,
     int32_t packed_len,
     int32_t pitch,
-    const int32_t* offsets,
+    const int32_t mask,
     int32_t count,
     f32_t* results
 ) {
-    dotd2q4_packed_bulk_impl<int8_t, offsets_mapper>(docs, query, packed_len, pitch, offsets, count, results);
+    const int32_t block_mask = clamp_mask(mask, count);
+    dotd2q4_packed_bulk_impl<int8_t, masked_mapper, 2, masked_output>(
+        docs, query, packed_len, pitch, &block_mask, __builtin_popcount((uint32_t)block_mask), results);
 }
 
 EXPORT void vec_dotd2q4_packed_bulk_sparse(

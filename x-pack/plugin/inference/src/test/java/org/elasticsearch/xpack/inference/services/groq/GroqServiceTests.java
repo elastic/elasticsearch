@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.services.groq;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
@@ -77,7 +76,7 @@ public class GroqServiceTests extends InferenceServiceTestCase {
 
             service.parseRequestConfig("groq-test", TaskType.CHAT_COMPLETION, wrapRequestConfig(serviceSettings, Map.of()), future);
 
-            expectThrows(ValidationException.class, future::actionGet);
+            expectThrows(IllegalArgumentException.class, future::actionGet);
         }
     }
 
@@ -115,7 +114,7 @@ public class GroqServiceTests extends InferenceServiceTestCase {
         try (var service = createInferenceService()) {
             PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
             List<ChunkInferenceInput> inputs = List.of();
-            service.chunkedInfer(createModel("some_url"), null, inputs, Map.of(), null, null, listener);
+            service.chunkedInfer(createModel("some_url"), inputs, Map.of(), null, null, listener);
 
             var exception = expectThrows(UnsupportedOperationException.class, listener::actionGet);
             assertThat(exception.getMessage(), containsString("groq service does not support chunked inference"));

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.downsample;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.stats.MappingVisitor;
@@ -30,7 +29,6 @@ import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -113,10 +111,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
@@ -209,6 +205,12 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
         if (randomBoolean()) {
             settings.put(IndexMetadata.SETTING_INDEX_HIDDEN, randomBoolean());
+        }
+        if (randomBoolean()) {
+            settings.putList(
+                IndexSettings.TIME_SERIES_TSID_PREFIXED_DIMENSIONS.getKey(),
+                randomBoolean() ? List.of(FIELD_DIMENSION_1) : List.of(FIELD_DIMENSION_1, FIELD_DIMENSION_2)
+            );
         }
 
         XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc").startObject("properties");
@@ -575,61 +577,6 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         );
         assertEquals("missing-index", exception.getIndex().getName());
         assertThat(exception.getMessage(), containsString("no such index [missing-index]"));
-    }
-
-    public void testCannotDownsampleWhileOtherDownsampleInProgress() throws Exception {
-        DownsampleConfig config = new DownsampleConfig(randomInterval(), randomSamplingMethod());
-        SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
-            .startObject()
-            .field(FIELD_TIMESTAMP, randomDateForInterval(config.getInterval()))
-            .field(FIELD_DIMENSION_1, randomAlphaOfLength(1))
-            .field(FIELD_NUMERIC_1, randomDouble())
-            .endObject();
-        bulkIndex(sourceSupplier);
-        prepareSourceIndex(sourceIndex, true);
-        var downsampleListener = new ActionListener<AcknowledgedResponse>() {
-            boolean success;
-
-            @Override
-            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                if (acknowledgedResponse.isAcknowledged()) {
-                    success = true;
-                } else {
-                    fail("Failed to receive downsample acknowledgement");
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                fail("Downsample failed: " + e.getMessage());
-            }
-        };
-        client().execute(
-            DownsampleAction.INSTANCE,
-            new DownsampleAction.Request(TEST_REQUEST_TIMEOUT, sourceIndex, downsampleIndex, TIMEOUT, config),
-            downsampleListener
-        );
-        assertBusy(() -> {
-            try {
-                assertEquals(indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices(downsampleIndex).get().getIndices().length, 1);
-            } catch (IndexNotFoundException e) {
-                fail("downsample index has not been created");
-            }
-        });
-
-        assertBusy(() -> {
-            try {
-                client().execute(
-                    DownsampleAction.INSTANCE,
-                    new DownsampleAction.Request(TEST_REQUEST_TIMEOUT, sourceIndex, downsampleIndex, TIMEOUT, config)
-                );
-            } catch (ElasticsearchException e) {
-                fail("transient failure due to overlapping downsample operations");
-            }
-        });
-
-        // We must wait until the in-progress downsample ends, otherwise data will not be cleaned up
-        assertBusy(() -> assertTrue("In progress downsample did not complete", downsampleListener.success), 60, TimeUnit.SECONDS);
     }
 
     public void testDownsampleDatastream() throws Exception {
@@ -1162,7 +1109,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         }
         int docsIndexed = docCount - duplicates;
         logger.info("Indexed [{}] documents. Dropped [{}] duplicates.", docsIndexed, duplicates);
-        assertHitCount(client().prepareSearch(indexName).setSize(0), docsIndexed);
+        assertHitCount(client().prepareSearch(indexName).setSize(0).setTrackTotalHits(true), docsIndexed);
     }
 
     private void prepareSourceIndex(final String sourceIndex, boolean blockWrite) {
@@ -1295,7 +1242,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                 assertThat(measurement.attributes().get("status"), Matchers.in(List.of("success", "invalid_configuration", "failed")));
             }
 
-            List<Measurement> actionMeasurements = plugin.getLongCounterMeasurement(DownsampleMetrics.ACTIONS);
+            List<Measurement> actionMeasurements = plugin.getLongCounterMeasurement(DownsampleMetrics.ACTIONS_TOTAL);
             assertThat(actionMeasurements.size(), greaterThanOrEqualTo(1));
             assertThat(actionMeasurements.get(0).getLong(), equalTo(1L));
             assertThat(
@@ -1516,6 +1463,11 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             sourceSettings.get(IndexMetadata.INDEX_ROUTING_PATH.getKey()),
             downsampleSettings.get(IndexMetadata.INDEX_ROUTING_PATH.getKey())
         );
+        // The downsample index computes the same tsids as the source index, so it inherits the tsid layout setting as is.
+        assertEquals(
+            sourceSettings.getAsList(IndexSettings.TIME_SERIES_TSID_PREFIXED_DIMENSIONS.getKey()),
+            downsampleSettings.getAsList(IndexSettings.TIME_SERIES_TSID_PREFIXED_DIMENSIONS.getKey())
+        );
 
         assertNotNull(sourceSettings.get(IndexMetadata.SETTING_NUMBER_OF_SHARDS));
         assertNotNull(downsampleSettings.get(IndexMetadata.SETTING_NUMBER_OF_SHARDS));
@@ -1675,171 +1627,6 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             ).get()
         );
         return dataStreamName;
-    }
-
-    public void testConcurrentDownsample() throws Exception {
-        final DownsampleConfig config = new DownsampleConfig(randomInterval(), randomSamplingMethod());
-        SourceSupplier sourceSupplier = () -> {
-            String ts = randomDateForInterval(config.getInterval());
-            double labelDoubleValue = DATE_FORMATTER.parseMillis(ts);
-            int labelIntegerValue = randomInt();
-            long labelLongValue = randomLong();
-            String labelIpv4Address = NetworkAddress.format(randomIp(true));
-            String labelIpv6Address = NetworkAddress.format(randomIp(false));
-            Date labelDateValue = randomDate();
-            int keywordArraySize = randomIntBetween(2, 5);
-            String[] keywordArray = new String[keywordArraySize];
-            for (int i = 0; i < keywordArraySize; ++i) {
-                keywordArray[i] = randomAlphaOfLength(10);
-            }
-            int doubleArraySize = randomIntBetween(3, 10);
-            double[] doubleArray = new double[doubleArraySize];
-            for (int i = 0; i < doubleArraySize; ++i) {
-                doubleArray[i] = randomDouble();
-            }
-            return XContentFactory.jsonBuilder()
-                .startObject()
-                .field(FIELD_TIMESTAMP, ts)
-                .field(FIELD_DIMENSION_1, randomFrom(dimensionValues))
-                .field(FIELD_DIMENSION_2, randomIntBetween(1, 10))
-                .field(FIELD_NUMERIC_1, randomInt())
-                .field(FIELD_NUMERIC_2, DATE_FORMATTER.parseMillis(ts))
-                .startObject(FIELD_AGG_METRIC)
-                .field("min", randomDoubleBetween(-2000, -1001, true))
-                .field("max", randomDoubleBetween(-1000, 1000, true))
-                .field("sum", randomIntBetween(100, 10000))
-                .field("value_count", randomIntBetween(100, 1000))
-                .endObject()
-                .field(FIELD_LABEL_DOUBLE, labelDoubleValue)
-                .field(FIELD_METRIC_LABEL_DOUBLE, labelDoubleValue)
-                .field(FIELD_LABEL_INTEGER, labelIntegerValue)
-                .field(FIELD_LABEL_KEYWORD, ts)
-                .field(FIELD_LABEL_UNMAPPED, randomBoolean() ? labelLongValue : labelDoubleValue)
-                .field(FIELD_LABEL_TEXT, ts)
-                .field(FIELD_LABEL_BOOLEAN, randomBoolean())
-                .field(FIELD_LABEL_IPv4_ADDRESS, labelIpv4Address)
-                .field(FIELD_LABEL_IPv6_ADDRESS, labelIpv6Address)
-                .field(FIELD_LABEL_DATE, labelDateValue)
-                .field(FIELD_LABEL_KEYWORD_ARRAY, keywordArray)
-                .field(FIELD_LABEL_DOUBLE_ARRAY, doubleArray)
-                .startObject(FIELD_LABEL_AGG_METRIC)
-                .field("min", randomDoubleBetween(-2000, -1001, true))
-                .field("max", randomDoubleBetween(-1000, 1000, true))
-                .field("sum", Double.valueOf(randomIntBetween(100, 10000)))
-                .field("value_count", randomIntBetween(100, 1000))
-                .endObject()
-                .endObject();
-        };
-        bulkIndex(sourceIndex, sourceSupplier, 512);
-        prepareSourceIndex(sourceIndex, true);
-
-        int n = randomIntBetween(3, 6);
-        final CountDownLatch downsampleComplete = new CountDownLatch(n);
-        final List<String> targets = new ArrayList<>();
-        final List<Thread> threads = new ArrayList<>();
-        for (int i = 0; i < n; i++) {
-            final String targetIndex = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-            targets.add(targetIndex);
-            threads.add(new Thread(() -> {
-                downsample(sourceIndex, targetIndex, config);
-                downsampleComplete.countDown();
-            }));
-        }
-        for (int i = 0; i < n; i++) {
-            threads.get(i).start();
-        }
-
-        assertTrue(downsampleComplete.await(30, TimeUnit.SECONDS));
-
-        for (int i = 0; i < n; i++) {
-            assertDownsampleIndex(sourceIndex, targets.get(i), config);
-        }
-    }
-
-    public void testDuplicateDownsampleRequest() throws Exception {
-        final DownsampleConfig config = new DownsampleConfig(randomInterval(), randomSamplingMethod());
-        SourceSupplier sourceSupplier = () -> {
-            String ts = randomDateForInterval(config.getInterval());
-            double labelDoubleValue = DATE_FORMATTER.parseMillis(ts);
-            int labelIntegerValue = randomInt();
-            long labelLongValue = randomLong();
-            String labelIpv4Address = NetworkAddress.format(randomIp(true));
-            String labelIpv6Address = NetworkAddress.format(randomIp(false));
-            Date labelDateValue = randomDate();
-            int keywordArraySize = randomIntBetween(2, 5);
-            String[] keywordArray = new String[keywordArraySize];
-            for (int i = 0; i < keywordArraySize; ++i) {
-                keywordArray[i] = randomAlphaOfLength(10);
-            }
-            int doubleArraySize = randomIntBetween(3, 10);
-            double[] doubleArray = new double[doubleArraySize];
-            for (int i = 0; i < doubleArraySize; ++i) {
-                doubleArray[i] = randomDouble();
-            }
-            return XContentFactory.jsonBuilder()
-                .startObject()
-                .field(FIELD_TIMESTAMP, ts)
-                .field(FIELD_DIMENSION_1, randomFrom(dimensionValues))
-                .field(FIELD_DIMENSION_2, randomIntBetween(1, 10))
-                .field(FIELD_NUMERIC_1, randomInt())
-                .field(FIELD_NUMERIC_2, DATE_FORMATTER.parseMillis(ts))
-                .startObject(FIELD_AGG_METRIC)
-                .field("min", randomDoubleBetween(-2000, -1001, true))
-                .field("max", randomDoubleBetween(-1000, 1000, true))
-                .field("sum", randomIntBetween(100, 10000))
-                .field("value_count", randomIntBetween(100, 1000))
-                .endObject()
-                .field(FIELD_LABEL_DOUBLE, labelDoubleValue)
-                .field(FIELD_METRIC_LABEL_DOUBLE, labelDoubleValue)
-                .field(FIELD_LABEL_INTEGER, labelIntegerValue)
-                .field(FIELD_LABEL_KEYWORD, ts)
-                .field(FIELD_LABEL_UNMAPPED, randomBoolean() ? labelLongValue : labelDoubleValue)
-                .field(FIELD_LABEL_TEXT, ts)
-                .field(FIELD_LABEL_BOOLEAN, randomBoolean())
-                .field(FIELD_LABEL_IPv4_ADDRESS, labelIpv4Address)
-                .field(FIELD_LABEL_IPv6_ADDRESS, labelIpv6Address)
-                .field(FIELD_LABEL_DATE, labelDateValue)
-                .field(FIELD_LABEL_KEYWORD_ARRAY, keywordArray)
-                .field(FIELD_LABEL_DOUBLE_ARRAY, doubleArray)
-                .startObject(FIELD_LABEL_AGG_METRIC)
-                .field("min", randomDoubleBetween(-2000, -1001, true))
-                .field("max", randomDoubleBetween(-1000, 1000, true))
-                .field("sum", Double.valueOf(randomIntBetween(100, 10000)))
-                .field("value_count", randomIntBetween(100, 1000))
-                .endObject()
-                .endObject();
-        };
-        bulkIndex(sourceIndex, sourceSupplier, 512);
-        prepareSourceIndex(sourceIndex, true);
-
-        final CountDownLatch downsampleComplete = new CountDownLatch(2);
-        final String targetIndex = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        AtomicBoolean firstFailed = new AtomicBoolean(false);
-        AtomicBoolean secondFailed = new AtomicBoolean(false);
-        // NOTE: we expect one thread to run the downsample operation and the other one to fail
-        new Thread(() -> {
-            try {
-                downsample(sourceIndex, targetIndex, config);
-            } catch (ElasticsearchException e) {
-                firstFailed.set(true);
-            } finally {
-                downsampleComplete.countDown();
-            }
-
-        }).start();
-        new Thread(() -> {
-            try {
-                downsample(sourceIndex, targetIndex, config);
-            } catch (ElasticsearchException e) {
-                secondFailed.set(true);
-            } finally {
-                downsampleComplete.countDown();
-            }
-        }).start();
-
-        assertTrue(downsampleComplete.await(30, TimeUnit.SECONDS));
-        assertFalse(firstFailed.get() ^ secondFailed.get());
-        assertDownsampleIndex(sourceIndex, targetIndex, config);
     }
 
     static DownsampleConfig.SamplingMethod randomSamplingMethod() {

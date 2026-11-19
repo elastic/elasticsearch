@@ -1,0 +1,263 @@
+// A mapped `ip` sub-field is resolved by ES|QL as a real `ip` column. The
+// `:ip` header type below is the assertion: an untyped flattened key would
+// land as `:keyword`. The IP equality predicate exercises native IP query
+// semantics rather than lexicographic comparison on the underlying string.
+mappedIpSubFieldHasIpType
+required_capability: flattened_datatype
+
+FROM flattened_typed
+| WHERE labels.host.ip == TO_IP("10.0.0.1")
+| KEEP id, labels.host.ip
+| SORT id
+;
+
+id:integer | labels.host.ip:ip
+1          | 10.0.0.1
+5          | 10.0.0.1
+;
+
+// A mapped `long` sub-field is resolved as a real `long` column. The `:long`
+// header type confirms the typed mapping took effect, and grouping by a
+// numeric column (rather than the flattened root) requires the mapping to
+// flow through to the analyzer.
+mappedLongSubFieldHasLongType
+required_capability: flattened_datatype
+
+FROM flattened_typed
+| STATS c = COUNT(*) BY labels.status_code
+| SORT labels.status_code
+;
+
+c:long | labels.status_code:long
+2      | 200
+1      | 404
+1      | 500
+1      | 503
+;
+
+// With passthrough enabled, the mapped sub-field is also addressable at the
+// root of the index. `host.ip` (no `labels.` prefix) resolves to the same
+// typed `ip` field as in `mappedIpSubFieldHasIpType`, with identical results.
+passthroughIpAliasAtRoot
+required_capability: flattened_datatype
+
+FROM flattened_typed
+| WHERE host.ip == TO_IP("10.0.0.1")
+| KEEP id, host.ip
+| SORT id
+;
+
+id:integer | host.ip:ip
+1          | 10.0.0.1
+5          | 10.0.0.1
+;
+
+// Passthrough also exposes the numeric sub-field at the root. Grouping by
+// the unprefixed `status_code` returns the same long-typed groups as
+// `mappedLongSubFieldHasLongType`.
+passthroughLongAliasAtRoot
+required_capability: flattened_datatype
+
+FROM flattened_typed
+| STATS c = COUNT(*) BY status_code
+| SORT status_code
+;
+
+c:long | status_code:long
+2      | 200
+1      | 404
+1      | 500
+1      | 503
+;
+
+// Regression: keys that are NOT listed in `properties` (here, `env`) stay in
+// the flattened root's keyed representation and remain accessible through the
+// existing `field_extract()` path. This confirms that adding `properties`
+// does not turn the flattened field into an all-or-nothing typed object.
+unmappedKeyStaysInFlattenedRoot
+required_capability: flattened_datatype
+required_capability: fn_field_extract
+
+FROM flattened_typed
+| EVAL env = field_extract(labels, "env")
+| KEEP id, env
+| SORT id
+;
+
+id:integer | env:keyword
+1          | prod
+2          | prod
+3          | staging
+4          | dev
+5          | prod
+;
+
+// Regression: the flattened root itself is still a usable column even when
+// `properties` and `passthrough` are configured. Aggregations that operate on
+// the flattened root (`COUNT`, `IS NOT NULL`, etc.) continue to work and see
+// every document that has the field populated.
+flattenedRootStillCountable
+required_capability: flattened_datatype
+
+FROM flattened_typed
+| STATS c = COUNT(labels)
+;
+
+c:long
+5
+;
+
+// `field_extract` on a mapped sub-key returns the value, not null. The block-loader fuse and Lucene
+// query pushdown are both disabled for mapped sub-keys (see field_extract_mapped_subfield_returns_value),
+// so the call always runs the per-row evaluator over the merged flattened root, which contains `host.ip`.
+// `extracted` is keyword (field_extract's return type); `labels.host.ip`/`host.ip` are the typed ip columns.
+fieldExtractReturnsMappedSubfieldValue
+required_capability: flattened_datatype
+required_capability: fn_field_extract
+required_capability: field_extract_mapped_subfield_returns_value
+
+FROM flattened_typed
+| EVAL extracted = field_extract(labels, "host.ip")
+| KEEP id, labels.host.ip, host.ip, extracted
+| SORT id
+;
+
+id:integer | labels.host.ip:ip | host.ip:ip  | extracted:keyword
+1          | 10.0.0.1          | 10.0.0.1    | 10.0.0.1
+2          | 10.0.0.2          | 10.0.0.2    | 10.0.0.2
+3          | 10.0.0.3          | 10.0.0.3    | 10.0.0.3
+4          | 192.168.0.1       | 192.168.0.1 | 192.168.0.1
+5          | 10.0.0.1          | 10.0.0.1    | 10.0.0.1
+;
+
+// `field_extract` extracts mapped and unmapped sub-keys uniformly as keyword: the mapped key `host.ip`
+// (kept in its own typed mapper) and the unmapped key `env` (kept in the keyed root) both come back
+// through the per-row evaluator over the merged flattened root, in a single query.
+fieldExtractMappedAndUnmappedKey
+required_capability: flattened_datatype
+required_capability: fn_field_extract
+required_capability: field_extract_mapped_subfield_returns_value
+
+FROM flattened_typed
+| EVAL mapped = field_extract(labels, "host.ip"), unmapped = field_extract(labels, "env")
+| KEEP id, mapped, unmapped
+| SORT id
+;
+
+id:integer | mapped:keyword | unmapped:keyword
+1          | 10.0.0.1       | prod
+2          | 10.0.0.2       | prod
+3          | 10.0.0.3       | staging
+4          | 192.168.0.1    | dev
+5          | 10.0.0.1       | prod
+;
+
+// Materializing the flattened root through `VALUES()` forces the per-row evaluator (the root becomes a
+// computed column, so neither the fuse nor query pushdown can apply). It returns the same mapped `host.ip`
+// values as the direct call in `fieldExtractReturnsMappedSubfieldValue` -- which is the point of the fix:
+// the result no longer depends on whether the optimizer pushed the call. The extracted output is identical
+// under doc-values and stored loading because `host.ip` renders as a string on both paths, hence no
+// `request_stored: skip`.
+fieldExtractMappedSubfieldFromMaterializedRoot
+required_capability: flattened_datatype
+required_capability: fn_field_extract
+required_capability: fn_values_flattened
+
+FROM flattened_typed
+| STATS blob = VALUES(labels)
+| MV_EXPAND blob
+| EVAL extracted = field_extract(blob, "host.ip")
+| KEEP extracted
+| SORT extracted
+;
+
+extracted:keyword
+10.0.0.1
+10.0.0.1
+10.0.0.2
+10.0.0.3
+192.168.0.1
+;
+
+// A mapped `keyword` sub-field is resolved as a real `keyword` column.
+mappedKeywordSubFieldHasKeywordType
+required_capability: flattened_datatype
+
+FROM flattened_typed
+| STATS c = COUNT(*) BY labels.service
+| SORT labels.service
+;
+
+c:long | labels.service:keyword
+2      | indexing
+3      | search
+;
+
+// A mapped `text` sub-field is resolved as a real `keyword` column.
+mappedTextSubFieldHasTextType
+required_capability: flattened_datatype
+
+FROM flattened_typed
+| WHERE labels.message:"unavailable"
+| KEEP id, labels.message
+| SORT id
+;
+
+id:integer | labels.message:text
+5          | service unavailable
+;
+
+// Loading the flattened root with `labels` renders every leaf as a string, including the mapped sub-fields.
+loadFlattenedRootIncludesNonTextMappedSubfields
+required_capability: flattened_datatype
+required_capability: flattened_root_stringifies_mapped_subfields
+
+FROM flattened_typed
+| KEEP id, labels
+| SORT id
+;
+
+id:integer | labels:flattened
+1          | "{""env"":""prod"",""host.ip"":""10.0.0.1"",""message"":""request processed"",""service"":""search"",""status_code"":""200""}"
+2          | "{""env"":""prod"",""host.ip"":""10.0.0.2"",""message"":""resource not found"",""service"":""search"",""status_code"":""404""}"
+3          | "{""env"":""staging"",""host.ip"":""10.0.0.3"",""message"":""internal error"",""service"":""indexing"",""status_code"":""500""}"
+4          | "{""env"":""dev"",""host.ip"":""192.168.0.1"",""message"":""request processed"",""service"":""indexing"",""status_code"":""200""}"
+5          | "{""env"":""prod"",""host.ip"":""10.0.0.1"",""message"":""service unavailable"",""service"":""search"",""status_code"":""503""}"
+;
+
+// `STATS ... BY labels` groups on the flattened root
+statsByFlattenedRootWithMappedSubfields
+required_capability: flattened_datatype
+required_capability: group_by_flattened
+required_capability: fn_field_extract
+required_capability: flattened_root_stringifies_mapped_subfields
+
+FROM flattened_typed
+| STATS c = COUNT(*) BY labels
+| EVAL sc = field_extract(labels, "status_code"), ip = field_extract(labels, "host.ip")
+| SORT sc, ip
+| KEEP c, labels
+;
+
+c:long | labels:flattened
+1      | "{""env"":""prod"",""host.ip"":""10.0.0.1"",""message"":""request processed"",""service"":""search"",""status_code"":""200""}"
+1      | "{""env"":""dev"",""host.ip"":""192.168.0.1"",""message"":""request processed"",""service"":""indexing"",""status_code"":""200""}"
+1      | "{""env"":""prod"",""host.ip"":""10.0.0.2"",""message"":""resource not found"",""service"":""search"",""status_code"":""404""}"
+1      | "{""env"":""staging"",""host.ip"":""10.0.0.3"",""message"":""internal error"",""service"":""indexing"",""status_code"":""500""}"
+1      | "{""env"":""prod"",""host.ip"":""10.0.0.1"",""message"":""service unavailable"",""service"":""search"",""status_code"":""503""}"
+;
+
+// `==` on the flattened root is byte equality over the canonical blob
+equalsFlattenedRootWithMappedSubfields
+required_capability: flattened_datatype
+required_capability: fn_equals_flattened
+
+FROM flattened_typed
+| EVAL eq = labels == labels
+| STATS matches = COUNT(*) BY eq
+| KEEP eq, matches
+;
+
+eq:boolean | matches:long
+true       | 5
+;

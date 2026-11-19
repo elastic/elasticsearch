@@ -16,6 +16,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xcontent.XContentParser;
 
+import java.util.List;
+import java.util.Map;
+
 /**
  * Simplified version of {@link DocumentParserContext} to be used in tests.
  * Every non final method throws {@link UnsupportedOperationException} and can be implemented as needed.
@@ -60,6 +63,26 @@ public class TestDocumentParserContext extends DocumentParserContext {
         this(mappingLookup, source, null, Settings.EMPTY, version);
     }
 
+    public TestDocumentParserContext(MappingLookup mappingLookup, SourceToParse source, Settings settings) {
+        this(mappingLookup, source, null, settings, IndexVersion.current());
+    }
+
+    /**
+     * Creates a context over a real {@link MapperService}, for tests that need the type parsers and the mappings it has, such as to
+     * update the mapping of a field that is already mapped.
+     */
+    public TestDocumentParserContext(MapperService mapperService) {
+        super(
+            mapperService.mappingLookup(),
+            mapperService.parserContext(),
+            null,
+            mapperService.mappingLookup().getMapping().getRoot(),
+            ObjectMapper.Dynamic.getRootDynamic(mapperService.mappingLookup()),
+            mapperService::parseStoredMappings
+        );
+        this.parser = null;
+    }
+
     private TestDocumentParserContext(
         MappingLookup mappingLookup,
         SourceToParse source,
@@ -75,6 +98,7 @@ public class TestDocumentParserContext extends DocumentParserContext {
                 s -> null,
                 version,
                 () -> TransportVersion.current(),
+                f -> true,
                 () -> null,
                 null,
                 (type, name) -> Lucene.STANDARD_ANALYZER,
@@ -86,9 +110,14 @@ public class TestDocumentParserContext extends DocumentParserContext {
             ),
             source,
             mappingLookup.getMapping().getRoot(),
-            ObjectMapper.Dynamic.getRootDynamic(mappingLookup)
+            ObjectMapper.Dynamic.getRootDynamic(mappingLookup),
+            TestDocumentParserContext::noMappingBuilder
         );
         this.parser = parser;
+    }
+
+    private static MappingBuilder noMappingBuilder(Map<String, Object> decodedRoot) {
+        throw new UnsupportedOperationException("this context has no way to parse a stored mapping");
     }
 
     @Override
@@ -124,5 +153,10 @@ public class TestDocumentParserContext extends DocumentParserContext {
     @Override
     public BytesRef getTsid() {
         return null;
+    }
+
+    @Override
+    public List<LuceneDocument> luceneDocumentsInShardIndexOrder() {
+        throw new UnsupportedOperationException();
     }
 }

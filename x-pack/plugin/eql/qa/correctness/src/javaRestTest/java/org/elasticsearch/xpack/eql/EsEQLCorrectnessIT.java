@@ -24,6 +24,9 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
+import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
@@ -33,9 +36,11 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -50,10 +55,42 @@ public class EsEQLCorrectnessIT extends ESRestTestCase {
 
     private static final String PARAM_FORMATTING = "%1$s";
     private static final String QUERIES_FILENAME = "queries.toml";
+    private static final int ESQL_ROW_LIMIT = 10_000;
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = buildCluster();
+
+    private static ElasticsearchCluster buildCluster() {
+        LocalClusterSpecBuilder<ElasticsearchCluster> builder = ElasticsearchCluster.local()
+            .module("x-pack-eql")
+            .module("x-pack-esql")
+            .module("x-pack-ilm")
+            .module("repository-gcs")
+            .setting("xpack.license.self_generated.type", "basic")
+            .setting("xpack.security.enabled", "true")
+            .jvmArg("-Xmx4g")
+            .user("admin", "admin-password", "superuser", false);
+
+        String credentialsFile = System.getProperty("eql.test.credentials.file");
+        if (credentialsFile == null) {
+            credentialsFile = System.getenv("eql_test_credentials_file");
+        }
+        if (credentialsFile != null) {
+            final Path credentialsPath = Path.of(credentialsFile);
+            builder.keystore("gcs.client.eql_test.credentials_file", Resource.fromFile(credentialsPath));
+        }
+        return builder.build();
+    }
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     private static Properties CFG;
     private static RequestOptions COMMON_REQUEST_OPTIONS;
     private static long totalTime = 0;
+    private static long esqlTotalTime = 0;
 
     private static final Logger LOGGER = LogManager.getLogger(EsEQLCorrectnessIT.class);
 
@@ -81,6 +118,7 @@ public class EsEQLCorrectnessIT extends ESRestTestCase {
     @AfterClass
     public static void logTotalExecutionTime() {
         LOGGER.info("Total time: {} ms", totalTime);
+        LOGGER.info("Total ES|QL time: {} ms", esqlTotalTime);
     }
 
     @Override
@@ -196,5 +234,58 @@ public class EsEQLCorrectnessIT extends ESRestTestCase {
                 );
             }
         }
+    }
+
+    public void testEsqlEqlCommand() throws Exception {
+        assumeTrue(
+            "requires the ES|QL EQL command",
+            clusterHasCapability("POST", "/_query", List.of(), List.of("eql_command")).orElse(false)
+        );
+        int queryNo = spec.queryNo();
+        String esql = "EQL \""
+            + CFG.getProperty("index_name")
+            + "\" ?q WITH {\"size\": "
+            + CFG.getProperty("size")
+            + ", \"fetch_size\": "
+            + CFG.getProperty("fetch_size")
+            + ", \"result_position\": \""
+            + CFG.getProperty("result_position")
+            + "\", \"event_category_field\": \"event_type\", \"tiebreaker_field\": \"serial_id\"} | KEEP _sequence, serial_id | LIMIT "
+            + ESQL_ROW_LIMIT;
+        XContentBuilder builder = JsonXContent.contentBuilder()
+            .startObject()
+            .field("query", esql)
+            .startArray("params")
+            .startObject()
+            .field("q", spec.query())
+            .endObject()
+            .endArray()
+            .endObject();
+
+        Request request = new Request("POST", "/_query");
+        request.setOptions(RequestOptions.DEFAULT);
+        request.setJsonEntity(Strings.toString(builder));
+
+        ObjectPath response = ObjectPath.createFromResponse(client().performRequest(request));
+
+        int responseTime = response.evaluate("took");
+        LOGGER.info("ES|QL QueryNo: {}, took: {}ms", queryNo, responseTime);
+        esqlTotalTime += responseTime;
+
+        List<List<Object>> rows = response.evaluate("values");
+        assertTrue(
+            "ES|QL result reached the LIMIT [" + ESQL_ROW_LIMIT + "] and may be truncated for query No: " + queryNo,
+            rows.size() < ESQL_ROW_LIMIT
+        );
+        assertEquals(
+            "Failed to match sequence count for ES|QL query No: " + queryNo + " : " + spec.query() + System.lineSeparator(),
+            spec.seqCount(),
+            rows.stream().map(row -> row.get(0)).distinct().count()
+        );
+        assertArrayEquals(
+            "Failed to match event ids for ES|QL query No: " + queryNo + " : " + spec.query() + System.lineSeparator(),
+            spec.expectedEventIds(),
+            rows.stream().mapToLong(row -> ((Number) row.get(1)).longValue()).toArray()
+        );
     }
 }

@@ -1,0 +1,201 @@
+"Downsample aggregate method with multiple segments":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /{index}/_downsample/{target_index}
+          capabilities: [ "downsampling.store_reset_counters" ]
+      test_runner_features: [ "capabilities" ]
+      reason: Storing counter resets when downsampling was added in 9.4
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1
+            index:
+              mode: time_series
+              routing_path: [sensor_id]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              sensor_id:
+                type: keyword
+                time_series_dimension: true
+              requests:
+                type: long
+                time_series_metric: counter
+              cpu_usage:
+                type: double
+                time_series_metric: gauge
+
+  # First segment
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:10:00.000Z", "sensor_id": "A", "requests": 100, "cpu_usage": 50.0}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:10:10.000Z", "sensor_id": "C", "requests": 150, "cpu_usage": 55.0}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:30:10.000Z", "sensor_id": "C", "requests": 165, "cpu_usage": 57.0}'
+
+  # Second segment
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:30:00.000Z", "sensor_id": "A", "requests": 110, "cpu_usage": 52.0}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:30:05.000Z", "sensor_id": "B", "requests": 220, "cpu_usage": 62.0}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T19:16:10.000Z", "sensor_id": "B", "requests": 400, "cpu_usage": 75.0}'
+
+  # Third segment
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T19:10:00.000Z", "sensor_id": "A", "requests": 300, "cpu_usage": 70.0}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:10:05.000Z", "sensor_id": "B", "requests": 200, "cpu_usage": 60.0}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T19:10:10.000Z", "sensor_id": "C", "requests": 350, "cpu_usage": 72.0}'
+
+  # Fourth segment
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T19:30:00.000Z", "sensor_id": "A", "requests": 320, "cpu_usage": 71.0}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T19:30:05.000Z", "sensor_id": "B", "requests": 420, "cpu_usage": 78.0}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T19:30:10.000Z", "sensor_id": "C", "requests": 370, "cpu_usage": 73.0}'
+
+  - do:
+      indices.put_settings:
+        index: test
+        body:
+          index.blocks.write: true
+
+  - do:
+      indices.downsample:
+        index: test
+        target_index: test-aggregate
+        body: >
+          {
+            "fixed_interval": "1h"
+          }
+  - is_true: acknowledged
+
+  # 3 sensors × 2 hour buckets = 6 downsampled documents
+  - do:
+      search:
+        index: test-aggregate
+        body:
+          size: 0
+
+  - match: { hits.total.value: 6 }
+
+  # Verify sensor A: counter keeps first value in bucket, gauge is aggregated
+  - do:
+      search:
+        index: test-aggregate
+        body:
+          sort: ["@timestamp"]
+          query:
+            term:
+              sensor_id: "A"
+
+  - length: { hits.hits: 2 }
+
+  - match: { hits.hits.0._source._doc_count: 2 }
+  - match: { hits.hits.0._source.@timestamp: "2021-04-28T18:00:00.000Z" }
+  - match: { hits.hits.0._source.sensor_id: A }
+  - match: { hits.hits.0._source.requests: 100 }
+  - match: { hits.hits.0._source.cpu_usage.min: 50.0 }
+  - match: { hits.hits.0._source.cpu_usage.max: 52.0 }
+  - match: { hits.hits.0._source.cpu_usage.sum: 102.0 }
+  - match: { hits.hits.0._source.cpu_usage.value_count: 2 }
+
+  - match: { hits.hits.1._source._doc_count: 2 }
+  - match: { hits.hits.1._source.@timestamp: "2021-04-28T19:00:00.000Z" }
+  - match: { hits.hits.1._source.sensor_id: A }
+  - match: { hits.hits.1._source.requests: 300 }
+  - match: { hits.hits.1._source.cpu_usage.min: 70.0 }
+  - match: { hits.hits.1._source.cpu_usage.max: 71.0 }
+  - match: { hits.hits.1._source.cpu_usage.sum: 141.0 }
+  - match: { hits.hits.1._source.cpu_usage.value_count: 2 }
+
+  # Verify sensor B
+  - do:
+      search:
+        index: test-aggregate
+        body:
+          sort: ["@timestamp"]
+          query:
+            term:
+              sensor_id: "B"
+
+  - length: { hits.hits: 2 }
+
+  - match: { hits.hits.0._source._doc_count: 2 }
+  - match: { hits.hits.0._source.@timestamp: "2021-04-28T18:00:00.000Z" }
+  - match: { hits.hits.0._source.sensor_id: B }
+  - match: { hits.hits.0._source.requests: 200 }
+  - match: { hits.hits.0._source.cpu_usage.min: 60.0 }
+  - match: { hits.hits.0._source.cpu_usage.max: 62.0 }
+  - match: { hits.hits.0._source.cpu_usage.sum: 122.0 }
+  - match: { hits.hits.0._source.cpu_usage.value_count: 2 }
+
+  - match: { hits.hits.1._source._doc_count: 2 }
+  - match: { hits.hits.1._source.@timestamp: "2021-04-28T19:00:00.000Z" }
+  - match: { hits.hits.1._source.sensor_id: B }
+  - match: { hits.hits.1._source.requests: 400 }
+  - match: { hits.hits.1._source.cpu_usage.min: 75.0 }
+  - match: { hits.hits.1._source.cpu_usage.max: 78.0 }
+  - match: { hits.hits.1._source.cpu_usage.sum: 153.0 }
+  - match: { hits.hits.1._source.cpu_usage.value_count: 2 }
+
+  # Verify sensor C
+  - do:
+      search:
+        index: test-aggregate
+        body:
+          sort: ["@timestamp"]
+          query:
+            term:
+              sensor_id: "C"
+
+  - length: { hits.hits: 2 }
+
+  - match: { hits.hits.0._source._doc_count: 2 }
+  - match: { hits.hits.0._source.@timestamp: "2021-04-28T18:00:00.000Z" }
+  - match: { hits.hits.0._source.sensor_id: C }
+  - match: { hits.hits.0._source.requests: 150 }
+  - match: { hits.hits.0._source.cpu_usage.min: 55.0 }
+  - match: { hits.hits.0._source.cpu_usage.max: 57.0 }
+  - match: { hits.hits.0._source.cpu_usage.sum: 112.0 }
+  - match: { hits.hits.0._source.cpu_usage.value_count: 2 }
+
+  - match: { hits.hits.1._source._doc_count: 2 }
+  - match: { hits.hits.1._source.@timestamp: "2021-04-28T19:00:00.000Z" }
+  - match: { hits.hits.1._source.sensor_id: C }
+  - match: { hits.hits.1._source.requests: 350 }
+  - match: { hits.hits.1._source.cpu_usage.min: 72.0 }
+  - match: { hits.hits.1._source.cpu_usage.max: 73.0 }
+  - match: { hits.hits.1._source.cpu_usage.sum: 145.0 }
+  - match: { hits.hits.1._source.cpu_usage.value_count: 2 }

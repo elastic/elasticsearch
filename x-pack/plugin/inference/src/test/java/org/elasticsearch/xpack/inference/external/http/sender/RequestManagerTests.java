@@ -7,9 +7,8 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.request.RequestTests;
@@ -51,18 +50,11 @@ public class RequestManagerTests {
         var mockManager = mock(RequestManager.class);
 
         doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<InferenceServiceResults> listener = (ActionListener<InferenceServiceResults>) invocation.getArguments()[3];
-            requestSender.send(
-                mock(Logger.class),
-                RequestTests.mockRequest(inferenceEntityId),
-                () -> false,
-                mock(ResponseHandler.class),
-                listener
-            );
+            TimedListener<InferenceServiceResults> timedListener = invocation.getArgument(2);
+            requestSender.send(mock(Logger.class), RequestTests.mockRequest(inferenceEntityId), mock(ResponseHandler.class), timedListener);
 
             return Void.TYPE;
-        }).when(mockManager).execute(any(), any(), any(), any());
+        }).when(mockManager).execute(any(), any(), any());
 
         // just return something consistent so the hashing works
         when(mockManager.rateLimitGrouping()).thenReturn(inferenceEntityId);

@@ -23,7 +23,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexShardNotRecoveringException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -59,11 +58,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.xpack.stateless.cluster.coordination.StatelessClusterConsistencyService.DELAYED_CLUSTER_CONSISTENCY_INTERVAL_SETTING;
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS;
 import static org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryTestUtils.getCacheService;
-import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.PREWARM_RELOCATION_ACTION_NAME;
-import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
+import static org.elasticsearch.xpack.stateless.recovery.StatelessPrimaryRelocationSourceService.PREWARM_WAIT_TIMEOUT_SETTING;
+import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationHandoffAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
+import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationPrewarmAction.PREWARM_RELOCATION_ACTION_NAME;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -220,7 +221,7 @@ public class IndexingShardRelocationAvoidListIT extends AbstractStatelessPluginI
         final Set<PrimaryTermAndGeneration> passedBlobFiles = ConcurrentCollections.newConcurrentSet();
         MockTransportService.getInstance(indexNodeB)
             .addRequestHandlingBehavior(PRIMARY_CONTEXT_HANDOFF_ACTION_NAME, (handler, request, channel, task) -> {
-                var handoffRequest = (TransportStatelessPrimaryRelocationAction.PrimaryContextHandoffRequest) request;
+                var handoffRequest = (TransportStatelessPrimaryRelocationHandoffAction.Request) request;
                 var latestBccBlob = handoffRequest.latestBccBlob();
                 Assert.assertNotNull(latestBccBlob);
                 passedBlobFiles.add(latestBccBlob.blobFile().termAndGeneration());
@@ -274,6 +275,10 @@ public class IndexingShardRelocationAvoidListIT extends AbstractStatelessPluginI
         var settings = Settings.builder()
             .put(STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 2)
             .put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), false)
+            // reduce the consistency check to delete faster if a blob shows up for deletion
+            .put(DELAYED_CLUSTER_CONSISTENCY_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(100))
+            // we hold the prewarm until after the relocation, so no reason for the source to wait
+            .put(PREWARM_WAIT_TIMEOUT_SETTING.getKey(), TimeValue.ZERO)
             .build();
 
         startMasterOnlyNode(settings);
@@ -303,11 +308,11 @@ public class IndexingShardRelocationAvoidListIT extends AbstractStatelessPluginI
         // Pause pre-warming on target until we are done with relocation
         CountDownLatch prewarmBlockLatch = new CountDownLatch(1);
         // Capture the blob passed during pre-warming in relocation
-        AtomicReference<TransportStatelessPrimaryRelocationAction.BlobFileWithLength> prewarmBccBlobRef = new AtomicReference<>();
+        AtomicReference<BlobFileWithLength> prewarmBccBlobRef = new AtomicReference<>();
         CountDownLatch prewarmMessageFailedLatch = new CountDownLatch(1);
         MockTransportService.getInstance(indexNodeB)
             .addRequestHandlingBehavior(PREWARM_RELOCATION_ACTION_NAME, (handler, request, channel, task) -> {
-                var handoffRequest = (TransportStatelessPrimaryRelocationAction.PrewarmRelocationRequest) request;
+                var handoffRequest = (TransportStatelessPrimaryRelocationPrewarmAction.Request) request;
                 var latestBccBlob = handoffRequest.latestBccBlob();
                 Assert.assertNotNull(latestBccBlob);
                 prewarmBccBlobRef.set(latestBccBlob);
@@ -380,6 +385,7 @@ public class IndexingShardRelocationAvoidListIT extends AbstractStatelessPluginI
         // Unblock pre-warming message that now includes a path to the deleted blob
         prewarmBlockLatch.countDown();
         safeAwait(prewarmMessageFailedLatch);
+        // assert that no warming started for the deleted blob
         assertEquals(0, bccAccesses.get());
 
         ensureGreen(indexName);
@@ -415,7 +421,7 @@ public class IndexingShardRelocationAvoidListIT extends AbstractStatelessPluginI
         final Set<Long> handoffBlobGenerations = ConcurrentCollections.newConcurrentSet();
         MockTransportService.getInstance(indexNodeB)
             .addRequestHandlingBehavior(PRIMARY_CONTEXT_HANDOFF_ACTION_NAME, (handler, request, channel, task) -> {
-                var handoffRequest = (TransportStatelessPrimaryRelocationAction.PrimaryContextHandoffRequest) request;
+                var handoffRequest = (TransportStatelessPrimaryRelocationHandoffAction.Request) request;
                 var latestBccBlob = handoffRequest.latestBccBlob();
                 if (latestBccBlob != null) {
                     handoffBlobGenerations.add(latestBccBlob.blobFile().termAndGeneration().generation());
@@ -440,7 +446,7 @@ public class IndexingShardRelocationAvoidListIT extends AbstractStatelessPluginI
 
         safeAwait(enteredLatch, TimeValue.timeValueSeconds(30));
 
-        final long preMergeMaxFlushGen = sourceCommitService.getMaxGenerationToUploadForFlush(sourceShard.shardId());
+        final long preMergeMaxFlushGen = sourceCommitService.getMaxPendingOrUploadedGeneration(sourceShard.shardId());
 
         // Fire force merge asynchronously. The merge itself plus onCommitCreation (which adds the
         // phantom BlobReference to primaryTermAndGenToBlobReference) will complete, but the
@@ -453,10 +459,10 @@ public class IndexingShardRelocationAvoidListIT extends AbstractStatelessPluginI
         // entry to primaryTermAndGenToBlobReference) but before waitForCommitDurability (which blocks
         // because pauseUpload prevents the upload of generations > maxGenerationToUpload).
         assertBusy(() -> {
-            assertThat(sourceCommitService.getMaxGenerationToUploadForFlush(sourceShard.shardId()), greaterThan(preMergeMaxFlushGen));
+            assertThat(sourceCommitService.getMaxPendingOrUploadedGeneration(sourceShard.shardId()), greaterThan(preMergeMaxFlushGen));
         });
 
-        final long phantomGeneration = sourceCommitService.getMaxGenerationToUploadForFlush(sourceShard.shardId());
+        final long phantomGeneration = sourceCommitService.getMaxPendingOrUploadedGeneration(sourceShard.shardId());
 
         blockerLatch.countDown();
 
@@ -485,18 +491,6 @@ public class IndexingShardRelocationAvoidListIT extends AbstractStatelessPluginI
 
         public AvoidListTestStatelessPlugin(Settings settings) {
             super(settings);
-        }
-
-        @Override
-        public Collection<Object> createComponents(PluginServices services) {
-            final Collection<Object> components = super.createComponents(services);
-            components.add(
-                new PluginComponentBinding<>(
-                    StatelessCommitService.class,
-                    components.stream().filter(c -> c instanceof StatelessCommitService).findFirst().orElseThrow()
-                )
-            );
-            return components;
         }
 
         @Override

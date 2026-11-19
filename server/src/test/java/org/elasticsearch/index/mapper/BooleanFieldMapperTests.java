@@ -50,6 +50,9 @@ public class BooleanFieldMapperTests extends MapperTestCase {
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
+        checker.registerIgnoredParameter("multi_value");
+        checker.registerIgnoredParameter("nullability");
+        checker.registerIgnoredParameter("on_failure");
         checker.registerConflictCheck("index", b -> b.field("index", false));
         checker.registerConflictCheck("store", b -> b.field("store", true));
         checker.registerConflictCheck("null_value", b -> b.field("null_value", true));
@@ -97,29 +100,37 @@ public class BooleanFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected DocValuesType expectedSingleValuedDocValuesType() {
-        return DocValuesType.NUMERIC;
+    protected boolean supportsNullabilityParameter() {
+        return true;
+    }
+
+    @Override
+    protected boolean supportsOnFailureParameter() {
+        return true;
+    }
+
+    @Override
+    protected DocValuesType expectedDocValuesTypeForMultiValueFalse() {
+        return DocValuesType.SORTED_NUMERIC;
     }
 
     public void testSerialization() throws IOException {
 
-        DocumentMapper defaultMapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-        Mapper mapper = defaultMapper.mappers().getMapper("field");
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
-        mapper.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        fieldToXContent(mapperService, "field", builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         assertEquals("""
             {"field":{"type":"boolean"}}""", Strings.toString(builder));
 
         // now change some parameters
-        defaultMapper = createDocumentMapper(fieldMapping(b -> {
+        mapperService = createMapperService(fieldMapping(b -> {
             b.field("type", "boolean");
             b.field("doc_values", false);
             b.field("null_value", true);
         }));
-        mapper = defaultMapper.mappers().getMapper("field");
         builder = XContentFactory.jsonBuilder().startObject();
-        mapper.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        fieldToXContent(mapperService, "field", builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         assertEquals("""
             {"field":{"type":"boolean","doc_values":false,"null_value":true}}""", Strings.toString(builder));
@@ -311,20 +322,36 @@ public class BooleanFieldMapperTests extends MapperTestCase {
     private class BooleanSyntheticSourceSupport implements SyntheticSourceSupport {
         Boolean nullValue = usually() ? null : randomBoolean();
         private boolean ignoreMalformed;
+        private final boolean isColumnar;
+        // boolean fields have doc_values enabled by default, so multi_value: false can be requested in columnar mode.
+        private final boolean enforceSingleValue;
 
-        BooleanSyntheticSourceSupport(boolean ignoreMalformed) {
+        BooleanSyntheticSourceSupport(boolean ignoreMalformed, boolean isColumnar) {
             this.ignoreMalformed = ignoreMalformed;
+            this.isColumnar = isColumnar;
+            this.enforceSingleValue = isColumnar && randomBoolean();
+        }
+
+        @Override
+        public boolean isColumnar() {
+            return isColumnar;
+        }
+
+        @Override
+        public boolean enforcesSingleValue() {
+            return enforceSingleValue;
         }
 
         @Override
         public SyntheticSourceExample example(int maxVals) throws IOException {
-            if (randomBoolean()) {
+            // When multi_value is disabled a document may only have a single value, so never take the multi-valued branch below.
+            if (enforceSingleValue || randomBoolean()) {
                 Tuple<Boolean, Boolean> v = generateValue();
                 return new SyntheticSourceExample(v.v1(), v.v2(), this::mapping);
             }
             List<Tuple<Boolean, Boolean>> values = randomList(1, maxVals, this::generateValue);
             List<Boolean> in = values.stream().map(Tuple::v1).toList();
-            List<Boolean> outList = values.stream().map(Tuple::v2).sorted().toList();
+            List<Boolean> outList = isColumnar ? values.stream().map(Tuple::v2).toList() : values.stream().map(Tuple::v2).sorted().toList();
             Object out = outList.size() == 1 ? outList.get(0) : outList;
             return new SyntheticSourceExample(in, out, this::mapping);
         }
@@ -343,6 +370,9 @@ public class BooleanFieldMapperTests extends MapperTestCase {
                 b.field("null_value", nullValue);
             }
             b.field("ignore_malformed", ignoreMalformed);
+            if (enforceSingleValue) {
+                b.field("multi_value", false);
+            }
         }
 
         @Override
@@ -353,12 +383,17 @@ public class BooleanFieldMapperTests extends MapperTestCase {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        return new BooleanSyntheticSourceSupport(ignoreMalformed);
+        return new BooleanSyntheticSourceSupport(ignoreMalformed, false);
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupportColumnar(boolean ignoreMalformed) {
+        return new BooleanSyntheticSourceSupport(ignoreMalformed, true);
     }
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupportForKeepTests(boolean ignoreMalformed, Mapper.SourceKeepMode keepMode) {
-        return new BooleanSyntheticSourceSupport(ignoreMalformed) {
+        return new BooleanSyntheticSourceSupport(ignoreMalformed, false) {
             @Override
             public SyntheticSourceExample example(int maxVals) throws IOException {
                 var example = super.example(maxVals);
@@ -415,4 +450,28 @@ public class BooleanFieldMapperTests extends MapperTestCase {
             new SortShortcutSupport(this::minimalMapping, this::writeField, false)
         );
     }
+
+    public void testColumnarBooleanArrayOrderRoundTrip() throws IOException {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.name()).build();
+        DocumentMapper mapper = createMapperService(settings, mapping(b -> b.startObject("field").field("type", "boolean").endObject()))
+            .documentMapper();
+        // Mixed order — sorted doc-values order would group all false before all true regardless of input order.
+        boolean v1 = randomBoolean();
+        boolean v2 = randomBoolean();
+        boolean v3 = randomBoolean();
+        boolean v4 = randomBoolean();
+        String src = syntheticSource(mapper, b -> b.array("field", v1, v2, v3, v4));
+        assertThat(src, containsString("\"field\":[" + v1 + "," + v2 + "," + v3 + "," + v4 + "]"));
+    }
+
+    @Override
+    protected boolean supportsIndexSortRangeTest() {
+        // NOTE: The test needs three distinct ordered values and a boolean has two.
+        return false;
+    }
+
+    public void testScriptedFieldIsNotStaticallySingleValued() throws IOException {
+        assertScriptedFieldIsNotStaticallySingleValued("non-empty");
+    }
+
 }

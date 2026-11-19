@@ -8,23 +8,40 @@
 package org.elasticsearch.xpack.esql.datasources.dataset;
 
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.FilteredRestRequest;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.esql.datasources.EsqlDataSourcesCapabilities;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 @ServerlessScope(Scope.PUBLIC)
-public class RestPutDatasetAction extends BaseRestHandler {
+public class RestPutDatasetAction extends BaseRestHandler implements RestRequestFilter {
+
+    private static final Logger logger = LogManager.getLogger(RestPutDatasetAction.class);
+
+    private final Set<String> filteredFields;
+
+    public RestPutDatasetAction(Set<String> secretSettingNames) {
+        this.filteredFields = secretSettingNames.stream().map(name -> "settings." + name).collect(Collectors.toUnmodifiableSet());
+    }
 
     @Override
     public List<Route> routes() {
@@ -39,19 +56,73 @@ public class RestPutDatasetAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         final String name = request.param("name");
-        try (XContentParser parser = request.contentOrSourceParamParser()) {
-            PutDatasetAction.Request req = PutDatasetAction.Request.fromXContent(
+        try (XContentParser parser = request.contentParser()) {
+            PutDatasetAction.Request putRequest = PutDatasetAction.Request.fromXContent(
                 parser,
                 RestUtils.getMasterNodeTimeout(request),
                 RestUtils.getAckTimeout(request),
                 name
             );
-            return channel -> client.execute(PutDatasetAction.INSTANCE, req, new RestToXContentListener<>(channel));
+            return channel -> client.execute(PutDatasetAction.INSTANCE, putRequest, new RestToXContentListener<>(channel));
+        }
+    }
+
+    @Override
+    public Set<String> getFilteredFields() {
+        return filteredFields;
+    }
+
+    /**
+     * Filters secret setting names under {@code settings} and redacts secret parts of {@code resource}
+     * (query string, fragment, and user info on {@code http}/{@code https} URLs) before the body is audited.
+     * Overrides the default so redaction still runs when there are no secret setting names to drop.
+     * <p>
+     * When the body cannot be parsed, returns an empty body rather than the raw bytes: audit rendering would
+     * otherwise fall through to {@code Invalid Format: <raw>} and leak secrets from a truncated JSON prefix.
+     * An empty body also avoids turning a client 400 into a 500 when filtering runs before {@code prepareRequest}.
+     */
+    @Override
+    public RestRequest getFilteredRequest(RestRequest restRequest) {
+        if (restRequest.hasContent()) {
+            return new FilteredRestRequest(restRequest, filteredFields) {
+                @Override
+                public ReleasableBytesReference content() {
+                    try {
+                        return super.content();
+                    } catch (Exception e) {
+                        // Omit the body rather than returning raw bytes: AuditUtil's "Invalid Format: ..."
+                        // path would otherwise print secrets from a truncated JSON prefix into the audit log.
+                        // prepareRequest still returns 400 from contentParser() on the original request.
+                        logger.warn("failed to filter dataset PUT body for audit logging; omitting request body", e);
+                        return ReleasableBytesReference.wrap(BytesArray.EMPTY);
+                    }
+                }
+
+                @Override
+                protected Map<String, Object> transformBody(Map<String, Object> map) {
+                    Map<String, Object> filtered = super.transformBody(map);
+                    Object resource = filtered.get("resource");
+                    if (resource instanceof String resourceString) {
+                        filtered.put("resource", ExternalFailures.redactHttpUrl(resourceString));
+                    }
+                    return filtered;
+                }
+            };
+        } else {
+            return restRequest;
         }
     }
 
     @Override
     public Set<String> supportedCapabilities() {
-        return Set.of(EsqlDataSourcesCapabilities.DATA_SOURCES);
+        return Set.of(
+            EsqlDataSourcesCapabilities.DATA_SOURCES,
+            EsqlDataSourcesCapabilities.DATASET_DECLARED_SCHEMA,
+            EsqlDataSourcesCapabilities.DATA_SOURCES_SERVERLESS_SCOPE,
+            EsqlDataSourcesCapabilities.DATASET_REGION,
+            EsqlDataSourcesCapabilities.DATASET_TEXT_TYPE_NOT_DECLARABLE,
+            EsqlDataSourcesCapabilities.DATASET_ID_NOT_DECLARABLE,
+            EsqlDataSourcesCapabilities.DATA_SOURCE_DESCRIPTION_LENGTH_LIMIT
+        );
     }
 }

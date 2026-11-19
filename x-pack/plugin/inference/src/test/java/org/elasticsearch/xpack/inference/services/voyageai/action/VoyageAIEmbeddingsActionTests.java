@@ -7,11 +7,12 @@
 
 package org.elasticsearch.xpack.inference.services.voyageai.action;
 
-import org.apache.http.HttpHeaders;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.TestCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -20,7 +21,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
@@ -89,7 +89,13 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
     public void init() throws Exception {
         webServer.start();
         threadPool = createThreadPool(inferenceUtilityExecutors());
-        clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
+        clientManager = HttpClientManager.create(
+            Settings.EMPTY,
+            threadPool,
+            mockClusterServiceEmpty(),
+            mock(ThrottlerManager.class),
+            new TestCircuitBreaker()
+        );
     }
 
     @After
@@ -127,14 +133,14 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             var inputType = InputTypeTests.randomSearchAndIngestWithNull();
-            action.execute(new EmbeddingsInput(List.of(TEST_INPUT), inputType), null, listener);
+            action.execute(EmbeddingsInput.fromStrings(List.of(TEST_INPUT), inputType), null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
             assertThat(result.asMap(), is(buildExpectationFloat(List.of(new float[] { 0.123F, -0.123F }))));
             assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().getFirst().getUri().getQuery());
-            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE), is(XContentType.JSON.mediaType()));
+            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE), is("application/json; charset=UTF-8"));
             assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), is("Bearer " + TEST_API_KEY));
             assertThat(
                 webServer.requests().getFirst().getHeader(VoyageAIUtils.REQUEST_SOURCE_HEADER),
@@ -213,14 +219,14 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             var inputType = InputTypeTests.randomSearchAndIngestWithNull();
-            action.execute(new EmbeddingsInput(List.of(TEST_INPUT), inputType), null, listener);
+            action.execute(EmbeddingsInput.fromStrings(List.of(TEST_INPUT), inputType), null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
             assertEquals(buildExpectationByte(List.of(new byte[] { 0, -1 })), result.asMap());
             assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().getFirst().getUri().getQuery());
-            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE), is(XContentType.JSON.mediaType()));
+            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE), is("application/json; charset=UTF-8"));
             assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), is("Bearer " + TEST_API_KEY));
             assertThat(
                 webServer.requests().getFirst().getHeader(VoyageAIUtils.REQUEST_SOURCE_HEADER),
@@ -299,14 +305,14 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             var inputType = InputTypeTests.randomSearchAndIngestWithNull();
-            action.execute(new EmbeddingsInput(List.of(TEST_INPUT), inputType), null, listener);
+            action.execute(EmbeddingsInput.fromStrings(List.of(TEST_INPUT), inputType), null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
             assertEquals(buildExpectationBinary(List.of(new byte[] { 0, -1 })), result.asMap());
             assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().getFirst().getUri().getQuery());
-            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE), is(XContentType.JSON.mediaType()));
+            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE), is("application/json; charset=UTF-8"));
             assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), is("Bearer " + TEST_API_KEY));
             assertThat(
                 webServer.requests().getFirst().getHeader(VoyageAIUtils.REQUEST_SOURCE_HEADER),
@@ -364,7 +370,7 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
         var action = createAction(getUrl(webServer), VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS, VoyageAIEmbeddingType.FLOAT, sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new EmbeddingsInput(List.of(TEST_INPUT), InputTypeTests.randomSearchAndIngestWithNull()), null, listener);
+        action.execute(EmbeddingsInput.fromStrings(List.of(TEST_INPUT), InputTypeTests.randomSearchAndIngestWithNull()), null, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -384,7 +390,7 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
         var action = createAction(getUrl(webServer), VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS, VoyageAIEmbeddingType.FLOAT, sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new EmbeddingsInput(List.of(TEST_INPUT), InputTypeTests.randomSearchAndIngestWithNull()), null, listener);
+        action.execute(EmbeddingsInput.fromStrings(List.of(TEST_INPUT), InputTypeTests.randomSearchAndIngestWithNull()), null, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -398,7 +404,7 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
         var action = createAction(getUrl(webServer), VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS, VoyageAIEmbeddingType.FLOAT, sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new EmbeddingsInput(List.of(TEST_INPUT), InputTypeTests.randomSearchAndIngestWithNull()), null, listener);
+        action.execute(EmbeddingsInput.fromStrings(List.of(TEST_INPUT), InputTypeTests.randomSearchAndIngestWithNull()), null, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 

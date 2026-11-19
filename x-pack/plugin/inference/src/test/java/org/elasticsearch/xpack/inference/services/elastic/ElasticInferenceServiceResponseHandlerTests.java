@@ -9,10 +9,9 @@ package org.elasticsearch.xpack.inference.services.elastic;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.http.HttpResponse;
-import org.apache.http.StatusLine;
-import org.apache.http.message.BasicHeader;
-import org.apache.http.message.BasicHttpResponse;
+import org.apache.hc.core5.http.HttpResponse;
+import org.apache.hc.core5.http.message.BasicHeader;
+import org.apache.hc.core5.http.message.BasicHttpResponse;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
@@ -90,6 +89,14 @@ public class ElasticInferenceServiceResponseHandlerTests extends ESTestCase {
                     ) },
                 {
                     new FailureTestCase(
+                        422,
+                        RestStatus.UNPROCESSABLE_ENTITY,
+                        "Received an input validation error response for request from inference entity id [id] status [422]",
+                        false,
+                        Map.of()
+                    ) },
+                {
+                    new FailureTestCase(
                         429,
                         RestStatus.TOO_MANY_REQUESTS,
                         "Received a rate limit status code for request from inference entity id [id] status [429]",
@@ -133,15 +140,12 @@ public class ElasticInferenceServiceResponseHandlerTests extends ESTestCase {
         );
     }
 
-    public void testCheckForFailureStatusCode_Throws_WithErrorMessage() {
-        var exception = expectThrows(
-            RetryException.class,
-            () -> callCheckForFailureStatusCode(
-                failureTestCase.inputStatusCode,
-                failureTestCase.errorMessage,
-                "id",
-                failureTestCase.headers
-            )
+    public void testBuildFailureStatusCodeException_Returns_WithErrorMessage() {
+        var exception = callHandleFailureStatusCode(
+            failureTestCase.inputStatusCode,
+            failureTestCase.errorMessage,
+            "id",
+            failureTestCase.headers
         );
         assertThat(exception.shouldRetry(), is(failureTestCase.shouldRetry));
         assertThat(exception.getCause().getMessage(), containsString(failureTestCase.errorMessage));
@@ -151,34 +155,24 @@ public class ElasticInferenceServiceResponseHandlerTests extends ESTestCase {
         }
     }
 
-    public void testCheckForFailureStatusCode_DoesNotThrowFor200() {
-        callCheckForFailureStatusCode(200, null, "id", Map.of());
-    }
-
-    public void testCheckForFailureStatusCode_AlwaysAppliesRetryAfterHeaderWhenPresent() {
+    public void testBuildFailureStatusCodeException_AlwaysAppliesRetryAfterHeaderWhenPresent() {
         final String retryAfter = String.valueOf(randomIntBetween(1, 1000));
-        var exception = expectThrows(
-            RetryException.class,
-            () -> callCheckForFailureStatusCode(
-                randomIntBetween(300, 599),
-                randomAlphaOfLength(10),
-                "id",
-                Map.of(RETRY_AFTER_HEADER, retryAfter)
-            )
+        var exception = callHandleFailureStatusCode(
+            randomIntBetween(300, 599),
+            randomAlphaOfLength(10),
+            "id",
+            Map.of(RETRY_AFTER_HEADER, retryAfter)
         );
         assertCauseHasRetryHeader(exception, retryAfter);
     }
 
-    private static void callCheckForFailureStatusCode(
+    private static RetryException callHandleFailureStatusCode(
         int statusCode,
         @Nullable String errorMessage,
         String modelId,
         Map<String, String> headers
     ) {
-        var statusLine = mock(StatusLine.class);
-        when(statusLine.getStatusCode()).thenReturn(statusCode);
-
-        var httpResponse = new BasicHttpResponse(statusLine);
+        var httpResponse = new BasicHttpResponse(statusCode);
         givenResponseHasHeaders(httpResponse, headers);
 
         String responseJson = Strings.format("""
@@ -192,7 +186,7 @@ public class ElasticInferenceServiceResponseHandlerTests extends ESTestCase {
         var httpResult = new HttpResult(httpResponse, errorMessage == null ? new byte[] {} : responseJson.getBytes(StandardCharsets.UTF_8));
         var handler = new ElasticInferenceServiceResponseHandler("", (request, result) -> null);
 
-        handler.checkForFailureStatusCode(mockRequest, httpResult);
+        return handler.buildFailureStatusCodeException(mockRequest, httpResult);
     }
 
     private static void givenResponseHasHeaders(HttpResponse httpResponse, Map<String, String> headersMap) {

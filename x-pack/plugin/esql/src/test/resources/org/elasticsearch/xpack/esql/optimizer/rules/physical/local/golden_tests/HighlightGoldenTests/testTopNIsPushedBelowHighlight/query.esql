@@ -1,0 +1,5 @@
+FROM employees
+| WHERE first_name : "elasticsearch"
+| HIGHLIGHT "elasticsearch" ON first_name
+| SORT emp_no DESC
+| LIMIT 10

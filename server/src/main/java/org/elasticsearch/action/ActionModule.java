@@ -238,6 +238,8 @@ import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.recovery.CancelRecoveriesAction;
+import org.elasticsearch.indices.recovery.TransportCancelRecoveriesAction;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetadata;
 import org.elasticsearch.injection.guice.AbstractModule;
 import org.elasticsearch.injection.guice.TypeLiteral;
@@ -586,7 +588,7 @@ public class ActionModule extends AbstractModule {
     public void copyRequestHeadersToThreadContext(HttpPreRequest request, ThreadContext threadContext) {
         // the request's thread-context must always be populated (by calling this method) before undergoing any request related processing
         // we use this opportunity to first record the request processing start time
-        threadContext.putTransient(Task.TRACE_START_TIME, Instant.ofEpochMilli(System.currentTimeMillis()));
+        threadContext.putTransient(Task.TRACE_START_TIME, Instant.now());
         for (final RestHeaderDefinition restHeader : headersToCopy) {
             final String name = restHeader.getName();
             final List<String> headerValues = request.getHeaders().get(name);
@@ -750,6 +752,7 @@ public class ActionModule extends AbstractModule {
         actions.register(TransportClearScrollAction.TYPE, TransportClearScrollAction.class);
         actions.register(TransportFetchPhaseCoordinationAction.TYPE, TransportFetchPhaseCoordinationAction.class);
 
+        actions.register(CancelRecoveriesAction.TYPE, TransportCancelRecoveriesAction.class);
         actions.register(RecoveryAction.INSTANCE, TransportRecoveryAction.class);
         actions.register(TransportNodesReloadSecureSettingsAction.TYPE, TransportNodesReloadSecureSettingsAction.class);
         actions.register(AutoCreateAction.INSTANCE, AutoCreateAction.TransportAction.class);
@@ -986,7 +989,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestCancelTasksAction(nodesInCluster));
 
         // Ingest API
-        registerHandler.accept(new RestPutPipelineAction());
+        registerHandler.accept(new RestPutPipelineAction(clusterSettings));
         registerHandler.accept(new RestGetPipelineAction());
         registerHandler.accept(new RestDeletePipelineAction());
         registerHandler.accept(new RestSimulatePipelineAction());

@@ -27,7 +27,7 @@ public class CircuitBreakerAllocationListenerTests extends ESTestCase {
     }
 
     private BufferAllocator allocator(CircuitBreaker breaker) {
-        return new RootAllocator(new CircuitBreakerAllocationListener(breaker), Long.MAX_VALUE);
+        return new RootAllocator(new CircuitBreakerAllocationListener(breaker), Long.MAX_VALUE, requestSize -> requestSize);
     }
 
     public void testAllocationWithinLimitSucceeds() {
@@ -87,9 +87,7 @@ public class CircuitBreakerAllocationListenerTests extends ESTestCase {
 
         try (var allocator = allocator(breaker)) {
             ArrowBuf buf1 = allocator.buffer(800);
-            // Allocation can be larger than the requested size.
-            // (the real value is 1024, i.e. a power of 2)
-            assertTrue(breaker.getUsed() >= 800);
+            assertEquals(800, breaker.getUsed());
 
             // Would exceed limit if buf1 is still held
             expectThrows(Exception.class, () -> allocator.buffer(800));
@@ -99,7 +97,7 @@ public class CircuitBreakerAllocationListenerTests extends ESTestCase {
             assertEquals(0, breaker.getUsed());
 
             ArrowBuf buf2 = allocator.buffer(800);
-            assertTrue(breaker.getUsed() >= 800);
+            assertEquals(800, breaker.getUsed());
             buf2.close();
             assertEquals(0, breaker.getUsed());
         }

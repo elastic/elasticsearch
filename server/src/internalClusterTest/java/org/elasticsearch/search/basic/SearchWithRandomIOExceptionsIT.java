@@ -23,6 +23,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockFSDirectoryFactory;
 import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -42,6 +43,10 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
         return Arrays.asList(MockFSIndexStore.TestPlugin.class);
     }
 
+    @TestLogging(
+        value = "org.elasticsearch.index.seqno.ReplicationTracker:TRACE,org.elasticsearch.indices.recovery.RecoverySourceHandler:TRACE",
+        reason = "debugging potential retention lease race from https://github.com/elastic/elasticsearch/issues/152037"
+    )
     public void testRandomDirectoryIOExceptions() throws IOException, InterruptedException, ExecutionException {
         String mapping = Strings.toString(
             XContentFactory.jsonBuilder()
@@ -141,12 +146,12 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
         logger.info("Start Refresh");
         // don't assert on failures here
         final BroadcastResponse refreshResponse = indicesAdmin().prepareRefresh("test").execute().get();
-        final boolean refreshFailed = refreshResponse.getShardFailures().length != 0 || refreshResponse.getFailedShards() != 0;
+        final boolean refreshFailed = refreshResponse.getShardFailures().isEmpty() == false || refreshResponse.getFailedShards() != 0;
         logger.info(
             "Refresh failed [{}] numShardsFailed: [{}], shardFailuresLength: [{}], successfulShards: [{}], totalShards: [{}] ",
             refreshFailed,
             refreshResponse.getFailedShards(),
-            refreshResponse.getShardFailures().length,
+            refreshResponse.getShardFailures().size(),
             refreshResponse.getSuccessfulShards(),
             refreshResponse.getTotalShards()
         );

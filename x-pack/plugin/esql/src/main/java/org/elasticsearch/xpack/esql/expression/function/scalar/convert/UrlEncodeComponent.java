@@ -14,6 +14,7 @@ import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -33,7 +34,7 @@ import java.util.List;
 import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
-public class UrlEncodeComponent extends UnaryScalarFunction {
+public class UrlEncodeComponent extends UnaryScalarFunction implements AnyNullIsNull {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -50,6 +51,7 @@ public class UrlEncodeComponent extends UnaryScalarFunction {
 
     @FunctionInfo(
         returnType = "keyword",
+        briefSummary = "URL-encodes a string with spaces encoded as percent codes.",
         description = "URL-encodes the input. All characters are {wikipedia}/Percent-encoding[percent-encoded] except "
             + "for alphanumerics, `.`, `-`, `_`, and `~`. Spaces are encoded as `%20`.",
         examples = { @Example(file = "string", tag = "url_encode_component") },

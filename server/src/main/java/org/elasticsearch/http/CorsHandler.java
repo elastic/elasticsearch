@@ -35,9 +35,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
 
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -71,7 +69,6 @@ public class CorsHandler {
 
     public static final String ANY_ORIGIN = "*";
     public static final String ORIGIN = "origin";
-    public static final String DATE = "date";
     public static final String VARY = "vary";
     public static final String HOST = "host";
     public static final String ACCESS_CONTROL_REQUEST_METHOD = "access-control-request-method";
@@ -83,7 +80,6 @@ public class CorsHandler {
     public static final String ACCESS_CONTROL_EXPOSE_HEADERS = "access-control-expose-headers";
 
     private static final Pattern SCHEME_PATTERN = Pattern.compile("^https?://");
-    private static final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("EEE, dd MMM yyyy HH:mm:ss O", Locale.ENGLISH);
     private final Config config;
 
     public CorsHandler(Config config) {
@@ -145,7 +141,7 @@ public class CorsHandler {
     }
 
     private static void setPreflightHeaders(final HttpResponse response) {
-        response.addHeader(CorsHandler.DATE, dateTimeFormatter.format(ZonedDateTime.now(ZoneOffset.UTC)));
+        HttpUtils.addDateHeader(response, Instant.now());
         response.addHeader("content-length", "0");
     }
 

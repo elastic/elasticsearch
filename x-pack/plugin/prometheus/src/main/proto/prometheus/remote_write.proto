@@ -15,10 +15,11 @@ message WriteRequest {
   reserved  3;
 }
 
-// TimeSeries represents a single time series with its labels and samples.
+// TimeSeries represents samples, exemplars, and labels for a single time series.
 message TimeSeries {
-  repeated Label labels   = 1;
-  repeated Sample samples = 2;
+  repeated Label labels       = 1;
+  repeated Sample samples     = 2;
+  repeated Exemplar exemplars = 3;
 }
 
 // Label is a name-value pair that describes a time series. It's what we call "dimensions" in Elasticsearch.
@@ -31,4 +32,13 @@ message Label {
 message Sample {
   double value    = 1;
   int64 timestamp = 2;
+}
+
+message Exemplar {
+  // Optional, can be empty.
+  repeated Label labels = 1;
+  double value = 2;
+  // timestamp is in ms format, see model/timestamp/timestamp.go for
+  // conversion from time.Time to Prometheus timestamp.
+  int64 timestamp = 3;
 }

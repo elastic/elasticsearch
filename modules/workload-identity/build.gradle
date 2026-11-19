@@ -1,0 +1,90 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+import org.elasticsearch.gradle.internal.AbstractDependenciesTask
+
+esplugin {
+  description = 'Client for the workload-identity-issuer service, which mints short-lived OIDC JWTs used to authenticate to customer-owned cloud resources.'
+  classname = 'org.elasticsearch.workloadidentity.WorkloadIdentityPlugin'
+}
+
+// Mirrors modules/lang-painless's spi arrangement: the api jar at :modules:workload-identity:spi
+// is bundled into the plugin zip's `spi/` directory so that PluginsLoader exposes only those
+// types (WorkloadIdentityIssuerClient and WorkloadIdentityRegistry) on the classloader chain of
+// extending plugins. The Apache HC / commons-logging impl jars below stay private to this
+// module's own pluginClassLoader, which avoids jar-hell with x-pack-core (which already ships
+// httpclient et al. through the existing extendedPlugins chain reaching x-pack-esql).
+configurations {
+  spi
+  compileOnlyApi.extendsFrom(spi)
+  if (isEclipse) {
+    api.extendsFrom(spi)
+  }
+}
+
+dependencies {
+  spi project('spi')
+
+  // Apache HttpComponents 5.x is the transport for the workload-identity-issuer mTLS connection.
+  // We declare these libraries directly rather than going through :client:rest because we do not
+  // use the LLRC's RestClient API; pulling :client:rest in just for its transitive Apache HC chain
+  // would put the published REST client on our runtime classpath for no functional reason.
+  api "org.apache.httpcomponents.client5:httpclient5:${versions.httpclient5}"
+  api "org.apache.httpcomponents.core5:httpcore5:${versions.httpcore5}"
+  api "org.apache.httpcomponents.core5:httpcore5-h2:${versions.httpcore5}"
+
+  api project(":libs:ssl-config")
+
+  // httpclient5 calls LoggerFactory.getLogger() in static initializers, making slf4j-api a
+  // hard dependency even though Maven marks it optional. Because this is a named JPMS module,
+  // org.slf4j must appear in the module-info.java `requires` clause and therefore also on the
+  // compile module path. slf4j-nop discards HC5's wire logs silently; it is pulled into the
+  // module layer automatically via service-binding (org.slf4j `uses SLF4JServiceProvider`).
+  implementation "org.slf4j:slf4j-api:${versions.slf4j}"
+  runtimeOnly "org.slf4j:slf4j-nop:${versions.slf4j}"
+}
+
+esplugin.bundleSpec.into("spi") {
+  from(configurations.spi)
+}
+
+tasks.withType(AbstractDependenciesTask).configureEach {
+  mapping from: /httpcore5|httpcore5-h2/, to: 'httpclient5'
+  mapping from: /slf4j-.*/, to: 'slf4j'
+}
+
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses(
+    // httpclient5 optional integrations not present at runtime.
+    'com.aayushatharva.brotli4j.decoder.DecoderJNI$Status',
+    'com.aayushatharva.brotli4j.decoder.DecoderJNI$Wrapper',
+    'com.aayushatharva.brotli4j.encoder.Encoder$Mode',
+    'com.aayushatharva.brotli4j.encoder.EncoderJNI$Operation',
+    'com.aayushatharva.brotli4j.encoder.EncoderJNI$Wrapper',
+    'com.github.luben.zstd.ZstdDecompressCtx',
+    'com.github.luben.zstd.ZstdDirectBufferCompressingStream',
+    'org.apache.commons.compress.compressors.CompressorStreamFactory',
+    'org.conscrypt.Conscrypt',
+  )
+}
+
+tasks.named('forbiddenPatterns').configure {
+  // Test PEM key material can incidentally contain the regex "nocommit" inside its base64 payload.
+  // (*.crt is already excluded by the task's built-in default list.)
+  exclude '**/*.key'
+}
+
+// Local-dev fixture: stands up an HTTPS workload-identity-issuer mock backed by the checked-in
+// test PEM material so a node from `./gradlew run` can exercise the real mTLS transport. See
+// LocalTestWorkloadIdentityIssuer's javadoc for the elasticsearch.yml snippet to point a node at it.
+tasks.register('runTestIssuer', JavaExec) {
+  group = 'Execution'
+  description = 'Run the local test workload-identity-issuer fixture (mTLS, per-audience JWTs) for manual end-to-end testing'
+  classpath = sourceSets.test.runtimeClasspath
+  mainClass = 'org.elasticsearch.workloadidentity.LocalTestWorkloadIdentityIssuer'
+}

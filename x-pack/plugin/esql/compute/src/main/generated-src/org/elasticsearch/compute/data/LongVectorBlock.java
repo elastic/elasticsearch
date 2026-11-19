@@ -59,8 +59,8 @@ public final class LongVectorBlock extends AbstractVectorBlock implements LongBl
     }
 
     @Override
-    public LongBlock filter(boolean mayContainDuplicates, int... positions) {
-        return vector.filter(mayContainDuplicates, positions).asBlock();
+    public LongBlock filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
+        return vector.filter(mayContainDuplicates, positions, offset, length).asBlock();
     }
 
     @Override
@@ -115,7 +115,13 @@ public final class LongVectorBlock extends AbstractVectorBlock implements LongBl
 
     @Override
     public void allowPassingToDifferentDriver() {
+        makeRefCountsThreadSafe();
         vector.allowPassingToDifferentDriver();
+    }
+
+    @Override
+    public void enablePooling() {
+        vector.enablePooling();
     }
 
     @Override

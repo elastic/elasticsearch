@@ -58,6 +58,11 @@ public final class DirectBytesRefVector extends AbstractVector implements BytesR
     }
 
     @Override
+    public long estimateTotalValueBytes() {
+        return startOffsets[getPositionCount()] - startOffsets[0];
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.BYTES_REF;
     }
@@ -68,11 +73,11 @@ public final class DirectBytesRefVector extends AbstractVector implements BytesR
     }
 
     @Override
-    public BytesRefVector filter(boolean mayContainDuplicates, int... positions) {
+    public BytesRefVector filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
         var scratch = new BytesRef();
-        try (BytesRefVector.Builder builder = blockFactory().newBytesRefVectorBuilder(positions.length)) {
-            for (int p : positions) {
-                builder.appendBytesRef(getBytesRef(p, scratch));
+        try (BytesRefVector.Builder builder = blockFactory().newBytesRefVectorBuilder(length)) {
+            for (int i = offset, end = offset + length; i < end; i++) {
+                builder.appendBytesRef(getBytesRef(positions[i], scratch));
             }
             return builder.build();
         }

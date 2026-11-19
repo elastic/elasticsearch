@@ -13,6 +13,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.telemetry.metric.Instrument;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -101,7 +102,7 @@ public class MetricRecorder<I> {
      * Record a call made to the registered instrument represented by the {@link InstrumentType} enum.
      */
     public void call(InstrumentType instrumentType, String name, Number value, Map<String, Object> attributes) {
-        metrics.get(instrumentType).call(name, new Measurement(value, attributes, instrumentType.isDouble));
+        metrics.get(instrumentType).call(name, new Measurement(value, Map.copyOf(attributes), instrumentType.isDouble));
     }
 
     /**
@@ -113,6 +114,10 @@ public class MetricRecorder<I> {
 
     public List<Measurement> getMeasurements(InstrumentType instrumentType, String name) {
         return metrics.get(instrumentType).called.getOrDefault(Objects.requireNonNull(name), Collections.emptyList());
+    }
+
+    public List<Measurement> getAllMeasurements() {
+        return metrics.values().stream().flatMap(m -> m.called.values().stream()).flatMap(Collection::stream).toList();
     }
 
     public ArrayList<String> getRegisteredMetrics(InstrumentType instrumentType) {

@@ -7,29 +7,38 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
+import io.airlift.compress.lz4.Lz4Compressor;
+
 import org.apache.parquet.bytes.BytesInput;
 import org.apache.parquet.compression.CompressionCodecFactory.BytesInputCompressor;
 import org.apache.parquet.compression.CompressionCodecFactory.BytesInputDecompressor;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasource.compress.PanamaZstd;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.util.Arrays;
+import java.util.EnumSet;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class PlainCompressionCodecFactoryTests extends ESTestCase {
 
     private PlainCompressionCodecFactory factory;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initFactory() {
         factory = new PlainCompressionCodecFactory();
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void releaseFactory() {
         factory.release();
-        super.tearDown();
     }
 
     public void testUncompressedRoundTrip() throws IOException {
@@ -52,9 +61,566 @@ public class PlainCompressionCodecFactoryTests extends ESTestCase {
         assertRoundTrip(CompressionCodecName.LZ4_RAW);
     }
 
-    public void testLz4HadoopFramedUnsupported() {
-        expectThrows(UnsupportedOperationException.class, () -> factory.getDecompressor(CompressionCodecName.LZ4));
+    public void testNoopDecompressorIsNotHeapDest() {
+        BytesInputDecompressor decompressor = factory.getDecompressor(CompressionCodecName.UNCOMPRESSED);
+        assertFalse(decompressor instanceof PlainCompressionCodecFactory.HeapDestDecompressor);
+    }
+
+    public void testDecompressIntoOversizedDest() throws IOException {
+        // Honor destLen, not dest.length: reused dest is often larger than this page.
+        for (CompressionCodecName codec : new CompressionCodecName[] {
+            CompressionCodecName.SNAPPY,
+            CompressionCodecName.ZSTD,
+            CompressionCodecName.GZIP,
+            CompressionCodecName.LZ4_RAW }) {
+            assertDecompressIntoOversizedDest(
+                codec,
+                factory.getCompressor(codec),
+                (PlainCompressionCodecFactory.HeapDestDecompressor) factory.getDecompressor(codec)
+            );
+        }
+        LegacyLz4HadoopFramedCodecFactory lz4Write = new LegacyLz4HadoopFramedCodecFactory();
+        try {
+            assertDecompressIntoOversizedDest(
+                CompressionCodecName.LZ4,
+                lz4Write.getCompressor(CompressionCodecName.LZ4),
+                (PlainCompressionCodecFactory.HeapDestDecompressor) factory.getDecompressor(CompressionCodecName.LZ4)
+            );
+        } finally {
+            lz4Write.release();
+        }
+    }
+
+    public void testGzipDecompressIntoRejectsExtraUncompressedBytes() throws IOException {
+        BytesInputCompressor compressor = factory.getCompressor(CompressionCodecName.GZIP);
+        byte[] original = randomByteArrayOfLength(between(200, 4096));
+        BytesInput compressed = compressor.compress(BytesInput.from(original));
+        byte[] dest = new byte[original.length + between(16, 256)];
+        Arrays.fill(dest, (byte) 0x5A);
+        int destLen = original.length / 2;
+        assert destLen > 0 && destLen < original.length;
+        PlainCompressionCodecFactory.HeapDestDecompressor decompressor = (PlainCompressionCodecFactory.HeapDestDecompressor) factory
+            .getDecompressor(CompressionCodecName.GZIP);
+        IOException e = expectThrows(IOException.class, () -> decompressor.decompressInto(compressed, dest, destLen));
+        assertThat(e.getMessage(), containsString("GZIP"));
+        for (int i = destLen; i < dest.length; i++) {
+            assertEquals("must not write past destLen", (byte) 0x5A, dest[i]);
+        }
+    }
+
+    private void assertDecompressIntoOversizedDest(
+        CompressionCodecName codec,
+        BytesInputCompressor compressor,
+        PlainCompressionCodecFactory.HeapDestDecompressor decompressor
+    ) throws IOException {
+        byte[] original = randomByteArrayOfLength(between(100, 4096));
+        BytesInput compressed = compressor.compress(BytesInput.from(original));
+        byte[] dest = new byte[original.length + between(16, 256)];
+        Arrays.fill(dest, (byte) 0x5A);
+        decompressor.decompressInto(compressed, dest, original.length);
+        assertArrayEquals(codec + " prefix", original, Arrays.copyOf(dest, original.length));
+        for (int i = original.length; i < dest.length; i++) {
+            assertEquals(codec + " must not write past destLen at index " + i, (byte) 0x5A, dest[i]);
+        }
+    }
+
+    public void testSnappyDecompressIntoRejectsLengthMismatchOnOversizedDest() throws IOException {
+        BytesInputCompressor compressor = factory.getCompressor(CompressionCodecName.SNAPPY);
+        byte[] original = randomByteArrayOfLength(between(200, 4096));
+        BytesInput compressed = compressor.compress(BytesInput.from(original));
+        byte[] dest = new byte[original.length + between(16, 256)];
+        Arrays.fill(dest, (byte) 0x5A);
+        int destLen = original.length / 2;
+        assert destLen > 0 && destLen < original.length;
+        PlainCompressionCodecFactory.HeapDestDecompressor decompressor = (PlainCompressionCodecFactory.HeapDestDecompressor) factory
+            .getDecompressor(CompressionCodecName.SNAPPY);
+        IOException e = expectThrows(IOException.class, () -> decompressor.decompressInto(compressed, dest, destLen));
+        assertThat(e.getMessage(), containsString("Snappy"));
+        for (int i = 0; i < dest.length; i++) {
+            assertEquals("must not write before the uncompressedLength check", (byte) 0x5A, dest[i]);
+        }
+    }
+
+    /**
+     * Round-trips a payload via a test-only Hadoop-framed LZ4 compressor and the production
+     * decompressor wired into the factory. The compressor is intentionally not part of
+     * {@link PlainCompressionCodecFactory} — legacy {@code LZ4} is read-only — but exercising the
+     * decompressor against real Hadoop-framed bytes is the only way to lock in reader correctness
+     * for customer files written during the deprecation window.
+     */
+    public void testLz4HadoopFramedRoundTrip() throws IOException {
+        LegacyLz4HadoopFramedCodecFactory writeFactory = new LegacyLz4HadoopFramedCodecFactory();
+        BytesInputCompressor compressor = writeFactory.getCompressor(CompressionCodecName.LZ4);
+        BytesInputDecompressor decompressor = factory.getDecompressor(CompressionCodecName.LZ4);
+
+        byte[] original = randomByteArrayOfLength(between(100, 4096));
+        BytesInput compressed = compressor.compress(BytesInput.from(original));
+        BytesInput decompressed = decompressor.decompress(compressed, original.length);
+        assertArrayEquals(original, decompressed.toByteArray());
+    }
+
+    /**
+     * Reader must still reject {@code getCompressor(LZ4)}: the parquet-format spec deprecated the
+     * Hadoop-framed codec and ES|QL must not emit it. Acceptance criterion of the feature.
+     */
+    public void testLz4HadoopFramedCompressorStillUnsupported() {
         expectThrows(UnsupportedOperationException.class, () -> factory.getCompressor(CompressionCodecName.LZ4));
+    }
+
+    /**
+     * Verifies the decompressor honors Hadoop's frame format when an outer block carries
+     * multiple sub-blocks. Parquet-mr in practice emits one sub-block per page, but the Hadoop
+     * frame format permits more; a writer that splits an outer block across sub-blocks must
+     * still produce a readable file. The frame bytes here are hand-crafted to force the
+     * sub-block loop in the decompressor.
+     */
+    public void testLz4HadoopFramedMultipleSubBlocks() throws IOException {
+        byte[] partA = randomByteArrayOfLength(between(64, 256));
+        byte[] partB = randomByteArrayOfLength(between(64, 256));
+        byte[] partC = randomByteArrayOfLength(between(64, 256));
+        byte[] framed = buildMultiSubBlockFrame(new byte[][] { partA, partB, partC });
+
+        BytesInputDecompressor decompressor = factory.getDecompressor(CompressionCodecName.LZ4);
+        int total = partA.length + partB.length + partC.length;
+        BytesInput decompressed = decompressor.decompress(BytesInput.from(framed), total);
+        byte[] out = decompressed.toByteArray();
+
+        byte[] expected = new byte[total];
+        System.arraycopy(partA, 0, expected, 0, partA.length);
+        System.arraycopy(partB, 0, expected, partA.length, partB.length);
+        System.arraycopy(partC, 0, expected, partA.length + partB.length, partC.length);
+        assertArrayEquals(expected, out);
+    }
+
+    public void testLz4HadoopFramedMultipleSubBlocksDirectByteBuffer() throws IOException {
+        byte[] partA = randomByteArrayOfLength(between(64, 256));
+        byte[] partB = randomByteArrayOfLength(between(64, 256));
+        byte[] framed = buildMultiSubBlockFrame(new byte[][] { partA, partB });
+
+        ByteBuffer input = ByteBuffer.allocateDirect(framed.length);
+        input.put(framed).flip();
+        int total = partA.length + partB.length;
+        ByteBuffer output = ByteBuffer.allocateDirect(total);
+
+        BytesInputDecompressor decompressor = factory.getDecompressor(CompressionCodecName.LZ4);
+        decompressor.decompress(input, framed.length, output, total);
+        output.flip();
+        byte[] result = new byte[total];
+        output.get(result);
+
+        byte[] expected = new byte[total];
+        System.arraycopy(partA, 0, expected, 0, partA.length);
+        System.arraycopy(partB, 0, expected, partA.length, partB.length);
+        assertArrayEquals(expected, result);
+    }
+
+    /**
+     * Decompressor must defend against a caller that flips the input {@link ByteBuffer} to
+     * little-endian byte order: Hadoop's frame uses BE int32 headers unconditionally, so the
+     * decompressor must read them in BE regardless of the buffer's configured order.
+     */
+    public void testLz4HadoopFramedLittleEndianBufferOrderIgnored() throws IOException {
+        LegacyLz4HadoopFramedCodecFactory writeFactory = new LegacyLz4HadoopFramedCodecFactory();
+        BytesInputCompressor compressor = writeFactory.getCompressor(CompressionCodecName.LZ4);
+        byte[] original = randomByteArrayOfLength(between(100, 4096));
+        byte[] framed = compressor.compress(BytesInput.from(original)).toByteArray();
+
+        ByteBuffer input = ByteBuffer.allocate(framed.length).order(ByteOrder.LITTLE_ENDIAN);
+        input.put(framed).flip();
+        ByteBuffer output = ByteBuffer.allocate(original.length);
+
+        BytesInputDecompressor decompressor = factory.getDecompressor(CompressionCodecName.LZ4);
+        decompressor.decompress(input, framed.length, output, original.length);
+        output.flip();
+        byte[] result = new byte[original.length];
+        output.get(result);
+        assertArrayEquals(original, result);
+    }
+
+    public void testLz4HadoopFramedTruncatedOuterHeader() {
+        BytesInputDecompressor decompressor = factory.getDecompressor(CompressionCodecName.LZ4);
+        // Two bytes is short of the four-byte outer length header.
+        byte[] truncated = new byte[] { 0x00, 0x00 };
+        IOException e = expectThrows(IOException.class, () -> decompressor.decompress(BytesInput.from(truncated), 16));
+        assertTrue(e.getMessage(), e.getMessage().contains("truncated outer length header"));
+    }
+
+    public void testLz4HadoopFramedTruncatedSubBlockHeader() {
+        BytesInputDecompressor decompressor = factory.getDecompressor(CompressionCodecName.LZ4);
+        // Outer length declares 32 bytes, but the sub-block header is truncated to two bytes.
+        byte[] framed = new byte[] { 0x00, 0x00, 0x00, 0x20, 0x00, 0x00 };
+        IOException e = expectThrows(IOException.class, () -> decompressor.decompress(BytesInput.from(framed), 32));
+        assertTrue(e.getMessage(), e.getMessage().contains("truncated sub-block length header"));
+    }
+
+    public void testLz4HadoopFramedInvalidOuterLength() {
+        BytesInputDecompressor decompressor = factory.getDecompressor(CompressionCodecName.LZ4);
+        // Outer length of 0 is rejected — Hadoop streams treat it as EOF, but parquet pages
+        // never legitimately carry an empty outer block in the middle of a frame.
+        byte[] framed = new byte[] { 0x00, 0x00, 0x00, 0x00 };
+        IOException e = expectThrows(IOException.class, () -> decompressor.decompress(BytesInput.from(framed), 16));
+        assertTrue(e.getMessage(), e.getMessage().contains("invalid outer uncompressed length"));
+    }
+
+    public void testLz4HadoopFramedInvalidSubBlockLength() {
+        BytesInputDecompressor decompressor = factory.getDecompressor(CompressionCodecName.LZ4);
+        // Outer length declares 32 bytes; sub-block declares 200 bytes of compressed data but only
+        // 4 trailing bytes follow. The decompressor must reject the over-long sub-block before
+        // handing it to aircompressor.
+        byte[] framed = new byte[] { 0x00, 0x00, 0x00, 0x20, 0x00, 0x00, 0x00, (byte) 0xC8, 0x01, 0x02, 0x03, 0x04 };
+        IOException e = expectThrows(IOException.class, () -> decompressor.decompress(BytesInput.from(framed), 32));
+        assertTrue(e.getMessage(), e.getMessage().contains("invalid sub-block compressed length"));
+    }
+
+    /**
+     * Negative-path coverage for the {@code ByteBuffer} decompress overload, which has its own
+     * frame parsing loop distinct from the {@code BytesInput} path. Truncating the outer header
+     * here ensures the buffer-cursor restoration in the finally block doesn't leak invalid state
+     * to callers on the error path.
+     */
+    public void testLz4HadoopFramedTruncatedOuterHeaderDirectByteBuffer() {
+        BytesInputDecompressor decompressor = factory.getDecompressor(CompressionCodecName.LZ4);
+        byte[] truncated = new byte[] { 0x00, 0x00 };
+        ByteBuffer input = ByteBuffer.allocateDirect(truncated.length);
+        input.put(truncated).flip();
+        ByteBuffer output = ByteBuffer.allocateDirect(16);
+        IOException e = expectThrows(IOException.class, () -> decompressor.decompress(input, truncated.length, output, 16));
+        assertTrue(e.getMessage(), e.getMessage().contains("truncated outer length header"));
+    }
+
+    public void testLz4HadoopFramedTrailingBytesRejected() throws IOException {
+        LegacyLz4HadoopFramedCodecFactory writeFactory = new LegacyLz4HadoopFramedCodecFactory();
+        BytesInputCompressor compressor = writeFactory.getCompressor(CompressionCodecName.LZ4);
+        byte[] original = randomByteArrayOfLength(between(100, 256));
+        byte[] framed = compressor.compress(BytesInput.from(original)).toByteArray();
+
+        // Append a stray byte after the legitimate frame. The reader must reject it: parquet pages
+        // are sized exactly to the compressed payload and unconsumed trailing bytes signal corruption.
+        byte[] withTrailing = new byte[framed.length + 1];
+        System.arraycopy(framed, 0, withTrailing, 0, framed.length);
+        withTrailing[framed.length] = (byte) 0xAB;
+
+        BytesInputDecompressor decompressor = factory.getDecompressor(CompressionCodecName.LZ4);
+        IOException e = expectThrows(IOException.class, () -> decompressor.decompress(BytesInput.from(withTrailing), original.length));
+        assertTrue(e.getMessage(), e.getMessage().contains("trailing bytes after frame"));
+    }
+
+    public void testLz4UnframedRawBlockFallback() throws IOException {
+        byte[] original = randomPayload();
+        byte[] raw = LegacyLz4HadoopFramedCodecFactory.unframed()
+            .getCompressor(CompressionCodecName.LZ4)
+            .compress(BytesInput.from(original))
+            .toByteArray();
+
+        BytesInputDecompressor decompressor = factory.getDecompressor(CompressionCodecName.LZ4);
+        assertArrayEquals(original, decompressor.decompress(BytesInput.from(raw), original.length).toByteArray());
+    }
+
+    public void testLz4UnframedRawBlockFallbackByteBuffer() throws IOException {
+        byte[] original = randomPayload();
+        byte[] raw = LegacyLz4HadoopFramedCodecFactory.unframed()
+            .getCompressor(CompressionCodecName.LZ4)
+            .compress(BytesInput.from(original))
+            .toByteArray();
+        BytesInputDecompressor decompressor = factory.getDecompressor(CompressionCodecName.LZ4);
+
+        for (boolean direct : new boolean[] { false, true }) {
+            int inPad = between(0, 8);
+            int outPad = between(0, 8);
+            ByteBuffer input = direct ? ByteBuffer.allocateDirect(inPad + raw.length + 3) : ByteBuffer.allocate(inPad + raw.length + 3);
+            input.position(inPad).put(raw).position(inPad);
+            ByteBuffer output = direct
+                ? ByteBuffer.allocateDirect(outPad + original.length)
+                : ByteBuffer.allocate(outPad + original.length);
+            output.position(outPad);
+
+            decompressor.decompress(input, raw.length, output, original.length);
+
+            assertEquals(inPad + raw.length, input.position());
+            assertEquals(outPad + original.length, output.position());
+            byte[] result = new byte[original.length];
+            output.position(outPad).get(result);
+            assertArrayEquals(original, result);
+        }
+    }
+
+    public void testLz4UnframedDeclaredSizeTooLarge() throws IOException {
+        assertUnframedWrongDeclaredSizeRejected(1);
+    }
+
+    public void testLz4UnframedDeclaredSizeTooSmall() throws IOException {
+        assertUnframedWrongDeclaredSizeRejected(-1);
+    }
+
+    private void assertUnframedWrongDeclaredSizeRejected(int delta) throws IOException {
+        byte[] original = randomByteArrayOfLength(between(100, 4096));
+        byte[] raw = LegacyLz4HadoopFramedCodecFactory.unframed()
+            .getCompressor(CompressionCodecName.LZ4)
+            .compress(BytesInput.from(original))
+            .toByteArray();
+        BytesInputDecompressor decompressor = factory.getDecompressor(CompressionCodecName.LZ4);
+
+        int wrongSize = original.length + delta;
+        IOException e = expectThrows(IOException.class, () -> decompressor.decompress(BytesInput.from(raw), wrongSize));
+        assertEquals(1, e.getSuppressed().length);
+        assertThat(e.getSuppressed()[0], instanceOf(IOException.class));
+
+        ByteBuffer input = ByteBuffer.wrap(raw);
+        ByteBuffer output = ByteBuffer.allocate(wrongSize);
+        IOException bufferEx = expectThrows(IOException.class, () -> decompressor.decompress(input, raw.length, output, wrongSize));
+        assertEquals(1, bufferEx.getSuppressed().length);
+        assertThat(bufferEx.getSuppressed()[0], instanceOf(IOException.class));
+        assertEquals(raw.length, input.position());
+        assertEquals(0, output.position());
+    }
+
+    public void testLz4UnframedGarbage() {
+        byte[] garbage = new byte[64];
+        Arrays.fill(garbage, (byte) 0xFF);
+        BytesInputDecompressor decompressor = factory.getDecompressor(CompressionCodecName.LZ4);
+
+        IOException arrayEx = expectThrows(IOException.class, () -> decompressor.decompress(BytesInput.from(garbage), 1000));
+        assertFramedPrimaryRawSuppressed(arrayEx);
+        IOException bufferEx = expectThrows(
+            IOException.class,
+            () -> decompressor.decompress(ByteBuffer.wrap(garbage), garbage.length, ByteBuffer.allocate(1000), 1000)
+        );
+        assertFramedPrimaryRawSuppressed(bufferEx);
+    }
+
+    private static void assertFramedPrimaryRawSuppressed(IOException e) {
+        assertThat(e.getMessage(), containsString("Hadoop-framed LZ4"));
+        assertEquals(1, e.getSuppressed().length);
+        assertThat(e.getSuppressed()[0], instanceOf(IOException.class));
+        assertThat(e.getSuppressed()[0].getMessage(), containsString("LZ4 decompression"));
+    }
+
+    public void testLz4RawMalformedThrowsIOException() {
+        byte[] garbage = new byte[64];
+        Arrays.fill(garbage, (byte) 0xFF);
+        BytesInputDecompressor decompressor = factory.getDecompressor(CompressionCodecName.LZ4_RAW);
+
+        IOException arrayEx = expectThrows(IOException.class, () -> decompressor.decompress(BytesInput.from(garbage), 1000));
+        assertThat(arrayEx.getMessage(), containsString("LZ4_RAW decompression failed: malformed block"));
+        IOException bufferEx = expectThrows(
+            IOException.class,
+            () -> decompressor.decompress(ByteBuffer.wrap(garbage), garbage.length, ByteBuffer.allocate(1000), 1000)
+        );
+        assertThat(bufferEx.getMessage(), containsString("LZ4_RAW decompression failed: malformed block"));
+    }
+
+    public void testLz4RawByteBufferShortDecodeRejected() throws IOException {
+        byte[] original = randomByteArrayOfLength(between(100, 4096));
+        byte[] raw = factory.getCompressor(CompressionCodecName.LZ4_RAW).compress(BytesInput.from(original)).toByteArray();
+        BytesInputDecompressor decompressor = factory.getDecompressor(CompressionCodecName.LZ4_RAW);
+
+        ByteBuffer output = ByteBuffer.allocate(original.length + 1);
+        IOException e = expectThrows(
+            IOException.class,
+            () -> decompressor.decompress(ByteBuffer.wrap(raw), raw.length, output, original.length + 1)
+        );
+        assertThat(e.getMessage(), containsString("expected " + (original.length + 1)));
+    }
+
+    public void testLz4UnframedTinyPayloads() throws IOException {
+        BytesInputDecompressor decompressor = factory.getDecompressor(CompressionCodecName.LZ4);
+        for (int size = 0; size <= 8; size++) {
+            byte[] original = randomByteArrayOfLength(size);
+            byte[] raw = LegacyLz4HadoopFramedCodecFactory.unframed()
+                .getCompressor(CompressionCodecName.LZ4)
+                .compress(BytesInput.from(original))
+                .toByteArray();
+
+            assertArrayEquals(original, decompressor.decompress(BytesInput.from(raw), size).toByteArray());
+
+            ByteBuffer output = ByteBuffer.allocate(size);
+            decompressor.decompress(ByteBuffer.wrap(raw), raw.length, output, size);
+            assertEquals(size, output.position());
+            assertArrayEquals(original, output.array());
+        }
+    }
+
+    public void testLz4DoubleFailureLeavesInputAtPayloadEnd() {
+        byte[] garbage = new byte[64];
+        Arrays.fill(garbage, (byte) 0xFF);
+        int pad = between(0, 8);
+        ByteBuffer input = ByteBuffer.allocate(pad + garbage.length);
+        input.position(pad).put(garbage).position(pad);
+        ByteBuffer output = ByteBuffer.allocate(1000);
+        BytesInputDecompressor decompressor = factory.getDecompressor(CompressionCodecName.LZ4);
+
+        expectThrows(IOException.class, () -> decompressor.decompress(input, garbage.length, output, 1000));
+
+        assertEquals(pad + garbage.length, input.position());
+        assertEquals(0, output.position());
+    }
+
+    public void testLz4ValidMultiSubBlockFrameIsNotReadAsRawBlock() throws IOException {
+        byte[] partA = randomByteArrayOfLength(between(100, 1000));
+        byte[] partB = randomByteArrayOfLength(between(100, 1000));
+        byte[] framed = buildMultiSubBlockFrame(new byte[][] { partA, partB });
+        byte[] expected = new byte[partA.length + partB.length];
+        System.arraycopy(partA, 0, expected, 0, partA.length);
+        System.arraycopy(partB, 0, expected, partA.length, partB.length);
+
+        BytesInputDecompressor lz4 = factory.getDecompressor(CompressionCodecName.LZ4);
+        assertArrayEquals(expected, lz4.decompress(BytesInput.from(framed), expected.length).toByteArray());
+        ByteBuffer output = ByteBuffer.allocate(expected.length);
+        lz4.decompress(ByteBuffer.wrap(framed), framed.length, output, expected.length);
+        assertEquals(expected.length, output.position());
+        assertArrayEquals(expected, output.array());
+
+        BytesInputDecompressor lz4Raw = factory.getDecompressor(CompressionCodecName.LZ4_RAW);
+        expectThrows(IOException.class, () -> lz4Raw.decompress(BytesInput.from(framed), expected.length));
+    }
+
+    public void testLz4TruncatedFrameReportsFramedErrorWithRawSuppressed() throws IOException {
+        byte[] framed = buildMultiSubBlockFrame(new byte[][] { randomByteArrayOfLength(500), randomByteArrayOfLength(500) });
+        byte[] truncated = Arrays.copyOf(framed, framed.length - between(1, 8));
+        BytesInputDecompressor decompressor = factory.getDecompressor(CompressionCodecName.LZ4);
+
+        IOException arrayEx = expectThrows(IOException.class, () -> decompressor.decompress(BytesInput.from(truncated), 1000));
+        assertFramedPrimaryRawSuppressed(arrayEx);
+
+        ByteBuffer input = ByteBuffer.wrap(truncated);
+        IOException bufferEx = expectThrows(
+            IOException.class,
+            () -> decompressor.decompress(input, truncated.length, ByteBuffer.allocate(1000), 1000)
+        );
+        assertFramedPrimaryRawSuppressed(bufferEx);
+        assertEquals(truncated.length, input.position());
+    }
+
+    public void testLz4UnframedAndRawFromSlicedArrayBuffer() throws IOException {
+        byte[] original = randomPayload();
+        byte[] unframed = LegacyLz4HadoopFramedCodecFactory.unframed()
+            .getCompressor(CompressionCodecName.LZ4)
+            .compress(BytesInput.from(original))
+            .toByteArray();
+        assertSlicedArrayBufferRoundTrip(CompressionCodecName.LZ4, unframed, original);
+
+        byte[] raw = factory.getCompressor(CompressionCodecName.LZ4_RAW).compress(BytesInput.from(original)).toByteArray();
+        assertSlicedArrayBufferRoundTrip(CompressionCodecName.LZ4_RAW, raw, original);
+    }
+
+    private void assertSlicedArrayBufferRoundTrip(CompressionCodecName codec, byte[] compressed, byte[] original) throws IOException {
+        int offset = between(1, 16);
+        byte[] backing = new byte[offset + compressed.length + between(0, 16)];
+        System.arraycopy(compressed, 0, backing, offset, compressed.length);
+        ByteBuffer input = ByteBuffer.wrap(backing, offset, compressed.length).slice();
+        assertEquals(offset, input.arrayOffset());
+        ByteBuffer output = ByteBuffer.allocate(original.length);
+
+        factory.getDecompressor(codec).decompress(input, compressed.length, output, original.length);
+
+        assertEquals(compressed.length, input.position());
+        assertEquals(original.length, output.position());
+        assertArrayEquals(original, output.array());
+    }
+
+    public void testLz4UnframedAndRawFromReadOnlyHeapBuffer() throws IOException {
+        byte[] original = randomPayload();
+        byte[] unframed = LegacyLz4HadoopFramedCodecFactory.unframed()
+            .getCompressor(CompressionCodecName.LZ4)
+            .compress(BytesInput.from(original))
+            .toByteArray();
+        assertReadOnlyHeapBufferRoundTrip(CompressionCodecName.LZ4, unframed, original);
+
+        byte[] raw = factory.getCompressor(CompressionCodecName.LZ4_RAW).compress(BytesInput.from(original)).toByteArray();
+        assertReadOnlyHeapBufferRoundTrip(CompressionCodecName.LZ4_RAW, raw, original);
+    }
+
+    private void assertReadOnlyHeapBufferRoundTrip(CompressionCodecName codec, byte[] compressed, byte[] original) throws IOException {
+        ByteBuffer input = ByteBuffer.wrap(compressed).asReadOnlyBuffer();
+        assertFalse(input.hasArray());
+        assertFalse(input.isDirect());
+        ByteBuffer output = ByteBuffer.allocate(original.length);
+
+        factory.getDecompressor(codec).decompress(input, compressed.length, output, original.length);
+
+        assertEquals(compressed.length, input.position());
+        assertEquals(original.length, output.position());
+        assertArrayEquals(original, output.array());
+    }
+
+    public void testUnframedTestWriterEmitsBareRawBlock() throws IOException {
+        byte[] original = randomPayload();
+        byte[] unframed = LegacyLz4HadoopFramedCodecFactory.unframed()
+            .getCompressor(CompressionCodecName.LZ4)
+            .compress(BytesInput.from(original))
+            .toByteArray();
+        byte[] framed = new LegacyLz4HadoopFramedCodecFactory().getCompressor(CompressionCodecName.LZ4)
+            .compress(BytesInput.from(original))
+            .toByteArray();
+
+        BytesInputDecompressor lz4Raw = factory.getDecompressor(CompressionCodecName.LZ4_RAW);
+        assertArrayEquals(original, lz4Raw.decompress(BytesInput.from(unframed), original.length).toByteArray());
+        expectThrows(IOException.class, () -> lz4Raw.decompress(BytesInput.from(framed), original.length));
+        assertEquals(unframed.length + 8, framed.length);
+    }
+
+    private static byte[] randomPayload() {
+        int len = between(100, 4096);
+        if (randomBoolean()) {
+            return randomByteArrayOfLength(len);
+        }
+        byte[] compressible = new byte[len];
+        Arrays.fill(compressible, randomByte());
+        return compressible;
+    }
+
+    public void testDirectByteBufferDecompressionLz4HadoopFramed() throws IOException {
+        assertDirectByteBufferRoundTripWithLegacyLz4Writer();
+    }
+
+    private void assertDirectByteBufferRoundTripWithLegacyLz4Writer() throws IOException {
+        LegacyLz4HadoopFramedCodecFactory writeFactory = new LegacyLz4HadoopFramedCodecFactory();
+        BytesInputCompressor compressor = writeFactory.getCompressor(CompressionCodecName.LZ4);
+        byte[] original = randomByteArrayOfLength(between(100, 4096));
+        byte[] compressedBytes = compressor.compress(BytesInput.from(original)).toByteArray();
+
+        ByteBuffer input = ByteBuffer.allocateDirect(compressedBytes.length);
+        input.put(compressedBytes).flip();
+        ByteBuffer output = ByteBuffer.allocateDirect(original.length);
+
+        BytesInputDecompressor decompressor = factory.getDecompressor(CompressionCodecName.LZ4);
+        decompressor.decompress(input, compressedBytes.length, output, original.length);
+        output.flip();
+        byte[] result = new byte[original.length];
+        output.get(result);
+        assertArrayEquals(original, result);
+    }
+
+    /**
+     * Builds a Hadoop {@code BlockCompressorStream} frame from raw uncompressed payload parts,
+     * emitting one outer block whose declared uncompressed length covers all parts and
+     * {@code parts.length} sub-blocks back to back. Used to exercise the decompressor's
+     * sub-block loop on hand-crafted inputs that the simpler test compressor would never emit.
+     */
+    private static byte[] buildMultiSubBlockFrame(byte[][] parts) throws IOException {
+        Lz4Compressor lz4 = new Lz4Compressor();
+        int totalUncompressed = 0;
+        byte[][] compressed = new byte[parts.length][];
+        for (int i = 0; i < parts.length; i++) {
+            byte[] part = parts[i];
+            totalUncompressed += part.length;
+            byte[] buf = new byte[lz4.maxCompressedLength(part.length)];
+            int len = lz4.compress(part, 0, part.length, buf, 0, buf.length);
+            compressed[i] = new byte[len];
+            System.arraycopy(buf, 0, compressed[i], 0, len);
+        }
+        int frameLen = 4;
+        for (byte[] c : compressed) {
+            frameLen += 4 + c.length;
+        }
+        byte[] framed = new byte[frameLen];
+        ByteBuffer buf = ByteBuffer.wrap(framed); // BE by default
+        buf.putInt(totalUncompressed);
+        for (byte[] c : compressed) {
+            buf.putInt(c.length);
+            buf.put(c);
+        }
+        return framed;
     }
 
     public void testDirectByteBufferDecompressionSnappy() throws IOException {
@@ -91,6 +657,145 @@ public class PlainCompressionCodecFactoryTests extends ESTestCase {
         byte[] result = new byte[original.length];
         output.get(result);
         assertArrayEquals("Direct ByteBuffer round-trip failed for " + codec, original, result);
+    }
+
+    /**
+     * Exercises the {@code BytesInput.from(byte[], int, int)} input shape (a {@code ByteArrayBytesInput}
+     * with a non-zero offset). This is the dominant shape on the S3 prefetch path: column chunks
+     * arrive as byte arrays that may be sliced from a larger backing array.
+     *
+     * <p>Regression test for the fast path that calls {@code BytesInput.toByteBuffer()} and
+     * decompresses directly from the backing array, bypassing the BAOS-backed
+     * {@code BytesInput.toByteArray()} on the hot path.
+     */
+    public void testSnappyDecompressByteArrayWithOffset() throws IOException {
+        BytesInputCompressor compressor = factory.getCompressor(CompressionCodecName.SNAPPY);
+        BytesInputDecompressor decompressor = factory.getDecompressor(CompressionCodecName.SNAPPY);
+
+        byte[] original = randomByteArrayOfLength(between(100, 4096));
+        byte[] compressed = compressor.compress(BytesInput.from(original)).toByteArray();
+
+        // Embed the compressed payload in a larger backing array with a non-zero leading offset
+        // and trailing slack, so BytesInput.from(byte[], offset, length) produces a non-trivial
+        // ByteArrayBytesInput.
+        int leadingSlack = between(1, 32);
+        int trailingSlack = between(0, 32);
+        byte[] backing = new byte[leadingSlack + compressed.length + trailingSlack];
+        System.arraycopy(compressed, 0, backing, leadingSlack, compressed.length);
+
+        BytesInput offsetInput = BytesInput.from(backing, leadingSlack, compressed.length);
+        BytesInput decompressed = decompressor.decompress(offsetInput, original.length);
+        assertArrayEquals(original, decompressed.toByteArray());
+    }
+
+    /**
+     * Exercises {@link BytesInput#from(ByteBuffer, int, int)} with a heap-backed
+     * {@link ByteBuffer}. This produces a {@code ByteBufferBytesInput}, whose
+     * {@code toByteBuffer()} is overridden to return a no-copy slice that still has
+     * {@code hasArray() == true}; the fast path should pick that up.
+     */
+    public void testSnappyDecompressFromHeapByteBuffer() throws IOException {
+        BytesInputCompressor compressor = factory.getCompressor(CompressionCodecName.SNAPPY);
+        BytesInputDecompressor decompressor = factory.getDecompressor(CompressionCodecName.SNAPPY);
+
+        byte[] original = randomByteArrayOfLength(between(100, 4096));
+        byte[] compressed = compressor.compress(BytesInput.from(original)).toByteArray();
+
+        ByteBuffer compressedBuffer = ByteBuffer.wrap(compressed);
+        BytesInput heapBufferInput = BytesInput.from(compressedBuffer, 0, compressed.length);
+
+        BytesInput decompressed = decompressor.decompress(heapBufferInput, original.length);
+        assertArrayEquals(original, decompressed.toByteArray());
+    }
+
+    /**
+     * Exercises the fallback path: {@link BytesInput#from(ByteBuffer, int, int)} with a direct
+     * (off-heap) {@link ByteBuffer}. The resulting {@code ByteBufferBytesInput#toByteBuffer()}
+     * returns a slice with {@code hasArray() == false}, so the decompressor must fall back to
+     * the byte-array path. This guarantees we still handle off-heap inputs correctly.
+     */
+    public void testSnappyDecompressFromDirectByteBuffer() throws IOException {
+        BytesInputCompressor compressor = factory.getCompressor(CompressionCodecName.SNAPPY);
+        BytesInputDecompressor decompressor = factory.getDecompressor(CompressionCodecName.SNAPPY);
+
+        byte[] original = randomByteArrayOfLength(between(100, 4096));
+        byte[] compressed = compressor.compress(BytesInput.from(original)).toByteArray();
+
+        ByteBuffer compressedDirect = ByteBuffer.allocateDirect(compressed.length);
+        compressedDirect.put(compressed).flip();
+        BytesInput directBufferInput = BytesInput.from(compressedDirect, 0, compressed.length);
+
+        BytesInput decompressed = decompressor.decompress(directBufferInput, original.length);
+        assertArrayEquals(original, decompressed.toByteArray());
+    }
+
+    /**
+     * Exercises the Panama FFI Zstd path with non-zero {@code position()} on both buffers, modeling
+     * how parquet-mr feeds page slices that start inside larger column-chunk buffers. The Panama
+     * call must use the absolute offsets passed by the codec (i.e. {@code input.position()} and
+     * {@code output.position()}) without double-counting them. Regression test for the addressing
+     * semantics of {@link PanamaZstd#decompressDirect(ByteBuffer, int, int, ByteBuffer, int, int)}.
+     */
+    public void testZstdDirectByteBufferDecompressionWithNonZeroPosition() throws IOException {
+        assumeTrue("Panama Zstd binding required for this test", PanamaZstd.instance().isAvailable());
+        BytesInputCompressor compressor = factory.getCompressor(CompressionCodecName.ZSTD);
+        BytesInputDecompressor decompressor = factory.getDecompressor(CompressionCodecName.ZSTD);
+
+        byte[] original = randomByteArrayOfLength(between(100, 4096));
+        byte[] compressedBytes = compressor.compress(BytesInput.from(original)).toByteArray();
+
+        int srcLeading = between(1, 64);
+        int srcTrailing = between(0, 64);
+        ByteBuffer input = ByteBuffer.allocateDirect(srcLeading + compressedBytes.length + srcTrailing);
+        input.position(srcLeading);
+        input.put(compressedBytes);
+        input.position(srcLeading);
+        input.limit(srcLeading + compressedBytes.length);
+
+        int dstLeading = between(1, 64);
+        int dstTrailing = between(0, 64);
+        ByteBuffer output = ByteBuffer.allocateDirect(dstLeading + original.length + dstTrailing);
+        output.position(dstLeading);
+        output.limit(dstLeading + original.length);
+
+        decompressor.decompress(input, compressedBytes.length, output, original.length);
+
+        // After decompression the codec advances position by the consumed/produced bytes.
+        assertEquals(srcLeading + compressedBytes.length, input.position());
+        assertEquals(dstLeading + original.length, output.position());
+
+        // Decompressed payload must land at the original dstLeading offset.
+        byte[] result = new byte[original.length];
+        for (int i = 0; i < original.length; i++) {
+            result[i] = output.get(dstLeading + i);
+        }
+        assertArrayEquals(original, result);
+    }
+
+    /**
+     * The Panama Zstd path validates the decompressed length equals the parquet page header's
+     * {@code decompressedSize}. Inflating that claimed size beyond what the compressed frame holds
+     * must surface as a clean {@link IOException} rather than partial/incorrect output.
+     */
+    public void testZstdDirectByteBufferRejectsLengthMismatch() throws IOException {
+        assumeTrue("Panama Zstd binding required for this test", PanamaZstd.instance().isAvailable());
+        BytesInputCompressor compressor = factory.getCompressor(CompressionCodecName.ZSTD);
+        BytesInputDecompressor decompressor = factory.getDecompressor(CompressionCodecName.ZSTD);
+
+        byte[] original = randomByteArrayOfLength(between(100, 4096));
+        byte[] compressedBytes = compressor.compress(BytesInput.from(original)).toByteArray();
+
+        ByteBuffer input = ByteBuffer.allocateDirect(compressedBytes.length);
+        input.put(compressedBytes).flip();
+        ByteBuffer output = ByteBuffer.allocateDirect(original.length + 1);
+
+        // Inflate decompressedSize beyond the actual frame payload; libzstd writes exactly
+        // original.length bytes and our wrapper must reject the mismatch.
+        IOException ex = expectThrows(
+            IOException.class,
+            () -> decompressor.decompress(input, compressedBytes.length, output, original.length + 1)
+        );
+        assertThat(ex.getMessage(), containsString("Zstd decompression"));
     }
 
     public void testHeapByteBufferDecompression() throws IOException {
@@ -133,6 +838,29 @@ public class PlainCompressionCodecFactoryTests extends ESTestCase {
     public void testUnsupportedCodecThrows() {
         expectThrows(UnsupportedOperationException.class, () -> factory.getDecompressor(CompressionCodecName.BROTLI));
         expectThrows(UnsupportedOperationException.class, () -> factory.getCompressor(CompressionCodecName.BROTLI));
+        expectThrows(UnsupportedOperationException.class, () -> factory.getDecompressor(CompressionCodecName.LZO));
+        expectThrows(UnsupportedOperationException.class, () -> factory.getCompressor(CompressionCodecName.LZO));
+    }
+
+    public void testSupportedDecompressionCodecsMatchFactoryAndEnum() {
+        assertEquals(
+            EnumSet.of(
+                CompressionCodecName.UNCOMPRESSED,
+                CompressionCodecName.SNAPPY,
+                CompressionCodecName.GZIP,
+                CompressionCodecName.ZSTD,
+                CompressionCodecName.LZ4_RAW,
+                CompressionCodecName.LZ4
+            ),
+            PlainCompressionCodecFactory.supportedDecompressionCodecs()
+        );
+        for (CompressionCodecName codec : CompressionCodecName.values()) {
+            if (PlainCompressionCodecFactory.supportedDecompressionCodecs().contains(codec)) {
+                assertNotNull(factory.getDecompressor(codec));
+            } else {
+                expectThrows(UnsupportedOperationException.class, () -> factory.getDecompressor(codec));
+            }
+        }
     }
 
     public void testReleaseIsNoop() {
@@ -177,6 +905,49 @@ public class PlainCompressionCodecFactoryTests extends ESTestCase {
         for (CompressionCodecName codec : codecs) {
             assertSame(factory.getDecompressor(codec), factory.getDecompressor(codec));
             assertSame(factory.getCompressor(codec), factory.getCompressor(codec));
+        }
+        // Legacy LZ4 has a decompressor only, but the LazyInitializable holder must still hand
+        // out a single shared instance under contention.
+        BytesInputDecompressor legacyLz4 = factory.getDecompressor(CompressionCodecName.LZ4);
+        assertSame(legacyLz4, factory.getDecompressor(CompressionCodecName.LZ4));
+    }
+
+    public void testCorruptLz4RawPayloadThrowsIoException() throws IOException {
+        byte[] source = new byte[4096];
+        for (int i = 0; i < source.length; i++) {
+            source[i] = (byte) (i % 7);
+        }
+        BytesInputCompressor compressor = factory.getCompressor(CompressionCodecName.LZ4_RAW);
+        byte[] compressed = compressor.compress(BytesInput.from(source)).toByteArray();
+        byte[] corrupt = Arrays.copyOf(compressed, compressed.length);
+        for (int i = 8; i < 24; i++) {
+            corrupt[i] ^= 0x5A;
+        }
+        BytesInputDecompressor decompressor = factory.getDecompressor(CompressionCodecName.LZ4_RAW);
+        IOException thrown = expectThrows(IOException.class, () -> decompressor.decompress(BytesInput.from(corrupt), source.length));
+        assertThat(thrown.getMessage(), containsString("LZ4_RAW"));
+    }
+
+    public void testEveryCompressedCodecReportsMalformedPayloadAsIoException() throws IOException {
+        byte[] source = new byte[4096];
+        for (int i = 0; i < source.length; i++) {
+            source[i] = (byte) (i % 7);
+        }
+        for (CompressionCodecName codec : new CompressionCodecName[] {
+            CompressionCodecName.SNAPPY,
+            CompressionCodecName.GZIP,
+            CompressionCodecName.ZSTD,
+            CompressionCodecName.LZ4_RAW }) {
+            BytesInputCompressor compressor = factory.getCompressor(codec);
+            byte[] compressed = compressor.compress(BytesInput.from(source)).toByteArray();
+            byte[] corrupt = Arrays.copyOf(compressed, compressed.length);
+            int start = Math.min(8, Math.max(1, compressed.length / 4));
+            int end = Math.min(start + 16, compressed.length);
+            for (int i = start; i < end; i++) {
+                corrupt[i] ^= 0x5A;
+            }
+            BytesInputDecompressor decompressor = factory.getDecompressor(codec);
+            expectThrows(IOException.class, codec.name(), () -> decompressor.decompress(BytesInput.from(corrupt), source.length));
         }
     }
 

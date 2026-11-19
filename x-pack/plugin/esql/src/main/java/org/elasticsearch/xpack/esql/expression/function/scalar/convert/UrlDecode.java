@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -31,7 +32,7 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
-public final class UrlDecode extends UnaryScalarFunction {
+public final class UrlDecode extends UnaryScalarFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "UrlDecode",
@@ -45,6 +46,7 @@ public final class UrlDecode extends UnaryScalarFunction {
 
     @FunctionInfo(
         returnType = "keyword",
+        briefSummary = "Decodes a URL-encoded string.",
         description = "URL-decodes the input, or returns `null` and adds a warning header to the response if the input cannot be decoded.",
         examples = { @Example(file = "string", tag = "url_decode") },
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.2.0") }

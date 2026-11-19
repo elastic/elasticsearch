@@ -238,7 +238,25 @@ public class Methods {
         if (t.equals(Types.LONG_RANGE) || t.equals(Types.LONG_RANGE_BLOCK)) {
             return "appendLongRange";
         }
+        if (t.equals(Types.DOUBLE_RANGE) || t.equals(Types.DOUBLE_RANGE_BLOCK)) {
+            return "appendDoubleRange";
+        }
         throw new IllegalArgumentException("unknown append method for [" + t + "]");
+    }
+
+    /**
+     * Returns the call that builds {@code t} instances from a {@code BlockFactory}.
+     */
+    static String buildResultFromFactory(TypeName t, boolean enablePooling) {
+        String method = buildFromFactory(t);
+        if (enablePooling && (t.equals(INT_BLOCK_BUILDER) || t.equals(LONG_BLOCK_BUILDER) || t.equals(DOUBLE_BLOCK_BUILDER))) {
+            return method + "(positionCount, true)";
+        }
+        if (enablePooling
+            && (t.equals(INT_VECTOR_FIXED_BUILDER) || t.equals(LONG_VECTOR_FIXED_BUILDER) || t.equals(DOUBLE_VECTOR_FIXED_BUILDER))) {
+            return method + "(positionCount, true)";
+        }
+        return method + "(positionCount)";
     }
 
     /**
@@ -306,6 +324,9 @@ public class Methods {
         if (t.equals(LONG_RANGE_BLOCK_BUILDER)) {
             return "newLongRangeBlockBuilder";
         }
+        if (t.equals(Types.DOUBLE_RANGE_BLOCK_BUILDER)) {
+            return "newDoubleRangeBlockBuilder";
+        }
         throw new IllegalArgumentException("unknown build method for [" + t + "]");
     }
 
@@ -340,6 +361,9 @@ public class Methods {
         }
         if (elementType.equals(Types.LONG_RANGE)) {
             return "getLongRange";
+        }
+        if (elementType.equals(Types.DOUBLE_RANGE)) {
+            return "getDoubleRange";
         }
         throw new IllegalArgumentException("unknown get method for [" + elementType + "]");
     }

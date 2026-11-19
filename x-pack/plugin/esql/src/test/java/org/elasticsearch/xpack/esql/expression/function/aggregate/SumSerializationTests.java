@@ -51,7 +51,7 @@ public class SumSerializationTests extends AbstractExpressionSerializationTests<
         return new Sum(instance.source(), field, filter, window, summationMode, longOverflowMode);
     }
 
-    public static class OldSum extends AggregateFunction {
+    public static class OldSum extends UnaryAggregateFunction {
         public OldSum(Source source, Expression field, Expression filter, Expression window) {
             super(source, field, filter, window, List.of());
         }
@@ -120,7 +120,14 @@ public class SumSerializationTests extends AbstractExpressionSerializationTests<
      */
     public void testSerializeSumWithOverflowingLongSupplier() throws IOException {
         var transportVersion = TransportVersionUtils.randomVersionSupporting(Sum.ESQL_SUM_LONG_OVERFLOW_FIX);
-        var sum = new Sum(randomSource(), randomChild(), randomChild(), randomChild(), randomChild(), Sum.LONG_OVERFLOW_THROW);
+        var sum = new Sum(
+            randomSource(),
+            randomChildSupportedOn(transportVersion),
+            randomChildSupportedOn(transportVersion),
+            randomChildSupportedOn(transportVersion),
+            randomChildSupportedOn(transportVersion),
+            Sum.LONG_OVERFLOW_THROW
+        );
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             PlanStreamOutput planOut = new PlanStreamOutput(out, configuration());
             planOut.setTransportVersion(transportVersion);

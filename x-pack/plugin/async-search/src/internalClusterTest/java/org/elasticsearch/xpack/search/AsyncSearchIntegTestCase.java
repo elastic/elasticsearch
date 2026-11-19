@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.reindex.ReindexPlugin;
@@ -31,13 +32,16 @@ import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.query.ThrowingQueryBuilder;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.xpack.async.AsyncResultsIndexPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
+import org.elasticsearch.xpack.core.async.AsyncResultsTestUtils;
 import org.elasticsearch.xpack.core.async.AsyncTaskMaintenanceService;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
@@ -63,7 +67,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.xpack.core.XPackPlugin.ASYNC_RESULTS_INDEX;
 import static org.elasticsearch.xpack.core.async.AsyncTaskMaintenanceService.ASYNC_SEARCH_CLEANUP_INTERVAL_SETTING;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
@@ -75,7 +81,9 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
         @Override
         public List<QuerySpec<?>> getQueries() {
             return Arrays.asList(new QuerySpec<>(BlockingQueryBuilder.NAME, BlockingQueryBuilder::new, p -> {
-                throw new IllegalStateException("not implemented");
+                // For REST requests, which have no other way to block a search.
+                p.skipChildren();
+                return new BlockingQueryBuilder(0L);
             }),
                 new QuerySpec<>(
                     ThrowingQueryBuilder.NAME,
@@ -123,6 +131,12 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
     }
 
     @Override
+    protected void beforeIndexDeletion() throws Exception {
+        AsyncResultsTestUtils.awaitAsyncTasksAndDeleteResultsIndex();
+        super.beforeIndexDeletion();
+    }
+
+    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(
             LocalStateCompositeXPackPlugin.class,
@@ -149,13 +163,36 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
         final ClusterStateResponse clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).clear().setNodes(true).get();
         DiscoveryNode node = clusterState.getState().nodes().get(searchId.getTaskId().getNodeId());
 
-        // Temporarily stop garbage collection, making sure to wait for any in-flight tasks to complete
+        // pause() only cancels the next scheduled run. Wait for a delete-by-query already in
+        // flight: that task is removed only after its scroll is cleared.
         pauseMaintenanceService();
+        assertBusy(() -> {
+            for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
+                for (CancellableTask task : transportService.getTaskManager().getCancellableTasks().values()) {
+                    assertNotEquals("delete-by-query still running", DeleteByQueryAction.NAME, task.getAction());
+                }
+            }
+        });
         ensureAllSearchContextsReleased();
 
-        internalCluster().restartNode(node.getName(), new InternalTestCluster.RestartCallback() {});
+        // Wait for the replica of the just-created async results index to finish peer recovery. Restarting its node mid-recovery
+        // leaves an empty copy that is only reallocated after the 1m node-left delay,
+        // https://github.com/elastic/elasticsearch/issues/162607
+        ensureGreen(ASYNC_RESULTS_INDEX, indexName);
+
+        internalCluster().restartNode(node.getName(), new InternalTestCluster.RestartCallback() {
+            @Override
+            public void onNodeStarted(String nodeName) {
+                // Pause before the service's first scheduled run to prevent it from opening reader
+                // contexts on still-initializing shards that would outlast the drain below.
+                pauseMaintenanceService();
+            }
+        });
+        // ensureGreen so any waitForSearchReady callbacks registered before the pause have fired
+        // (and opened their contexts) by the time we drain.
+        ensureGreen(ASYNC_RESULTS_INDEX, indexName);
+        ensureAllSearchContextsReleased();
         unpauseMaintenanceService();
-        ensureYellow(ASYNC_RESULTS_INDEX, indexName);
     }
 
     protected AsyncSearchResponse submitAsyncSearch(SubmitAsyncSearchRequest request) throws ExecutionException, InterruptedException {
@@ -264,7 +301,7 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
         assertThat(initial.status(), equalTo(RestStatus.OK));
         assertThat(initial.getSearchResponse().getTotalShards(), equalTo(numShards));
         assertThat(initial.getSearchResponse().getSuccessfulShards(), equalTo(0));
-        assertThat(initial.getSearchResponse().getShardFailures().length, equalTo(0));
+        assertThat(initial.getSearchResponse().getShardFailures(), empty());
 
         return new SearchResponseIterator() {
             private AsyncSearchResponse response = initial;
@@ -302,7 +339,7 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
                     assertNull(newResponse.getFailure());
                     assertNotNull(newResponse.getSearchResponse());
                     assertThat(newResponse.getSearchResponse().getTotalShards(), equalTo(numShards));
-                    assertThat(newResponse.getSearchResponse().getShardFailures().length, lessThanOrEqualTo(numFailures));
+                    assertThat(newResponse.getSearchResponse().getShardFailures(), hasSize(lessThanOrEqualTo(numFailures)));
                 } else if (numFailures == numShards) {
                     assertThat(newResponse.status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
                     assertNotNull(newResponse.getFailure());
@@ -310,7 +347,7 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
                     assertNotNull(newResponse.getSearchResponse());
                     assertThat(newResponse.getSearchResponse().getTotalShards(), equalTo(numShards));
                     assertThat(newResponse.getSearchResponse().getSuccessfulShards(), equalTo(0));
-                    assertThat(newResponse.getSearchResponse().getShardFailures().length, equalTo(numFailures));
+                    assertThat(newResponse.getSearchResponse().getShardFailures(), hasSize(numFailures));
                     assertNull(newResponse.getSearchResponse().getAggregations());
                     assertNotNull(newResponse.getSearchResponse().getHits().getTotalHits());
                     assertThat(newResponse.getSearchResponse().getHits().getTotalHits().value(), equalTo(0L));
@@ -324,10 +361,10 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
                     assertFalse(newResponse.isPartial());
                     assertThat(newResponse.status(), equalTo(RestStatus.OK));
                     assertThat(newResponse.getSearchResponse().getTotalShards(), equalTo(numShards));
-                    assertThat(newResponse.getSearchResponse().getShardFailures().length, equalTo(numFailures));
+                    assertThat(newResponse.getSearchResponse().getShardFailures(), hasSize(numFailures));
                     assertThat(
                         newResponse.getSearchResponse().getSuccessfulShards(),
-                        equalTo(numShards - newResponse.getSearchResponse().getShardFailures().length)
+                        equalTo(numShards - newResponse.getSearchResponse().getShardFailures().size())
                     );
                 }
                 return response = newResponse;

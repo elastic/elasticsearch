@@ -1,0 +1,5 @@
+area: Mapping
+issues: []
+pr: 160012
+summary: Fix synthetic source bugs with subobjects:false arrays
+type: bug

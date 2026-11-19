@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `ENDS_WITH` function [esql-ends_with]
 
-:::{include} ../../_snippets/functions/layout/ends_with.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/ends_with.md
 :::

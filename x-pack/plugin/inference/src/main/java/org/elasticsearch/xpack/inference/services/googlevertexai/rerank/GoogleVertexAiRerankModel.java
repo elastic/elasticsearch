@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.googlevertexai.rerank;
 
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.utils.URIBuilder;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.core5.net.URIBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -28,6 +28,7 @@ import java.util.Objects;
 import java.util.function.BiConsumer;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.buildUriPreservingColons;
 
 public class GoogleVertexAiRerankModel extends GoogleVertexAiModel {
     private static final String RERANK_RATE_LIMIT_ENDPOINT_ID = "rerank";
@@ -49,10 +50,6 @@ public class GoogleVertexAiRerankModel extends GoogleVertexAiModel {
             GoogleVertexAiRerankTaskSettings.fromMap(taskSettings),
             GoogleVertexAiSecretSettings.fromMap(secrets)
         );
-    }
-
-    public GoogleVertexAiRerankModel(GoogleVertexAiRerankModel model, GoogleVertexAiRerankServiceSettings serviceSettings) {
-        super(model, serviceSettings);
     }
 
     // Should be used directly only for testing
@@ -87,7 +84,7 @@ public class GoogleVertexAiRerankModel extends GoogleVertexAiModel {
         GoogleVertexAiRerankServiceSettings serviceSettings,
         GoogleVertexAiRerankTaskSettings taskSettings,
         @Nullable GoogleVertexAiSecretSettings secrets,
-        BiConsumer<HttpPost, GoogleVertexAiModel> authHeaderDecorator
+        BiConsumer<SimpleHttpRequest, GoogleVertexAiModel> authHeaderDecorator
     ) {
         super(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
@@ -128,18 +125,19 @@ public class GoogleVertexAiRerankModel extends GoogleVertexAiModel {
     }
 
     public static URI buildUri(String projectId) throws URISyntaxException {
-        return new URIBuilder().setScheme("https")
-            .setHost(GoogleVertexAiUtils.GOOGLE_DISCOVERY_ENGINE_HOST)
-            .setPathSegments(
-                GoogleVertexAiUtils.V1,
-                GoogleVertexAiUtils.PROJECTS,
-                projectId,
-                GoogleVertexAiUtils.LOCATIONS,
-                GoogleVertexAiUtils.GLOBAL,
-                GoogleVertexAiUtils.RANKING_CONFIGS,
-                format("%s:%s", GoogleVertexAiUtils.DEFAULT_RANKING_CONFIG, GoogleVertexAiUtils.RANK)
-            )
-            .build();
+        return buildUriPreservingColons(
+            new URIBuilder().setScheme("https")
+                .setHost(GoogleVertexAiUtils.GOOGLE_DISCOVERY_ENGINE_HOST)
+                .setPathSegments(
+                    GoogleVertexAiUtils.V1,
+                    GoogleVertexAiUtils.PROJECTS,
+                    projectId,
+                    GoogleVertexAiUtils.LOCATIONS,
+                    GoogleVertexAiUtils.GLOBAL,
+                    GoogleVertexAiUtils.RANKING_CONFIGS,
+                    format("%s:%s", GoogleVertexAiUtils.DEFAULT_RANKING_CONFIG, GoogleVertexAiUtils.RANK)
+                )
+        );
     }
 
     @Override

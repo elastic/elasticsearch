@@ -157,8 +157,10 @@ public class DockerTests extends PackagingTestCase {
      */
     public void test011SecurityEnabledStatus() throws Exception {
         waitForElasticsearch(installation, "elastic", PASSWORD);
-        final int statusCode = makeRequestAsElastic("wrong_password");
-        assertThat(statusCode, equalTo(401));
+        // Authenticating the reserved `elastic` user consults the security index. Right after startup that index can briefly be
+        // unavailable, in which case the request fails with 503 (UnavailableShardsException) rather than the expected 401. Retry
+        // until the reserved realm is serving authentication decisions. See https://github.com/elastic/elasticsearch/issues/150438
+        assertBusy(() -> assertThat(makeRequestAsElastic("wrong_password"), equalTo(401)));
     }
 
     /**
@@ -914,6 +916,39 @@ public class DockerTests extends PackagingTestCase {
         ).stdout();
 
         assertThat("Found some files whose GID != 0", findResults, is(emptyString()));
+    }
+
+    /**
+     * Check that identical jars share an inode in the final image. The hard links are created in the builder stage, so this guards
+     * against them being lost by the {@code COPY --from=builder} that produces the final image. The Cloud ESS image is built on top of the
+     * Wolfi image without touching the distribution, so it is expected to inherit the links.
+     */
+    public void test102IdenticalJarsAreHardLinked() {
+        assumeTrue(
+            "Only the default, Wolfi and Cloud ESS images hard link duplicate jars",
+            distribution.packaging == Packaging.DOCKER
+                || distribution.packaging == Packaging.DOCKER_WOLFI
+                || distribution.packaging == Packaging.DOCKER_CLOUD_ESS
+        );
+
+        final String jars = "find lib modules plugins -type f -name '*.jar'";
+
+        // Print every checksum that is shared by jars with different inodes, which means a duplicate was stored as an independent copy.
+        final var unlinkedChecksums = DockerShell.executeCommand(
+            "bash",
+            "-c",
+            "set -o pipefail; cd /usr/share/elasticsearch && "
+                + jars
+                + " -exec sha256sum {} + | while read -r sum path; do "
+                + "echo \"$sum $(stat -c %i \"$path\")\"; done | sort -u | cut -d' ' -f1 | uniq -d"
+        );
+        assertThat("Failed to inspect the jars: " + unlinkedChecksums.stderr(), unlinkedChecksums.isSuccess(), is(true));
+        assertThat("Found identical jars that do not share an inode", unlinkedChecksums.stdout(), is(emptyString()));
+
+        // Make sure the check above is not vacuous, i.e. that there are duplicate jars that have been linked
+        final var linkedJars = DockerShell.executeCommand("bash", "-c", "cd /usr/share/elasticsearch && " + jars + " -links +1");
+        assertThat("Failed to inspect the jars: " + linkedJars.stderr(), linkedJars.isSuccess(), is(true));
+        assertThat("Expected some jars to be hard linked", linkedJars.stdout(), is(not(emptyString())));
     }
 
     /**

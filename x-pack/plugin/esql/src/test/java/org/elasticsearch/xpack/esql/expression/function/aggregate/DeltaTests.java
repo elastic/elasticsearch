@@ -51,7 +51,7 @@ public class DeltaTests extends AbstractAggregationTestCase {
                 suppliers.add(testCaseSupplier);
             }
         }
-        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers, NullTypeExpectation.OUTPUT_KEEPS_TYPE);
     }
 
     @Override
@@ -152,6 +152,20 @@ public class DeltaTests extends AbstractAggregationTestCase {
         result.add(params.get(0));
         var preview = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", false);
         result.add(new DocsV3Support.Param(DataType.TIME_DURATION, List.of(preview)));
+        return result;
+    }
+
+    /**
+     * Filters out implicitly injected parameters to ensure CONSTANT hint validation
+     * only checks declared @Param arguments.
+     */
+    public static List<TestCaseSupplier.TypedData> providedParameters(List<TestCaseSupplier.TypedData> params) {
+        assertThat(params, hasSize(4));
+        assertThat(params.get(1).type(), equalTo(DataType.DATETIME));
+        assertThat(params.get(2).type(), equalTo(DataType.INTEGER));
+        assertThat(params.get(3).type(), equalTo(DataType.LONG));
+        ArrayList<TestCaseSupplier.TypedData> result = new ArrayList<>();
+        result.add(params.get(0));
         return result;
     }
 }

@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
@@ -40,21 +41,25 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 /**
  * Clamps input values to have a lower limit of min.
  */
-public class ClampMin extends EsqlScalarFunction {
+public class ClampMin extends EsqlScalarFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ClampMin", ClampMin::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ClampMin.class).binary(ClampMin::new).name("clamp_min");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
         .binaryValueTransformation(PromqlFunctionDefinition.MIN_SCALAR, ClampMin::new)
         .description("Clamps the sample values of all elements to have a lower limit of min.")
         .example("clamp_min(http_requests_total, 0)")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
+        .stdDivergence("A `min` that isn't a number literal, such as `clamp_min(a, scalar(b))`, isn't supported yet.")
         .name("clamp_min");
 
     private DataType resolvedType;
 
     @FunctionInfo(
         returnType = { "double", "integer", "long", "double", "unsigned_long", "keyword", "ip", "boolean", "date", "version" },
+        briefSummary = "Clamps input values to a lower bound, raising any value below min to min.",
         description = "Limits (or clamps) all input sample values to a lower bound of min. Any value below min is set to min.",
         examples = @Example(file = "k8s-timeseries-clamp", tag = "clamp-min"),
+        preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") }
     )
     public ClampMin(
@@ -62,7 +67,7 @@ public class ClampMin extends EsqlScalarFunction {
         @Param(
             name = "field",
             type = { "double", "integer", "long", "double", "unsigned_long", "keyword", "ip", "boolean", "date", "version" },
-            description = "field to clamp."
+            description = "Expression to clamp. If `null`, the function returns `null`."
         ) Expression field,
         @Param(
             name = "min",
@@ -91,7 +96,15 @@ public class ClampMin extends EsqlScalarFunction {
 
     @Override
     public DataType dataType() {
-        if (resolvedType == null && resolveType().resolved() == false) {
+        DataType cached = resolvedType;
+        return cached != null ? cached : resolveDataType();
+    }
+
+    /**
+     * {@link #resolveType} assigns {@link #resolvedType}. Reading it after this thread assigned it can't see {@code null}.
+     */
+    private DataType resolveDataType() {
+        if (resolveType().resolved() == false) {
             throw new EsqlIllegalArgumentException("Unable to resolve data type for clamp_min");
         }
         return resolvedType;

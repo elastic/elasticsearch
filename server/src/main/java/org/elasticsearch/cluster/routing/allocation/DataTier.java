@@ -217,12 +217,19 @@ public class DataTier {
      */
     public static class DefaultHotAllocationSettingProvider implements IndexSettingProvider {
         private static final Logger logger = LogManager.getLogger(DefaultHotAllocationSettingProvider.class);
+        private static final Set<String> AFFECTED_SETTINGS = Set.of(TIER_PREFERENCE);
+
+        @Override
+        public Set<String> affectedSettings() {
+            return AFFECTED_SETTINGS;
+        }
 
         @Override
         public void provideAdditionalSettings(
             String indexName,
             @Nullable String dataStreamName,
             IndexMode templateIndexMode,
+            boolean registryInstalledTemplate,
             ProjectMetadata projectMetadata,
             Instant resolvedAt,
             Settings indexTemplateAndCreateRequestSettings,

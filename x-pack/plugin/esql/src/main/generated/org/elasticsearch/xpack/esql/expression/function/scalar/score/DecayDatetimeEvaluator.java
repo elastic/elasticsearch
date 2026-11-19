@@ -76,12 +76,13 @@ public final class DecayDatetimeEvaluator implements ExpressionEvaluator {
   }
 
   public DoubleBlock eval(int positionCount, LongBlock valueBlock) {
-    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
+        if (valueBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (valueBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -102,7 +103,7 @@ public final class DecayDatetimeEvaluator implements ExpressionEvaluator {
   }
 
   public DoubleBlock eval(int positionCount, LongVector valueVector) {
-    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         long value = valueVector.getLong(p);
         try {
@@ -128,7 +129,7 @@ public final class DecayDatetimeEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }

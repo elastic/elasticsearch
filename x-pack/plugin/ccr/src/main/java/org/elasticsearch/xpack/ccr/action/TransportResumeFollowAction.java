@@ -489,9 +489,11 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         IndexSettings.MAX_REGEX_LENGTH_SETTING,
         IndexSettings.MAX_TERMS_COUNT_SETTING,
         IndexSettings.MAX_ANALYZED_OFFSET_SETTING,
+        IndexSettings.MAX_NUMBER_OF_FRAGMENTS_SETTING,
         IndexSettings.WEIGHT_MATCHES_MODE_ENABLED_SETTING,
         IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING,
         IndexSettings.MAX_TOKEN_COUNT_SETTING,
+        IndexSettings.MAX_ANALYZE_CHAR_COUNT_SETTING,
         IndexSettings.MAX_SLICES_PER_SCROLL,
         IndexSettings.DEFAULT_PIPELINE,
         IndexSettings.FINAL_PIPELINE,
@@ -542,7 +544,9 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING,
         DenseVectorFieldMapper.HNSW_FILTER_HEURISTIC,
         DenseVectorFieldMapper.HNSW_EARLY_TERMINATION,
-        IndexSettings.INTRA_MERGE_PARALLELISM_ENABLED_SETTING
+        DenseVectorFieldMapper.POST_FILTER_SELECTIVITY_THRESHOLD,
+        IndexSettings.INTRA_MERGE_PARALLELISM_ENABLED_SETTING,
+        MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING
     );
 
     public static Settings filter(Settings originalSettings) {
@@ -561,6 +565,9 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         // that these settings are different:
         settings.remove(IndexMetadata.SETTING_VERSION_UPGRADED);
         settings.remove(IndexMetadata.SETTING_VERSION_UPGRADED_STRING);
+
+        // A follower always has it set, see CcrRepository#getSnapshotIndexMetaData.
+        settings.remove(IndexSettings.RETAINS_UNMAPPED_FIELDS_SETTING.getKey());
 
         Iterator<String> iterator = settings.keys().iterator();
         while (iterator.hasNext()) {

@@ -20,6 +20,7 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
@@ -150,9 +151,11 @@ public class RankFeaturePhase extends SearchPhase {
             @Override
             public void onFailure(Exception e) {
                 try {
-                    logger.debug(() -> "[" + contextId + "] Failed to execute rank phase", e);
-                    progressListener.notifyRankFeatureFailure(shardIndex, shardTarget, e);
-                    rankRequestCounter.onFailure(shardIndex, shardTarget, e);
+                    if (context.failedOnCoordinatorTrip() == false) {
+                        logger.debug(() -> "[" + contextId + "] Failed to execute rank phase", e);
+                        progressListener.notifyRankFeatureFailure(shardIndex, shardTarget, e);
+                        rankRequestCounter.onFailure(shardIndex, shardTarget, e);
+                    }
                 } finally {
                     releaseIrrelevantSearchContext(queryResult, context);
                 }
@@ -165,17 +168,24 @@ public class RankFeaturePhase extends SearchPhase {
             listener.onFailure(e);
             return;
         }
+        ShardSearchRequest rankFeatureShardRequest = context.buildShardSearchRequest(
+            context.shardIterators[queryResult.getShardIndex()],
+            queryResult.getShardIndex()
+        );
         context.getSearchTransport()
             .sendExecuteRankFeature(
                 connection,
                 new RankFeatureShardRequest(
                     context.getOriginalIndices(queryResult.getShardIndex()),
                     queryResult.getContextId(),
-                    queryResult.getShardSearchRequest(),
+                    rankFeatureShardRequest,
                     entry
                 ),
                 context.getTask(),
-                listener
+                context.newShardResponseReservation(NAME, ShardResponseReservation.BREAKER_LABEL),
+                listener,
+                context::trackPhaseResultBytesRead,
+                context::trackPhaseRequestBytesWritten
             );
     }
 

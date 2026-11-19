@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecyc
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.unit.UnitAware;
 
 import java.io.IOException;
 import java.util.List;
@@ -41,7 +42,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.intToUnsig
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToUnsignedLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToUnsignedLong;
 
-public class ToUnsignedLong extends AbstractConvertFunction {
+public class ToUnsignedLong extends AbstractConvertFunction implements UnitAware.PreservesUnit {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "ToUnsignedLong",
@@ -66,6 +67,7 @@ public class ToUnsignedLong extends AbstractConvertFunction {
         returnType = "unsigned_long",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
+        briefSummary = "Converts a value to an unsigned long.",
         description = """
             Converts an input value to an unsigned long value. If the input parameter is of a date type,
             its value will be interpreted as milliseconds since the {wikipedia}/Unix_time[Unix epoch], converted to unsigned long.

@@ -31,11 +31,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import static java.util.Collections.nCopies;
 import static org.elasticsearch.xpack.eql.parser.AbstractBuilder.unquoteString;
 import static org.elasticsearch.xpack.eql.parser.LogicalPlanBuilder.HEAD_PIPE;
 import static org.elasticsearch.xpack.eql.parser.LogicalPlanBuilder.SUPPORTED_PIPES;
 import static org.elasticsearch.xpack.eql.parser.LogicalPlanBuilder.TAIL_PIPE;
 import static org.elasticsearch.xpack.ql.TestUtils.UTC;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -492,5 +494,18 @@ public class ExpressionTests extends ESTestCase {
             () -> parser.createStatement("process where foo == true | " + pipe)
         );
         assertThat(pe.getMessage(), endsWith("Pipe [" + pipe + "] is not supported"));
+    }
+
+    public void testMaxExpressionDepth_nestedFunction_minOverflow() {
+        // MAX_EXPRESSION_DEPTH + 1 nested function calls: LP depth exceeds the pre-scan threshold
+        int depth = EqlParser.MAX_EXPRESSION_DEPTH + 1;
+        String nested = "process where ".concat(String.join("", nCopies(depth, "abs(")))
+            .concat("i")
+            .concat(String.join("", nCopies(depth, ")")));
+        ParsingException e = expectThrows(ParsingException.class, () -> parser.createStatement(nested));
+        assertThat(
+            e.getMessage(),
+            containsString("EQL statement exceeded the maximum expression depth allowed (" + EqlParser.MAX_EXPRESSION_DEPTH + ")")
+        );
     }
 }

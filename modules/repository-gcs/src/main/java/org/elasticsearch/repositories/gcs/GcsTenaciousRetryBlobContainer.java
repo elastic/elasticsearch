@@ -48,7 +48,7 @@ public class GcsTenaciousRetryBlobContainer extends TenaciousRetryBlobContainer 
 
     @Override
     protected BlobContainer wrapChild(BlobContainer child) {
-        return new GcsTenaciousRetryBlobContainer(child, repositoriesMetrics);
+        return child instanceof GcsTenaciousRetryBlobContainer ? child : new GcsTenaciousRetryBlobContainer(child, repositoriesMetrics);
     }
 
     private String lookUpOperationNameByMethod(RetryMethod method) {

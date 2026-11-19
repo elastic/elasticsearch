@@ -513,6 +513,16 @@ public class DefinitionLevelDecoderTests extends ESTestCase {
         }
     }
 
+    public void testTruncatedPayloadThrowsIllegalArgumentException() {
+        // A truncated definition-level payload is malformed input (a corrupt/truncated file), so it
+        // surfaces as a client-class IllegalArgumentException (HTTP 400), not a server error.
+        ByteBuffer buf = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN);
+        buf.putInt(999);
+        buf.flip();
+        DefinitionLevelDecoder decoder = new DefinitionLevelDecoder();
+        expectThrows(IllegalArgumentException.class, () -> decoder.init(buf, 1, true));
+    }
+
     private int[] randomDefLevels(int length, int maxDefLevel) {
         int[] defs = new int[length];
         // Mix of run-friendly stretches and noisy stretches to stress both RLE and bit-packed paths

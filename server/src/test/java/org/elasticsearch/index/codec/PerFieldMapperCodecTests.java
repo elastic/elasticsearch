@@ -12,31 +12,58 @@ package org.elasticsearch.index.codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene104.Lucene104PostingsFormat;
+import org.apache.lucene.index.DocValuesSkipIndexType;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.VectorEncoding;
+import org.apache.lucene.index.VectorSimilarityFunction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.columnar.ColumNARDocValuesFormat;
+import org.elasticsearch.columnar.ColumnarFieldType;
+import org.elasticsearch.columnar.numeric.NumericPipeline;
+import org.elasticsearch.columnar.string.DictionaryPolicy;
+import org.elasticsearch.columnar.string.StringColumnOptions;
+import org.elasticsearch.columnar.substrate.ChunkBounds;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
 import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat;
+import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesFormat;
+import org.elasticsearch.index.codec.tsdb.pipeline.FieldContext;
+import org.elasticsearch.index.codec.tsdb.pipeline.MetricRole;
+import org.elasticsearch.index.codec.tsdb.pipeline.PipelineConfig;
+import org.elasticsearch.index.codec.tsdb.pipeline.PipelineDescriptor;
+import org.elasticsearch.index.codec.tsdb.pipeline.StaticPipelineConfigResolver;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
+import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
@@ -77,6 +104,31 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         }
         """;
 
+    private static final String OTEL_COUNTER_LONG_MAPPING = """
+        {
+            "_data_stream_timestamp": {
+                "enabled": true
+            },
+            "properties": {
+                "@timestamp": {
+                    "type": "date"
+                },
+                "field": {
+                    "type": "keyword",
+                    "time_series_dimension": true
+                },
+                "packets": {
+                    "type": "long",
+                    "time_series_metric": "counter"
+                },
+                "temperature": {
+                    "type": "long",
+                    "time_series_metric": "gauge"
+                }
+            }
+        }
+        """;
+
     private static final String LOGS_MAPPING = """
         {
             "_data_stream_timestamp": {
@@ -94,6 +146,31 @@ public class PerFieldMapperCodecTests extends ESTestCase {
                 },
                 "message": {
                     "type": "text"
+                }
+            }
+        }
+        """;
+
+    private static final String COLUMNAR_MAPPING = """
+        {
+            "properties": {
+                "@timestamp": {
+                    "type": "date"
+                },
+                "category": {
+                    "type": "keyword"
+                },
+                "size": {
+                    "type": "long"
+                },
+                "score": {
+                    "type": "double"
+                },
+                "body": {
+                    "type": "text"
+                },
+                "payload": {
+                    "type": "binary"
                 }
             }
         }
@@ -129,7 +206,53 @@ public class PerFieldMapperCodecTests extends ESTestCase {
     public void testUseBloomFilterWithTimestampFieldEnabled_noTimeSeriesMode() throws IOException {
         PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(true, false, false, false);
         assertThat(perFieldMapperCodec.useBloomFilter("_id"), is(false));
-        assertThat(perFieldMapperCodec.getPostingsFormatForField("_id"), instanceOf(ES812PostingsFormat.class));
+        assertThat(perFieldMapperCodec.getPostingsFormatForField("_id"), instanceOf(Lucene104PostingsFormat.class));
+    }
+
+    public void testUseBloomFilterWithTimestampFieldEnabled_noTimeSeriesMode_dataStreamTimestampSettingEnabled() throws IOException {
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(
+            true,
+            false,
+            false,
+            false,
+            dataStreamTimestampBloomFilterNodeSettings()
+        );
+        assertThat(perFieldMapperCodec.useBloomFilter("_id"), is(true));
+        assertThat(perFieldMapperCodec.getPostingsFormatForField("_id"), instanceOf(ES87BloomFilterPostingsFormat.class));
+        assertThat(perFieldMapperCodec.useBloomFilter("another_field"), is(false));
+    }
+
+    public void testUseBloomFilterWithTimestampFieldEnabled_noTimeSeriesMode_dataStreamTimestampSettingEnabled_disableBloomFilter()
+        throws IOException {
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(
+            true,
+            false,
+            true,
+            false,
+            dataStreamTimestampBloomFilterNodeSettings()
+        );
+        assertThat(perFieldMapperCodec.useBloomFilter("_id"), is(false));
+        assertThat(perFieldMapperCodec.getPostingsFormatForField("_id"), instanceOf(Lucene104PostingsFormat.class));
+        assertWarnings(
+            "[index.bloom_filter_for_id_field.enabled] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the deprecation documentation for the next major version."
+        );
+    }
+
+    public void testUseBloomFilterLogsdbWithTimestampFieldEnabled_dataStreamTimestampSettingEnabled() throws IOException {
+        Settings indexSettings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB).build();
+        MapperService mapperService = MapperTestUtils.newMapperService(
+            xContentRegistry(),
+            createTempDir(),
+            indexSettings,
+            dataStreamTimestampBloomFilterNodeSettings(),
+            "test"
+        );
+        mapperService.merge("type", new CompressedXContent(LOGS_MAPPING), MapperService.MergeReason.MAPPING_UPDATE);
+        PerFieldFormatSupplier perFieldMapperCodec = new PerFieldFormatSupplier(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
+        assertThat(perFieldMapperCodec.useBloomFilter("_id"), is(true));
+        assertThat(perFieldMapperCodec.getPostingsFormatForField("_id"), instanceOf(ES87BloomFilterPostingsFormat.class));
+        assertThat(perFieldMapperCodec.useBloomFilter("hostname"), is(false));
     }
 
     public void testUseBloomFilterWithTimestampFieldEnabled_disableBloomFilter() throws IOException {
@@ -172,34 +295,39 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         perFieldMapperCodec = createFormatSupplier(false, true, IndexMode.TIME_SERIES, METRIC_MAPPING);
         assertThat(perFieldMapperCodec.getPostingsFormatForField("gauge"), instanceOf(ES812PostingsFormat.class));
 
-        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
-            // Columnar index mode
-            // by default, columnar uses the ES 8.12 postings format
-            perFieldMapperCodec = createFormatSupplier(false, false, IndexMode.COLUMNAR, LOGS_MAPPING);
-            assertThat(perFieldMapperCodec.getPostingsFormatForField("message"), instanceOf(ES812PostingsFormat.class));
+        // Columnar index mode
+        // by default, columnar uses the ES 8.12 postings format
+        perFieldMapperCodec = createFormatSupplier(false, false, IndexMode.COLUMNAR, LOGS_MAPPING);
+        assertThat(perFieldMapperCodec.getPostingsFormatForField("message"), instanceOf(ES812PostingsFormat.class));
 
-            perFieldMapperCodec = createFormatSupplier(false, true, IndexMode.COLUMNAR, LOGS_MAPPING);
-            assertThat(perFieldMapperCodec.getPostingsFormatForField("message"), instanceOf(ES812PostingsFormat.class));
+        perFieldMapperCodec = createFormatSupplier(false, true, IndexMode.COLUMNAR, LOGS_MAPPING);
+        assertThat(perFieldMapperCodec.getPostingsFormatForField("message"), instanceOf(ES812PostingsFormat.class));
 
-            // Columnar LogsDB index mode
-            // by default, logsdb_columnar uses the ES 8.12 postings format
-            perFieldMapperCodec = createFormatSupplier(false, false, IndexMode.LOGSDB_COLUMNAR, LOGS_MAPPING);
-            assertThat(perFieldMapperCodec.getPostingsFormatForField("message"), instanceOf(ES812PostingsFormat.class));
+        // Columnar LogsDB index mode
+        // by default, logsdb_columnar uses the ES 8.12 postings format
+        perFieldMapperCodec = createFormatSupplier(false, false, IndexMode.LOGSDB_COLUMNAR, LOGS_MAPPING);
+        assertThat(perFieldMapperCodec.getPostingsFormatForField("message"), instanceOf(ES812PostingsFormat.class));
 
-            perFieldMapperCodec = createFormatSupplier(false, true, IndexMode.LOGSDB_COLUMNAR, LOGS_MAPPING);
-            assertThat(perFieldMapperCodec.getPostingsFormatForField("message"), instanceOf(ES812PostingsFormat.class));
-        }
+        perFieldMapperCodec = createFormatSupplier(false, true, IndexMode.LOGSDB_COLUMNAR, LOGS_MAPPING);
+        assertThat(perFieldMapperCodec.getPostingsFormatForField("message"), instanceOf(ES812PostingsFormat.class));
     }
 
-    public void testUseEs812PostingsFormatForIdField() throws IOException {
+    public void testUseEs812PostingsFormatForIdFieldBeforeLucene105() throws IOException {
         int numIterations = randomIntBetween(2, 64);
         for (int i = 0; i < numIterations; i++) {
             var indexMode = randomFrom(IndexMode.STANDARD, IndexMode.LOGSDB, IndexMode.TIME_SERIES);
             String mapping = randomFrom(METRIC_MAPPING, MULTI_METRIC_MAPPING, LOGS_MAPPING);
-            final boolean randomSyntheticId = syntheticId(indexMode.equals(IndexMode.TIME_SERIES));
+            IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(
+                IndexVersions.ID_FIELD_USE_ES812_POSTINGS_FORMAT,
+                IndexVersionUtils.getPreviousVersion(IndexVersions.ID_FIELD_USE_DEFAULT_POSTINGS_FORMAT)
+            );
+            final boolean randomSyntheticId = syntheticId(indexMode.equals(IndexMode.TIME_SERIES))
+                && indexVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94);
             PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(
+                null,
                 randomBoolean(),
                 randomBoolean(),
+                indexVersion,
                 indexMode,
                 mapping,
                 randomSyntheticId
@@ -211,6 +339,74 @@ public class PerFieldMapperCodecTests extends ESTestCase {
             }
             assertThat(result, (instanceOf(randomSyntheticId ? TSDBSyntheticIdPostingsFormat.class : ES812PostingsFormat.class)));
         }
+    }
+
+    /**
+     * 9_111_0_xx index versions were backported to 9.5 without the default _id postings format change, so on stateful they still use
+     * the ES812 postings format, while stateless uses the default from the original gate.
+     */
+    public void testIdFieldPostingsFormatForBackportedVersionsDependsOnStateless() throws IOException {
+        Settings statelessNode = Settings.builder().put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true).build();
+        // one temp dir for all the mapper services: a class temp dir only has a limited number of names, and this test runs many times
+        // under the flakiness job
+        Path home = createTempDir();
+        for (IndexVersion backported : List.of(
+            IndexVersions.UPGRADE_TO_LUCENE_10_5_1,
+            IndexVersions.UPGRADE_TO_LUCENE_10_5_2_BACKPORT_9_5
+        )) {
+            assertThat(idPostingsFormat(home, backported, Settings.EMPTY), instanceOf(ES812PostingsFormat.class));
+        }
+        assertThat(
+            idPostingsFormat(home, IndexVersions.ID_FIELD_USE_DEFAULT_POSTINGS_FORMAT, statelessNode),
+            instanceOf(Lucene104PostingsFormat.class)
+        );
+        assertThat(
+            idPostingsFormat(home, IndexVersionUtils.getPreviousVersion(IndexVersions.ID_FIELD_USE_DEFAULT_POSTINGS_FORMAT), statelessNode),
+            instanceOf(ES812PostingsFormat.class)
+        );
+        assertThat(
+            idPostingsFormat(home, IndexVersions.COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG, Settings.EMPTY),
+            instanceOf(Lucene104PostingsFormat.class)
+        );
+    }
+
+    private PostingsFormat idPostingsFormat(Path home, IndexVersion indexVersion, Settings nodeSettings) throws IOException {
+        Settings indexSettings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.STANDARD)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, indexVersion)
+            .build();
+        MapperService mapperService = MapperTestUtils.newMapperService(
+            xContentRegistry(),
+            home,
+            indexSettings,
+            nodeSettings,
+            new IndicesModule(List.of()),
+            "test",
+            new Setting<?>[0]
+        );
+        mapperService.merge("type", new CompressedXContent(METRIC_MAPPING), MapperService.MergeReason.MAPPING_UPDATE);
+        PostingsFormat result = new PerFieldFormatSupplier(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null).getPostingsFormatForField(
+            "_id"
+        );
+        if (result instanceof ES87BloomFilterPostingsFormat bloomFilterPostingsFormat) {
+            result = bloomFilterPostingsFormat.getPostingsFormats().apply("_id");
+        }
+        return result;
+    }
+
+    public void testUseDefaultPostingsFormatForIdFieldAfterLucene105() throws IOException {
+        String mapping = randomFrom(METRIC_MAPPING, MULTI_METRIC_MAPPING, LOGS_MAPPING);
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(
+            null,
+            randomBoolean(),
+            false,
+            IndexVersion.current(),
+            IndexMode.STANDARD,
+            mapping,
+            false
+        );
+        var result = perFieldMapperCodec.getPostingsFormatForField("_id");
+        assertThat(result, (instanceOf(Lucene104PostingsFormat.class)));
     }
 
     public void testUseES87TSDBEncodingForTimestampField() throws IOException {
@@ -235,11 +431,25 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("@timestamp")), is(false));
     }
 
+    private static Settings dataStreamTimestampBloomFilterNodeSettings() {
+        return Settings.builder().put(IndexSettings.BLOOM_FILTER_ID_FIELD_WITH_DATA_STREAM_TIMESTAMP_ENABLED_SETTING_NAME, true).build();
+    }
+
     private PerFieldFormatSupplier createFormatSupplier(
         boolean timestampField,
         boolean timeSeries,
         boolean disableBloomFilter,
         boolean syntheticId
+    ) throws IOException {
+        return createFormatSupplier(timestampField, timeSeries, disableBloomFilter, syntheticId, Settings.EMPTY);
+    }
+
+    private PerFieldFormatSupplier createFormatSupplier(
+        boolean timestampField,
+        boolean timeSeries,
+        boolean disableBloomFilter,
+        boolean syntheticId,
+        Settings nodeSettings
     ) throws IOException {
         Settings.Builder settings = Settings.builder();
         if (timeSeries) {
@@ -250,7 +460,13 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         if (disableBloomFilter) {
             settings.put(IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING.getKey(), false);
         }
-        MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), settings.build(), "test");
+        MapperService mapperService = MapperTestUtils.newMapperService(
+            xContentRegistry(),
+            createTempDir(),
+            settings.build(),
+            nodeSettings,
+            "test"
+        );
         if (timestampField) {
             String mapping = """
                 {
@@ -288,6 +504,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
             true,
             null,
             false,
+            null,
             IndexMode.STANDARD,
             MULTI_METRIC_MAPPING,
             false
@@ -312,7 +529,6 @@ public class PerFieldMapperCodecTests extends ESTestCase {
     }
 
     public void testColumnarIndexMode() throws IOException {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(IndexMode.COLUMNAR, LOGS_MAPPING);
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("@timestamp")), is(true));
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("hostname")), is(true));
@@ -320,7 +536,6 @@ public class PerFieldMapperCodecTests extends ESTestCase {
     }
 
     public void testColumnarLogsdbIndexMode() throws IOException {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(IndexMode.LOGSDB_COLUMNAR, LOGS_MAPPING);
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("@timestamp")), is(true));
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("hostname")), is(true));
@@ -341,6 +556,14 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat(SeqNoFieldMapper.NAME)), is(true));
     }
 
+    public void testIdField() throws IOException {
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(
+            randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR, IndexMode.LOGSDB),
+            LOGS_MAPPING
+        );
+        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat(IdFieldMapper.NAME)), is(true));
+    }
+
     private PerFieldFormatSupplier createFormatSupplier(IndexMode mode, String mapping) throws IOException {
         return createFormatSupplier(null, false, mode, mapping);
     }
@@ -351,7 +574,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         IndexMode mode,
         String mapping
     ) throws IOException {
-        return createFormatSupplier(null, enableES87TSDBCodec, useEs812PostingsFormat, mode, mapping, null);
+        return createFormatSupplier(null, enableES87TSDBCodec, useEs812PostingsFormat, null, mode, mapping, null);
     }
 
     private PerFieldFormatSupplier createFormatSupplier(
@@ -361,13 +584,14 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         String mapping,
         boolean syntheticId
     ) throws IOException {
-        return createFormatSupplier(null, enableES87TSDBCodec, useEs812PostingsFormat, mode, mapping, syntheticId);
+        return createFormatSupplier(null, enableES87TSDBCodec, useEs812PostingsFormat, null, mode, mapping, syntheticId);
     }
 
     private PerFieldFormatSupplier createFormatSupplier(
         Boolean useTimeSeriesDocValuesFormatSetting,
         Boolean enableES87TSDBCodec,
         Boolean useEs812PostingsFormat,
+        IndexVersion indexVersion,
         IndexMode mode,
         String mapping,
         Boolean syntheticId
@@ -389,6 +613,9 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         if (useEs812PostingsFormat) {
             settings.put(IndexSettings.USE_ES_812_POSTINGS_FORMAT.getKey(), true);
         }
+        if (indexVersion != null) {
+            settings.put(IndexMetadata.SETTING_VERSION_CREATED, indexVersion);
+        }
         MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), settings.build(), "test");
         mapperService.merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
         return new PerFieldFormatSupplier(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
@@ -404,17 +631,19 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         return mode == IndexMode.LOGSDB ? "hostname" : "gauge";
     }
 
-    public void testES95UsedAcrossModesWhenSettingEnabled() throws IOException {
-        assumeTrue("es95_codec feature flag must be enabled", IndexSettings.ES95_CODEC_FEATURE_FLAG.isEnabled());
+    public void testES95OnlyUsedForTimeSeriesWhenSettingEnabled() throws IOException {
         for (IndexMode mode : INDEX_MODES_UNDER_TEST) {
             final PerFieldFormatSupplier supplier = createFormatSupplierWithVersion(mode, mappingFor(mode), IndexVersion.current());
             final DocValuesFormat format = supplier.getDocValuesFormatForField(fieldFor(mode));
-            assertThat("mode=" + mode, format, instanceOf(ES95TSDBDocValuesFormat.class));
+            if (mode == IndexMode.TIME_SERIES) {
+                assertThat("mode=" + mode, format, instanceOf(ES95TSDBDocValuesFormat.class));
+            } else {
+                assertFalse("mode=" + mode + " expected non-ES95", format instanceof ES95TSDBDocValuesFormat);
+            }
         }
     }
 
     public void testES95DocValuesFormatUsedForTimestampField() throws IOException {
-        assumeTrue("es95_codec feature flag must be enabled", IndexSettings.ES95_CODEC_FEATURE_FLAG.isEnabled());
         final PerFieldFormatSupplier supplier = createFormatSupplierWithVersion(
             IndexMode.TIME_SERIES,
             METRIC_MAPPING,
@@ -425,7 +654,6 @@ public class PerFieldMapperCodecTests extends ESTestCase {
     }
 
     public void testES819UsedAcrossModesWhenSettingDisabled() throws IOException {
-        assumeTrue("es95_codec feature flag must be enabled", IndexSettings.ES95_CODEC_FEATURE_FLAG.isEnabled());
         for (IndexMode mode : INDEX_MODES_UNDER_TEST) {
             final PerFieldFormatSupplier supplier = createFormatSupplierWithVersion(
                 mode,
@@ -440,7 +668,6 @@ public class PerFieldMapperCodecTests extends ESTestCase {
     }
 
     public void testES819UsedAcrossModesWithOldIndexVersion() throws IOException {
-        assumeTrue("es95_codec feature flag must be enabled", IndexSettings.ES95_CODEC_FEATURE_FLAG.isEnabled());
         final IndexVersion oldVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.ES95_TSDB_CODEC_FEATURE_FLAG);
         for (IndexMode mode : INDEX_MODES_UNDER_TEST) {
             final PerFieldFormatSupplier supplier = createFormatSupplierWithVersion(mode, mappingFor(mode), oldVersion);
@@ -451,7 +678,6 @@ public class PerFieldMapperCodecTests extends ESTestCase {
     }
 
     public void testES95NotUsedForStandardWithDefaultDocValuesFormat() throws IOException {
-        assumeTrue("es95_codec feature flag must be enabled", IndexSettings.ES95_CODEC_FEATURE_FLAG.isEnabled());
         final PerFieldFormatSupplier supplier = createFormatSupplierWithVersion(
             IndexMode.STANDARD,
             METRIC_MAPPING,
@@ -461,6 +687,343 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         );
         final DocValuesFormat format = supplier.getDocValuesFormatForField("gauge");
         assertFalse("Expected non-ES95 format", format instanceof ES95TSDBDocValuesFormat);
+    }
+
+    public void testColumnarUsedForKeywordInColumnarMode() throws IOException {
+        for (IndexMode mode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(mode, randomColumnarEligibleIndexVersion());
+            assertThat("mode=" + mode, supplier.getDocValuesFormatForField("category"), instanceOf(ColumNARDocValuesFormat.class));
+        }
+    }
+
+    public void testColumnarNotUsedForNonKeywordField() throws IOException {
+        final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(randomColumnarMode(), randomColumnarEligibleIndexVersion());
+        assertFalse(
+            "long companion field must not be routed to ColumNAR",
+            supplier.getDocValuesFormatForField("size") instanceof ColumNARDocValuesFormat
+        );
+        assertFalse(
+            "double companion field must not be routed to ColumNAR",
+            supplier.getDocValuesFormatForField("score") instanceof ColumNARDocValuesFormat
+        );
+    }
+
+    public void testColumnarNotUsedInNonColumnarMode() throws IOException {
+        final IndexMode nonColumnarMode = randomFrom(IndexMode.STANDARD, IndexMode.LOGSDB);
+        final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(nonColumnarMode, randomColumnarEligibleIndexVersion());
+        assertFalse("mode=" + nonColumnarMode, supplier.getDocValuesFormatForField("category") instanceof ColumNARDocValuesFormat);
+    }
+
+    public void testColumnarNotUsedForOldIndexVersion() throws IOException {
+        final IndexVersion oldVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_CODEC_NO_FEATURE_FLAG);
+        final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(randomColumnarMode(), oldVersion);
+        assertFalse(supplier.getDocValuesFormatForField("category") instanceof ColumNARDocValuesFormat);
+    }
+
+    public void testColumnarUsedForTextInColumnarMode() throws IOException {
+        for (IndexMode mode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(mode, randomColumnarEligibleIndexVersion());
+            assertThat("mode=" + mode, supplier.getDocValuesFormatForField("body"), instanceOf(ColumNARDocValuesFormat.class));
+        }
+    }
+
+    public void testColumnarNotUsedForTextInNonColumnarMode() throws IOException {
+        final IndexMode nonColumnarMode = randomFrom(IndexMode.STANDARD, IndexMode.LOGSDB);
+        final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(nonColumnarMode, randomColumnarEligibleIndexVersion());
+        assertFalse("mode=" + nonColumnarMode, supplier.getDocValuesFormatForField("body") instanceof ColumNARDocValuesFormat);
+    }
+
+    public void testColumnarNotUsedForTextOnOldIndexVersion() throws IOException {
+        final IndexVersion oldVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_CODEC_NO_FEATURE_FLAG);
+        final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(randomColumnarMode(), oldVersion);
+        assertFalse(supplier.getDocValuesFormatForField("body") instanceof ColumNARDocValuesFormat);
+    }
+
+    /** A text column is written without a dictionary; a keyword column with one. */
+    public void testTextAsksForNoDictionary() throws IOException {
+        final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(randomColumnarMode(), randomColumnarEligibleIndexVersion());
+        final StringColumnOptions text = supplier.columnarFields().stringOptionsOf("body");
+        assertNotNull("a columnar text field is written as a string column", text);
+        assertEquals("surveying a text column for a dictionary is not worth it", DictionaryPolicy.NONE, text.dictionary());
+        assertEquals(
+            "a keyword column is still worth a dictionary",
+            StringColumnOptions.DEFAULT_DICTIONARY,
+            supplier.columnarFields().stringOptionsOf("category").dictionary()
+        );
+    }
+
+    /** The field says how its string column is written, and a field that is not one says nothing. */
+    public void testColumnarStringOptionsComeFromTheField() throws IOException {
+        final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(randomColumnarMode(), randomColumnarEligibleIndexVersion());
+        final StringColumnOptions options = supplier.columnarFields().stringOptionsOf("category");
+        assertNotNull("a columnar keyword field is written as a string column", options);
+        assertEquals("a keyword column is worth a dictionary", StringColumnOptions.DEFAULT_DICTIONARY, options.dictionary());
+        assertNull("a long field is not a string column", supplier.columnarFields().stringOptionsOf("size"));
+        assertNull("a double field is not a string column", supplier.columnarFields().stringOptionsOf("score"));
+    }
+
+    /** A field the codec does not store is not written as a string column, whatever its type. */
+    public void testColumnarStringOptionsAbsentWhenTheCodecIsOff() throws IOException {
+        final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(
+            randomColumnarMode(),
+            IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_CODEC_NO_FEATURE_FLAG)
+        );
+        assertNull(supplier.columnarFields().stringOptionsOf("category"));
+    }
+
+    /**
+     * A vectordb index never scans {@code _id} -- the only read of it is the top-N fetch -- so it is written
+     * with its own format instance, cutting a block at 128 documents rather than the thousands the scanned
+     * columns around it are written in.
+     */
+    public void testVectorDbColumnarIdDocValuesFormat() throws IOException {
+        final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(
+            IndexMode.VECTORDB_COLUMNAR,
+            randomColumnarEligibleIndexVersion()
+        );
+        final DocValuesFormat idFormat = supplier.getDocValuesFormatForField(IdFieldMapper.NAME);
+        final DocValuesFormat otherFormat = supplier.getDocValuesFormatForField("size");
+
+        assertNotSame("_id is written by its own instance", idFormat, otherFormat);
+        assertThat("but by the same format, so one reader serves both", idFormat.getName(), equalTo(otherFormat.getName()));
+        assertThat(((ES819TSDBDocValuesFormat) idFormat).binaryBlockCountThreshold(), equalTo(128));
+        assertThat(((ES819TSDBDocValuesFormat) otherFormat).binaryBlockCountThreshold(), equalTo(8096));
+    }
+
+    /**
+     * A vectordb index reads its keyword and text columns a few documents at a time, so their chunks are cut at
+     * one block of values and 32KB rather than the thousands a scanned column is written in. Each field keeps its own
+     * policies: text still has no dictionary, keyword still has one.
+     */
+    public void testVectorDbColumnarStringColumnsUseSmallChunks() throws IOException {
+        final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(
+            IndexMode.VECTORDB_COLUMNAR,
+            randomColumnarEligibleIndexVersion()
+        );
+        for (String field : List.of("category", "body")) {
+            assertThat(field, supplier.getDocValuesFormatForField(field), instanceOf(ColumNARDocValuesFormat.class));
+            final StringColumnOptions.Sizes sizes = supplier.columnarFields().stringOptions(field, ColumnarFieldType.STRING).sizes();
+            assertThat(field, sizes.plainChunks(), equalTo(new ChunkBounds(32 * 1024, 128)));
+            assertThat(field, sizes.escapeChunks(), equalTo(new ChunkBounds(32 * 1024, 128)));
+            assertThat(field, sizes.compressedOrdinalBlockSize(), equalTo(512));
+            assertThat(field, sizes.valuesPerBlock(), equalTo(StringColumnOptions.DEFAULT_VALUES_PER_BLOCK));
+        }
+        assertEquals(DictionaryPolicy.NONE, supplier.columnarFields().stringOptions("body", ColumnarFieldType.STRING).dictionary());
+        assertEquals(
+            StringColumnOptions.DEFAULT_DICTIONARY,
+            supplier.columnarFields().stringOptions("category", ColumnarFieldType.STRING).dictionary()
+        );
+        final StringColumnOptions.Sizes payload = supplier.columnarFields().stringOptions("payload", ColumnarFieldType.STRING).sizes();
+        assertThat("a payload column is never given larger chunks", payload.plainChunks(), equalTo(new ChunkBounds(32 * 1024, 128)));
+    }
+
+    public void testStringColumnOptionsKeepEachFieldsFramingInEveryColumnarMode() throws IOException {
+        final List<IndexMode> modes = List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR, IndexMode.VECTORDB_COLUMNAR);
+        final String mapping = """
+            {
+                "properties": {
+                    "category": { "type": "keyword" },
+                    "host": { "type": "keyword", "multi_value": false },
+                    "body": { "type": "text" }
+                }
+            }
+            """;
+        for (IndexMode mode : modes) {
+            final Settings settings = Settings.builder()
+                .put(IndexSettings.MODE.getKey(), mode)
+                .put(IndexMetadata.SETTING_VERSION_CREATED, randomColumnarEligibleIndexVersion())
+                .build();
+            final MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), settings, "test");
+            mapperService.merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+            final PerFieldFormatSupplier supplier = new PerFieldFormatSupplier(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
+            for (String field : List.of("category", "host", "body")) {
+                assertThat(
+                    "mode=" + mode + " " + field,
+                    supplier.getDocValuesFormatForField(field),
+                    instanceOf(ColumNARDocValuesFormat.class)
+                );
+            }
+            assertFalse("mode=" + mode, supplier.columnarFields().stringOptions("category", ColumnarFieldType.STRING).singleValued());
+            assertTrue("mode=" + mode, supplier.columnarFields().stringOptions("host", ColumnarFieldType.STRING).singleValued());
+            assertFalse("mode=" + mode, supplier.columnarFields().stringOptions("body", ColumnarFieldType.STRING).singleValued());
+        }
+    }
+
+    public void testOnlyThePrimaryIndexSortFieldBoundsItsPlainColumn() throws IOException {
+        final String mapping = """
+            {
+                "properties": {
+                    "host": { "type": "keyword" },
+                    "category": { "type": "keyword" },
+                    "region": { "type": "keyword" },
+                    "body": { "type": "text" }
+                }
+            }
+            """;
+        for (boolean sorted : new boolean[] { true, false }) {
+            final Settings.Builder settings = Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR)
+                .put(IndexMetadata.SETTING_VERSION_CREATED, randomColumnarEligibleIndexVersion());
+            if (sorted) {
+                settings.putList(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "host", "category");
+            }
+            final MapperService mapperService = MapperTestUtils.newMapperService(
+                xContentRegistry(),
+                createTempDir(),
+                settings.build(),
+                "test"
+            );
+            mapperService.merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+            final PerFieldFormatSupplier supplier = new PerFieldFormatSupplier(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
+            assertEquals(sorted, supplier.columnarFields().stringOptions("host", ColumnarFieldType.STRING).enablePlainSkipIndex());
+            for (String field : List.of("category", "region", "body")) {
+                assertFalse(field, supplier.columnarFields().stringOptions(field, ColumnarFieldType.STRING).enablePlainSkipIndex());
+            }
+            for (String field : List.of("host", "category", "region")) {
+                final StringColumnOptions options = supplier.columnarFields().stringOptions(field, ColumnarFieldType.STRING);
+                assertEquals(field, StringColumnOptions.DEFAULT_DICTIONARY, options.dictionary());
+                assertTrue(field, options.enableSkipIndex());
+            }
+        }
+    }
+
+    public void testStringColumnOptionsAreNotGuessedForAFieldWithoutThem() throws IOException {
+        final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(randomColumnarMode(), randomColumnarEligibleIndexVersion());
+        for (String field : List.of("unmapped", "size")) {
+            final IllegalStateException e = expectThrows(
+                IllegalStateException.class,
+                () -> supplier.columnarFields().stringOptions(field, ColumnarFieldType.STRING)
+            );
+            assertThat(e.getMessage(), containsString("field [" + field + "]"));
+        }
+    }
+
+    private static final String COLUMNAR_NUMERIC_MAPPING = """
+        {
+            "properties": {
+                "@timestamp": { "type": "date" },
+                "size": { "type": "long" },
+                "requests": { "type": "long", "time_series_metric": "counter" },
+                "sorted": { "type": "long" },
+                "terms": { "type": "long", "index": true, "index_terms": true },
+                "count": { "type": "integer" },
+                "score": { "type": "double" },
+                "category": { "type": "keyword" }
+            }
+        }
+        """;
+
+    /**
+     * With the setting on, {@code long} fields go to ColumNAR as numeric columns; the rest stay where they were. Without the
+     * feature flag the setting is ignored, and no numeric field goes to ColumNAR.
+     */
+    public void testColumnarNumericCodecRoutesLongFields() throws IOException {
+        final PerFieldFormatSupplier supplier = createColumnarNumericFormatSupplier(true);
+        assertEquals(ColumnarFieldType.STRING, supplier.columnarFields().fieldType(fieldInfo("category")));
+        if (IndexSettings.BINARY_NUMERIC_DOC_VALUES_FEATURE_FLAG.isEnabled() == false) {
+            for (String field : List.of("size", "requests", "terms", "sorted", "count", "score")) {
+                assertFalse(field, supplier.getDocValuesFormatForField(field) instanceof ColumNARDocValuesFormat);
+                assertNull(field, supplier.columnarFields().numericTypeOf(field));
+            }
+            return;
+        }
+        assertThat(supplier.getDocValuesFormatForField("size"), instanceOf(ColumNARDocValuesFormat.class));
+        assertThat(supplier.getDocValuesFormatForField("requests"), instanceOf(ColumNARDocValuesFormat.class));
+        assertThat(supplier.getDocValuesFormatForField("terms"), instanceOf(ColumNARDocValuesFormat.class));
+        assertEquals(ColumnarFieldType.LONG, supplier.columnarFields().fieldType(fieldInfo("size")));
+        assertEquals(ColumnarFieldType.LONG, supplier.columnarFields().fieldType(fieldInfo("terms")));
+        // An index sort field stays SORTED_NUMERIC, which Lucene's index sort reads.
+        for (String field : List.of("sorted", "count", "score")) {
+            assertFalse(field, supplier.getDocValuesFormatForField(field) instanceof ColumNARDocValuesFormat);
+            assertNull(field, supplier.columnarFields().numericTypeOf(field));
+        }
+        expectThrows(IllegalStateException.class, () -> supplier.columnarFields().fieldType(fieldInfo("count")));
+    }
+
+    /** With the setting off, which is the default, no numeric field goes to ColumNAR. */
+    public void testColumnarNumericCodecOffByDefault() throws IOException {
+        final PerFieldFormatSupplier supplier = createColumnarNumericFormatSupplier(false);
+        for (String field : List.of("size", "requests", "count", "score")) {
+            assertFalse(field, supplier.getDocValuesFormatForField(field) instanceof ColumNARDocValuesFormat);
+            assertNull(field, supplier.columnarFields().numericTypeOf(field));
+        }
+        assertThat(supplier.getDocValuesFormatForField("category"), instanceOf(ColumNARDocValuesFormat.class));
+    }
+
+    /** Counters and {@code @timestamp} mostly rise, so they take split-delta, as ES95 does for them; other longs the baseline. */
+    public void testColumnarNumericPipelines() throws IOException {
+        assumeTrue("behind a feature flag", IndexSettings.BINARY_NUMERIC_DOC_VALUES_FEATURE_FLAG.isEnabled());
+        final PerFieldFormatSupplier supplier = createColumnarNumericFormatSupplier(true);
+        final int blockSize = ColumNARDocValuesFormat.DEFAULT_BLOCK_SIZE;
+        final byte[] monotonic = NumericPipeline.monotonicLongPipeline(blockSize).transformIds();
+        final byte[] baseline = NumericPipeline.defaultPipeline(blockSize).transformIds();
+        assertArrayEquals(
+            monotonic,
+            supplier.columnarFields().numericPipeline("requests", ColumnarFieldType.LONG).build(blockSize).transformIds()
+        );
+        assertArrayEquals(
+            monotonic,
+            supplier.columnarFields().numericPipeline("@timestamp", ColumnarFieldType.LONG).build(blockSize).transformIds()
+        );
+        assertArrayEquals(
+            baseline,
+            supplier.columnarFields().numericPipeline("size", ColumnarFieldType.LONG).build(blockSize).transformIds()
+        );
+    }
+
+    private PerFieldFormatSupplier createColumnarNumericFormatSupplier(boolean numericCodecEnabled) throws IOException {
+        final Settings.Builder settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), randomColumnarMode())
+            .put(IndexMetadata.SETTING_VERSION_CREATED, randomColumnarEligibleIndexVersion())
+            .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "sorted");
+        // Without the feature flag the setting is unknown, but the mapper service doesn't validate it, so it's still put here
+        // to show it's ignored.
+        if (numericCodecEnabled || randomBoolean()) {
+            settings.put(IndexSettings.BINARY_NUMERIC_DOC_VALUES_ENABLED_SETTING.getKey(), numericCodecEnabled);
+        }
+        final MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), settings.build(), "test");
+        mapperService.merge("type", new CompressedXContent(COLUMNAR_NUMERIC_MAPPING), MapperService.MergeReason.MAPPING_UPDATE);
+        return new PerFieldFormatSupplier(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
+    }
+
+    private static FieldInfo fieldInfo(String name) {
+        return new FieldInfo(
+            name,
+            0,
+            false,
+            false,
+            false,
+            IndexOptions.NONE,
+            DocValuesType.BINARY,
+            DocValuesSkipIndexType.NONE,
+            -1,
+            Map.of(),
+            0,
+            0,
+            0,
+            0,
+            VectorEncoding.FLOAT32,
+            VectorSimilarityFunction.EUCLIDEAN,
+            false,
+            false
+        );
+    }
+
+    private static IndexMode randomColumnarMode() {
+        return randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
+    }
+
+    private static IndexVersion randomColumnarEligibleIndexVersion() {
+        return IndexVersionUtils.randomVersionBetween(IndexVersions.COLUMNAR_CODEC_NO_FEATURE_FLAG, IndexVersion.current());
+    }
+
+    private PerFieldFormatSupplier createColumnarFormatSupplier(final IndexMode mode, final IndexVersion indexVersion) throws IOException {
+        final Settings.Builder settings = Settings.builder();
+        settings.put(IndexSettings.MODE.getKey(), mode);
+        settings.put(IndexMetadata.SETTING_VERSION_CREATED, indexVersion);
+        final MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), settings.build(), "test");
+        mapperService.merge("type", new CompressedXContent(COLUMNAR_MAPPING), MapperService.MergeReason.MAPPING_UPDATE);
+        return new PerFieldFormatSupplier(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
     }
 
     private PerFieldFormatSupplier createFormatSupplierWithVersion(
@@ -487,9 +1050,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         if (useTimeSeriesDocValuesFormat) {
             settings.put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), true);
         }
-        if (es95Enabled && IndexSettings.ES95_CODEC_FEATURE_FLAG.isEnabled()) {
-            settings.put(IndexSettings.TIME_SERIES_ES95_CODEC_ENABLED_SETTING.getKey(), true);
-        }
+        settings.put(IndexSettings.TIME_SERIES_ES95_CODEC_ENABLED_SETTING.getKey(), es95Enabled);
         final MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), settings.build(), "test");
         mapperService.merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
         return new PerFieldFormatSupplier(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
@@ -497,5 +1058,98 @@ public class PerFieldMapperCodecTests extends ESTestCase {
 
     private static boolean syntheticId(boolean timeSeries) {
         return timeSeries && randomBoolean();
+    }
+
+    public void testResolveFieldContextForOTelLongCounter() throws IOException {
+        final PerFieldFormatSupplier supplier = createFormatSupplier(IndexMode.TIME_SERIES, OTEL_COUNTER_LONG_MAPPING);
+        final FieldContext context = supplier.resolveFieldContext("packets", 512);
+        assertEquals("packets", context.fieldName());
+        assertEquals(512, context.blockSize());
+        assertEquals(PipelineDescriptor.DataType.LONG, context.dataType());
+        assertEquals(MetricRole.COUNTER, context.metricRole());
+    }
+
+    public void testResolveFieldContextForOTelLongGauge() throws IOException {
+        final PerFieldFormatSupplier supplier = createFormatSupplier(IndexMode.TIME_SERIES, OTEL_COUNTER_LONG_MAPPING);
+        final FieldContext context = supplier.resolveFieldContext("temperature", 512);
+        assertEquals(PipelineDescriptor.DataType.LONG, context.dataType());
+        assertEquals(MetricRole.GAUGE, context.metricRole());
+    }
+
+    private static final String OTEL_DOUBLE_GAUGE_MAPPING = """
+        {
+            "_data_stream_timestamp": {
+                "enabled": true
+            },
+            "properties": {
+                "@timestamp": {
+                    "type": "date"
+                },
+                "field": {
+                    "type": "keyword",
+                    "time_series_dimension": true
+                },
+                "cpu_usage": {
+                    "type": "double",
+                    "time_series_metric": "gauge"
+                }
+            }
+        }
+        """;
+
+    public void testResolveFieldContextForOTelDoubleGauge() throws IOException {
+        final PerFieldFormatSupplier supplier = createFormatSupplier(IndexMode.TIME_SERIES, OTEL_DOUBLE_GAUGE_MAPPING);
+        final FieldContext context = supplier.resolveFieldContext("cpu_usage", 512);
+        assertEquals(PipelineDescriptor.DataType.DOUBLE, context.dataType());
+        assertEquals(MetricRole.GAUGE, context.metricRole());
+    }
+
+    public void testResolveFieldContextForTimestampDateField() throws IOException {
+        final PerFieldFormatSupplier supplier = createFormatSupplier(IndexMode.TIME_SERIES, OTEL_COUNTER_LONG_MAPPING);
+        final FieldContext context = supplier.resolveFieldContext("@timestamp", 512);
+        assertEquals(PipelineDescriptor.DataType.LONG, context.dataType());
+        assertNull(context.metricRole());
+    }
+
+    public void testResolveFieldContextForUnknownFieldLeavesMetadataNull() throws IOException {
+        final PerFieldFormatSupplier supplier = createFormatSupplier(IndexMode.TIME_SERIES, OTEL_COUNTER_LONG_MAPPING);
+        final FieldContext context = supplier.resolveFieldContext("absent_field", 512);
+        assertNull(context.dataType());
+        assertNull(context.metricRole());
+    }
+
+    public void testCounterFieldGetsES95FormatThroughSupplier() throws IOException {
+        final PerFieldFormatSupplier supplier = createFormatSupplierWithVersion(
+            IndexMode.TIME_SERIES,
+            OTEL_COUNTER_LONG_MAPPING,
+            IndexVersion.current()
+        );
+        final DocValuesFormat format = supplier.getDocValuesFormatForField("packets");
+        assertThat(format, instanceOf(ES95TSDBDocValuesFormat.class));
+    }
+
+    public void testDoubleGaugeFieldGetsES95FormatAndAlpRouting() throws IOException {
+        final PerFieldFormatSupplier supplier = createFormatSupplierWithVersion(
+            IndexMode.TIME_SERIES,
+            OTEL_DOUBLE_GAUGE_MAPPING,
+            IndexVersion.current()
+        );
+        final DocValuesFormat format = supplier.getDocValuesFormatForField("cpu_usage");
+        assertThat(format, instanceOf(ES95TSDBDocValuesFormat.class));
+
+        final FieldContext context = supplier.resolveFieldContext("cpu_usage", 512);
+        final PipelineConfig config = StaticPipelineConfigResolver.INSTANCE.resolve(context);
+        assertEquals("alpDouble>delta>offset>gcd>bitPack", config.describeStages());
+    }
+
+    public void testGetDocValuesFormatForFieldReturnsSameInstanceAcrossCalls() throws IOException {
+        final PerFieldFormatSupplier supplier = createFormatSupplierWithVersion(
+            IndexMode.TIME_SERIES,
+            OTEL_COUNTER_LONG_MAPPING,
+            IndexVersion.current()
+        );
+        final DocValuesFormat a = supplier.getDocValuesFormatForField("packets");
+        final DocValuesFormat b = supplier.getDocValuesFormatForField("temperature");
+        assertSame(a, b);
     }
 }

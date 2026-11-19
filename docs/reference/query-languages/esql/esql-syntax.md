@@ -11,12 +11,22 @@ mapped_pages:
 
 ## Query structure [esql-basic-syntax]
 
-An {{esql}} query is composed of a [source command](/reference/query-languages/esql/esql-commands.md) followed by an optional series of [processing commands](/reference/query-languages/esql/esql-commands.md), separated by a pipe character: `|`. For example:
+An {{esql}} query can optionally start with [query directives](/reference/query-languages/esql/directives/directives.md) to define query settings and general behavior. After any directives, a query is composed of a [source command](/reference/query-languages/esql/esql-commands.md) followed by an optional series of [processing commands](/reference/query-languages/esql/esql-commands.md), separated by a pipe character: `|`. For example:
 
 ```esql
+query-directive
 source-command
 | processing-command1
 | processing-command2
+```
+
+For example, this query sets the `time_zone` directive, then retrieves and filters logs:
+
+```esql
+SET time_zone = "America/New_York";
+FROM logs
+| WHERE host.name == "my-host"
+| KEEP @timestamp, host.name, message
 ```
 
 The result of a query is the table produced by the final processing command.
@@ -24,10 +34,10 @@ The result of a query is the table produced by the final processing command.
 For an overview of all supported commands, functions, and operators, refer to [Commands](/reference/query-languages/esql/esql-commands.md) and [Functions and operators](/reference/query-languages/esql/esql-functions-operators.md).
 
 ::::{note}
-For readability, this documentation puts each processing command on a new line. However, you can write an {{esql}} query as a single line. The following query is identical to the previous one:
+For readability, this documentation puts each processing command on a new line. However, you can write an {{esql}} query as a single line:
 
 ```esql
-source-command | processing-command1 | processing-command2
+SET time_zone = "America/New_York"; FROM logs | WHERE host.name == "my-host" | KEEP @timestamp, host.name, message
 ```
 
 ::::
@@ -53,6 +63,7 @@ Identifiers need to be quoted with backticks (```) if:
 
 * they don’t start with a letter, `_` or `@`
 * any of the other characters is not a letter, number, or `_`
+* they clash with a [reserved keyword](#esql-reserved-keywords), including when that word is a segment of a dotted name
 
 For example:
 
@@ -60,6 +71,15 @@ For example:
 FROM index
 | KEEP `1.field`
 ```
+
+`in` is the `IN` operator, so a dotted name such as `field.in.other` must be quoted:
+
+```esql
+FROM index
+| WHERE `field.in.other` == "value"
+```
+
+Quoting with backticks always works, even when it is not required.
 
 When referencing a function alias that itself uses a quoted identifier, the backticks of the quoted identifier need to be escaped with another backtick. For example:
 
@@ -69,10 +89,21 @@ FROM index
 | EVAL my_count = `COUNT(``1.field``)`
 ```
 
+#### Reserved keywords [esql-reserved-keywords]
+
+{{esql}} keywords are case-insensitive, so `in`, `IN`, and `In` are the same token.
+
+These words are not reserved in every command. They are treated as keywords only in the corresponding context. If you use one as an identifier or as a segment of a dotted name, quote it with backticks. Quoting always works.
+
+::::{dropdown} Reserved keywords
+:::{include} _snippets/generated/x-pack-esql/syntax/reserved-keywords.md
+:::
+::::
+
 
 ### Literals [esql-literals]
 
-{{esql}} currently supports numeric and string literals.
+{{esql}} currently supports numeric and string literals. String literals can also be implicitly converted to other types such as dates, IPs, and versions. Refer to [Implicit casting](/reference/query-languages/esql/esql-implicit-casting.md) for details.
 
 
 #### String literals [esql-string-literals]
@@ -112,6 +143,16 @@ The integer numeric literals are implicitly converted to the `integer`, `long` o
 The floating point literals are implicitly converted the `double` type.
 
 To obtain constant values of different types, use one of the numeric [conversion functions](/reference/query-languages/esql/functions-operators/type-conversion-functions.md).
+
+
+### Cast operator (`::`) [esql-cast-operator]
+
+The `::` operator provides a concise syntax for type conversion, as an alternative to the `TO_<type>` [conversion functions](/reference/query-languages/esql/functions-operators/type-conversion-functions.md):
+
+:::{include} _snippets/generated/x-pack-esql/operators/examples/cast.md
+:::
+
+For the full list of supported types, refer to [Cast (`::`)](/reference/query-languages/esql/functions-operators/operators.md#esql-cast-operator).
 
 
 ### Comments [esql-comments]

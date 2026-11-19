@@ -20,6 +20,7 @@ import static org.elasticsearch.xpack.inference.common.oauth2.OAuth2Secrets.CLIE
 import static org.elasticsearch.xpack.inference.common.oauth2.OAuth2SecretsTests.TEST_CLIENT_SECRET;
 import static org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiSecretSettings.API_KEY;
 import static org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiSecretSettings.ENTRA_ID;
+import static org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiSecretSettings.EXACTLY_ONE_SECRETS_FIELD_ERROR;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -53,10 +54,7 @@ public class AzureOpenAiSecretSettingsTests extends ESTestCase {
     public void testFromMap_MissingApiKeyAndEntraId_ThrowsError() {
         var thrownException = expectThrows(ValidationException.class, () -> AzureOpenAiSecretSettings.fromMap(new HashMap<>()));
 
-        assertThat(
-            thrownException.getMessage(),
-            containsString(Strings.format("must have exactly one of [%s], [%s], or [%s] field set", API_KEY, ENTRA_ID, CLIENT_SECRET_FIELD))
-        );
+        assertThat(thrownException.getMessage(), containsString(EXACTLY_ONE_SECRETS_FIELD_ERROR));
     }
 
     public void testFromMap_HasBothApiKeyAndEntraId_ThrowsError() {
@@ -65,14 +63,7 @@ public class AzureOpenAiSecretSettingsTests extends ESTestCase {
 
         assertThat(
             thrownException.getMessage(),
-            containsString(
-                Strings.format(
-                    "must have exactly one of [%1$s], [%2$s], or [%3$s] field set, received: [%1$s, %2$s]",
-                    API_KEY,
-                    ENTRA_ID,
-                    CLIENT_SECRET_FIELD
-                )
-            )
+            containsString(EXACTLY_ONE_SECRETS_FIELD_ERROR + Strings.format(", received: [%s, %s]", API_KEY, ENTRA_ID))
         );
     }
 
@@ -84,14 +75,7 @@ public class AzureOpenAiSecretSettingsTests extends ESTestCase {
         );
         assertThat(
             thrownException.getMessage(),
-            containsString(
-                Strings.format(
-                    "must have exactly one of [%1$s], [%2$s], or [%3$s] field set, received: [%1$s, %3$s]",
-                    API_KEY,
-                    ENTRA_ID,
-                    CLIENT_SECRET_FIELD
-                )
-            )
+            containsString(EXACTLY_ONE_SECRETS_FIELD_ERROR + Strings.format(", received: [%s, %s]", API_KEY, CLIENT_SECRET_FIELD))
         );
     }
 
@@ -103,14 +87,7 @@ public class AzureOpenAiSecretSettingsTests extends ESTestCase {
         );
         assertThat(
             thrownException.getMessage(),
-            containsString(
-                Strings.format(
-                    "must have exactly one of [%1$s], [%2$s], or [%3$s] field set, received: [%2$s, %3$s]",
-                    API_KEY,
-                    ENTRA_ID,
-                    CLIENT_SECRET_FIELD
-                )
-            )
+            containsString(EXACTLY_ONE_SECRETS_FIELD_ERROR + Strings.format(", received: [%s, %s]", ENTRA_ID, CLIENT_SECRET_FIELD))
         );
     }
 
@@ -122,7 +99,7 @@ public class AzureOpenAiSecretSettingsTests extends ESTestCase {
 
         assertThat(
             thrownException.getMessage(),
-            containsString(Strings.format("[secret_settings] Invalid value empty string. [%s] must be a non-empty string", API_KEY))
+            containsString(Strings.format("[service_settings] Invalid value empty string. [%s] must be a non-empty string", API_KEY))
         );
     }
 
@@ -134,8 +111,17 @@ public class AzureOpenAiSecretSettingsTests extends ESTestCase {
 
         assertThat(
             thrownException.getMessage(),
-            containsString(Strings.format("[secret_settings] Invalid value empty string. [%s] must be a non-empty string", ENTRA_ID))
+            containsString(Strings.format("[service_settings] Invalid value empty string. [%s] must be a non-empty string", ENTRA_ID))
         );
+    }
+
+    public void testFromMap_IgnoresUnknownFields() {
+        var map = new HashMap<String, Object>();
+        map.put(API_KEY, TEST_API_KEY);
+        map.put("some_unknown_field", "value");
+
+        var result = AzureOpenAiSecretSettings.fromMap(map);
+        assertThat(result, is(new AzureOpenAiEntraIdApiKeySecrets(new SecureString(TEST_API_KEY.toCharArray()), null)));
     }
 
     public static Map<String, Object> getAzureOpenAiSecretSettingsMap(@Nullable String apiKey, @Nullable String entraId) {

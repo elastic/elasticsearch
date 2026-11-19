@@ -8,15 +8,21 @@
 package org.elasticsearch.xpack.esql.datasources.dataset;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
+import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction.Request;
 
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.datasources.DataSourceLimits.MAX_DESCRIPTION_LENGTH;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -32,7 +38,8 @@ public class PutDatasetActionRequestTests extends AbstractWireSerializingTestCas
             randomName(),
             "s3://" + randomAlphaOfLength(6) + "/" + randomAlphaOfLength(4) + "/*.parquet",
             randomBoolean() ? null : randomAlphaOfLengthBetween(0, 20),
-            randomSettings()
+            randomSettings(),
+            randomMappingOrNull()
         );
     }
 
@@ -43,7 +50,7 @@ public class PutDatasetActionRequestTests extends AbstractWireSerializingTestCas
 
     @Override
     protected Request mutateInstance(Request instance) {
-        return switch (between(0, 4)) {
+        return switch (between(0, 5)) {
             case 0 -> new Request(
                 TEST_REQUEST_TIMEOUT,
                 TEST_REQUEST_TIMEOUT,
@@ -51,7 +58,8 @@ public class PutDatasetActionRequestTests extends AbstractWireSerializingTestCas
                 instance.dataSource(),
                 instance.resource(),
                 instance.description(),
-                instance.rawSettings()
+                instance.rawSettings(),
+                instance.mapping()
             );
             case 1 -> new Request(
                 TEST_REQUEST_TIMEOUT,
@@ -60,7 +68,8 @@ public class PutDatasetActionRequestTests extends AbstractWireSerializingTestCas
                 instance.dataSource() + "_mutated",
                 instance.resource(),
                 instance.description(),
-                instance.rawSettings()
+                instance.rawSettings(),
+                instance.mapping()
             );
             case 2 -> new Request(
                 TEST_REQUEST_TIMEOUT,
@@ -69,7 +78,8 @@ public class PutDatasetActionRequestTests extends AbstractWireSerializingTestCas
                 instance.dataSource(),
                 instance.resource() + "/extra",
                 instance.description(),
-                instance.rawSettings()
+                instance.rawSettings(),
+                instance.mapping()
             );
             case 3 -> new Request(
                 TEST_REQUEST_TIMEOUT,
@@ -78,7 +88,8 @@ public class PutDatasetActionRequestTests extends AbstractWireSerializingTestCas
                 instance.dataSource(),
                 instance.resource(),
                 randomValueOtherThan(instance.description(), () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20)),
-                instance.rawSettings()
+                instance.rawSettings(),
+                instance.mapping()
             );
             case 4 -> {
                 Map<String, Object> mutated = new HashMap<>(instance.rawSettings());
@@ -90,9 +101,20 @@ public class PutDatasetActionRequestTests extends AbstractWireSerializingTestCas
                     instance.dataSource(),
                     instance.resource(),
                     instance.description(),
-                    mutated
+                    mutated,
+                    instance.mapping()
                 );
             }
+            case 5 -> new Request(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
+                instance.name(),
+                instance.dataSource(),
+                instance.resource(),
+                instance.description(),
+                instance.rawSettings(),
+                randomValueOtherThan(instance.mapping(), PutDatasetActionRequestTests::randomMappingOrNull)
+            );
             default -> throw new AssertionError("unreachable");
         };
     }
@@ -158,8 +180,98 @@ public class PutDatasetActionRequestTests extends AbstractWireSerializingTestCas
         assertThat(r.rawSettings(), notNullValue());
     }
 
+    public void testValidateRejectsDescriptionTooLong() {
+        String description = randomAlphaOfLength(MAX_DESCRIPTION_LENGTH + 1);
+        Request r = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "my_ds", "parent", "s3://bucket", description, Map.of());
+        ActionRequestValidationException v = r.validate();
+        assertThat(v, notNullValue());
+        assertThat(
+            v.validationErrors(),
+            contains(
+                "dataset description is too large: "
+                    + (MAX_DESCRIPTION_LENGTH + 1)
+                    + " characters, the maximum allowed is "
+                    + MAX_DESCRIPTION_LENGTH
+            )
+        );
+    }
+
+    public void testValidateAcceptsDescriptionAtLimit() {
+        String description = randomAlphaOfLength(MAX_DESCRIPTION_LENGTH);
+        Request r = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "my_ds", "parent", "s3://bucket", description, Map.of());
+        assertThat(r.validate(), nullValue());
+    }
+
+    /** The length check accumulates with the other field checks rather than short-circuiting them. */
+    public void testValidateReportsDescriptionTooLongAlongsideOtherErrors() {
+        String description = randomAlphaOfLength(MAX_DESCRIPTION_LENGTH + between(1, 100));
+        Request r = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "my_ds", "", "s3://bucket", description, Map.of());
+        ActionRequestValidationException v = r.validate();
+        assertThat(v, notNullValue());
+        assertThat(
+            v.validationErrors(),
+            contains(
+                "dataset data_source is missing or empty",
+                "dataset description is too large: "
+                    + description.length()
+                    + " characters, the maximum allowed is "
+                    + MAX_DESCRIPTION_LENGTH
+            )
+        );
+    }
+
+    public void testAuditFields() {
+        var request = new Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            "my_dataset",
+            "my_datasource",
+            "http://my-datasource.example.com?query=value",
+            null,
+            Map.of("unknown_key", "value", "region", "http://my-datasource.example.com?query=value", "format", "csv")
+        );
+
+        assertThat(
+            request.auditFields(),
+            equalTo(
+                Map.of(
+                    "settings.unknown_key",
+                    "::es_redacted::",
+                    "resource",
+                    "http://my-datasource.example.com",
+                    "name",
+                    "my_dataset",
+                    "settings.format",
+                    "csv",
+                    "data_source",
+                    "my_datasource",
+                    "settings.region",
+                    "http://my-datasource.example.com"
+                )
+            )
+        );
+    }
+
     private static String randomName() {
         return randomAlphaOfLengthBetween(1, 20).toLowerCase(Locale.ROOT);
+    }
+
+    static DatasetMapping randomMappingOrNull() {
+        if (randomBoolean()) {
+            return null;
+        }
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+        int n = between(0, 3);
+        for (int i = 0; i < n; i++) {
+            props.put(
+                "c" + i,
+                new DatasetFieldMapping(
+                    randomFrom("keyword", "long", "integer", "double", "boolean", "date"),
+                    randomBoolean() ? null : randomAlphaOfLength(4).toLowerCase(Locale.ROOT)
+                )
+            );
+        }
+        return DatasetMapping.assemble(new DatasetMapping.Mappings(randomFrom(DatasetMapping.Dynamic.values()), props));
     }
 
     private static Map<String, Object> randomSettings() {

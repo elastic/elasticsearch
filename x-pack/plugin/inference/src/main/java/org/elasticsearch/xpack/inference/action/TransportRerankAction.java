@@ -13,21 +13,18 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.InferenceServiceResults;
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.telemetry.InferenceStats;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.RerankAction;
 import org.elasticsearch.xpack.inference.action.task.StreamingTaskManager;
 import org.elasticsearch.xpack.inference.registry.InferenceEndpointRegistry;
-
-import static org.elasticsearch.inference.InferenceString.textValue;
-import static org.elasticsearch.inference.InferenceString.toStringList;
 
 public class TransportRerankAction extends BaseTransportInferenceAction<RerankAction.Request> {
 
@@ -78,24 +75,9 @@ public class TransportRerankAction extends BaseTransportInferenceAction<RerankAc
         Model model,
         RerankAction.Request request,
         InferenceService service,
+        TaskId taskId,
         ActionListener<InferenceServiceResults> listener
     ) {
-        var rerankRequest = request.getRerankRequest();
-        if (service.supportsNewRerankCodePath()) {
-            service.rerankInfer(model, rerankRequest, request.getTimeout(), listener);
-        } else {
-            service.infer(
-                model,
-                textValue(rerankRequest.query()),
-                rerankRequest.returnDocuments(),
-                rerankRequest.topN(),
-                toStringList(rerankRequest.inputs()),
-                request.isStreaming(),
-                rerankRequest.taskSettings(),
-                InputType.UNSPECIFIED,
-                request.getTimeout(),
-                listener
-            );
-        }
+        service.rerankInfer(model, request.getRerankRequest(), request.getTimeout(), taskId, listener);
     }
 }

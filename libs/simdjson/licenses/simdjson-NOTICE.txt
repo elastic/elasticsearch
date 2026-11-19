@@ -1,0 +1,2 @@
+This product includes simdjson v4.6.9 (https://github.com/simdjson/simdjson),
+which is statically linked into libsimdjson.so in Elasticsearch distributions.

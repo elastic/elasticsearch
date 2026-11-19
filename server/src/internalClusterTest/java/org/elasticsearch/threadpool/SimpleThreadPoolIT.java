@@ -158,7 +158,7 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
         waitUntil(() -> (tps[0] = tp.stats()).stats().stream().allMatch(s -> s.active() == 0));
 
         plugin.collect();
-        ArrayList<String> registeredMetrics = plugin.getRegisteredMetrics(InstrumentType.LONG_GAUGE);
+        ArrayList<String> registeredMetrics = plugin.getRegisteredMetrics(InstrumentType.LONG_ASYNC_GAUGE);
         registeredMetrics.addAll(plugin.getRegisteredMetrics(InstrumentType.LONG_ASYNC_COUNTER));
 
         tps[0].forEach(stats -> {
@@ -166,13 +166,13 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
                 ThreadPool.THREAD_POOL_METRIC_NAME_COMPLETED,
                 new MetricDefinition<>(stats.completed(), TestTelemetryPlugin::getLongAsyncCounterMeasurement, Measurement::getLong),
                 ThreadPool.THREAD_POOL_METRIC_NAME_ACTIVE,
-                new MetricDefinition<>(0L, TestTelemetryPlugin::getLongGaugeMeasurement, Measurement::getLong),
+                new MetricDefinition<>(0L, TestTelemetryPlugin::getLongAsyncGaugeMeasurement, Measurement::getLong),
                 ThreadPool.THREAD_POOL_METRIC_NAME_CURRENT,
-                new MetricDefinition<>(0L, TestTelemetryPlugin::getLongGaugeMeasurement, Measurement::getLong),
+                new MetricDefinition<>(0L, TestTelemetryPlugin::getLongAsyncGaugeMeasurement, Measurement::getLong),
                 ThreadPool.THREAD_POOL_METRIC_NAME_LARGEST,
-                new MetricDefinition<>((long) stats.largest(), TestTelemetryPlugin::getLongGaugeMeasurement, Measurement::getLong),
+                new MetricDefinition<>((long) stats.largest(), TestTelemetryPlugin::getLongAsyncGaugeMeasurement, Measurement::getLong),
                 ThreadPool.THREAD_POOL_METRIC_NAME_QUEUE,
-                new MetricDefinition<>(0L, TestTelemetryPlugin::getLongGaugeMeasurement, Measurement::getLong)
+                new MetricDefinition<>(0L, TestTelemetryPlugin::getLongAsyncGaugeMeasurement, Measurement::getLong)
             );
 
             // TaskExecutionTimeTrackingEsThreadPoolExecutor also publishes a utilization metric
@@ -180,7 +180,7 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
                 metricDefinitions = Maps.copyMapWithAddedEntry(
                     metricDefinitions,
                     ThreadPool.THREAD_POOL_METRIC_NAME_UTILIZATION,
-                    new MetricDefinition<>(0.0d, TestTelemetryPlugin::getDoubleGaugeMeasurement, Measurement::getDouble)
+                    new MetricDefinition<>(0.0d, TestTelemetryPlugin::getDoubleAsyncGaugeMeasurement, Measurement::getDouble)
                 );
             }
 

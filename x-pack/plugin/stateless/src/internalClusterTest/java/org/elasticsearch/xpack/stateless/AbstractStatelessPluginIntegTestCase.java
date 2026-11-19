@@ -7,7 +7,10 @@
 
 package org.elasticsearch.xpack.stateless;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.LogEvent;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -27,10 +30,13 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.decider.ConcurrentRebalanceAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
@@ -61,7 +67,10 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.recovery.CompositeRecoverySchedulingListener;
+import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.indices.recovery.TestRecoverySchedulingListener;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
@@ -77,15 +86,21 @@ import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.stateless.allocation.StatelessThrottlingConcurrentRecoveriesAllocationDecider;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
+import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeoutCalculationService;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.WarmingRatioProvider;
 import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessElectionStrategy;
+import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
+import org.elasticsearch.xpack.stateless.commits.MergeBlob;
+import org.elasticsearch.xpack.stateless.commits.MergeBlobInjector;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
@@ -94,9 +109,11 @@ import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator;
 import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicatorReader;
+import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicatorTestUtils;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreTestUtils;
+import org.elasticsearch.xpack.stateless.recovery.StatelessPrimaryRelocationSourceService;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -114,10 +131,15 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
@@ -129,7 +151,9 @@ import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_C
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.xpack.stateless.StatelessPlugin.MERGE_BLOBS_ENABLED;
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
@@ -161,20 +185,62 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
     }
 
     private int uploadMaxCommits;
+    private boolean useBasePath;
+    private boolean hollowIndexShardsDisabled;
+    private boolean hollowIndexShardsZeroTtl;
+    // TODO(szybia): remove once merge blobs are uploaded for real
+    private MockLog mergeBlobLogCapture;
+    // Drawn once per test so that all nodes share the same recovery throttling configuration
+    // Note that individual tests can override those settings.
+    private Settings recoveryThrottlingSettings = Settings.EMPTY;
 
     @Before
-    public void initUploadMaxCommits() {
+    public void setup() {
         uploadMaxCommits = randomBoolean()
             ? between(1, 10)
             : StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getDefault(Settings.EMPTY);
+        useBasePath = randomBoolean();
+        if (randomBoolean()) {
+            // Randomly disable hollow shards
+            hollowIndexShardsDisabled = true;
+        } else if (randomBoolean()) {
+            // Randomly make TTL zero for hollowing shards
+            hollowIndexShardsZeroTtl = true;
+        }
+        if (randomBoolean()) {
+            recoveryThrottlingSettings = randomDataNodeRecoveryThrottlingSettings();
+            logger.info(
+                "Configuring data node recovery throttling settings (individual tests then may override some of them): {}",
+                recoveryThrottlingSettings
+            );
+        }
+        if (MERGE_BLOBS_ENABLED) {
+            final boolean injectMergeBlobs = randomBoolean();
+            MergeBlobInjector.resetWithEnabledAndRandomSeed(injectMergeBlobs, randomLong());
+            if (injectMergeBlobs) {
+                mergeBlobLogCapture = MockLog.capture("");
+                mergeBlobLogCapture.addExpectation(new NoMergeBlobWarningExpectation());
+            }
+        }
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void afterTest() throws Exception {
         // This works for stateless as we build a new cluster for each TEST. However, if we move to SUITE this might need to be in
         // AfterClass depending on the test's needs.
         waitForMergesToFinish();
-        super.tearDown();
+        // Release translog buffer pages left by shards that closed before their post-write sync, else the breaker check fails
+        for (StatelessComponents components : internalCluster().getInstances(StatelessComponents.class)) {
+            TranslogReplicatorTestUtils.requestSyncFlush(components.getTranslogReplicator());
+        }
+        // TODO(szybia): remove once merge blobs are uploaded for real
+        if (MERGE_BLOBS_ENABLED && mergeBlobLogCapture != null) {
+            try {
+                assertInjectedMergeBlobsStillPresent();
+            } finally {
+                assertNoMergeBlobLoggingWarnings();
+            }
+        }
     }
 
     private static void waitForMergesToFinish() throws Exception {
@@ -192,6 +258,77 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
 
     public int getUploadMaxCommits() {
         return uploadMaxCommits;
+    }
+
+    /// Merge blobs are never deleted, so every injected blob must still be readable unchanged, unless its index was deleted or its
+    /// shard id no longer exists (whole directories are deleted in both cases).
+    // TODO(szybia): remove once merge blobs are uploaded for real
+    private static void assertInjectedMergeBlobsStillPresent() throws Exception {
+        if (internalCluster().size() == 0) {
+            return;
+        }
+        final var components = internalCluster().getInstances(StatelessComponents.class).iterator();
+        if (components.hasNext() == false) {
+            return;
+        }
+        // any node will do, they all share one object store
+        final ObjectStoreService objectStoreService = components.next().getObjectStoreService();
+        // a blob scheduled right after an upload may still be in flight when the test ends, hence assertBusy
+        assertBusy(() -> {
+            final ClusterState state = internalCluster().clusterService().state();
+            final List<String> problems = new ArrayList<>();
+            // re-read on every attempt: a blob is registered before its write and unregistered if the write fails
+            for (var blob : MergeBlobInjector.injected()) {
+                final var indexMetadata = state.metadata().findIndex(blob.shardId().getIndex());
+                if (indexMetadata.isEmpty() || blob.shardId().id() >= indexMetadata.get().getNumberOfShards()) {
+                    continue;
+                }
+                try (
+                    InputStream in = objectStoreService.getProjectBlobContainer(blob.shardId(), blob.primaryTerm())
+                        .readBlob(OperationPurpose.INDICES, blob.blobName())
+                ) {
+                    if (Arrays.equals(in.readAllBytes(), blob.bytes()) == false) {
+                        problems.add(blob + " has different content");
+                    }
+                } catch (Exception e) {
+                    problems.add(blob + " cannot be read: " + e);
+                }
+            }
+            assertThat("injected merge blobs missing or modified", problems, empty());
+        });
+    }
+
+    // TODO(szybia): remove once merge blobs are uploaded for real
+    private void assertNoMergeBlobLoggingWarnings() {
+        if (mergeBlobLogCapture == null) {
+            return;
+        }
+        try (var capture = mergeBlobLogCapture) {
+            mergeBlobLogCapture = null;
+            capture.assertAllExpectationsMatched();
+        }
+    }
+
+    /// Check there's no >= WARN logs that mention a merge blob. Only works for tests which don't define their own [MockLog].
+    private static class NoMergeBlobWarningExpectation implements MockLog.LoggingExpectation {
+        private final List<String> seen = new CopyOnWriteArrayList<>();
+
+        @Override
+        public void match(LogEvent event) {
+            if (event.getLevel().isMoreSpecificThan(Level.WARN) == false) {
+                return;
+            }
+            final String message = event.getMessage().getFormattedMessage();
+            final Throwable thrown = event.getThrown();
+            if (message.contains(MergeBlob.PREFIX) || (thrown != null && ExceptionsHelper.stackTrace(thrown).contains(MergeBlob.PREFIX))) {
+                seen.add("[" + event.getLoggerName() + "] " + message + (thrown != null ? " (" + thrown + ")" : ""));
+            }
+        }
+
+        @Override
+        public void assertMatched() {
+            assertThat("WARN or ERROR logs mentioning a merge blob", seen, empty());
+        }
     }
 
     public static final String SYSTEM_INDEX_NAME = ".sys-idx";
@@ -249,9 +386,9 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
             StatelessSharedBlobCacheService cacheService,
             ThreadPool threadPool,
             ClusterSettings clusterSettings,
-            WarmingRatioProvider warmingRatioProvider
+            SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService
         ) {
-            super(cacheService, threadPool, TelemetryProvider.NOOP, clusterSettings, warmingRatioProvider);
+            super(cacheService, threadPool, TelemetryProvider.NOOP, clusterSettings, searchRecoveryTimeoutCalculationService);
         }
 
         @Override
@@ -260,7 +397,8 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
             IndexShard indexShard,
             StatelessCompoundCommit commit,
             BlobStoreCacheDirectory blobStoreCacheDirectory,
-            @Nullable Map<BlobFile, Long> endOffsetsToWarm,
+            WarmingRatioProvider warmingRatioProvider,
+            @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
             boolean preWarmForIdLookup,
             ActionListener<Void> listener
         ) {
@@ -286,22 +424,6 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
     @BeforeClass
     public static void setupClass() {
         operationPurpose = randomFrom(OperationPurpose.values());
-    }
-
-    private boolean useBasePath;
-    private boolean hollowIndexShardsDisabled;
-    private boolean hollowIndexShardsZeroTtl;
-
-    @Before
-    public void setup() {
-        useBasePath = randomBoolean();
-        if (randomBoolean()) {
-            // Randomly disable hollow shards
-            hollowIndexShardsDisabled = true;
-        } else if (randomBoolean()) {
-            // Randomly make TTL zero for hollowing shards
-            hollowIndexShardsZeroTtl = true;
-        }
     }
 
     /**
@@ -374,7 +496,7 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
             .put(RecoverySettings.INDICES_RECOVERY_USE_SNAPSHOTS_SETTING.getKey(), false)
             .put(ObjectStoreService.BUCKET_SETTING.getKey(), getFsRepoSanitizedBucketName())
             .put(StoreHeartbeatService.MAX_MISSED_HEARTBEATS.getKey(), DEFAULT_TEST_MAX_MISSED_HEARTBEATS)
-            .put(StatelessCommitService.STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), randomBoolean());
+            .put(StatelessCommitService.STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), true);
         // Defines a default object store type, which can be overridden by test suites
         if (addMockFsRepository() && randomBoolean()) {
             builder.put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK);
@@ -392,11 +514,72 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
             builder.put(HollowShardsService.SETTING_HOLLOW_INGESTION_DS_NON_WRITE_TTL.getKey(), TimeValue.ZERO);
             builder.put(HollowShardsService.SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.ZERO);
         }
+        builder.put(StatelessPrimaryRelocationSourceService.TRANSFER_HOLLOW_COMMIT_METADATA_SETTING.getKey(), randomBoolean());
         if (randomBoolean()) {
             builder.put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING.getKey(), randomBoolean());
         }
+        if (randomBoolean()) {
+            builder.put(
+                SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING.getKey(),
+                randomBoolean()
+            );
+        }
         builder.put(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), randomBoolean());
+        // Sometimes explicitly set the setting to its default value, which doubles as a test for the setting being registered.
+        if (randomBoolean()) {
+            var cacheBoostPreference = StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING;
+            builder.put(cacheBoostPreference.getKey(), cacheBoostPreference.getDefault(Settings.EMPTY));
+        }
+        builder.put(recoveryThrottlingSettings);
         return builder;
+    }
+
+    /// Randomized values for all the data node recovery throttling (DNRT) settings.
+    ///
+    /// DNRT replaces the master-side recovery throttling, so this hands the throttling over to the data nodes and
+    /// unthrottles the master-side deciders. See [DataNodeRecoveryThrottlingSettings] for effective limits.
+    private static Settings randomDataNodeRecoveryThrottlingSettings() {
+        return Settings.builder()
+            .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey(), Integer.MAX_VALUE)
+            .put(
+                ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(),
+                Integer.MAX_VALUE
+            )
+            .put(
+                ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(),
+                Integer.MAX_VALUE
+            )
+            .put(
+                ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.getKey(),
+                Integer.MAX_VALUE
+            )
+            .put(
+                StatelessThrottlingConcurrentRecoveriesAllocationDecider.MIN_HEAP_REQUIRED_FOR_CONCURRENT_PRIMARY_RECOVERIES_SETTING
+                    .getKey(),
+                ByteSizeValue.ZERO
+            )
+            .put(
+                StatelessThrottlingConcurrentRecoveriesAllocationDecider.CONCURRENT_PRIMARY_RECOVERIES_PER_HEAP_GB.getKey(),
+                Integer.MAX_VALUE
+            )
+            .put(ConcurrentRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING.getKey(), -1)
+            .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), between(1, 10))
+            // Tests run with a 512MB heap by default (`tests.heap.size`), so this yields a heap-based limit between 1 and 10
+            .put(
+                DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(),
+                randomDoubleBetween(1, 20, true)
+            )
+            .put(
+                DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING.getKey(),
+                between(50, 100) + "%"
+            )
+            .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), between(1, 10))
+            // Heap-based limit between 1 and 10, as for the incoming side above
+            .put(
+                DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(),
+                randomDoubleBetween(1, 20, true)
+            )
+            .build();
     }
 
     protected String startSearchNode() {
@@ -531,6 +714,11 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
         ObjectStoreTestUtils.getObjectStoreStatelessMockRepository(objectStoreService).setStrategy(strategy);
     }
 
+    protected void setProjectRepositoryStrategy(String nodeName, ProjectId projectId, StatelessMockRepositoryStrategy strategy) {
+        ObjectStoreService objectStoreService = getObjectStoreService(nodeName);
+        ObjectStoreTestUtils.getProjectObjectStoreStatelessMockRepository(projectId, objectStoreService).setStrategy(strategy);
+    }
+
     protected void setNodeRepositoryFailureStrategy(
         String node,
         boolean failReads,
@@ -631,12 +819,13 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
                 String blobName,
                 long blobSize,
                 BlobContainer.BlobMultiPartInputStreamProvider provider,
-                boolean failIfAlreadyExists
+                boolean failIfAlreadyExists,
+                Executor executor
             ) throws IOException {
                 if (failWrites) {
                     failIfNeeded(purpose, blobName);
                 }
-                super.blobContainerWriteBlobAtomic(originalRunnable, purpose, blobName, blobSize, provider, failIfAlreadyExists);
+                super.blobContainerWriteBlobAtomic(originalRunnable, purpose, blobName, blobSize, provider, failIfAlreadyExists, executor);
             }
 
             @Override
@@ -1123,19 +1312,25 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
     }
 
     /**
-     * List all finalized blobs in the blob container, exclude any temporary blobs present for in-progress
+     * List all finalized BCC blobs in the blob container, exclude any temporary BCC blobs present for in-progress
      * atomic writes.
      *
      * @param blobContainer An BlobContainer that extends or delegates to a {@link FsBlobContainer}
-     * @return The list of finalized blobs in that container
+     * @return The list of finalized BCC blobs in that container
      */
-    protected Set<String> listBlobsWithAbsolutePath(BlobContainer blobContainer) throws IOException {
+    protected Set<String> listBccBlobsWithAbsolutePath(BlobContainer blobContainer) throws IOException {
         var blobContainerPath = blobContainer.path().buildAsString();
+        return listBccBlobNames(blobContainer).stream()
+            .filter(blob -> FsBlobContainer.isTempBlobName(blob.substring(blob.lastIndexOf('/') + 1)) == false)
+            .map(blob -> blobContainerPath + blob)
+            .collect(Collectors.toSet());
+    }
+
+    protected static Set<String> listBccBlobNames(BlobContainer blobContainer) throws IOException {
         return blobContainer.listBlobs(operationPurpose)
             .keySet()
             .stream()
-            .filter(blob -> FsBlobContainer.isTempBlobName(blob.substring(blob.lastIndexOf('/') + 1)) == false)
-            .map(blob -> blobContainerPath + blob)
+            .filter(BatchedCompoundCommit::startsWithBlobPrefix)
             .collect(Collectors.toSet());
     }
 
@@ -1197,6 +1392,14 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
         return new PrimaryTermAndGeneration(indexShard.getOperationPrimaryTerm(), ((IndexEngine) engineOrNull).getCurrentGeneration());
     }
 
+    /**
+     * Call this when the blobs you want listed have been fully uploaded, e.g., after a flush,
+     * or call this in a loop (e.g., assertBusy) to check that some blobs have been deleted.
+     *
+     * If blobs are being uploaded, some non-conforming filenames may not be listed, e.g., if they
+     * have partial names like the temporary "pending-" prefixed blobs that {@link FsBlobContainer}
+     * uses to do atomic uploads.
+     */
     protected static Set<PrimaryTermAndGeneration> listBlobsTermAndGenerations(ShardId shardId) throws Exception {
         Set<PrimaryTermAndGeneration> set = new HashSet<>();
         var objectStoreService = getObjectStoreService(internalCluster().getRandomNodeName());
@@ -1204,11 +1407,11 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
         for (var entry : indexBlobContainer.children(operationPurpose).entrySet()) {
             var primaryTerm = Long.parseLong(entry.getKey());
             Set<String> statelessCompoundCommits = entry.getValue().listBlobs(operationPurpose).keySet();
-            statelessCompoundCommits.forEach(
-                filename -> set.add(
-                    new PrimaryTermAndGeneration(primaryTerm, StatelessCompoundCommit.parseGenerationFromBlobName(filename))
-                )
-            );
+            statelessCompoundCommits.forEach(filename -> {
+                if (BatchedCompoundCommit.startsWithBlobPrefix(filename)) {
+                    set.add(new PrimaryTermAndGeneration(primaryTerm, BatchedCompoundCommit.parseGenerationFromBlobName(filename)));
+                }
+            });
         }
         return set;
     }
@@ -1253,10 +1456,41 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
         return measurements.isEmpty() ? 0L : measurements.get(measurements.size() - 1).getLong();
     }
 
+    protected static long getLastLongAsyncGaugeValue(String name, TestTelemetryPlugin telemetryPlugin) {
+        List<Measurement> measurements = telemetryPlugin.getLongAsyncGaugeMeasurement(name);
+        return measurements.isEmpty() ? 0L : measurements.get(measurements.size() - 1).getLong();
+    }
+
     protected static Settings disableIndexingDiskAndMemoryControllersNodeSettings() {
         return Settings.builder()
             .put(IndexingMemoryController.SHARD_MEMORY_INTERVAL_TIME_SETTING.getKey(), TimeValue.timeValueHours(1L))
             .put(IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING.getKey(), TimeValue.MINUS_ONE)
+            .build();
+    }
+
+    /// Settings that lift the data node recovery throttling (DNRT) limits on incoming recoveries.
+    protected static Settings unthrottledIncomingRecoveryNodeSettings() {
+        return Settings.builder()
+            .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), Integer.MAX_VALUE)
+            .put(
+                DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(),
+                Double.MAX_VALUE
+            )
+            .put(
+                DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING.getKey(),
+                "100%"
+            )
+            .build();
+    }
+
+    /// Settings that lift the data node recovery throttling (DNRT) limits on outgoing recoveries.
+    protected static Settings unthrottledOutgoingRecoveryNodeSettings() {
+        return Settings.builder()
+            .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), Integer.MAX_VALUE)
+            .put(
+                DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(),
+                Double.MAX_VALUE
+            )
             .build();
     }
 
@@ -1279,10 +1513,44 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
         return indexingNodeSettingsBuilder.build();
     }
 
+    /**
+     * Relocate non-hollow index shards from {@code indexNodeA} to {@code indexNodeB} and hollow them on the target.
+     *
+     * Preconditions:
+     * <ul>
+     * <li>The cluster contains exactly two {@link DiscoveryNodeRole#INDEX_ROLE} nodes.</li>
+     * <li>{@code indexName} has {@code index.routing.allocation.exclude._name} setting set to {@code indexNodeB}. This is later
+     *     updated to indexNodeA to hollow the shards.</li>
+     * </ul>
+     */
     protected void hollowShards(String indexName, int numberOfShards, String indexNodeA, String indexNodeB) throws Exception {
-        var hollowShardsServiceA = internalCluster().getInstance(HollowShardsService.class, indexNodeA);
+        // assert cluster does not have more indexing nodes, and index settings exclude indexNodeB
+        final var state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).clear().setNodes(true).setMetadata(true).get().getState();
+        final Set<String> indexingNodeNames = new HashSet<>();
+        for (DiscoveryNode node : state.nodes()) {
+            if (node.hasRole(DiscoveryNodeRole.INDEX_ROLE.roleName())) {
+                indexingNodeNames.add(node.getName());
+            }
+        }
+        assertThat(
+            "we expect exactly two indexing nodes in the cluster (no other index-role nodes)",
+            indexingNodeNames,
+            equalTo(Set.of(indexNodeA, indexNodeB))
+        );
+
+        var indexMetadata = state.metadata().getProject().index(indexName);
+        assertThat("index [" + indexName + "] must exist", indexMetadata, notNullValue());
+        String excludeNames = indexMetadata.getSettings().get(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name");
+        assertThat(
+            "index [" + indexName + "] must set [index.routing.allocation.exclude._name] so primaries stay off [" + indexNodeB + "]",
+            excludeNames,
+            equalTo(indexNodeB)
+        );
+
+        final var hollowShardsServiceA = internalCluster().getInstance(HollowShardsService.class, indexNodeA);
+        final var index = resolveIndex(indexName);
         for (int i = 0; i < numberOfShards; i++) {
-            var indexShard = findIndexShard(resolveIndex(indexName), 0);
+            var indexShard = findIndexShard(index, i);
             assertThat(indexShard.getEngineOrNull(), instanceOf(IndexEngine.class));
             var indexEngine = (IndexEngine) indexShard.getEngineOrNull();
             assertFalse(indexEngine.isLastCommitHollow());
@@ -1290,13 +1558,13 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
         }
 
         logger.debug("--> relocating {} hollowable shards from {} to {}", numberOfShards, indexNodeA, indexNodeB);
-        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
+        updateIndexSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", indexNodeA), indexName);
         internalCluster().awaitNodesInclude(indexName, nodes -> nodes.contains(indexNodeA) == false && nodes.contains(indexNodeB));
         ensureGreen(indexName);
 
         var hollowShardsServiceB = internalCluster().getInstance(HollowShardsService.class, indexNodeB);
         for (int i = 0; i < numberOfShards; i++) {
-            var indexShard = findIndexShard(resolveIndex(indexName), i);
+            var indexShard = findIndexShard(index, i);
             assertThat(indexShard.getEngineOrNull(), instanceOf(HollowIndexEngine.class));
             hollowShardsServiceB.ensureHollowShard(indexShard.shardId(), true);
         }
@@ -1319,4 +1587,62 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
             .build();
     }
 
+    /// Waits until the recovery stats of each node, summed over its shards, match the node's predicate. The predicates are
+    /// re-evaluated on every recovery scheduling change on those nodes, so transient states (e.g. a full queue) can be observed.
+    protected void awaitRecoveryCountStats(Map<String, Predicate<RecoveryStats>> predicatePerNode) {
+        final var conditionLatch = new CountDownLatch(1);
+        final var success = new AtomicBoolean();
+
+        final Map<String, IndicesService> indicesServices = new ConcurrentHashMap<>();
+        final Map<String, CompositeRecoverySchedulingListener> schedulingListeners = new ConcurrentHashMap<>();
+        for (final var nodeName : predicatePerNode.keySet()) {
+            indicesServices.put(nodeName, internalCluster().getInstance(IndicesService.class, nodeName));
+            schedulingListeners.put(nodeName, internalCluster().getInstance(CompositeRecoverySchedulingListener.class, nodeName));
+        }
+
+        final var listener = new TestRecoverySchedulingListener() {
+            @Override
+            public void onRecoverySchedulingChange() {
+                if (success.get()) {
+                    return;
+                }
+                for (final var nodePredicate : predicatePerNode.entrySet()) {
+                    final var stats = new RecoveryStats();
+                    for (IndexService indexService : indicesServices.get(nodePredicate.getKey())) {
+                        for (IndexShard shard : indexService) {
+                            stats.add(shard.recoveryStats());
+                        }
+                    }
+                    if (nodePredicate.getValue().test(stats) == false) {
+                        return;
+                    }
+                }
+                success.set(true);
+                conditionLatch.countDown();
+            }
+        };
+
+        for (final var nodeName : predicatePerNode.keySet()) {
+            schedulingListeners.get(nodeName).addListener(listener);
+        }
+        try {
+            listener.onRecoverySchedulingChange(); // check in case conditions were already met
+            safeAwait(conditionLatch);
+        } finally {
+            for (final var nodeName : predicatePerNode.keySet()) {
+                schedulingListeners.get(nodeName).removeListener(listener);
+            }
+        }
+    }
+
+    protected static RecoveryStats getRecoveryStats(String node) {
+        return clusterAdmin().prepareNodesStats(node)
+            .clear()
+            .setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery))
+            .get()
+            .getNodes()
+            .getFirst()
+            .getIndices()
+            .getRecoveryStats();
+    }
 }

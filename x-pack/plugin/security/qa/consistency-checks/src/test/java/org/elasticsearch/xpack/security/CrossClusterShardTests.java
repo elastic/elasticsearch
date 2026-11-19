@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRol
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilegeTests;
 import org.elasticsearch.xpack.downsample.Downsample;
 import org.elasticsearch.xpack.downsample.DownsampleShardPersistentTaskExecutor;
+import org.elasticsearch.xpack.encryption.EncryptionPlugin;
 import org.elasticsearch.xpack.eql.plugin.EqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.frozen.FrozenIndices;
@@ -83,6 +84,7 @@ public class CrossClusterShardTests extends ESSingleNodeTestCase {
                 Ccr.class,
                 DataStreamsPlugin.class,
                 Downsample.class,
+                EncryptionPlugin.class,
                 EqlPlugin.class,
                 EsqlPlugin.class,
                 FrozenIndices.class,

@@ -17,6 +17,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.metadata.View;
+import org.elasticsearch.cluster.metadata.ViewMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -38,6 +40,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -104,6 +107,10 @@ public class ElasticsearchNodeCommandTests extends ESTestCase {
             assertThat(loadedMetadata.clusterUUID(), not(equalTo("_na_")));
             assertThat(loadedMetadata.clusterUUID(), equalTo(initialMetadata.clusterUUID()));
             assertThat(loadedMetadata.getProject().dataStreams(), equalTo(initialMetadata.getProject().dataStreams()));
+            assertThat(
+                loadedMetadata.getProject().custom(ViewMetadata.TYPE),
+                equalTo(initialMetadata.getProject().custom(ViewMetadata.TYPE))
+            );
             assertNotNull(loadedMetadata.getProject().custom(IndexGraveyard.TYPE));
             assertThat(
                 loadedMetadata.getProject().custom(IndexGraveyard.TYPE),
@@ -133,6 +140,10 @@ public class ElasticsearchNodeCommandTests extends ESTestCase {
             assertThat(bestOnDiskState.currentTerm, equalTo(newTerm));
             final Metadata reloadedMetadata = bestOnDiskState.metadata;
             assertThat(reloadedMetadata.getProject().indexGraveyard(), equalTo(initialMetadata.getProject().indexGraveyard()));
+            assertThat(
+                reloadedMetadata.getProject().custom(ViewMetadata.TYPE),
+                equalTo(initialMetadata.getProject().custom(ViewMetadata.TYPE))
+            );
             if (hasMissingCustoms) {
                 assertThat(
                     reloadedMetadata.getProject().custom(TestMissingProjectCustomMetadata.TYPE),
@@ -154,15 +165,22 @@ public class ElasticsearchNodeCommandTests extends ESTestCase {
         for (int i = 0; i < numDelIndices; i++) {
             graveyard.addTombstone(new Index(randomAlphaOfLength(10) + "del-idx-" + i, UUIDs.randomBase64UUID()));
         }
+        projectBuilder.indexGraveyard(graveyard.build());
         if (randomBoolean()) {
             int numDataStreams = randomIntBetween(0, 5);
             for (int i = 0; i < numDataStreams; i++) {
-                String dataStreamName = "name" + 1;
+                String dataStreamName = "name" + i;
                 IndexMetadata backingIndex = createFirstBackingIndex(dataStreamName).build();
                 projectBuilder.put(newInstance(dataStreamName, List.of(backingIndex.getIndex())));
             }
         }
-        projectBuilder.indexGraveyard(graveyard.build());
+        if (randomBoolean()) {
+            int numViews = randomIntBetween(0, 5);
+            for (int i = 0; i < numViews; i++) {
+                String viewName = "view" + i;
+                projectBuilder.views(Map.of(viewName, new View(viewName, "FROM test")));
+            }
+        }
         if (hasMissingCustoms) {
             projectBuilder.putCustom(
                 TestMissingProjectCustomMetadata.TYPE,

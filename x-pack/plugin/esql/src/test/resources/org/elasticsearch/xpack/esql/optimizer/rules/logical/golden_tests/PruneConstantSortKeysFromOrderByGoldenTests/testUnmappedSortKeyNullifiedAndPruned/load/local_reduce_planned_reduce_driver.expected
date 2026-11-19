@@ -1,0 +1,4 @@
+ExchangeSinkExec[[emp_no{f}#0, does_not_exist{f(PotentiallyUnmappedKeywordEsField)}#1],false]
+\_ProjectExec[[emp_no{f}#0, does_not_exist{f(PotentiallyUnmappedKeywordEsField)}#1]]
+  \_TopNExec[[Order[does_not_exist{f(PotentiallyUnmappedKeywordEsField)}#1,ASC,LAST], Order[emp_no{f}#0,ASC,LAST]],20[INTEGER],74]
+    \_ExchangeSourceExec[[_doc{f}#2, does_not_exist{f(PotentiallyUnmappedKeywordEsField)}#1, emp_no{f}#0],false]

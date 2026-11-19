@@ -96,7 +96,7 @@ public enum SearchResponseUtils {
         int successfulShards,
         int skippedShards,
         long tookInMillis,
-        ShardSearchFailure[] shardFailures,
+        List<ShardSearchFailure> shardFailures,
         SearchResponse.Clusters clusters
     ) {
         return new SearchResponse(
@@ -133,7 +133,7 @@ public enum SearchResponseUtils {
         private int successfulShards;
         private int skippedShards;
         private long tookInMillis;
-        private List<ShardSearchFailure> shardFailures;
+        private List<ShardSearchFailure> shardFailures = List.of();
         private Clusters clusters = Clusters.EMPTY;
         private BytesReference pointInTimeId;
 
@@ -225,7 +225,7 @@ public enum SearchResponseUtils {
                 successfulShards,
                 skippedShards,
                 tookInMillis,
-                shardFailures == null ? ShardSearchFailure.EMPTY_ARRAY : shardFailures.toArray(ShardSearchFailure[]::new),
+                shardFailures,
                 clusters,
                 pointInTimeId,
                 null,
@@ -423,7 +423,7 @@ public enum SearchResponseUtils {
                 successfulShards,
                 skippedShards,
                 tookInMillis,
-                failures.toArray(ShardSearchFailure.EMPTY_ARRAY),
+                failures,
                 clusters,
                 searchContextId,
                 null,
@@ -621,6 +621,7 @@ public enum SearchResponseUtils {
         SearchProfileDfsPhaseResult searchProfileDfsPhaseResult = null;
         List<QueryProfileShardResult> queryProfileResults = new ArrayList<>();
         AggregationProfileShardResult aggProfileShardResult = null;
+        List<ProfileResult> rescoreResults = new ArrayList<>();
         ProfileResult fetchResult = null;
         String id = null;
         String currentFieldName = null;
@@ -640,6 +641,10 @@ public enum SearchResponseUtils {
                     }
                 } else if (AggregationProfileShardResult.AGGREGATIONS.equals(currentFieldName)) {
                     aggProfileShardResult = readAggregationProfileShardResult(parser);
+                } else if (SearchProfileShardResult.RESCORE.equals(currentFieldName)) {
+                    while ((parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        rescoreResults.add(parseProfileResult(parser));
+                    }
                 } else {
                     parser.skipChildren();
                 }
@@ -656,7 +661,7 @@ public enum SearchResponseUtils {
             }
         }
         SearchProfileShardResult result = new SearchProfileShardResult(
-            new SearchProfileQueryPhaseResult(queryProfileResults, aggProfileShardResult),
+            new SearchProfileQueryPhaseResult(queryProfileResults, aggProfileShardResult, rescoreResults),
             fetchResult
         );
         result.getQueryPhase().setSearchProfileDfsPhaseResult(searchProfileDfsPhaseResult);
@@ -1013,9 +1018,9 @@ public enum SearchResponseUtils {
         String index = get(SearchHit.Fields._INDEX, values, null);
         String clusterAlias = null;
         if (index != null) {
-            String[] split = RemoteClusterAware.splitIndexName(index);
-            clusterAlias = split[0];
-            index = split[1];
+            var split = RemoteClusterAware.splitIndexName(index);
+            clusterAlias = split.clusterAlias();
+            index = split.indexExpression();
         }
         ShardId shardId = get(SearchHit.Fields._SHARD, values, null);
         String nodeId = get(SearchHit.Fields._NODE, values, null);

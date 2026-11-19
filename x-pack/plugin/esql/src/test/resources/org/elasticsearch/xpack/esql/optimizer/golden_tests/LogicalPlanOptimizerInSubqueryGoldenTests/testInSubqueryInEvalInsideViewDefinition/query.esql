@@ -1,0 +1,2 @@
+FROM marked_emps
+| KEEP emp_no, m

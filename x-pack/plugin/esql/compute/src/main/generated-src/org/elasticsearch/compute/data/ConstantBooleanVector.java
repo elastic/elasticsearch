@@ -21,7 +21,7 @@ import java.util.Arrays;
  * Vector implementation that stores a constant boolean value.
  * This class is generated. Edit {@code X-ConstantVector.java.st} instead.
  */
-final class ConstantBooleanVector extends AbstractVector implements BooleanVector {
+public final class ConstantBooleanVector extends AbstractVector implements BooleanVector {
 
     static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantBooleanVector.class);
 
@@ -53,8 +53,8 @@ final class ConstantBooleanVector extends AbstractVector implements BooleanVecto
     }
 
     @Override
-    public BooleanVector filter(boolean mayContainDuplicates, int... positions) {
-        return blockFactory().newConstantBooleanVector(value, positions.length);
+    public BooleanVector filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
+        return blockFactory().newConstantBooleanVector(value, length);
     }
 
     @Override

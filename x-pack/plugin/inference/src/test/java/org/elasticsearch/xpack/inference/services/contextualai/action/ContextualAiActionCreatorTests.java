@@ -7,20 +7,19 @@
 
 package org.elasticsearch.xpack.inference.services.contextualai.action;
 
-import org.apache.http.HttpHeaders;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.TestCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
@@ -103,7 +102,13 @@ public class ContextualAiActionCreatorTests extends ESTestCase {
     public void init() throws Exception {
         webServer.start();
         threadPool = createThreadPool(inferenceUtilityExecutors());
-        clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
+        clientManager = HttpClientManager.create(
+            Settings.EMPTY,
+            threadPool,
+            mockClusterServiceEmpty(),
+            mock(ThrottlerManager.class),
+            new TestCircuitBreaker()
+        );
     }
 
     @After
@@ -125,7 +130,7 @@ public class ContextualAiActionCreatorTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
-                new QueryAndDocsInputs(new InferenceString(DataType.TEXT, TEST_QUERY), InferenceString.fromStringList(TEST_DOCUMENTS)),
+                new QueryAndDocsInputs(InferenceString.ofText(TEST_QUERY), InferenceString.fromStringList(TEST_DOCUMENTS)),
                 null,
                 listener
             );
@@ -136,7 +141,7 @@ public class ContextualAiActionCreatorTests extends ESTestCase {
 
             var request = webServer.requests().getFirst();
             assertThat(request.getUri().getQuery(), is(nullValue()));
-            assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaTypeWithoutParameters()));
+            assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), equalTo("application/json; charset=UTF-8"));
             assertThat(request.getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer " + TEST_API_KEY));
 
             var requestMap = entityAsMap(request.getBody());
@@ -166,7 +171,7 @@ public class ContextualAiActionCreatorTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
-                new QueryAndDocsInputs(new InferenceString(DataType.TEXT, TEST_QUERY), InferenceString.fromStringList(TEST_DOCUMENTS)),
+                new QueryAndDocsInputs(InferenceString.ofText(TEST_QUERY), InferenceString.fromStringList(TEST_DOCUMENTS)),
                 null,
                 listener
             );
@@ -204,7 +209,7 @@ public class ContextualAiActionCreatorTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
-                new QueryAndDocsInputs(new InferenceString(DataType.TEXT, TEST_QUERY), InferenceString.fromStringList(TEST_DOCUMENTS)),
+                new QueryAndDocsInputs(InferenceString.ofText(TEST_QUERY), InferenceString.fromStringList(TEST_DOCUMENTS)),
                 null,
                 listener
             );
@@ -236,7 +241,7 @@ public class ContextualAiActionCreatorTests extends ESTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
                 new QueryAndDocsInputs(
-                    new InferenceString(DataType.TEXT, TEST_QUERY),
+                    InferenceString.ofText(TEST_QUERY),
                     InferenceString.fromStringList(TEST_DOCUMENTS),
                     null,
                     NEW_TEST_TOP_N,
@@ -280,7 +285,7 @@ public class ContextualAiActionCreatorTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
-                new QueryAndDocsInputs(new InferenceString(DataType.TEXT, TEST_QUERY), InferenceString.fromStringList(TEST_DOCUMENTS)),
+                new QueryAndDocsInputs(InferenceString.ofText(TEST_QUERY), InferenceString.fromStringList(TEST_DOCUMENTS)),
                 null,
                 listener
             );

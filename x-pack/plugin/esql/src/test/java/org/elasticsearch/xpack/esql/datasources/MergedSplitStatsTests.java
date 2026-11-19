@@ -8,7 +8,10 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.TypeWidening;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class MergedSplitStatsTests extends ESTestCase {
@@ -68,10 +71,79 @@ public class MergedSplitStatsTests extends ESTestCase {
         assertEquals(-1, merged.columnNullCount("age"));
     }
 
-    public void testColumnNullCountReturnsMinusOneForMissingColumn() {
+    public void testColumnNullCountReturnsRowCountForMissingColumn() {
+        // Under the SPI's "implicit nulls" contract, a column absent from a child
+        // contributes that child's full row count as implicit nulls (not -1).
         SplitStats a = splitStatsWithColumn("age", 5L, 10, 90, 400);
         MergedSplitStats merged = new MergedSplitStats(List.of(a));
-        assertEquals(-1, merged.columnNullCount("name"));
+        assertEquals("absent column contributes rowCount, not -1", a.rowCount(), merged.columnNullCount("name"));
+    }
+
+    public void testColumnNullCountWithAbsentChildrenSumsCorrectly() {
+        // Child A: 100 rows, has bonus with 5 explicit nulls.
+        // Child B: 200 rows, no bonus column at all -> contributes 200 implicit nulls.
+        // Sum: 5 + 200 = 205.
+        SplitStats a = splitStatsRowCountWithColumn(100, "bonus", 5L, 10, 90, 400);
+        SplitStats b = splitStatsRowCountWithColumn(200, "age", 0L, 1, 2, 100);
+        MergedSplitStats merged = new MergedSplitStats(List.of(a, b));
+        assertEquals(205L, merged.columnNullCount("bonus"));
+    }
+
+    public void testColumnMinSkipsChildrenWithoutColumnValue() {
+        // Child A: has bonus, min=10. Child B: no bonus. Child C: has bonus, min=20.
+        // Skip B rather than poison; result is 10.
+        SplitStats a = splitStatsRowCountWithColumn(100, "bonus", 0L, 10, 90, 400);
+        SplitStats b = splitStatsRowCountWithColumn(50, "age", 0L, 1, 2, 100);
+        SplitStats c = splitStatsRowCountWithColumn(100, "bonus", 0L, 20, 80, 400);
+        MergedSplitStats merged = new MergedSplitStats(List.of(a, b, c));
+        assertEquals(10, merged.columnMin("bonus"));
+        assertEquals(90, merged.columnMax("bonus"));
+    }
+
+    public void testColumnMinSkipsAllNullChildren() {
+        // Child A: has bonus, min=10 (some rows non-null). Child B: has bonus but every row is null.
+        // Child C: has bonus, min=20. B contributes no candidate value and must be skipped.
+        SplitStats a = splitStatsRowCountWithColumn(100, "bonus", 5L, 10, 90, 400);
+        // B has bonus column but nullCount == rowCount (all rows null) and no min/max stat.
+        SplitStats.Builder bb = new SplitStats.Builder().rowCount(50);
+        bb.addColumn("bonus", 50L, null, null, 200);
+        SplitStats b = bb.build();
+        SplitStats c = splitStatsRowCountWithColumn(100, "bonus", 0L, 20, 80, 400);
+        MergedSplitStats merged = new MergedSplitStats(List.of(a, b, c));
+        assertEquals(10, merged.columnMin("bonus"));
+        assertEquals(90, merged.columnMax("bonus"));
+    }
+
+    public void testColumnMinMaxUsesChildValueWhenNullCountUnknownButMinMaxPresent() {
+        // Regression for the multi-FILE warm MIN/MAX short-circuit: a per-file SplitStats can legitimately
+        // carry a known min/max for a column while its null_count is unknown (-1). This happens when the
+        // file's own multi-stripe fold poison-dropped the null_count (a stripe that presented the column
+        // without a null_count value) but retained the min/max — SourceStatisticsSerializer.mergeStatistics
+        // drops only the null_count entry, never the min/max. Such a child contributes a valid extremum
+        // candidate: the min stat is the minimum of the column's non-null values regardless of how many
+        // nulls there are. Poisoning the whole dataset min/max here is what made warm MIN/MAX full-scan a
+        // multi-file glob while COUNT(*) (which never reads null_count for COUNT(*)) short-circuited.
+        SplitStats a = splitStatsRowCountWithColumn(100, "EventDate", 0L, 10, 90, 400);
+        // B: column present with a real min/max but null_count unknown (-1).
+        SplitStats.Builder bb = new SplitStats.Builder().rowCount(50);
+        bb.addColumn("EventDate", -1L, 5, 95, 200);
+        SplitStats b = bb.build();
+        SplitStats c = splitStatsRowCountWithColumn(100, "EventDate", 0L, 20, 80, 400);
+        MergedSplitStats merged = new MergedSplitStats(List.of(a, b, c));
+        assertEquals("min must merge B's known value (5) despite B's unknown null_count", 5, merged.columnMin("EventDate"));
+        assertEquals("max must merge B's known value (95) despite B's unknown null_count", 95, merged.columnMax("EventDate"));
+    }
+
+    public void testColumnMinPoisonedByPresentButStatsLessChild() {
+        // Child A: has bonus with full stats. Child B: column physically present (column added)
+        // but null count is unknown (-1). Defensive: poison rather than fabricate.
+        SplitStats a = splitStatsRowCountWithColumn(100, "bonus", 0L, 10, 90, 400);
+        SplitStats.Builder bb = new SplitStats.Builder().rowCount(50);
+        bb.addColumn("bonus", -1L, null, null, 200);
+        SplitStats b = bb.build();
+        MergedSplitStats merged = new MergedSplitStats(List.of(a, b));
+        assertNull("present-but-stats-less child must poison the min", merged.columnMin("bonus"));
+        assertNull("present-but-stats-less child must poison the max", merged.columnMax("bonus"));
     }
 
     // -- columnMin --
@@ -140,6 +212,43 @@ public class MergedSplitStatsTests extends ESTestCase {
         assertEquals(-1, merged.columnSizeBytes("age"));
     }
 
+    // -- hasColumn --
+
+    public void testHasColumnTrueOnlyWhenEveryChildObservedIt() {
+        // The COUNT(col) under-count defence: ExternalSourceAggregatePushdown.columnStatUnservable consults
+        // hasColumn for formats WITHOUT implicit nulls (text). On a multi-file read where one file's scan never
+        // harvested the column, serving the summed COUNT(col) would silently miss that file's rows, so hasColumn
+        // must be the ALL-children predicate — a single unharvested child forces a safe-miss (re-scan), never an
+        // under-count.
+        SplitStats harvested = splitStatsRowCountWithColumn(100, "bonus", 0L, 10, 90, 400);
+        SplitStats alsoHarvested = splitStatsRowCountWithColumn(50, "bonus", 5L, 20, 80, 200);
+        SplitStats unharvested = splitStatsRowCountWithColumn(70, "age", 0L, 1, 2, 100);
+
+        assertTrue("every child observed the column", new MergedSplitStats(List.of(harvested, alsoHarvested)).hasColumn("bonus"));
+        assertFalse(
+            "one unharvested child must make the merged answer not-fully-harvested",
+            new MergedSplitStats(List.of(harvested, unharvested, alsoHarvested)).hasColumn("bonus")
+        );
+        assertFalse("no child observed the column", new MergedSplitStats(List.of(harvested, alsoHarvested)).hasColumn("missing"));
+    }
+
+    // -- pure value-fold: unit/representation reconciliation is owned UPSTREAM by
+    // SourceStatisticsSerializer.normalizeStatsToReconciled (applied in ExternalSourceResolver.aggregateFileStatistics
+    // and FileSplitProvider), NOT here. The merge folds already-normalized values. --
+
+    public void testColumnMinMaxIsPureValueFoldNoRescale() {
+        // Regression guard for the double-rescale bug: per-file stats are normalized to the reconciled unit at
+        // split construction BEFORE reaching the merge, so both children below are already epoch-nanos. A merge
+        // that re-reconciled units (reading the split's file-local DATETIME type and multiplying an already-nanos
+        // value by 1e6, as the removed childColumnTypes/mergeExtremum rescale did) would return 1_000_000_000_000
+        // for the min instead of 1_000_000. The merge must fold value-only.
+        SplitStats a = temporalColumn("ts", 2_000_000L, 5_000_000L);
+        SplitStats b = temporalColumn("ts", 1_000_000L, 9_000_000L);
+        MergedSplitStats merged = new MergedSplitStats(List.of(a, b));
+        assertEquals("min folded value-only, no ×1e6 rescale", 1_000_000L, ((Number) merged.columnMin("ts")).longValue());
+        assertEquals("max folded value-only, no ×1e6 rescale", 9_000_000L, ((Number) merged.columnMax("ts")).longValue());
+    }
+
     // -- children() --
 
     public void testChildrenReturnsAllChildren() {
@@ -185,6 +294,12 @@ public class MergedSplitStatsTests extends ESTestCase {
         return b.build();
     }
 
+    private static SplitStats splitStatsRowCountWithColumn(long rowCount, String name, long nullCount, int min, int max, long sizeBytes) {
+        SplitStats.Builder b = new SplitStats.Builder().rowCount(rowCount);
+        b.addColumn(name, nullCount, min, max, sizeBytes);
+        return b.build();
+    }
+
     private static SplitStats splitStatsWithLongColumn(String name, long nullCount, long min, long max) {
         SplitStats.Builder b = new SplitStats.Builder().rowCount(100);
         b.addColumn(name, nullCount, min, max, -1);
@@ -196,4 +311,51 @@ public class MergedSplitStatsTests extends ESTestCase {
         b.addColumn(name, -1L, null, null, -1L);
         return b.build();
     }
+
+    private static SplitStats temporalColumn(String name, long minEpoch, long maxEpoch) {
+        SplitStats.Builder b = new SplitStats.Builder().rowCount(100);
+        b.addColumn(name, 0L, minEpoch, maxEpoch, 400);
+        return b.build();
+    }
+
+    /**
+     * Stat folding and schema widening are different relations — this one folds Java stat values by
+     * runtime class, that one combines ES|QL types — so {@link SplitStats} cannot simply call
+     * {@link TypeWidening}. What it must not do is disagree with it: a pair of stat values folds to a
+     * value exactly when the corresponding types have a lossless common supertype.
+     * <p>
+     * That correspondence is the whole reason {@code crossTypeExtremum} carries its own
+     * "Long + Double is intentionally incompatible" rule. Written down here, a future edit that adds a
+     * promotion to the lattice without adding it to the stat fold — or the reverse — fails instead of
+     * quietly serving a warm answer a scan would disagree with.
+     */
+    public void testStatFoldingAgreesWithTheWideningLattice() {
+        record Sample(Object value, DataType type) {}
+        List<Sample> samples = List.of(
+            new Sample(1, DataType.INTEGER),
+            new Sample(2L, DataType.LONG),
+            new Sample(3.5f, DataType.DOUBLE),
+            new Sample(4.5d, DataType.DOUBLE)
+        );
+        List<String> mismatches = new ArrayList<>();
+        for (Sample a : samples) {
+            for (Sample b : samples) {
+                boolean statsFold = SplitStats.mergedMin(a.value(), b.value()) != null;
+                boolean typesWiden = TypeWidening.widenLossless(a.type(), b.type()) != null;
+                if (statsFold != typesWiden) {
+                    mismatches.add(
+                        a.value().getClass().getSimpleName()
+                            + "+"
+                            + b.value().getClass().getSimpleName()
+                            + ": stats fold="
+                            + statsFold
+                            + " but types widen="
+                            + typesWiden
+                    );
+                }
+            }
+        }
+        assertTrue(String.join("\n", mismatches), mismatches.isEmpty());
+    }
+
 }

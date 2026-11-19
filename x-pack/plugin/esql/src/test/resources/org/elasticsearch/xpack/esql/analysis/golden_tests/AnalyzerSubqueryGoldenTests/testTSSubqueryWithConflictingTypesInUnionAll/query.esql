@@ -1,0 +1,3 @@
+FROM
+    (TS k8s-downsampled | STATS m = max(rate(network.total_bytes_in)) BY cluster),
+    (FROM sample_data | EVAL m = "abc")

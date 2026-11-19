@@ -7,17 +7,16 @@
 
 package org.elasticsearch.xpack.core.security.action.profile;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.xpack.core.security.action.GrantRequest;
+
+import java.util.Set;
+
+import static org.elasticsearch.xpack.core.security.action.Grant.ACCESS_TOKEN_GRANT_TYPE;
+import static org.elasticsearch.xpack.core.security.action.Grant.PASSWORD_GRANT_TYPE;
 
 public class ActivateProfileRequest extends GrantRequest {
 
     public ActivateProfileRequest() {
-        super();
-    }
-
-    @Override
-    public ActionRequestValidationException validate() {
-        return super.validate();
+        super(Set.of(PASSWORD_GRANT_TYPE, ACCESS_TOKEN_GRANT_TYPE));
     }
 }

@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `TO_UNSIGNED_LONG` function [esql-to_unsigned_long]
 
-:::{include} ../../_snippets/functions/layout/to_unsigned_long.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/to_unsigned_long.md
 :::

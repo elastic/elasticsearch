@@ -18,7 +18,6 @@ import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -121,7 +120,7 @@ public class PITAwareQueryClientTests extends ESTestCase {
                 )
             );
             IndexResolver indexResolver = new IndexResolver(esClient, "cluster", DefaultDataTypeRegistry.INSTANCE, () -> emptySet());
-            CircuitBreaker cb = new NoopCircuitBreaker("testcb");
+            CircuitBreaker cb = NoopCircuitBreaker.INSTANCE;
             EqlSession eqlSession = new EqlSession(
                 esClient,
                 eqlConfiguration,
@@ -216,7 +215,7 @@ public class PITAwareQueryClientTests extends ESTestCase {
                 assertArrayEquals(INDICES, openPIT.indices()); // indices for opening pit should be the same as for the eql query itself
 
                 openedPIT = true;
-                OpenPointInTimeResponse response = new OpenPointInTimeResponse(pitId, 1, 1, 0, 0);
+                OpenPointInTimeResponse response = new OpenPointInTimeResponse(pitId, 1, 1, 0, 0, SearchResponse.Clusters.EMPTY);
                 listener.onResponse((Response) response);
             } else if (request instanceof ClosePointInTimeRequest closePIT) {
                 assertTrue(openedPIT);
@@ -269,7 +268,7 @@ public class PITAwareQueryClientTests extends ESTestCase {
                 0,
                 0,
                 0,
-                ShardSearchFailure.EMPTY_ARRAY,
+                List.of(),
                 SearchResponse.Clusters.EMPTY,
                 searchRequest.pointInTimeBuilder().getEncodedId(),
                 null,

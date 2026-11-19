@@ -72,7 +72,7 @@ public class ReindexFromRemoteIT extends ESIntegTestCase {
             RemoteInfo.DEFAULT_CONNECT_TIMEOUT
         );
 
-        BulkByScrollResponse response = new ReindexRequestBuilder(client()).source("source")
+        BulkByPaginatedSearchResponse response = new ReindexRequestBuilder(client()).source("source")
             .destination("dest")
             .setRemoteInfo(remote)
             .refresh(true)

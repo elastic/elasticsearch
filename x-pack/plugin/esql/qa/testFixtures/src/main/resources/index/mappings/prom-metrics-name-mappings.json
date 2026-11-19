@@ -1,0 +1,34 @@
+{
+  "properties": {
+    "@timestamp": {
+      "type": "date"
+    },
+    "labels": {
+      "type": "passthrough",
+      "priority": 10,
+      "time_series_dimension": true,
+      "properties": {
+        "__name__": {
+          "type": "keyword"
+        },
+        "pod": {
+          "type": "keyword"
+        },
+        "zone": {
+          "type": "keyword"
+        },
+        "idx": {
+          "type": "keyword"
+        }
+      }
+    },
+    "metrics": {
+      "properties": {
+        "requests": {
+          "type": "double",
+          "time_series_metric": "gauge"
+        }
+      }
+    }
+  }
+}

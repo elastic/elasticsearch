@@ -7,7 +7,7 @@ setup:
           path: /_query
           parameters: [ ]
           capabilities: [ optional_fields_fix_unmapped_load_convert_function ]
-      reason: 'requires SET unmapped_fields="load" and current error message for partially unmapped non-keyword fields'
+      reason: 'requires SET unmapped_fields="load" handling for partially mapped non-keyword fields'
   #
   # The table below represents the field mappings for the three indices created in this test.
   # In `FROM index*`, all the fields except lambda are PUNKs: partially unmapped non-keyword fields.
@@ -42,37 +42,60 @@ setup:
             dynamic: false
   - do:
       bulk:
-        index: "index3"
         refresh: true
         body:
-          - { "index": { } }
+          - { "index": { "_index": "index1" } }
+          - { "foo": 0.0 }
+          - { "index": { "_index": "index2" } }
+          - { "foo": 0 }
+          - { "index": { "_index": "index3" } }
           - { "foo": "1"}
 ---
-'to_degrees on punk field':
+'to_degrees on single-type punk field':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_unmapped_load_null_fallback ]
+      reason: 'requires null-fallback for single-type non-keyword PUNKs under unmapped_fields="load"'
   - do:
-      catch: bad_request
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           # [foo] is double in index1
           # [foo] is unmapped in index3
-          query: 'SET unmapped_fields="load"; FROM index1,index3 | EVAL x = TO_DEGREES(foo)'
-  - match: { status: 400 }
-  - match: { error.type: verification_exception }
-  - contains: { error.reason: 'Found 1 problem' }
-  - contains: { error.reason: 'line 1:70: Using partially unmapped non-KEYWORD field [foo] is not supported with unmapped_fields="load"' }
+          query: 'SET unmapped_fields="load"; FROM index1,index3 METADATA _index | EVAL x = TO_DEGREES(foo) | KEEP _index, x | SORT _index'
+  - length: { columns: 2 }
+  - match: { columns.0.name: "_index" }
+  - match: { columns.1.name: "x" }
+  - length: { values: 2 }
+  - match: { values.0: [ "index1", 0.0 ] }
+  - match: { values.1: [ "index3", null ] }
 ---
-'to_radians on punk field':
+'to_radians on single-type punk field':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_unmapped_load_null_fallback ]
+      reason: 'requires null-fallback for single-type non-keyword PUNKs under unmapped_fields="load"'
   - do:
-      catch: bad_request
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           # [foo] is long in index2
           # [foo] is unmapped in index3
-          query: 'SET unmapped_fields="load"; FROM index2,index3 | EVAL x = TO_RADIANS(foo)'
-  - match: { status: 400 }
-  - match: { error.type: verification_exception }
-  - contains: { error.reason: 'Found 1 problem' }
-  - contains: { error.reason: 'line 1:70: Using partially unmapped non-KEYWORD field [foo] is not supported with unmapped_fields="load"' }
+          query: 'SET unmapped_fields="load"; FROM index2,index3 METADATA _index | EVAL x = TO_RADIANS(foo) | KEEP _index, x | SORT _index'
+  - length: { columns: 2 }
+  - match: { columns.0.name: "_index" }
+  - match: { columns.1.name: "x" }
+  - length: { values: 2 }
+  - match: { values.0: [ "index2", 0.0 ] }
+  - match: { values.1: [ "index3", null ] }
 ---
 'aggregate_metric_double cast on fully unmapped field':
   - do:

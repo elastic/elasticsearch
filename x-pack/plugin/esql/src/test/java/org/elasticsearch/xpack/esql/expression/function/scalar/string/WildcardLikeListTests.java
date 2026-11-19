@@ -50,7 +50,9 @@ public class WildcardLikeListTests extends AbstractScalarFunctionTestCase {
             }
             return str;
         };
-        List<Object[]> cases = (List<Object[]>) RLikeTests.parameters(escapeString, () -> "*");
+        List<Object[]> cases = (List<Object[]>) parameterSuppliersFromTypedData(
+            RegexMatchTestCases.buildCases(escapeString, () -> "*", RegexMatchTestCases.AUTOMATA_MATCH_EVALUATOR)
+        );
 
         List<TestCaseSupplier> suppliers = new ArrayList<>();
         addCases(suppliers);

@@ -38,8 +38,9 @@ import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVe
 import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.LOCATION;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.MAX_BATCH_SIZE;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.PROJECT_ID;
-import static org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsServiceSettings.GOOGLE_VERTEX_AI_CONFIGURABLE_MAX_BATCH_SIZE;
+import static org.elasticsearch.xpack.inference.services.googlevertexai.request.GoogleVertexAiUtils.GOOGLE_VERTEX_AI_CONFIGURABLE_MAX_BATCH_SIZE;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class GoogleVertexAiEmbeddingsServiceSettingsTests extends AbstractBWCWireSerializationTestCase<
     GoogleVertexAiEmbeddingsServiceSettings> {
@@ -64,7 +65,9 @@ public class GoogleVertexAiEmbeddingsServiceSettingsTests extends AbstractBWCWir
 
     private static final SimilarityMeasure TEST_SIMILARITY_MEASURE = SimilarityMeasure.COSINE;
     private static final SimilarityMeasure INITIAL_SIMILARITY_MEASURE = SimilarityMeasure.L2_NORM;
-    private static final SimilarityMeasure DEFAULT_SIMILARITY_MEASURE = SimilarityMeasure.DOT_PRODUCT;
+    // Similarity value used when a PERSISTENT config has no similarity stored.
+    // Legacy endpoints stored before the constructor default was removed default to dot_product.
+    private static final SimilarityMeasure LEGACY_PERSISTED_DEFAULT_SIMILARITY = SimilarityMeasure.DOT_PRODUCT;
 
     private static final int TEST_RATE_LIMIT = 10_000;
     private static final int INITIAL_TEST_RATE_LIMIT = 20_000;
@@ -119,7 +122,7 @@ public class GoogleVertexAiEmbeddingsServiceSettingsTests extends AbstractBWCWir
                     null,
                     null,
                     null,
-                    DEFAULT_SIMILARITY_MEASURE,
+                    LEGACY_PERSISTED_DEFAULT_SIMILARITY,
                     new RateLimitSettings(DEFAULT_RATE_LIMIT)
                 )
             )
@@ -142,7 +145,7 @@ public class GoogleVertexAiEmbeddingsServiceSettingsTests extends AbstractBWCWir
                     null,
                     TEST_DIMENSIONS,
                     null,
-                    DEFAULT_SIMILARITY_MEASURE,
+                    null,
                     new RateLimitSettings(DEFAULT_RATE_LIMIT)
                 )
             )
@@ -182,10 +185,18 @@ public class GoogleVertexAiEmbeddingsServiceSettingsTests extends AbstractBWCWir
         );
     }
 
-    public void testFromMap_MissingLocation_Failure() {
-        assertValidationFailure(
+    public void testFromMap_MissingLocation_ResolvesToGlobalEndpoint() {
+        var serviceSettings = GoogleVertexAiEmbeddingsServiceSettings.fromMap(
             buildServiceSettingsMap(null, TEST_PROJECT_ID, TEST_MODEL_ID, true, null, null, null, null, null),
-            "[service_settings] does not contain the required setting [location]"
+            ConfigurationParseContext.PERSISTENT
+        );
+        assertThat(serviceSettings.location(), is(nullValue()));
+    }
+
+    public void testFromMap_EmptyLocation_Failure() {
+        assertValidationFailure(
+            buildServiceSettingsMap("", TEST_PROJECT_ID, TEST_MODEL_ID, true, null, null, null, null, null),
+            "[service_settings] Invalid value empty string. [location] must be a non-empty string"
         );
     }
 
@@ -524,7 +535,7 @@ public class GoogleVertexAiEmbeddingsServiceSettingsTests extends AbstractBWCWir
         var similarity = instance.similarity();
         var rateLimitSettings = instance.rateLimitSettings();
         switch (randomInt(8)) {
-            case 0 -> location = randomValueOtherThan(location, () -> randomAlphaOfLength(10));
+            case 0 -> location = randomValueOtherThan(location, () -> randomAlphaOfLengthOrNull(10));
             case 1 -> projectId = randomValueOtherThan(projectId, () -> randomAlphaOfLength(10));
             case 2 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLength(10));
             case 3 -> dimensionsSetByUser = dimensionsSetByUser == false;
@@ -634,7 +645,7 @@ public class GoogleVertexAiEmbeddingsServiceSettingsTests extends AbstractBWCWir
 
     private static GoogleVertexAiEmbeddingsServiceSettings createRandom() {
         return new GoogleVertexAiEmbeddingsServiceSettings(
-            randomAlphaOfLength(10),
+            randomAlphaOfLengthOrNull(10),
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
             randomBoolean(),

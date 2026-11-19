@@ -10,8 +10,11 @@ package org.elasticsearch.xpack.esql.expression.function;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
+import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.geo.GeometryTestUtils;
@@ -22,15 +25,20 @@ import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.h3.H3;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.WriteableExponentialHistogram;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.versionfield.Version;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -41,6 +49,7 @@ import static org.elasticsearch.test.ESTestCase.randomList;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.UNSIGNED_LONG_MAX;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.TypedDataSupplier;
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.appliesTo;
 
 /**
  * Extension of {@link TestCaseSupplier} that provided multi-row test cases.
@@ -63,6 +72,17 @@ public final class MultiRowTestCaseSupplier {
             case KEYWORD, TEXT -> stringCases(minRows, maxRows, type);
             case IP -> ipCases(minRows, maxRows);
             case BOOLEAN -> booleanCases(minRows, maxRows);
+            case VERSION -> versionCases(minRows, maxRows);
+            case CARTESIAN_POINT -> cartesianPointCases(minRows, maxRows, IncludingAltitude.NO);
+            case CARTESIAN_SHAPE -> cartesianShapeCasesWithoutCircle(minRows, maxRows, IncludingAltitude.NO);
+            case GEO_POINT -> geoPointCases(minRows, maxRows, IncludingAltitude.NO);
+            case GEO_SHAPE -> geoShapeCasesWithoutCircle(minRows, maxRows, IncludingAltitude.NO);
+            case GEOHASH -> geohashCases(minRows, maxRows);
+            case GEOTILE -> geotileCases(minRows, maxRows);
+            case GEOHEX -> geohexCases(minRows, maxRows);
+            case DENSE_VECTOR -> denseVectorCases(minRows, maxRows);
+            case EXPONENTIAL_HISTOGRAM -> exponentialHistogramCases(minRows, maxRows);
+            case TDIGEST -> tdigestCases(minRows, maxRows);
             // If a type is missing here it's safe to them as you need them
             default -> throw new IllegalArgumentException("unsupported type [" + type + "]");
         };
@@ -273,6 +293,32 @@ public final class MultiRowTestCaseSupplier {
         return cases;
     }
 
+    /**
+     * Cases for {@code counter_integer}, {@code counter_long} and {@code counter_double}. Counter types share the block
+     * representation of their numeric counterparts, so these reuse the numeric cases with the counter type.
+     */
+    public static List<TypedDataSupplier> counterCases(int minRows, int maxRows) {
+        List<TypedDataSupplier> cases = new ArrayList<>();
+        intCases(minRows, maxRows, Integer.MIN_VALUE, Integer.MAX_VALUE, true).forEach(s -> cases.add(asType(s, DataType.COUNTER_INTEGER)));
+        longCases(minRows, maxRows, Long.MIN_VALUE, Long.MAX_VALUE, true).forEach(s -> cases.add(asType(s, DataType.COUNTER_LONG)));
+        doubleCases(minRows, maxRows, -Double.MAX_VALUE, Double.MAX_VALUE, true).forEach(
+            s -> cases.add(asType(s, DataType.COUNTER_DOUBLE))
+        );
+        return cases;
+    }
+
+    private static TypedDataSupplier asType(TypedDataSupplier supplier, DataType type) {
+        return new TypedDataSupplier(
+            supplier.name() + " as " + type.typeName(),
+            supplier.supplier(),
+            type,
+            supplier.forceLiteral(),
+            supplier.multiRow(),
+            supplier.appliesTo(),
+            supplier.preview()
+        );
+    }
+
     public static List<TypedDataSupplier> dateCases(int minRows, int maxRows) {
         List<TypedDataSupplier> cases = new ArrayList<>();
 
@@ -334,6 +380,31 @@ public final class MultiRowTestCaseSupplier {
             DataType.DATE_NANOS,
             () -> ESTestCase.randomLongBetween(Long.MAX_VALUE / 100 * 99, Long.MAX_VALUE)
         );
+
+        return cases;
+    }
+
+    public static List<TypedDataSupplier> dateRangeCases(int minRows, int maxRows) {
+        List<TypedDataSupplier> cases = new ArrayList<>();
+        if (DataType.DATE_RANGE.supportedVersion().supportedLocally() == false) {
+            return cases;
+        }
+
+        addSuppliers(cases, minRows, maxRows, "random date range", DataType.DATE_RANGE, () -> {
+            LongRangeBlockBuilder.LongRange r = TestCaseSupplier.randomDateRange();
+            return r;
+        });
+
+        return cases;
+    }
+
+    public static List<TypedDataSupplier> doubleRangeCases(int minRows, int maxRows) {
+        List<TypedDataSupplier> cases = new ArrayList<>();
+
+        addSuppliers(cases, minRows, maxRows, "random double range", DataType.DOUBLE_RANGE, () -> {
+            DoubleRangeBlockBuilder.DoubleRange range = TestCaseSupplier.randomDoubleRange();
+            return range;
+        });
 
         return cases;
     }
@@ -430,6 +501,26 @@ public final class MultiRowTestCaseSupplier {
         );
     }
 
+    /**
+     * Like {@link #geoShapeCasesWithoutCircle(int, int, IncludingAltitude)}, but every shape has at most {@code maxPoints} points.
+     * Unbounded shapes can be very large, which matters for aggregations that keep a copy of each value per group.
+     */
+    public static List<TypedDataSupplier> geoShapeCasesWithoutCircle(
+        int minRows,
+        int maxRows,
+        IncludingAltitude includingAltitude,
+        int maxPoints
+    ) {
+        return spatialCases(
+            minRows,
+            maxRows,
+            includingAltitude,
+            "geo_shape",
+            DataType.GEO_SHAPE,
+            b -> GeometryTestUtils.randomGeometryWithoutCircle(b, maxPoints)
+        );
+    }
+
     public static List<TypedDataSupplier> cartesianShapeCasesWithoutCircle(int minRows, int maxRows, IncludingAltitude includingAltitude) {
         return spatialCases(
             minRows,
@@ -438,6 +529,26 @@ public final class MultiRowTestCaseSupplier {
             "geo_shape",
             DataType.CARTESIAN_SHAPE,
             b -> ShapeTestUtils.randomGeometryWithoutCircle(0, b)
+        );
+    }
+
+    /**
+     * Like {@link #cartesianShapeCasesWithoutCircle(int, int, IncludingAltitude)}, but every shape has at most {@code maxPoints} points.
+     * Unbounded shapes can be very large, which matters for aggregations that keep a copy of each value per group.
+     */
+    public static List<TypedDataSupplier> cartesianShapeCasesWithoutCircle(
+        int minRows,
+        int maxRows,
+        IncludingAltitude includingAltitude,
+        int maxPoints
+    ) {
+        return spatialCases(
+            minRows,
+            maxRows,
+            includingAltitude,
+            "geo_shape",
+            DataType.CARTESIAN_SHAPE,
+            b -> ShapeTestUtils.randomGeometryWithoutCircle(b, maxPoints)
         );
     }
 
@@ -498,6 +609,14 @@ public final class MultiRowTestCaseSupplier {
     }
 
     public static List<TypedDataSupplier> exponentialHistogramCases(int minRows, int maxRows) {
+        return exponentialHistogramCases(minRows, maxRows, false);
+    }
+
+    /**
+     * @param zeroThresholdIsZero when {@code true}, always use 0.0 as the zero threshold (avoids floating point inaccuracies when
+     *                            computing percentiles from histograms with non-zero thresholds)
+     */
+    public static List<TypedDataSupplier> exponentialHistogramCases(int minRows, int maxRows, boolean zeroThresholdIsZero) {
         List<TypedDataSupplier> cases = new ArrayList<>();
         addSuppliers(
             cases,
@@ -513,7 +632,7 @@ public final class MultiRowTestCaseSupplier {
             maxRows,
             "random exponential histogram",
             DataType.EXPONENTIAL_HISTOGRAM,
-            EsqlTestUtils::randomExponentialHistogram
+            () -> EsqlTestUtils.randomExponentialHistogram(zeroThresholdIsZero)
         );
         return cases;
     }
@@ -582,12 +701,43 @@ public final class MultiRowTestCaseSupplier {
         if (DataType.FLATTENED.supportedVersion().supportedLocally() == false) {
             return cases;
         }
-        addSuppliers(cases, minRows, maxRows, "empty", DataType.FLATTENED, FlattenedCases.EMPTY);
-        addSuppliers(cases, minRows, maxRows, "single key", DataType.FLATTENED, FlattenedCases.SINGLE_KEY);
-        addSuppliers(cases, minRows, maxRows, "multi key", DataType.FLATTENED, FlattenedCases.MULTI_KEY);
-        addSuppliers(cases, minRows, maxRows, "object", DataType.FLATTENED, FlattenedCases.OBJECT);
-        addSuppliers(cases, minRows, maxRows, "random", DataType.FLATTENED, FlattenedCases.RANDOM);
+        Function<TypedDataSupplier, TypedDataSupplier> transform = TestCaseSupplier.previewTransform(
+            appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.5.0", "", false)
+        );
+        addSuppliers(cases, minRows, maxRows, "empty", DataType.FLATTENED, FlattenedCases.EMPTY, transform);
+        addSuppliers(cases, minRows, maxRows, "single key", DataType.FLATTENED, FlattenedCases.SINGLE_KEY, transform);
+        addSuppliers(cases, minRows, maxRows, "multi key", DataType.FLATTENED, FlattenedCases.MULTI_KEY, transform);
+        addSuppliers(cases, minRows, maxRows, "object", DataType.FLATTENED, FlattenedCases.OBJECT, transform);
+        addSuppliers(cases, minRows, maxRows, "random", DataType.FLATTENED, FlattenedCases.RANDOM, transform);
         return cases;
+    }
+
+    /**
+     * Label containers: the canonical JSON of a label set, labels sorted by name.
+     */
+    public static List<TypedDataSupplier> timeSeriesMetadataCases(int minRows, int maxRows) {
+        List<TypedDataSupplier> cases = new ArrayList<>();
+        DataType type = DataType.TIME_SERIES_METADATA_DATA_TYPE;
+        if (type.supportedVersion().supportedLocally() == false) {
+            return cases;
+        }
+        addSuppliers(cases, minRows, maxRows, "no labels", type, () -> labels(0));
+        addSuppliers(cases, minRows, maxRows, "one label", type, () -> labels(1));
+        addSuppliers(cases, minRows, maxRows, "many labels", type, () -> labels(randomIntBetween(2, 10)));
+        return cases;
+    }
+
+    private static BytesRef labels(int count) {
+        var labels = new TreeMap<String, String>();
+        while (labels.size() < count) {
+            labels.put(ESTestCase.randomAlphaOfLengthBetween(1, 10), ESTestCase.randomRealisticUnicodeOfLengthBetween(1, 20));
+        }
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            builder.map(labels);
+            return BytesReference.bytes(builder).toBytesRef();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     public static List<TypedDataSupplier> tsidCases(int minRows, int maxRows) {
@@ -691,19 +841,37 @@ public final class MultiRowTestCaseSupplier {
         DataType type,
         Supplier<T> valueSupplier
     ) {
+        addSuppliers(cases, minRows, maxRows, name, type, valueSupplier, Function.identity());
+    }
+
+    private static <T> void addSuppliers(
+        List<TypedDataSupplier> cases,
+        int minRows,
+        int maxRows,
+        String name,
+        DataType type,
+        Supplier<T> valueSupplier,
+        Function<TypedDataSupplier, TypedDataSupplier> transform
+    ) {
         if (minRows <= 1 && maxRows >= 1) {
-            cases.add(new TypedDataSupplier("<single " + name + ">", () -> randomList(1, 1, valueSupplier), type, false, true, List.of()));
+            cases.add(
+                transform.apply(
+                    new TypedDataSupplier("<single " + name + ">", () -> randomList(1, 1, valueSupplier), type, false, true, List.of())
+                )
+            );
         }
 
         if (maxRows > 1) {
             cases.add(
-                new TypedDataSupplier(
-                    "<" + name + "s>",
-                    () -> randomList(Math.max(2, minRows), maxRows, valueSupplier),
-                    type,
-                    false,
-                    true,
-                    List.of()
+                transform.apply(
+                    new TypedDataSupplier(
+                        "<" + name + "s>",
+                        () -> randomList(Math.max(2, minRows), maxRows, valueSupplier),
+                        type,
+                        false,
+                        true,
+                        List.of()
+                    )
                 )
             );
         }

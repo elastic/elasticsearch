@@ -21,14 +21,14 @@ import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
-import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
+import org.apache.lucene.util.quantization.LegacyQuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.ScalarQuantizedVectorSimilarity;
 import org.apache.lucene.util.quantization.ScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.OffHeapQuantizedByteVectorValues;
+import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -54,18 +54,9 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class Int7SQVectorScorerFactoryTests extends AbstractVectorTestCase {
 
-    // bounds of the range of values that can be seen by int7 scalar quantized vectors
-    static final byte MIN_INT7_VALUE = 0;
-    static final byte MAX_INT7_VALUE = 127;
-
     @BeforeClass
     public static void requiresHeapSegments() {
         assumeTrue("scorer only supported on JDK 22+", SUPPORTS_HEAP_SEGMENTS);
-    }
-
-    // Tests that the provider instance is present or not on expected platforms/architectures
-    public void testSupport() {
-        supported();
     }
 
     public void testSimple() throws IOException {
@@ -79,8 +70,6 @@ public class Int7SQVectorScorerFactoryTests extends AbstractVectorTestCase {
     }
 
     void testSimpleImpl(long maxChunkSize) throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
-        var factory = AbstractVectorTestCase.factory.get();
         var scalarQuantizer = new ScalarQuantizer(0.1f, 0.9f, (byte) 7);
 
         try (Directory dir = new MMapDirectory(createTempDir("testSimpleImpl"), maxChunkSize)) {
@@ -127,8 +116,6 @@ public class Int7SQVectorScorerFactoryTests extends AbstractVectorTestCase {
     }
 
     public void testNonNegativeDotProduct() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
-        var factory = AbstractVectorTestCase.factory.get();
 
         try (Directory dir = new MMapDirectory(createTempDir("testNonNegativeDotProduct"), MMapDirectory.DEFAULT_MAX_CHUNK_SIZE)) {
             // keep vecs `0` so dot product is `0`
@@ -177,44 +164,38 @@ public class Int7SQVectorScorerFactoryTests extends AbstractVectorTestCase {
     }
 
     public void testRandomMMap() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
         try (Directory dir = new MMapDirectory(createTempDir("testRandomMMap"))) {
-            testRandomSupplier(dir, BYTE_ARRAY_RANDOM_INT7_FUNC);
+            testRandomSupplier(dir, AbstractVectorTestCase::randomInt7ByteVector);
         }
     }
 
     public void testRandomNIO() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
         try (Directory dir = new NIOFSDirectory(createTempDir("testRandomNIO"))) {
-            testRandomSupplier(dir, BYTE_ARRAY_RANDOM_INT7_FUNC);
+            testRandomSupplier(dir, AbstractVectorTestCase::randomInt7ByteVector);
         }
     }
 
     public void testRandomMaxChunkSizeSmall() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
         long maxChunkSize = randomLongBetween(32, 128);
         logger.info("maxChunkSize=" + maxChunkSize);
         try (Directory dir = new MMapDirectory(createTempDir("testRandomMaxChunkSizeSmall"), maxChunkSize)) {
-            testRandomSupplier(dir, BYTE_ARRAY_RANDOM_INT7_FUNC);
+            testRandomSupplier(dir, AbstractVectorTestCase::randomInt7ByteVector);
         }
     }
 
     public void testRandomMax() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
         try (Directory dir = new MMapDirectory(createTempDir("testRandomMax"))) {
-            testRandomSupplier(dir, BYTE_ARRAY_MAX_INT7_FUNC);
+            testRandomSupplier(dir, AbstractVectorTestCase::maxInt7ByteVector);
         }
     }
 
     public void testRandomMin() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
         try (Directory dir = new MMapDirectory(createTempDir("testRandomMin"))) {
-            testRandomSupplier(dir, BYTE_ARRAY_MIN_INT7_FUNC);
+            testRandomSupplier(dir, AbstractVectorTestCase::minInt7ByteVector);
         }
     }
 
     void testRandomSupplier(Directory dir, IntFunction<byte[]> byteArraySupplier) throws IOException {
-        var factory = AbstractVectorTestCase.factory.get();
 
         final int dims = randomIntBetween(1, 4096);
         final int size = randomIntBetween(2, 100);
@@ -252,19 +233,19 @@ public class Int7SQVectorScorerFactoryTests extends AbstractVectorTestCase {
 
     public void testRandomScorerMMap() throws IOException {
         try (Directory dir = new MMapDirectory(createTempDir("testRandomScorerMMap"))) {
-            testRandomScorerImpl(dir, FLOAT_ARRAY_RANDOM_FUNC);
+            testRandomScorerImpl(dir, VectorTestUtils::randomFloatVector);
         }
     }
 
     public void testRandomScorerNIO() throws IOException {
         try (Directory dir = new NIOFSDirectory(createTempDir("testRandomScorerNIO"))) {
-            testRandomScorerImpl(dir, FLOAT_ARRAY_RANDOM_FUNC);
+            testRandomScorerImpl(dir, VectorTestUtils::randomFloatVector);
         }
     }
 
     public void testRandomScorerMax() throws IOException {
         try (Directory dir = new MMapDirectory(createTempDir("testRandomScorerMax"))) {
-            testRandomScorerImpl(dir, FLOAT_ARRAY_MAX_FUNC);
+            testRandomScorerImpl(dir, AbstractVectorTestCase::maxFloatArray);
         }
     }
 
@@ -272,19 +253,17 @@ public class Int7SQVectorScorerFactoryTests extends AbstractVectorTestCase {
         long maxChunkSize = randomLongBetween(32, 128);
         logger.info("maxChunkSize=" + maxChunkSize);
         try (Directory dir = new MMapDirectory(createTempDir("testRandomScorerChunkSizeSmall"), maxChunkSize)) {
-            testRandomScorerImpl(dir, FLOAT_ARRAY_RANDOM_FUNC);
+            testRandomScorerImpl(dir, VectorTestUtils::randomFloatVector);
         }
     }
 
     void testRandomScorerImpl(Directory dir, IntFunction<float[]> floatArraySupplier) throws IOException {
         assumeTrue("scorer only supported on JDK 22+", SUPPORTS_HEAP_SEGMENTS);
-        assumeTrue(notSupportedMsg(), supported());
-        var factory = AbstractVectorTestCase.factory.get();
         var scalarQuantizer = new ScalarQuantizer(0.1f, 0.9f, (byte) 7);
 
         for (var sim : List.of(COSINE, DOT_PRODUCT, EUCLIDEAN, MAXIMUM_INNER_PRODUCT)) {
             // Use the random supplier for COSINE, which returns values in the normalized range
-            floatArraySupplier = sim == COSINE ? FLOAT_ARRAY_RANDOM_FUNC : floatArraySupplier;
+            floatArraySupplier = sim == COSINE ? VectorTestUtils::randomFloatVector : floatArraySupplier;
             final int dims = randomIntBetween(1, 4096);
             final int size = randomIntBetween(2, 100);
             final float[][] vectors = new float[size][];
@@ -320,12 +299,10 @@ public class Int7SQVectorScorerFactoryTests extends AbstractVectorTestCase {
     }
 
     public void testRandomSlice() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
-        testRandomSliceImpl(30, 64, 1, BYTE_ARRAY_RANDOM_INT7_FUNC);
+        testRandomSliceImpl(30, 64, 1, Int7SQVectorScorerFactoryTests::randomInt7ByteVector);
     }
 
     void testRandomSliceImpl(int dims, long maxChunkSize, int initialPadding, IntFunction<byte[]> byteArraySupplier) throws IOException {
-        var factory = AbstractVectorTestCase.factory.get();
 
         try (Directory dir = new MMapDirectory(createTempDir("testRandomSliceImpl"), maxChunkSize)) {
             for (int times = 0; times < TIMES; times++) {
@@ -372,8 +349,6 @@ public class Int7SQVectorScorerFactoryTests extends AbstractVectorTestCase {
     // Tests with a large amount of data (> 2GB), which ensures that data offsets do not overflow
     @Nightly
     public void testLarge() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
-        var factory = AbstractVectorTestCase.factory.get();
 
         try (Directory dir = new MMapDirectory(createTempDir("testLarge"))) {
             final int dims = 8192;
@@ -411,8 +386,6 @@ public class Int7SQVectorScorerFactoryTests extends AbstractVectorTestCase {
 
     // Test that the scorer works well when the IndexInput is greater than the directory segment chunk size
     public void testDatasetGreaterThanChunkSize() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
-        var factory = AbstractVectorTestCase.factory.get();
 
         try (Directory dir = new MMapDirectory(createTempDir("testDatasetGreaterThanChunkSize"), 8192)) {
             final int dims = 1024;
@@ -449,21 +422,18 @@ public class Int7SQVectorScorerFactoryTests extends AbstractVectorTestCase {
     }
 
     public void testBulkMMap() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
         try (Directory dir = new MMapDirectory(createTempDir("testBulkMMap"))) {
             testBulkImpl(dir);
         }
     }
 
     public void testBulkNIO() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
         try (Directory dir = new NIOFSDirectory(createTempDir("testBulkNIO"))) {
             testBulkImpl(dir);
         }
     }
 
     void testBulkImpl(Directory dir) throws IOException {
-        var factory = AbstractVectorTestCase.factory.get();
 
         final int dims = 1024;
         final int size = randomIntBetween(1, 102);
@@ -484,7 +454,7 @@ public class Int7SQVectorScorerFactoryTests extends AbstractVectorTestCase {
                 int idx0 = randomIntBetween(0, size - 1);
                 int[] nodes = shuffledList(ids).stream().mapToInt(i -> i).toArray();
                 for (var sim : List.of(COSINE, DOT_PRODUCT, EUCLIDEAN, MAXIMUM_INNER_PRODUCT)) {
-                    QuantizedByteVectorValues values = vectorValues(dims, size, in, sim.function());
+                    LegacyQuantizedByteVectorValues values = vectorValues(dims, size, in, sim.function());
                     float[] expected = new float[size];
                     float[] scores = new float[size];
                     var referenceScorer = luceneScoreSupplier(values, sim.function()).scorer();
@@ -509,8 +479,6 @@ public class Int7SQVectorScorerFactoryTests extends AbstractVectorTestCase {
     // For bulk this is especially important, as it tries to get a whole segment from IndexInput to pass it to
     // the native functions.
     public void testBulkWithDatasetGreaterThanChunkSize() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
-        var factory = AbstractVectorTestCase.factory.get();
 
         final int dims = 1024;
         final int size = 128;
@@ -533,7 +501,7 @@ public class Int7SQVectorScorerFactoryTests extends AbstractVectorTestCase {
                     int idx0 = randomIntBetween(0, size - 1);
                     int[] nodes = shuffledList(ids).stream().mapToInt(i -> i).toArray();
                     for (var sim : List.of(COSINE, DOT_PRODUCT, EUCLIDEAN, MAXIMUM_INNER_PRODUCT)) {
-                        QuantizedByteVectorValues values = vectorValues(dims, size, in, sim.function());
+                        LegacyQuantizedByteVectorValues values = vectorValues(dims, size, in, sim.function());
                         float[] expected = new float[size];
                         float[] scores = new float[size];
                         var referenceScorer = luceneScoreSupplier(values, sim.function()).scorer();
@@ -558,8 +526,6 @@ public class Int7SQVectorScorerFactoryTests extends AbstractVectorTestCase {
     // Verifies that bulkScore with zero nodes returns NEGATIVE_INFINITY without throwing,
     // as Lucene's exactSearch path can call bulkScore with an empty batch when filters exclude all docs.
     public void testBulkScoreWithZeroNodes() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
-        var factory = AbstractVectorTestCase.factory.get();
         final int dims = 1024;
         final int size = randomIntBetween(2, 100);
 
@@ -599,8 +565,6 @@ public class Int7SQVectorScorerFactoryTests extends AbstractVectorTestCase {
 
     // Tests that copies in threads do not interfere with each other
     void testRaceImpl(VectorSimilarityType sim) throws Exception {
-        assumeTrue(notSupportedMsg(), supported());
-        var factory = AbstractVectorTestCase.factory.get();
 
         final long maxChunkSize = 32;
         final int dims = 34; // dimensions that are larger than the chunk size, to force fallback
@@ -667,7 +631,7 @@ public class Int7SQVectorScorerFactoryTests extends AbstractVectorTestCase {
         }
     }
 
-    QuantizedByteVectorValues vectorValues(int dims, int size, IndexInput in, VectorSimilarityFunction sim) throws IOException {
+    LegacyQuantizedByteVectorValues vectorValues(int dims, int size, IndexInput in, VectorSimilarityFunction sim) throws IOException {
         var sq = new ScalarQuantizer(0.1f, 0.9f, (byte) 7);
         var slice = in.slice("values", 0, in.length());
         return new OffHeapQuantizedByteVectorValues.DenseOffHeapVectorValues(dims, size, sq, false, sim, null, slice);
@@ -686,7 +650,7 @@ public class Int7SQVectorScorerFactoryTests extends AbstractVectorTestCase {
         return scorer.score(a, aOffsetValue, b, bOffsetValue);
     }
 
-    static RandomVectorScorerSupplier luceneScoreSupplier(QuantizedByteVectorValues values, VectorSimilarityFunction sim)
+    static RandomVectorScorerSupplier luceneScoreSupplier(LegacyQuantizedByteVectorValues values, VectorSimilarityFunction sim)
         throws IOException {
         return new Lucene99ScalarQuantizedVectorScorer(null).getRandomVectorScorerSupplier(sim, values);
     }
@@ -700,24 +664,6 @@ public class Int7SQVectorScorerFactoryTests extends AbstractVectorTestCase {
         }
         return ba;
     }
-
-    static IntFunction<byte[]> BYTE_ARRAY_RANDOM_INT7_FUNC = size -> {
-        byte[] ba = new byte[size];
-        randomBytesBetween(ba, MIN_INT7_VALUE, MAX_INT7_VALUE);
-        return ba;
-    };
-
-    static IntFunction<byte[]> BYTE_ARRAY_MAX_INT7_FUNC = size -> {
-        byte[] ba = new byte[size];
-        Arrays.fill(ba, MAX_INT7_VALUE);
-        return ba;
-    };
-
-    static IntFunction<byte[]> BYTE_ARRAY_MIN_INT7_FUNC = size -> {
-        byte[] ba = new byte[size];
-        Arrays.fill(ba, MIN_INT7_VALUE);
-        return ba;
-    };
 
     static final int TIMES = 100; // a loop iteration times
 }

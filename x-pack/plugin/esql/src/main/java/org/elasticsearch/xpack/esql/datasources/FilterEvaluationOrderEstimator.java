@@ -136,7 +136,6 @@ public final class FilterEvaluationOrderEstimator {
         return 0.5;
     }
 
-    @SuppressWarnings({ "rawtypes", "unchecked" })
     static double estimateSelectivity(Expression expr, SplitStats stats, long rowCount) {
         if (expr instanceof Equals eq) {
             String col = columnName(eq.left());
@@ -213,7 +212,6 @@ public final class FilterEvaluationOrderEstimator {
 
     // -- selectivity estimators --
 
-    @SuppressWarnings({ "rawtypes", "unchecked" })
     private static double estimateEqualitySelectivity(String colName, Object value, SplitStats stats) {
         Object min = stats.columnMin(colName);
         Object max = stats.columnMax(colName);
@@ -225,13 +223,16 @@ public final class FilterEvaluationOrderEstimator {
             return UNKNOWN_SELECTIVITY;
         }
         if (rangeWidth <= 0) {
-            if (min instanceof Comparable minC && value instanceof Comparable valC) {
-                return minC.compareTo(valC) == 0 ? 1.0 : 0.0;
+            int cmp = StatValueComparator.compare(min, value);
+            if (cmp == StatValueComparator.INCOMPARABLE) {
+                return UNKNOWN_SELECTIVITY;
             }
-            return UNKNOWN_SELECTIVITY;
+            return cmp == 0 ? 1.0 : 0.0;
         }
-        if (min instanceof Comparable minC && max instanceof Comparable maxC && value instanceof Comparable valC) {
-            if (minC.compareTo(valC) > 0 || maxC.compareTo(valC) < 0) {
+        int minCmp = StatValueComparator.compare(min, value);
+        int maxCmp = StatValueComparator.compare(max, value);
+        if (minCmp != StatValueComparator.INCOMPARABLE && maxCmp != StatValueComparator.INCOMPARABLE) {
+            if (minCmp > 0 || maxCmp < 0) {
                 return 0.0;
             }
         }

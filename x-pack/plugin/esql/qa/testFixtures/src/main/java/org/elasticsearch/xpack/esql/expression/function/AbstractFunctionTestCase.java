@@ -11,7 +11,9 @@ import com.carrotsearch.randomizedtesting.ClassModel;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Build;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -70,6 +72,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -86,6 +90,7 @@ import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerializ
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.serializeDeserialize;
 import static org.elasticsearch.xpack.esql.expression.function.DocsV3Support.getFirstParametersIndexForSignature;
 import static org.hamcrest.Matchers.either;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -499,11 +504,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         return EvalMapper.toEvaluator(FoldContext.small(), e, builder.build());
     }
 
-    protected final Page row(List<Object> values) {
+    public static Page row(List<Object> values) {
         return maybeConvertBytesRefsToOrdinals(new Page(1, BlockUtils.fromListRow(TestBlockFactory.getNonBreakingInstance(), values)));
     }
 
-    private Page maybeConvertBytesRefsToOrdinals(Page page) {
+    private static Page maybeConvertBytesRefsToOrdinals(Page page) {
         boolean anyBytesRef = false;
         for (int b = 0; b < page.getBlockCount(); b++) {
             if (page.getBlock(b).elementType() == ElementType.BYTES_REF) {
@@ -576,7 +581,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      * Hack together a layout by scanning for Fields.
      * Those will show up in the layout in whatever order a depth first traversal finds them.
      */
-    protected static void buildLayout(Layout.Builder builder, Expression e) {
+    public static void buildLayout(Layout.Builder builder, Expression e) {
         dedupAndBuildLayout(new HashSet<>(), builder, e);
     }
 
@@ -679,19 +684,105 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 .or(endsWith("∅")) // Math
         );
 
+        Set<FunctionSignatures.ConcreteSignature> testedSignatures = concreteSignatures(signatures(testClass), args);
+        Set<FunctionSignatures.ConcreteSignature> declaredSignatures = FunctionSignatures.declaredSignatures(definition);
         List<Set<String>> typesFromSignature = new ArrayList<>();
         Set<String> returnFromSignature = new TreeSet<>();
         for (int i = 0; i < args.size(); i++) {
             typesFromSignature.add(new HashSet<>());
         }
-        for (DocsV3Support.TypeSignature entry : signatures(testClass)) {
-            List<DocsV3Support.Param> types = entry.argTypes();
-            int initialProvidedParamIndex = getFirstParametersIndexForSignature(args, entry);
-            for (int i = 0; i < args.size() && i < types.size(); i++) {
-                typesFromSignature.get(initialProvidedParamIndex + i).add(types.get(i).dataType().esNameIfPossible());
+
+        if (declaredSignatures.isEmpty() == false) {
+            assertNamedParametersMatchMapParams(functionName(), args, declaredSignatures);
+            Set<FunctionSignatures.ConcreteSignature> filteredDeclared = filterUnderConstruction(declaredSignatures);
+            Set<FunctionSignatures.ConcreteSignature> filteredTested = filterUnderConstruction(testedSignatures);
+            assertSignaturesMatchTests(filteredDeclared, filteredTested);
+            // Collect @Param coverage from every declared overload, including those filtered
+            // above because an argument or return type is still under construction.
+            for (FunctionSignatures.ConcreteSignature entry : declaredSignatures) {
+                collectPositionalTypes(args, entry.argTypes(), typesFromSignature);
+                if (DataType.UNDER_CONSTRUCTION.contains(entry.returnType()) == false) {
+                    returnFromSignature.add(entry.returnType().esNameIfPossible());
+                }
             }
-            if (DataType.UNDER_CONSTRUCTION.contains(entry.returnType()) == false) {
-                returnFromSignature.add(entry.returnType().esNameIfPossible());
+        } else {
+            for (DocsV3Support.TypeSignature entry : signatures(testClass)) {
+                List<DocsV3Support.Param> types = entry.argTypes();
+                int initialProvidedParamIndex = getFirstParametersIndexForSignature(args, entry);
+                for (int i = 0; i < args.size() && i < types.size(); i++) {
+                    typesFromSignature.get(initialProvidedParamIndex + i).add(types.get(i).dataType().esNameIfPossible());
+                }
+                if (DataType.UNDER_CONSTRUCTION.contains(entry.returnType()) == false) {
+                    returnFromSignature.add(entry.returnType().esNameIfPossible());
+                }
+            }
+        }
+
+        Boolean[] alwaysLiteral = new Boolean[args.size()];
+        List<Set<String>> usedAllowedValues = new ArrayList<>(args.size());
+        for (int i = 0; i < args.size(); i++) {
+            usedAllowedValues.add(new HashSet<>());
+        }
+        Set<Method> paramsFactories = new ClassModel(testClass).getAnnotatedLeafMethods(ParametersFactory.class).keySet();
+        if (paramsFactories.size() == 1) {
+            Method paramsFactory = paramsFactories.iterator().next();
+            try {
+                List<?> params = (List<?>) paramsFactory.invoke(null);
+                for (Object p : params) {
+                    TestCaseSupplier tcs = (TestCaseSupplier) ((Object[]) p)[0];
+                    try {
+                        TestCaseSupplier.TestCase tc = tcs.get();
+                        if (tc.getData().stream().anyMatch(t -> t.type() == DataType.NULL)) {
+                            continue;
+                        }
+                        List<DocsV3Support.Param> sig = tc.getData()
+                            .stream()
+                            .map(d -> new DocsV3Support.Param(d.type(), d.appliesTo(), d.preview()))
+                            .toList();
+                        DocsV3Support.TypeSignature entry = new DocsV3Support.TypeSignature(
+                            signatureTypes(testClass, sig),
+                            tc.expectedType()
+                        );
+                        int initialProvidedParamIndex = getFirstParametersIndexForSignature(args, entry);
+                        List<TestCaseSupplier.TypedData> providedData = providedParameters(testClass, tc.getData());
+                        boolean hasVariadic = args.stream().anyMatch(EsqlFunctionRegistry.ArgSignature::variadic);
+                        assertTrue(
+                            "Subclass " + testClass.getSimpleName() + " failed to filter out injected parameters",
+                            hasVariadic || providedData.size() <= args.size() - initialProvidedParamIndex
+                        );
+                        for (int i = 0; i < providedData.size() && initialProvidedParamIndex + i < args.size(); i++) {
+                            int argIndex = initialProvidedParamIndex + i;
+                            TestCaseSupplier.TypedData argData = providedData.get(i);
+                            boolean isForceLiteral = argData.isForceLiteral();
+                            if (alwaysLiteral[argIndex] == null) {
+                                alwaysLiteral[argIndex] = isForceLiteral;
+                            } else {
+                                alwaysLiteral[argIndex] = alwaysLiteral[argIndex] && isForceLiteral;
+                            }
+                            if (isForceLiteral) {
+                                EsqlFunctionRegistry.ArgSignature arg = args.get(argIndex);
+                                boolean hasAllowedValues = arg.hint() != null
+                                    && arg.hint().allowedValues() != null
+                                    && arg.hint().allowedValues().isEmpty() == false;
+
+                                if (hasAllowedValues) {
+                                    Object data = argData.originalData() != null ? argData.originalData() : argData.data();
+                                    if (data instanceof String s) {
+                                        usedAllowedValues.get(argIndex).add(s.toLowerCase(Locale.ROOT));
+                                    } else if (data instanceof org.apache.lucene.util.BytesRef br) {
+                                        try {
+                                            usedAllowedValues.get(argIndex).add(br.utf8ToString().toLowerCase(Locale.ROOT));
+                                        } catch (Exception ignored) {
+                                            // random byte array doesn't matter
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } catch (AssumptionViolatedException ignored) {}
+                }
+            } catch (Exception e) {
+                throw new RuntimeException(e);
             }
         }
 
@@ -716,16 +807,301 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 "Mismatch between actual and declared param type for ["
                     + arg.name()
                     + "]. "
-                    + "You probably need to update your @params annotations or add test cases to your test.",
+                    + (declaredSignatures.isEmpty()
+                        ? "You probably need to update your @params annotations or add test cases to your test."
+                        : "You probably need to update your @params annotations or @FunctionInfo.signatures."),
                 signatureTypes,
                 annotationTypes
             );
+            if (alwaysLiteral[i] != null) {
+                if (alwaysLiteral[i]) {
+                    assertTrue(
+                        "Parameter [" + arg.name() + "] is always forced to be a literal in tests, so it must have the CONSTANT hint.",
+                        arg.hint() != null && "constant".equalsIgnoreCase(arg.hint().kind())
+                    );
+                    if (arg.hint() != null && arg.hint().allowedValues() != null && arg.hint().allowedValues().isEmpty() == false) {
+                        Set<String> declaredValues = new HashSet<>(arg.hint().allowedValues());
+                        assertEquals(
+                            "Tests must use all of the declared allowedValues for parameter [" + arg.name() + "].",
+                            declaredValues,
+                            usedAllowedValues.get(i)
+                        );
+                    }
+                } else {
+                    assertFalse(
+                        "Parameter [" + arg.name() + "] is not always a literal in tests, so it must not have the CONSTANT hint.",
+                        arg.hint() != null && "constant".equalsIgnoreCase(arg.hint().kind())
+                    );
+                }
+            }
         }
 
         Set<String> returnTypes = Arrays.stream(description.returnType())
             .filter(t -> DataType.UNDER_CONSTRUCTION.contains(DataType.fromNameOrAlias(t)) == false)
             .collect(Collectors.toCollection(TreeSet::new));
-        assertEquals(returnFromSignature, returnTypes);
+        if (Build.current().isSnapshot() == false) {
+            /*
+             * Release builds may omit test cases for types that are only available in snapshot builds. Functions whose return type depends
+             * on such an argument can therefore declare more return types than the test cases exercise in a release build.
+             */
+            assertTrue(
+                "declared return types " + returnTypes + " do not include tested types " + returnFromSignature,
+                returnTypes.containsAll(returnFromSignature)
+            );
+        } else {
+            assertEquals(returnFromSignature, returnTypes);
+        }
+    }
+
+    private static Set<FunctionSignatures.ConcreteSignature> concreteSignatures(
+        Set<DocsV3Support.TypeSignature> signatures,
+        List<EsqlFunctionRegistry.ArgSignature> args
+    ) {
+        Set<FunctionSignatures.ConcreteSignature> result = new HashSet<>();
+        for (DocsV3Support.TypeSignature signature : signatures) {
+            result.add(toConcreteSignature(signature, args));
+        }
+        return result;
+    }
+
+    /**
+     * Test rows type a {@link MapParam} with whatever placeholder the supplier picked
+     * ({@code OBJECT}, {@code SOURCE}, ...). Declared signatures use {@link FunctionSignatures#NAMED_PARAMETERS}
+     * for that position, so the comparison rewrites it to the same token.
+     */
+    private static FunctionSignatures.ConcreteSignature toConcreteSignature(
+        DocsV3Support.TypeSignature signature,
+        List<EsqlFunctionRegistry.ArgSignature> args
+    ) {
+        int offset = signatureOffset(args, signature);
+        List<FunctionSignatures.SignatureArg> argTypes = new ArrayList<>(signature.argTypes().size());
+        for (int i = 0; i < signature.argTypes().size(); i++) {
+            int argIndex = offset + i;
+            if (argIndex < args.size() && args.get(argIndex).mapArg()) {
+                argTypes.add(FunctionSignatures.SignatureArg.ofNamedParameters());
+            } else {
+                argTypes.add(FunctionSignatures.SignatureArg.of(signature.argTypes().get(i).dataType()));
+            }
+        }
+        return new FunctionSignatures.ConcreteSignature(argTypes, signature.returnType());
+    }
+
+    /**
+     * A {@link MapParam} position must be {@link FunctionSignatures#NAMED_PARAMETERS}, and that token
+     * must be a {@link MapParam}. Optional map parameters may be omitted from a shorter overload.
+     */
+    static void assertNamedParametersMatchMapParams(
+        String functionName,
+        List<EsqlFunctionRegistry.ArgSignature> args,
+        Set<FunctionSignatures.ConcreteSignature> declared
+    ) {
+        for (FunctionSignatures.ConcreteSignature signature : declared) {
+            DocsV3Support.TypeSignature alignment = alignmentSignature(signature);
+            int offset = signatureOffset(args, alignment);
+            for (int i = 0; i < signature.argTypes().size(); i++) {
+                boolean token = signature.argTypes().get(i).namedParameters();
+                int argIndex = offset + i;
+                boolean map = argIndex < args.size() && args.get(argIndex).mapArg();
+                if (token == map) {
+                    continue;
+                }
+                String parameter = argIndex < args.size() ? args.get(argIndex).name() : "<none>";
+                if (token) {
+                    fail(
+                        "function ["
+                            + functionName
+                            + "] signature "
+                            + formatSignature(signature)
+                            + " uses "
+                            + FunctionSignatures.NAMED_PARAMETERS
+                            + " for ["
+                            + parameter
+                            + "], which is not a @MapParam"
+                    );
+                }
+                fail(
+                    "function ["
+                        + functionName
+                        + "] signature "
+                        + formatSignature(signature)
+                        + " @MapParam ["
+                        + parameter
+                        + "] must use "
+                        + FunctionSignatures.NAMED_PARAMETERS
+                        + ", found ["
+                        + signature.argTypes().get(i).typeName()
+                        + "]"
+                );
+            }
+        }
+    }
+
+    private static int signatureOffset(List<EsqlFunctionRegistry.ArgSignature> args, DocsV3Support.TypeSignature signature) {
+        boolean variadic = args.stream().anyMatch(EsqlFunctionRegistry.ArgSignature::variadic);
+        if (signature.argTypes().size() > args.size() && variadic == false) {
+            // Extra arguments injected by the test (for example the case-insensitive flag) are past the named parameters.
+            return 0;
+        }
+        return DocsV3Support.getFirstParametersIndexForSignature(args, signature);
+    }
+
+    /**
+     * Alignment only looks at {@link DataType#typeName()}. {@code named_parameters} is not a data type,
+     * so this uses {@link DataType#UNSUPPORTED}, whose name matches no {@link Param#type()}.
+     */
+    private static DocsV3Support.TypeSignature alignmentSignature(FunctionSignatures.ConcreteSignature signature) {
+        List<DocsV3Support.Param> params = new ArrayList<>(signature.argTypes().size());
+        for (FunctionSignatures.SignatureArg arg : signature.argTypes()) {
+            DataType type = arg.namedParameters() ? DataType.UNSUPPORTED : arg.dataType();
+            params.add(new DocsV3Support.Param(type, List.of()));
+        }
+        return new DocsV3Support.TypeSignature(params, signature.returnType());
+    }
+
+    private static Set<FunctionSignatures.ConcreteSignature> filterUnderConstruction(Set<FunctionSignatures.ConcreteSignature> signatures) {
+        return signatures.stream()
+            .filter(
+                s -> DataType.UNDER_CONSTRUCTION.contains(s.returnType()) == false
+                    && s.argTypes()
+                        .stream()
+                        .noneMatch(arg -> arg.namedParameters() == false && DataType.UNDER_CONSTRUCTION.contains(arg.dataType()))
+            )
+            .collect(Collectors.toSet());
+    }
+
+    /**
+     * Asserts declared {@link FunctionInfo#signatures()} match test-derived signatures.
+     * On failure, lists concrete signatures missing from tests and any unexpected ones.
+     */
+    private static void assertSignaturesMatchTests(
+        Set<FunctionSignatures.ConcreteSignature> declared,
+        Set<FunctionSignatures.ConcreteSignature> tested
+    ) {
+        if (declared.equals(tested)) {
+            return;
+        }
+        Set<FunctionSignatures.ConcreteSignature> missing = new TreeSet<>(AbstractFunctionTestCase::compareSignatures);
+        missing.addAll(declared);
+        missing.removeAll(tested);
+        Set<FunctionSignatures.ConcreteSignature> unexpected = new TreeSet<>(AbstractFunctionTestCase::compareSignatures);
+        unexpected.addAll(tested);
+        unexpected.removeAll(declared);
+        StringBuilder message = new StringBuilder();
+        if (missing.isEmpty() == false) {
+            message.append("Signatures not covered by tests:");
+            for (FunctionSignatures.ConcreteSignature signature : missing) {
+                message.append("\n").append(formatSignature(signature));
+            }
+        }
+        if (unexpected.isEmpty() == false) {
+            if (message.isEmpty() == false) {
+                message.append('\n');
+            }
+            message.append("Test signatures not declared:");
+            for (FunctionSignatures.ConcreteSignature signature : unexpected) {
+                message.append("\n").append(formatSignature(signature));
+            }
+        }
+        fail(message.toString());
+    }
+
+    private static int compareSignatures(FunctionSignatures.ConcreteSignature a, FunctionSignatures.ConcreteSignature b) {
+        return formatSignature(a).compareTo(formatSignature(b));
+    }
+
+    private static String formatSignature(FunctionSignatures.ConcreteSignature signature) {
+        String args = signature.argTypes().stream().map(FunctionSignatures.SignatureArg::typeName).collect(Collectors.joining(", "));
+        return "(" + args + ") -> " + signature.returnType().typeName();
+    }
+
+    private static void collectPositionalTypes(
+        List<EsqlFunctionRegistry.ArgSignature> args,
+        List<FunctionSignatures.SignatureArg> argTypes,
+        List<Set<String>> typesFromSignature
+    ) {
+        DocsV3Support.TypeSignature asDocs = alignmentSignature(new FunctionSignatures.ConcreteSignature(argTypes, DataType.NULL));
+        int initialProvidedParamIndex = signatureOffset(args, asDocs);
+        for (int i = 0; i < args.size() && i < argTypes.size(); i++) {
+            FunctionSignatures.SignatureArg argType = argTypes.get(i);
+            if (argType.namedParameters()) {
+                continue;
+            }
+            typesFromSignature.get(initialProvidedParamIndex + i).add(argType.dataType().esNameIfPossible());
+        }
+    }
+
+    /**
+     * Signatures used for docs and Kibana JSON: declared {@link FunctionInfo#signatures()} when present
+     * (with {@code appliesTo}/{@code preview} merged from matching test cases), otherwise test-derived.
+     */
+    public static Set<DocsV3Support.TypeSignature> docsSignatures(Class<?> testClass) {
+        FunctionDefinition definition = definition(functionName(testClass));
+        if (definition == null) {
+            return signatures(testClass);
+        }
+        Set<FunctionSignatures.ConcreteSignature> declared = filterUnderConstruction(FunctionSignatures.declaredSignatures(definition));
+        if (declared.isEmpty()) {
+            return signatures(testClass);
+        }
+        List<EsqlFunctionRegistry.ArgSignature> descriptionArgs = EsqlFunctionRegistry.description(definition).args();
+        Set<DocsV3Support.TypeSignature> tested = signatures(testClass).stream()
+            .filter(s -> DataType.UNDER_CONSTRUCTION.contains(s.returnType()) == false)
+            .filter(s -> s.argTypes().stream().noneMatch(p -> DataType.UNDER_CONSTRUCTION.contains(p.dataType())))
+            .collect(Collectors.toSet());
+        Map<FunctionSignatures.ConcreteSignature, DocsV3Support.TypeSignature> testedByConcrete = tested.stream()
+            .collect(Collectors.toMap(s -> toConcreteSignature(s, descriptionArgs), s -> s, AbstractFunctionTestCase::mergeTypeSignatures));
+        Set<DocsV3Support.TypeSignature> result = new HashSet<>();
+        for (FunctionSignatures.ConcreteSignature concrete : declared) {
+            DocsV3Support.TypeSignature fromTests = testedByConcrete.get(concrete);
+            if (fromTests != null) {
+                // Keep arg appliesTo/preview from tests; prefer declared return type.
+                result.add(new DocsV3Support.TypeSignature(fromTests.argTypes(), concrete.returnType()));
+            } else {
+                result.add(
+                    new DocsV3Support.TypeSignature(
+                        concrete.argTypes().stream().map(AbstractFunctionTestCase::docsParamForDeclaredArg).toList(),
+                        concrete.returnType()
+                    )
+                );
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Docs rendering replaces a {@link MapParam} column, so the stand-in type is only used for alignment.
+     */
+    private static DocsV3Support.Param docsParamForDeclaredArg(FunctionSignatures.SignatureArg arg) {
+        DataType type = arg.namedParameters() ? DataType.UNSUPPORTED : arg.dataType();
+        return new DocsV3Support.Param(type, List.of());
+    }
+
+    /**
+     * Merges lifecycle metadata when multiple test rows normalize to the same concrete signature.
+     */
+    private static DocsV3Support.TypeSignature mergeTypeSignatures(DocsV3Support.TypeSignature a, DocsV3Support.TypeSignature b) {
+        List<DocsV3Support.Param> mergedArgs = new ArrayList<>(a.argTypes().size());
+        for (int i = 0; i < a.argTypes().size(); i++) {
+            DocsV3Support.Param left = a.argTypes().get(i);
+            DocsV3Support.Param right = b.argTypes().get(i);
+            List<FunctionAppliesTo> appliesTo = new ArrayList<>(left.appliesTo() == null ? List.of() : left.appliesTo());
+            if (right.appliesTo() != null) {
+                for (FunctionAppliesTo next : right.appliesTo()) {
+                    if (appliesTo.contains(next) == false) {
+                        appliesTo.add(next);
+                    }
+                }
+            }
+            mergedArgs.add(new DocsV3Support.Param(left.dataType(), appliesTo, left.preview() || right.preview()));
+        }
+        return new DocsV3Support.TypeSignature(mergedArgs, a.returnType());
+    }
+
+    private static String functionName(Class<?> testClass) {
+        if (testClass.isAnnotationPresent(FunctionName.class)) {
+            return testClass.getAnnotation(FunctionName.class).value();
+        }
+        return StringUtils.camelCaseToUnderscore(testClass.getSimpleName().replace("Tests", "")).toLowerCase(Locale.ROOT);
     }
 
     /**
@@ -849,8 +1225,26 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         assertThat(result, testCase.getMatcher());
 
         if (testCase.getExpectedWarnings() != null) {
-            assertWarnings(testCase.getExpectedWarnings());
+            assertExpectedWarnings(testCase.getExpectedWarnings());
         }
+    }
+
+    /**
+     * Asserts that the provided array of warnings matches the combination
+     * of the {@link DriverContext#warnings()} and {@link HeaderWarning}s.
+     * We'll later on unpick these two into plan time warnings and compute time
+     * warnings. But for now, they remain combined.
+     * <p>
+     *     Evaluation time warnings land in {@link DriverContext#warnings()}.
+     *     Plan time warnings land in {@link HeaderWarning}s because we have
+     *     yet to move them out.
+     * </p>
+     */
+    private void assertExpectedWarnings(String... expectedWarnings) {
+        Set<String> expected = new LinkedHashSet<>(Arrays.asList(expectedWarnings));
+        Set<String> actual = new LinkedHashSet<>(consumeDriverWarnings());
+        actual.addAll(takeResponseWarnings());
+        assertThat(actual, equalTo(expected));
     }
 
     private static Class<?> classGeneratingSignatures = null;
@@ -881,7 +1275,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 if (tc.getData().stream().anyMatch(t -> t.type() == DataType.NULL)) {
                     continue;
                 }
-                List<DocsV3Support.Param> sig = tc.getData().stream().map(d -> new DocsV3Support.Param(d.type(), d.appliesTo())).toList();
+                List<DocsV3Support.Param> sig = tc.getData().stream().map(AbstractFunctionTestCase::docsParam).toList();
                 signatures.add(new DocsV3Support.TypeSignature(signatureTypes(testClass, sig), tc.expectedType()));
             } catch (AssumptionViolatedException ignored) {
                 // Throwing an AssumptionViolatedException in a test is a valid way of ignoring a test in junit.
@@ -891,6 +1285,48 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         return signatures;
     }
 
+    /**
+     * Builds the {@link DocsV3Support.Param} used to render a type in the generated "Supported types"
+     * tables, normalizing the {@code {applies_to}} lifecycle annotation for tech-preview types:
+     * {@link DataType#FLATTENED} and {@link DataType#DATE_RANGE} ship in 9.5.0, and
+     * {@link DataType#DOUBLE_RANGE} ships in 9.6.0.
+     * <p>
+     * {@link DataType#FLATTENED} was a tech preview in 9.5.0 and is GA in 9.6.0, so every signature that accepts it is
+     * labeled exactly {@code stack: preview 9.5.0, ga 9.6.0}, whatever label its test case carries. The other types here still
+     * ship as a tech preview, so every signature that accepts them must be labeled exactly {@code stack: preview <version>}.
+     * Test cases for these types are produced in many different
+     * places (per-function suppliers, the multivalue base class, generic representable-type loops, ...),
+     * and some of them additionally set the {@code serverless: preview} flag (e.g. via
+     * {@code previewTransform}). To keep every row for these types identical across functions, the
+     * lifecycle is normalized here: the {@code stack: preview 9.5.0} label is ensured and the redundant
+     * {@code serverless: preview} flag is dropped. Other types are passed through unchanged.
+     */
+    private static DocsV3Support.Param docsParam(TestCaseSupplier.TypedData data) {
+        if (data.type() == DataType.FLATTENED) {
+            return new DocsV3Support.Param(
+                data.type(),
+                List.of(
+                    TestCaseSupplier.appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.5.0", "", false),
+                    TestCaseSupplier.appliesTo(FunctionAppliesToLifecycle.GA, "9.6.0", "", true)
+                ),
+                false
+            );
+        }
+        if (data.type() == DataType.DATE_RANGE) {
+            List<FunctionAppliesTo> appliesTo = data.appliesTo() == null || data.appliesTo().isEmpty()
+                ? List.of(TestCaseSupplier.appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.5.0", "", false))
+                : data.appliesTo();
+            return new DocsV3Support.Param(data.type(), appliesTo, false);
+        }
+        if (data.type() == DataType.DOUBLE_RANGE) {
+            List<FunctionAppliesTo> appliesTo = data.appliesTo() == null || data.appliesTo().isEmpty()
+                ? List.of(TestCaseSupplier.appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.6.0", "", false))
+                : data.appliesTo();
+            return new DocsV3Support.Param(data.type(), appliesTo, false);
+        }
+        return new DocsV3Support.Param(data.type(), data.appliesTo(), data.preview());
+    }
+
     @SuppressWarnings("unchecked")
     private static List<DocsV3Support.Param> signatureTypes(Class<?> testClass, List<DocsV3Support.Param> types) {
         try {
@@ -898,6 +1334,23 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             return (List<DocsV3Support.Param>) method.invoke(null, types);
         } catch (NoSuchMethodException ingored) {
             return types;
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    /**
+     * Filters out implicitly injected parameters from test data by dynamically invoking
+     * {@code providedParameters} on the test class, if it is present. This ensures that CONSTANT
+     * hint validation only checks declared @Param arguments.
+     */
+    @SuppressWarnings("unchecked")
+    private static List<TestCaseSupplier.TypedData> providedParameters(Class<?> testClass, List<TestCaseSupplier.TypedData> params) {
+        try {
+            Method method = testClass.getMethod("providedParameters", List.class);
+            return (List<TestCaseSupplier.TypedData>) method.invoke(null, params);
+        } catch (NoSuchMethodException ignored) {
+            return params;
         } catch (Exception e) {
             throw new AssertionError(e);
         }
@@ -922,13 +1375,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     protected static String functionName() {
-        Class<?> testClass = getTestClass();
-        if (testClass.isAnnotationPresent(FunctionName.class)) {
-            FunctionName functionNameAnnotation = testClass.getAnnotation(FunctionName.class);
-            return functionNameAnnotation.value();
-        } else {
-            return StringUtils.camelCaseToUnderscore(testClass.getSimpleName().replace("Tests", "")).toLowerCase(Locale.ROOT);
-        }
+        return functionName(getTestClass());
     }
 
     static boolean functionRegistered(String name) {
@@ -944,8 +1391,25 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
     private final List<CircuitBreaker> breakers = Collections.synchronizedList(new ArrayList<>());
 
+    /**
+     * Every {@link DriverContext} this harness vends, tracked so evaluation warnings can be read from each
+     * context's per-driver sink and so {@link #ensureNoUnassertedWarnings()} can prove that no test silently
+     * drops warnings.
+     */
+    private final List<DriverContext> driverContexts = Collections.synchronizedList(new ArrayList<>());
+
+    /**
+     * Contexts whose per-driver warnings have already been asserted (consumed), and are therefore exempt from the
+     * empty-sink leak-check.
+     */
+    private final Set<DriverContext> assertedWarnings = Collections.synchronizedSet(Collections.newSetFromMap(new IdentityHashMap<>()));
+
     protected final DriverContext driverContext() {
-        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(256)).withCircuitBreaking();
+        return registerDriverContext(driverContext(breakers));
+    }
+
+    public static DriverContext driverContext(List<CircuitBreaker> breakers) {
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(512)).withCircuitBreaking();
         breakers.add(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST));
         return new DriverContext(bigArrays, BlockFactory.builder(bigArrays).build(), null);
     }
@@ -954,13 +1418,69 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new CrankyCircuitBreakerService())
             .withCircuitBreaking();
         breakers.add(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST));
-        return new DriverContext(bigArrays, BlockFactory.builder(bigArrays).build(), null);
+        return registerDriverContext(new DriverContext(bigArrays, BlockFactory.builder(bigArrays).build(), null));
+    }
+
+    private DriverContext registerDriverContext(DriverContext driverContext) {
+        driverContexts.add(driverContext);
+        return driverContext;
+    }
+
+    /**
+     * Finishes and consumes every not-yet-asserted {@link DriverContext} this test built, returning the distinct
+     * set of warnings accumulated across their per-driver sinks. Consuming exempts them from
+     * {@link #ensureNoUnassertedWarnings()}. The sink holds the raw, fully-formatted warning strings, so callers
+     * compare against the raw expected strings (no escape/encode).
+     */
+    /**
+     * Drains and consumes the per-driver warnings sinks for auxiliary test methods (e.g. concurrent evaluation)
+     * that legitimately produce warnings but do not assert their exact content. Any produced warning must still be
+     * one of the test case's expected warnings, and consuming exempts the contexts from the leak-check.
+     */
+    protected final void consumeAndAssertExpectedDriverWarnings() {
+        Set<String> expected = testCase.getExpectedWarnings() == null
+            ? Set.of()
+            : new LinkedHashSet<>(Arrays.asList(testCase.getExpectedWarnings()));
+        Set<String> produced = consumeDriverWarnings();
+        assertThat("per-driver sink produced warnings that were not expected", expected.containsAll(produced), equalTo(true));
+    }
+
+    private Set<String> consumeDriverWarnings() {
+        Set<String> collected = new LinkedHashSet<>();
+        for (DriverContext driverContext : driverContexts) {
+            if (assertedWarnings.add(driverContext) == false) {
+                continue;
+            }
+            if (driverContext.isFinished() == false) {
+                driverContext.finish();
+            }
+            collected.addAll(driverContext.warnings());
+        }
+        return collected;
     }
 
     @After
     public void allMemoryReleased() {
         for (CircuitBreaker breaker : breakers) {
             assertThat(breaker.getUsed(), equalTo(0L));
+        }
+    }
+
+    /**
+     * Leak-check counterpart of {@link org.elasticsearch.test.ESTestCase#ensureNoWarnings()} for the per-driver
+     * warnings sink: every {@link DriverContext} this harness handed out must end with an empty sink unless the
+     * test asserted (consumed) its warnings via {@link #consumeDriverWarnings()}.
+     */
+    @After
+    public void ensureNoUnassertedWarnings() {
+        for (DriverContext driverContext : driverContexts) {
+            if (assertedWarnings.contains(driverContext)) {
+                continue;
+            }
+            if (driverContext.isFinished() == false) {
+                driverContext.finish();
+            }
+            assertThat("un-asserted per-driver warnings", driverContext.warnings(), empty());
         }
     }
 

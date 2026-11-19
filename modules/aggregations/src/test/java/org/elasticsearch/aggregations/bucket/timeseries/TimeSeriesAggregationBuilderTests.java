@@ -11,12 +11,49 @@ package org.elasticsearch.aggregations.bucket.timeseries;
 
 import org.elasticsearch.aggregations.bucket.AggregationBuilderTestCase;
 
+import java.util.List;
+
+import static org.elasticsearch.common.util.CollectionUtils.appendToCopy;
+
 public class TimeSeriesAggregationBuilderTests extends AggregationBuilderTestCase<TimeSeriesAggregationBuilder> {
+
+    /**
+     * Every test here creates or parses a {@link TimeSeriesAggregationBuilder}, which emits the deprecation warning. It is asserted once in
+     * {@link #testDeprecationWarning} instead of in each test.
+     */
+    @Override
+    protected List<String> filteredWarnings() {
+        return appendToCopy(super.filteredWarnings(), TimeSeriesAggregationBuilder.DEPRECATION_MESSAGE);
+    }
+
+    public void testDeprecationWarning() {
+        new TimeSeriesAggregationBuilder(randomAlphaOfLength(10));
+        assertWarnings(TimeSeriesAggregationBuilder.DEPRECATION_MESSAGE);
+    }
 
     @Override
     protected TimeSeriesAggregationBuilder createTestAggregatorBuilder() {
         // Size set large enough tests not intending to hit the size limit shouldn't see it.
         return new TimeSeriesAggregationBuilder(randomAlphaOfLength(10), randomBoolean(), randomIntBetween(1000, 100_000));
+    }
+
+    /**
+     * {@code size} is serialized via {@link TimeSeriesAggregationBuilder#doWriteTo} and round-tripped through XContent, so two
+     * builders that differ only in {@code size} represent different requests and must not be {@link Object#equals equal}. The
+     * generic {@code BaseAggregationTestCase#testEqualsAndHashcode} only mutates name/boost, so it does not cover {@code size}.
+     */
+    public void testEqualsAndHashCodeConsiderSize() {
+        String name = randomAlphaOfLength(10);
+        boolean keyed = randomBoolean();
+        TimeSeriesAggregationBuilder small = new TimeSeriesAggregationBuilder(name, keyed, 100);
+        TimeSeriesAggregationBuilder large = new TimeSeriesAggregationBuilder(name, keyed, 200);
+        assertNotEquals(small, large);
+        assertNotEquals(small.hashCode(), large.hashCode());
+
+        // Builders that agree on every field, including size, are equal and hash consistently.
+        TimeSeriesAggregationBuilder smallCopy = new TimeSeriesAggregationBuilder(name, keyed, 100);
+        assertEquals(small, smallCopy);
+        assertEquals(small.hashCode(), smallCopy.hashCode());
     }
 
 }

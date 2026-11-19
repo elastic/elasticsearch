@@ -38,7 +38,6 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -74,11 +73,6 @@ public class GetTaskRelocationIT extends ESIntegTestCase {
     private final int numOfSlices = randomIntBetween(1, 4);
     private final int requestsPerSecond = randomIntBetween(bulkSize * numOfSlices, 20);
     private final int numberOfDocumentsThatTakes60SecondsToIngest = 60 * requestsPerSecond;
-
-    @BeforeClass
-    public static void skipIfReindexResilienceDisabled() {
-        assumeTrue("reindex resilience is enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
-    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

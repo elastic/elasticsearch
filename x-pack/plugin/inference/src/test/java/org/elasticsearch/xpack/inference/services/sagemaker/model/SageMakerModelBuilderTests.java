@@ -51,8 +51,7 @@ public class SageMakerModelBuilderTests extends ESTestCase {
     private SageMakerModelBuilder builder;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void createBuilder() throws Exception {
         builder = new SageMakerModelBuilder(SageMakerSchemasTests.mockSchemas());
     }
 
@@ -141,7 +140,7 @@ public class SageMakerModelBuilderTests extends ESTestCase {
                     "endpoint_name": "test-endpoint"
                 }
             }
-            """, ValidationException.class, "Validation Failed: 1: [secret_settings] does not contain the required setting [access_key];");
+            """, ValidationException.class, "Validation Failed: 1: [service_settings] does not contain the required setting [access_key];");
     }
 
     public void testFromRequestWithoutSecretKey() {
@@ -154,7 +153,7 @@ public class SageMakerModelBuilderTests extends ESTestCase {
                     "endpoint_name": "test-endpoint"
                 }
             }
-            """, ValidationException.class, "Validation Failed: 1: [secret_settings] does not contain the required setting [secret_key];");
+            """, ValidationException.class, "Validation Failed: 1: [service_settings] does not contain the required setting [secret_key];");
     }
 
     public void testFromRequestWithoutRegion() {

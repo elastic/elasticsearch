@@ -105,11 +105,11 @@ public class XPackLicenseStateTests extends ESTestCase {
     }
 
     public void testSecurityAckTrialGoldOrPlatinumToBasic() {
-        assertAckMessages(XPackField.SECURITY, randomTrialGoldOrPlatinumMode(), BASIC, 6);
+        assertAckMessages(XPackField.SECURITY, randomTrialGoldOrPlatinumMode(), BASIC, 5);
     }
 
     public void testSecurityAckStandardToBasic() {
-        assertAckMessages(XPackField.SECURITY, STANDARD, BASIC, 1);
+        assertAckMessages(XPackField.SECURITY, STANDARD, BASIC, 0);
     }
 
     public void testSecurityAckAnyToStandard() {
@@ -157,7 +157,16 @@ public class XPackLicenseStateTests extends ESTestCase {
 
     public void testEsqlAckTrialOrEnterpriseToNotTrialOrEnterprise() {
         for (OperationMode to : List.of(BASIC, STANDARD, GOLD, PLATINUM)) {
-            assertAckMessages(XPackField.ESQL, randomFrom(TRIAL, ENTERPRISE), to, Set.of("ES|QL cross-cluster search will be disabled."));
+            assertAckMessages(
+                XPackField.ESQL,
+                randomFrom(TRIAL, ENTERPRISE),
+                to,
+                Set.of(
+                    "ES|QL cross-cluster search will be disabled.",
+                    "Creating and querying ES|QL datasets and data sources will be disabled."
+                        + " Existing datasets and data sources can still be listed and deleted."
+                )
+            );
         }
     }
 
@@ -368,7 +377,7 @@ public class XPackLicenseStateTests extends ESTestCase {
         String warningSoon = "warning: license expiring soon";
         licenseState.update(new XPackLicenseStatus(licenseLevel, true, warningSoon));
         feature.check(licenseState);
-        assertCriticalWarnings(warningSoon);
+        assertWarnings(warningSoon);
 
         /*
         TODO: this does not yet work because the active comes before expiry check as a chance

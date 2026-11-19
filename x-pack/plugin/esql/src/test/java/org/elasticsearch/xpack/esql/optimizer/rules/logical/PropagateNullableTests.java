@@ -400,7 +400,7 @@ public class PropagateNullableTests extends ESTestCase {
     public void testIsNullDoesNotNullifyPlaceholder() {
         FieldAttribute fa = getFieldAttribute();
         var isNull = new IsNull(EMPTY, fa);
-        var placeholder = new ApproximationPlan.SampleProbabilityPlaceHolder(EMPTY);
+        var placeholder = new ApproximationPlan.SampleProbabilityPlaceHolder(EMPTY, randomInt());
         var and = new And(EMPTY, isNull, greaterThanOf(placeholder, ONE));
         assertEquals(and, propagateNullable(and));
     }
@@ -410,7 +410,7 @@ public class PropagateNullableTests extends ESTestCase {
     public void testIsNotNullDoesNotNullifyPlaceholder() {
         FieldAttribute fa = getFieldAttribute();
         var isNotNull = new IsNotNull(EMPTY, fa);
-        var placeholder = new ApproximationPlan.SampleProbabilityPlaceHolder(EMPTY);
+        var placeholder = new ApproximationPlan.SampleProbabilityPlaceHolder(EMPTY, randomInt());
         var and = new And(EMPTY, isNotNull, greaterThanOf(placeholder, ONE));
         assertEquals(and, propagateNullable(and));
     }

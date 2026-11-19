@@ -23,13 +23,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-public class MvExpand extends UnaryPlan implements TelemetryAware, SortAgnostic {
+public class MvExpand extends UnaryPlan implements TelemetryAware, SortAgnostic, DocPreserving {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "MvExpand", MvExpand::new);
 
     private final NamedExpression target;
     private final Attribute expanded;
 
-    private List<Attribute> output;
+    private volatile List<Attribute> output;
 
     public MvExpand(Source source, LogicalPlan child, NamedExpression target, Attribute expanded) {
         super(source, child);

@@ -1,0 +1,4 @@
+SET approximation=true;
+FROM many_numbers
+  | FORK (WHERE sv <= 100 | STATS count = COUNT())
+         (WHERE sv >= 100 | STATS count = COUNT(), sum = SUM(sv))

@@ -20,6 +20,7 @@ import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -28,6 +29,7 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.support.QueryParsers;
+import org.elasticsearch.lucene.search.cost.AutomatonQueryCostEstimator;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -275,7 +277,7 @@ public class RegexpQueryBuilder extends LeafQueryBuilder<RegexpQueryBuilder> imp
         }
         MultiTermQuery.RewriteMethod method = QueryParsers.parseRewriteMethod(rewrite, null, LoggingDeprecationHandler.INSTANCE);
 
-        int matchFlagsValue = caseInsensitive ? RegExp.ASCII_CASE_INSENSITIVE : 0;
+        int matchFlagsValue = caseInsensitive ? RegExp.CASE_INSENSITIVE : 0;
         // For BWC we mask irrelevant bits (RegExp changed ALL from 0xffff to 0xff)
         // We need to preserve the DEPRECATED_COMPLEMENT for now though
         int deprecatedComplementFlag = syntaxFlagsValue & RegExp.DEPRECATED_COMPLEMENT;
@@ -300,15 +302,17 @@ public class RegexpQueryBuilder extends LeafQueryBuilder<RegexpQueryBuilder> imp
                 maxDeterminizedStates,
                 context.getCircuitBreaker()
             );
-            reservation = AutomatonQueries.compiledAutomatonReservationBytes(dfa.ramBytesUsed());
-            context.addCircuitBreakerMemory(reservation, "regexp-compiled:" + fieldName);
+            reservation = new AutomatonQueryCostEstimator(dfa.ramBytesUsed()).estimate();
+            context.addCircuitBreakerMemory(reservation, ChildMemoryCircuitBreaker.CATEGORY_REGEXP);
             query = method == null ? new AutomatonQuery(term, dfa) : new AutomatonQuery(term, dfa, false, method);
+
+            context.addCircuitBreakerMemory(query.ramBytesUsed(), reservation, ChildMemoryCircuitBreaker.CATEGORY_REGEXP);
+            context.markQueryMemoryPreCharged(query);
         } else {
             query = method == null
                 ? new RegexpQuery(term, sanitisedSyntaxFlag, matchFlagsValue, maxDeterminizedStates)
                 : new RegexpQuery(term, sanitisedSyntaxFlag, matchFlagsValue, RegexpQuery.DEFAULT_PROVIDER, maxDeterminizedStates, method);
         }
-        context.addCircuitBreakerMemory(query.ramBytesUsed(), reservation, "regexp:" + fieldName);
         return query;
     }
 

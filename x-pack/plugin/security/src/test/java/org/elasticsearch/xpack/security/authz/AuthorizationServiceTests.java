@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.security.authz;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
@@ -18,6 +17,7 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.ResolvedIndexExpression;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
+import org.elasticsearch.action.admin.cluster.stats.ProjectRoutingUsageSnapshot;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
@@ -50,10 +50,13 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.bulk.BulkShardResponse;
 import org.elasticsearch.action.bulk.MappingUpdatePerformer;
+import org.elasticsearch.action.bulk.SimulateBulkAction;
+import org.elasticsearch.action.bulk.SimulateBulkRequest;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.TransportDeleteAction;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.TransportGetAction;
@@ -69,7 +72,6 @@ import org.elasticsearch.action.search.SearchContextId;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchTransportService;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportClearScrollAction;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportMultiSearchAction;
@@ -101,6 +103,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -130,6 +133,8 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.search.crossproject.InvalidProjectRoutingException;
+import org.elasticsearch.search.crossproject.NoMatchingProjectException;
 import org.elasticsearch.search.crossproject.ProjectRoutingInfo;
 import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.search.crossproject.ProjectTags;
@@ -147,8 +152,11 @@ import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.esql.EsqlDataSourceActionNames;
+import org.elasticsearch.xpack.core.esql.EsqlDatasetActionNames;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyRequest;
@@ -181,6 +189,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
@@ -191,6 +200,7 @@ import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.Security;
+import org.elasticsearch.xpack.security.action.MockDataSourceRequest;
 import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
@@ -379,7 +389,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             projectResolver,
             authorizedProjectsResolver,
             crossProjectModeDecider,
-            projectRoutingResolver
+            projectRoutingResolver,
+            new UsageService()
         );
     }
 
@@ -653,6 +664,9 @@ public class AuthorizationServiceTests extends ESTestCase {
         );
         roleMap.put("manage_security_role", role);
         for (String action : LoggingAuditTrail.SECURITY_CHANGE_ACTIONS) {
+            if (action.startsWith("cluster:admin/xpack/security") == false) {
+                continue;
+            }
             TransportRequest request = mock(TransportRequest.class);
             authorize(authentication, action, request);
             verify(auditTrail).accessGranted(
@@ -663,6 +677,61 @@ public class AuthorizationServiceTests extends ESTestCase {
                 authzInfoRoles(new String[] { role.getName() })
             );
         }
+        verifyNoMoreInteractions(auditTrail);
+    }
+
+    public void testAuthorizationForEsqlSecurityChange() {
+        final Authentication authentication = createAuthentication(new User("user", "manage_datasources_role"));
+        final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
+        RoleDescriptor role = new RoleDescriptor(
+            "manage_datasources_role",
+            null,
+            new IndicesPrivileges[] { IndicesPrivileges.builder().indices("*").privileges("manage_dataset").build() },
+            null,
+            new ConfigurableClusterPrivilege[] {
+                new ConfigurableClusterPrivileges.DatasourcePrivileges(
+                    List.of(
+                        new ConfigurableClusterPrivileges.DatasourcePrivileges.DatasourcePermissionGroup(
+                            new String[] { "*" },
+                            new String[] { "manage" }
+                        )
+                    )
+                ) },
+            null,
+            null,
+            null
+        );
+        roleMap.put("manage_datasources_role", role);
+        for (String action : List.of(
+            EsqlDatasetActionNames.ESQL_PUT_DATASET_ACTION_NAME,
+            EsqlDatasetActionNames.ESQL_DELETE_DATASET_ACTION_NAME
+        )) {
+            var request = new MockIndicesRequest(null, "my_dataset");
+            authorize(authentication, action, request);
+            verify(auditTrail).accessGranted(
+                eq(requestId),
+                eq(authentication),
+                eq(action),
+                eq(request),
+                authzInfoRoles(new String[] { role.getName() })
+            );
+        }
+
+        for (String action : List.of(
+            EsqlDataSourceActionNames.ESQL_PUT_DATA_SOURCE_ACTION_NAME,
+            EsqlDataSourceActionNames.ESQL_DELETE_DATA_SOURCE_ACTION_NAME
+        )) {
+            var request = new MockDataSourceRequest(action, "my_datasource");
+            authorize(authentication, action, request);
+            verify(auditTrail).accessGranted(
+                eq(requestId),
+                eq(authentication),
+                eq(action),
+                eq(request),
+                authzInfoRoles(new String[] { role.getName() })
+            );
+        }
+
         verifyNoMoreInteractions(auditTrail);
     }
 
@@ -1365,7 +1434,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             projectResolver,
             authorizedProjectsResolver,
             crossProjectModeDecider,
-            projectRoutingResolver
+            projectRoutingResolver,
+            new UsageService()
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -1451,7 +1521,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             projectResolver,
             authorizedProjectsResolver,
             crossProjectModeDecider,
-            originOnlyRoutingResolver
+            originOnlyRoutingResolver,
+            new UsageService()
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -1507,7 +1578,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             projectResolver,
             authorizedProjectsResolver,
             crossProjectModeDecider,
-            projectRoutingResolver
+            projectRoutingResolver,
+            new UsageService()
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -1606,6 +1678,38 @@ public class AuthorizationServiceTests extends ESTestCase {
             eq(authentication),
             eq(SearchTransportService.QUERY_ACTION_NAME),
             eq(shardRequest),
+            authzInfoRoles(new String[] { role.getName() })
+        );
+        verifyNoMoreInteractions(auditTrail);
+    }
+
+    public void testSearchPITAgainstUnauthorizedIndexIsDenied() {
+        RoleDescriptor role = new RoleDescriptor(
+            "search_public",
+            null,
+            new IndicesPrivileges[] { IndicesPrivileges.builder().indices("public").privileges("read").build() },
+            null
+        );
+        roleMap.put(role.getName(), role);
+        final Authentication authentication = createAuthentication(new User("pit-attacker", role.getName()));
+        final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
+        final ClusterState clusterState = mockMetadataWithIndex("private");
+        final IndexMetadata indexMetadata = clusterState.metadata().getProject(projectId).index("private");
+
+        PointInTimeBuilder pit = new PointInTimeBuilder(createEncodedPIT(indexMetadata.getIndex()));
+        SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder().pointInTimeBuilder(pit))
+            .allowPartialSearchResults(false);
+        this.setFakeOriginatingAction = false;
+        assertThrowsAuthorizationException(
+            () -> authorize(authentication, TransportSearchAction.TYPE.name(), searchRequest),
+            TransportSearchAction.TYPE.name(),
+            "pit-attacker"
+        );
+        verify(auditTrail).accessDenied(
+            eq(requestId),
+            eq(authentication),
+            eq(TransportSearchAction.TYPE.name()),
+            eq(searchRequest),
             authzInfoRoles(new String[] { role.getName() })
         );
         verifyNoMoreInteractions(auditTrail);
@@ -1860,6 +1964,7 @@ public class AuthorizationServiceTests extends ESTestCase {
 
         final BulkShardRequest request = new BulkShardRequest(
             new ShardId(index, randomAlphaOfLength(24), 1),
+            SplitShardCountSummary.IRRELEVANT,
             WriteRequest.RefreshPolicy.NONE,
             new BulkItemRequest[] {
                 new BulkItemRequest(
@@ -2054,7 +2159,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             projectResolver,
             new AuthorizedProjectsResolver.Default(),
             new CrossProjectModeDecider(settings),
-            projectRoutingResolver
+            projectRoutingResolver,
+            new UsageService()
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -2108,7 +2214,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             projectResolver,
             new AuthorizedProjectsResolver.Default(),
             new CrossProjectModeDecider(settings),
-            projectRoutingResolver
+            projectRoutingResolver,
+            new UsageService()
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -3037,7 +3144,12 @@ public class AuthorizationServiceTests extends ESTestCase {
         roleMap.put("bad-role", badRole);
 
         final ShardId shardId = new ShardId("some-concrete-shard-index-name", UUID.randomUUID().toString(), 1);
-        final BulkShardRequest request = new BulkShardRequest(shardId, randomFrom(WriteRequest.RefreshPolicy.values()), items);
+        final BulkShardRequest request = new BulkShardRequest(
+            shardId,
+            SplitShardCountSummary.IRRELEVANT,
+            randomFrom(WriteRequest.RefreshPolicy.values()),
+            items
+        );
 
         mockEmptyMetadata();
         final Authentication authentication;
@@ -3163,7 +3275,12 @@ public class AuthorizationServiceTests extends ESTestCase {
         roleMap.put("index-role", indexRole);
 
         final ShardId shardId = new ShardId(indexName, UUID.randomUUID().toString(), 1);
-        final BulkShardRequest request = new BulkShardRequest(shardId, randomFrom(WriteRequest.RefreshPolicy.values()), items);
+        final BulkShardRequest request = new BulkShardRequest(
+            shardId,
+            SplitShardCountSummary.IRRELEVANT,
+            randomFrom(WriteRequest.RefreshPolicy.values()),
+            items
+        );
 
         mockEmptyMetadata();
         final Authentication authentication;
@@ -3264,7 +3381,12 @@ public class AuthorizationServiceTests extends ESTestCase {
             new BulkItemRequest(5, new DeleteRequest("alias-2", "a2a")),
             new BulkItemRequest(6, new IndexRequest("alias-2").id("a2b")) };
         final ShardId shardId = new ShardId("concrete-index", UUID.randomUUID().toString(), 1);
-        final BulkShardRequest request = new BulkShardRequest(shardId, WriteRequest.RefreshPolicy.IMMEDIATE, items);
+        final BulkShardRequest request = new BulkShardRequest(
+            shardId,
+            SplitShardCountSummary.IRRELEVANT,
+            WriteRequest.RefreshPolicy.IMMEDIATE,
+            items
+        );
 
         final Authentication authentication = createAuthentication(new User("user", "my-role"));
         RoleDescriptor role = new RoleDescriptor(
@@ -3353,7 +3475,12 @@ public class AuthorizationServiceTests extends ESTestCase {
             new BulkItemRequest(4, new DeleteRequest("<datemath-{now/d{YYYY.MM}}>", "dm2")), // resolves to same as above
         };
         final ShardId shardId = new ShardId("concrete-index", UUID.randomUUID().toString(), 1);
-        final BulkShardRequest request = new BulkShardRequest(shardId, WriteRequest.RefreshPolicy.IMMEDIATE, items);
+        final BulkShardRequest request = new BulkShardRequest(
+            shardId,
+            SplitShardCountSummary.IRRELEVANT,
+            WriteRequest.RefreshPolicy.IMMEDIATE,
+            items
+        );
 
         final Authentication authentication = createAuthentication(new User("user", "my-role"));
         final RoleDescriptor role = new RoleDescriptor(
@@ -3405,9 +3532,43 @@ public class AuthorizationServiceTests extends ESTestCase {
         assertThat(request.items()[3].getPrimaryResponse().isFailed(), is(true));
     }
 
+    public void testSimulateBulkActionAuthorizesAllIncludedIndices() {
+        var bulkRequest = new SimulateBulkRequest(Map.of(), Map.of(), Map.of(), Map.of(), null);
+        bulkRequest.add(new IndexRequest("allowed-index"));
+        bulkRequest.add(new IndexRequest("unauthorised-index"));
+
+        var authentication = createAuthentication(new User("user", "my-role"));
+        var role = new RoleDescriptor(
+            "my-role",
+            null,
+            new IndicesPrivileges[] { IndicesPrivileges.builder().indices("allowed-index").privileges("index").build() },
+            null
+        );
+        roleMap.put("my-role", role);
+        var requestId = AuditUtil.getOrGenerateRequestId(threadContext);
+        mockEmptyMetadata();
+
+        var ex = expectThrows(ElasticsearchSecurityException.class, () -> authorize(authentication, SimulateBulkAction.NAME, bulkRequest));
+        assertThat(ex.getMessage(), equalTo("""
+            action [indices:data/write/simulate/bulk] is unauthorized for user [user] with effective roles [my-role] \
+            on indices [unauthorised-index], this action is granted by the index privileges [create_doc,create,index,write,all]"""));
+        verify(auditTrail).accessDenied(
+            eq(requestId),
+            eq(authentication),
+            eq(SimulateBulkAction.NAME),
+            eq(bulkRequest),
+            authzInfoRoles(new String[] { role.getName() })
+        );
+    }
+
     private BulkShardRequest createBulkShardRequest(String indexName, BiFunction<String, String, DocWriteRequest<?>> req) {
         final BulkItemRequest[] items = { new BulkItemRequest(1, req.apply(indexName, "id")) };
-        return new BulkShardRequest(new ShardId(indexName, UUID.randomUUID().toString(), 1), WriteRequest.RefreshPolicy.IMMEDIATE, items);
+        return new BulkShardRequest(
+            new ShardId(indexName, UUID.randomUUID().toString(), 1),
+            SplitShardCountSummary.IRRELEVANT,
+            WriteRequest.RefreshPolicy.IMMEDIATE,
+            items
+        );
     }
 
     private static Tuple<String, TransportRequest> randomCompositeRequest() {
@@ -3651,7 +3812,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             projectResolver,
             new AuthorizedProjectsResolver.Default(),
             new CrossProjectModeDecider(Settings.EMPTY),
-            projectRoutingResolver
+            projectRoutingResolver,
+            new UsageService()
         );
 
         Subject subject = new Subject(new User("test", "a role"), mock(RealmRef.class));
@@ -3815,7 +3977,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             projectResolver,
             new AuthorizedProjectsResolver.Default(),
             new CrossProjectModeDecider(Settings.EMPTY),
-            projectRoutingResolver
+            projectRoutingResolver,
+            new UsageService()
         );
         Authentication authentication;
         try (StoredContext ignore = threadContext.stashContext()) {
@@ -4033,7 +4196,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         assertThat(notAccessibleIndexExpression.localExpressions().indices(), empty());
         assertThat(notAccessibleIndexExpression.localExpressions().localIndexResolutionResult(), equalTo(CONCRETE_RESOURCE_UNAUTHORIZED));
         assertThat(
-            notAccessibleIndexExpression.localExpressions().exception().getMessage(),
+            request.getResolvedIndexExpressions().authorizationFailureTemplate(),
             equalTo(
                 "action [indices:data/read/search] is unauthorized for user [user]"
                     + " with effective roles [partial-access-role] on indices [-*], "
@@ -4066,14 +4229,29 @@ public class AuthorizationServiceTests extends ESTestCase {
         );
         List<SearchPhaseResult> results = new ArrayList<>();
         results.add(testSearchPhaseResult1);
-        return SearchContextId.encode(results, Collections.emptyMap(), TransportVersion.current(), ShardSearchFailure.EMPTY_ARRAY);
+        return SearchContextId.encode(results, Collections.emptyMap(), TransportVersion.current(), List.of());
     }
 
     private static ProjectRoutingInfo createRandomProjectWithAlias(String alias) {
         ProjectId projectId = randomUniqueProjectId();
         String type = randomFrom("elasticsearch", "security", "observability");
         String org = randomAlphaOfLength(10);
-        Map<String, String> tags = Map.of("_id", projectId.id(), "_type", type, "_organization", org, "_alias", alias);
+        String provider = randomAlphaOfLength(10);
+        String region = randomAlphaOfLength(10);
+        Map<String, String> tags = Map.of(
+            "_id",
+            projectId.id(),
+            "_type",
+            type,
+            "_organization",
+            org,
+            "_alias",
+            alias,
+            "_csp",
+            provider,
+            "_region",
+            region
+        );
         ProjectTags projectTags = new ProjectTags(tags);
         return new ProjectRoutingInfo(projectId, type, alias, org, projectTags);
     }
@@ -4120,21 +4298,325 @@ public class AuthorizationServiceTests extends ESTestCase {
     ) {
         return new ResolvedIndexExpression(
             original,
-            new ResolvedIndexExpression.LocalExpressions(localExpressions, localIndexResolutionResult, null),
+            new ResolvedIndexExpression.LocalExpressions(localExpressions, localIndexResolutionResult),
             Set.of()
         );
     }
 
-    private static ResolvedIndexExpression resolvedIndexExpression(
-        String original,
-        Set<String> localExpressions,
-        ResolvedIndexExpression.LocalIndexResolutionResult localIndexResolutionResult,
-        ElasticsearchException exception
-    ) {
-        return new ResolvedIndexExpression(
-            original,
-            new ResolvedIndexExpression.LocalExpressions(localExpressions, localIndexResolutionResult, exception),
-            Set.of()
+    /**
+     * Creates an {@link AuthorizationService} configured for cross-project mode with the given routing resolver and usage service.
+     * Uses the same settings and mocks as the default test setup except for CPS-specific overrides.
+     */
+    private AuthorizationService createCpsAuthorizationService(ProjectRoutingResolver routingResolver, UsageService usageService) {
+        final Settings settings = Settings.builder().put("serverless.cross_project.enabled", "true").build();
+        return new AuthorizationService(
+            settings,
+            rolesStore,
+            fieldPermissionsCache,
+            clusterService,
+            auditTrailService,
+            new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
+            threadPool,
+            new AnonymousUser(settings),
+            null,
+            Collections.emptySet(),
+            new XPackLicenseState(() -> 0),
+            indexNameExpressionResolver,
+            operatorPrivilegesService,
+            RESTRICTED_INDICES,
+            new AuthorizationDenialMessages.Default(),
+            linkedProjectConfigService,
+            projectResolver,
+            authorizedProjectsResolver,
+            crossProjectModeDecider,
+            routingResolver,
+            usageService
+        );
+    }
+
+    public void testSearchProjectRoutingFailureRecordedOnInvalidProjectRoutingException() {
+        final ProjectRoutingInfo origin = createRandomProjectWithAlias(randomAlphaOfLengthBetween(5, 10));
+        final ProjectRoutingInfo linked = createRandomProjectWithAlias(randomAlphaOfLengthBetween(5, 10));
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<TargetProjects> callback = (ActionListener<TargetProjects>) invocation.getArguments()[0];
+            // hasLinkedProjects=true simulates ServerlessAuthorizedProjectsResolver setting the flag
+            callback.onResponse(new TargetProjects(origin, List.of(linked), null, true));
+            return null;
+        }).when(authorizedProjectsResolver).resolveAuthorizedProjects(anyActionListener());
+        when(crossProjectModeDecider.crossProjectEnabled()).thenReturn(true);
+        when(crossProjectModeDecider.resolvesCrossProject(any())).thenReturn(true);
+
+        final ProjectRoutingResolver throwingResolver = new ProjectRoutingResolver() {
+            @Override
+            public void validate(String projectRouting, ProjectMetadata projectMetadata) {}
+
+            @Override
+            public TargetProjects resolve(String projectRouting, ProjectMetadata projectMetadata, TargetProjects authorizedProjects) {
+                throw new InvalidProjectRoutingException("no project routing match for [{}]", projectRouting);
+            }
+        };
+
+        final UsageService usageService = new UsageService();
+        authorizationService = createCpsAuthorizationService(throwingResolver, usageService);
+
+        roleMap.put(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName(), ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR);
+        final Authentication authentication = createAuthentication(
+            new User("test_user", ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName())
+        );
+        AuditUtil.getOrGenerateRequestId(threadContext);
+        final SearchRequest searchRequest = new SearchRequest("index-*");
+
+        expectThrows(
+            InvalidProjectRoutingException.class,
+            () -> authorize(authentication, TransportSearchAction.NAME, searchRequest, true, null)
+        );
+
+        final ProjectRoutingUsageSnapshot snapshot = usageService.getProjectRoutingUsageHolder().getSnapshot();
+        assertThat(snapshot.getSearchQueriesTotal(), equalTo(1L));
+        assertThat(snapshot.getSearchWithProjectRouting(), equalTo(1L));
+        assertThat(snapshot.getSearchProjectRoutingFailures(), equalTo(1L));
+        assertThat(snapshot.getEsqlQueriesTotal(), equalTo(0L));
+        assertThat(snapshot.getEsqlProjectRoutingFailures(), equalTo(0L));
+    }
+
+    public void testProjectRoutingFailureNotRecordedWhenNoLinkedProjects() {
+        // authorizedProjectsResolver returns TargetProjects with hasLinkedProjects=false (no links configured)
+        // → recordSearchProjectRoutingFailure is a no-op
+        final ProjectRoutingInfo origin = createRandomProjectWithAlias(randomAlphaOfLengthBetween(5, 10));
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<TargetProjects> callback = (ActionListener<TargetProjects>) invocation.getArguments()[0];
+            callback.onResponse(new TargetProjects(origin, List.of()));
+            return null;
+        }).when(authorizedProjectsResolver).resolveAuthorizedProjects(anyActionListener());
+        when(crossProjectModeDecider.crossProjectEnabled()).thenReturn(true);
+        when(crossProjectModeDecider.resolvesCrossProject(any())).thenReturn(true);
+
+        final ProjectRoutingResolver throwingResolver = new ProjectRoutingResolver() {
+            @Override
+            public void validate(String projectRouting, ProjectMetadata projectMetadata) {}
+
+            @Override
+            public TargetProjects resolve(String projectRouting, ProjectMetadata projectMetadata, TargetProjects authorizedProjects) {
+                throw new InvalidProjectRoutingException("bad routing [{}]", projectRouting);
+            }
+        };
+
+        final UsageService usageService = new UsageService();
+        authorizationService = createCpsAuthorizationService(throwingResolver, usageService);
+
+        roleMap.put(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName(), ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR);
+        final Authentication authentication = createAuthentication(
+            new User("test_user", ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName())
+        );
+        AuditUtil.getOrGenerateRequestId(threadContext);
+        final SearchRequest searchRequest = new SearchRequest("index-*");
+
+        expectThrows(
+            InvalidProjectRoutingException.class,
+            () -> authorize(authentication, TransportSearchAction.NAME, searchRequest, true, null)
+        );
+
+        final ProjectRoutingUsageSnapshot snapshot = usageService.getProjectRoutingUsageHolder().getSnapshot();
+        assertThat(snapshot.getSearchQueriesTotal(), equalTo(0L));
+        assertThat(snapshot.getSearchProjectRoutingFailures(), equalTo(0L));
+        assertThat(snapshot.getEsqlQueriesTotal(), equalTo(0L));
+        assertThat(snapshot.getEsqlProjectRoutingFailures(), equalTo(0L));
+    }
+
+    public void testEsqlProjectRoutingFailureRecordedOnInvalidProjectRoutingException() {
+        final ProjectRoutingInfo origin = createRandomProjectWithAlias(randomAlphaOfLengthBetween(5, 10));
+        final ProjectRoutingInfo linked = createRandomProjectWithAlias(randomAlphaOfLengthBetween(5, 10));
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<TargetProjects> callback = (ActionListener<TargetProjects>) invocation.getArguments()[0];
+            // hasLinkedProjects=true simulates ServerlessAuthorizedProjectsResolver setting the flag
+            callback.onResponse(new TargetProjects(origin, List.of(linked), null, true));
+            return null;
+        }).when(authorizedProjectsResolver).resolveAuthorizedProjects(anyActionListener());
+        when(crossProjectModeDecider.crossProjectEnabled()).thenReturn(true);
+        when(crossProjectModeDecider.resolvesCrossProject(any())).thenReturn(true);
+
+        final ProjectRoutingResolver throwingResolver = new ProjectRoutingResolver() {
+            @Override
+            public void validate(String projectRouting, ProjectMetadata projectMetadata) {}
+
+            @Override
+            public TargetProjects resolve(String projectRouting, ProjectMetadata projectMetadata, TargetProjects authorizedProjects) {
+                throw new InvalidProjectRoutingException("no project routing match for [{}]", projectRouting);
+            }
+        };
+
+        final UsageService usageService = new UsageService();
+        authorizationService = createCpsAuthorizationService(throwingResolver, usageService);
+
+        roleMap.put(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName(), ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR);
+        final Authentication authentication = createAuthentication(
+            new User("test_user", ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName())
+        );
+        AuditUtil.getOrGenerateRequestId(threadContext);
+        // ES|QL routing failures occur on EsqlResolveFieldsRequest (action indices:data/read/esql/resolve_fields).
+        // That class is in x-pack:plugin:esql (not accessible here), so use FieldCapabilitiesRequest as a stand-in —
+        // it implements IndicesRequest.Replaceable (i.e. CrossProjectCandidate) and the action string drives the bucket.
+        final FieldCapabilitiesRequest fieldCapsRequest = new FieldCapabilitiesRequest();
+
+        expectThrows(
+            InvalidProjectRoutingException.class,
+            () -> authorize(authentication, "indices:data/read/esql/resolve_fields", fieldCapsRequest, true, null)
+        );
+
+        final ProjectRoutingUsageSnapshot snapshot = usageService.getProjectRoutingUsageHolder().getSnapshot();
+        assertThat(snapshot.getSearchQueriesTotal(), equalTo(0L));
+        assertThat(snapshot.getSearchProjectRoutingFailures(), equalTo(0L));
+        assertThat(snapshot.getEsqlQueriesTotal(), equalTo(1L));
+        assertThat(snapshot.getEsqlWithProjectRouting(), equalTo(1L));
+        assertThat(snapshot.getEsqlProjectRoutingFailures(), equalTo(1L));
+    }
+
+    public void testProjectRoutingFailureIgnoredForUnrecognizedAction() {
+        final ProjectRoutingInfo origin = createRandomProjectWithAlias(randomAlphaOfLengthBetween(5, 10));
+        final ProjectRoutingInfo linked = createRandomProjectWithAlias(randomAlphaOfLengthBetween(5, 10));
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<TargetProjects> callback = (ActionListener<TargetProjects>) invocation.getArguments()[0];
+            // hasLinkedProjects=true to confirm action-name gating (not the hasLinkedProjects gate) suppresses recording
+            callback.onResponse(new TargetProjects(origin, List.of(linked), null, true));
+            return null;
+        }).when(authorizedProjectsResolver).resolveAuthorizedProjects(anyActionListener());
+        when(crossProjectModeDecider.crossProjectEnabled()).thenReturn(true);
+        when(crossProjectModeDecider.resolvesCrossProject(any())).thenReturn(true);
+
+        final ProjectRoutingResolver throwingResolver = new ProjectRoutingResolver() {
+            @Override
+            public void validate(String projectRouting, ProjectMetadata projectMetadata) {}
+
+            @Override
+            public TargetProjects resolve(String projectRouting, ProjectMetadata projectMetadata, TargetProjects authorizedProjects) {
+                throw new InvalidProjectRoutingException("no project routing match for [{}]", projectRouting);
+            }
+        };
+
+        final UsageService usageService = new UsageService();
+        authorizationService = createCpsAuthorizationService(throwingResolver, usageService);
+
+        roleMap.put(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName(), ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR);
+        final Authentication authentication = createAuthentication(
+            new User("test_user", ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName())
+        );
+        AuditUtil.getOrGenerateRequestId(threadContext);
+        // Use FieldCapabilitiesRequest (not SearchRequest) so that neither the instanceof SearchRequest
+        // check nor the esql/resolve_fields action-name check matches, confirming the action is ignored.
+        final FieldCapabilitiesRequest fieldCapsRequest = new FieldCapabilitiesRequest();
+
+        // "indices:data/read/get" is neither a search nor an ES|QL action
+        expectThrows(
+            InvalidProjectRoutingException.class,
+            () -> authorize(authentication, "indices:data/read/get", fieldCapsRequest, true, null)
+        );
+
+        final ProjectRoutingUsageSnapshot snapshot = usageService.getProjectRoutingUsageHolder().getSnapshot();
+        assertThat(snapshot.getSearchQueriesTotal(), equalTo(0L));
+        assertThat(snapshot.getSearchProjectRoutingFailures(), equalTo(0L));
+        assertThat(snapshot.getEsqlQueriesTotal(), equalTo(0L));
+        assertThat(snapshot.getEsqlProjectRoutingFailures(), equalTo(0L));
+    }
+
+    public void testSearchProjectRoutingFailureRecordedOnNoMatchingProjectException() {
+        // projectRoutingResolver returns empty TargetProjects (hasLinkedProjects=true) → wildcard expansion throws
+        // NoMatchingProjectException
+        final ProjectRoutingInfo origin = createRandomProjectWithAlias(randomAlphaOfLengthBetween(5, 10));
+        final ProjectRoutingInfo linked = createRandomProjectWithAlias(randomAlphaOfLengthBetween(5, 10));
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<TargetProjects> callback = (ActionListener<TargetProjects>) invocation.getArguments()[0];
+            // hasLinkedProjects=true simulates ServerlessAuthorizedProjectsResolver setting the flag
+            callback.onResponse(new TargetProjects(origin, List.of(linked), null, true));
+            return null;
+        }).when(authorizedProjectsResolver).resolveAuthorizedProjects(anyActionListener());
+        when(crossProjectModeDecider.crossProjectEnabled()).thenReturn(true);
+        when(crossProjectModeDecider.resolvesCrossProject(any())).thenReturn(true);
+
+        // Resolver returns empty TargetProjects (no origin, no linked) but marks hasLinkedProjects=true.
+        // The wildcard expander then throws NoMatchingProjectException because no project is available
+        // after applying the routing expression.
+        final ProjectRoutingResolver emptyResultResolver = new ProjectRoutingResolver() {
+            @Override
+            public void validate(String projectRouting, ProjectMetadata projectMetadata) {}
+
+            @Override
+            public TargetProjects resolve(String projectRouting, ProjectMetadata projectMetadata, TargetProjects authorizedProjects) {
+                return new TargetProjects(null, List.of(), null, true);
+            }
+        };
+
+        final UsageService usageService = new UsageService();
+        authorizationService = createCpsAuthorizationService(emptyResultResolver, usageService);
+
+        roleMap.put(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName(), ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR);
+        final Authentication authentication = createAuthentication(
+            new User("test_user", ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName())
+        );
+        AuditUtil.getOrGenerateRequestId(threadContext);
+        // Wildcard search: triggers full index expansion path through which NoMatchingProjectException is thrown.
+        // projectRouting must be non-null so ensureProjectsAvailable() throws NoMatchingProjectException (not AssertionError).
+        final SearchRequest searchRequest = new SearchRequest("*");
+        searchRequest.setProjectRouting("project-routing-value");
+
+        expectThrows(
+            NoMatchingProjectException.class,
+            () -> authorize(authentication, TransportSearchAction.NAME, searchRequest, true, null)
+        );
+
+        final ProjectRoutingUsageSnapshot snapshot = usageService.getProjectRoutingUsageHolder().getSnapshot();
+        assertThat(snapshot.getSearchQueriesTotal(), equalTo(1L));
+        assertThat(snapshot.getSearchWithProjectRouting(), equalTo(1L));
+        assertThat(snapshot.getSearchProjectRoutingFailures(), equalTo(1L));
+        assertThat(snapshot.getEsqlQueriesTotal(), equalTo(0L));
+        assertThat(snapshot.getEsqlProjectRoutingFailures(), equalTo(0L));
+    }
+
+    public void testProjectRoutingFailureWithLocalApiKey() {
+        var origin = createRandomProjectWithAlias(randomAlphaOfLengthBetween(5, 10));
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            var callback = (ActionListener<TargetProjects>) invocation.getArguments()[0];
+            // local API key can only access the origin project
+            callback.onResponse(new TargetProjects(origin));
+            return null;
+        }).when(authorizedProjectsResolver).resolveAuthorizedProjects(anyActionListener());
+        when(crossProjectModeDecider.crossProjectEnabled()).thenReturn(true);
+        when(crossProjectModeDecider.resolvesCrossProject(any())).thenReturn(true);
+
+        var emptyResultResolver = new ProjectRoutingResolver() {
+            @Override
+            public void validate(String projectRouting, ProjectMetadata projectMetadata) {}
+
+            @Override
+            public TargetProjects resolve(String projectRouting, ProjectMetadata projectMetadata, TargetProjects authorizedProjects) {
+                return TargetProjects.EMPTY;
+            }
+        };
+
+        authorizationService = createCpsAuthorizationService(emptyResultResolver, new UsageService());
+        var authentication = Authentication.newApiKeyAuthentication(
+            AuthenticationResult.success(new User(randomAlphaOfLengthBetween(3, 8)), Map.of(API_KEY_ID_KEY, randomAlphaOfLength(20))),
+            randomAlphaOfLengthBetween(3, 8)
+        );
+        AuditUtil.getOrGenerateRequestId(threadContext);
+        var request = new ResolveIndexAction.Request(
+            new String[] { randomAlphanumericOfLength(8) },
+            ResolveIndexAction.Request.DEFAULT_INDICES_OPTIONS,
+            null,
+            "_alias:linked"
+        );
+        var ex = expectThrows(
+            NoMatchingProjectException.class,
+            () -> authorize(authentication, ResolveIndexAction.NAME, request, true, null)
+        );
+        assertThat(
+            ex.getMessage(),
+            containsString("an Elasticsearch API key, which can only access the origin project and never linked projects")
         );
     }
 }

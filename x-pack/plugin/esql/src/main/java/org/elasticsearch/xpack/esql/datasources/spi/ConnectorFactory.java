@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import java.io.IOException;
 import java.util.Map;
 
 /**
@@ -33,4 +34,22 @@ public interface ConnectorFactory extends ExternalSourceFactory {
      * @param config configuration map; see {@link #resolveMetadata(String, Map)} for typing rules.
      */
     Connector open(Map<String, Object> config);
+
+    /**
+     * Tests connectivity by opening and immediately closing a {@link Connector}. Connector implementations
+     * that can perform a lighter-weight probe (e.g. a ping without allocating a full session) may override this.
+     *
+     * <p>Close failures are suppressed: if {@link #open} succeeds the connection was established, and a
+     * subsequent teardown error does not indicate a connectivity problem.
+     */
+    @Override
+    default void testConnection(Map<String, Object> config) throws IOException {
+        Connector c = open(config);
+        if (c == null) {
+            throw new IllegalStateException("open() returned null — connector contract violation");
+        }
+        try {
+            c.close();
+        } catch (IOException | RuntimeException ignored) {}
+    }
 }

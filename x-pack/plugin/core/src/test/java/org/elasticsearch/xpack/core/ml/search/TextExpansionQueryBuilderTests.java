@@ -74,6 +74,22 @@ public class TextExpansionQueryBuilderTests extends AbstractQueryTestCase<TextEx
         return builder;
     }
 
+    /**
+     * The query needs a non-null {@link IndexReader}.
+     * The query rewrites to a weighted_tokens query, whose token pruning reads token document frequencies from the reader.
+     */
+    @Override
+    protected IndexReaderManager getIndexReaderManager() {
+        return new IndexReaderManager() {
+            @Override
+            protected void initIndexWriter(RandomIndexWriter indexWriter) throws IOException {
+                Document document = new Document();
+                document.add(new FloatDocValuesField(RANK_FEATURES_FIELD, 1.0f));
+                indexWriter.addDocument(document);
+            }
+        };
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return List.of(MapperExtrasPlugin.class, XPackClientPlugin.class);
@@ -186,25 +202,25 @@ public class TextExpansionQueryBuilderTests extends AbstractQueryTestCase<TextEx
     @Override
     public void testFromXContent() throws IOException {
         super.testFromXContent();
-        assertCriticalWarnings(TextExpansionQueryBuilder.TEXT_EXPANSION_DEPRECATION_MESSAGE);
+        assertWarnings(TextExpansionQueryBuilder.TEXT_EXPANSION_DEPRECATION_MESSAGE);
     }
 
     @Override
     public void testUnknownField() throws IOException {
         super.testUnknownField();
-        assertCriticalWarnings(TextExpansionQueryBuilder.TEXT_EXPANSION_DEPRECATION_MESSAGE);
+        assertWarnings(TextExpansionQueryBuilder.TEXT_EXPANSION_DEPRECATION_MESSAGE);
     }
 
     @Override
     public void testUnknownObjectException() throws IOException {
         super.testUnknownObjectException();
-        assertCriticalWarnings(TextExpansionQueryBuilder.TEXT_EXPANSION_DEPRECATION_MESSAGE);
+        assertWarnings(TextExpansionQueryBuilder.TEXT_EXPANSION_DEPRECATION_MESSAGE);
     }
 
     @Override
     public void testValidOutput() throws IOException {
         super.testValidOutput();
-        assertCriticalWarnings(TextExpansionQueryBuilder.TEXT_EXPANSION_DEPRECATION_MESSAGE);
+        assertWarnings(TextExpansionQueryBuilder.TEXT_EXPANSION_DEPRECATION_MESSAGE);
     }
 
     public void testIllegalValues() {

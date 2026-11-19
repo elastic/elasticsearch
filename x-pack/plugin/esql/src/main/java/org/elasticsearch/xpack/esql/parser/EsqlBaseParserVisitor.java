@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.esql.parser;
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 
 import org.antlr.v4.runtime.tree.ParseTreeVisitor;
 
@@ -106,6 +107,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitExternalCommand(EsqlBaseParser.ExternalCommandContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#eqlCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitEqlCommand(EsqlBaseParser.EqlCommandContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#indexPatternAndMetadataFields}.
    * @param ctx the parse tree
    * @return the visitor result
@@ -123,6 +130,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitSubquery(EsqlBaseParser.SubqueryContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#subquerySourceCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitSubquerySourceCommand(EsqlBaseParser.SubquerySourceCommandContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#indexPattern}.
    * @param ctx the parse tree
@@ -225,6 +238,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitIdentifierPattern(EsqlBaseParser.IdentifierPatternContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#expressionModeIdentifierPattern}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitExpressionModeIdentifierPattern(EsqlBaseParser.ExpressionModeIdentifierPatternContext ctx);
   /**
    * Visit a parse tree produced by the {@code inputParam}
    * labeled alternative in {@link EsqlBaseParser#parameter}.
@@ -349,6 +368,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitMvExpandCommand(EsqlBaseParser.MvExpandCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#nestedExpandCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitNestedExpandCommand(EsqlBaseParser.NestedExpandCommandContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#explainCommand}.
    * @param ctx the parse tree
@@ -485,17 +510,59 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitTsInfoCommand(EsqlBaseParser.TsInfoCommandContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#tsCollapseCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitTsCollapseCommand(EsqlBaseParser.TsCollapseCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#describeCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitDescribeCommand(EsqlBaseParser.DescribeCommandContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#lookupCommand}.
    * @param ctx the parse tree
    * @return the visitor result
    */
   T visitLookupCommand(EsqlBaseParser.LookupCommandContext ctx);
   /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#insistCommand}.
+   * Visit a parse tree produced by {@link EsqlBaseParser#dedupCommand}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitInsistCommand(EsqlBaseParser.InsistCommandContext ctx);
+  T visitDedupCommand(EsqlBaseParser.DedupCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#intoCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitIntoCommand(EsqlBaseParser.IntoCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#highlightCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitHighlightCommand(EsqlBaseParser.HighlightCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#qualifiedNames}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitQualifiedNames(EsqlBaseParser.QualifiedNamesContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#fillNullCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitFillNullCommand(EsqlBaseParser.FillNullCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#fillNullValue}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitFillNullValue(EsqlBaseParser.FillNullValueContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#uriPartsCommand}.
    * @param ctx the parse tree
@@ -515,6 +582,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitUserAgentCommand(EsqlBaseParser.UserAgentCommandContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#ipLocationCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitIpLocationCommand(EsqlBaseParser.IpLocationCommandContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#setCommand}.
    * @param ctx the parse tree
    * @return the visitor result
@@ -526,6 +599,18 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitSetField(EsqlBaseParser.SetFieldContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#letCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitLetCommand(EsqlBaseParser.LetCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#letBinding}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitLetBinding(EsqlBaseParser.LetBindingContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#mmrCommand}.
    * @param ctx the parse tree
@@ -547,6 +632,33 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitMmrQueryVectorExpression(EsqlBaseParser.MmrQueryVectorExpressionContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#denseVectorCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitDenseVectorCommand(EsqlBaseParser.DenseVectorCommandContext ctx);
+  /**
+   * Visit a parse tree produced by the {@code denseVectorTargetName}
+   * labeled alternative in {@link EsqlBaseParser#denseVectorNaming}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitDenseVectorTargetName(EsqlBaseParser.DenseVectorTargetNameContext ctx);
+  /**
+   * Visit a parse tree produced by the {@code denseVectorSuffix}
+   * labeled alternative in {@link EsqlBaseParser#denseVectorNaming}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitDenseVectorSuffix(EsqlBaseParser.DenseVectorSuffixContext ctx);
+  /**
+   * Visit a parse tree produced by the {@code denseVectorLiteralInput}
+   * labeled alternative in {@link EsqlBaseParser#denseVectorNaming}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitDenseVectorLiteralInput(EsqlBaseParser.DenseVectorLiteralInputContext ctx);
+  /**
    * Visit a parse tree produced by the {@code matchExpression}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
    * @param ctx the parse tree
@@ -567,6 +679,13 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitBooleanDefault(EsqlBaseParser.BooleanDefaultContext ctx);
+  /**
+   * Visit a parse tree produced by the {@code logicalInMultiColumnSubquery}
+   * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitLogicalInMultiColumnSubquery(EsqlBaseParser.LogicalInMultiColumnSubqueryContext ctx);
   /**
    * Visit a parse tree produced by the {@code isNull}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
@@ -719,6 +838,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitFunctionName(EsqlBaseParser.FunctionNameContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#lambda}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitLambda(EsqlBaseParser.LambdaContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#mapExpression}.
    * @param ctx the parse tree
    * @return the visitor result
@@ -849,11 +974,17 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitJoinCommand(EsqlBaseParser.JoinCommandContext ctx);
   /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#joinTarget}.
+   * Visit a parse tree produced by {@link EsqlBaseParser#subqueryJoinTarget}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitJoinTarget(EsqlBaseParser.JoinTargetContext ctx);
+  T visitSubqueryJoinTarget(EsqlBaseParser.SubqueryJoinTargetContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#lookupJoinTarget}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitLookupJoinTarget(EsqlBaseParser.LookupJoinTargetContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#joinCondition}.
    * @param ctx the parse tree

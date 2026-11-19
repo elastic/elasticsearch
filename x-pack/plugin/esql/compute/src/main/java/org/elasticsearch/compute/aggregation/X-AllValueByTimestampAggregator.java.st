@@ -218,7 +218,7 @@ public class $Prefix$$Occurrence$$v1_Type$By$v2_Type$Aggregator {
         $v1_Type$Block values,
         int otherPosition
     ) {
-        if (group < observed.getPositionCount() && observed.getBoolean(observed.getFirstValueIndex(otherPosition)) == false) {
+        if (observed.getBoolean(observed.getFirstValueIndex(otherPosition)) == false) {
             // The incoming state hasn't observed anything for this particular group. No work is needed.
             return;
         }
@@ -374,13 +374,15 @@ public class $Prefix$$Occurrence$$v1_Type$By$v2_Type$Aggregator {
             ) {
                 for (int p = 0; p < selected.getPositionCount(); p++) {
                     int group = selected.getInt(p);
-                    if (group <= maxGroupId) {
-                        // We must have seen this group before and saved its state
-                        observedBlockBuilder.appendBoolean(hasValue(group));
+                    // maxGroupId is the highest group this aggregator collected, not proof that `group`
+                    // itself was collected. A lower id can be selected because another aggregator created
+                    // it. Emitting that id as timestamp-present uses the unset key (often -1 or 0), which
+                    // then wins a FIRST merge.
+                    if (group <= maxGroupId && hasValue(group)) {
+                        observedBlockBuilder.appendBoolean(true);
                         hasTimestampBuilder.appendBoolean(nullKey(group) == false);
                         timestampsBuilder.append$v2_Type$(key(group));
                     } else {
-                        // Unknown group so we append nulls everywhere
                         observedBlockBuilder.appendBoolean(false);
                         hasTimestampBuilder.appendBoolean(false);
                         timestampsBuilder.appendNull();
@@ -462,42 +464,42 @@ $endif$
             try (var valuesBuilder = blockFactory.new$v1_Type$BlockBuilder(groups.getPositionCount())) {
                 for (int p = 0; p < groups.getPositionCount(); p++) {
                     int group = groups.getInt(p);
-                    if (group <= maxGroupId && hasValue(group) && nullValue(group) == false) {
-                        $v1_TailArray$ tail = getTail(group);
-                        int tailCount = tail == null ? 0 : (int) tail.size();
-                        if (tailCount == 0) {
-                            $if(v1_BytesRef)$
-                            valuesBuilder.appendBytesRef(firstValues.get(group).bytesRefView());
-                            $elseif(v1_boolean)$
-                            valuesBuilder.appendBoolean(firstValues.get(group) == 1);
-                            $else$
-                            valuesBuilder.append$v1_Type$(firstValues.get(group));
-                            $endif$
-                        } else {
-                            valuesBuilder.beginPositionEntry();
-                            $if(v1_BytesRef)$
-                            valuesBuilder.appendBytesRef(firstValues.get(group).bytesRefView());
-                            $elseif(v1_boolean)$
-                            valuesBuilder.appendBoolean(firstValues.get(group) == 1);
-                            $else$
-                            valuesBuilder.append$v1_Type$(firstValues.get(group));
-                            $endif$
-                            for (int i = 0; i < tailCount; ++i) {
-                                $if(v1_BytesRef)$
-                                BytesRef bytesScratch = new BytesRef();
-                                tail.get(i, bytesScratch);
-                                valuesBuilder.appendBytesRef(bytesScratch);
-                                $elseif(v1_boolean)$
-                                valuesBuilder.appendBoolean(tail.get(i) == 1);
-                                $else$
-                                valuesBuilder.append$v1_Type$(tail.get(i));
-                                $endif$
-                            }
-                            valuesBuilder.endPositionEntry();
-                        }
-                    } else {
+                    if (group > maxGroupId || hasValue(group) == false || nullValue(group)) {
                         valuesBuilder.appendNull();
+                        continue;
                     }
+                    $v1_TailArray$ tail = getTail(group);
+                    int tailCount = tail == null ? 0 : (int) tail.size();
+                    if (tailCount == 0) {
+                        $if(v1_BytesRef)$
+                        valuesBuilder.appendBytesRef(firstValues.get(group).bytesRefView());
+                        $elseif(v1_boolean)$
+                        valuesBuilder.appendBoolean(firstValues.get(group) == 1);
+                        $else$
+                        valuesBuilder.append$v1_Type$(firstValues.get(group));
+                        $endif$
+                        continue;
+                    }
+                    valuesBuilder.beginPositionEntry();
+                    $if(v1_BytesRef)$
+                    valuesBuilder.appendBytesRef(firstValues.get(group).bytesRefView());
+                    $elseif(v1_boolean)$
+                    valuesBuilder.appendBoolean(firstValues.get(group) == 1);
+                    $else$
+                    valuesBuilder.append$v1_Type$(firstValues.get(group));
+                    $endif$
+                    for (int i = 0; i < tailCount; ++i) {
+                        $if(v1_BytesRef)$
+                        BytesRef bytesScratch = new BytesRef();
+                        tail.get(i, bytesScratch);
+                        valuesBuilder.appendBytesRef(bytesScratch);
+                        $elseif(v1_boolean)$
+                        valuesBuilder.appendBoolean(tail.get(i) == 1);
+                        $else$
+                        valuesBuilder.append$v1_Type$(tail.get(i));
+                        $endif$
+                    }
+                    valuesBuilder.endPositionEntry();
                 }
                 return valuesBuilder.build();
             }

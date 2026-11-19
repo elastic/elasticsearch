@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.core.action.util.PageParams;
+import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
@@ -22,6 +23,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 
 public interface TransformConfigManager {
 
@@ -207,6 +209,63 @@ public interface TransformConfigManager {
     void getTransformStoredDocs(Collection<String> transformIds, TimeValue timeout, ActionListener<List<TransformStoredDoc>> listener);
 
     void refresh(ActionListener<Boolean> listener);
+
+    String CLOUD_CREDENTIAL_DOC_TYPE = "data_frame_transform_cloud_credential";
+    String CLOUD_CREDENTIAL_TOKEN_ID_FIELD = "token_id";
+    String CLOUD_CREDENTIAL_TRANSFORM_ID_FIELD = "transform_id";
+
+    /**
+     * The storage document id for a cloud credential. Cloud credentials are keyed by their UIAM
+     * {@code tokenId}, not the owning {@code transformId}: minting a new credential during update
+     * creates a new document so the prior credential remains intact until the indexer's {@code onStart}
+     * (running task) or the update action (stopped task) explicitly revokes and deletes it.
+     */
+    static String cloudCredentialDocumentId(String tokenId) {
+        return CLOUD_CREDENTIAL_DOC_TYPE + "-" + tokenId;
+    }
+
+    /**
+     * Persist a cloud credential. The credential is written under id {@code cloudCredentialDocumentId(credential.id())}
+     * using {@code op_type=create} so a duplicate {@code tokenId} fails fast with a version conflict
+     * (callers can then surface a transactional error rather than silently overwriting). The body
+     * additionally carries {@code token_id} and {@code transform_id} fields so future sweeps can
+     * reconcile orphans by transform.
+     *
+     * @param transformId the owning transform id (recorded in the document body)
+     * @param credential  the credential envelope to persist (its {@code id()} is the storage key)
+     * @param listener    listener to call after request
+     */
+    void putTransformCloudCredential(String transformId, PersistedCloudCredential credential, ActionListener<Boolean> listener);
+
+    /**
+     * Load a previously persisted cloud credential by its UIAM {@code tokenId}.
+     *
+     * @param tokenId      the UIAM token id (the credential's {@code id()})
+     * @param allowNoMatch if true, return null when no credential exists; otherwise fail with ResourceNotFoundException
+     * @param listener     listener to call with the credential or null
+     */
+    void getTransformCloudCredentialByTokenId(String tokenId, boolean allowNoMatch, ActionListener<PersistedCloudCredential> listener);
+
+    /**
+     * Delete a persisted cloud credential by its UIAM {@code tokenId}.
+     *
+     * @param tokenId  the UIAM token id (the credential's {@code id()})
+     * @param listener listener to call after request (true if deleted, false if not found)
+     */
+    void deleteCloudCredentialByTokenId(String tokenId, ActionListener<Boolean> listener);
+
+    /**
+     * Calls {@code action} for every cloud credential stored for the given {@code transformId},
+     * including both the currently-active credential and any dangling credentials left by
+     * interrupted rotations. Paginates internally so all credentials are visited regardless of
+     * count. Calls {@code listener} with {@code null} once all credentials have been processed,
+     * or on failure if a page fetch fails.
+     *
+     * @param transformId the transform id whose credentials should be visited
+     * @param action      called once per credential; must not throw
+     * @param listener    called when iteration is complete or on page-fetch failure
+     */
+    void forEachTransformCloudCredential(String transformId, Consumer<PersistedCloudCredential> action, ActionListener<Void> listener);
 
     default boolean isLatestTransformIndex(String indexName) {
         return TransformInternalIndexConstants.LATEST_INDEX_NAME.equals(indexName);

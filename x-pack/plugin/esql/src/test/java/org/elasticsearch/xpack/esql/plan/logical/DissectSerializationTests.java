@@ -11,17 +11,18 @@ import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.FieldAttributeTests;
 
 import java.io.IOException;
 import java.util.List;
+
+import static org.elasticsearch.xpack.esql.expression.function.FieldAttributeTestUtils.createFieldAttribute;
 
 public class DissectSerializationTests extends AbstractLogicalPlanSerializationTests<Dissect> {
     @Override
     protected Dissect createTestInstance() {
         Source source = randomSource();
         LogicalPlan child = randomChild(0);
-        Expression input = FieldAttributeTests.createFieldAttribute(1, false);
+        Expression input = createFieldAttribute(1, false);
         Dissect.Parser parser = randomParser();
         List<Attribute> extracted = randomFieldAttributes(0, 4, false);
         return new Dissect(source, child, input, parser, extracted);
@@ -41,7 +42,7 @@ public class DissectSerializationTests extends AbstractLogicalPlanSerializationT
         List<Attribute> extracted = randomFieldAttributes(0, 4, false);
         switch (between(0, 3)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
-            case 1 -> input = randomValueOtherThan(input, () -> FieldAttributeTests.createFieldAttribute(1, false));
+            case 1 -> input = randomValueOtherThan(input, () -> createFieldAttribute(1, false));
             case 2 -> parser = randomValueOtherThan(parser, DissectSerializationTests::randomParser);
             case 3 -> extracted = randomValueOtherThan(extracted, () -> randomFieldAttributes(0, 4, false));
         }

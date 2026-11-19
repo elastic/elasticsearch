@@ -11,12 +11,14 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -31,6 +33,7 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
 
@@ -41,7 +44,7 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSP
  * Alternatively, it is well described in PostGIS documentation at
  * <a href="https://postgis.net/docs/ST_IsEmpty.html">PostGIS:ST_IsEmpty</a>.
  */
-public class StIsEmpty extends SpatialUnaryDocValuesFunction {
+public class StIsEmpty extends SpatialUnaryDocValuesFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "StIsEmpty",
@@ -53,6 +56,7 @@ public class StIsEmpty extends SpatialUnaryDocValuesFunction {
         returnType = "boolean",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.4.0") },
+        briefSummary = "Returns true if the supplied geometry is empty.",
         description = "Returns true if the supplied geometry is empty.\n"
             + "An empty geometry is one that has no points, such as an empty geometry collection or an empty linestring.",
         examples = @Example(file = "spatial_shapes", tag = "st_isempty"),
@@ -88,7 +92,7 @@ public class StIsEmpty extends SpatialUnaryDocValuesFunction {
         if (spatialDocValues) {
             return new StIsEmptyFromPointDocValuesEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
         }
-        return new StIsEmptyFromWKBEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
+        return new StIsEmptyFromWKBEvaluator.Factory(source(), toEvaluator.apply(spatialField()), context -> new BytesRef());
     }
 
     @Override
@@ -120,8 +124,12 @@ public class StIsEmpty extends SpatialUnaryDocValuesFunction {
     }
 
     @Evaluator(extraName = "FromWKB", warnExceptions = { IllegalArgumentException.class })
-    static void fromWellKnownBinary(BooleanBlock.Builder results, @Position int p, BytesRefBlock wkbBlock) {
-        BytesRef scratch = new BytesRef();
+    static void fromWellKnownBinary(
+        BooleanBlock.Builder results,
+        @Position int p,
+        BytesRefBlock wkbBlock,
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) BytesRef scratch
+    ) {
         int firstValueIndex = wkbBlock.getFirstValueIndex(p);
         int valueCount = wkbBlock.getValueCount(p);
         if (valueCount == 0) {

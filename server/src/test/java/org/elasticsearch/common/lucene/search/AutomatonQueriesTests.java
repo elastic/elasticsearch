@@ -10,58 +10,103 @@
 package org.elasticsearch.common.lucene.search;
 
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.tests.util.automaton.AutomatonTestUtil;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Locale;
 
 public class AutomatonQueriesTests extends ESTestCase {
 
-    public void testToCaseInsensitiveChar() {
-        int codepoint = randomBoolean() ? randomInt(128) : randomUnicodeOfLength(1).codePointAt(0);
-        Automaton automaton = AutomatonQueries.toCaseInsensitiveChar(codepoint);
+    public void testCaseInsensitiveCharHandlesAscii() {
+        // Verify ASCII case folding works through Lucene's makeCaseInsensitiveChar
+        int codepoint = randomInt(128);
+        Automaton automaton = Automata.makeCaseInsensitiveChar(codepoint);
         assertTrue(automaton.isDeterministic());
         ByteRunAutomaton runAutomaton = new ByteRunAutomaton(automaton);
         BytesRef br = new BytesRef(new String(Character.toChars(codepoint)));
         assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
-        // only codepoints below 128 are converted to a case-insensitive automaton, so only test that for those cases
-        if (codepoint <= 128) {
-            int altCase = Character.isLowerCase(codepoint) ? Character.toUpperCase(codepoint) : Character.toLowerCase(codepoint);
-            br = new BytesRef(new String(Character.toChars(altCase)));
-            assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
-        }
+        int altCase = Character.isLowerCase(codepoint) ? Character.toUpperCase(codepoint) : Character.toLowerCase(codepoint);
+        br = new BytesRef(new String(Character.toChars(altCase)));
+        assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
     }
 
-    public void testToCaseInsensitiveString() {
+    public void testCaseInsensitiveCharHandlesUnicode() {
+        // Verify Unicode case folding works for non-ASCII codepoints
+        int codepoint = randomUnicodeOfLength(1).codePointAt(0);
+        Automaton automaton = Automata.makeCaseInsensitiveChar(codepoint);
+        assertTrue(automaton.isDeterministic());
+        ByteRunAutomaton runAutomaton = new ByteRunAutomaton(automaton);
+        // original codepoint is always accepted
+        BytesRef br = new BytesRef(new String(Character.toChars(codepoint)));
+        assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
+        // uppercase and lowercase variants are accepted
+        int upper = Character.toUpperCase(codepoint);
+        br = new BytesRef(new String(Character.toChars(upper)));
+        assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
+        int lower = Character.toLowerCase(codepoint);
+        br = new BytesRef(new String(Character.toChars(lower)));
+        assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
+    }
+
+    public void testCaseInsensitiveCharHandlesSpecialUnicodeMappings() {
+        // Kelvin sign (U+212A) should match K and k
+        Automaton automaton = Automata.makeCaseInsensitiveChar(0x212A);
+        ByteRunAutomaton runAutomaton = new ByteRunAutomaton(automaton);
+        BytesRef br = new BytesRef("\u212A");
+        assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
+        br = new BytesRef("K");
+        assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
+        br = new BytesRef("k");
+        assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
+
+        // K should also match Kelvin sign
+        automaton = Automata.makeCaseInsensitiveChar('K');
+        runAutomaton = new ByteRunAutomaton(automaton);
+        br = new BytesRef("K");
+        assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
+        br = new BytesRef("k");
+        assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
+        br = new BytesRef("\u212A");
+        assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
+
+        // Long S (U+017F) should match s and S
+        automaton = Automata.makeCaseInsensitiveChar(0x017F);
+        runAutomaton = new ByteRunAutomaton(automaton);
+        br = new BytesRef("\u017F");
+        assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
+        br = new BytesRef("s");
+        assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
+        br = new BytesRef("S");
+        assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
+
+        // Micro sign (U+00B5) should match Greek small letter mu (U+03BC) and Greek capital letter mu (U+039C)
+        automaton = Automata.makeCaseInsensitiveChar(0x00B5);
+        runAutomaton = new ByteRunAutomaton(automaton);
+        br = new BytesRef("\u00B5");
+        assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
+        br = new BytesRef("\u03BC");
+        assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
+        br = new BytesRef("\u039C");
+        assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
+    }
+
+    public void testMakeCaseInsensitiveString() {
         String s = randomAlphaOfLengthBetween(10, 100);
-        Automaton automaton = AutomatonQueries.toCaseInsensitiveString(s);
+        Automaton automaton = Automata.makeCaseInsensitiveString(s);
         assertTrue(automaton.isDeterministic());
         ByteRunAutomaton runAutomaton = new ByteRunAutomaton(automaton);
         BytesRef br = new BytesRef(s);
         assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
         br = new BytesRef(randomBoolean() ? s.toLowerCase(Locale.ROOT) : s.toUpperCase(Locale.ROOT));
-        assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
-
-        // we cannot really upper/lowercase any random unicode string, for details
-        // see restrictions in AutomatonQueries.toCaseInsensitiveChar, but we can
-        // at least check the original string is accepted
-        s = randomRealisticUnicodeOfLengthBetween(10, 100);
-        automaton = AutomatonQueries.toCaseInsensitiveString(s);
-        runAutomaton = new ByteRunAutomaton(automaton);
-        br = new BytesRef(s);
-        assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
-
-        s = randomUnicodeOfLengthBetween(10, 100);
-        automaton = AutomatonQueries.toCaseInsensitiveString(s);
-        runAutomaton = new ByteRunAutomaton(automaton);
-        br = new BytesRef(s);
         assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
     }
 
@@ -75,21 +120,6 @@ public class AutomatonQueriesTests extends ESTestCase {
         br = new BytesRef(
             (randomBoolean() ? s.toLowerCase(Locale.ROOT) : s.toUpperCase(Locale.ROOT)) + randomRealisticUnicodeOfLengthBetween(10, 20)
         );
-        assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
-
-        // We cannot uppercase or lowercase any random unicode string.
-        // For details see restrictions in AutomatonQueries.toCaseInsensitiveChar.
-        // However, we can at least check the original string is accepted here.
-        s = randomRealisticUnicodeOfLengthBetween(10, 100);
-        automaton = AutomatonQueries.caseInsensitivePrefix(s);
-        runAutomaton = new ByteRunAutomaton(automaton);
-        br = new BytesRef(s + randomRealisticUnicodeOfLengthBetween(10, 20));
-        assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
-
-        s = randomUnicodeOfLengthBetween(10, 100);
-        automaton = AutomatonQueries.caseInsensitivePrefix(s);
-        runAutomaton = new ByteRunAutomaton(automaton);
-        br = new BytesRef(s + randomRealisticUnicodeOfLengthBetween(10, 20));
         assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
     }
 
@@ -159,6 +189,24 @@ public class AutomatonQueriesTests extends ESTestCase {
         assertEquals(expected, AutomatonQueries.collapseConsecutiveQuantifiers(input));
     }
 
+    public void testToRegexpAutomatonReservesAndReleasesBreakerMemory() {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofGb(1));
+        Term term = new Term("field", "a{100}b?c*");
+        Automaton dfa = AutomatonQueries.toRegexpAutomaton(term, RegExp.ALL, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, breaker);
+        assertTrue(dfa.isDeterministic());
+        assertEquals("all reserved memory should be released after a successful build", 0, breaker.getUsed());
+    }
+
+    public void testToRegexpAutomatonTripsBreakerForHugeRepetitionBeforeBuild() {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(500));
+        Term term = new Term("field", "a{10000000}");
+        expectThrows(
+            CircuitBreakingException.class,
+            () -> AutomatonQueries.toRegexpAutomaton(term, RegExp.ALL, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, breaker)
+        );
+        assertEquals("no memory should remain reserved after the breaker trips", 0, breaker.getUsed());
+    }
+
     private static void assertCollapsedAndLanguagePreserved(String pattern, String collapsed) {
         assertCollapsed(pattern, collapsed);
         Automaton originalAutomaton = Operations.determinize(new RegExp(pattern).toAutomaton(), 10_000);
@@ -206,84 +254,4 @@ public class AutomatonQueriesTests extends ESTestCase {
         return '?';
     }
 
-    // ------------------------------------------------------------------
-    // Pre-flight reservation sizing for the CompiledAutomaton blind window (#147428)
-    // ------------------------------------------------------------------
-
-    public void testCompiledAutomatonReservationBytesScalesWithDfa() {
-        // Pick inputs that comfortably exceed the floor so we exercise the multiplier path,
-        // not the floor.
-        long mediumDfa = AutomatonQueries.COMPILED_AUTOMATON_RESERVATION_FLOOR_BYTES;
-        long largeDfa = mediumDfa * 100;
-        assertEquals(
-            mediumDfa * AutomatonQueries.COMPILED_AUTOMATON_PEAK_MULTIPLIER,
-            AutomatonQueries.compiledAutomatonReservationBytes(mediumDfa)
-        );
-        assertEquals(
-            largeDfa * AutomatonQueries.COMPILED_AUTOMATON_PEAK_MULTIPLIER,
-            AutomatonQueries.compiledAutomatonReservationBytes(largeDfa)
-        );
-    }
-
-    public void testCompiledAutomatonReservationBytesAppliesFloorForSmallDfa() {
-        // A tiny DFA's K-multiplied size is below the floor; the floor must dominate.
-        long tinyDfa = 100L;
-        long reservation = AutomatonQueries.compiledAutomatonReservationBytes(tinyDfa);
-        assertEquals(AutomatonQueries.COMPILED_AUTOMATON_RESERVATION_FLOOR_BYTES, reservation);
-        assertTrue(
-            "reservation must not regress below the floor",
-            reservation >= AutomatonQueries.COMPILED_AUTOMATON_RESERVATION_FLOOR_BYTES
-        );
-    }
-
-    public void testCompiledAutomatonReservationBytesIsZeroSafe() {
-        // Defensive: a 0-byte DFA shouldn't yield a 0 reservation; the floor still applies.
-        assertEquals(AutomatonQueries.COMPILED_AUTOMATON_RESERVATION_FLOOR_BYTES, AutomatonQueries.compiledAutomatonReservationBytes(0));
-    }
-
-    /**
-     * Verifies that the pre-flight CB reservation covers the post-construction query size for each
-     * known pattern family. {@code reservation / actual} ratios are logged so they can be used to
-     * tune {@link AutomatonQueries#COMPILED_AUTOMATON_PEAK_MULTIPLIER} and
-     * {@link AutomatonQueries#COMPILED_AUTOMATON_RESERVATION_FLOOR_BYTES} over time.
-     * <p>
-     * Note: {@code actual} is the final retained size from {@code query.ramBytesUsed()}, not the
-     * construction peak. The reservation must cover the peak; this test only verifies the final
-     * state as a lower bound.
-     */
-    public void testCompiledAutomatonReservationCoversActualSize() {
-        NoopCircuitBreaker breaker = new NoopCircuitBreaker("test");
-        String[][] patterns = {
-            { "simple_ascii", "foo*bar" },
-            { "many_wildcards", "a*b?c*d?e*f?g*h" },
-            { "multibyte_utf8", "日".repeat(60) + "*" },
-            { "adversarial_question", "?".repeat(1000) },
-            { "long_literal", "a".repeat(50) + "*" + "b".repeat(50) }, };
-        for (String[] entry : patterns) {
-            String name = entry[0];
-            String pattern = entry[1];
-            Term term = new Term("field", pattern);
-            Automaton dfa = AutomatonQueries.toWildcardAutomaton(term, breaker);
-            long reservation = AutomatonQueries.compiledAutomatonReservationBytes(dfa.ramBytesUsed());
-            long actual = new WildcardQuery(term).ramBytesUsed();
-            logger.info(
-                "CB reservation ratio [{}]: dfa={} B  reservation={} B  actual={} B  ratio={}",
-                name,
-                dfa.ramBytesUsed(),
-                reservation,
-                actual,
-                String.format(java.util.Locale.ROOT, "%.1f", (double) reservation / actual)
-            );
-            assertTrue("reservation must cover actual size for pattern [" + name + "]", reservation >= actual);
-        }
-    }
-
-    public void testCompiledAutomatonReservationBytesSaturatesOnOverflow() {
-        // A DFA so large that ramBytes * multiplier would overflow long arithmetic must saturate
-        // to Long.MAX_VALUE rather than wrap to a small positive (or negative) value that would
-        // silently under-reserve.
-        long overflowingDfa = Long.MAX_VALUE / AutomatonQueries.COMPILED_AUTOMATON_PEAK_MULTIPLIER + 1;
-        assertEquals(Long.MAX_VALUE, AutomatonQueries.compiledAutomatonReservationBytes(overflowingDfa));
-        assertEquals(Long.MAX_VALUE, AutomatonQueries.compiledAutomatonReservationBytes(Long.MAX_VALUE));
-    }
 }

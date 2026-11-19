@@ -31,6 +31,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsString;
@@ -814,14 +815,14 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
         createMapperService(mapping.apply("_doc"));
 
         // explicitly setting limit to 0 prevents nested fields
-        Exception e = expectThrows(IllegalArgumentException.class, () -> {
+        Exception e = expectThrows(MapperParsingException.class, () -> {
             Settings settings = Settings.builder().put(MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING.getKey(), 0).build();
             createMapperService(settings, mapping.apply("_doc"));
         });
         assertThat(e.getMessage(), containsString("Limit of nested fields [0] has been exceeded"));
 
         // setting limit to 1 with 2 nested fields fails
-        e = expectThrows(IllegalArgumentException.class, () -> {
+        e = expectThrows(MapperParsingException.class, () -> {
             Settings settings = Settings.builder().put(MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING.getKey(), 1).build();
             createMapperService(settings, mapping.apply("_doc"));
         });
@@ -1215,7 +1216,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
         mergeDynamicUpdate(mapperService, doc.dynamicMappingsUpdate());
         mergeDynamicUpdate(mapperService, doc.dynamicMappingsUpdate());
 
-        assertThat(Strings.toString(mapperService.documentMapper().mapping()), containsString("""
+        assertThat(mapperService.documentMapper().mappingSource().string(), containsString("""
             "properties":{"object":{"type":"nested","include_in_parent":true}}"""));
     }
 
@@ -1503,14 +1504,59 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
         }
     }
 
-    public void testNestedDoesNotSupportSubobjectsParameter() {
-        MapperParsingException exception = expectThrows(
-            MapperParsingException.class,
-            () -> createDocumentMapper(
-                mapping(b -> b.startObject("nested1").field("type", "nested").field("subobjects", randomBoolean()).endObject())
-            )
+    public void testNestedSubobjectsDefaultsToRootAndCanBeOverridden() throws IOException {
+        // Default: a nested field inherits the root's subobjects (true here), so a sub-object stays hierarchical.
+        MapperService inherited = createMapperService(mapping(b -> {
+            b.startObject("nested1");
+            {
+                b.field("type", "nested");
+                b.startObject("properties");
+                {
+                    b.startObject("foo");
+                    {
+                        b.startObject("properties");
+                        b.startObject("bar").field("type", "keyword").endObject();
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+        assertThat(inherited.mappingLookup().objectMappers().get("nested1.foo"), instanceOf(ObjectMapper.class));
+        assertEquals(ObjectMapper.Subobjects.ENABLED, inherited.mappingLookup().objectMappers().get("nested1").subobjects());
+        assertNotNull(inherited.fieldType("nested1.foo.bar"));
+
+        // Override: subobjects:false on the nested field keeps the dotted child flat (no intermediate object), and a
+        // declared sub-object is auto-flattened to dotted leaves there just like at the root.
+        MapperService overridden = createMapperService(mapping(b -> {
+            b.startObject("nested1");
+            {
+                b.field("type", "nested");
+                b.field("subobjects", false);
+                b.startObject("properties");
+                b.startObject("foo.bar").field("type", "keyword").endObject();
+                b.startObject("meta");
+                {
+                    b.startObject("properties");
+                    b.startObject("host").field("type", "keyword").endObject();
+                    b.endObject();
+                }
+                b.endObject();
+                b.endObject();
+            }
+            b.endObject();
+        }));
+        assertNull(overridden.mappingLookup().objectMappers().get("nested1.foo"));
+        assertNull(
+            "a sub-object inside a subobjects:false nested is flattened away",
+            overridden.mappingLookup().objectMappers().get("nested1.meta")
         );
-        assertEquals("Failed to parse mapping: Nested type [nested1] does not support [subobjects] parameter", exception.getMessage());
+        assertNotNull(overridden.fieldType("nested1.foo.bar"));
+        assertNotNull(overridden.fieldType("nested1.meta.host"));
+        ObjectMapper nested1 = overridden.mappingLookup().objectMappers().get("nested1");
+        assertEquals(ObjectMapper.Subobjects.DISABLED, nested1.subobjects());
     }
 
     public void testIndexTemplatesMergeIncludes() throws IOException {
@@ -1537,7 +1583,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
                     }
                 }}}
                 """);
-            assertThat(Strings.toString(mapperService.documentMapper().mapping()), containsString("""
+            assertThat(mapperService.documentMapper().mappingSource().string(), containsString("""
                 {"type":"nested","include_in_parent":true,"properties":{"""));
         }
         {
@@ -1563,7 +1609,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
                     }
                 }}}
                 """);
-            assertThat(Strings.toString(mapperService.documentMapper().mapping()), containsString("""
+            assertThat(mapperService.documentMapper().mappingSource().string(), containsString("""
                 {"type":"nested","include_in_parent":true,"properties":{"""));
         }
     }
@@ -1578,7 +1624,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
 
         MapperException e = expectThrows(
             MapperException.class,
-            () -> firstBuilder.mergeWith(secondBuilder, MapperMergeContext.root(false, false, MergeReason.MAPPING_UPDATE, Long.MAX_VALUE))
+            () -> firstBuilder.mergeWith(secondBuilder, new TestRootMapperMergeContextBuilder(MergeReason.MAPPING_UPDATE).build())
         );
         assertThat(e.getMessage(), containsString("[include_in_parent] parameter can't be updated on a nested object mapping"));
 
@@ -1588,12 +1634,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
         NestedObjectMapper.Builder secondBuilder2 = new NestedObjectMapper.Builder("nested1", IndexVersion.current(), query -> {
             throw new UnsupportedOperationException();
         }, null).includeInParent(false).includeInRoot(true);
-        MapperMergeContext templateContext = MapperMergeContext.root(
-            false,
-            false,
-            MapperService.MergeReason.INDEX_TEMPLATE,
-            Long.MAX_VALUE
-        );
+        MapperMergeContext templateContext = new TestRootMapperMergeContextBuilder(MapperService.MergeReason.INDEX_TEMPLATE).build();
         NestedObjectMapper result = (NestedObjectMapper) firstBuilder2.mergeWith(secondBuilder2, templateContext)
             .build(templateContext.getMapperBuilderContext());
         assertFalse(result.isIncludeInParent());
@@ -1945,6 +1986,16 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
             public Mapper.Builder mergeWith(Mapper.Builder incoming, MapperMergeContext mergeContext) {
                 return incoming;
             }
+
+            @Override
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) {
+                throw new UnsupportedOperationException("this builder is only here to observe the context it is built under");
+            }
+
+            @Override
+            public void collectFieldBuilders(String parentPath, BiConsumer<String, Mapper.Builder> consumer) {
+                throw new UnsupportedOperationException("this builder is only here to observe the context it is built under");
+            }
         });
         NestedObjectMapper nestedObjectMapper = builder.build(mapperBuilderContext);
         assertNotNull(nestedObjectMapper.getMapper("name"));
@@ -1953,6 +2004,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
     public void testIsInNestedContext() {
         NestedObjectMapper.NestedMapperBuilderContext context = new NestedObjectMapper.NestedMapperBuilderContext(
             "nested_path",
+            false,
             false,
             false,
             false,

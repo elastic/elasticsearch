@@ -19,6 +19,7 @@ import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -42,7 +43,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  *     {@link org.elasticsearch.xpack.esql.expression.function.scalar}.
  * </p>
  */
-public abstract class AbstractConvertFunction extends UnaryScalarFunction implements ConvertFunction {
+public abstract class AbstractConvertFunction extends UnaryScalarFunction implements ConvertFunction, AnyNullIsNull {
 
     // the numeric types convert functions need to handle; the other numeric types are converted upstream to one of these
     private static final List<DataType> NUMERIC_TYPES = List.of(DataType.INTEGER, DataType.LONG, DataType.UNSIGNED_LONG, DataType.DOUBLE);
@@ -104,6 +105,14 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction implem
     }
 
     /**
+     * A placeholder in a static map of factories, for a {@code type} whose factory needs the configuration, so each instance
+     * builds it in {@link #factories()}. It throws if used, which would mean the factory was taken from the static map.
+     */
+    protected static BuildFactory builtInFactories(DataType type) {
+        return (source, field) -> { throw new IllegalStateException("the evaluator for [" + type + "] is built in factories()"); };
+    }
+
+    /**
      * A map from input type to {@link ExpressionEvaluator} ctor. Usually implemented like:
      * <pre>{@code
      *     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
@@ -134,7 +143,7 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction implem
 
         protected AbstractEvaluator(DriverContext driverContext, Source source) {
             this.driverContext = driverContext;
-            this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+            this.warnings = driverContext.createWarnings(source);
         }
 
         protected abstract ExpressionEvaluator next();

@@ -1,0 +1,7 @@
+FROM employees
+| STATS matching = COUNT(*) WHERE emp_no IN (
+    FROM employees_all
+    | WHERE emp_no <= 10003
+    | KEEP emp_no
+  ),
+  total = COUNT(*)

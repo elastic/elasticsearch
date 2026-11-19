@@ -43,7 +43,6 @@ public class ES92GpuHnswVectorsFormat extends KnnVectorsFormat {
     public static final int DEFAULT_MAX_CONN = (2 + Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN * 2 / 3); // graph degree
     public static final int DEFAULT_BEAM_WIDTH = Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN + Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN
         * Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH / 256; // intermediate graph degree
-    static final int MIN_NUM_VECTORS_FOR_GPU_BUILD = 2;
 
     private static final FlatVectorsFormat flatVectorsFormat = new Lucene99FlatVectorsFormat(
         FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
@@ -58,6 +57,10 @@ public class ES92GpuHnswVectorsFormat extends KnnVectorsFormat {
 
     public ES92GpuHnswVectorsFormat() {
         this(CuVSResourceManager::pooling, CuVSGPUSupport.instance().getTotalGpuMemory(), DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH);
+    }
+
+    public ES92GpuHnswVectorsFormat(int maxConn, int beamWidth) {
+        this(CuVSResourceManager::pooling, CuVSGPUSupport.instance().getTotalGpuMemory(), maxConn, beamWidth);
     }
 
     public ES92GpuHnswVectorsFormat(long totalDeviceMemory, int maxConn, int beamWidth) {
@@ -85,6 +88,7 @@ public class ES92GpuHnswVectorsFormat extends KnnVectorsFormat {
             state,
             maxConn,
             beamWidth,
+            flatVectorsFormat,
             flatVectorsFormat.fieldsWriter(state)
         );
     }

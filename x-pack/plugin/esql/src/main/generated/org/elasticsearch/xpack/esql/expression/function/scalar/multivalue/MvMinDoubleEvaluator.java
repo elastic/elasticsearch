@@ -39,13 +39,13 @@ public final class MvMinDoubleEvaluator extends AbstractMultivalueFunction.Abstr
     }
     DoubleBlock v = (DoubleBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+    try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount, true)) {
       for (int p = 0; p < positionCount; p++) {
-        int valueCount = v.getValueCount(p);
-        if (valueCount == 0) {
+        if (v.isNull(p)) {
           builder.appendNull();
           continue;
         }
+        int valueCount = v.getValueCount(p);
         int first = v.getFirstValueIndex(p);
         int end = first + valueCount;
         double value = v.getDouble(first);
@@ -70,7 +70,7 @@ public final class MvMinDoubleEvaluator extends AbstractMultivalueFunction.Abstr
     }
     DoubleBlock v = (DoubleBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    try (DoubleVector.FixedBuilder builder = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
+    try (DoubleVector.FixedBuilder builder = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount, true)) {
       for (int p = 0; p < positionCount; p++) {
         int valueCount = v.getValueCount(p);
         int first = v.getFirstValueIndex(p);
@@ -93,13 +93,13 @@ public final class MvMinDoubleEvaluator extends AbstractMultivalueFunction.Abstr
   private Block evalAscendingNullable(Block fieldVal) {
     DoubleBlock v = (DoubleBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+    try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount, true)) {
       for (int p = 0; p < positionCount; p++) {
-        int valueCount = v.getValueCount(p);
-        if (valueCount == 0) {
+        if (v.isNull(p)) {
           builder.appendNull();
           continue;
         }
+        int valueCount = v.getValueCount(p);
         int first = v.getFirstValueIndex(p);
         int idx = MvMin.ascendingIndex(valueCount);
         double result = v.getDouble(first + idx);
@@ -115,7 +115,7 @@ public final class MvMinDoubleEvaluator extends AbstractMultivalueFunction.Abstr
   private Block evalAscendingNotNullable(Block fieldVal) {
     DoubleBlock v = (DoubleBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    try (DoubleVector.FixedBuilder builder = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
+    try (DoubleVector.FixedBuilder builder = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount, true)) {
       for (int p = 0; p < positionCount; p++) {
         int valueCount = v.getValueCount(p);
         int first = v.getFirstValueIndex(p);

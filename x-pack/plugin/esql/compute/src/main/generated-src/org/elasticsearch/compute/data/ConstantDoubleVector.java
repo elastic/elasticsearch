@@ -21,7 +21,7 @@ import java.util.Arrays;
  * Vector implementation that stores a constant double value.
  * This class is generated. Edit {@code X-ConstantVector.java.st} instead.
  */
-final class ConstantDoubleVector extends AbstractVector implements DoubleVector {
+public final class ConstantDoubleVector extends AbstractVector implements DoubleVector {
 
     static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantDoubleVector.class);
 
@@ -53,8 +53,8 @@ final class ConstantDoubleVector extends AbstractVector implements DoubleVector 
     }
 
     @Override
-    public DoubleVector filter(boolean mayContainDuplicates, int... positions) {
-        return blockFactory().newConstantDoubleVector(value, positions.length);
+    public DoubleVector filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
+        return blockFactory().newConstantDoubleVector(value, length);
     }
 
     @Override

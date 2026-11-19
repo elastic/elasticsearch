@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `VALUES` function [esql-values]
 
-:::{include} ../../_snippets/functions/layout/values.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/values.md
 :::

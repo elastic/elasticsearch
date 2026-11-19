@@ -25,6 +25,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -57,12 +59,6 @@ import java.util.Map;
 public class ICUCollationKeywordFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "icu_collation_keyword";
-
-    private static final DocValuesParameter.Values DEFAULT_DOC_VALUES_PARAMS = new DocValuesParameter.Values(
-        true,
-        DocValuesParameter.Values.Cardinality.LOW,
-        true
-    );
 
     public static final class CollationFieldType extends StringFieldType {
         private final Collator collator;
@@ -172,7 +168,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             SearchExecutionContext context,
             @Nullable MultiTermQuery.RewriteMethod rewriteMethod
         ) {
-            throw new UnsupportedOperationException("[fuzzy] queries are not supported on [" + CONTENT_TYPE + "] fields.");
+            throw new IllegalArgumentException("[fuzzy] queries are not supported on [" + CONTENT_TYPE + "] fields.");
         }
 
         @Override
@@ -182,7 +178,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             boolean caseInsensitive,
             SearchExecutionContext context
         ) {
-            throw new UnsupportedOperationException("[prefix] queries are not supported on [" + CONTENT_TYPE + "] fields.");
+            throw new IllegalArgumentException("[prefix] queries are not supported on [" + CONTENT_TYPE + "] fields.");
         }
 
         @Override
@@ -192,7 +188,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             boolean caseInsensitive,
             SearchExecutionContext context
         ) {
-            throw new UnsupportedOperationException("[wildcard] queries are not supported on [" + CONTENT_TYPE + "] fields.");
+            throw new IllegalArgumentException("[wildcard] queries are not supported on [" + CONTENT_TYPE + "] fields.");
         }
 
         @Override
@@ -204,7 +200,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             MultiTermQuery.RewriteMethod method,
             SearchExecutionContext context
         ) {
-            throw new UnsupportedOperationException("[regexp] queries are not supported on [" + CONTENT_TYPE + "] fields.");
+            throw new IllegalArgumentException("[regexp] queries are not supported on [" + CONTENT_TYPE + "] fields.");
         }
 
         public static final DocValueFormat COLLATE_FORMAT = new DocValueFormat() {
@@ -247,49 +243,45 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
     public static class Builder extends FieldMapper.Builder {
 
         final Parameter<Boolean> indexed;
-        final DocValuesParameter docValuesPameters = DocValuesParameter.ofWithCardinality(
-            DEFAULT_DOC_VALUES_PARAMS,
-            m -> toType(m).docValuesParams()
-        );
-        final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).fieldType.stored(), false);
+        final DocValuesParameter docValuesPameters;
+        final Parameter<Boolean> stored = Parameter.storeParam(false);
 
-        final Parameter<String> indexOptions = TextParams.keywordIndexOptions(m -> toType(m).indexOptions);
-        final Parameter<Boolean> hasNorms = Parameter.normsParam(m -> toType(m).fieldType.omitNorms() == false, false);
+        final Parameter<String> indexOptions = TextParams.keywordIndexOptions();
+        final Parameter<Boolean> hasNorms = Parameter.normsParam(false);
 
         final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
-        final Parameter<String> rules = Parameter.stringParam("rules", false, m -> toType(m).params.rules, null).acceptsNull();
-        final Parameter<String> language = Parameter.stringParam("language", false, m -> toType(m).params.language, null).acceptsNull();
-        final Parameter<String> country = Parameter.stringParam("country", false, m -> toType(m).params.country, null).acceptsNull();
-        final Parameter<String> variant = Parameter.stringParam("variant", false, m -> toType(m).params.variant, null).acceptsNull();
-        final Parameter<String> strength = Parameter.stringParam("strength", false, m -> toType(m).params.strength, null).acceptsNull();
-        final Parameter<String> decomposition = Parameter.stringParam("decomposition", false, m -> toType(m).params.decomposition, null)
-            .acceptsNull();
-        final Parameter<String> alternate = Parameter.stringParam("alternate", false, m -> toType(m).params.alternate, null).acceptsNull();
-        final Parameter<Boolean> caseLevel = Parameter.boolParam("case_level", false, m -> toType(m).params.caseLevel, false);
-        final Parameter<String> caseFirst = Parameter.stringParam("case_first", false, m -> toType(m).params.caseFirst, null).acceptsNull();
-        final Parameter<Boolean> numeric = Parameter.boolParam("numeric", false, m -> toType(m).params.numeric, false);
-        final Parameter<String> variableTop = Parameter.stringParam("variable_top", false, m -> toType(m).params.variableTop, null)
-            .acceptsNull();
-        final Parameter<Boolean> hiraganaQuaternaryMode = Parameter.boolParam(
-            "hiragana_quaternary_mode",
-            false,
-            m -> toType(m).params.hiraganaQuaternaryMode,
-            false
-        ).acceptsNull();
+        final Parameter<String> rules = Parameter.stringParam("rules", false, null).acceptsNull();
+        final Parameter<String> language = Parameter.stringParam("language", false, null).acceptsNull();
+        final Parameter<String> country = Parameter.stringParam("country", false, null).acceptsNull();
+        final Parameter<String> variant = Parameter.stringParam("variant", false, null).acceptsNull();
+        final Parameter<String> strength = Parameter.stringParam("strength", false, null).acceptsNull();
+        final Parameter<String> decomposition = Parameter.stringParam("decomposition", false, null).acceptsNull();
+        final Parameter<String> alternate = Parameter.stringParam("alternate", false, null).acceptsNull();
+        final Parameter<Boolean> caseLevel = Parameter.boolParam("case_level", false, false);
+        final Parameter<String> caseFirst = Parameter.stringParam("case_first", false, null).acceptsNull();
+        final Parameter<Boolean> numeric = Parameter.boolParam("numeric", false, false);
+        final Parameter<String> variableTop = Parameter.stringParam("variable_top", false, null).acceptsNull();
+        final Parameter<Boolean> hiraganaQuaternaryMode = Parameter.boolParam("hiragana_quaternary_mode", false, false).acceptsNull();
 
-        final Parameter<Integer> ignoreAbove = Parameter.ignoreAboveParam(
-            m -> toType(m).ignoreAbove,
-            IgnoreAbove.IGNORE_ABOVE_DEFAULT_VALUE
-        );
-        final Parameter<String> nullValue = Parameter.stringParam("null_value", false, m -> toType(m).nullValue, null).acceptsNull();
+        final Parameter<Integer> ignoreAbove = Parameter.ignoreAboveParam(IgnoreAbove.IGNORE_ABOVE_DEFAULT_VALUE);
+        final Parameter<String> nullValue = Parameter.stringParam("null_value", false, null).acceptsNull();
 
-        private final boolean indexDisabledByDefault;
+        private final IndexSettings indexSettings;
 
-        public Builder(String name, boolean indexDisabledByDefault) {
+        public Builder(String name, IndexSettings indexSettings) {
             super(name);
-            indexed = Parameter.indexParam(m -> toType(m).indexed, indexDisabledByDefault == false);
-            this.indexDisabledByDefault = indexDisabledByDefault;
+            this.indexSettings = indexSettings;
+            indexed = Parameter.indexParam(indexSettings.isIndexDisabledByDefault() == false);
+            this.docValuesPameters = DocValuesParameter.of(
+                DocValuesParameter.defaultValues(
+                    indexSettings,
+                    DocValuesParameter.Values.ENABLED_LOW_CARDINALITY,
+                    DocValuesParameter.Values.Cardinality.HIGH,
+                    IndexVersions.DOC_VALUES_DEFAULTS_FOR_ALL_MAPPERS
+                ),
+                indexSettings
+            );
         }
 
         Builder nullValue(String nullValue) {
@@ -307,6 +299,9 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             return new Parameter<?>[] {
                 indexed,
                 docValuesPameters,
+                docValuesPameters.multiValue(),
+                docValuesPameters.nullability(),
+                docValuesPameters.onFailure(),
                 stored,
                 indexOptions,
                 hasNorms,
@@ -381,7 +376,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.getIndexSettings().isIndexDisabledByDefault()));
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.getIndexSettings()));
 
     private static class CollatorParams {
         private String rules;
@@ -496,13 +491,9 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
 
     private final int ignoreAbove;
     private final Collator collator;
-    private final CollatorParams params;
     private final String nullValue;
     private final FieldType fieldType;
-    private final boolean indexed;
-    private final String indexOptions;
     private final DocValuesParameter.Values docValuesParams;
-    private final boolean indexDisabledByDefault;
 
     protected ICUCollationKeywordFieldMapper(
         String simpleName,
@@ -515,18 +506,29 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         super(simpleName, mappedFieldType, builderParams);
         assert collator.isFrozen();
         this.fieldType = freezeAndDeduplicateFieldType(fieldType);
-        this.params = builder.collatorParams();
         this.ignoreAbove = builder.ignoreAbove.getValue();
         this.collator = collator;
         this.nullValue = builder.nullValue.getValue();
-        this.indexed = builder.indexed.getValue();
-        this.indexOptions = builder.indexOptions.getValue();
         this.docValuesParams = builder.docValuesPameters.getValue();
-        this.indexDisabledByDefault = builder.indexDisabledByDefault;
     }
 
     public DocValuesParameter.Values docValuesParams() {
         return docValuesParams;
+    }
+
+    @Override
+    public boolean isNullable() {
+        return docValuesParams.nullability() || nullValue != null;
+    }
+
+    @Override
+    protected boolean shouldEnforceSingleValue(XContentParser.Token token) {
+        return docValuesParams.multiValue() == false && (token != XContentParser.Token.VALUE_NULL || nullValue != null);
+    }
+
+    @Override
+    protected DocValuesParameter.Values.OnFailure onFailureBehavior() {
+        return docValuesParams.onFailure();
     }
 
     @Override
@@ -542,11 +544,6 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
-    }
-
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), indexDisabledByDefault).init(this);
     }
 
     @Override

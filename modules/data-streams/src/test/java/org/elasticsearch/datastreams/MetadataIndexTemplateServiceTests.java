@@ -12,8 +12,8 @@ package org.elasticsearch.datastreams;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettingProviders;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
@@ -53,7 +54,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * Variant of MetadataIndexTemplateServiceTests in server module, but with {@link DataStreamIndexSettingsProvider}.
+ * Variant of MetadataIndexTemplateServiceTests in server module, but with {@link TimeSeriesIndexSettingsProvider}.
  */
 public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
@@ -140,6 +141,76 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             var actualTemplate = project.templatesV2().get("1");
             assertTemplateActualIsExpected(actualTemplate, indexTemplate);
         }
+    }
+
+    public void testTsdsTemporalityFieldOverrideWithWrongType() throws Exception {
+        final var service = getMetadataIndexTemplateService();
+        ProjectMetadata initialProject = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+
+        var componentTemplate = new ComponentTemplate(
+            new Template(
+                builder().put("index.mode", "time_series")
+                    .put("index.routing_path", "uid")
+                    .put(IndexSettings.TIME_SERIES_TEMPORALITY_FIELD.getKey(), "temporality")
+                    .build(),
+                new CompressedXContent("""
+                    {
+                      "_doc": {
+                        "properties": {
+                          "@timestamp": { "type": "date" },
+                          "uid": { "type": "keyword", "time_series_dimension": true },
+                          "temporality": { "type": "integer" }
+                        }
+                      }
+                    }"""),
+                null
+            ),
+            null,
+            null
+        );
+        var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> service.addComponentTemplate(initialProject, true, "1", componentTemplate)
+        );
+        assertThat(
+            e.getMessage(),
+            containsString("[index.time_series.temporality_field] field [temporality] must be of type [keyword] but is [integer]")
+        );
+    }
+
+    public void testTsdsTemporalityFieldOverrideWithoutDimension() throws Exception {
+        final var service = getMetadataIndexTemplateService();
+        ProjectMetadata initialProject = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+
+        var componentTemplate = new ComponentTemplate(
+            new Template(
+                builder().put("index.mode", "time_series")
+                    .put("index.routing_path", "uid")
+                    .put(IndexSettings.TIME_SERIES_TEMPORALITY_FIELD.getKey(), "temporality")
+                    .build(),
+                new CompressedXContent("""
+                    {
+                      "_doc": {
+                        "properties": {
+                          "@timestamp": { "type": "date" },
+                          "uid": { "type": "keyword", "time_series_dimension": true },
+                          "temporality": { "type": "keyword" }
+                        }
+                      }
+                    }"""),
+                null
+            ),
+            null,
+            null
+        );
+        var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> service.addComponentTemplate(initialProject, true, "1", componentTemplate)
+        );
+        assertThat(
+            e.getMessage(),
+            containsString("[index.time_series.temporality_field] field [temporality] must be a [time_series_dimension]")
+        );
     }
 
     public void testLifecycleComposition() {
@@ -251,7 +322,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             xContentRegistry(),
             EmptySystemIndices.INSTANCE,
             indexSettingProviders,
-            DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings())
+            DataStreamLifecycleSettings.create(ClusterSettings.createBuiltInClusterSettings())
         );
     }
 

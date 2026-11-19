@@ -7,19 +7,18 @@
 
 package org.elasticsearch.xpack.inference.services.custom.response;
 
-import org.apache.http.HttpResponse;
-import org.elasticsearch.inference.DataType;
+import org.apache.hc.core5.http.HttpResponse;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.CompletionResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
+import org.elasticsearch.xpack.inference.external.http.sender.CompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
 import org.elasticsearch.xpack.inference.services.custom.CustomModelTests;
@@ -67,7 +66,7 @@ public class CustomResponseEntityTests extends ESTestCase {
             new DenseEmbeddingResponseParser("$.result.embeddings[*].embedding", CustomServiceEmbeddingType.FLOAT)
         );
         var request = new CustomRequest(
-            EmbeddingParameters.of(new EmbeddingsInput(List.of("abc"), null), model.getServiceSettings().getInputTypeTranslator()),
+            EmbeddingParameters.of(EmbeddingsInput.fromStrings(List.of("abc"), null), model.getServiceSettings().getInputTypeTranslator()),
             model
         );
         InferenceServiceResults results = CustomResponseEntity.fromResponse(
@@ -118,7 +117,7 @@ public class CustomResponseEntityTests extends ESTestCase {
             )
         );
         var request = new CustomRequest(
-            EmbeddingParameters.of(new EmbeddingsInput(List.of("abc"), null), model.getServiceSettings().getInputTypeTranslator()),
+            EmbeddingParameters.of(EmbeddingsInput.fromStrings(List.of("abc"), null), model.getServiceSettings().getInputTypeTranslator()),
             model
 
         );
@@ -171,7 +170,7 @@ public class CustomResponseEntityTests extends ESTestCase {
         );
         var request = new CustomRequest(
             RerankParameters.of(
-                new QueryAndDocsInputs(new InferenceString(DataType.TEXT, "query"), InferenceString.fromStringList(List.of("doc1", "doc2")))
+                new QueryAndDocsInputs(InferenceString.ofText("query"), InferenceString.fromStringList(List.of("doc1", "doc2")))
             ),
             model
         );
@@ -208,7 +207,7 @@ public class CustomResponseEntityTests extends ESTestCase {
             """;
 
         var request = new CustomRequest(
-            CompletionParameters.of(new ChatCompletionInput(List.of("abc"))),
+            CompletionParameters.of(new CompletionInput(List.of("abc"))),
             CustomModelTests.getTestModel(TaskType.COMPLETION, new CompletionResponseParser("$.result.text"))
         );
 
@@ -217,9 +216,9 @@ public class CustomResponseEntityTests extends ESTestCase {
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
-        assertThat(results, instanceOf(ChatCompletionResults.class));
-        ChatCompletionResults chatCompletionResults = (ChatCompletionResults) results;
-        assertThat(chatCompletionResults.getResults().size(), is(1));
-        assertThat(chatCompletionResults.getResults().get(0).content(), is("completion results"));
+        assertThat(results, instanceOf(CompletionResults.class));
+        CompletionResults completionResults = (CompletionResults) results;
+        assertThat(completionResults.getResults().size(), is(1));
+        assertThat(completionResults.getResults().get(0).content(), is("completion results"));
     }
 }

@@ -11,7 +11,7 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.ActionType;
 
-public class ReindexAction extends ActionType<BulkByScrollResponse> {
+public class ReindexAction extends ActionType<BulkByPaginatedSearchResponse> {
     public static final ReindexAction INSTANCE = new ReindexAction();
     public static final String NAME = "indices:data/write/reindex";
 

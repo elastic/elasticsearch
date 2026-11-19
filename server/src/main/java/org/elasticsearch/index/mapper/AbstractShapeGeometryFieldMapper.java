@@ -22,7 +22,6 @@ import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.function.Function;
 
 /**
  * Base class for shape field mappers
@@ -33,27 +32,20 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
      * our overestimate.
      */
     private static final long BLOCK_LOADER_ESTIMATED_SIZE = ByteSizeValue.ofKb(2).getBytes();
+    public static final String SOURCE_GEOMETRY_FIELD_NAME_SUFFIX = ".source_geometry";
 
-    @Override
-    protected boolean supportsParsingObject() {
-        // ShapeGeometryFieldMapper supports parsing Well-Known Text (WKT) and GeoJSON.
-        // WKT are of type String and GeoJSON for all shapes are of type Array.
-        return false;
-    }
-
-    public static Parameter<Explicit<Boolean>> coerceParam(Function<FieldMapper, Explicit<Boolean>> initializer, boolean coerceByDefault) {
-        return Parameter.explicitBoolParam("coerce", true, initializer, coerceByDefault);
+    public static Parameter<Explicit<Boolean>> coerceParam(boolean coerceByDefault) {
+        return Parameter.explicitBoolParam("coerce", true, coerceByDefault);
     }
 
     private static final Explicit<Orientation> IMPLICIT_RIGHT = new Explicit<>(Orientation.RIGHT, false);
 
-    public static Parameter<Explicit<Orientation>> orientationParam(Function<FieldMapper, Explicit<Orientation>> initializer) {
+    public static Parameter<Explicit<Orientation>> orientationParam() {
         return new Parameter<>(
             "orientation",
             true,
             () -> IMPLICIT_RIGHT,
             (n, c, o) -> new Explicit<>(Orientation.fromString(o.toString()), true),
-            initializer,
             (b, f, v) -> b.field(f, v.value()),
             v -> v.value().toString()
         );

@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.security.action.user;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
@@ -19,7 +19,7 @@ import java.io.IOException;
 /**
  * A request for checking a user's privileges
  */
-public class HasPrivilegesRequest extends LegacyActionRequest implements UserRequest {
+public class HasPrivilegesRequest extends UntypedActionRequest implements UserRequest {
 
     private String username;
     private String[] clusterPrivileges;

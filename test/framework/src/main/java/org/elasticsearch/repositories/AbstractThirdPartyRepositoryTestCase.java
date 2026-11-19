@@ -30,6 +30,8 @@ import org.elasticsearch.repositories.blobstore.RequestedRangeNotSatisfiedExcept
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
 import java.io.EOFException;
@@ -74,18 +76,16 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
 
     protected abstract void createRepository(String repoName);
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void setupRepository() throws Exception {
         createRepository(TEST_REPO_NAME);
         deleteAndAssertEmpty(getRepository().basePath());
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void cleanupRepository() throws Exception {
         deleteAndAssertEmpty(getRepository().basePath());
         clusterAdmin().prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, TEST_REPO_NAME).get();
-        super.tearDown();
     }
 
     private void deleteAndAssertEmpty(BlobPath path) {

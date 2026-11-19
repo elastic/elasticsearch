@@ -88,8 +88,7 @@ public record RerankRequest(
     public static final String TOP_N_FIELD = "top_n";
     public static final String RETURN_DOCUMENTS_FIELD = "return_documents";
 
-    // TODO: When multimodal rerank support is added, add DataType.IMAGE to this set
-    public static final EnumSet<DataType> SUPPORTED_RERANK_DATA_TYPES = EnumSet.of(DataType.TEXT);
+    public static final EnumSet<DataType> SUPPORTED_RERANK_DATA_TYPES = EnumSet.of(DataType.TEXT, DataType.IMAGE);
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<RerankRequest, Void> PARSER = new ConstructingObjectParser<>(
@@ -190,7 +189,7 @@ public record RerankRequest(
     private static InferenceString parseStringOrObject(XContentParser parser, String fieldName) throws IOException {
         var currentToken = parser.currentToken();
         if (currentToken == XContentParser.Token.VALUE_STRING) {
-            return new InferenceString(DataType.TEXT, parser.text());
+            return InferenceString.ofText(parser.text());
         } else if (currentToken == XContentParser.Token.START_OBJECT) {
             var inferenceString = InferenceString.PARSER.parse(parser, null);
             if (SUPPORTED_RERANK_DATA_TYPES.contains(inferenceString.dataType()) == false) {

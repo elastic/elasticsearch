@@ -98,13 +98,13 @@ public final class LongBigArrayVector extends AbstractVector implements LongVect
     }
 
     @Override
-    public LongVector filter(boolean mayContainDuplicates, int... positions) {
+    public LongVector filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
         var blockFactory = blockFactory();
-        final LongArray filtered = blockFactory.bigArrays().newLongArray(positions.length);
-        for (int i = 0; i < positions.length; i++) {
-            filtered.set(i, values.get(positions[i]));
+        final LongArray filtered = blockFactory.bigArrays().newLongArray(length);
+        for (int i = 0; i < length; i++) {
+            filtered.set(i, values.get(positions[offset + i]));
         }
-        return new LongBigArrayVector(filtered, positions.length, blockFactory);
+        return new LongBigArrayVector(filtered, length, blockFactory);
     }
 
     @Override

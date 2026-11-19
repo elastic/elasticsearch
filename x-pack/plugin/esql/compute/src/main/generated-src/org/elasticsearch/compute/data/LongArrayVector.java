@@ -26,7 +26,7 @@ import java.util.stream.IntStream;
  * Vector implementation that stores an array of long values.
  * This class is generated. Edit {@code X-ArrayVector.java.st} instead.
  */
-final class LongArrayVector extends AbstractVector implements LongVector {
+public final class LongArrayVector extends AbstractVector implements LongVector {
 
     static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(LongArrayVector.class)
         // TODO: remove these extra bytes once `asBlock` returns a block with a separate reference to the vector.
@@ -35,6 +35,8 @@ final class LongArrayVector extends AbstractVector implements LongVector {
         + Block.PAGE_MEM_OVERHEAD_PER_BLOCK;
 
     private final long[] values;
+
+    private boolean pooled;
 
     LongArrayVector(long[] values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
@@ -98,9 +100,10 @@ final class LongArrayVector extends AbstractVector implements LongVector {
     }
 
     @Override
-    public LongVector filter(boolean mayContainDuplicates, int... positions) {
-        try (LongVector.Builder builder = blockFactory().newLongVectorBuilder(positions.length)) {
-            for (int pos : positions) {
+    public LongVector filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
+        try (LongVector.Builder builder = blockFactory().newLongVectorBuilder(length)) {
+            for (int i = offset, end = offset + length; i < end; i++) {
+                int pos = positions[i];
                 builder.appendLong(values[pos]);
             }
             return builder.build();
@@ -183,4 +186,18 @@ final class LongArrayVector extends AbstractVector implements LongVector {
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", values=" + valuesString + ']';
     }
 
+    @Override
+    public void enablePooling() {
+        pooled = true;
+    }
+
+    @Override
+    protected void closeInternal() {
+        if (pooled && blockFactory().hasLocalPool()) {
+            blockFactory().adjustBreaker(-(ramBytesUsed() - LocalArrayPool.usedBytesForLongs(values.length)));
+            blockFactory().recycleLongs(values);
+        } else {
+            super.closeInternal();
+        }
+    }
 }

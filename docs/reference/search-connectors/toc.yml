@@ -7,6 +7,7 @@ toc:
     - file: es-connectors-box.md
     - file: es-connectors-confluence.md
     - file: es-connectors-dropbox.md
+    - file: es-connectors-exchange-server.md
     - file: es-connectors-github.md
     - file: es-connectors-gitlab.md
     - file: es-connectors-gmail.md

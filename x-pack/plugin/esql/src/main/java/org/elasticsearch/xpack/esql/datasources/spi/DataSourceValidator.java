@@ -7,10 +7,11 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
-import org.elasticsearch.cluster.metadata.DataSourceSetting;
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Validates data source + dataset settings at CRUD time. No blocking I/O. {@link #validateDataset}
@@ -28,6 +29,17 @@ public interface DataSourceValidator {
     Map<String, DataSourceSetting> validateDatasource(Map<String, Object> datasourceSettings);
 
     /**
+     * Merge-aware variant used when a PUT replaces an existing data source: {@code existingSecretKeys}
+     * names secret fields already stored for it, so a request that omits one still satisfies
+     * credential-completeness checks. The returned map, like {@link #validateDatasource(Map)}, contains only
+     * the fields present in {@code datasourceSettings}; carrying the omitted secret's stored value forward is
+     * the caller's job. The default ignores {@code existingSecretKeys} and delegates to the single-arg overload.
+     */
+    default Map<String, DataSourceSetting> validateDatasource(Map<String, Object> datasourceSettings, Set<String> existingSecretKeys) {
+        return validateDatasource(datasourceSettings);
+    }
+
+    /**
      * Validates dataset settings. Returns plain values — datasets carry no secrets. Parent passed for
      * cross-checks. Throws {@link ValidationException} if invalid.
      */
@@ -36,4 +48,20 @@ public interface DataSourceValidator {
         String resource,
         Map<String, Object> datasetSettings
     );
+
+    /**
+     * Closed auth-mode token for a stored data source, or {@code null} when the mode cannot be
+     * resolved (caller clamps to {@code unknown}). Must not throw; must not read secret values.
+     */
+    default String authModeOrNull(Map<String, DataSourceSetting> stored) {
+        return null;
+    }
+
+    /**
+     * Format and compression tokens for a stored dataset, or {@code null} when this validator
+     * cannot derive them. {@code auto} is never returned as a format.
+     */
+    default DatasetShape datasetShape(Map<String, Object> datasetSettings, String resource) {
+        return null;
+    }
 }

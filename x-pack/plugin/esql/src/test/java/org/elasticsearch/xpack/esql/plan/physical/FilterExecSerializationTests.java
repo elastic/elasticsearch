@@ -9,15 +9,16 @@ package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.FieldAttributeTests;
 
 import java.io.IOException;
+
+import static org.elasticsearch.xpack.esql.expression.function.FieldAttributeTestUtils.createFieldAttribute;
 
 public class FilterExecSerializationTests extends AbstractPhysicalPlanSerializationTests<FilterExec> {
     public static FilterExec randomFilterExec(int depth) {
         Source source = randomSource();
         PhysicalPlan child = randomChild(depth);
-        Expression condition = FieldAttributeTests.createFieldAttribute(0, false);
+        Expression condition = createFieldAttribute(0, false);
         return new FilterExec(source, child, condition);
     }
 
@@ -33,7 +34,7 @@ public class FilterExecSerializationTests extends AbstractPhysicalPlanSerializat
         if (randomBoolean()) {
             child = randomValueOtherThan(child, () -> randomChild(0));
         } else {
-            condition = randomValueOtherThan(condition, () -> FieldAttributeTests.createFieldAttribute(0, false));
+            condition = randomValueOtherThan(condition, () -> createFieldAttribute(0, false));
         }
         return new FilterExec(instance.source(), child, condition);
     }

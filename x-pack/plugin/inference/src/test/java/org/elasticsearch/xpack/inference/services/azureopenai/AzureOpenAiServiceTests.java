@@ -9,7 +9,7 @@
 
 package org.elasticsearch.xpack.inference.services.azureopenai;
 
-import org.apache.http.HttpHeaders;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
@@ -26,6 +26,7 @@ import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
+import org.elasticsearch.inference.InferenceServiceConfigurationTests;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -35,6 +36,7 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
@@ -76,6 +78,7 @@ import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettings;
 import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
 import static org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResultsTests.buildExpectationFloat;
+import static org.elasticsearch.xpack.inference.Utils.encodeFloatsAsOpenAiBase64;
 import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
 import static org.elasticsearch.xpack.inference.Utils.getPersistedConfigMap;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
@@ -938,7 +941,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
 
         try (var service = new AzureOpenAiService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(mockModel, null, null, null, List.of(""), false, new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
+            service.infer(mockModel, List.of(""), false, new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(
@@ -959,17 +962,15 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
 
         try (var service = new AzureOpenAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
 
-            String responseJson = """
+            // Wire-shape parity with production Azure OpenAI: base64-encoded float32 embedding.
+            String responseJson = Strings.format("""
                 {
                     "object": "list",
                     "data": [
                         {
                             "object": "embedding",
                             "index": 0,
-                            "embedding": [
-                                0.0123,
-                                -0.0123
-                            ]
+                            "embedding": "%s"
                         }
                     ],
                     "model": "text-embedding-ada-002-v2",
@@ -978,7 +979,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
                         "total_tokens": 8
                     }
                 }
-                """;
+                """, encodeFloatsAsOpenAiBase64(0.0123F, -0.0123F));
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             var model = AzureOpenAiEmbeddingsModelTests.createModel(
@@ -993,21 +994,22 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
             );
             model.setUri(new URI(getUrl(webServer)));
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(model, null, null, null, List.of("abc"), false, new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
+            service.infer(model, List.of("abc"), false, new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
             assertThat(result.asMap(), Matchers.is(buildExpectationFloat(List.of(new float[] { 0.0123F, -0.0123F }))));
             assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().get(0).getUri().getQuery());
-            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo("application/json; charset=UTF-8"));
             assertThat(webServer.requests().get(0).getHeader(API_KEY_HEADER), equalTo(API_KEY_VALUE));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            assertThat(requestMap.size(), Matchers.is(3));
+            assertThat(requestMap.size(), Matchers.is(4));
             assertThat(requestMap.get("input"), Matchers.is(List.of("abc")));
             assertThat(requestMap.get(ROLE_VALUE), Matchers.is(ROLE_VALUE));
             assertThat(requestMap.get("input_type"), Matchers.is("internal_ingest"));
+            assertThat(requestMap.get("encoding_format"), Matchers.is("base64"));
         }
     }
 
@@ -1040,7 +1042,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
             );
             model.setUri(new URI(getUrl(webServer)));
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(model, null, null, null, List.of("abc"), false, new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
+            service.infer(model, List.of("abc"), false, new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
 
             var error = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(error.getMessage(), containsString("Received an authentication error status code for request"));
@@ -1101,7 +1103,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
             model.setUri(new URI(getUrl(webServer)));
             PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
             List<ChunkInferenceInput> input = List.of();
-            service.chunkedInfer(model, null, input, new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
+            service.chunkedInfer(model, input, new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
 
             var results = listener.actionGet(TIMEOUT);
             assertThat(results, empty());
@@ -1114,25 +1116,20 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
 
         try (var service = new AzureOpenAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
 
-            String responseJson = """
+            // Wire-shape parity with production Azure OpenAI: base64-encoded float32 embeddings.
+            String responseJson = Strings.format("""
                 {
                 "object": "list",
                 "data": [
                 {
                 "object": "embedding",
                 "index": 0,
-                "embedding": [
-                0.123,
-                -0.123
-                ]
+                "embedding": "%s"
                 },
                 {
                 "object": "embedding",
                 "index": 1,
-                "embedding": [
-                1.123,
-                -1.123
-                ]
+                "embedding": "%s"
                 }
                 ],
                 "model": "text-embedding-ada-002-v2",
@@ -1141,14 +1138,13 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
                 "total_tokens": 8
                 }
                 }
-                """;
+                """, encodeFloatsAsOpenAiBase64(0.123F, -0.123F), encodeFloatsAsOpenAiBase64(1.123F, -1.123F));
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             model.setUri(new URI(getUrl(webServer)));
             PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
             service.chunkedInfer(
                 model,
-                null,
                 List.of(new ChunkInferenceInput("a"), new ChunkInferenceInput("bb")),
                 new HashMap<>(),
                 InputType.INTERNAL_INGEST,
@@ -1185,14 +1181,15 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
 
             assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().get(0).getUri().getQuery());
-            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo("application/json; charset=UTF-8"));
             assertThat(webServer.requests().get(0).getHeader(API_KEY_HEADER), equalTo(API_KEY_VALUE));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            assertThat(requestMap.size(), Matchers.is(3));
+            assertThat(requestMap.size(), Matchers.is(4));
             assertThat(requestMap.get("input"), Matchers.is(List.of("a", "bb")));
             assertThat(requestMap.get(ROLE_VALUE), Matchers.is(ROLE_VALUE));
             assertThat(requestMap.get("input_type"), Matchers.is("internal_ingest"));
+            assertThat(requestMap.get("encoding_format"), Matchers.is("base64"));
         }
     }
 
@@ -1234,7 +1231,9 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.unifiedCompletionInfer(
                 model,
-                UnifiedCompletionRequest.of(List.of(new Message(new ContentString(CONTENT_VALUE), ROLE_VALUE, null, null))),
+                UnifiedCompletionRequest.streaming(
+                    UnifiedCompletionRequestBody.of(List.of(new Message(new ContentString(CONTENT_VALUE), ROLE_VALUE, null, null)))
+                ),
                 null,
                 listener
             );
@@ -1285,7 +1284,9 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
             var latch = new CountDownLatch(1);
             service.unifiedCompletionInfer(
                 model,
-                UnifiedCompletionRequest.of(List.of(new Message(new ContentString(CONTENT_VALUE), ROLE_VALUE, null, null))),
+                UnifiedCompletionRequest.streaming(
+                    UnifiedCompletionRequestBody.of(List.of(new Message(new ContentString(CONTENT_VALUE), ROLE_VALUE, null, null)))
+                ),
                 null,
                 ActionListener.runAfter(ActionTestUtils.assertNoSuccessListener(e -> {
                     try (var builder = XContentFactory.jsonBuilder()) {
@@ -1353,7 +1354,9 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.unifiedCompletionInfer(
                 model,
-                UnifiedCompletionRequest.of(List.of(new Message(new ContentString(CONTENT_VALUE), ROLE_VALUE, null, null))),
+                UnifiedCompletionRequest.streaming(
+                    UnifiedCompletionRequestBody.of(List.of(new Message(new ContentString(CONTENT_VALUE), ROLE_VALUE, null, null)))
+                ),
                 null,
                 listener
             );
@@ -1421,7 +1424,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
             );
             model.setUri(new URI(getUrl(webServer)));
             var listener = new PlainActionFuture<InferenceServiceResults>();
-            service.infer(model, null, null, null, List.of("abc"), true, new HashMap<>(), InputType.INGEST, null, listener);
+            service.infer(model, List.of("abc"), true, new HashMap<>(), InputType.INGEST, null, listener);
 
             return InferenceEventsAssertion.assertThat(listener.actionGet(TIMEOUT)).hasFinishedStream();
         }
@@ -1465,12 +1468,17 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
                                   "completion",
                                   "chat_completion"
                               ],
+                              "features": {
+                                  "non_streaming_chat": {
+                                      "supported": true
+                                  }
+                              },
                               "configurations": {
                                   "tenant_id": {
                                       "description": "The directory tenant that you want to request permission from.",
                                       "label": "OAuth2 Tenant ID",
                                       "required": false,
-                                      "sensitive": true,
+                                      "sensitive": false,
                                       "updatable": true,
                                       "type": "str",
                                       "supported_task_types": [
@@ -1611,7 +1619,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
                           }
                     """
             );
-            InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(
+            InferenceServiceConfiguration configuration = InferenceServiceConfigurationTests.fromXContentBytes(
                 new BytesArray(content),
                 XContentType.JSON
             );

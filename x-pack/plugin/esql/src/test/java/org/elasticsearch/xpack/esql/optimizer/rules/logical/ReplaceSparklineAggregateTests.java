@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FromPartial;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
@@ -37,6 +36,7 @@ import org.junit.Before;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
@@ -48,11 +48,15 @@ public class ReplaceSparklineAggregateTests extends AbstractLogicalPlanOptimizer
 
     private static final String SPARKLINE_EXPR = "sparkline(count(*), hire_date, 10, \"2024-01-01\", \"2024-12-31\")";
 
+    public ReplaceSparklineAggregateTests(VersionMode versionMode) {
+        super(versionMode);
+    }
+
     @Before
     public void checkCapability() {
         assumeTrue(
             "sparkline should be enabled",
-            EsqlCapabilities.capabilities(new EsqlFunctionRegistry(), false).capabilities().contains("fn_sparkline")
+            EsqlCapabilities.capabilities(TEST_FUNCTION_REGISTRY, false).capabilities().contains("fn_sparkline")
         );
     }
 
@@ -234,7 +238,7 @@ public class ReplaceSparklineAggregateTests extends AbstractLogicalPlanOptimizer
             aggregate.aggregates().size()
         );
         List<String> expectedAggregates = new ArrayList<>();
-        expectedAggregates.add("$$timestamp");
+        expectedAggregates.add("$$sparkline$timestamp");
         expectedAggregates.addAll(sparklineAggregateNames);
         nonSparklineAggregateNames.forEach(agg -> { expectedAggregates.add("$$" + agg); });
         expectedAggregates.addAll(groupings);
@@ -242,7 +246,7 @@ public class ReplaceSparklineAggregateTests extends AbstractLogicalPlanOptimizer
             assertThat(expectedAggregates, hasItem(agg.name()));
             if (sparklineAggregateNames.contains(agg.name())) {
                 assertThat(agg, instanceOf(Alias.class));
-            } else if (agg.name().equals("$$timestamp")) {
+            } else if (agg.name().equals("$$sparkline$timestamp")) {
                 // No need to check the exact class here, but it should be some kind of attribute representing the timestamp for bucketing
                 assertThat(agg, instanceOf(ReferenceAttribute.class));
             } else if (groupings.contains(agg.name())) {
@@ -261,7 +265,7 @@ public class ReplaceSparklineAggregateTests extends AbstractLogicalPlanOptimizer
 
         assertEquals(aggregate.groupings().size(), groupings.size() + 1);
         List<String> expectedGroupings = new ArrayList<>(groupings);
-        expectedGroupings.add("$$timestamp");
+        expectedGroupings.add("$$sparkline$timestamp");
         for (Expression grouping : aggregate.groupings()) {
             assertThat(expectedGroupings, hasItem(Expressions.name(grouping)));
             expectedGroupings.remove(Expressions.name(grouping));
@@ -283,13 +287,13 @@ public class ReplaceSparklineAggregateTests extends AbstractLogicalPlanOptimizer
             aggregate.aggregates().size()
         );
         List<String> expectedAggregates = new ArrayList<>();
-        expectedAggregates.add("$$timestamp");
+        expectedAggregates.add("$$sparkline$timestamp");
         expectedAggregates.addAll(sparklineAggregateNames);
         expectedAggregates.addAll(nonSparklineAggregateNames);
         expectedAggregates.addAll(groupings);
         for (NamedExpression agg : aggregate.aggregates()) {
             assertThat(expectedAggregates, hasItem(agg.name()));
-            if (sparklineAggregateNames.contains(agg.name()) || agg.name().equals("$$timestamp")) {
+            if (sparklineAggregateNames.contains(agg.name()) || agg.name().equals("$$sparkline$timestamp")) {
                 assertThat(agg, instanceOf(Alias.class));
                 Alias alias = (Alias) agg;
                 assertThat(alias.child(), instanceOf(Top.class));

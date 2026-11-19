@@ -562,7 +562,7 @@ public class PagedBytesBuilder implements Accountable, Releasable, Comparable<Pa
         breaker.addEstimateBytesAndMaybeBreak(extraBytesToReserve + pagesRamBytesUsed(size), label);
         boolean success = false;
         try {
-            pages = new Recycler.V[size];
+            pages = (Recycler.V<byte[]>[]) new Recycler.V<?>[size];
             grabNextPageFromRecycler();
             success = true;
         } finally {

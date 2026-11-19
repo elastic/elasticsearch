@@ -8,9 +8,13 @@
  */
 package org.elasticsearch.index.fielddata.fieldcomparator;
 
+import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.search.BinarySortField;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.LeafFieldComparator;
@@ -19,6 +23,7 @@ import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BitSet;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
@@ -29,7 +34,10 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
+import org.elasticsearch.index.fielddata.plain.MultiValuedBinaryDocValuesSortField;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
+import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
+import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.lucene.comparators.XLongComparator;
 import org.elasticsearch.lucene.comparators.XNumericComparator;
 import org.elasticsearch.search.DocValueFormat;
@@ -99,7 +107,12 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
     DenseLongValues getLongValues(LeafReaderContext context, long missingValue) throws IOException {
         final SortedNumericLongValues values = loadDocValues(context);
         if (nested == null) {
-            return FieldData.replaceMissing(sortMode.select(values), missingValue);
+            var longValues = sortMode.select(values);
+            if (longValues instanceof DenseLongValues denseLongValues) {
+                return denseLongValues;
+            } else {
+                return FieldData.replaceMissing(longValues, missingValue);
+            }
         }
         final BitSet rootDocs = nested.rootDocs(context);
         final DocIdSetIterator innerDocs = nested.innerDocs(context);
@@ -125,11 +138,13 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
                     @Override
                     protected XNumericComparator<Long>.CompetitiveDISIBuilder buildCompetitiveDISIBuilder(LeafReaderContext context)
                         throws IOException {
-                        if (alwaysMatchTailQuery == false || segmentSortedByDescTimestamp(context) == false) {
+                        if (alwaysMatchTailQuery == false || segmentSortedByDescTimestamp(context) == false
+                        // check that last document has a value to confirm that all documents have a value
+                            || lastDocumentHasValue(context.reader(), fieldname) == false) {
                             return super.buildCompetitiveDISIBuilder(context);
                         }
                         int maxDoc = context.reader().maxDoc();
-                        int start = context.reader().numDocs() - numHits - 1;
+                        int start = Math.max(0, context.reader().numDocs() - numHits - 1);
                         return new CompetitiveDISIBuilder(this) {
                             @Override
                             protected int docCount() {
@@ -155,9 +170,8 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         int bucketSize,
         BucketedSort.ExtraData extra
     ) {
+        final long lMissingValue = (Long) missingObject(missingValue, sortOrder == SortOrder.DESC);
         return new BucketedSort.ForLongs(bigArrays, sortOrder, format, bucketSize, extra) {
-            private final long lMissingValue = (Long) missingObject(missingValue, sortOrder == SortOrder.DESC);
-
             @Override
             public Leaf forLeaf(LeafReaderContext ctx) throws IOException {
                 return new Leaf(ctx) {
@@ -235,9 +249,18 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
 
             @Override
             public long cost() {
-                throw new UnsupportedOperationException();
+                // dense over [0, maxDoc)
+                return maxDoc;
             }
         };
+    }
+
+    private static boolean lastDocumentHasValue(LeafReader reader, String field) throws IOException {
+        return DocValues.getSortedNumeric(reader, field).advanceExact(reader.maxDoc() - 1);
+    }
+
+    private static boolean firstAndLastDocumentsHaveValue(SortedSetDocValues values, int maxDoc) throws IOException {
+        return values.advanceExact(0) && values.advanceExact(maxDoc - 1);
     }
 
     // Checks that the current segment is either directly sorted by descending timestamp,
@@ -270,10 +293,73 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         if (Objects.equals(sortField.getField(), "host.name") == false) {
             return false;
         }
-        SortedSetDocValues ssdv = context.reader().getSortedSetDocValues("host.name");
-        if (ssdv == null) {
-            return true;
+        LeafReader reader = context.reader();
+        SortedSetDocValues ssdv = reader.getSortedSetDocValues("host.name");
+        if (ssdv != null) {
+            // host.name can only have one value and all documents must have a value.
+            // host.name is primary sort, but sort direction is unknown, so check both ends.
+            return ssdv.getValueCount() == 1 && firstAndLastDocumentsHaveValue(ssdv, reader.maxDoc());
         }
-        return (ssdv.getValueCount() == 1);
+        if (sortField instanceof MultiValuedBinaryDocValuesSortField binarySortField) {
+            BinaryDocValues bdv = reader.getBinaryDocValues("host.name");
+            if (bdv == null) {
+                return true;
+            }
+            // host.name is indexed with high-cardinality binary doc values (see KeywordFieldMapper#usesBinaryDocValues).
+            // This segment is sorted by host.name, so it is a singleton iff its overall minimum and maximum value -
+            // read off whichever endpoint holds them, depending on sort direction - are equal.
+            int maxDoc = reader.maxDoc();
+            int minValueDoc = sortField.getReverse() ? maxDoc - 1 : 0;
+            int maxValueDoc = sortField.getReverse() ? 0 : maxDoc - 1;
+            BinaryDocValuesFormat binaryFormat = binarySortField.binaryFormat();
+            BytesRef min = decodeHostNameValueAt(reader, minValueDoc, false, binaryFormat);
+            BytesRef max = decodeHostNameValueAt(reader, maxValueDoc, true, binaryFormat);
+            return min != null && min.equals(max);
+        }
+        if (sortField instanceof BinarySortField) {
+            // A plain BinarySortField sorts a single-valued host.name (multi_value: false), whose blob is the value itself.
+            BinaryDocValues bdv = reader.getBinaryDocValues("host.name");
+            if (bdv == null) {
+                return true;
+            }
+            int maxDoc = reader.maxDoc();
+            BytesRef first = rawHostNameValueAt(reader, 0);
+            BytesRef last = rawHostNameValueAt(reader, maxDoc - 1);
+            return first != null && first.equals(last);
+        }
+        // host.name has no doc values at all in this segment (e.g. the field is absent).
+        return true;
+    }
+
+    /** The single-valued {@code host.name} stored at {@code doc}, or {@code null} if {@code doc} has none. */
+    @Nullable
+    private static BytesRef rawHostNameValueAt(LeafReader reader, int doc) throws IOException {
+        BinaryDocValues bdv = reader.getBinaryDocValues("host.name");
+        return bdv.advanceExact(doc) ? BytesRef.deepCopyOf(bdv.binaryValue()) : null;
+    }
+
+    /**
+     * Decodes the minimum ({@code maxMode=false}) or maximum ({@code maxMode=true}) {@code host.name} value stored at
+     * {@code doc}, reusing {@link MultiValuedBinaryDocValuesSortField#decodeExtreme} to extract sort keys from
+     * whichever binary format the field uses. Returns {@code null} if {@code doc} has no value (e.g. all-null or
+     * empty array).
+     */
+    @Nullable
+    private static BytesRef decodeHostNameValueAt(LeafReader reader, int doc, boolean maxMode, BinaryDocValuesFormat binaryFormat)
+        throws IOException {
+        BinaryDocValues bdv = reader.getBinaryDocValues("host.name");
+        if (bdv.advanceExact(doc) == false) {
+            return null;
+        }
+        // A columnar payload carries its own count and writes no companion, so the lookup below finds nothing and
+        // decodeExtreme ignores the count it yields.
+        NumericDocValues counts = reader.getNumericDocValues(
+            "host.name" + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX
+        );
+        long count = 1;
+        if (counts != null && counts.advanceExact(doc)) {
+            count = counts.longValue();
+        }
+        return MultiValuedBinaryDocValuesSortField.decodeExtreme(bdv.binaryValue(), count, maxMode, binaryFormat);
     }
 }

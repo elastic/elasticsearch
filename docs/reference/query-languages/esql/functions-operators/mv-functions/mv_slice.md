@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `MV_SLICE` function [esql-mv_slice]
 
-:::{include} ../../_snippets/functions/layout/mv_slice.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/mv_slice.md
 :::

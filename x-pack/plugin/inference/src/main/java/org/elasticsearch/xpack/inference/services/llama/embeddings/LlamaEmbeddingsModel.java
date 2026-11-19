@@ -63,17 +63,6 @@ public class LlamaEmbeddingsModel extends LlamaModel {
      */
     public LlamaEmbeddingsModel(LlamaEmbeddingsModel model, LlamaEmbeddingsServiceSettings serviceSettings) {
         super(model, serviceSettings);
-        setPropertiesFromServiceSettings(serviceSettings);
-    }
-
-    /**
-     * Sets properties from the provided LlamaEmbeddingsServiceSettings.
-     *
-     * @param serviceSettings the service settings to extract properties from
-     */
-    private void setPropertiesFromServiceSettings(LlamaEmbeddingsServiceSettings serviceSettings) {
-        this.uri = serviceSettings.uri();
-        this.rateLimitSettings = serviceSettings.rateLimitSettings();
     }
 
     /**
@@ -108,7 +97,6 @@ public class LlamaEmbeddingsModel extends LlamaModel {
      */
     public LlamaEmbeddingsModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
         super(modelConfigurations, modelSecrets);
-        setPropertiesFromServiceSettings((LlamaEmbeddingsServiceSettings) modelConfigurations.getServiceSettings());
     }
 
     @Override

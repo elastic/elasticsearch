@@ -7,7 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.googlevertexai;
 
-import org.apache.http.HttpHeaders;
+import org.apache.hc.core5.http.ContentType;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -23,6 +24,7 @@ import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
+import org.elasticsearch.inference.InferenceServiceConfigurationTests;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InputType;
@@ -34,13 +36,20 @@ import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.UnparsedModel;
+import org.elasticsearch.inference.completion.ContentString;
+import org.elasticsearch.inference.completion.Message;
+import org.elasticsearch.inference.completion.Reasoning;
+import org.elasticsearch.inference.completion.ReasoningDetail;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
+import org.elasticsearch.xpack.inference.services.InferenceEventsAssertion;
 import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.googlevertexai.completion.GoogleVertexAiChatCompletionModel;
@@ -76,6 +85,7 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsTaskSettingsTests.getTaskSettingsMapEmpty;
+import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleModelGardenProvider.GOOGLE;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -88,6 +98,8 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
     private static final String INFERENCE_ENTITY_ID_VALUE = "id";
     private static final String API_KEY_VALUE = "api-key";
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
+    private static final String THOUGHT_SIGNATURE = "El4KXAERTTIPHPmb/yri/Qyy9cz7xqWoMPh394Dk3bIAt2jgXMJoP2cOWRyqxOs";
+    private static final String AUTH_HEADER_VALUE = "Bearer test-auth";
 
     public void testParseRequestConfig_CreateGoogleVertexAiChatCompletionModel() throws IOException {
         var projectId = "project";
@@ -309,7 +321,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                 TaskType.RERANK,
                 getRequestConfigMap(
                     new HashMap<>(Map.of(GoogleVertexAiServiceFields.PROJECT_ID, projectId)),
-                    new HashMap<>(Map.of()),
+                    new HashMap<>(),
                     getSecretSettingsMap(serviceAccountJson)
                 ),
                 modelListener
@@ -338,7 +350,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                             "project"
                         )
                     ),
-                    new HashMap<>(Map.of()),
+                    new HashMap<>(),
                     getSecretSettingsMap("{}")
                 ),
                 failureListener
@@ -1045,8 +1057,8 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
             var topN = randomNonNegativeIntOrNull();
             var returnDocuments = randomOptionalBoolean();
             var request = new RerankRequest(
-                List.of(new InferenceString(DataType.TEXT, inputOne), new InferenceString(DataType.TEXT, inputTwo)),
-                new InferenceString(DataType.TEXT, query),
+                List.of(InferenceString.ofText(inputOne), InferenceString.ofText(inputTwo)),
+                InferenceString.ofText(query),
                 topN,
                 returnDocuments,
                 new HashMap<>()
@@ -1066,7 +1078,10 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
 
             assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().getFirst().getUri().getQuery());
-            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+            assertThat(
+                webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE),
+                equalTo(ContentType.APPLICATION_JSON.toString())
+            );
             assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), is(authHeaderValue));
 
             var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
@@ -1152,9 +1167,9 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                                    "supported_task_types": ["text_embedding", "rerank", "completion", "chat_completion"]
                                },
                                "location": {
-                                   "description": "Please provide the GCP region where the Vertex AI API(s) is enabled. For more information, refer to the {geminiVertexAIDocs}.",
+                                   "description": "Please provide the GCP region where the Vertex AI API(s) is enabled. Omit this field to target the Vertex AI global endpoint. For more information, refer to the {geminiVertexAIDocs}.",
                                    "label": "GCP Region",
-                                   "required": true,
+                                   "required": false,
                                    "sensitive": false,
                                    "updatable": false,
                                    "type": "str",
@@ -1182,7 +1197,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                        }
                     """
             );
-            InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(
+            InferenceServiceConfiguration configuration = InferenceServiceConfigurationTests.fromXContentBytes(
                 new BytesArray(content),
                 XContentType.JSON
             );
@@ -1203,7 +1218,6 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
             PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
             service.chunkedInfer(
                 GoogleVertexAiEmbeddingsModelTests.createModel(randomAlphaOfLength(10), randomBoolean(), randomSimilarityMeasure()),
-                null,
                 List.of(),
                 new HashMap<>(),
                 InputType.INTERNAL_INGEST,
@@ -1299,6 +1313,296 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
         taskSettings.put(GoogleVertexAiRerankTaskSettings.TOP_N, topN);
 
         return taskSettings;
+    }
+
+    public void testUnifiedCompletionInfer_RejectsReasoningForNonGoogleProviders() throws Exception {
+        var nonGoogleProvider = randomValueOtherThan(GOOGLE, () -> randomFrom(GoogleModelGardenProvider.values()));
+        var model = GoogleVertexAiChatCompletionModelTests.createGoogleModelGardenChatCompletionModel(
+            API_KEY_VALUE,
+            null,
+            null,
+            nonGoogleProvider,
+            new URI(getUrl(webServer)),
+            new URI(getUrl(webServer)),
+            123
+        );
+
+        try (var inferenceService = createInferenceService()) {
+            var listener = new TestPlainActionFuture<InferenceServiceResults>();
+            inferenceService.unifiedCompletionInfer(model, reasoningCompletionRequest(), TEST_REQUEST_TIMEOUT, listener);
+
+            var exception = expectThrows(UnsupportedOperationException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
+            assertThat(exception.getMessage(), is("The googlevertexai service does not support unified completion with reasoning inputs"));
+            assertThat(webServer.requests(), empty());
+        }
+    }
+
+    public void testUnifiedCompletionInfer_RejectsMessageLevelReasoningForNonGoogleProviders() throws Exception {
+        var nonGoogleProvider = randomValueOtherThan(GOOGLE, () -> randomFrom(GoogleModelGardenProvider.values()));
+        var model = GoogleVertexAiChatCompletionModelTests.createGoogleModelGardenChatCompletionModel(
+            API_KEY_VALUE,
+            null,
+            null,
+            nonGoogleProvider,
+            new URI(getUrl(webServer)),
+            new URI(getUrl(webServer)),
+            123
+        );
+        // message-level reasoning only — no request-level reasoning field
+        var assistantMessage = new Message(new ContentString("I thought about it"), "assistant", null, null, "some reasoning", null);
+        var body = new UnifiedCompletionRequestBody(
+            List.of(new Message(new ContentString("Hello"), "user", null, null), assistantMessage),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+
+        try (var inferenceService = createInferenceService()) {
+            var listener = new TestPlainActionFuture<InferenceServiceResults>();
+            inferenceService.unifiedCompletionInfer(model, UnifiedCompletionRequest.streaming(body), TEST_REQUEST_TIMEOUT, listener);
+
+            var exception = expectThrows(UnsupportedOperationException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
+            assertThat(exception.getMessage(), is("The googlevertexai service does not support unified completion with reasoning inputs"));
+            assertThat(webServer.requests(), empty());
+        }
+    }
+
+    public void testUnifiedCompletionInfer_RejectsMessageLevelReasoningDetailsForNonGoogleProviders() throws Exception {
+        var nonGoogleProvider = randomValueOtherThan(GOOGLE, () -> randomFrom(GoogleModelGardenProvider.values()));
+        var model = GoogleVertexAiChatCompletionModelTests.createGoogleModelGardenChatCompletionModel(
+            API_KEY_VALUE,
+            null,
+            null,
+            nonGoogleProvider,
+            new URI(getUrl(webServer)),
+            new URI(getUrl(webServer)),
+            123
+        );
+        // message-level reasoning_details only — no request-level reasoning field
+        var detail = new ReasoningDetail.TextReasoningDetail("google-vertex-ai-v1", null, 0L, "some reasoning", null);
+        var assistantMessage = new Message(new ContentString("Here"), "assistant", null, null, null, List.of(detail));
+        var body = new UnifiedCompletionRequestBody(
+            List.of(new Message(new ContentString("Hello"), "user", null, null), assistantMessage),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+
+        try (var inferenceService = createInferenceService()) {
+            var listener = new TestPlainActionFuture<InferenceServiceResults>();
+            inferenceService.unifiedCompletionInfer(model, UnifiedCompletionRequest.streaming(body), TEST_REQUEST_TIMEOUT, listener);
+
+            var exception = expectThrows(UnsupportedOperationException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
+            assertThat(exception.getMessage(), is("The googlevertexai service does not support unified completion with reasoning inputs"));
+            assertThat(webServer.requests(), empty());
+        }
+    }
+
+    public void testSupportsChatCompletionReasoning() throws IOException {
+        try (var inferenceService = createInferenceService()) {
+            assertTrue(((GoogleVertexAiService) inferenceService).supportsChatCompletionReasoning());
+        }
+    }
+
+    @SuppressWarnings("checkstyle:LineLength")
+    public void testUnifiedCompletionInfer_GoogleProvider_StreamsReasoningAndSignedToolCall() throws Exception {
+        var responseJson = Strings.format(
+            """
+                data: {"candidates":[{"content":{"role":"model","parts":[{"text":"Thinking hard.","thought":true,"thoughtSignature":"%s"},{"text":"Here is my answer."}]},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":5,"candidatesTokenCount":10,"totalTokenCount":15,"thoughtsTokenCount":4},"modelVersion":"gemini-3.5-flash","responseId":"resp-123"}
+
+                """,
+            THOUGHT_SIGNATURE
+        );
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+        var model = GoogleVertexAiChatCompletionModelTests.createCompletionModel(
+            null,
+            null,
+            null,
+            API_KEY_VALUE,
+            null,
+            null,
+            GoogleModelGardenProvider.GOOGLE,
+            new URI(getUrl(webServer)),
+            null,
+            AUTH_HEADER_VALUE
+        );
+        var body = new UnifiedCompletionRequestBody(
+            List.of(new Message(new ContentString("Hello"), "user", null, null)),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            new Reasoning(Reasoning.ReasoningEffort.HIGH, null, null, null),
+            null,
+            null
+        );
+
+        TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
+        try (var service = createInferenceService()) {
+            service.unifiedCompletionInfer(model, UnifiedCompletionRequest.streaming(body), TEST_REQUEST_TIMEOUT, listener);
+            var result = listener.actionGet(TEST_REQUEST_TIMEOUT);
+
+            assertThat(webServer.requests(), hasSize(1));
+            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), is(AUTH_HEADER_VALUE));
+
+            @SuppressWarnings("unchecked")
+            var generationConfig = (Map<String, Object>) entityAsMap(webServer.requests().getFirst().getBody()).get("generationConfig");
+            @SuppressWarnings("unchecked")
+            var thinkingConfig = (Map<String, Object>) generationConfig.get("thinkingConfig");
+            assertThat(thinkingConfig.get("thinkingLevel"), is("HIGH"));
+            assertThat(thinkingConfig.get("includeThoughts"), is(true));
+
+            InferenceEventsAssertion.assertThat(result)
+                .hasFinishedStream()
+                .hasNoErrors()
+                .hasEvent(XContentHelper.stripWhitespace(Strings.format("""
+                    {
+                      "id": "resp-123",
+                      "choices": [{
+                        "delta": {
+                          "content": "Here is my answer.",
+                          "role": "assistant",
+                          "reasoning": "Thinking hard.",
+                          "reasoning_details": [{
+                            "type": "reasoning.text",
+                            "format": "google-vertex-ai-v1",
+                            "index": 0,
+                            "text": "Thinking hard.",
+                            "signature": "%s"
+                          }]
+                        },
+                        "finish_reason": "stop",
+                        "index": 0
+                      }],
+                      "model": "gemini-3.5-flash",
+                      "object": "chat.completion.chunk",
+                      "usage": {
+                        "completion_tokens": 14,
+                        "prompt_tokens": 5,
+                        "total_tokens": 15,
+                        "completion_tokens_details": {"reasoning_tokens": 4}
+                      }
+                    }
+                    """, THOUGHT_SIGNATURE)));
+        }
+    }
+
+    /**
+     * Verifies that {@code reasoning.exclude=true} propagates through the service gate to the
+     * streaming processor: the outbound request has {@code includeThoughts: false}, and the
+     * streamed event omits reasoning text while still parsing the response successfully.
+     */
+    @SuppressWarnings("checkstyle:LineLength")
+    public void testUnifiedCompletionInfer_GoogleProvider_ExcludeReasoning_DropsThoughtsKeepsSignature() throws Exception {
+        var responseJson = Strings.format(
+            """
+                data: {"candidates":[{"content":{"role":"model","parts":[{"text":"Thinking hard.","thought":true,"thoughtSignature":"%s"},{"text":"Here is my answer."}]},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":5,"candidatesTokenCount":10,"totalTokenCount":15,"thoughtsTokenCount":4},"modelVersion":"gemini-3.5-flash","responseId":"resp-123"}
+
+                """,
+            THOUGHT_SIGNATURE
+        );
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+        var model = GoogleVertexAiChatCompletionModelTests.createCompletionModel(
+            null,
+            null,
+            null,
+            API_KEY_VALUE,
+            null,
+            null,
+            GoogleModelGardenProvider.GOOGLE,
+            new URI(getUrl(webServer)),
+            null,
+            AUTH_HEADER_VALUE
+        );
+        var body = new UnifiedCompletionRequestBody(
+            List.of(new Message(new ContentString("Hello"), "user", null, null)),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            new Reasoning(null, null, true, null),
+            null,
+            null
+        );
+
+        TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
+        try (var service = createInferenceService()) {
+            service.unifiedCompletionInfer(model, UnifiedCompletionRequest.streaming(body), TEST_REQUEST_TIMEOUT, listener);
+            var result = listener.actionGet(TEST_REQUEST_TIMEOUT);
+
+            assertThat(webServer.requests(), hasSize(1));
+
+            @SuppressWarnings("unchecked")
+            var generationConfig = (Map<String, Object>) entityAsMap(webServer.requests().getFirst().getBody()).get("generationConfig");
+            @SuppressWarnings("unchecked")
+            var thinkingConfig = (Map<String, Object>) generationConfig.get("thinkingConfig");
+            assertNull(thinkingConfig.get("thinkingLevel"));
+            assertThat(thinkingConfig.get("includeThoughts"), is(false));
+
+            // Thought text is excluded; the content part is still present with no reasoning field
+            InferenceEventsAssertion.assertThat(result).hasFinishedStream().hasNoErrors().hasEvent(XContentHelper.stripWhitespace("""
+                {
+                  "id": "resp-123",
+                  "choices": [{
+                    "delta": {
+                      "content": "Here is my answer.",
+                      "role": "assistant"
+                    },
+                    "finish_reason": "stop",
+                    "index": 0
+                  }],
+                  "model": "gemini-3.5-flash",
+                  "object": "chat.completion.chunk",
+                  "usage": {
+                    "completion_tokens": 14,
+                    "prompt_tokens": 5,
+                    "total_tokens": 15,
+                    "completion_tokens_details": {"reasoning_tokens": 4}
+                  }
+                }
+                """));
+        }
+    }
+
+    private static UnifiedCompletionRequest reasoningCompletionRequest() {
+        return new UnifiedCompletionRequest(
+            new UnifiedCompletionRequestBody(
+                List.of(new Message(new ContentString("Hello"), "user", null, null)),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                new Reasoning(Reasoning.ReasoningEffort.HIGH, null, null, null),
+                null,
+                null
+            ),
+            true
+        );
     }
 
     public void testBuildModelFromConfigAndSecrets_TextEmbedding() throws IOException {

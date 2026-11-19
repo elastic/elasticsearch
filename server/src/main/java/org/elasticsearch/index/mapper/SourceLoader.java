@@ -12,19 +12,22 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
+import org.elasticsearch.index.codec.DocValuesBatchPrefetcher;
+import org.elasticsearch.index.fielddata.MultiValuedSortableBinaryDocValues;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -45,7 +48,15 @@ public interface SourceLoader {
     /**
      * Build the loader for some segment.
      */
-    Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException;
+    Leaf leaf(LeafReaderContext ctx, int[] docIdsInLeaf) throws IOException;
+
+    /**
+     * Announces the segments, in reading order, and documents the caller is about to load, before the first {@link #leaf}.
+     * A loader reading doc values adds its fields to {@code prefetcher} and then loads a prefetched window at a time.
+     * Optional.
+     */
+    default void announce(DocValuesBatchPrefetcher prefetcher, List<LeafReaderContext> leaves, List<int[]> docIdsInLeaves)
+        throws IOException {}
 
     /**
      * Stream containing all non-{@code _source} stored fields required
@@ -71,6 +82,15 @@ public interface SourceLoader {
          * @param b the builder to write the xcontent
          */
         void write(LeafStoredFieldLoader storedFields, int docId, XContentBuilder b) throws IOException;
+
+        /**
+         * The bytes of {@code _source} held in memory for {@code source}, which {@link #source} last returned: its own, unless it
+         * was cut from a larger source this leaf keeps for the documents that follow.
+         */
+        default long sourceBytesHeld(Source source) {
+            BytesReference bytes = source.internalSourceRef();
+            return bytes == null ? 0 : bytes.length();
+        }
     }
 
     /**
@@ -91,7 +111,7 @@ public interface SourceLoader {
         }
 
         @Override
-        public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) {
+        public Leaf leaf(LeafReaderContext ctx, int[] docIdsInLeaf) {
             return new Leaf() {
                 @Override
                 public Source source(LeafStoredFieldLoader storedFields, int docId) throws IOException {
@@ -122,6 +142,9 @@ public interface SourceLoader {
         private final Set<String> requiredStoredFields;
         private final SourceFieldMetrics metrics;
         private final IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat;
+        /** The announced segments, by reader. */
+        private DocValuesBatchPrefetcher prefetcher;
+        private final Map<LeafReader, DocValuesBatchPrefetcher.Segment> announced = new IdentityHashMap<>();
 
         /**
          * Creates a {@link SourceLoader} to reconstruct {@code _source} from doc values anf stored fields.
@@ -156,12 +179,33 @@ public interface SourceLoader {
         }
 
         @Override
-        public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
+        public void announce(DocValuesBatchPrefetcher prefetcher, List<LeafReaderContext> leaves, List<int[]> docIdsInLeaves)
+            throws IOException {
+            this.prefetcher = prefetcher;
+            announced.clear();
+            for (int i = 0; i < leaves.size(); i++) {
+                LeafReader reader = leaves.get(i).reader();
+                DocValuesBatchPrefetcher.Segment segment = prefetcher.segment(reader, docIdsInLeaves.get(i));
+                segment.addFieldsOpenedBy(recording -> syntheticFieldLoaderLeafSupplier.get().docValuesLoader(recording, null));
+                announced.put(reader, segment);
+            }
+        }
+
+        @Override
+        public Leaf leaf(LeafReaderContext ctx, int[] docIdsInLeaf) throws IOException {
             SyntheticFieldLoader loader = syntheticFieldLoaderLeafSupplier.get();
-            return new LeafWithMetrics(
-                new SyntheticLeaf(filter, loader, loader.docValuesLoader(reader, docIdsInLeaf), ignoredSourceFormat, reader),
-                metrics
-            );
+            DocValuesBatchPrefetcher.Segment segment = docIdsInLeaf == null ? null : announced.get(ctx.reader());
+            if (segment != null && containsAll(segment.docs(), docIdsInLeaf) == false) {
+                segment = null;
+            }
+            var leaf = segment == null
+                ? new SyntheticLeaf(filter, loader, loader.docValuesLoader(ctx.reader(), docIdsInLeaf), ignoredSourceFormat, ctx.reader())
+                : new SyntheticLeaf(filter, loader, null, ignoredSourceFormat, ctx.reader(), new Window(prefetcher, segment));
+            if (metrics == SourceFieldMetrics.NOOP) {
+                return leaf;
+            } else {
+                return new LeafWithMetrics(leaf, metrics);
+            }
         }
 
         private record LeafWithMetrics(Leaf leaf, SourceFieldMetrics metrics) implements Leaf {
@@ -189,13 +233,56 @@ public interface SourceLoader {
             }
         }
 
+        /** Whether every document of {@code docs}, in ascending order, is one of {@code announced}. */
+        private static boolean containsAll(int[] announced, int[] docs) {
+            int at = 0;
+            for (int doc : docs) {
+                at = Arrays.binarySearch(announced, at, announced.length, doc);
+                if (at < 0) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        /** The prefetched window of an announced segment that a leaf loads from. */
+        private static final class Window {
+            private final DocValuesBatchPrefetcher prefetcher;
+            private final DocValuesBatchPrefetcher.Segment segment;
+            /** One past the last position of the segment's documents in the window. */
+            private int end = 0;
+
+            private Window(DocValuesBatchPrefetcher prefetcher, DocValuesBatchPrefetcher.Segment segment) {
+                this.prefetcher = prefetcher;
+                this.segment = segment;
+            }
+
+            /** The documents of the window holding {@code docId}, or {@code null} if it is the current one. */
+            int[] moveTo(int docId) throws IOException {
+                int[] docs = segment.docs();
+                if (end > 0 && docId <= docs[end - 1]) {
+                    return null;
+                }
+                int from = Arrays.binarySearch(docs, end, docs.length, docId);
+                if (from < 0) {
+                    throw new IllegalArgumentException("doc [" + docId + "] was not announced");
+                }
+                end = prefetcher.cover(segment, from);
+                return Arrays.copyOfRange(docs, from, end);
+            }
+        }
+
         private static class SyntheticLeaf implements Leaf {
             private final SourceFilter filter;
             private final SyntheticFieldLoader loader;
-            private final SyntheticFieldLoader.DocValuesLoader docValuesLoader;
+            private SyntheticFieldLoader.DocValuesLoader docValuesLoader;
+            private final LeafReader leafReader;
+            /** Set when the documents were announced. */
+            @Nullable
+            private final Window window;
             private final Map<String, SyntheticFieldLoader.StoredFieldLoader> storedFieldLoaders;
             private final IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat;
-            private final MultiValuedSortedBinaryDocValues ignoredSourcedocValues;
+            private final MultiValuedSortableBinaryDocValues ignoredSourcedocValues;
 
             private SyntheticLeaf(
                 SourceFilter filter,
@@ -204,16 +291,29 @@ public interface SourceLoader {
                 IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat,
                 LeafReader leafReader
             ) throws IOException {
+                this(filter, loader, docValuesLoader, ignoredSourceFormat, leafReader, null);
+            }
+
+            private SyntheticLeaf(
+                SourceFilter filter,
+                SyntheticFieldLoader loader,
+                SyntheticFieldLoader.DocValuesLoader docValuesLoader,
+                IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat,
+                LeafReader leafReader,
+                @Nullable Window window
+            ) throws IOException {
                 this.filter = filter;
                 this.loader = loader;
                 this.docValuesLoader = docValuesLoader;
+                this.leafReader = leafReader;
+                this.window = window;
                 this.storedFieldLoaders = Map.copyOf(
                     loader.storedFieldLoaders().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
                 );
                 this.ignoredSourceFormat = ignoredSourceFormat;
                 if (ignoredSourceFormat == IgnoredSourceFieldMapper.IgnoredSourceFormat.DOC_VALUES_IGNORED_SOURCE) {
                     this.ignoredSourcedocValues = Objects.requireNonNull(
-                        MultiValuedSortedBinaryDocValues.fromMultiValued(leafReader, IgnoredSourceFieldMapper.NAME)
+                        MultiValuedSortableBinaryDocValues.fromMultiValued(leafReader, IgnoredSourceFieldMapper.NAME)
                     );
                 } else {
                     this.ignoredSourcedocValues = null;
@@ -222,7 +322,7 @@ public interface SourceLoader {
 
             @Override
             public Source source(LeafStoredFieldLoader storedFieldLoader, int docId) throws IOException {
-                try (XContentBuilder b = new XContentBuilder(JsonXContent.jsonXContent, new ByteArrayOutputStream())) {
+                try (XContentBuilder b = new XContentBuilder(JsonXContent.jsonXContent, new BytesStreamOutput())) {
                     write(storedFieldLoader, docId, b);
                     return Source.fromBytes(BytesReference.bytes(b), b.contentType());
                 }
@@ -247,6 +347,12 @@ public interface SourceLoader {
 
                 if (objectsWithIgnoredFields.isEmpty() == false) {
                     loader.setIgnoredValues(objectsWithIgnoredFields);
+                }
+                if (window != null) {
+                    int[] windowDocs = window.moveTo(docId);
+                    if (windowDocs != null) {
+                        docValuesLoader = loader.docValuesLoader(leafReader, windowDocs);
+                    }
                 }
                 if (docValuesLoader != null) {
                     docValuesLoader.advanceToDoc(docId);
@@ -430,13 +536,21 @@ public interface SourceLoader {
         final SyntheticVectorsLoader patchLoader;
 
         SyntheticVectors(@Nullable SourceFilter sourceFilter, SyntheticVectorsLoader patchLoader) {
-            this.sourceLoader = sourceFilter == null ? FROM_STORED_SOURCE : new Stored(sourceFilter);
+            this(sourceFilter == null ? FROM_STORED_SOURCE : new Stored(sourceFilter), patchLoader);
+        }
+
+        /**
+         * Patches vectors into the {@code _source} produced by {@code sourceLoader}. Used by {@code columnar_stored}, whose
+         * blob is read back by a {@link Synthetic} loader rather than from a stored field.
+         */
+        SyntheticVectors(SourceLoader sourceLoader, SyntheticVectorsLoader patchLoader) {
+            this.sourceLoader = sourceLoader;
             this.patchLoader = patchLoader;
         }
 
         @Override
         public boolean reordersFieldValues() {
-            return false;
+            return sourceLoader.reordersFieldValues();
         }
 
         @Override
@@ -445,9 +559,15 @@ public interface SourceLoader {
         }
 
         @Override
-        public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
-            var sourceLeaf = sourceLoader.leaf(reader, docIdsInLeaf);
-            var patchLeaf = patchLoader.leaf(reader.getContext());
+        public void announce(DocValuesBatchPrefetcher prefetcher, List<LeafReaderContext> leaves, List<int[]> docIdsInLeaves)
+            throws IOException {
+            sourceLoader.announce(prefetcher, leaves, docIdsInLeaves);
+        }
+
+        @Override
+        public Leaf leaf(LeafReaderContext ctx, int[] docIdsInLeaf) throws IOException {
+            var sourceLeaf = sourceLoader.leaf(ctx, docIdsInLeaf);
+            var patchLeaf = patchLoader.leaf(ctx);
             return new Leaf() {
                 @Override
                 public Source source(LeafStoredFieldLoader storedFields, int docId) throws IOException {

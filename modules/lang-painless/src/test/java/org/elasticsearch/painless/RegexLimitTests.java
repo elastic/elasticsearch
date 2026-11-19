@@ -30,7 +30,19 @@ public class RegexLimitTests extends ScriptTestCase {
             // Backtracking means the regular expression will fail with limit factor 1 (don't consider more than each char once)
             setRegexLimitFactor(1);
             CircuitBreakingException cbe = expectScriptThrows(CircuitBreakingException.class, () -> exec(script));
-            assertTrue(cbe.getMessage().contains(regexCircuitMessage));
+            String rawSeq = charSequence.replace("'", "");
+            assertEquals(
+                regexCircuitMessage
+                    + ", pattern: ["
+                    + pattern.replace("/", "")
+                    + "], limit factor: [1"
+                    + "], char limit: ["
+                    + rawSeq.length()
+                    + "], wrapped: ["
+                    + rawSeq
+                    + "], this limit can be changed by the [script.painless.regex.limit-factor] setting",
+                cbe.getMessage()
+            );
         }
     }
 
@@ -42,6 +54,17 @@ public class RegexLimitTests extends ScriptTestCase {
             setRegexEnabled();
             assertEquals(Boolean.TRUE, exec(script));
         }
+    }
+
+    // With no limit factor the receiver is matched unwrapped (UNLIMITED_PATTERN_FACTOR branch); pin correct output there.
+    public void testRegexInjectUnlimited_ReplaceAll() {
+        setRegexEnabled();
+        assertEquals("thE qUIck brOwn fOx", exec("'the quick brown fox'.replaceAll(/[aeiou]/, m -> m.group().toUpperCase(Locale.ROOT))"));
+    }
+
+    public void testRegexInjectUnlimited_ReplaceFirst() {
+        setRegexEnabled();
+        assertEquals("thE quick brown fox", exec("'the quick brown fox'.replaceFirst(/[aeiou]/, m -> m.group().toUpperCase(Locale.ROOT))"));
     }
 
     public void testRegexInject_Def_Matcher() {
@@ -80,7 +103,7 @@ public class RegexLimitTests extends ScriptTestCase {
             .put(CompilerSettings.REGEX_LIMIT_FACTOR.getKey(), 1)
             .put(CompilerSettings.REGEX_ENABLED.getKey(), "true")
             .build();
-        scriptEngine = new PainlessScriptEngine(settings, scriptContexts());
+        scriptEngine = new PainlessScriptEngine(settings, scriptContexts(), () -> null, false);
         assertEquals(Boolean.TRUE, exec(script));
     }
 
@@ -330,11 +353,11 @@ public class RegexLimitTests extends ScriptTestCase {
 
     private void setRegexLimitFactor(int factor) {
         Settings settings = Settings.builder().put(CompilerSettings.REGEX_LIMIT_FACTOR.getKey(), factor).build();
-        scriptEngine = new PainlessScriptEngine(settings, scriptContexts());
+        scriptEngine = new PainlessScriptEngine(settings, scriptContexts(), () -> null, false);
     }
 
     private void setRegexEnabled() {
         Settings settings = Settings.builder().put(CompilerSettings.REGEX_ENABLED.getKey(), "true").build();
-        scriptEngine = new PainlessScriptEngine(settings, scriptContexts());
+        scriptEngine = new PainlessScriptEngine(settings, scriptContexts(), () -> null, false);
     }
 }

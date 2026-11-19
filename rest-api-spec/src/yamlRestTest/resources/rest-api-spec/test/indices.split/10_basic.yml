@@ -1,5 +1,8 @@
 ---
 setup:
+  - requires:
+      test_runner_features: [ "allowed_warnings" ]
+
   - do:
       indices.create:
         index: source
@@ -9,6 +12,8 @@ setup:
             index.number_of_shards: 2
             index.number_of_replicas: 0
             index.number_of_routing_shards: 4
+      allowed_warnings:
+        - "[index.number_of_routing_shards] setting was deprecated in Elasticsearch and will be removed in a future release. See the deprecation documentation for the next major version."
   - do:
       index:
         index: source
@@ -189,6 +194,9 @@ setup:
 
 ---
 "Create illegal split indices":
+  - requires:
+      test_runner_features: [ "allowed_warnings" ]
+
   # try to do an illegal split with number_of_routing_shards set
   - do:
       catch: /illegal_argument_exception/
@@ -202,6 +210,8 @@ setup:
             index.number_of_replicas: 0
             index.number_of_shards: 4
             index.number_of_routing_shards: 8
+      allowed_warnings:
+        - "[index.number_of_routing_shards] setting was deprecated in Elasticsearch and will be removed in a future release. See the deprecation documentation for the next major version."
 
   # try to do an illegal split with illegal number_of_shards
   - do:

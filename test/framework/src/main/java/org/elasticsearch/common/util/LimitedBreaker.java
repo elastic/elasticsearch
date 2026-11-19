@@ -35,6 +35,7 @@ public class LimitedBreaker extends NoopCircuitBreaker {
     }
 
     private final AtomicLong used = new AtomicLong();
+    private final AtomicLong trippedCount = new AtomicLong();
     private final ByteSizeValue max;
 
     public LimitedBreaker(String name, ByteSizeValue max) {
@@ -51,6 +52,7 @@ public class LimitedBreaker extends NoopCircuitBreaker {
                 throw new AssertionError("total must be >= 0 but was [" + total + "]");
             }
             if (total > max.getBytes()) {
+                trippedCount.incrementAndGet();
                 throw new CircuitBreakingException(MockBigArrays.ERROR_MESSAGE, bytes, max.getBytes(), Durability.TRANSIENT);
             }
             if (used.compareAndSet(old, total)) {
@@ -70,6 +72,11 @@ public class LimitedBreaker extends NoopCircuitBreaker {
     @Override
     public long getUsed() {
         return used.get();
+    }
+
+    @Override
+    public long getTrippedCount() {
+        return trippedCount.get();
     }
 
     @Override

@@ -16,6 +16,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.MultiValueAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.sort.SortValue;
@@ -29,6 +30,7 @@ import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -39,6 +41,7 @@ import java.util.stream.IntStream;
 import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notANumber;
 import static org.mockito.Mockito.mock;
 
@@ -248,6 +251,47 @@ public class InternalTopMetricsTests extends InternalAggregationTestCase<Interna
         assertThat(metrics.getValuesAsStrings("double"), equalTo(Collections.singletonList("5.0")));
         assertThat(metrics.getValuesAsStrings("bytes"), equalTo(Collections.singletonList("cat")));
         assertThat(metrics.getValuesAsStrings("null"), equalTo(Collections.singletonList("null")));
+    }
+
+    public void testGetRankedHitsSizeOne() {
+        InternalTopMetrics metrics = resultWithAllTypes();
+        assertThat(metrics.getRankedHitSize(), equalTo(1));
+        Map<String, Object> expectedMetrics = new LinkedHashMap<>();
+        expectedMetrics.put("int", 1L);
+        expectedMetrics.put("double", 5.0);
+        expectedMetrics.put("bytes", "cat");
+        expectedMetrics.put("null", null);
+        assertThat(metrics.getRankedHits(), equalTo(List.of(new MultiValueAggregation.RankedHit(List.of(1L), expectedMetrics))));
+    }
+
+    public void testGetRankedHitsSizeGreaterThanOne() {
+        List<InternalTopMetrics.TopMetric> top = List.of(
+            new InternalTopMetrics.TopMetric(DocValueFormat.RAW, SortValue.from(1.0), singletonList(metricOneDouble)),
+            new InternalTopMetrics.TopMetric(DocValueFormat.RAW, SortValue.from(2.0), singletonList(metricOneLong))
+        );
+        InternalTopMetrics tm = new InternalTopMetrics("test", sortOrder, singletonList("test"), 2, top, null);
+        assertThat(tm.getRankedHitSize(), equalTo(2));
+        assertThat(
+            tm.getRankedHits(),
+            equalTo(
+                List.of(
+                    new MultiValueAggregation.RankedHit(List.of(1.0), Map.of("test", 1.0)),
+                    new MultiValueAggregation.RankedHit(List.of(2.0), Map.of("test", 1L))
+                )
+            )
+        );
+    }
+
+    public void testGetRankedHitsDateSort() {
+        SortValue sortValue = SortValue.from(ZonedDateTime.parse("2007-12-03T10:15:30Z").toInstant().toEpochMilli());
+        List<InternalTopMetrics.TopMetric> top = singletonList(
+            new InternalTopMetrics.TopMetric(strictDateTime(), sortValue, singletonList(metricOneDouble))
+        );
+        InternalTopMetrics tm = new InternalTopMetrics("test", sortOrder, singletonList("test"), 3, top, null);
+        assertThat(tm.getRankedHitSize(), equalTo(3));
+        assertThat(tm.getRankedHits(), hasSize(1));
+        assertThat(tm.getRankedHits().get(0).sort(), equalTo(List.of("2007-12-03T10:15:30.000Z")));
+        assertThat(tm.getRankedHits().get(0).metrics(), equalTo(Map.of("test", 1.0)));
     }
 
     private InternalTopMetrics resultWithAllTypes() {

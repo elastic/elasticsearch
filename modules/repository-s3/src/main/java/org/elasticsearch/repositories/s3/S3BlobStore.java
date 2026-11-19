@@ -37,6 +37,7 @@ import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.BlobStoreActionStats;
 import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
@@ -49,6 +50,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -77,6 +79,19 @@ class S3BlobStore implements BlobStore {
 
     private static final Logger logger = LogManager.getLogger(S3BlobStore.class);
 
+    public static final EnumSet<StorageClass> ALLOWED_STORAGE_CLASSES = EnumSet.of(
+        StorageClass.STANDARD,
+        StorageClass.STANDARD_IA,
+        StorageClass.ONEZONE_IA,
+        StorageClass.INTELLIGENT_TIERING,
+        StorageClass.REDUCED_REDUNDANCY,
+        StorageClass.GLACIER_IR,
+        StorageClass.OUTPOSTS,
+        StorageClass.SNOW
+    );
+
+    private static final StorageClass DEFAULT_S3_STORAGE_CLASS = StorageClass.STANDARD;
+
     @Nullable // if the blobstore is at the cluster level
     private final ProjectId projectId;
     private final S3Service service;
@@ -93,7 +108,11 @@ class S3BlobStore implements BlobStore {
 
     private final ObjectCannedACL cannedACL;
 
-    private final StorageClass storageClass;
+    private final StorageClass fallbackStorageClass;
+
+    private final StorageClass dataStorageClass;
+
+    private final StorageClass metadataStorageClass;
 
     private final boolean supportsConditionalWrites;
 
@@ -130,7 +149,9 @@ class S3BlobStore implements BlobStore {
         boolean serverSideEncryption,
         ByteSizeValue bufferSize,
         String cannedACL,
-        String storageClass,
+        String fallbackStorageClass,
+        String dataStorageClass,
+        String metadataStorageClass,
         boolean supportConditionalWrites,
         RepositoryMetadata repositoryMetadata,
         BigArrays bigArrays,
@@ -146,7 +167,11 @@ class S3BlobStore implements BlobStore {
         this.bufferSize = bufferSize;
         this.maxCopySizeBeforeMultipart = service.settings(projectId, repositoryMetadata).maxCopySizeBeforeMultipart;
         this.cannedACL = initCannedACL(cannedACL);
-        this.storageClass = initStorageClass(storageClass);
+        this.fallbackStorageClass = initStorageClass(fallbackStorageClass, false);
+        this.dataStorageClass = Strings.hasText(dataStorageClass) ? initStorageClass(dataStorageClass, true) : this.fallbackStorageClass;
+        this.metadataStorageClass = Strings.hasText(metadataStorageClass)
+            ? initStorageClass(metadataStorageClass, true)
+            : this.fallbackStorageClass;
         this.supportsConditionalWrites = supportConditionalWrites;
         this.repositoryMetadata = repositoryMetadata;
         this.threadPool = threadPool;
@@ -332,6 +357,12 @@ class S3BlobStore implements BlobStore {
         }
     }
 
+    /**
+     * Delete the provided collection of blobs.
+     *
+     * @see <a href="https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteObjects.html">DeleteObjects</a> particularly noting that this
+     * API returns success when deleting blobs that already do not exist.
+     */
     void deleteBlobs(OperationPurpose purpose, Iterator<String> blobNames) throws IOException {
         if (blobNames.hasNext() == false) {
             return;
@@ -340,16 +371,18 @@ class S3BlobStore implements BlobStore {
         final List<ObjectIdentifier> partition = new ArrayList<>();
         try {
             // S3 API only allows 1k blobs per delete so we split up the given blobs into requests of max. 1k deletes
-            final var deletionExceptions = new DeletionExceptions();
-            blobNames.forEachRemaining(key -> {
-                partition.add(ObjectIdentifier.builder().key(key).build());
-                if (partition.size() == bulkDeletionBatchSize) {
-                    deletePartition(purpose, partition, deletionExceptions);
+            final var batchIterator = Iterators.batching(
+                bulkDeletionBatchSize,
+                Iterators.map(blobNames, key -> ObjectIdentifier.builder().key(key).build()),
+                () -> {
+                    // re-use partition, no need to allocate afresh
                     partition.clear();
+                    return partition;
                 }
-            });
-            if (partition.isEmpty() == false) {
-                deletePartition(purpose, partition, deletionExceptions);
+            );
+            final var deletionExceptions = new DeletionExceptions();
+            while (batchIterator.hasNext()) {
+                deletePartition(purpose, batchIterator.next(), deletionExceptions);
             }
             if (deletionExceptions.exception != null) {
                 throw deletionExceptions.exception;
@@ -360,7 +393,10 @@ class S3BlobStore implements BlobStore {
     }
 
     /**
-     * Delete one partition of a batch of blobs
+     * Delete one partition of a batch of blobs.
+     *
+     * @see <a href="https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteObjects.html">DeleteObjects</a> particularly noting that this
+     * API returns success when deleting blobs that already do not exist.
      *
      * @param purpose The {@link OperationPurpose} of the deletion
      * @param partition The list of blobs to delete
@@ -474,17 +510,21 @@ class S3BlobStore implements BlobStore {
         return cannedACL;
     }
 
-    public StorageClass getStorageClass() {
-        return storageClass;
+    public StorageClass resolveStorageClass(OperationPurpose purpose) {
+        return switch (purpose) {
+            case SNAPSHOT_DATA -> dataStorageClass;
+            case SNAPSHOT_METADATA -> metadataStorageClass;
+            case REPOSITORY_ANALYSIS, CLUSTER_STATE, INDICES, TRANSLOG, RESHARDING -> fallbackStorageClass;
+        };
     }
 
     public TimeValue getGetRegisterRetryDelay() {
         return getRegisterRetryDelay;
     }
 
-    public static StorageClass initStorageClass(String storageClassName) {
-        if ((storageClassName == null) || storageClassName.equals("")) {
-            return StorageClass.STANDARD;
+    public static StorageClass initStorageClass(String storageClassName, boolean checkInAllowList) {
+        if (Strings.hasText(storageClassName) == false) {
+            return DEFAULT_S3_STORAGE_CLASS;
         }
 
         final StorageClass storageClass;
@@ -493,11 +533,18 @@ class S3BlobStore implements BlobStore {
         } catch (final Exception e) {
             throw new BlobStoreException("`" + storageClassName + "` is not a valid S3 Storage Class.", e);
         }
-        if (storageClass.equals(StorageClass.GLACIER)) {
-            throw new BlobStoreException("Glacier storage class is not supported");
-        }
+
         if (storageClass.equals(StorageClass.UNKNOWN_TO_SDK_VERSION)) {
             throw new BlobStoreException("`" + storageClassName + "` is not a known S3 Storage Class.");
+        }
+
+        if (checkInAllowList) {
+            if (ALLOWED_STORAGE_CLASSES.contains(storageClass) == false) {
+                throw new BlobStoreException("`" + storageClassName + "` is not an allowed S3 Storage Class.");
+            }
+        } else if (storageClass.equals(StorageClass.GLACIER)) {
+            // legacy validation for storage_class; only validate against GLACIER
+            throw new BlobStoreException("Glacier storage class is not supported");
         }
 
         return storageClass;

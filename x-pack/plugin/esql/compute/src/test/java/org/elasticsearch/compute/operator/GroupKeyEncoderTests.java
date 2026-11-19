@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.PagedBytesBuilder;
 import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder.DoubleRange;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.ComputeTestCase;
@@ -70,6 +71,47 @@ public class GroupKeyEncoderTests extends ComputeTestCase {
             assertNotEquals(key0, key1);
         } finally {
             page.releaseBlocks();
+        }
+    }
+
+    public void testDoubleRangeType() {
+        BlockFactory bf = blockFactory();
+        try (var builder = bf.newDoubleRangeBlockBuilder(4)) {
+            builder.appendDoubleRange(1.0, 2.0);
+            builder.appendDoubleRange(2.0, 3.0);
+            builder.appendDoubleRange(1.0, 2.0);
+            builder.appendNull();
+            Page page = new Page(builder.build());
+            try (GroupKeyEncoder encoder = encoder(new int[] { 0 }, List.of(ElementType.DOUBLE_RANGE))) {
+                BytesRef first = copy(encoder.encode(page, 0));
+                assertNotEquals(first, copy(encoder.encode(page, 1)));
+                assertEquals(first, copy(encoder.encode(page, 2)));
+                assertNotEquals(first, copy(encoder.encode(page, 3)));
+            } finally {
+                page.releaseBlocks();
+            }
+        }
+    }
+
+    public void testDoubleRangeMultivalueOrderMatters() {
+        BlockFactory bf = blockFactory();
+        DoubleRange first = new DoubleRange(1.0, 2.0);
+        DoubleRange second = new DoubleRange(2.0, 3.0);
+        try (var builder = bf.newDoubleRangeBlockBuilder(2)) {
+            builder.beginPositionEntry();
+            builder.appendDoubleRange(first);
+            builder.appendDoubleRange(second);
+            builder.endPositionEntry();
+            builder.beginPositionEntry();
+            builder.appendDoubleRange(second);
+            builder.appendDoubleRange(first);
+            builder.endPositionEntry();
+            Page page = new Page(builder.build());
+            try (GroupKeyEncoder encoder = encoder(new int[] { 0 }, List.of(ElementType.DOUBLE_RANGE))) {
+                assertNotEquals(copy(encoder.encode(page, 0)), copy(encoder.encode(page, 1)));
+            } finally {
+                page.releaseBlocks();
+            }
         }
     }
 

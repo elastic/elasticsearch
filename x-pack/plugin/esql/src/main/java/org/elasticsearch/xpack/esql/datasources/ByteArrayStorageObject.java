@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -26,7 +28,13 @@ final class ByteArrayStorageObject implements StorageObject {
     private final int offset;
     private final int length;
 
+    private final Instant lastModified;
+
     ByteArrayStorageObject(StoragePath path, byte[] data, int offset, int length) {
+        this(path, data, offset, length, Instant.EPOCH);
+    }
+
+    ByteArrayStorageObject(StoragePath path, byte[] data, int offset, int length, Instant lastModified) {
         if (offset < 0 || length < 0) {
             throw new IllegalArgumentException("Invalid region: offset=" + offset + ", length=" + length);
         }
@@ -45,7 +53,12 @@ final class ByteArrayStorageObject implements StorageObject {
         this.data = data;
         this.offset = offset;
         this.length = length;
+        this.lastModified = lastModified;
     }
+
+    /** In-memory bytes produce no storage I/O, so there are no counters to attach. */
+    @Override
+    public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
 
     @Override
     public InputStream newStream() {
@@ -74,7 +87,7 @@ final class ByteArrayStorageObject implements StorageObject {
 
     @Override
     public Instant lastModified() {
-        return Instant.EPOCH;
+        return lastModified;
     }
 
     @Override
@@ -85,6 +98,17 @@ final class ByteArrayStorageObject implements StorageObject {
     @Override
     public StoragePath path() {
         return path;
+    }
+
+    /**
+     * Equal only to itself: chunks reuse the source file's path, so any shared identity would let two
+     * equal-length chunks of one file collide on the same footer-cache key.
+     */
+    private final StorageIdentity identity = StorageIdentity.unique();
+
+    @Override
+    public StorageIdentity storageIdentity() {
+        return identity;
     }
 
     @Override

@@ -30,6 +30,7 @@ public class StaleRequestException extends ElasticsearchException {
      * @param staleSummary The stale summary that triggered this exception.
      *                     The caller should retry when the request summary it produces differs.
      */
+    @SuppressWarnings("this-escape")
     public StaleRequestException(ShardId shardId, SplitShardCountSummary staleSummary) {
         super("Request is stale due to concurrent reshard operation, retry later", shardId);
         setStaleSummary(staleSummary);

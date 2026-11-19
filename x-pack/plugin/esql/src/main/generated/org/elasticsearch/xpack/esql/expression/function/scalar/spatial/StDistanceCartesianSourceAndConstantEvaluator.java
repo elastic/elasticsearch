@@ -59,7 +59,7 @@ public final class StDistanceCartesianSourceAndConstantEvaluator implements Expr
   }
 
   public DoubleBlock eval(int positionCount, BytesRefBlock leftBlock) {
-    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         boolean allBlocksAreNulls = true;
         if (!leftBlock.isNull(p)) {
@@ -92,7 +92,7 @@ public final class StDistanceCartesianSourceAndConstantEvaluator implements Expr
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }

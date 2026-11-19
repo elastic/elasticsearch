@@ -13,12 +13,16 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
+import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
@@ -30,6 +34,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.xpack.core.transform.transforms.TransformConfig.TRANSFORM_CLOUD_CREDENTIAL_ON_REQUEST;
 
 public class PutTransformAction extends ActionType<AcknowledgedResponse> {
 
@@ -56,10 +61,15 @@ public class PutTransformAction extends ActionType<AcknowledgedResponse> {
         super(NAME);
     }
 
-    public static class Request extends AcknowledgedRequest<Request> {
+    public static class Request extends AcknowledgedRequest<Request> implements Releasable {
 
         private final TransformConfig config;
         private final boolean deferValidation;
+
+        // Caller's UIAM cloud credential carried on the request so it survives coordinator -> master
+        // transport, where the AUTHENTICATING_CLOUD_TOKEN_THREAD_CONTEXT transient is no longer present.
+        @Nullable
+        private CloudCredential cloudCredential;
 
         public Request(TransformConfig config, boolean deferValidation, TimeValue timeout) {
             super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, timeout);
@@ -71,6 +81,11 @@ public class PutTransformAction extends ActionType<AcknowledgedResponse> {
             super(in);
             this.config = new TransformConfig(in);
             this.deferValidation = in.readBoolean();
+            if (in.getTransportVersion().supports(TRANSFORM_CLOUD_CREDENTIAL_ON_REQUEST)) {
+                this.cloudCredential = in.readOptionalWriteable(CloudCredential::new);
+            } else {
+                this.cloudCredential = null;
+            }
         }
 
         public static Request fromXContent(
@@ -132,16 +147,42 @@ public class PutTransformAction extends ActionType<AcknowledgedResponse> {
             return deferValidation;
         }
 
+        @Nullable
+        public CloudCredential getCloudCredential() {
+            return cloudCredential;
+        }
+
+        /**
+         * Sets the credential this request carries and hands ownership of the previously-held
+         * credential back to the caller, which is responsible for closing it. Returns {@code null}
+         * when the credential is unchanged.
+         */
+        @Nullable
+        public CloudCredential setCloudCredential(@Nullable CloudCredential cloudCredential) {
+            var previous = this.cloudCredential == cloudCredential ? null : this.cloudCredential;
+            this.cloudCredential = cloudCredential;
+            return previous;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             this.config.writeTo(out);
             out.writeBoolean(this.deferValidation);
+            if (out.getTransportVersion().supports(TRANSFORM_CLOUD_CREDENTIAL_ON_REQUEST)) {
+                out.writeOptionalWriteable(this.cloudCredential);
+            }
+        }
+
+        @Override
+        public void close() {
+            IOUtils.closeWhileHandlingException(cloudCredential);
         }
 
         @Override
         public int hashCode() {
             // the base class does not implement hashCode, therefore we need to hash timeout ourselves
+            // cloudCredential is intentionally excluded: request-scoped secret carrier, not logical identity.
             return Objects.hash(ackTimeout(), config, deferValidation);
         }
 
@@ -156,6 +197,7 @@ public class PutTransformAction extends ActionType<AcknowledgedResponse> {
             Request other = (Request) obj;
 
             // the base class does not implement equals, therefore we need to check timeout ourselves
+            // cloudCredential is intentionally excluded: request-scoped secret carrier, not logical identity.
             return Objects.equals(config, other.config)
                 && this.deferValidation == other.deferValidation
                 && ackTimeout().equals(other.ackTimeout());

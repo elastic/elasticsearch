@@ -72,12 +72,13 @@ public final class ScalbIntEvaluator implements ExpressionEvaluator {
   }
 
   public DoubleBlock eval(int positionCount, DoubleBlock dBlock, IntBlock scaleFactorBlock) {
-    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
+        if (dBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (dBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -85,10 +86,11 @@ public final class ScalbIntEvaluator implements ExpressionEvaluator {
               result.appendNull();
               continue position;
         }
+        if (scaleFactorBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (scaleFactorBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -110,7 +112,7 @@ public final class ScalbIntEvaluator implements ExpressionEvaluator {
   }
 
   public DoubleBlock eval(int positionCount, DoubleVector dVector, IntVector scaleFactorVector) {
-    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         double d = dVector.getDouble(p);
         int scaleFactor = scaleFactorVector.getInt(p);
@@ -137,7 +139,7 @@ public final class ScalbIntEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }

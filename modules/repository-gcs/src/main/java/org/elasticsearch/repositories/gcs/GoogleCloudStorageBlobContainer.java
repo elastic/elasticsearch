@@ -10,6 +10,7 @@
 package org.elasticsearch.repositories.gcs;
 
 import com.google.cloud.storage.BlobId;
+import com.google.cloud.storage.BlobInfo;
 import com.google.cloud.storage.StorageException;
 
 import org.elasticsearch.action.ActionListener;
@@ -23,6 +24,7 @@ import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -31,6 +33,7 @@ import java.io.OutputStream;
 import java.nio.file.NoSuchFileException;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.concurrent.Executor;
 
 class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
 
@@ -118,12 +121,31 @@ class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
+    public boolean supportsConcurrentMultipartUploads() {
+        return true;
+    }
+
+    @Override
+    public void writeBlobAtomic(
+        OperationPurpose purpose,
+        String blobName,
+        long blobSize,
+        BlobMultiPartInputStreamProvider provider,
+        boolean failIfAlreadyExists,
+        Executor executor
+    ) throws IOException {
+        assert BlobContainer.assertPurposeConsistency(purpose, blobName);
+        blobStore.writeMultipartBlob(purpose, buildKey(blobName), blobSize, provider, failIfAlreadyExists, executor);
+    }
+
+    @Override
     public void copyBlob(
         final OperationPurpose purpose,
         final BlobContainer sourceBlobContainer,
         final String sourceBlobName,
         final String blobName,
-        final long blobSize
+        final long blobSize,
+        @Nullable final Executor executor
     ) throws IOException {
         assert BlobContainer.assertPurposeConsistency(purpose, sourceBlobName);
         assert BlobContainer.assertPurposeConsistency(purpose, blobName);
@@ -133,8 +155,9 @@ class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
         var source = (GoogleCloudStorageBlobContainer) sourceBlobContainer;
         BlobId sourceBlobId = BlobId.of(source.blobStore.bucketName, source.buildKey(sourceBlobName));
         BlobId blobId = BlobId.of(blobStore.bucketName, buildKey(blobName));
+        BlobInfo targetBlobInfo = blobStore.applyStorageClass(BlobInfo.newBuilder(blobId), purpose).build();
         try {
-            blobStore.client().copy(purpose, sourceBlobId, blobId, blobStore.getMegabytesCopiedPerChunk());
+            blobStore.client().copy(purpose, sourceBlobId, targetBlobInfo, blobStore.getMegabytesCopiedPerChunk());
         } catch (StorageException e) {
             if (e.getCode() == RestStatus.NOT_FOUND.getStatus()) {
                 throw new NoSuchFileException("Copy source [" + sourceBlobName + "] not found: " + e.getMessage());

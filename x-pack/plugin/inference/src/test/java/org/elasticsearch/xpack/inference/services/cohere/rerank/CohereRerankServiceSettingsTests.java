@@ -14,10 +14,11 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
+import org.elasticsearch.xpack.inference.services.cohere.AbstractCohereServiceSettingsTests;
 import org.elasticsearch.xpack.inference.services.cohere.CohereCommonServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.CohereCommonServiceSettingsTests;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -30,9 +31,8 @@ import java.util.Map;
 import static org.elasticsearch.xpack.inference.services.cohere.CohereCommonServiceSettings.ML_INFERENCE_COHERE_API_VERSION;
 import static org.hamcrest.Matchers.is;
 
-public class CohereRerankServiceSettingsTests extends AbstractBWCWireSerializationTestCase<CohereRerankServiceSettings> {
+public class CohereRerankServiceSettingsTests extends AbstractCohereServiceSettingsTests<CohereRerankServiceSettings> {
 
-    private static final String TEST_MODEL_ID = "test-model-id";
     private static final String INITIAL_TEST_MODEL_ID = "initial-test-model-id";
 
     private static final int TEST_RATE_LIMIT = 20;
@@ -41,16 +41,27 @@ public class CohereRerankServiceSettingsTests extends AbstractBWCWireSerializati
     private static final RateLimitSettings DEFAULT_COHERE_RERANK_RATE_LIMIT_SETTINGS = new RateLimitSettings(10_000);
 
     public static CohereRerankServiceSettings createRandom() {
+        var apiVersion = randomFrom(CohereCommonServiceSettings.CohereApiVersion.values());
+        var modelId = apiVersion == CohereCommonServiceSettings.CohereApiVersion.V2
+            ? randomAlphaOfLength(10)
+            : randomAlphaOfLengthOrNull(10);
         return new CohereRerankServiceSettings(
-            new CohereCommonServiceSettings(
-                randomAlphaOfLengthOrNull(10),
-                randomFrom(RateLimitSettingsTests.createRandom(), null),
-                randomFrom(CohereCommonServiceSettings.CohereApiVersion.values())
-            )
+            new CohereCommonServiceSettings(modelId, randomFrom(RateLimitSettingsTests.createRandom(), null), apiVersion)
         );
     }
 
-    public void testUpdateServiceSettings_AllFields_OnlyMutableFieldsAreUpdated() {
+    @Override
+    protected CohereRerankServiceSettings createGivenCommonSettings(Map<String, Object> commonSettings, ConfigurationParseContext context) {
+        return CohereRerankServiceSettings.fromMap(new HashMap<>(commonSettings), context);
+    }
+
+    @Override
+    protected XContentBuilder toXContentFragmentOfExposedFields(CohereRerankServiceSettings instance, XContentBuilder builder)
+        throws IOException {
+        return instance.toXContentFragmentOfExposedFields(builder, null);
+    }
+
+    public void testUpdateServiceSettings_AllUpdatableFields() {
         var originalServiceSettings = new CohereRerankServiceSettings(
             new CohereCommonServiceSettings(
                 INITIAL_TEST_MODEL_ID,
@@ -59,7 +70,7 @@ public class CohereRerankServiceSettingsTests extends AbstractBWCWireSerializati
             )
         );
         var updatedServiceSettings = originalServiceSettings.updateServiceSettings(
-            buildServiceSettingsMap(CohereCommonServiceSettings.CohereApiVersion.V2.toString())
+            Map.of(RateLimitSettings.FIELD_NAME, Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, TEST_RATE_LIMIT))
         );
 
         assertThat(
@@ -175,8 +186,8 @@ public class CohereRerankServiceSettingsTests extends AbstractBWCWireSerializati
 
     @Override
     protected CohereRerankServiceSettings mutateInstance(CohereRerankServiceSettings instance) throws IOException {
-        var commonSettings = instance.getCommonSettings();
-        commonSettings = randomValueOtherThan(instance.getCommonSettings(), () -> CohereCommonServiceSettingsTests.createRandom());
+        var commonSettings = instance.commonSettings();
+        commonSettings = randomValueOtherThan(instance.commonSettings(), () -> CohereCommonServiceSettingsTests.createRandom());
         return new CohereRerankServiceSettings(commonSettings);
     }
 
@@ -192,5 +203,10 @@ public class CohereRerankServiceSettingsTests extends AbstractBWCWireSerializati
             );
         }
         return instance;
+    }
+
+    @Override
+    protected CohereRerankServiceSettings doParseInstance(XContentParser parser) throws IOException {
+        return CohereRerankServiceSettings.createParser(ignoreUnknownFields, PARSE_CONTEXT).apply(parser, PARSE_CONTEXT).build();
     }
 }

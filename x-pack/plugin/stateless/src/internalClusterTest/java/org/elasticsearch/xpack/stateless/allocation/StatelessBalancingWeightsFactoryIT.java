@@ -41,6 +41,10 @@ public class StatelessBalancingWeightsFactoryIT extends AbstractStatelessPluginI
             // Tests below can set the other weights all to 0, resulting in 0 node weight, which is not currently supported. Therefore,
             // index balance will be set to a value >0 to ensure there is always some node weight balance.
             .put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), 0.55f)
+            .put(
+                DisableSimulationRebalancingDecider.SIMULATION_REBALANCING_ENABLED_SETTING.getKey(),
+                DisableSimulationRebalancingDecider.RebalancingEnabled.ALWAYS
+            )
             .put(StatelessBalancingWeightsFactory.SEPARATE_WEIGHTS_PER_TIER_ENABLED_SETTING.getKey(), true);
     }
 
@@ -78,7 +82,7 @@ public class StatelessBalancingWeightsFactoryIT extends AbstractStatelessPluginI
         indexNodeTelemetry.collect();
 
         // Calculate total shards across all nodes for the avgShardsPerNode calculation
-        List<Measurement> shardCountMeasurements = indexNodeTelemetry.getLongGaugeMeasurement(
+        List<Measurement> shardCountMeasurements = indexNodeTelemetry.getLongAsyncGaugeMeasurement(
             DesiredBalanceMetrics.CURRENT_NODE_SHARD_COUNT_METRIC_NAME
         );
         int totalNumShards = (int) shardCountMeasurements.stream().mapToLong(Measurement::getLong).sum();
@@ -185,11 +189,11 @@ public class StatelessBalancingWeightsFactoryIT extends AbstractStatelessPluginI
         int totalNumberNodes
     ) {
         long shardCount = getMeasurementForNode(
-            testTelemetryPlugin.getLongGaugeMeasurement(DesiredBalanceMetrics.CURRENT_NODE_SHARD_COUNT_METRIC_NAME),
+            testTelemetryPlugin.getLongAsyncGaugeMeasurement(DesiredBalanceMetrics.CURRENT_NODE_SHARD_COUNT_METRIC_NAME),
             nodeName
         ).getLong();
         double weight = getMeasurementForNode(
-            testTelemetryPlugin.getDoubleGaugeMeasurement(DesiredBalanceMetrics.CURRENT_NODE_WEIGHT_METRIC_NAME),
+            testTelemetryPlugin.getDoubleAsyncGaugeMeasurement(DesiredBalanceMetrics.CURRENT_NODE_WEIGHT_METRIC_NAME),
             nodeName
         ).getDouble();
 

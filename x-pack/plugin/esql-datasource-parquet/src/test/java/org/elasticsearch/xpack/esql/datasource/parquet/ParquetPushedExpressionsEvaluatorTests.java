@@ -18,11 +18,22 @@ import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownLiteralConversion;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCompare;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvGreater;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLess;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Contains;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
@@ -38,6 +49,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
+import org.junit.Before;
 
 import java.time.ZoneOffset;
 import java.util.Arrays;
@@ -54,10 +66,9 @@ public class ParquetPushedExpressionsEvaluatorTests extends ESTestCase {
 
     private BlockFactory blockFactory;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+    @Before
+    public void initBlockFactory() throws Exception {
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
     }
 
     // ---- Test 1: All 6 comparison ops with LongBlock ----
@@ -129,6 +140,65 @@ public class ParquetPushedExpressionsEvaluatorTests extends ESTestCase {
         );
     }
 
+    // ---- Test 1b: UNSIGNED_LONG comparisons implement unsigned ordering over the encoded LongBlock ----
+
+    /**
+     * {@code UNSIGNED_LONG} blocks and literals both live in ESQL's canonical sign-flip-encoded domain (see
+     * {@link ParquetColumnDecoding#encodeUnsignedLong}); this dispatch is type-blind on the block's runtime class
+     * (see {@code evaluateComparison}'s {@code instanceof LongBlock} branch above), so ordinary signed
+     * {@link Long#compare} over that encoded form must already implement TRUE unsigned ordering across the 2^63
+     * boundary, with no {@code UNSIGNED_LONG}-specific branch needed.
+     */
+    public void testComparisonOpsWithUnsignedLongBlockAcrossSignBoundary() {
+        // True unsigned magnitudes 2^63-2 .. 2^63+2 sign-flip-encode to -2 .. 2.
+        long[] encoded = {
+            ParquetColumnDecoding.encodeUnsignedLong(Long.MAX_VALUE - 1), // 2^63 - 2 -> -2
+            ParquetColumnDecoding.encodeUnsignedLong(Long.MAX_VALUE),     // 2^63 - 1 -> -1
+            ParquetColumnDecoding.encodeUnsignedLong(Long.MIN_VALUE),     // 2^63 -> 0
+            ParquetColumnDecoding.encodeUnsignedLong(Long.MIN_VALUE + 1), // 2^63 + 1 -> 1
+            ParquetColumnDecoding.encodeUnsignedLong(Long.MIN_VALUE + 2)  // 2^63 + 2 -> 2
+        };
+        Block block = blockFactory.newLongArrayVector(encoded, encoded.length).asBlock();
+        Map<String, Block> blocks = Map.of("u", block);
+        int rowCount = 5;
+        WordMask reusable = new WordMask();
+
+        long boundary = ParquetColumnDecoding.encodeUnsignedLong(Long.MIN_VALUE); // literal 2^63, encodes to 0
+
+        // u > 2^63 -> the two truly-larger unsigned magnitudes, positions [3, 4]
+        assertSurvivors(
+            new ParquetPushedExpressions(
+                List.of(new GreaterThan(Source.EMPTY, attr("u", DataType.UNSIGNED_LONG), lit(boundary, DataType.UNSIGNED_LONG), null))
+            ),
+            blocks,
+            rowCount,
+            reusable,
+            new int[] { 3, 4 }
+        );
+
+        // u < 2^63 -> the two truly-smaller unsigned magnitudes, positions [0, 1]
+        assertSurvivors(
+            new ParquetPushedExpressions(
+                List.of(new LessThan(Source.EMPTY, attr("u", DataType.UNSIGNED_LONG), lit(boundary, DataType.UNSIGNED_LONG), null))
+            ),
+            blocks,
+            rowCount,
+            reusable,
+            new int[] { 0, 1 }
+        );
+
+        // u == 2^63 -> position [2]
+        assertSurvivors(
+            new ParquetPushedExpressions(
+                List.of(new Equals(Source.EMPTY, attr("u", DataType.UNSIGNED_LONG), lit(boundary, DataType.UNSIGNED_LONG), null))
+            ),
+            blocks,
+            rowCount,
+            reusable,
+            new int[] { 2 }
+        );
+    }
+
     // ---- Test 2: Equals across all 5 block types ----
 
     public void testEqualsWithIntBlock() {
@@ -143,6 +213,31 @@ public class ParquetPushedExpressionsEvaluatorTests extends ESTestCase {
             4,
             reusable,
             new int[] { 2 }
+        );
+    }
+
+    /**
+     * Mixed {@code integer < 5.5} must rewrite to {@code integer <= 5} before late-mat; truncating
+     * via {@code intValue()} on 5.5 would wrongly drop the matching row at 5.
+     */
+    public void testIntegerLessThanDoubleKeepsFive() {
+        int[] values = { 4, 5, 6 };
+        Block block = blockFactory.newIntArrayVector(values, values.length).asBlock();
+        Map<String, Block> blocks = Map.of("i", block);
+        WordMask reusable = new WordMask();
+
+        assertSurvivors(
+            new ParquetPushedExpressions(
+                List.of(
+                    PushdownLiteralConversion.rewrite(
+                        new LessThan(Source.EMPTY, attr("i", DataType.INTEGER), lit(5.5, DataType.DOUBLE), null)
+                    )
+                )
+            ),
+            blocks,
+            3,
+            reusable,
+            new int[] { 0, 1 }
         );
     }
 
@@ -174,6 +269,106 @@ public class ParquetPushedExpressionsEvaluatorTests extends ESTestCase {
             reusable,
             new int[] { 1 }
         );
+    }
+
+    /**
+     * Late-mat double comparisons must match {@code Equals.processDoubles} and siblings: IEEE
+     * operators, not {@code Double.compare}. Positions: 0=-0.0, 1=0.0, 2=1.0, 3=-1.0, 4=NaN.
+     * Both zeros compare equal; NaN is unordered except {@code !=}.
+     */
+    public void testDoubleComparisonsMatchIeeeOperators() {
+        double[] values = { -0.0, 0.0, 1.0, -1.0, Double.NaN };
+        Block block = blockFactory.newDoubleArrayVector(values, values.length).asBlock();
+        Map<String, Block> blocks = Map.of("d", block);
+        Attribute d = attr("d", DataType.DOUBLE);
+        WordMask reusable = new WordMask();
+        int rowCount = values.length;
+
+        for (double bound : new double[] { 0.0, -0.0 }) {
+            Literal lit = lit(bound, DataType.DOUBLE);
+            // == / != / ordered vs either zero are identical under IEEE.
+            assertSurvivors(pushed(new Equals(Source.EMPTY, d, lit, null)), blocks, rowCount, reusable, new int[] { 0, 1 });
+            assertSurvivors(pushed(new NotEquals(Source.EMPTY, d, lit, null)), blocks, rowCount, reusable, new int[] { 2, 3, 4 });
+            assertSurvivors(pushed(new LessThan(Source.EMPTY, d, lit, null)), blocks, rowCount, reusable, new int[] { 3 });
+            assertSurvivors(pushed(new LessThanOrEqual(Source.EMPTY, d, lit, null)), blocks, rowCount, reusable, new int[] { 0, 1, 3 });
+            assertSurvivors(pushed(new GreaterThan(Source.EMPTY, d, lit, null)), blocks, rowCount, reusable, new int[] { 2 });
+            assertSurvivors(pushed(new GreaterThanOrEqual(Source.EMPTY, d, lit, null)), blocks, rowCount, reusable, new int[] { 0, 1, 2 });
+
+            assertSurvivors(
+                pushed(new Not(Source.EMPTY, new Equals(Source.EMPTY, d, lit, null))),
+                blocks,
+                rowCount,
+                reusable,
+                new int[] { 2, 3, 4 }
+            );
+            assertSurvivors(
+                pushed(new Not(Source.EMPTY, new NotEquals(Source.EMPTY, d, lit, null))),
+                blocks,
+                rowCount,
+                reusable,
+                new int[] { 0, 1 }
+            );
+            assertSurvivors(
+                pushed(new Not(Source.EMPTY, new LessThan(Source.EMPTY, d, lit, null))),
+                blocks,
+                rowCount,
+                reusable,
+                new int[] { 0, 1, 2, 4 }
+            );
+            assertSurvivors(
+                pushed(new Not(Source.EMPTY, new GreaterThan(Source.EMPTY, d, lit, null))),
+                blocks,
+                rowCount,
+                reusable,
+                new int[] { 0, 1, 3, 4 }
+            );
+            assertSurvivors(
+                pushed(new Not(Source.EMPTY, new GreaterThanOrEqual(Source.EMPTY, d, lit, null))),
+                blocks,
+                rowCount,
+                reusable,
+                new int[] { 3, 4 }
+            );
+        }
+
+        // NaN != v is true for every v, including NaN; every ordered comparison with NaN is false.
+        Literal nan = lit(Double.NaN, DataType.DOUBLE);
+        assertSurvivors(pushed(new Equals(Source.EMPTY, d, nan, null)), blocks, rowCount, reusable, new int[] {});
+        assertSurvivors(pushed(new NotEquals(Source.EMPTY, d, nan, null)), blocks, rowCount, reusable, new int[] { 0, 1, 2, 3, 4 });
+        assertSurvivors(pushed(new GreaterThan(Source.EMPTY, d, nan, null)), blocks, rowCount, reusable, new int[] {});
+        assertSurvivors(
+            pushed(new Not(Source.EMPTY, new GreaterThan(Source.EMPTY, d, lit(0.0, DataType.DOUBLE), null))),
+            blocks,
+            rowCount,
+            reusable,
+            new int[] { 0, 1, 3, 4 }
+        );
+    }
+
+    public void testDoubleRangeRejectsNaNSoNotKeepsIt() {
+        double[] values = { -0.0, 0.0, 1.0, -1.0, Double.NaN };
+        Block block = blockFactory.newDoubleArrayVector(values, values.length).asBlock();
+        Map<String, Block> blocks = Map.of("d", block);
+        Attribute d = attr("d", DataType.DOUBLE);
+        WordMask reusable = new WordMask();
+
+        Expression range = new Range(Source.EMPTY, d, lit(0.0, DataType.DOUBLE), true, lit(1.0, DataType.DOUBLE), true, ZoneOffset.UTC);
+        assertSurvivors(pushed(range), blocks, 5, reusable, new int[] { 0, 1, 2 });
+        assertSurvivors(pushed(new Not(Source.EMPTY, range)), blocks, 5, reusable, new int[] { 3, 4 });
+    }
+
+    public void testDoubleInSeparatesSignedZerosMatchingEngineIn() {
+        // Engine In.process still uses Double.compare, so IN (0.0, 5.0) does not keep -0.0.
+        double[] values = { -0.0, 0.0, 1.0, 5.0, Double.NaN };
+        Block block = blockFactory.newDoubleArrayVector(values, values.length).asBlock();
+        Map<String, Block> blocks = Map.of("d", block);
+        Expression in = new In(Source.EMPTY, attr("d", DataType.DOUBLE), List.of(lit(0.0, DataType.DOUBLE), lit(5.0, DataType.DOUBLE)));
+        assertSurvivors(pushed(in), blocks, 5, new WordMask(), new int[] { 1, 3 });
+        assertSurvivors(pushed(new Not(Source.EMPTY, in)), blocks, 5, new WordMask(), new int[] { 0, 2, 4 });
+    }
+
+    private static ParquetPushedExpressions pushed(Expression expr) {
+        return new ParquetPushedExpressions(List.of(expr));
     }
 
     public void testEqualsWithBytesRefBlock() {
@@ -424,6 +619,130 @@ public class ParquetPushedExpressionsEvaluatorTests extends ESTestCase {
         Expression inner = new Equals(Source.EMPTY, attr("x", DataType.LONG), lit(30L, DataType.LONG), null);
         Expression not = new Not(Source.EMPTY, inner);
         assertSurvivors(new ParquetPushedExpressions(List.of(not)), blocks, 5, reusable, new int[] { 0, 1, 3, 4 });
+    }
+
+    public void testNotOverPartialAndDoesNotDropRows() {
+        // NOT(a == 1 AND tag == "x") with only `a` decoded. Positive AND over-admits by
+        // dropping the missing arm; bitwise-negating that superset under-admits and
+        // compaction would drop surviving rows. evaluateFilter must return null (all survive).
+        int[] values = { 1, 2, 3 };
+        Block block = blockFactory.newIntArrayVector(values, values.length).asBlock();
+        Map<String, Block> blocks = Map.of("a", block);
+
+        Expression eqA = new Equals(Source.EMPTY, attr("a", DataType.INTEGER), lit(1, DataType.INTEGER), null);
+        Expression eqTag = new Equals(Source.EMPTY, attr("tag", DataType.KEYWORD), lit(new BytesRef("x"), DataType.KEYWORD), null);
+        Expression not = new Not(Source.EMPTY, new And(Source.EMPTY, eqA, eqTag));
+
+        WordMask result = new ParquetPushedExpressions(List.of(not)).evaluateFilter(blocks, 3, new WordMask());
+        assertNull(result);
+    }
+
+    public void testNotOverCompleteAndStillPrunes() {
+        // Both arms evaluable: NOT(a == 1 AND b == 2) must still drop the row where both hold.
+        int[] aValues = { 1, 2, 3 };
+        int[] bValues = { 2, 2, 2 };
+        Block a = blockFactory.newIntArrayVector(aValues, aValues.length).asBlock();
+        Block b = blockFactory.newIntArrayVector(bValues, bValues.length).asBlock();
+        Map<String, Block> blocks = Map.of("a", a, "b", b);
+
+        Expression eqA = new Equals(Source.EMPTY, attr("a", DataType.INTEGER), lit(1, DataType.INTEGER), null);
+        Expression eqB = new Equals(Source.EMPTY, attr("b", DataType.INTEGER), lit(2, DataType.INTEGER), null);
+        Expression not = new Not(Source.EMPTY, new And(Source.EMPTY, eqA, eqB));
+        assertSurvivors(new ParquetPushedExpressions(List.of(not)), blocks, 3, new WordMask(), new int[] { 1, 2 });
+    }
+
+    public void testNotOverAndWithLikeStillPrunes() {
+        // NOT(a == 1 AND s LIKE "*x*") with both columns present still prunes the matching row.
+        int[] aValues = { 1, 2, 3 };
+        Block a = blockFactory.newIntArrayVector(aValues, aValues.length).asBlock();
+        try (var builder = blockFactory.newBytesRefBlockBuilder(3)) {
+            builder.appendBytesRef(new BytesRef("xx"));
+            builder.appendBytesRef(new BytesRef("yy"));
+            builder.appendBytesRef(new BytesRef("zz"));
+            Block s = builder.build();
+            Map<String, Block> blocks = Map.of("a", a, "s", s);
+
+            Expression eqA = new Equals(Source.EMPTY, attr("a", DataType.INTEGER), lit(1, DataType.INTEGER), null);
+            Expression like = new WildcardLike(Source.EMPTY, attr("s", DataType.KEYWORD), new WildcardPattern("*x*"));
+            Expression not = new Not(Source.EMPTY, new And(Source.EMPTY, eqA, like));
+            assertSurvivors(new ParquetPushedExpressions(List.of(not)), blocks, 3, new WordMask(), new int[] { 1, 2 });
+        }
+    }
+
+    public void testNotOverPartialOrKeepsNegatedEvaluableArm() {
+        // NOT(a == 1 OR tag == "x") with only `a`. Partial AND of Nots keeps Not(a==1).
+        int[] values = { 1, 2, 3 };
+        Block block = blockFactory.newIntArrayVector(values, values.length).asBlock();
+        Map<String, Block> blocks = Map.of("a", block);
+
+        Expression eqA = new Equals(Source.EMPTY, attr("a", DataType.INTEGER), lit(1, DataType.INTEGER), null);
+        Expression eqTag = new Equals(Source.EMPTY, attr("tag", DataType.KEYWORD), lit(new BytesRef("x"), DataType.KEYWORD), null);
+        Expression not = new Not(Source.EMPTY, new Or(Source.EMPTY, eqA, eqTag));
+        assertSurvivors(new ParquetPushedExpressions(List.of(not)), blocks, 3, new WordMask(), new int[] { 1, 2 });
+    }
+
+    public void testNotOverOrShortCircuitsWhenLeftNotIsEmpty() {
+        // a == 1 on every row → Not(a==1) is empty → Not(a OR b) is empty without evaluating b.
+        int[] aValues = { 1, 1, 1 };
+        int[] bValues = { 9, 2, 9 };
+        Block a = blockFactory.newIntArrayVector(aValues, aValues.length).asBlock();
+        Block b = blockFactory.newIntArrayVector(bValues, bValues.length).asBlock();
+        Map<String, Block> blocks = Map.of("a", a, "b", b);
+
+        Expression eqA = new Equals(Source.EMPTY, attr("a", DataType.INTEGER), lit(1, DataType.INTEGER), null);
+        Expression eqB = new Equals(Source.EMPTY, attr("b", DataType.INTEGER), lit(2, DataType.INTEGER), null);
+        Expression not = new Not(Source.EMPTY, new Or(Source.EMPTY, eqA, eqB));
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(not));
+        WordMask result = pushed.evaluateFilter(blocks, 3, new WordMask());
+        assertNotNull(result);
+        assertTrue(result.isEmpty());
+        // evaluateExpression(Not) + evaluateNot(Or) + evaluateNot(eqA) + evaluateExpression(eqA)
+        assertEquals(4, pushed.lastEvaluateExpressionCallsForTesting());
+    }
+
+    public void testNotNotOverPartialOrDoesNotDropRows() {
+        // NOT(NOT(a == 1 OR tag == "x")) ≡ a OR tag. Missing tag → all survive, not the
+        // under-admit from bitwise-negating the over-admitting Not(Or) mask.
+        int[] values = { 1, 2, 3 };
+        Block block = blockFactory.newIntArrayVector(values, values.length).asBlock();
+        Map<String, Block> blocks = Map.of("a", block);
+
+        Expression eqA = new Equals(Source.EMPTY, attr("a", DataType.INTEGER), lit(1, DataType.INTEGER), null);
+        Expression eqTag = new Equals(Source.EMPTY, attr("tag", DataType.KEYWORD), lit(new BytesRef("x"), DataType.KEYWORD), null);
+        Expression notNot = new Not(Source.EMPTY, new Not(Source.EMPTY, new Or(Source.EMPTY, eqA, eqTag)));
+        WordMask result = new ParquetPushedExpressions(List.of(notNot)).evaluateFilter(blocks, 3, new WordMask());
+        assertNull(result);
+    }
+
+    public void testNotOverAndWithUnevaluableKeywordRangeDoesNotDropRows() {
+        // evaluateRange is numeric-only; a keyword Range is unevaluable even with the column
+        // present. NOT(AND(range, eq)) must not bitwise-negate the partial AND.
+        int[] aValues = { 1, 2, 3 };
+        Block a = blockFactory.newIntArrayVector(aValues, aValues.length).asBlock();
+        try (var builder = blockFactory.newBytesRefBlockBuilder(3)) {
+            builder.appendBytesRef(new BytesRef("aa"));
+            builder.appendBytesRef(new BytesRef("bb"));
+            builder.appendBytesRef(new BytesRef("cc"));
+            Block s = builder.build();
+            Map<String, Block> blocks = Map.of("a", a, "s", s);
+
+            Expression range = new Range(
+                Source.EMPTY,
+                attr("s", DataType.KEYWORD),
+                lit(new BytesRef("a"), DataType.KEYWORD),
+                true,
+                lit(new BytesRef("z"), DataType.KEYWORD),
+                true,
+                ZoneOffset.UTC
+            );
+            Expression eqA = new Equals(Source.EMPTY, attr("a", DataType.INTEGER), lit(1, DataType.INTEGER), null);
+            Expression not = new Not(Source.EMPTY, new And(Source.EMPTY, range, eqA));
+            ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(not));
+            WordMask result = pushed.evaluateFilter(blocks, 3, new WordMask());
+            assertNull(result);
+            // evaluateExpression(Not) + evaluateNot(And) + evaluateNot(range) + evaluateExpression(range)
+            assertEquals(4, pushed.lastEvaluateExpressionCallsForTesting());
+        }
     }
 
     // ---- Test 6c: dictionary-match shape classifier and fast-path semantics ----
@@ -842,6 +1161,354 @@ public class ParquetPushedExpressionsEvaluatorTests extends ESTestCase {
         }
     }
 
+    public void testNotStartsWithExcludesNulls() {
+        // TVL: NOT(NULL STARTS_WITH x) is UNKNOWN -> null row must NOT survive.
+        try (var builder = blockFactory.newBytesRefBlockBuilder(4)) {
+            builder.appendBytesRef(new BytesRef("apple"));
+            builder.appendNull();
+            builder.appendBytesRef(new BytesRef("banana"));
+            builder.appendBytesRef(new BytesRef("application"));
+            Block block = builder.build();
+            Map<String, Block> blocks = Map.of("s", block);
+            WordMask reusable = new WordMask();
+
+            Expression notSw = new Not(
+                Source.EMPTY,
+                new StartsWith(Source.EMPTY, attr("s", DataType.KEYWORD), lit(new BytesRef("app"), DataType.KEYWORD))
+            );
+            // Survivors: "banana" (index 2). "apple" and "application" match the predicate; null is UNKNOWN.
+            assertSurvivors(new ParquetPushedExpressions(List.of(notSw)), blocks, 4, reusable, new int[] { 2 });
+        }
+    }
+
+    // ---- EndsWith ----
+
+    public void testEndsWithBasic() {
+        // Block: ["apple", "pineapple", "banana"]
+        try (var builder = blockFactory.newBytesRefBlockBuilder(3)) {
+            builder.appendBytesRef(new BytesRef("apple"));
+            builder.appendBytesRef(new BytesRef("pineapple"));
+            builder.appendBytesRef(new BytesRef("banana"));
+            Block block = builder.build();
+            Map<String, Block> blocks = Map.of("s", block);
+            WordMask reusable = new WordMask();
+
+            // ENDS_WITH(s, "apple") -> positions [0, 1]
+            Expression ew = new EndsWith(Source.EMPTY, attr("s", DataType.KEYWORD), lit(new BytesRef("apple"), DataType.KEYWORD));
+            assertSurvivors(new ParquetPushedExpressions(List.of(ew)), blocks, 3, reusable, new int[] { 0, 1 });
+        }
+    }
+
+    public void testEndsWithSuffixLongerThanValue() {
+        try (var builder = blockFactory.newBytesRefBlockBuilder(2)) {
+            builder.appendBytesRef(new BytesRef("hi"));
+            builder.appendBytesRef(new BytesRef("hey"));
+            Block block = builder.build();
+            Map<String, Block> blocks = Map.of("s", block);
+            WordMask reusable = new WordMask();
+
+            Expression ew = new EndsWith(Source.EMPTY, attr("s", DataType.KEYWORD), lit(new BytesRef("hello_world"), DataType.KEYWORD));
+            assertSurvivors(new ParquetPushedExpressions(List.of(ew)), blocks, 2, reusable, new int[] {});
+        }
+    }
+
+    public void testEndsWithNullValueDoesNotSurvive() {
+        try (var builder = blockFactory.newBytesRefBlockBuilder(3)) {
+            builder.appendBytesRef(new BytesRef("apple"));
+            builder.appendNull();
+            builder.appendBytesRef(new BytesRef("banana"));
+            Block block = builder.build();
+            Map<String, Block> blocks = Map.of("s", block);
+            WordMask reusable = new WordMask();
+
+            Expression ew = new EndsWith(Source.EMPTY, attr("s", DataType.KEYWORD), lit(new BytesRef("le"), DataType.KEYWORD));
+            assertSurvivors(new ParquetPushedExpressions(List.of(ew)), blocks, 3, reusable, new int[] { 0 });
+        }
+    }
+
+    public void testEndsWithOrdinalDictionaryShortCircuit() {
+        // Pinning the dictionary short-circuit path: pattern repeated to satisfy
+        // OrdinalBytesRefBlock#isDense (rows >= 2 * dictSize).
+        String[] dict = { "apple", "application", "banana", "pineapple" };
+        int[] pattern = { 0, 1, 2, 3, 0, 2 };
+        int[] ordinals = repeatPattern(pattern, 24);
+        Block block = ordinalBlock(dict, ordinals, null);
+        try (block) {
+            Map<String, Block> blocks = Map.of("s", block);
+            WordMask reusable = new WordMask();
+            // ENDS_WITH(s, "apple") matches dict entries 0 (apple) and 3 (pineapple)
+            int[] expected = positionsWithOrdinalIn(ordinals, 0, 3);
+            Expression ew = new EndsWith(Source.EMPTY, attr("s", DataType.KEYWORD), lit(new BytesRef("apple"), DataType.KEYWORD));
+            assertSurvivors(new ParquetPushedExpressions(List.of(ew)), blocks, ordinals.length, reusable, expected);
+        }
+    }
+
+    public void testEndsWithOrdinalAndScalarAgree() {
+        // Cross-check the dictionary short-circuit against the per-row scalar path.
+        // Mirrors testWildcardLikeOrdinalAndScalarAgree.
+        String[] dict = { "the", "quick", "brown", "fox.log", "jumps.tar.gz", "over.log", "lazy.dog" };
+        int rowCount = 200;
+        int[] randomOrdinals = new int[rowCount];
+        for (int i = 0; i < rowCount; i++) {
+            randomOrdinals[i] = randomIntBetween(0, dict.length - 1);
+        }
+        Block ordinalsBlock = ordinalBlock(dict, randomOrdinals, null);
+        Block plainBlock = plainBytesRefBlock(dict, randomOrdinals);
+        try (ordinalsBlock; plainBlock) {
+            Expression ew = new EndsWith(Source.EMPTY, attr("s", DataType.KEYWORD), lit(new BytesRef(".log"), DataType.KEYWORD));
+
+            WordMask ordinalMask = new ParquetPushedExpressions(List.of(ew)).evaluateFilter(
+                Map.of("s", ordinalsBlock),
+                rowCount,
+                new WordMask()
+            );
+            WordMask plainMask = new ParquetPushedExpressions(List.of(ew)).evaluateFilter(
+                Map.of("s", plainBlock),
+                rowCount,
+                new WordMask()
+            );
+            if (ordinalMask == null) {
+                assertNull("ordinal returned null (all survive); plain must also", plainMask);
+            } else {
+                assertNotNull("ordinal produced a mask; plain must too", plainMask);
+                assertArrayEquals(
+                    "EndsWith ordinal and plain masks must agree",
+                    plainMask.survivingPositions(),
+                    ordinalMask.survivingPositions()
+                );
+            }
+        }
+    }
+
+    public void testNotEndsWithOnOrdinalDictionaryAgreesWithScalar() {
+        // NOT(EndsWith) on an OrdinalBytesRefBlock with null rows must agree with the per-row
+        // scalar path: dictionary scatter + ordinal-mode null fixup must produce the same
+        // TVL-correct survivor mask as the scalar loop. Mirrors
+        // testWildcardLikeContainsLiteralNotOnOrdinalDictionaryAgreesWithAutomaton.
+        String[] dict = { "apple", "application", "banana", "pineapple" };
+        int[] pattern = { 0, 1, 2, 3, 0, 2 };
+        int[] ordinals = repeatPattern(pattern, 24);
+        boolean[] nulls = repeatBoolPattern(new boolean[] { false, true, false, false, false, true }, 24);
+        Block ordinalsBlock = ordinalBlock(dict, ordinals, nulls);
+        // Build the equivalent plain block (with nulls) to compare against.
+        try (var plainBuilder = blockFactory.newBytesRefBlockBuilder(ordinals.length)) {
+            for (int i = 0; i < ordinals.length; i++) {
+                if (nulls[i]) {
+                    plainBuilder.appendNull();
+                } else {
+                    plainBuilder.appendBytesRef(new BytesRef(dict[ordinals[i]]));
+                }
+            }
+            Block plainBlock = plainBuilder.build();
+            try (ordinalsBlock; plainBlock) {
+                Expression notEw = new Not(
+                    Source.EMPTY,
+                    new EndsWith(Source.EMPTY, attr("s", DataType.KEYWORD), lit(new BytesRef("apple"), DataType.KEYWORD))
+                );
+
+                WordMask ordinalMask = new ParquetPushedExpressions(List.of(notEw)).evaluateFilter(
+                    Map.of("s", ordinalsBlock),
+                    ordinals.length,
+                    new WordMask()
+                );
+                WordMask plainMask = new ParquetPushedExpressions(List.of(notEw)).evaluateFilter(
+                    Map.of("s", plainBlock),
+                    ordinals.length,
+                    new WordMask()
+                );
+                if (ordinalMask == null) {
+                    assertNull("ordinal returned null (all survive); plain must also", plainMask);
+                } else {
+                    assertNotNull("ordinal produced a mask; plain must too", plainMask);
+                    assertArrayEquals(
+                        "NOT(EndsWith) ordinal and plain masks must agree under TVL",
+                        plainMask.survivingPositions(),
+                        ordinalMask.survivingPositions()
+                    );
+                }
+            }
+        }
+    }
+
+    public void testNotEndsWithExcludesNulls() {
+        // TVL: NOT(NULL ENDS_WITH x) is UNKNOWN -> null row must NOT survive.
+        try (var builder = blockFactory.newBytesRefBlockBuilder(4)) {
+            builder.appendBytesRef(new BytesRef("apple"));
+            builder.appendNull();
+            builder.appendBytesRef(new BytesRef("banana"));
+            builder.appendBytesRef(new BytesRef("pineapple"));
+            Block block = builder.build();
+            Map<String, Block> blocks = Map.of("s", block);
+            WordMask reusable = new WordMask();
+
+            Expression notEw = new Not(
+                Source.EMPTY,
+                new EndsWith(Source.EMPTY, attr("s", DataType.KEYWORD), lit(new BytesRef("apple"), DataType.KEYWORD))
+            );
+            // Survivors: "banana" (index 2). "apple" and "pineapple" match the predicate; null is UNKNOWN.
+            assertSurvivors(new ParquetPushedExpressions(List.of(notEw)), blocks, 4, reusable, new int[] { 2 });
+        }
+    }
+
+    // ---- Contains ----
+
+    public void testContainsBasic() {
+        // Block: ["apple", "pineapple", "banana"]
+        try (var builder = blockFactory.newBytesRefBlockBuilder(3)) {
+            builder.appendBytesRef(new BytesRef("apple"));
+            builder.appendBytesRef(new BytesRef("pineapple"));
+            builder.appendBytesRef(new BytesRef("banana"));
+            Block block = builder.build();
+            Map<String, Block> blocks = Map.of("s", block);
+            WordMask reusable = new WordMask();
+
+            // CONTAINS(s, "app") -> positions [0, 1] ("apple" and "pineapple")
+            Expression c = new Contains(Source.EMPTY, attr("s", DataType.KEYWORD), lit(new BytesRef("app"), DataType.KEYWORD));
+            assertSurvivors(new ParquetPushedExpressions(List.of(c)), blocks, 3, reusable, new int[] { 0, 1 });
+        }
+    }
+
+    public void testContainsSubstrLongerThanValue() {
+        try (var builder = blockFactory.newBytesRefBlockBuilder(2)) {
+            builder.appendBytesRef(new BytesRef("hi"));
+            builder.appendBytesRef(new BytesRef("hey"));
+            Block block = builder.build();
+            Map<String, Block> blocks = Map.of("s", block);
+            WordMask reusable = new WordMask();
+
+            Expression c = new Contains(Source.EMPTY, attr("s", DataType.KEYWORD), lit(new BytesRef("hello_world"), DataType.KEYWORD));
+            assertSurvivors(new ParquetPushedExpressions(List.of(c)), blocks, 2, reusable, new int[] {});
+        }
+    }
+
+    public void testContainsNullValueDoesNotSurvive() {
+        try (var builder = blockFactory.newBytesRefBlockBuilder(3)) {
+            builder.appendBytesRef(new BytesRef("apple"));
+            builder.appendNull();
+            builder.appendBytesRef(new BytesRef("banana"));
+            Block block = builder.build();
+            Map<String, Block> blocks = Map.of("s", block);
+            WordMask reusable = new WordMask();
+
+            Expression c = new Contains(Source.EMPTY, attr("s", DataType.KEYWORD), lit(new BytesRef("an"), DataType.KEYWORD));
+            // "apple" does not contain "an"; "banana" does; null does not survive.
+            assertSurvivors(new ParquetPushedExpressions(List.of(c)), blocks, 3, reusable, new int[] { 2 });
+        }
+    }
+
+    public void testContainsOrdinalDictionaryShortCircuit() {
+        // Dictionary mixing long entries (above SIMD activation threshold) and short ones —
+        // mirrors testWildcardLikeContainsLiteralOrdinalDictionaryAgreesWithAutomaton.
+        String[] dict = {
+            "https://www.google.com/search?q=elasticsearch",
+            "https://www.bing.com/search?q=opensearch",
+            "https://duckduckgo.com/?q=lucene",
+            "https://www.google.com/maps/place/London",
+            "google" };
+        int rowCount = 200;
+        int[] randomOrdinals = new int[rowCount];
+        for (int i = 0; i < rowCount; i++) {
+            randomOrdinals[i] = randomIntBetween(0, dict.length - 1);
+        }
+        Block ordinalsBlock = ordinalBlock(dict, randomOrdinals, null);
+        Block plainBlock = plainBytesRefBlock(dict, randomOrdinals);
+        try (ordinalsBlock; plainBlock) {
+            Expression c = new Contains(Source.EMPTY, attr("s", DataType.KEYWORD), lit(new BytesRef("google"), DataType.KEYWORD));
+
+            WordMask ordinalMask = new ParquetPushedExpressions(List.of(c)).evaluateFilter(
+                Map.of("s", ordinalsBlock),
+                rowCount,
+                new WordMask()
+            );
+            WordMask plainMask = new ParquetPushedExpressions(List.of(c)).evaluateFilter(Map.of("s", plainBlock), rowCount, new WordMask());
+            if (ordinalMask == null) {
+                assertNull("ordinal returned null (all survive); plain must also", plainMask);
+            } else {
+                assertNotNull("ordinal produced a mask; plain must too", plainMask);
+                assertArrayEquals(plainMask.survivingPositions(), ordinalMask.survivingPositions());
+            }
+        }
+    }
+
+    public void testNotContainsOnOrdinalDictionaryAgreesWithScalar() {
+        // NOT(Contains) on an OrdinalBytesRefBlock with null rows must agree with the per-row
+        // scalar path under TVL.
+        String[] dict = { "apple", "application", "banana", "pineapple" };
+        int[] pattern = { 0, 1, 2, 3, 0, 2 };
+        int[] ordinals = repeatPattern(pattern, 24);
+        boolean[] nulls = repeatBoolPattern(new boolean[] { false, true, false, false, false, true }, 24);
+        Block ordinalsBlock = ordinalBlock(dict, ordinals, nulls);
+        try (var plainBuilder = blockFactory.newBytesRefBlockBuilder(ordinals.length)) {
+            for (int i = 0; i < ordinals.length; i++) {
+                if (nulls[i]) {
+                    plainBuilder.appendNull();
+                } else {
+                    plainBuilder.appendBytesRef(new BytesRef(dict[ordinals[i]]));
+                }
+            }
+            Block plainBlock = plainBuilder.build();
+            try (ordinalsBlock; plainBlock) {
+                Expression notC = new Not(
+                    Source.EMPTY,
+                    new Contains(Source.EMPTY, attr("s", DataType.KEYWORD), lit(new BytesRef("app"), DataType.KEYWORD))
+                );
+
+                WordMask ordinalMask = new ParquetPushedExpressions(List.of(notC)).evaluateFilter(
+                    Map.of("s", ordinalsBlock),
+                    ordinals.length,
+                    new WordMask()
+                );
+                WordMask plainMask = new ParquetPushedExpressions(List.of(notC)).evaluateFilter(
+                    Map.of("s", plainBlock),
+                    ordinals.length,
+                    new WordMask()
+                );
+                if (ordinalMask == null) {
+                    assertNull("ordinal returned null (all survive); plain must also", plainMask);
+                } else {
+                    assertNotNull("ordinal produced a mask; plain must too", plainMask);
+                    assertArrayEquals(
+                        "NOT(Contains) ordinal and plain masks must agree under TVL",
+                        plainMask.survivingPositions(),
+                        ordinalMask.survivingPositions()
+                    );
+                }
+            }
+        }
+    }
+
+    public void testNotContainsExcludesNulls() {
+        // TVL: NOT(NULL CONTAINS x) is UNKNOWN -> null row must NOT survive.
+        try (var builder = blockFactory.newBytesRefBlockBuilder(4)) {
+            builder.appendBytesRef(new BytesRef("apple"));
+            builder.appendNull();
+            builder.appendBytesRef(new BytesRef("banana"));
+            builder.appendBytesRef(new BytesRef("pineapple"));
+            Block block = builder.build();
+            Map<String, Block> blocks = Map.of("s", block);
+            WordMask reusable = new WordMask();
+
+            Expression notC = new Not(
+                Source.EMPTY,
+                new Contains(Source.EMPTY, attr("s", DataType.KEYWORD), lit(new BytesRef("app"), DataType.KEYWORD))
+            );
+            // "banana" is the only non-null row that does not contain "app"; null is UNKNOWN.
+            assertSurvivors(new ParquetPushedExpressions(List.of(notC)), blocks, 4, reusable, new int[] { 2 });
+        }
+    }
+
+    public void testContainsPredicateColumnNamesIncludesField() {
+        Expression c = new Contains(Source.EMPTY, attr("url", DataType.KEYWORD), lit(new BytesRef("google"), DataType.KEYWORD));
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(c));
+        assertEquals(java.util.Set.of("url"), pushed.predicateColumnNames());
+    }
+
+    public void testEndsWithPredicateColumnNamesIncludesField() {
+        Expression ew = new EndsWith(Source.EMPTY, attr("path", DataType.KEYWORD), lit(new BytesRef(".log"), DataType.KEYWORD));
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(ew));
+        assertEquals(java.util.Set.of("path"), pushed.predicateColumnNames());
+    }
+
     // ---- Test 8: Missing predicate column (null-constant block) ----
 
     public void testMissingPredicateColumnWithConstantNullBlock() {
@@ -854,6 +1521,47 @@ public class ParquetPushedExpressionsEvaluatorTests extends ESTestCase {
         // col > 5 on all-null block -> no survivors
         Expression expr = new GreaterThan(Source.EMPTY, attr("col", DataType.LONG), lit(5L, DataType.LONG), null);
         assertSurvivors(new ParquetPushedExpressions(List.of(expr)), blocks, 5, reusable, new int[] {});
+    }
+
+    /**
+     * An all-null batch of a KEYWORD column must filter to zero survivors, not fail the query.
+     * {@code ConstantNullBlock} implements every typed block interface, so until this was fixed it
+     * bound {@code evaluateComparison}'s first arm ({@code IntBlock}) regardless of the column's
+     * real type and cast the {@link BytesRef} literal to {@code Number}
+     * (elastic/elasticsearch#157313). The remaining shapes of this hazard are swept exhaustively
+     * by {@link ParquetPushedExpressionsNullBatchMatrixTests}.
+     */
+    public void testKeywordComparisonsOnConstantNullBlock() {
+        Block nullBlock = blockFactory.newConstantNullBlock(5);
+        Map<String, Block> blocks = Map.of("col", nullBlock);
+        WordMask reusable = new WordMask();
+        BytesRef us = new BytesRef("US");
+
+        for (Expression expr : List.<Expression>of(
+            new Equals(Source.EMPTY, attr("col", DataType.KEYWORD), lit(us, DataType.KEYWORD), null),
+            new NotEquals(Source.EMPTY, attr("col", DataType.KEYWORD), lit(us, DataType.KEYWORD), null),
+            new GreaterThan(Source.EMPTY, attr("col", DataType.KEYWORD), lit(us, DataType.KEYWORD), null),
+            new LessThanOrEqual(Source.EMPTY, attr("col", DataType.KEYWORD), lit(us, DataType.KEYWORD), null)
+        )) {
+            assertSurvivors(new ParquetPushedExpressions(List.of(expr)), blocks, 5, reusable, new int[] {});
+        }
+    }
+
+    /**
+     * Pin locking in the LIKE family's already-correct behavior on an all-null batch.
+     * {@code ConstantNullBlock} implements {@link org.elasticsearch.compute.data.BytesRefBlock}, so
+     * it takes that arm and the per-row null guard empties the mask.
+     */
+    public void testWildcardLikeOnConstantNullBlock() {
+        Block nullBlock = blockFactory.newConstantNullBlock(4);
+        Map<String, Block> blocks = Map.of("col", nullBlock);
+        WordMask reusable = new WordMask();
+
+        Expression like = new WildcardLike(Source.EMPTY, attr("col", DataType.KEYWORD), new WildcardPattern("*US*"));
+        assertSurvivors(new ParquetPushedExpressions(List.of(like)), blocks, 4, reusable, new int[] {});
+
+        Expression notLike = new Not(Source.EMPTY, like);
+        assertSurvivors(new ParquetPushedExpressions(List.of(notLike)), blocks, 4, reusable, new int[] {});
     }
 
     public void testMissingPredicateColumnIsNullWithConstantNullBlock() {
@@ -963,6 +1671,24 @@ public class ParquetPushedExpressionsEvaluatorTests extends ESTestCase {
                 attr("x", DataType.KEYWORD),
                 List.of(lit(new BytesRef("alpha"), DataType.KEYWORD), lit(new BytesRef("gamma"), DataType.KEYWORD))
             );
+            assertSurvivors(new ParquetPushedExpressions(List.of(expr)), blocks, ordinals.length, reusable, expected);
+        }
+    }
+
+    public void testOrdinalEqualsWithNullGapsUsesCorrectValueIndex() {
+        // Regression test for the applyDictionaryMatches bug: ordinals.getInt(i) must use
+        // getFirstValueIndex(i) as the value index, not the raw position index i.
+        // A null at position 2 shifts subsequent value indices; without the fix, position 3
+        // (ordinal 2 = "gamma") reads values[3] (wrong ordinal) instead of values[2].
+        String[] dict = { "alpha", "beta", "gamma" };
+        int[] ordinals = { 0, 1, 0, 2, 0, 1, 2, 0, 1, 2, 2 };
+        boolean[] nulls = { false, false, true, false, false, false, false, false, false, false, false };
+        Block block = ordinalBlock(dict, ordinals, nulls);
+        try (block) {
+            Map<String, Block> blocks = Map.of("x", block);
+            WordMask reusable = new WordMask();
+            int[] expected = positionsWithOrdinalAndNotNull(ordinals, nulls, 2);
+            Expression expr = new Equals(Source.EMPTY, attr("x", DataType.KEYWORD), lit(new BytesRef("gamma"), DataType.KEYWORD), null);
             assertSurvivors(new ParquetPushedExpressions(List.of(expr)), blocks, ordinals.length, reusable, expected);
         }
     }
@@ -1135,13 +1861,139 @@ public class ParquetPushedExpressionsEvaluatorTests extends ESTestCase {
         }
     }
 
+    /**
+     * When the predicate column is absent from the block map, a LIKE-family conjunct promoted to
+     * {@code Pushability.YES} (dropped from FilterExec) must produce an empty survivor mask, not
+     * the all-survive {@code null} sentinel. The column is null-filled above the reader under
+    * union_by_name, and no pattern matches null.
+     */
     public void testWildcardLikeWithMissingColumn() {
-        // Missing predicate column -> evaluateExpression returns null -> evaluateFilter treats
-        // the predicate as "unknown for all rows", which collapses to "all survive" (null return).
         Map<String, Block> blocks = new HashMap<>();
         WordMask reusable = new WordMask();
 
         Expression like = new WildcardLike(Source.EMPTY, attr("missing", DataType.KEYWORD), new WildcardPattern("*foo*"));
+        assertSurvivors(new ParquetPushedExpressions(List.of(like)), blocks, 3, reusable, new int[] {});
+    }
+
+    /** NOT (col LIKE p) on a missing column must also yield no survivors (null does not match, NOT null is null). */
+    public void testNotWildcardLikeWithMissingColumn() {
+        Map<String, Block> blocks = new HashMap<>();
+        WordMask reusable = new WordMask();
+
+        Expression like = new WildcardLike(Source.EMPTY, attr("missing", DataType.KEYWORD), new WildcardPattern("*foo*"));
+        Expression notLike = new Not(Source.EMPTY, like);
+        assertSurvivors(new ParquetPushedExpressions(List.of(notLike)), blocks, 3, reusable, new int[] {});
+    }
+
+    /** StartsWith on a missing column yields no survivors. */
+    public void testStartsWithMissingColumn() {
+        Map<String, Block> blocks = new HashMap<>();
+        WordMask reusable = new WordMask();
+
+        Expression expr = new StartsWith(Source.EMPTY, attr("missing", DataType.KEYWORD), lit(new BytesRef("foo"), DataType.KEYWORD));
+        assertSurvivors(new ParquetPushedExpressions(List.of(expr)), blocks, 3, reusable, new int[] {});
+    }
+
+    /** NOT StartsWith on a missing column yields no survivors. */
+    public void testNotStartsWithMissingColumn() {
+        Map<String, Block> blocks = new HashMap<>();
+        WordMask reusable = new WordMask();
+
+        Expression expr = new Not(
+            Source.EMPTY,
+            new StartsWith(Source.EMPTY, attr("missing", DataType.KEYWORD), lit(new BytesRef("foo"), DataType.KEYWORD))
+        );
+        assertSurvivors(new ParquetPushedExpressions(List.of(expr)), blocks, 3, reusable, new int[] {});
+    }
+
+    /** EndsWith on a missing column yields no survivors. */
+    public void testEndsWithMissingColumn() {
+        Map<String, Block> blocks = new HashMap<>();
+        WordMask reusable = new WordMask();
+
+        Expression expr = new EndsWith(Source.EMPTY, attr("missing", DataType.KEYWORD), lit(new BytesRef("bar"), DataType.KEYWORD));
+        assertSurvivors(new ParquetPushedExpressions(List.of(expr)), blocks, 3, reusable, new int[] {});
+    }
+
+    /** Contains on a missing column yields no survivors. */
+    public void testContainsMissingColumn() {
+        Map<String, Block> blocks = new HashMap<>();
+        WordMask reusable = new WordMask();
+
+        Expression expr = new Contains(Source.EMPTY, attr("missing", DataType.KEYWORD), lit(new BytesRef("baz"), DataType.KEYWORD));
+        assertSurvivors(new ParquetPushedExpressions(List.of(expr)), blocks, 3, reusable, new int[] {});
+    }
+
+    /**
+     * And(likeOnAbsentColumn, comparisonOnPresentColumn): the And short-circuits on the empty mask
+     * and yields no survivors regardless of the comparison's result.
+     */
+    public void testAndWithLikeOnMissingColumnAndPresentComparison() {
+        long[] values = { 10L, 20L, 30L };
+        Block presentBlock = blockFactory.newLongArrayVector(values, values.length).asBlock();
+        try (presentBlock) {
+            Map<String, Block> blocks = new HashMap<>();
+            blocks.put("score", presentBlock);
+            WordMask reusable = new WordMask();
+
+            // "missing" absent, "score" present with all rows > 5 (comparison passes all 3 rows).
+            Expression like = new WildcardLike(Source.EMPTY, attr("missing", DataType.KEYWORD), new WildcardPattern("*foo*"));
+            Expression comparison = new GreaterThan(Source.EMPTY, attr("score", DataType.LONG), lit(5L, DataType.LONG), null);
+            Expression and = new And(Source.EMPTY, like, comparison);
+            assertSurvivors(new ParquetPushedExpressions(List.of(and)), blocks, 3, reusable, new int[] {});
+        }
+    }
+
+    /**
+     * Or(likeOnAbsentColumn, comparisonOnPresentColumn): the absent-column LIKE returns an empty
+     * mask (not null), so the Or result is exactly the comparison's survivors — more precise than
+     * the old behavior where the null sentinel made the entire Or null ("all survive").
+     */
+    public void testOrWithLikeOnMissingColumnAndPresentComparison() {
+        long[] values = { 10L, 20L, 30L };
+        Block presentBlock = blockFactory.newLongArrayVector(values, values.length).asBlock();
+        try (presentBlock) {
+            Map<String, Block> blocks = new HashMap<>();
+            blocks.put("score", presentBlock);
+            WordMask reusable = new WordMask();
+
+            // "missing" absent, "score > 15" matches rows 1 and 2.
+            Expression like = new WildcardLike(Source.EMPTY, attr("missing", DataType.KEYWORD), new WildcardPattern("*foo*"));
+            Expression comparison = new GreaterThan(Source.EMPTY, attr("score", DataType.LONG), lit(15L, DataType.LONG), null);
+            Expression or = new Or(Source.EMPTY, like, comparison);
+            // Or(empty, {1,2}) = {1,2}
+            assertSurvivors(new ParquetPushedExpressions(List.of(or)), blocks, 3, reusable, new int[] { 1, 2 });
+        }
+    }
+
+    /**
+     * A LIKE whose field is not a NamedExpression still yields the conservative all-survive sentinel
+     * (null), because there is no column name to check for absence.
+     */
+    public void testLikeOnNonNamedExpressionFieldYieldsNull() {
+        Map<String, Block> blocks = new HashMap<>();
+        WordMask reusable = new WordMask();
+
+        // A Literal is not a NamedExpression — namedBlock returns null and missingColumnMask
+        // also returns null (the field-is-not-NamedExpression branch).
+        Expression field = lit(new BytesRef("constant"), DataType.KEYWORD);
+        Expression like = new WildcardLike(Source.EMPTY, field, new WildcardPattern("*foo*"));
+        WordMask result = new ParquetPushedExpressions(List.of(like)).evaluateFilter(blocks, 3, reusable);
+        assertNull(result);
+    }
+
+    /**
+     * A LIKE on a virtual column (e.g. _file.name) that has no block still yields the conservative
+     * all-survive sentinel. Virtual columns are materialized downstream with real values; returning
+    * an empty mask would drop every row of the file. See and #149393.
+     */
+    public void testLikeOnVirtualColumnWithNoBlockYieldsNull() {
+        Map<String, Block> blocks = new HashMap<>();
+        WordMask reusable = new WordMask();
+
+        // ExternalMetadataAttribute implements VirtualAttribute -> isVirtualColumn returns true.
+        Expression field = new ExternalMetadataAttribute(Source.EMPTY, "_file.name", DataType.KEYWORD);
+        Expression like = new WildcardLike(Source.EMPTY, field, new WildcardPattern("*foo*"));
         WordMask result = new ParquetPushedExpressions(List.of(like)).evaluateFilter(blocks, 3, reusable);
         assertNull(result);
     }
@@ -1709,6 +2561,151 @@ public class ParquetPushedExpressionsEvaluatorTests extends ESTestCase {
         return out;
     }
 
+    // ---- Multivalue block tests ----
+
+    // Block layout for most MV int tests: pos0=[1,2] (MV), pos1=[3] (SV), pos2=null, pos3=[7,5] (MV)
+
+    public void testEqualsOnMultivalueIntBlock() {
+        Block block = buildMvIntBlock();
+        try (block) {
+            Map<String, Block> blocks = Map.of("v", block);
+            WordMask reusable = new WordMask();
+            Equals equals = new Equals(Source.EMPTY, attr("v", DataType.INTEGER), lit(3, DataType.INTEGER), null);
+            // only pos1 (single-value 3) must survive; pos0 and pos3 are MV, pos2 is null
+            assertSurvivors(new ParquetPushedExpressions(List.of(equals)), blocks, 4, reusable, new int[] { 1 });
+        }
+    }
+
+    public void testNotEqualsOnMultivalueIntBlock() {
+        Block block = buildMvIntBlock();
+        try (block) {
+            Map<String, Block> blocks = Map.of("v", block);
+            WordMask reusable = new WordMask();
+            // NOT(v == 7): pos1 (single-value 3, not equal to 7) survives; MV/null positions excluded
+            Not not = new Not(Source.EMPTY, new Equals(Source.EMPTY, attr("v", DataType.INTEGER), lit(7, DataType.INTEGER), null));
+            assertSurvivors(new ParquetPushedExpressions(List.of(not)), blocks, 4, reusable, new int[] { 1 });
+        }
+    }
+
+    public void testInOnMultivalueIntBlock() {
+        Block block = buildMvIntBlock();
+        try (block) {
+            Map<String, Block> blocks = Map.of("v", block);
+            WordMask reusable = new WordMask();
+            In in = new In(Source.EMPTY, attr("v", DataType.INTEGER), List.of(lit(3, DataType.INTEGER), lit(7, DataType.INTEGER)));
+            // pos3 has value 7 but is MV — must not survive; only pos1 (single-value 3) survives
+            assertSurvivors(new ParquetPushedExpressions(List.of(in)), blocks, 4, reusable, new int[] { 1 });
+        }
+    }
+
+    public void testRangeOnMultivalueIntBlock() {
+        Block block = buildMvIntBlock();
+        try (block) {
+            Map<String, Block> blocks = Map.of("v", block);
+            WordMask reusable = new WordMask();
+            Range range = new Range(
+                Source.EMPTY,
+                attr("v", DataType.INTEGER),
+                lit(2, DataType.INTEGER),
+                true,
+                lit(6, DataType.INTEGER),
+                true,
+                ZoneOffset.UTC
+            );
+            // pos1 (value 3) is in [2,6]; MV and null positions excluded
+            assertSurvivors(new ParquetPushedExpressions(List.of(range)), blocks, 4, reusable, new int[] { 1 });
+        }
+    }
+
+    // Block layout for int MV tests: pos0=[1,2] (MV), pos1=3 (SV), pos2=null, pos3=[7,5] (MV)
+
+    private Block buildMvIntBlock() {
+        try (var b = blockFactory.newIntBlockBuilder(4)) {
+            b.beginPositionEntry().appendInt(1).appendInt(2).endPositionEntry();
+            b.appendInt(3);
+            b.appendNull();
+            b.beginPositionEntry().appendInt(7).appendInt(5).endPositionEntry();
+            return b.build();
+        }
+    }
+
+    // Block layout for BytesRef MV tests: pos0=["Senior Dev"] (SV), pos1=["Architect","Senior X"] (MV), pos2=["Manager"] (SV)
+
+    private Block buildTagsMvBlock() {
+        try (var b = blockFactory.newBytesRefBlockBuilder(3)) {
+            b.beginPositionEntry().appendBytesRef(new BytesRef("Senior Dev")).endPositionEntry();
+            b.beginPositionEntry().appendBytesRef(new BytesRef("Architect")).appendBytesRef(new BytesRef("Senior X")).endPositionEntry();
+            b.beginPositionEntry().appendBytesRef(new BytesRef("Manager")).endPositionEntry();
+            return b.build();
+        }
+    }
+
+    public void testStartsWithOnMultivalueBytesRefBlock() {
+        Block block = buildTagsMvBlock();
+        try (block) {
+            Map<String, Block> blocks = Map.of("tags", block);
+            WordMask reusable = new WordMask();
+            StartsWith startsWith = new StartsWith(
+                Source.EMPTY,
+                attr("tags", DataType.KEYWORD),
+                lit(new BytesRef("Sen"), DataType.KEYWORD)
+            );
+            // pos0 (single-value "Senior Dev") starts with "Sen"; pos1 is MV (excluded even though "Senior X" matches)
+            assertSurvivors(new ParquetPushedExpressions(List.of(startsWith)), blocks, 3, reusable, new int[] { 0 });
+        }
+    }
+
+    public void testNotStartsWithOnMultivalueBytesRefBlock() {
+        Block block = buildTagsMvBlock();
+        try (block) {
+            Map<String, Block> blocks = Map.of("tags", block);
+            WordMask reusable = new WordMask();
+            Not not = new Not(
+                Source.EMPTY,
+                new StartsWith(Source.EMPTY, attr("tags", DataType.KEYWORD), lit(new BytesRef("Sen"), DataType.KEYWORD))
+            );
+            // pos0 matches → excluded; pos1 is MV → excluded; pos2 ("Manager") doesn't match → survives
+            assertSurvivors(new ParquetPushedExpressions(List.of(not)), blocks, 3, reusable, new int[] { 2 });
+        }
+    }
+
+    public void testWildcardLikeMatchesAllOnMultivalueBytesRefBlock() {
+        // Block: pos0=["hello"] (SV), pos1=["a","b"] (MV), pos2=null
+        try (var b = blockFactory.newBytesRefBlockBuilder(3)) {
+            b.beginPositionEntry().appendBytesRef(new BytesRef("hello")).endPositionEntry();
+            b.beginPositionEntry().appendBytesRef(new BytesRef("a")).appendBytesRef(new BytesRef("b")).endPositionEntry();
+            b.appendNull();
+            Block block = b.build();
+            Map<String, Block> blocks = Map.of("tags", block);
+            WordMask reusable = new WordMask();
+            WildcardLike wildcard = new WildcardLike(Source.EMPTY, attr("tags", DataType.KEYWORD), new WildcardPattern("*"));
+            // "LIKE *" on MV row is null in scalar context; only SV non-null pos0 survives
+            assertSurvivors(new ParquetPushedExpressions(List.of(wildcard)), blocks, 3, reusable, new int[] { 0 });
+        }
+    }
+
+    public void testWildcardLikeOnMultivalueBytesRefBlock() {
+        Block block = buildTagsMvBlock();
+        try (block) {
+            Map<String, Block> blocks = Map.of("tags", block);
+            WordMask reusable = new WordMask();
+            WildcardLike wildcard = new WildcardLike(Source.EMPTY, attr("tags", DataType.KEYWORD), new WildcardPattern("Senior*"));
+            // pos0 (single-value "Senior Dev") matches; pos1 is MV (excluded even though "Senior X" matches)
+            assertSurvivors(new ParquetPushedExpressions(List.of(wildcard)), blocks, 3, reusable, new int[] { 0 });
+        }
+    }
+
+    public void testNotWildcardLikeOnMultivalueBytesRefBlock() {
+        Block block = buildTagsMvBlock();
+        try (block) {
+            Map<String, Block> blocks = Map.of("tags", block);
+            WordMask reusable = new WordMask();
+            Not not = new Not(Source.EMPTY, new WildcardLike(Source.EMPTY, attr("tags", DataType.KEYWORD), new WildcardPattern("Senior*")));
+            // pos0 matches → excluded; pos1 is MV → excluded by MV semantics in NOT; pos2 ("Manager") → survives
+            assertSurvivors(new ParquetPushedExpressions(List.of(not)), blocks, 3, reusable, new int[] { 2 });
+        }
+    }
+
     private static int[] positionsWithOrdinal(int[] ordinals, int target) {
         return positionsWhere(ordinals, null, ord -> ord == target);
     }
@@ -1739,6 +2736,184 @@ public class ParquetPushedExpressionsEvaluatorTests extends ESTestCase {
             }
         }
         return Arrays.copyOf(tmp, n);
+    }
+
+    // ---- multivalue comparison functions: exact row masks ----
+    // Each form is answered by its scalar sibling's arm, with the bounds read exactly. The fixture carries a null at
+    // position 1 because that is where the forms and their siblings part company: a null field is the empty set, so
+    // the form answers false and its NOT answers true, while the scalar sibling answers null and its NOT drops the
+    // row. Every NOT case below keeps position 1; the scalar contrast drops it.
+
+    /** {@code [10, null, 30, 40, 50]} as a single-valued LONG block under {@code x}. */
+    private Map<String, Block> tenNullThirtyFortyFifty() {
+        try (var builder = blockFactory.newLongBlockBuilder(5)) {
+            builder.appendLong(10L);
+            builder.appendNull();
+            builder.appendLong(30L);
+            builder.appendLong(40L);
+            builder.appendLong(50L);
+            return Map.of("x", builder.build());
+        }
+    }
+
+    private static Expression includeBound(boolean include) {
+        return new MapExpression(
+            Source.EMPTY,
+            List.of(Literal.keyword(Source.EMPTY, MvCompare.INCLUDE_BOUND), new Literal(Source.EMPTY, include, DataType.BOOLEAN))
+        );
+    }
+
+    private static Expression exclusiveBothBounds() {
+        return new MapExpression(
+            Source.EMPTY,
+            List.of(
+                Literal.keyword(Source.EMPTY, "include_lower"),
+                new Literal(Source.EMPTY, false, DataType.BOOLEAN),
+                Literal.keyword(Source.EMPTY, "include_upper"),
+                new Literal(Source.EMPTY, false, DataType.BOOLEAN)
+            )
+        );
+    }
+
+    public void testMvFormsWithAColumnOperandDeclineInsteadOfThrowing() {
+        // A user can write mv_greater(x, y); nested in an AND under OR it reaches the reader, whose arms read only
+        // literal operands and must decline anything else rather than throw.
+        Map<String, Block> blocks = tenNullThirtyFortyFifty();
+        Attribute x = attr("x", DataType.LONG);
+        Attribute y = attr("y", DataType.LONG);
+        for (Expression mv : List.of(
+            new MvContains(Source.EMPTY, x, y),
+            new MvIntersects(Source.EMPTY, x, y),
+            new MvInRange(Source.EMPTY, x, y, lit(35L, DataType.LONG)),
+            new MvGreater(Source.EMPTY, x, y),
+            new MvLess(Source.EMPTY, x, y)
+        )) {
+            assertNull(mv + " must decline", new ParquetPushedExpressions(List.of(mv)).evaluateFilter(blocks, 5, new WordMask()));
+            Expression nested = new Or(
+                Source.EMPTY,
+                new And(Source.EMPTY, new Equals(Source.EMPTY, x, lit(30L, DataType.LONG), null), mv),
+                new Equals(Source.EMPTY, x, lit(10L, DataType.LONG), null)
+            );
+            new ParquetPushedExpressions(List.of(nested)).evaluateFilter(blocks, 5, new WordMask());
+        }
+    }
+
+    public void testMvFormsDeclineOnADoubleBlock() {
+        // Scalar comparisons now use IEEE operators, matching the mv_ functions, but mv_ over a
+        // double block is still declined so that path stays conservative until proven with FilterExec.
+        Block block;
+        try (var builder = blockFactory.newDoubleBlockBuilder(3)) {
+            builder.appendDouble(-0.0);
+            builder.appendDouble(Double.NaN);
+            builder.appendDouble(1.0);
+            block = builder.build();
+        }
+        Map<String, Block> blocks = Map.of("d", block);
+        Attribute d = attr("d", DataType.DOUBLE);
+        for (Expression mv : List.of(
+            new MvContains(Source.EMPTY, d, lit(0.0, DataType.DOUBLE)),
+            new MvIntersects(Source.EMPTY, d, new Literal(Source.EMPTY, List.of(0.0), DataType.DOUBLE)),
+            new MvInRange(Source.EMPTY, d, lit(0.0, DataType.DOUBLE), lit(5.0, DataType.DOUBLE)),
+            new MvGreater(Source.EMPTY, d, lit(5.0, DataType.DOUBLE)),
+            new MvLess(Source.EMPTY, d, lit(0.0, DataType.DOUBLE))
+        )) {
+            assertNull(
+                mv + " must decline over a double block",
+                new ParquetPushedExpressions(List.of(mv)).evaluateFilter(blocks, 3, new WordMask())
+            );
+            assertNull(
+                "NOT " + mv + " must decline over a double block",
+                new ParquetPushedExpressions(List.of(new Not(Source.EMPTY, mv))).evaluateFilter(blocks, 3, new WordMask())
+            );
+        }
+        block.close();
+    }
+
+    private void assertMask(Expression expr, int[] expected) {
+        assertSurvivors(new ParquetPushedExpressions(List.of(expr)), tenNullThirtyFortyFifty(), 5, new WordMask(), expected);
+    }
+
+    public void testMvContainsMaskAndItsNegationKeepsTheNullRow() {
+        Expression mv = new MvContains(Source.EMPTY, attr("x", DataType.LONG), lit(30L, DataType.LONG));
+        assertMask(mv, new int[] { 2 });
+        assertMask(new Not(Source.EMPTY, mv), new int[] { 0, 1, 3, 4 });
+        // The contrast that makes the NOT case above a test: the scalar sibling's NOT drops the null row.
+        assertMask(
+            new Not(Source.EMPTY, new Equals(Source.EMPTY, attr("x", DataType.LONG), lit(30L, DataType.LONG), null)),
+            new int[] { 0, 3, 4 }
+        );
+    }
+
+    public void testMvIntersectsMaskIgnoresANullInTheSet() {
+        Literal set = new Literal(Source.EMPTY, Arrays.asList(30L, 50L, null), DataType.LONG);
+        Expression mv = new MvIntersects(Source.EMPTY, attr("x", DataType.LONG), set);
+        assertMask(mv, new int[] { 2, 4 });
+        assertMask(new Not(Source.EMPTY, mv), new int[] { 0, 1, 3 });
+    }
+
+    public void testMvGreaterReadsIncludeBoundExactly() {
+        assertMask(new MvGreater(Source.EMPTY, attr("x", DataType.LONG), lit(30L, DataType.LONG)), new int[] { 3, 4 });
+        assertMask(
+            new MvGreater(Source.EMPTY, attr("x", DataType.LONG), lit(30L, DataType.LONG), includeBound(true)),
+            new int[] { 2, 3, 4 }
+        );
+        // Strict by default, so the row sitting on 30 is false and its NOT keeps it. An inclusive stand-in for the
+        // strict bound would set bit 2 and the negation would drop it.
+        assertMask(
+            new Not(Source.EMPTY, new MvGreater(Source.EMPTY, attr("x", DataType.LONG), lit(30L, DataType.LONG))),
+            new int[] { 0, 1, 2 }
+        );
+    }
+
+    public void testMvLessReadsIncludeBoundExactly() {
+        assertMask(new MvLess(Source.EMPTY, attr("x", DataType.LONG), lit(30L, DataType.LONG)), new int[] { 0 });
+        assertMask(new MvLess(Source.EMPTY, attr("x", DataType.LONG), lit(30L, DataType.LONG), includeBound(true)), new int[] { 0, 2 });
+        assertMask(
+            new Not(Source.EMPTY, new MvLess(Source.EMPTY, attr("x", DataType.LONG), lit(30L, DataType.LONG), includeBound(true))),
+            new int[] { 1, 3, 4 }
+        );
+    }
+
+    public void testMvInRangeReadsExclusiveBoundsExactly() {
+        Expression open = new MvInRange(
+            Source.EMPTY,
+            attr("x", DataType.LONG),
+            lit(10L, DataType.LONG),
+            lit(40L, DataType.LONG),
+            exclusiveBothBounds()
+        );
+        assertMask(open, new int[] { 2 });
+        // Both boundary rows are false under the open interval, so both survive the negation, as does the null.
+        assertMask(new Not(Source.EMPTY, open), new int[] { 0, 1, 3, 4 });
+    }
+
+    public void testMvFormsDeclineOnAMultivaluedBlock() {
+        // [10], [20, 30], [40]: the middle row holds a value that satisfies each form below. The scalar arms keep only
+        // single-valued positions, so answering here would lose it; every form must decline and let all rows through.
+        Block block;
+        try (var builder = blockFactory.newLongBlockBuilder(3)) {
+            builder.appendLong(10L);
+            builder.beginPositionEntry();
+            builder.appendLong(20L);
+            builder.appendLong(30L);
+            builder.endPositionEntry();
+            builder.appendLong(40L);
+            block = builder.build();
+        }
+        Map<String, Block> blocks = Map.of("x", block);
+        Attribute x = attr("x", DataType.LONG);
+        for (Expression mv : List.of(
+            new MvContains(Source.EMPTY, x, lit(30L, DataType.LONG)),
+            new MvIntersects(Source.EMPTY, x, new Literal(Source.EMPTY, List.of(30L), DataType.LONG)),
+            new MvInRange(Source.EMPTY, x, lit(25L, DataType.LONG), lit(35L, DataType.LONG)),
+            new MvGreater(Source.EMPTY, x, lit(25L, DataType.LONG)),
+            new MvLess(Source.EMPTY, x, lit(25L, DataType.LONG))
+        )) {
+            assertNull(
+                mv + " must decline over a multivalued block",
+                new ParquetPushedExpressions(List.of(mv)).evaluateFilter(blocks, 3, new WordMask())
+            );
+        }
     }
 
     private static void assertSurvivors(

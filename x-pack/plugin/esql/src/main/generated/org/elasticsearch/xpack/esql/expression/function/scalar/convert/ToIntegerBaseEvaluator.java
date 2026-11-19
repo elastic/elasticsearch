@@ -73,13 +73,14 @@ public final class ToIntegerBaseEvaluator implements ExpressionEvaluator {
   }
 
   public IntBlock eval(int positionCount, BytesRefBlock stringBlock, IntBlock baseBlock) {
-    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount, true)) {
       BytesRef stringScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
+        if (stringBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (stringBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -87,10 +88,11 @@ public final class ToIntegerBaseEvaluator implements ExpressionEvaluator {
               result.appendNull();
               continue position;
         }
+        if (baseBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (baseBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -112,7 +114,7 @@ public final class ToIntegerBaseEvaluator implements ExpressionEvaluator {
   }
 
   public IntBlock eval(int positionCount, BytesRefVector stringVector, IntVector baseVector) {
-    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount, true)) {
       BytesRef stringScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         BytesRef string = stringVector.getBytesRef(p, stringScratch);
@@ -140,7 +142,7 @@ public final class ToIntegerBaseEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }

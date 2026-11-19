@@ -1,4 +1,8 @@
 ---
+# Uses well-separated vectors (matching the CPU int8_hnsw test in 41_knn_search_byte_quantized.yml)
+# to avoid quantization noise swapping result orderings on small datasets.
+# Single shard avoids tiny per-shard segments where CAGRA graph parameters get
+# clamped to near-trivial values.
 "Test GPU vector operations":
 
   - requires:
@@ -11,15 +15,15 @@
         body:
           mappings:
             properties:
-              embedding:
+              vector:
                 type: dense_vector
-                dims: 24
+                dims: 5
                 similarity: l2_norm
                 index_options:
                   type: int8_hnsw
           settings:
-            index.number_of_shards: 2
-            index.refresh_interval: -1 # disable automatic refresh to ensure documents are indexed together
+            index.number_of_shards: 1
+            index.refresh_interval: -1
   - match: { error: null }
 
   - do:
@@ -29,118 +33,87 @@
         body:
           - index:
               _id: "1"
-          - text: "First document"
-            embedding: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+          - vector: [230.0, 300.33, -34.8988, 15.555, -200.0]
           - index:
               _id: "2"
-          - text: "Second document"
-            embedding: [0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2]
+          - vector: [-0.5, 100.0, -13, 14.8, -156.0]
           - index:
               _id: "3"
-          - text: "Third document"
-            embedding: [0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3]
-          - index:
-              _id: "4"
-          - text: "Fourth document"
-            embedding: [0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4]
-          - index:
-              _id: "5"
-          - text: "Fifth document"
-            embedding: [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5]
-          - index:
-              _id: "6"
-          - text: "Sixth document"
-            embedding: [0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6]
-          - index:
-              _id: "7"
-          - text: "Seventh document"
-            embedding: [0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7]
-          - index:
-              _id : "8"
-          - text: "Eighth document"
-            embedding: [0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8]
-          - index:
-              _id: "9"
-          - text: "Ninth document"
-            embedding: [0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9]
-          - index:
-              _id: "10"
-          - text: "Tenth document"
-            embedding: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+          - vector: [0.5, 111.3, -13.0, 14.8, -156.0]
   - match: { errors: false }
 
+  # Search before force merge
   - do:
       search:
         index: my_vectors
         body:
           knn:
-            field: embedding
-            query_vector: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+            field: vector
+            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
             k: 2
-  - match: { hits.hits.0._id: "10" }
-  - match: { hits.hits.1._id: "9" }
-
-  - do:
-      bulk:
-        index: my_vectors
-        refresh: true
-        body:
-          - delete:
-              _id: "1"
-          - delete:
-              _id: "10"
-  - match: { errors: false }
-
-  - do:
-      indices.forcemerge:
-        index: my_vectors
-        max_num_segments: 1
-
-  - do:
-      search:
-        index: my_vectors
-        body:
-          knn:
-            field: embedding
-            query_vector: [ 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0 ]
-            k: 2
-  - match: { hits.hits.0._id: "9" }
-  - match: { hits.hits.1._id: "8" }
-
-
-  - do:
-      bulk:
-        index: my_vectors
-        refresh: true
-        body:
-          - index:
-              _id: "2"
-          - text: "Second document"
-            embedding: [ 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0 ]
-
-  - do:
-      indices.forcemerge:
-        index: my_vectors
-        max_num_segments: 1
-
-  - do:
-      search:
-        index: my_vectors
-        body:
-          knn:
-            field: embedding
-            query_vector: [ 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0 ]
-            k: 2
+            num_candidates: 3
   - match: { hits.hits.0._id: "2" }
-  - match: { hits.hits.1._id: "9" }
+  - match: { hits.hits.1._id: "3" }
+
+  # Delete a doc and force merge
+  - do:
+      delete:
+        index: my_vectors
+        id: "1"
+        refresh: true
+  - match: { result: "deleted" }
+
+  - do:
+      indices.forcemerge:
+        index: my_vectors
+        max_num_segments: 1
 
   - do:
       search:
         index: my_vectors
         body:
           knn:
-            field: embedding
-            query_vector: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+            field: vector
+            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
             k: 2
+            num_candidates: 3
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.1._id: "3" }
+
+  # Re-index doc 3 with a vector close to doc 1's original, then force merge
+  - do:
+      index:
+        index: my_vectors
+        id: "3"
+        refresh: true
+        body:
+          vector: [230.0, 300.33, -34.8988, 15.555, -200.0]
+
+  - do:
+      indices.forcemerge:
+        index: my_vectors
+        max_num_segments: 1
+
+  - do:
+      search:
+        index: my_vectors
+        body:
+          knn:
+            field: vector
+            query_vector: [230.0, 300.33, -34.8988, 15.555, -200.0]
+            k: 2
+            num_candidates: 3
   - match: { hits.hits.0._id: "3" }
-  - match: { hits.hits.1._id: "4" }
+  - match: { hits.hits.1._id: "2" }
+
+  - do:
+      search:
+        index: my_vectors
+        body:
+          knn:
+            field: vector
+            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            k: 2
+            num_candidates: 3
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.1._id: "3" }

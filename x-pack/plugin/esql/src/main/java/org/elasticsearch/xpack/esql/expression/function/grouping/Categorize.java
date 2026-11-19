@@ -92,6 +92,7 @@ public class Categorize extends GroupingFunction.NonEvaluatableGroupingFunction 
 
     @FunctionInfo(
         returnType = "keyword",
+        briefSummary = "Groups text messages into categories of similarly formatted text values.",
         description = "Groups text messages into categories of similarly formatted text values.",
         detailedDescription = """
             `CATEGORIZE` has the following limitations:
@@ -104,6 +105,17 @@ public class Categorize extends GroupingFunction.NonEvaluatableGroupingFunction 
                 file = "docs",
                 tag = "docsCategorize",
                 description = "This example categorizes server logs messages into categories and aggregates their counts. "
+            ),
+            @Example(
+                file = "docs",
+                tag = "docsCategorizeByTime",
+                description = "Group log message categories by time interval by combining "
+                    + "`CATEGORIZE` with `BUCKET` in the same `BY` clause. "
+            ),
+            @Example(
+                file = "docs",
+                tag = "docsCategorizeBySample",
+                description = "Surface one representative raw message per category by combining `CATEGORIZE` with `SAMPLE`. "
             ) },
         type = FunctionType.GROUPING,
         appliesTo = {
@@ -129,7 +141,10 @@ public class Categorize extends GroupingFunction.NonEvaluatableGroupingFunction 
                     name = OUTPUT_FORMAT,
                     type = "keyword",
                     valueHint = { "regex", "tokens" },
-                    description = "The output format of the categories. Defaults to regex."
+                    description = "The output format of the categories. "
+                        + "Supported formats are `regex`, which outputs a regular expression matching the category, "
+                        + "and `tokens`, which outputs a more human-readable space-separated list of the matching tokens of the category. "
+                        + "Defaults to `regex`."
                 ),
                 @MapParam.MapParamEntry(
                     name = SIMILARITY_THRESHOLD,

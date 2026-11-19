@@ -1,12 +1,11 @@
 {
   "reindex_get": {
     "documentation": {
-      "url": "https://www.elastic.co/docs/api/doc/elasticsearch#TODO",
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-get-reindex",
       "description": "Get information for a reindex operation"
     },
-    "stability": "beta",
-    "visibility": "feature_flag",
-    "feature_flag": "reindex_resilience",
+    "stability": "stable",
+    "visibility": "public",
     "headers": {
       "accept": [
         "application/json"

@@ -1,0 +1,18 @@
+# Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+# or more contributor license agreements. Licensed under the "Elastic License
+# 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+# Public License v 1"; you may not use this file except in compliance with, at
+# your election, the "Elastic License 2.0", the "GNU Affero General Public
+# License v3.0 only", or the "Server Side Public License, v 1".
+
+# JDK 22+ java.lang.foreign APIs that should go through adapters.
+# Use the adapters in org.elasticsearch.foreign.adapter instead.
+
+@defaultMessage Use MemorySegmentAdapter.getString() instead
+java.lang.foreign.MemorySegment#getString(long)
+
+@defaultMessage Use MemorySegmentAdapter.setString() instead
+java.lang.foreign.MemorySegment#setString(long, java.lang.String)
+
+@defaultMessage Use MemorySegmentAdapter.allocateString() instead
+java.lang.foreign.SegmentAllocator#allocateFrom(java.lang.String)

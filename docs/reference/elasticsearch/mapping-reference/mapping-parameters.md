@@ -27,6 +27,7 @@ The following mapping parameters are common to some or all field data types:
 * [`index_options`](/reference/elasticsearch/mapping-reference/index-options.md)
 * [`index_phrases`](/reference/elasticsearch/mapping-reference/index-phrases.md)
 * [`index_prefixes`](/reference/elasticsearch/mapping-reference/index-prefixes.md)
+* [`index_terms`](/reference/elasticsearch/mapping-reference/number.md#index-terms-mapping-param)
 * [`index`](/reference/elasticsearch/mapping-reference/mapping-index.md)
 * [`meta`](/reference/elasticsearch/mapping-reference/mapping-field-meta.md)
 * [`normalizer`](/reference/elasticsearch/mapping-reference/normalizer.md)

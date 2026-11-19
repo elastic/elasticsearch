@@ -10,10 +10,13 @@ package org.elasticsearch.xpack.inference.services.openai.completion;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.Utils;
+import org.elasticsearch.xpack.inference.common.oauth2.NoopTokenCache;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
 import java.util.List;
@@ -22,6 +25,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.inference.services.openai.OpenAiTaskSettingsTests.getOpenAiTaskSettingsMap;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.Mockito.mock;
 
 public class OpenAiChatCompletionModelTests extends ESTestCase {
 
@@ -52,7 +56,7 @@ public class OpenAiChatCompletionModelTests extends ESTestCase {
 
     public void testOverrideWith_UnifiedCompletionRequest_OverridesModelId() {
         var model = createCompletionModel("url", "org", "api_key", "model_name", "user");
-        var request = new UnifiedCompletionRequest(
+        var request = new UnifiedCompletionRequestBody(
             List.of(new Message(new ContentString("hello"), "role", null, null)),
             "different_model",
             null,
@@ -63,15 +67,22 @@ public class OpenAiChatCompletionModelTests extends ESTestCase {
             null
         );
 
-        assertThat(
-            OpenAiChatCompletionModel.of(model, request),
-            is(createCompletionModel("url", "org", "api_key", "different_model", "user"))
+        assertThat(of(model, request), is(createCompletionModel("url", "org", "api_key", "different_model", "user")));
+    }
+
+    private static OpenAiChatCompletionModel of(OpenAiChatCompletionModel model, UnifiedCompletionRequestBody request) {
+        return OpenAiChatCompletionModel.of(
+            model,
+            request,
+            mock(ThreadPool.class),
+            NoopTokenCache.INSTANCE,
+            Utils.mockOAuth2ClusterSettings()
         );
     }
 
     public void testOverrideWith_UnifiedCompletionRequest_UsesModelFields_WhenRequestDoesNotOverride() {
         var model = createCompletionModel("url", "org", "api_key", "model_name", "user");
-        var request = new UnifiedCompletionRequest(
+        var request = new UnifiedCompletionRequestBody(
             List.of(new Message(new ContentString("hello"), "role", null, null)),
             null, // not overriding model
             null,
@@ -82,7 +93,7 @@ public class OpenAiChatCompletionModelTests extends ESTestCase {
             null
         );
 
-        assertThat(OpenAiChatCompletionModel.of(model, request), is(createCompletionModel("url", "org", "api_key", "model_name", "user")));
+        assertThat(of(model, request), is(createCompletionModel("url", "org", "api_key", "model_name", "user")));
     }
 
     public static OpenAiChatCompletionModel createCompletionModel(
@@ -119,7 +130,10 @@ public class OpenAiChatCompletionModelTests extends ESTestCase {
             "service",
             new OpenAiChatCompletionServiceSettings(modelName, url, org, null, null),
             new OpenAiChatCompletionTaskSettings(user, null),
-            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
+            mock(ThreadPool.class),
+            NoopTokenCache.INSTANCE,
+            Utils.mockOAuth2ClusterSettings()
         );
     }
 
@@ -138,8 +152,10 @@ public class OpenAiChatCompletionModelTests extends ESTestCase {
             "service",
             new OpenAiChatCompletionServiceSettings(modelName, url, org, null, null),
             new OpenAiChatCompletionTaskSettings(user, null),
-            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
+            mock(ThreadPool.class),
+            NoopTokenCache.INSTANCE,
+            Utils.mockOAuth2ClusterSettings()
         );
     }
-
 }

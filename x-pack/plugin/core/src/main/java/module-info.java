@@ -13,10 +13,6 @@ module org.elasticsearch.xcore {
     requires org.elasticsearch.server;
     requires org.elasticsearch.sslconfig;
     requires org.elasticsearch.xcontent;
-    requires org.apache.httpcomponents.httpcore;
-    requires org.apache.httpcomponents.httpclient;
-    requires org.apache.httpcomponents.httpasyncclient;
-    requires org.apache.httpcomponents.httpcore.nio;
     requires org.apache.logging.log4j;
     requires org.apache.lucene.core;
     requires org.apache.lucene.join;
@@ -74,6 +70,8 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.eql;
     exports org.elasticsearch.xpack.core.esql;
     exports org.elasticsearch.xpack.core.esql.action;
+    exports org.elasticsearch.xpack.core.esql.action.internal;
+    exports org.elasticsearch.xpack.core.exponentialhistogram;
     exports org.elasticsearch.xpack.core.exponentialhistogram.fielddata;
     exports org.elasticsearch.xpack.core.frozen;
     exports org.elasticsearch.xpack.core.gpu;
@@ -83,9 +81,10 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.ilm.step.info;
     exports org.elasticsearch.xpack.core.ilm;
     exports org.elasticsearch.xpack.core.indexing;
-    exports org.elasticsearch.xpack.core.crypto;
     exports org.elasticsearch.xpack.core.inference.action;
+    exports org.elasticsearch.xpack.core.inference.regionpolicy;
     exports org.elasticsearch.xpack.core.inference.results;
+    exports org.elasticsearch.xpack.core.inference.results.completion;
     exports org.elasticsearch.xpack.core.inference.usage;
     exports org.elasticsearch.xpack.core.inference;
     exports org.elasticsearch.xpack.core.logstash;
@@ -185,6 +184,7 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.security.authz.store;
     exports org.elasticsearch.xpack.core.security.authz.support;
     exports org.elasticsearch.xpack.core.security.authz;
+    exports org.elasticsearch.xpack.core.security.audit;
     exports org.elasticsearch.xpack.core.security.operator;
     exports org.elasticsearch.xpack.core.security.support;
     exports org.elasticsearch.xpack.core.security.user;

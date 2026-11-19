@@ -25,13 +25,16 @@ setup:
       indices.refresh: { }
 
 ---
-"Counted keyword with index false is not searchable":
+# With index:false the field has no postings, so term/terms queries are rejected via
+# failIfNotIndexed(). However, SORTED_SET doc values are always present, so the IndexType is
+# never NONE and isSearchable() returns true (exists/doc-values queries still work).
+"Counted keyword with index false is searchable via doc values":
   - do:
       field_caps:
         index: test-events-no-index
         fields: [ events ]
 
-  - match: { fields.events.counted_keyword.searchable: false }
+  - match: { fields.events.counted_keyword.searchable: true }
   - match: { fields.events.counted_keyword.aggregatable: true }
 
 ---

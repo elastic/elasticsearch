@@ -18,10 +18,10 @@ import org.elasticsearch.gradle.internal.conventions.problems.ElasticsearchBuild
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.file.FileCollection;
-import org.gradle.api.problems.ProblemId;
+import org.gradle.api.problems.Problem;
 import org.gradle.api.problems.ProblemReporter;
 import org.gradle.api.problems.Problems;
-import org.gradle.api.problems.Severity;
+import org.gradle.api.problems.ThirdLevelProblemGroup;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.InputFiles;
@@ -37,9 +37,11 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -63,10 +65,12 @@ public class ValidateJsonNoKeywordsTask extends DefaultTask {
     private File report;
     private FileCollection inputFiles;
     private final ProblemReporter problemReporter;
+    private final ThirdLevelProblemGroup problemGroup;
 
     @Inject
     public ValidateJsonNoKeywordsTask(Problems problems) {
         this.problemReporter = problems.getReporter();
+        this.problemGroup = ElasticsearchBuildProblems.JSON_VALIDATION.group(problems);
     }
 
     @Incremental
@@ -103,6 +107,7 @@ public class ValidateJsonNoKeywordsTask extends DefaultTask {
     public void validate(InputChanges inputChanges) {
         final ObjectMapper mapper = new ObjectMapper().configure(JsonParser.Feature.ALLOW_COMMENTS, true);
         final Map<File, Set<String>> errors = new LinkedHashMap<>();
+        final List<Problem> problems = new ArrayList<>();
 
         getLogger().debug("Loading keywords from {}", jsonKeywords.getName());
 
@@ -141,19 +146,16 @@ public class ValidateJsonNoKeywordsTask extends DefaultTask {
                             final Set<String> errorsForFile = errors.computeIfAbsent(file, _file -> new HashSet<>());
                             String detail = component + " is a reserved keyword in these languages: " + languagesByKeyword.get(component);
                             errorsForFile.add(detail);
-                            problemReporter.report(
-                                ProblemId.create(
-                                    "keyword-conflict",
-                                    "API name conflicts with reserved keyword",
-                                    ElasticsearchBuildProblems.JSON_VALIDATION
-                                ),
-                                spec -> spec.contextualLabel(
-                                    "'" + component + "' in " + file.getName() + " conflicts with reserved keywords"
+                            problems.add(
+                                problemReporter.create(
+                                    problemGroup.problemId("API name conflicts with reserved keyword"),
+                                    spec -> spec.contextualLabel(
+                                        "'" + component + "' in " + file.getName() + " conflicts with reserved keywords"
+                                    )
+                                        .details(detail)
+                                        .fileLocation(file.getAbsolutePath())
+                                        .solution("Rename the API to avoid using reserved keywords")
                                 )
-                                    .details(detail)
-                                    .severity(Severity.ERROR)
-                                    .fileLocation(file.getAbsolutePath())
-                                    .solution("Rename the API to avoid using reserved keywords")
                             );
                         }
                     }
@@ -196,7 +198,7 @@ public class ValidateJsonNoKeywordsTask extends DefaultTask {
             System.lineSeparator(),
             String.format("Verification failed: %d files contained %d violations", errors.keySet().size(), errors.values().size())
         );
-        throw new GradleException(message);
+        throw problemReporter.throwing(new GradleException(message), problems);
     }
 
     /**

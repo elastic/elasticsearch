@@ -20,7 +20,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
-import java.util.Arrays;
 import java.util.Deque;
 import java.util.Objects;
 import java.util.SplittableRandom;
@@ -114,7 +113,7 @@ public class SampleOperator implements Operator {
             sampledPositions[sampledIdx++] = Math.toIntExact(i - rowsReceived);
         }
         if (sampledIdx > 0) {
-            outputPages.add(page.filter(false, Arrays.copyOf(sampledPositions, sampledIdx)));
+            outputPages.add(page.filter(false, sampledPositions, 0, sampledIdx));
         }
     }
 
@@ -183,6 +182,18 @@ public class SampleOperator implements Operator {
             "sample",
             Status::new
         );
+        public static final ProfileSchema<Status> PROFILE_SCHEMA = ProfileSchema.of(
+            Status.class,
+            (builder, status, params) -> status.writeProfile(builder)
+        )
+            .required("collect_nanos", ProfileSchema.integer())
+            .optional("collect_time", ProfileSchema.string())
+            .required("emit_nanos", ProfileSchema.integer())
+            .optional("emit_time", ProfileSchema.string())
+            .required("pages_processed", ProfileSchema.integer())
+            .required("rows_received", ProfileSchema.integer())
+            .required("rows_emitted", ProfileSchema.integer())
+            .build();
 
         private static final TransportVersion ESQL_SAMPLE_OPERATOR_STATUS = TransportVersion.fromName("esql_sample_operator_status");
 
@@ -210,8 +221,7 @@ public class SampleOperator implements Operator {
             return ENTRY.name;
         }
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        private XContentBuilder writeProfile(XContentBuilder builder) throws IOException {
             builder.startObject();
             builder.field("collect_nanos", collectNanos);
             if (builder.humanReadable()) {
@@ -225,6 +235,11 @@ public class SampleOperator implements Operator {
             builder.field("rows_received", rowsReceived);
             builder.field("rows_emitted", rowsEmitted);
             return builder.endObject();
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return PROFILE_SCHEMA.write(builder, this, params);
         }
 
         @Override

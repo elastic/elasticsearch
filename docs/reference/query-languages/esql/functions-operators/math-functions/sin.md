@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `SIN` function [esql-sin]
 
-:::{include} ../../_snippets/functions/layout/sin.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/sin.md
 :::

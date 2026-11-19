@@ -3,7 +3,7 @@ setup:
   - requires:
       cluster_features: ["gte_v8.11.0"]
       reason: "ESQL is available in 8.11+"
-      test_runner_features: allowed_warnings_regex
+      test_runner_features: [allowed_warnings_regex, allowed_warnings]
   - do:
       indices.create:
         index:  test
@@ -431,6 +431,8 @@ setup:
 ---
 "Test Eval With Null":
   - do:
+      allowed_warnings:
+        - "Line 1:28: Expression [count_d + null] always evaluates to NULL."
       esql.query:
         body:
           query: 'from test | eval nullsum = count_d + null | sort nullsum | limit 1'
@@ -471,6 +473,8 @@ setup:
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
+      allowed_warnings:
+        - "Line 1:28: Expression [count_d + null] always evaluates to NULL."
       esql.query:
         body:
           query: 'from test | eval nullsum = count_d + null | stats count(nullsum)'
@@ -487,6 +491,9 @@ setup:
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
+      allowed_warnings:
+        - "Line 1:20: Expression [1 + null] always evaluates to NULL."
+        - "Line 1:33: Expression [1.0 + null] always evaluates to NULL."
       esql.query:
         body:
           query: 'row l=1, d=1.0, ln=1 + null, dn=1.0 + null | stats sum(l), sum(d), sum(ln), sum(dn)'

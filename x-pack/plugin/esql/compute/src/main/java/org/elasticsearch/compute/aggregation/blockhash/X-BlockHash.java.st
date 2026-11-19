@@ -27,7 +27,9 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.compute.data.$Type$Block;
+$if(hasVector)$
 import org.elasticsearch.compute.data.$Type$Vector;
+$endif$
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupe;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupe$Type$;
@@ -36,6 +38,13 @@ import org.elasticsearch.core.ReleasableIterator;
 $if(BytesRef)$
 import org.elasticsearch.swisshash.BytesRefSwissHash;
 $endif$
+$if(long || int)$
+import org.elasticsearch.swisshash.LongSwissHash;
+$endif$
+$if(partitioned)$
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.util.PartitionedHashTable;
+$endif$
 import java.util.BitSet;
 // end generated imports
 
@@ -43,7 +52,11 @@ import java.util.BitSet;
  * Maps a {@link $Type$Block} column to group ids.
  * This class is generated. Edit {@code X-BlockHash.java.st} instead.
  */
+$if(partitioned)$
+final class $Type$BlockHash extends PartitionedBlockHash {
+$else$
 final class $Type$BlockHash extends BlockHash {
+$endif$
     private final int channel;
     final $Hash$Table hash;
 
@@ -66,6 +79,12 @@ $if(BytesRef)$
             batchKeys[i] = new BytesRef();
         }
     }
+
+$endif$
+$if(long)$
+    private static final int PREFETCH_BATCH = 128;
+    private final PrefetchBarrier prefetchBarrier = new PrefetchBarrier();
+    private final int[] batchHashes = new int[PREFETCH_BATCH];
 $endif$
 
     $Type$BlockHash(int channel, BlockFactory blockFactory) {
@@ -86,6 +105,7 @@ $endif$
             return;
         }
         $Type$Block castBlock = ($Type$Block) block;
+$if(hasVector)$
         $Type$Vector vector = castBlock.asVector();
         if (vector == null) {
             try (IntBlock groupIds = add(castBlock)) {
@@ -96,8 +116,14 @@ $endif$
         try (IntVector groupIds = add(vector)) {
             addInput.add(0, groupIds);
         }
+$else$
+        try (IntBlock groupIds = add(castBlock)) {
+            addInput.add(0, groupIds);
+        }
+$endif$
     }
 
+$if(hasVector)$
     /**
      *  Adds the vector values to the hash, and returns a new vector with the group IDs for those positions.
      */
@@ -108,14 +134,22 @@ $if(BytesRef)$
             int groupId = Math.toIntExact(hashOrdToGroupNullReserved(hash.add(v)));
             return blockFactory.newConstantIntVector(groupId, vector.getPositionCount());
         }
+        // Going through the dictionary only pays off when it is small relative to the page. A Parquet
+        // page reuses the whole row-group dictionary, which can be far larger than the page. This is
+        // a cost choice only: neither path adds a key the page does not contain.
         var ordinals = vector.asOrdinals();
-        if (ordinals != null) {
+        if (ordinals != null && ordinals.isDense()) {
             return addOrdinalsVector(ordinals);
         }
         if (hash instanceof BytesRefSwissHash swiss && swiss.shouldPrefetch()) {
             return addWithPrefetch(vector, swiss);
         }
         BytesRef scratch = new BytesRef();
+$endif$
+$if(long)$
+        if (hash instanceof LongSwissHash swiss && swiss.shouldPrefetch()) {
+            return addWithPrefetch(vector, swiss);
+        }
 $endif$
         int positions = vector.getPositionCount();
         try (var builder = blockFactory.newIntVectorFixedBuilder(positions)) {
@@ -132,6 +166,7 @@ $endif$
             return builder.build();
         }
     }
+$endif$
 
 $if(BytesRef)$
     private IntVector addWithPrefetch(BytesRefVector vector, BytesRefSwissHash swiss) {
@@ -159,6 +194,28 @@ $if(BytesRef)$
             return builder.build();
         }
     }
+
+$endif$
+$if(long)$
+    private IntVector addWithPrefetch($Type$Vector vector, LongSwissHash swiss) {
+        int positions = vector.getPositionCount();
+        int dummy = 0;
+        try (var builder = blockFactory.newIntVectorFixedBuilder(positions)) {
+            for (int offset = 0; offset < positions; offset += PREFETCH_BATCH) {
+                int batchSize = Math.min(PREFETCH_BATCH, positions - offset);
+                for (int i = 0; i < batchSize; i++) {
+                    batchHashes[i] = LongSwissHash.hash(vector.getLong(offset + i));
+                    dummy ^= swiss.prefetch(batchHashes[i]);
+                }
+                for (int i = 0; i < batchSize; i++) {
+                    final long id = swiss.addWithHash(vector.getLong(offset + i), batchHashes[i]);
+                    builder.appendInt(Math.toIntExact(hashOrdToGroupNullReserved(id)));
+                }
+            }
+            prefetchBarrier.consume(dummy);
+            return builder.build();
+        }
+    }
 $endif$
 
     /**
@@ -169,8 +226,10 @@ $endif$
      */
     IntBlock add($Type$Block block) {
 $if(BytesRef)$
+        // Same cost-only density gate as add(vector): walking a row-group dictionary once per page
+        // costs more than hashing the page's own values.
         var ordinals = block.asOrdinals();
-        if (ordinals != null) {
+        if (ordinals != null && ordinals.isDense()) {
             return addOrdinalsBlock(ordinals);
         }
 $endif$
@@ -187,38 +246,59 @@ $endif$
         }
 
         $Type$Block castBlock = ($Type$Block) block;
+$if(hasVector)$
         $Type$Vector vector = castBlock.asVector();
         // TODO honor targetBlockSize and chunk the pages if requested.
         if (vector == null) {
             return ReleasableIterator.single(lookup(castBlock));
         }
         return ReleasableIterator.single(lookup(vector));
+$else$
+        return ReleasableIterator.single(lookup(castBlock));
+$endif$
     }
 
 $if(BytesRef)$
+    /**
+     * Adds a dense, non-constant ordinals vector: each dictionary entry the vector references is hashed once and
+     * the positions are mapped through the result.
+     */
     private IntVector addOrdinalsVector(OrdinalBytesRefVector inputBlock) {
         IntVector inputOrds = inputBlock.getOrdinalsVector();
-        try (var hashOrds = add(inputBlock.getDictionaryVector())) {
-            if (inputOrds.isConstant()) {
-                int ord = hashOrds.getInt(inputOrds.getInt(0));
-                return blockFactory.newConstantIntVector(ord, inputOrds.getPositionCount());
+        BytesRefVector dictionary = inputBlock.getDictionaryVector();
+        int positions = inputOrds.getPositionCount();
+        boolean[] referenced = new boolean[dictionary.getPositionCount()];
+        for (int p = 0; p < positions; p++) {
+            referenced[inputOrds.getInt(p)] = true;
+        }
+        int[] groupIds = hashReferenced(dictionary, referenced);
+        try (var builder = blockFactory.newIntVectorFixedBuilder(positions)) {
+            for (int p = 0; p < positions; p++) {
+                builder.appendInt(referencedGroupId(groupIds, inputOrds.getInt(p)));
             }
-            try (var builder = blockFactory.newIntVectorBuilder(inputOrds.getPositionCount())) {
-                for (int p = 0; p < inputOrds.getPositionCount(); p++) {
-                    int ord = hashOrds.getInt(inputOrds.getInt(p));
-                    builder.appendInt(ord);
-                }
-                return builder.build();
-            }
+            return builder.build();
         }
     }
 
+    /**
+     * Adds a dense ordinals block: each dictionary entry the block references is hashed once and the values are
+     * mapped through the result. Nulls get group id 0.
+     */
     private IntBlock addOrdinalsBlock(OrdinalBytesRefBlock inputBlock) {
+        BytesRefVector dictionary = inputBlock.getDictionaryVector();
         try (
             IntBlock inputOrds = new MultivalueDedupeInt(inputBlock.getOrdinalsBlock()).dedupeToBlockAdaptive(blockFactory);
-            IntBlock.Builder builder = blockFactory.newIntBlockBuilder(inputOrds.getPositionCount());
-            IntVector hashOrds = add(inputBlock.getDictionaryVector())
+            IntBlock.Builder builder = blockFactory.newIntBlockBuilder(inputOrds.getPositionCount())
         ) {
+            boolean[] referenced = new boolean[dictionary.getPositionCount()];
+            for (int p = 0; p < inputOrds.getPositionCount(); p++) {
+                int firstIndex = inputOrds.getFirstValueIndex(p);
+                int end = firstIndex + inputOrds.getValueCount(p);
+                for (int i = firstIndex; i < end; i++) {
+                    referenced[inputOrds.getInt(i)] = true;
+                }
+            }
+            int[] groupIds = hashReferenced(dictionary, referenced);
             for (int p = 0; p < inputOrds.getPositionCount(); p++) {
                 int valueCount = inputOrds.getValueCount(p);
                 int firstIndex = inputOrds.getFirstValueIndex(p);
@@ -227,17 +307,13 @@ $if(BytesRef)$
                         builder.appendInt(0);
                         seenNull = true;
                     }
-                    case 1 -> {
-                        int ord = hashOrds.getInt(inputOrds.getInt(firstIndex));
-                        builder.appendInt(ord);
-                    }
+                    case 1 -> builder.appendInt(referencedGroupId(groupIds, inputOrds.getInt(firstIndex)));
                     default -> {
                         int start = firstIndex;
                         int end = firstIndex + valueCount;
                         builder.beginPositionEntry();
                         for (int i = start; i < end; i++) {
-                            int ord = hashOrds.getInt(inputOrds.getInt(i));
-                            builder.appendInt(ord);
+                            builder.appendInt(referencedGroupId(groupIds, inputOrds.getInt(i)));
                         }
                         builder.endPositionEntry();
                     }
@@ -246,8 +322,55 @@ $if(BytesRef)$
             return builder.build();
         }
     }
+
+    /**
+     * Hashes the dictionary entries flagged in {@code referenced} and returns their group ids, indexed by dictionary
+     * ordinal. Entries that are not flagged stay out of the hash: a dictionary can be shared with other pages (a
+     * slice, a Parquet row-group dictionary), and hashing all of it would turn values this page never contained
+     * into groups.
+     */
+    private int[] hashReferenced(BytesRefVector dictionary, boolean[] referenced) {
+        int[] groupIds = new int[referenced.length];
+        if (allReferenced(referenced)) {
+            // Nothing to leave out, so hash the dictionary as a plain vector and keep its prefetching.
+            try (IntVector dictionaryGroupIds = add(dictionary)) {
+                for (int ord = 0; ord < groupIds.length; ord++) {
+                    groupIds[ord] = dictionaryGroupIds.getInt(ord);
+                }
+            }
+            return groupIds;
+        }
+        BytesRef scratch = new BytesRef();
+        for (int ord = 0; ord < groupIds.length; ord++) {
+            if (referenced[ord]) {
+                BytesRef v = dictionary.getBytesRef(ord, scratch);
+                groupIds[ord] = Math.toIntExact(hashOrdToGroupNullReserved(hash.add(v)));
+            }
+        }
+        return groupIds;
+    }
+
+    /**
+     * The group id {@link #hashReferenced} assigned to a dictionary ordinal. An ordinal it skipped still holds 0,
+     * the null group, so mapping one would silently file the value under null.
+     */
+    private static int referencedGroupId(int[] groupIds, int ord) {
+        int groupId = groupIds[ord];
+        assert groupId > 0 : "ordinal [" + ord + "] was not hashed";
+        return groupId;
+    }
+
+    private static boolean allReferenced(boolean[] referenced) {
+        for (boolean r : referenced) {
+            if (r == false) {
+                return false;
+            }
+        }
+        return true;
+    }
 $endif$
 
+$if(hasVector)$
     private IntBlock lookup($Type$Vector vector) {
 $if(BytesRef)$
         BytesRef scratch = new BytesRef();
@@ -273,6 +396,7 @@ $endif$
         }
     }
 
+$endif$
     private IntBlock lookup($Type$Block block) {
         return new MultivalueDedupe$Type$(block).hashLookup(blockFactory, hash);
     }
@@ -291,6 +415,11 @@ $endif$
                 } else {
 $if(BytesRef)$
                     builder.appendBytesRef(hash.get(groupId - 1, spare));
+$elseif(DoubleRange)$
+                    builder.appendDoubleRange(
+                        Double.longBitsToDouble(hash.getKey1(groupId - 1)),
+                        Double.longBitsToDouble(hash.getKey2(groupId - 1))
+                    );
 $elseif(int)$
                     builder.appendInt((int) hash.get(groupId - 1));
 $elseif(double)$
@@ -320,14 +449,129 @@ $endif$
         }
     }
 
+$if(partitioned)$
+    @Override
+    public long estimatedBytesForPartitioning() {
+$if(BytesRef)$
+        return estimatedKeyBytes(hash.getBytesRefs());
+$elseif(int)$
+        return (long) numKeys() * Integer.BYTES;
+$elseif(long)$
+        return (long) numKeys() * Long.BYTES;
+$else$
+        syntax error because we didn't cover this case
+$endif$
+    }
+
+$endif$
     @Override
     public BitArray seenGroupIds(BigArrays bigArrays) {
         return new SeenGroupIds.Range(seenNull ? 0 : 1, Math.toIntExact(hash.size() + 1)).seenGroupIds(bigArrays);
     }
 
+$if(partitioned)$
+    /**
+     * Carries the {@code seenNull} flag through the split/combine round-trip alongside the delegate keys.
+     * <p>
+     * This hash reserves group ordinal 0 for null and stores null outside its Swiss hash; Swiss ordinals are
+     * therefore offset by 1 from group IDs. When {@code seenNull} is {@code true}, null's aggregation state
+     * was emitted as one extra entry in partition 0 of the aggregation split, and {@link #keysInPartition(int)}
+     * returns +1 for partition 0 so the combiner allocates space for it.
+     */
+    private record PartitionedHashKeysWithSeenNull(PartitionedHashTable.PartitionedHashKeys delegate, boolean seenNull)
+        implements
+            PartitionedHashTable.PartitionedHashKeys {
+
+        @Override
+        public int keysInPartition(int partition) {
+            return delegate.keysInPartition(partition) + (seenNull && partition == 0 ? 1 : 0);
+        }
+
+        @Override
+        public void releasePartition(CircuitBreaker breaker, int partition) {
+            delegate.releasePartition(breaker, partition);
+        }
+
+        @Override
+        public void releaseAll(CircuitBreaker breaker) {
+            delegate.releaseAll(breaker);
+        }
+    }
+
+    @Override
+    public PartitionedHashTable.PartitionedHashKeys splitPartition(
+        CircuitBreaker breaker,
+        PartitionedHashTable.PartitionSplitter partitionSplitter
+    ) {
+        if (hash instanceof $swissHash$ swiss) {
+            // Swiss ordinals are 0-indexed but group IDs reserve 0 for null, so non-null keys start at 1.
+            // withOffset(+1) shifts firstId so the aggregation splitter reads from the correct group-ID slots.
+            var groupIdSplitter = PartitionedHashTable.PartitionSplitter.withOffset(partitionSplitter, 1);
+            PartitionedHashTable.PartitionedHashKeys keys = swiss.splitPartition(breaker, groupIdSplitter);
+            boolean success = false;
+            try {
+                if (seenNull) {
+                    // Emit null's aggregation state (group ID 0) as one extra entry appended to partition 0.
+                    int nullOffset = keys.keysInPartition(0);
+                    int[] singleNullCounts = new int[PartitionedHashTable.NUM_PARTITIONS];
+                    singleNullCounts[0] = 1;
+                    int[] singleNullOffsets = new int[PartitionedHashTable.NUM_PARTITIONS];
+                    singleNullOffsets[0] = nullOffset;
+                    // shiftedIds needs only 1 element: null is the sole entry in partition 0 (shifted ID = 0)
+                    partitionSplitter.split(0, new short[1], 1, singleNullCounts, singleNullOffsets);
+                }
+                success = true;
+                return new PartitionedHashKeysWithSeenNull(keys, seenNull);
+            } finally {
+                if (success == false) {
+                    keys.releaseAll(breaker);
+                }
+            }
+        }
+        throw new UnsupportedOperationException(getClass().getSimpleName() + " doesn't support partitioning");
+    }
+
+    @Override
+    public boolean combinePartition(PartitionedHashTable.PartitionedHashKeys keys, int partitionIndex, int[] resultIds) {
+        if (hash instanceof $swissHash$ swiss) {
+            PartitionedHashKeysWithSeenNull withSeenNull = (PartitionedHashKeysWithSeenNull) keys;
+            int numNonNullKeys = withSeenNull.delegate().keysInPartition(partitionIndex);
+            boolean appendOnly = swiss.combinePartition(withSeenNull.delegate(), partitionIndex, resultIds);
+            // Shift all result IDs by 1: Swiss ordinals (0-indexed) → group IDs (1-indexed, null reserved at 0)
+            for (int i = 0; i < numNonNullKeys; i++) {
+                resultIds[i]++;
+            }
+            if (withSeenNull.seenNull() && partitionIndex == 0) {
+                // Only mark seenNull on the target hash for the one partition that carries null's state.
+                seenNull = true;
+                resultIds[numNonNullKeys] = 0; // null's group ID
+                return false; // can't use appendOnly with the null entry mixed in
+            }
+            return appendOnly;
+        }
+        throw new UnsupportedOperationException(getClass().getSimpleName() + " doesn't support partitioning");
+    }
+
+    @Override
+    public void ensureCapacity(int size) {
+        if (hash instanceof $swissHash$ swiss) {
+            swiss.ensureCapacity(size);
+        }
+    }
+
+    @Override
+    public void clear() {
+        seenNull = false;
+        hash.clear();
+    }
+
+$endif$
     @Override
     public void close() {
 $if(BytesRef)$
+        prefetchBarrier.flush();
+$endif$
+$if(long)$
         prefetchBarrier.flush();
 $endif$
         hash.close();
@@ -339,6 +583,8 @@ $endif$
         b.append("$Type$BlockHash{channel=").append(channel);
         b.append(", entries=").append(hash.size());
 $if(BytesRef)$
+        b.append(", size=").append(ByteSizeValue.ofBytes(hash.ramBytesUsed()));
+$elseif(DoubleRange)$
         b.append(", size=").append(ByteSizeValue.ofBytes(hash.ramBytesUsed()));
 $endif$
         b.append(", seenNull=").append(seenNull);

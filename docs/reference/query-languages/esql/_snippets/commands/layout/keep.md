@@ -41,7 +41,7 @@ The following examples show how to select columns and illustrate the wildcard pr
 
 Columns are returned in the order they are listed:
 
-:::{include} ../examples/docs.csv-spec/keep.md
+:::{include} ../../generated/x-pack-esql/commands/examples/docs.csv-spec/keep.md
 :::
 
 ### Use wildcards to select columns
@@ -49,7 +49,7 @@ Columns are returned in the order they are listed:
 Rather than specify each column by name, you can use wildcards to return all
 columns with a name that matches a pattern:
 
-:::{include} ../examples/docs.csv-spec/keepWildcard.md
+:::{include} ../../generated/x-pack-esql/commands/examples/docs.csv-spec/keepWildcard.md
 :::
 
 ### Control ordering with wildcard and specific columns
@@ -58,21 +58,21 @@ The asterisk wildcard (`*`) by itself translates to all columns that do not
 match the other arguments. This query returns all columns with a name
 that starts with `h`, followed by all other columns:
 
-:::{include} ../examples/docs.csv-spec/keepDoubleWildcard.md
+:::{include} ../../generated/x-pack-esql/commands/examples/docs.csv-spec/keepDoubleWildcard.md
 :::
 
 ### Exact name takes precedence over wildcards
 
 Complete field name has precedence over wildcard expressions:
 
-:::{include} ../examples/docs.csv-spec/keepCompleteName.md
+:::{include} ../../generated/x-pack-esql/commands/examples/docs.csv-spec/keepCompleteName.md
 :::
 
 ### Rightmost wildcard wins when priority is equal
 
 Wildcard expressions have the same priority, but the rightmost one wins (despite being less specific):
 
-:::{include} ../examples/docs.csv-spec/keepWildcardPrecedence.md
+:::{include} ../../generated/x-pack-esql/commands/examples/docs.csv-spec/keepWildcardPrecedence.md
 :::
 
 ### Bare wildcard has lowest priority
@@ -80,5 +80,5 @@ Wildcard expressions have the same priority, but the rightmost one wins (despite
 A simple wildcard expression `*` has the lowest precedence.
 Output order is determined by the other arguments:
 
-:::{include} ../examples/docs.csv-spec/keepWildcardLowest.md
+:::{include} ../../generated/x-pack-esql/commands/examples/docs.csv-spec/keepWildcardLowest.md
 :::

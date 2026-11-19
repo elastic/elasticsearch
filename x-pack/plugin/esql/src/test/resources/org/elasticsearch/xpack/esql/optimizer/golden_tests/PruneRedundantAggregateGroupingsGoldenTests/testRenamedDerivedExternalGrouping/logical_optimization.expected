@@ -1,0 +1,4 @@
+Limit[1000[INTEGER],false,false]
+\_Aggregate[[ClientIP{r}#0, c{r}#1],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count#2, ClientIP{r}#0 AS cip#3, c{r}#1]]
+  \_Eval[[ClientIP{r}#0 - 1[INTEGER] AS c#1]]
+    \_ExternalRelation[data.parquet][parquet][ClientIP{r}#0]

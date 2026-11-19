@@ -59,6 +59,7 @@ public class TransportDeleteTransformAction extends AcknowledgedTransportMasterN
 
     private final TransformConfigManager transformConfigManager;
     private final TransformAuditor auditor;
+    private final TransformCloudCredentialManager cloudCredentialManager;
     private final Client client;
     private final ProjectResolver projectResolver;
 
@@ -83,13 +84,14 @@ public class TransportDeleteTransformAction extends AcknowledgedTransportMasterN
         );
         this.transformConfigManager = transformServices.configManager();
         this.auditor = transformServices.auditor();
+        this.cloudCredentialManager = transformServices.cloudCredentialManager();
         this.client = client;
         this.projectResolver = projectResolver;
     }
 
     @Override
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
-        if (TransformMetadata.isUpgradeMode(state)) {
+        if (TransformMetadata.isUpgradeMode(projectResolver.getProjectMetadata(state))) {
             listener.onFailure(
                 new ElasticsearchStatusException(
                     "Cannot delete any Transform while the Transform feature is upgrading.",
@@ -113,14 +115,37 @@ public class TransportDeleteTransformAction extends AcknowledgedTransportMasterN
             return;
         }
 
-        // <3> Delete transform config
-        ActionListener<AcknowledgedResponse> deleteDestIndexListener = ActionListener.wrap(
+        // <4> Delete transform config
+        ActionListener<AcknowledgedResponse> deleteTransformListener = ActionListener.wrap(
             unusedAcknowledgedResponse -> transformConfigManager.deleteTransform(request.getId(), ActionListener.wrap(r -> {
                 logger.info("[{}] deleted transform", request.getId());
                 auditor.info(request.getId(), "Deleted transform.");
                 listener.onResponse(AcknowledgedResponse.of(r));
             }, listener::onFailure)),
             listener::onFailure
+        );
+
+        // <3> Revoke ALL persisted cloud credentials for this transform at UIAM before removing the
+        // storage docs. The big DBQ in step <4> (deleteTransform) catches every credential doc by
+        // transform_id, so we only need to invoke UIAM revocation here. Querying by transform_id
+        // (rather than loading the config) ensures dangling tokens left by interrupted rotations are
+        // also revoked. Best-effort: list or per-token revoke failures are logged but delete still
+        // proceeds.
+        ActionListener<AcknowledgedResponse> deleteDestIndexListener = listener.delegateFailureIgnoreResponseAndWrap(
+            l -> transformConfigManager.forEachTransformCloudCredential(
+                request.getId(),
+                credential -> cloudCredentialManager.revokeAndClose(request.getId(), credential),
+                ActionListener.runAfter(
+                    ActionListener.wrap(
+                        ignored -> {},
+                        listFailure -> logger.warn(
+                            () -> "[" + request.getId() + "] failed to list credentials before delete, proceeding",
+                            listFailure
+                        )
+                    ),
+                    () -> deleteTransformListener.onResponse(AcknowledgedResponse.TRUE)
+                )
+            )
         );
 
         // <2> Delete destination index if requested

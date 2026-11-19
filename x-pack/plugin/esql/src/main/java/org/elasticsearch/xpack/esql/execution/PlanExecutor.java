@@ -7,24 +7,45 @@
 
 package org.elasticsearch.xpack.esql.execution;
 
+import org.elasticsearch.Build;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.usage.UsageService;
+import org.elasticsearch.xpack.core.esql.QueryMetricsListener;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
+import org.elasticsearch.xpack.esql.action.ExternalPlanningReservation;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
+import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
+import org.elasticsearch.xpack.esql.datasources.QueryFailureTelemetry;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
@@ -36,11 +57,16 @@ import org.elasticsearch.xpack.esql.session.Versioned;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetryManager;
-import org.elasticsearch.xpack.esql.telemetry.QueryMetric;
+import org.elasticsearch.xpack.esql.telemetry.QueryCaller;
+import org.elasticsearch.xpack.esql.telemetry.QueryCallerClassifier;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
 
 import java.util.List;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
+import java.util.function.BooleanSupplier;
+import java.util.function.IntSupplier;
 
 import static org.elasticsearch.action.ActionListener.wrap;
 
@@ -50,13 +76,22 @@ public class PlanExecutor {
     private final EsqlParser parser;
     private final PreAnalyzer preAnalyzer;
     private final EsqlFunctionRegistry functionRegistry;
+    private final PromqlFunctionRegistry promqlFunctionRegistry;
     private final Mapper mapper;
     private final Metrics metrics;
+    private final List<QuerySettingDef<?>> applicableSettings;
     private final Verifier verifier;
     private final PlanTelemetryManager planTelemetryManager;
     private final EsqlQueryLog queryLog;
     private final DataSourceModule dataSourceModule;
     private final ExternalSourceCacheService cacheService;
+    private final AnalysisRegistry analysisRegistry;
+    @Nullable
+    private final IntSupplier maxDiscoveredFiles;
+    @Nullable
+    private final IntSupplier maxGlobExpansion;
+    @Nullable
+    private final IntSupplier maxListedObjects;
 
     public PlanExecutor(
         IndexResolver indexResolver,
@@ -67,22 +102,143 @@ public class PlanExecutor {
         CrossProjectModeDecider crossProjectModeDecider,
         DataSourceModule dataSourceModule,
         EsqlFunctionRegistry functionRegistry,
+        PromqlFunctionRegistry promqlFunctionRegistry,
         EsqlParser parser,
-        ExternalSourceCacheService cacheService
+        ExternalSourceCacheService cacheService,
+        AnalysisRegistry analysisRegistry
+    ) {
+        this(
+            indexResolver,
+            meterRegistry,
+            licenseState,
+            queryLog,
+            extraCheckers,
+            crossProjectModeDecider,
+            dataSourceModule,
+            functionRegistry,
+            promqlFunctionRegistry,
+            parser,
+            cacheService,
+            analysisRegistry,
+            null,
+            null,
+            null
+        );
+    }
+
+    public PlanExecutor(
+        IndexResolver indexResolver,
+        MeterRegistry meterRegistry,
+        XPackLicenseState licenseState,
+        EsqlQueryLog queryLog,
+        List<BiConsumer<LogicalPlan, Failures>> extraCheckers,
+        CrossProjectModeDecider crossProjectModeDecider,
+        DataSourceModule dataSourceModule,
+        EsqlFunctionRegistry functionRegistry,
+        PromqlFunctionRegistry promqlFunctionRegistry,
+        EsqlParser parser,
+        ExternalSourceCacheService cacheService,
+        AnalysisRegistry analysisRegistry,
+        @Nullable IntSupplier maxDiscoveredFiles,
+        @Nullable IntSupplier maxGlobExpansion,
+        @Nullable IntSupplier maxListedObjects
     ) {
         this.indexResolver = indexResolver;
         this.parser = parser;
         this.preAnalyzer = new PreAnalyzer();
         this.functionRegistry = functionRegistry;
+        this.promqlFunctionRegistry = promqlFunctionRegistry;
         this.mapper = new Mapper();
         this.metrics = new Metrics(functionRegistry, crossProjectModeDecider.crossProjectEnabled());
+        this.applicableSettings = QuerySettings.applicableIn(Build.current().isSnapshot(), crossProjectModeDecider.crossProjectEnabled());
         this.verifier = new Verifier(metrics, licenseState, extraCheckers);
         this.planTelemetryManager = new PlanTelemetryManager(meterRegistry);
         this.queryLog = queryLog;
         this.dataSourceModule = dataSourceModule;
         this.cacheService = cacheService;
+        this.analysisRegistry = analysisRegistry;
+        this.maxDiscoveredFiles = maxDiscoveredFiles;
+        this.maxGlobExpansion = maxGlobExpansion;
+        this.maxListedObjects = maxListedObjects;
     }
 
+    /**
+     * Builds the {@link ExternalSourceResolver} used for external (Iceberg/Parquet) discovery. The executor,
+     * cancellation signal, and in-flight fan-out bound are supplied by the caller ({@link #esql}, ultimately
+     * from {@code TransportEsqlQueryAction}) rather than hardcoded here, so the resolver keeps the
+     * caller-owned executor/cancellation seam while the wiring — executor isolation (off {@code SEARCH}) and the
+     * caller-supplied {@code metadataReadConcurrency} (production: the {@code snapshot_meta}-shaped discovery
+     * default, capped at 100) — stays testable without standing up the full query path. See {@link #esql} for why
+     * an in-flight bound that may exceed the pool size is safe.
+     * <p>
+     * {@code threadContext} is the calling request's transport {@link ThreadContext}, captured while still on the
+     * authenticated calling thread; the resolver restores it around its outward completion listener so that an async
+     * metadata read completing on a non-ES thread (e.g. a native async storage SDK's I/O thread) does not lose the
+     * request's security context before the subsequent compute transport send.
+     */
+    static ExternalSourceResolver createExternalSourceResolver(
+        Executor externalSourceExecutor,
+        DataSourceModule dataSourceModule,
+        Settings settings,
+        ExternalSourceCacheService cacheService,
+        BooleanSupplier cancellation,
+        int externalSourceConcurrency,
+        @Nullable ThreadContext threadContext
+    ) {
+        return createExternalSourceResolver(
+            externalSourceExecutor,
+            dataSourceModule,
+            settings,
+            cacheService,
+            cancellation,
+            externalSourceConcurrency,
+            threadContext,
+            null,
+            null,
+            null
+        );
+    }
+
+    static ExternalSourceResolver createExternalSourceResolver(
+        Executor externalSourceExecutor,
+        DataSourceModule dataSourceModule,
+        Settings settings,
+        ExternalSourceCacheService cacheService,
+        BooleanSupplier cancellation,
+        int externalSourceConcurrency,
+        @Nullable ThreadContext threadContext,
+        @Nullable IntSupplier maxDiscoveredFiles,
+        @Nullable IntSupplier maxGlobExpansion,
+        @Nullable IntSupplier maxListedObjects
+    ) {
+        return new ExternalSourceResolver(
+            externalSourceExecutor,
+            dataSourceModule,
+            settings,
+            cacheService,
+            cancellation,
+            externalSourceConcurrency,
+            threadContext,
+            maxDiscoveredFiles,
+            maxGlobExpansion,
+            maxListedObjects
+        );
+    }
+
+    /**
+     * @param externalSourceExecutor Executor for {@link ExternalSourceResolver} work — glob expansion, footer reads,
+     *                               schema reconciliation. Must not be the SEARCH pool: a wildcard external query
+     *                               would otherwise starve regular ES searches and other ES|QL queries. Production
+     *                               wiring passes the dedicated {@code esql_external_io} pool.
+     * @param externalSourceConcurrency maximum number of in-flight per-file metadata reads during a multi-file
+     *                               resolve. Production wiring passes
+     *                               {@link ExternalSourceSettings#blobStoreConcurrency(Settings)} (the
+     *                               {@code snapshot_meta} shape, capped at 100): footer reads are async (the pool
+     *                               thread is released across the network round-trip), so the bound caps concurrent
+     *                               in-flight reads rather than pinning that many threads.
+     * @param cancellation consulted before each per-file footer read so a wide-glob discovery aborts promptly when
+     *                               the originating query is cancelled.
+     */
     public void esql(
         EsqlQueryRequest request,
         String sessionId,
@@ -90,20 +246,43 @@ public class PlanExecutor {
         AnalyzerSettings analyzerSettings,
         EnrichPolicyResolver enrichPolicyResolver,
         ViewResolver viewResolver,
+        DatasetResolver datasetResolver,
         EsqlExecutionInfo executionInfo,
         IndicesExpressionGrouper indicesExpressionGrouper,
         EsqlSession.PlanRunner planRunner,
         TransportActionServices services,
+        Executor externalSourceExecutor,
+        int externalSourceConcurrency,
+        BooleanSupplier cancellation,
         ActionListener<Versioned<Result>> listener
     ) {
-        final PlanTelemetry planTelemetry = new PlanTelemetry(functionRegistry);
-        // Create ExternalSourceResolver for Iceberg/Parquet resolution
-        // Use the same executor as for searches to avoid blocking
-        final ExternalSourceResolver externalSourceResolver = new ExternalSourceResolver(
-            services.transportService().getThreadPool().executor(org.elasticsearch.threadpool.ThreadPool.Names.SEARCH),
+        final PlanTelemetry planTelemetry = new PlanTelemetry(functionRegistry, applicableSettings);
+        // The caller is read from the calling thread's context, before the query goes async, so every outcome of this
+        // query (success, failure, cancellation) is attributed to the same caller.
+        final ThreadContext threadContext = services.transportService().getThreadPool().getThreadContext();
+        final QueryCaller caller = QueryCallerClassifier.classify(threadContext);
+        final String client = clientOf(caller);
+        // Resolution (glob expansion, footer reads, schema reconciliation) runs on the caller-supplied
+        // executor rather than the SEARCH pool, so a wildcard external query cannot starve regular ES
+        // searches or other ES|QL queries. The per-query multi-file metadata fan-out is bounded by
+        // externalSourceConcurrency (production: the snapshot_meta-shaped discovery default, capped at 100):
+        // because footer reads are async (the pool thread is released across the network round-trip) the bound
+        // caps in-flight reads rather than pinning that many threads, so a wide discovery cannot starve execution.
+        // NOTE: this release-across-the-read guarantee holds for storage backends with native async
+        // reads (e.g. S3). Backends whose readBytesAsync is an executor-backed sync read (local, GCS)
+        // still occupy one of that executor's threads for the duration of each footer read; the bound
+        // limits how many do so at once.
+        final ExternalSourceResolver externalSourceResolver = createExternalSourceResolver(
+            externalSourceExecutor,
             dataSourceModule,
             services.clusterService().getSettings(),
-            cacheService
+            cacheService,
+            cancellation,
+            externalSourceConcurrency,
+            threadContext,
+            maxDiscoveredFiles,
+            maxGlobExpansion,
+            maxListedObjects
         );
         final var session = new EsqlSession(
             sessionId,
@@ -112,12 +291,15 @@ public class PlanExecutor {
             indexResolver,
             enrichPolicyResolver,
             viewResolver,
+            datasetResolver,
             externalSourceResolver,
             parser,
             preAnalyzer,
             functionRegistry,
+            promqlFunctionRegistry,
+            analysisRegistry,
             mapper,
-            verifier,
+            request.analyzeOnly() ? verifier.withoutMetrics() : verifier,
             metrics,
             planTelemetry,
             indicesExpressionGrouper,
@@ -125,43 +307,236 @@ public class PlanExecutor {
             services.plannerSettings().get(),
             services
         );
-        QueryMetric clientId = QueryMetric.fromString("rest");
-        metrics.total(clientId);
-
-        var begin = System.nanoTime();
-        ActionListener<Versioned<Result>> executeListener = wrap(
-            x -> onQuerySuccess(request, listener, x, planTelemetry),
-            ex -> onQueryFailure(request, listener, ex, clientId, planTelemetry, begin)
+        ActionListener<Versioned<Result>> releasingListener = bindPlanningReservation(
+            services,
+            executionInfo,
+            externalSourceResolver,
+            listener
         );
+        ActionListener<Versioned<Result>> executeListener = releasingListener;
+
+        if (request.analyzeOnly() == false) {
+            metrics.total(caller.client());
+            var begin = System.nanoTime();
+            AtomicBoolean finishCounted = new AtomicBoolean();
+            executeListener = wrap(
+                x -> onQuerySuccess(
+                    request,
+                    releasingListener,
+                    x,
+                    caller,
+                    finishCounted,
+                    planTelemetry,
+                    services.usageService(),
+                    executionInfo,
+                    begin,
+                    client
+                ),
+                ex -> onQueryFailure(
+                    request,
+                    session.planSnapshot().settings(),
+                    releasingListener,
+                    ex,
+                    caller,
+                    finishCounted,
+                    planTelemetry,
+                    executionInfo,
+                    begin,
+                    client,
+                    externalSourceResolver
+                )
+            );
+        }
+
         // Wrap it in a listener so that if we have any exceptions during execution, the listener picks it up
         // and all the metrics are properly updated
-        ActionListener.run(executeListener, l -> session.execute(request, executionInfo, planRunner, l));
+        ActionListener.run(executeListener, l -> session.execute(request, executionInfo, planRunner, cancellation, l));
+    }
+
+    /**
+     * Creates the query's external-planning reservation, which charges listings, schema maps and split shells to the
+     * request breaker, and returns {@code listener} wrapped to close it. Creating and closing it here, around the whole
+     * session, releases it for every caller whether the session succeeds, fails, or throws synchronously out of
+     * {@code session.execute}. The release runs after this class's telemetry in {@link #onQuerySuccess} and
+     * {@link #onQueryFailure} and before {@code listener}, so callers must not use the reservation once notified.
+     * Without a breaker there is nothing to charge and {@code listener} is returned as is.
+     */
+    private static ActionListener<Versioned<Result>> bindPlanningReservation(
+        TransportActionServices services,
+        EsqlExecutionInfo executionInfo,
+        ExternalSourceResolver externalSourceResolver,
+        ActionListener<Versioned<Result>> listener
+    ) {
+        BlockFactory blockFactory = services.blockFactoryProvider().blockFactory();
+        if (blockFactory == null || blockFactory.breaker() == null) {
+            return listener;
+        }
+        ExternalPlanningReservation reservation = new ExternalPlanningReservation(blockFactory.breaker());
+        executionInfo.externalPlanning(reservation);
+        externalSourceResolver.planning(reservation);
+        return ActionListener.releaseBefore(reservation, listener);
     }
 
     private void onQuerySuccess(
         EsqlQueryRequest request,
         ActionListener<Versioned<Result>> listener,
-        Versioned<Result> x,
-        PlanTelemetry planTelemetry
+        Versioned<Result> result,
+        QueryCaller caller,
+        AtomicBoolean finishCounted,
+        PlanTelemetry planTelemetry,
+        UsageService usageService,
+        EsqlExecutionInfo executionInfo,
+        long begin,
+        String client
     ) {
         planTelemetryManager.publish(planTelemetry, true);
-        queryLog.onQueryPhase(x, request.queryDescription());
-        listener.onResponse(x);
+        boolean partial = result != null && result.inner().completionInfo().partial();
+        recordExternalSourceQuery(
+            dataSourceModule.externalSourceMetrics(),
+            queryLabels(client, planTelemetry),
+            executionInfo.externalSource(),
+            (System.nanoTime() - begin) / 1_000_000,
+            partial,
+            null
+        );
+        queryLog.onQueryPhase(result, request.queryDescription(), request.viewSettings());
+        // record routing usage telemetry
+        usageService.getProjectRoutingUsageHolder()
+            .recordEsql(
+                executionInfo.getProjectRoutingInfo(),
+                planTelemetry.settings().containsKey("PROJECT_ROUTING"),
+                executionInfo.isHasLinkedProjects()
+            );
+        // Last step before the response. ActionListener.wrap sends a throw from the bookkeeping above to onQueryFailure,
+        // which counts the query as failed. Counting success any earlier would leave es_esql_success=true and the guard
+        // below would drop that failure measurement.
+        countFinishedQuery(finishCounted, caller, true);
+        listener.onResponse(result);
     }
 
     private void onQueryFailure(
         EsqlQueryRequest request,
+        ResolvedSettings settings,
         ActionListener<Versioned<Result>> listener,
         Exception ex,
-        QueryMetric clientId,
+        QueryCaller caller,
+        AtomicBoolean finishCounted,
         PlanTelemetry planTelemetry,
-        long begin
+        EsqlExecutionInfo executionInfo,
+        long begin,
+        String client,
+        ExternalSourceResolver externalSourceResolver
     ) {
-        // TODO when we decide if we will differentiate Kibana from REST, this String value will likely come from the request
-        metrics.failed(clientId);
+        metrics.failed(caller.client());
+        countFinishedQuery(finishCounted, caller, false);
         planTelemetryManager.publish(planTelemetry, false);
-        queryLog.onQueryFailure(request.queryDescription(), ex, System.nanoTime() - begin);
+        recordExternalSourceQuery(
+            dataSourceModule.externalSourceMetrics(),
+            queryLabels(client, planTelemetry),
+            executionInfo.externalSource(),
+            (System.nanoTime() - begin) / 1_000_000,
+            false,
+            ex
+        );
+        queryLog.onQueryFailure(request.queryDescription(), settings, request.viewSettings(), ex, System.nanoTime() - begin);
+        // Matched by condition, not class: a failure from a remote data node arrives as a wrapper that keeps only the condition.
+        if (cacheService != null && ExternalException.isStaleCachedObject(ex)) {
+            // The object was rewritten or deleted after the listing this query used was cached. Drop the entries this query
+            // read, so the client's next attempt lists them again; other queries' entries stay.
+            externalSourceResolver.invalidateUsedCacheEntries();
+        }
         listener.onFailure(ex);
+    }
+
+    /**
+     * Counts a finished query on the APM query counter. {@link ActionListener#wrap} runs the failure handler when the success
+     * handler throws, so one query can reach both; {@code finishCounted} keeps it to one count. Record success only after the
+     * other success bookkeeping, immediately before the response is delivered, so a throw from that bookkeeping is counted
+     * as a failure instead of a success that this guard then refuses to correct.
+     */
+    private void countFinishedQuery(AtomicBoolean finishCounted, QueryCaller caller, boolean success) {
+        if (finishCounted.compareAndSet(false, true)) {
+            planTelemetryManager.publishQuery(caller, success);
+        }
+    }
+
+    /**
+     * The labels of one external-source query: its client, and the storage type and format of the external sources it read,
+     * taken from the analyzed plan.
+     */
+    static ExternalSourceMetrics.QueryLabels queryLabels(String client, PlanTelemetry planTelemetry) {
+        return new ExternalSourceMetrics.QueryLabels(client, planTelemetry.externalStorageType(), planTelemetry.externalFormat());
+    }
+
+    /**
+     * The {@link ExternalSourceMetrics} client label of {@code caller}.
+     */
+    static String clientOf(QueryCaller caller) {
+        return ExternalSourceMetrics.client(caller.client());
+    }
+
+    /**
+     * How a query ended, from the exception it ended with, which is {@code null} for a query that succeeded: a
+     * {@link TaskCancelledException} anywhere in the cause chain means it was cancelled, whatever cancelled it (the user, the task
+     * management API, the expiry of an async query), and any other exception that it failed.
+     */
+    public static QueryMetricsListener.Outcome outcomeOf(@Nullable Throwable failure) {
+        if (failure == null) {
+            return QueryMetricsListener.Outcome.SUCCESS;
+        }
+        return ExceptionsHelper.unwrap(failure, TaskCancelledException.class) != null
+            ? QueryMetricsListener.Outcome.CANCELLED
+            : QueryMetricsListener.Outcome.FAILED;
+    }
+
+    /**
+     * Publishes the per-query external-source coordinator metrics — but only when the query actually scanned an
+     * external source ({@code externalSource}: an {@code ExternalRelation} was seen in the analyzed plan, flagged on
+     * {@code PlanTelemetry}). The outcome is classified from {@code failure}: {@code null} → success; a
+     * {@link TaskCancelledException} anywhere in the cause chain → cancelled; anything else → failure, which is further
+     * classified by {@link QueryFailureTelemetry} into an {@code error_type} and HTTP status. A hard failure
+     * that unwraps to a {@link CircuitBreakingException} additionally bumps {@code breaker.tripped}. Best-effort: the
+     * {@code recordX} methods self-guard, so an instrumentation failure never affects the query outcome.
+     * <p>
+     * <b>Known gap (only hard-failure breaker trips are counted):</b> a query that returns {@code is_partial=true}
+     * BECAUSE a breaker tripped mid-scan reaches the success path with {@code failure == null}, so it is NOT counted
+     * in {@code breaker.tripped}. The tripping {@link CircuitBreakingException} is not cleanly reachable here: a pure
+     * external-source partial is flagged via {@code EsqlExecutionInfo#markPartial()}, which sets {@code is_partial}
+     * directly with NO {@code clusterInfo} / {@code ShardSearchFailure} carrying the cause — so scanning the
+     * execution-info cluster failures would systematically miss exactly this case while adding a fragile traversal.
+     * The partial itself is still counted in {@code queries.partial.total}; only the breaker attribution is dropped.
+     * <p>
+     * Package-private and static (no coordinator state, only the sink) so the classification can be unit-tested
+     * directly against a real registry-backed {@link ExternalSourceMetrics}.
+     */
+    static void recordExternalSourceQuery(
+        ExternalSourceMetrics externalSourceMetrics,
+        ExternalSourceMetrics.QueryLabels labels,
+        boolean externalSource,
+        long durationMillis,
+        boolean partial,
+        Throwable failure
+    ) {
+        if (externalSource == false) {
+            return;
+        }
+        String outcome = switch (outcomeOf(failure)) {
+            case SUCCESS -> ExternalSourceMetrics.OUTCOME_SUCCESS;
+            case CANCELLED -> ExternalSourceMetrics.OUTCOME_CANCELLED;
+            case FAILED -> ExternalSourceMetrics.OUTCOME_FAILURE;
+        };
+        if (ExternalSourceMetrics.OUTCOME_FAILURE.equals(outcome)) {
+            QueryFailureTelemetry.Failure classified = QueryFailureTelemetry.classify(failure);
+            externalSourceMetrics.recordQuery(labels, outcome, durationMillis, partial, classified.errorType(), classified.status());
+        } else {
+            externalSourceMetrics.recordQuery(labels, outcome, durationMillis, partial, null, null);
+        }
+        // Only hard-failure breaker trips are attributed here: a CB that instead produced is_partial=true reaches the
+        // success path with failure==null and is NOT counted (its CircuitBreakingException is not cleanly reachable at
+        // this seam — see the javadoc "Known gap"). The partial is still counted via queries.partial.total above.
+        if (failure != null && ExceptionsHelper.unwrap(failure, CircuitBreakingException.class) != null) {
+            externalSourceMetrics.recordBreakerTripped();
+        }
     }
 
     public IndexResolver indexResolver() {

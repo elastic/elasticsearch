@@ -44,8 +44,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
+import org.junit.After;
+import org.junit.Before;
 
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -69,9 +70,8 @@ public class TransportUnpromotableShardRefreshActionTests extends ESTestCase {
     private TransportService transportService;
     private DiscoveryNode localNode;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initServices() throws Exception {
         threadPool = new TestThreadPool("TransportUnpromotableShardRefreshActionTests");
         localNode = DiscoveryNodeUtils.create("local");
         clusterService = createClusterService(threadPool, localNode);
@@ -89,9 +89,8 @@ public class TransportUnpromotableShardRefreshActionTests extends ESTestCase {
         transportService.acceptIncomingRequests();
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void closeServices() throws Exception {
         clusterService.close();
         transportService.stop();
         ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
@@ -122,7 +121,7 @@ public class TransportUnpromotableShardRefreshActionTests extends ESTestCase {
             clusterService,
             transportService,
             mock(ShardStateAction.class),
-            new ActionFilters(Set.of()),
+            ActionFilters.EMPTY,
             indicesService,
             mock(ThreadPool.class)
         );
@@ -139,16 +138,14 @@ public class TransportUnpromotableShardRefreshActionTests extends ESTestCase {
 
         final var indicesService = mock(IndicesService.class);
         final var unpromotableShardOperationExecuted = new AtomicBoolean(false);
-        final var waitForBlocks = randomBoolean();
         // Register the action
         new TransportUnpromotableShardRefreshAction(
             clusterService,
             transportService,
             mock(ShardStateAction.class),
-            new ActionFilters(Set.of()),
+            ActionFilters.EMPTY,
             indicesService,
-            threadPool,
-            waitForBlocks
+            threadPool
         ) {
             @Override
             protected void unpromotableShardOperation(
@@ -177,9 +174,8 @@ public class TransportUnpromotableShardRefreshActionTests extends ESTestCase {
         );
         transportService.sendRequest(localNode, TransportUnpromotableShardRefreshAction.NAME, request, expectSuccess(future::onResponse));
 
-        // If the index is not blocked for refreshes, or if the node is not configured to wait for blocked refreshes,
-        // the action should return a response immediately.
-        if (withRefreshBlock && waitForBlocks) {
+        // If the index is not blocked for refreshes, the action should return a response immediately.
+        if (withRefreshBlock) {
             assertThat(future.isDone(), is(false));
             assertThat(unpromotableShardOperationExecuted.get(), is(false));
 
@@ -214,10 +210,9 @@ public class TransportUnpromotableShardRefreshActionTests extends ESTestCase {
             clusterService,
             transportService,
             mock(ShardStateAction.class),
-            new ActionFilters(Set.of()),
+            ActionFilters.EMPTY,
             indicesService,
-            threadPool,
-            true
+            threadPool
         ) {
             @Override
             protected void unpromotableShardOperation(

@@ -63,9 +63,8 @@ public class ReindexSearchContextFailuresIT extends ESIntegTestCase {
             .build();
     }
 
-    @Override
     @After
-    public void tearDown() throws Exception {
+    public void resetSearchContextFailureState() throws Exception {
         try {
             assertAcked(
                 clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
@@ -75,7 +74,6 @@ public class ReindexSearchContextFailuresIT extends ESIntegTestCase {
             SearchContextFailureInjectionPlugin.CONFIG.set(null);
             SearchContextFailureInjectionPlugin.PIT_SEARCH_COUNTER.set(0);
             SearchContextFailureInjectionPlugin.SCROLL_SEARCH_COUNTER.set(0);
-            super.tearDown();
         }
     }
 
@@ -83,7 +81,6 @@ public class ReindexSearchContextFailuresIT extends ESIntegTestCase {
      * Failures that occur after the client-side keep-alive deadline are surfaced as {@link RestStatus#INTERNAL_SERVER_ERROR}
      */
     public void testPitKeepaliveExpiredReturns500StatusCode() {
-        assumeTrue("reindex with point-in-time search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
         TimeValue pitKeepAlive = TimeValue.timeValueMillis(200);
         assertAcked(
@@ -94,7 +91,7 @@ public class ReindexSearchContextFailuresIT extends ESIntegTestCase {
         );
 
         String source = randomAlphanumericOfLength(12).toLowerCase(Locale.ROOT);
-        String dest = randomAlphanumericOfLength(12).toLowerCase(Locale.ROOT);
+        String dest = randomValueOtherThan(source, () -> randomAlphanumericOfLength(12).toLowerCase(Locale.ROOT));
         assertAcked(prepareCreate(source));
         assertAcked(prepareCreate(dest));
         indexRandom(
@@ -129,7 +126,6 @@ public class ReindexSearchContextFailuresIT extends ESIntegTestCase {
      * Failures that occur during the client-side keep-alive deadline are surfaced as {@link RestStatus#NOT_FOUND}
      */
     public void testPitSearchContextMissingInsideKeepaliveReturns404StatusCode() {
-        assumeTrue("reindex with point-in-time search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
         TimeValue pitKeepAlive = TimeValue.timeValueSeconds(5);
         assertAcked(
@@ -140,7 +136,7 @@ public class ReindexSearchContextFailuresIT extends ESIntegTestCase {
         );
 
         String source = randomAlphanumericOfLength(12).toLowerCase(Locale.ROOT);
-        String dest = randomAlphanumericOfLength(12).toLowerCase(Locale.ROOT);
+        String dest = randomValueOtherThan(source, () -> randomAlphanumericOfLength(12).toLowerCase(Locale.ROOT));
         assertAcked(prepareCreate(source));
         assertAcked(prepareCreate(dest));
         indexRandom(

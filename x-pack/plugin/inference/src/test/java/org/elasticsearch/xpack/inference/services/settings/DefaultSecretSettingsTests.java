@@ -18,8 +18,8 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class DefaultSecretSettingsTests extends AbstractWireSerializingTestCase<DefaultSecretSettings> {
 
@@ -27,13 +27,46 @@ public class DefaultSecretSettingsTests extends AbstractWireSerializingTestCase<
         return new DefaultSecretSettings(new SecureString(randomAlphaOfLength(15).toCharArray()));
     }
 
-    public void testNewSecretSettings() {
-        DefaultSecretSettings initialSettings = createRandom();
-        DefaultSecretSettings newSettings = createRandom();
-        DefaultSecretSettings finalSettings = (DefaultSecretSettings) initialSettings.newSecretSettings(
-            new HashMap<>(Map.of(DefaultSecretSettings.API_KEY, newSettings.apiKey().toString()))
+    public void testNewSecretSettings_UpdatesApiKey() {
+        var initialSettings = createRandom();
+        var updatedApiKey = randomValueOtherThan(initialSettings.apiKey().toString(), () -> randomAlphaOfLength(15));
+        var finalSettings = (DefaultSecretSettings) initialSettings.newSecretSettings(
+            new HashMap<>(Map.of(DefaultSecretSettings.API_KEY, updatedApiKey))
         );
-        assertEquals(newSettings, finalSettings);
+
+        assertThat(finalSettings, is(new DefaultSecretSettings(new SecureString(updatedApiKey.toCharArray()))));
+    }
+
+    public void testNewSecretSettings_EmptyMap_DoesNotChangeSettings() {
+        var initialSettings = createRandom();
+        assertThat(initialSettings.newSecretSettings(new HashMap<>()), sameInstance(initialSettings));
+    }
+
+    public void testNewSecretSettings_SameApiKey_DoesNotChangeSettings() {
+        var initialSettings = createRandom();
+        assertThat(
+            initialSettings.newSecretSettings(new HashMap<>(Map.of(DefaultSecretSettings.API_KEY, initialSettings.apiKey().toString()))),
+            sameInstance(initialSettings)
+        );
+    }
+
+    public void testNewSecretSettings_EmptyApiKey_ThrowsError() {
+        var initialSettings = createRandom();
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> initialSettings.newSecretSettings(new HashMap<>(Map.of(DefaultSecretSettings.API_KEY, "")))
+        );
+
+        assertThat(thrownException.validationErrors().size(), is(1));
+        assertThat(
+            thrownException.validationErrors().getFirst(),
+            is(
+                Strings.format(
+                    "[service_settings] Invalid value empty string. [%s] must be a non-empty string",
+                    DefaultSecretSettings.API_KEY
+                )
+            )
+        );
     }
 
     public void testFromMap() {
@@ -62,9 +95,10 @@ public class DefaultSecretSettingsTests extends AbstractWireSerializingTestCase<
         var thrownException = expectThrows(ValidationException.class, () -> DefaultSecretSettings.fromMap(new HashMap<>(), context));
 
         var scope = context == ConfigurationParseContext.REQUEST ? "service_settings" : "secret_settings";
+        assertThat(thrownException.validationErrors().size(), is(1));
         assertThat(
-            thrownException.getMessage(),
-            containsString(Strings.format("[%s] does not contain the required setting [%s]", scope, DefaultSecretSettings.API_KEY))
+            thrownException.validationErrors().getFirst(),
+            is(Strings.format("[%s] does not contain the required setting [%s]", scope, DefaultSecretSettings.API_KEY))
         );
     }
 
@@ -83,11 +117,10 @@ public class DefaultSecretSettingsTests extends AbstractWireSerializingTestCase<
         );
 
         var scope = context == ConfigurationParseContext.REQUEST ? "service_settings" : "secret_settings";
+        assertThat(thrownException.validationErrors().size(), is(1));
         assertThat(
-            thrownException.getMessage(),
-            containsString(
-                Strings.format("[%s] Invalid value empty string. [%s] must be a non-empty string", scope, DefaultSecretSettings.API_KEY)
-            )
+            thrownException.validationErrors().getFirst(),
+            is(Strings.format("[%s] Invalid value empty string. [%s] must be a non-empty string", scope, DefaultSecretSettings.API_KEY))
         );
     }
 

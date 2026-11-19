@@ -2,6 +2,7 @@
 "Routing with doc_values enabled":
  - requires:
     cluster_features: [ "mapper.routing_as_doc_values" ]
+    test_runner_features: [ "allowed_warnings" ]
     reason: "Requires routing to be stored as doc values"
 
  - do:
@@ -15,6 +16,8 @@
          mappings:
            _routing:
              doc_values: true
+     allowed_warnings:
+       - "[index.number_of_routing_shards] setting was deprecated in Elasticsearch and will be removed in a future release. See the deprecation documentation for the next major version."
 
  - do:
       field_caps:
@@ -61,6 +64,7 @@
 "Routing with doc_values enabled by default":
   - requires:
       cluster_features: [ "mapper.routing_as_doc_values_by_default" ]
+      test_runner_features: [ "allowed_warnings" ]
       reason: "Requires routing to be stored as doc values"
 
   - do:
@@ -76,6 +80,8 @@
             properties:
               "@timestamp":
                 type: date
+      allowed_warnings:
+        - "[index.number_of_routing_shards] setting was deprecated in Elasticsearch and will be removed in a future release. See the deprecation documentation for the next major version."
 
   - do:
       field_caps:
@@ -117,4 +123,3 @@
       get:
         index:   test_1
         id:      "1"
-

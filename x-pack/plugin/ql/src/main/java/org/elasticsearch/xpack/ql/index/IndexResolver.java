@@ -21,7 +21,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
@@ -73,7 +72,6 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.OBJECT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
 import static org.elasticsearch.xpack.ql.util.StringUtils.qualifyAndJoinIndices;
-import static org.elasticsearch.xpack.ql.util.StringUtils.splitQualifiedIndex;
 
 public class IndexResolver {
 
@@ -297,11 +295,11 @@ public class IndexResolver {
                 if (indices != null) {
                     for (String indexName : indices) {
                         // TODO: perform two requests w/ & w/o frozen option to retrieve (by diff) the throttling status?
-                        Tuple<String, String> splitRef = splitQualifiedIndex(indexName);
+                        var split = RemoteClusterAware.splitIndexName(indexName);
                         // Field caps on "remote:foo" should always return either empty or remote indices. But in case cluster's
                         // detail is missing, it's going to be a local index. TODO: why would this happen?
-                        String cluster = splitRef.v1() == null ? clusterName : splitRef.v1();
-                        indexInfos.add(new IndexInfo(cluster, splitRef.v2(), IndexType.STANDARD_INDEX));
+                        String cluster = split.clusterAlias() == null ? clusterName : split.clusterAlias();
+                        indexInfos.add(new IndexInfo(cluster, split.indexExpression(), IndexType.STANDARD_INDEX));
                     }
                 }
                 filterResults(javaRegex, indexInfos, listener);
@@ -435,6 +433,16 @@ public class IndexResolver {
                 )
             )
         );
+    }
+
+    /**
+     * Instance overload of {@link #mergedMappings(DataTypeRegistry, String, FieldCapabilitiesResponse)} that uses
+     * this resolver's own {@link DataTypeRegistry}. A caller reusing a pre-resolved {@link FieldCapabilitiesResponse}
+     * (e.g. the ES|QL {@code EQL} source) plans against the same type system as the resolver's own resolution path,
+     * without having to know or duplicate how this resolver was wired.
+     */
+    public IndexResolution mergedMappings(String indexPattern, FieldCapabilitiesResponse fieldCapsResponse) {
+        return mergedMappings(typeRegistry, indexPattern, fieldCapsResponse);
     }
 
     public static IndexResolution mergedMappings(
@@ -833,7 +841,7 @@ public class IndexResolver {
                         }
                     }
                     // TODO is split still needed?
-                    if (pattern == null || pattern.matcher(splitQualifiedIndex(index).v2()).matches()) {
+                    if (pattern == null || pattern.matcher(RemoteClusterAware.splitIndexName(index).indexExpression()).matches()) {
                         String indexName = indexNameProcessor.apply(index);
                         Fields indexFields = indices.computeIfAbsent(indexName, k -> new Fields());
                         EsField field = indexFields.flattedMapping.get(fieldName);

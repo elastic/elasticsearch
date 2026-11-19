@@ -12,11 +12,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
-import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -24,83 +24,121 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.ACCESS_KEY_FIELD;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.SECRET_KEY_FIELD;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class AwsSecretSettingsTests extends AbstractBWCWireSerializationTestCase<AwsSecretSettings> {
 
-    public void testNewSecretSettings() {
-        AwsSecretSettings initialSettings = createRandom();
-        AwsSecretSettings newSettings = createRandom();
+    public void testNewSecretSettings_UpdatesAllFields() {
+        var initialSettings = createRandom();
+        var updatedAccessKey = randomValueOtherThan(initialSettings.accessKey().toString(), () -> randomAlphaOfLength(10));
+        var updatedSecretKey = randomValueOtherThan(initialSettings.secretKey().toString(), () -> randomAlphaOfLength(10));
 
-        AwsSecretSettings finalSettings = (AwsSecretSettings) initialSettings.newSecretSettings(
-            new HashMap<>(
-                Map.of(ACCESS_KEY_FIELD, newSettings.accessKey().toString(), SECRET_KEY_FIELD, newSettings.secretKey().toString())
-            )
-        );
+        var finalSettings = initialSettings.newSecretSettings(secretSettingsMap(updatedAccessKey, updatedSecretKey));
 
-        assertEquals(newSettings, finalSettings);
-    }
-
-    public void testIt_CreatesSettings_ReturnsNullFromMap_null() {
-        var secrets = AwsSecretSettings.fromMap(null);
-        assertNull(secrets);
-    }
-
-    public void testIt_CreatesSettings_FromMap_WithValues() {
-        var secrets = AwsSecretSettings.fromMap(new HashMap<>(Map.of(ACCESS_KEY_FIELD, "accesstest", SECRET_KEY_FIELD, "secrettest")));
         assertThat(
-            secrets,
-            is(new AwsSecretSettings(new SecureString("accesstest".toCharArray()), new SecureString("secrettest".toCharArray())))
+            finalSettings,
+            is(new AwsSecretSettings(new SecureString(updatedAccessKey.toCharArray()), new SecureString(updatedSecretKey.toCharArray())))
         );
     }
 
-    public void testIt_CreatesSettings_FromMap_IgnoresExtraKeys() {
-        var secrets = AwsSecretSettings.fromMap(
-            new HashMap<>(Map.of(ACCESS_KEY_FIELD, "accesstest", SECRET_KEY_FIELD, "secrettest", "extrakey", "extravalue"))
-        );
+    public void testNewSecretSettings_EmptyMap_DoesNotChangeSettings() {
+        var initialSettings = createRandom();
+        assertThat(initialSettings.newSecretSettings(new HashMap<>()), sameInstance(initialSettings));
+    }
+
+    public void testNewSecretSettings_SameAccessKeyAndSecretKey_DoesNotChangeSettings() {
+        var initialSettings = createRandom();
         assertThat(
-            secrets,
-            is(new AwsSecretSettings(new SecureString("accesstest".toCharArray()), new SecureString("secrettest".toCharArray())))
+            initialSettings.newSecretSettings(
+                secretSettingsMap(initialSettings.accessKey().toString(), initialSettings.secretKey().toString())
+            ),
+            sameInstance(initialSettings)
         );
     }
 
-    public void testIt_FromMap_ThrowsValidationException_AccessKeyMissing() {
-        var thrownException = expectThrows(
+    public void testNewSecretSettings_OnlyAccessKey_ThrowsError() {
+        var initialSettings = createRandom();
+        var exception = expectThrows(
             ValidationException.class,
-            () -> AwsSecretSettings.fromMap(new HashMap<>(Map.of(SECRET_KEY_FIELD, "secrettest")))
+            () -> initialSettings.newSecretSettings(new HashMap<>(Map.of(ACCESS_KEY_FIELD, randomAlphaOfLength(10))))
         );
 
+        assertValidationError(exception, mustBeUpdatedTogetherError(SECRET_KEY_FIELD));
+    }
+
+    public void testNewSecretSettings_OnlySecretKey_ThrowsError() {
+        var initialSettings = createRandom();
+        var exception = expectThrows(
+            ValidationException.class,
+            () -> initialSettings.newSecretSettings(new HashMap<>(Map.of(SECRET_KEY_FIELD, randomAlphaOfLength(10))))
+        );
+
+        assertValidationError(exception, mustBeUpdatedTogetherError(ACCESS_KEY_FIELD));
+    }
+
+    public void testFromMap_NullMap_ReturnsNull() {
+        assertThat(AwsSecretSettings.fromMap(null), is(nullValue()));
+    }
+
+    public void testFromMap_CreatesSettings_FromMap_WithValues() {
+        var accessKey = randomAlphaOfLength(10);
+        var secretKey = randomAlphaOfLength(10);
         assertThat(
-            thrownException.getMessage(),
-            containsString(Strings.format("[secret_settings] does not contain the required setting [%s]", ACCESS_KEY_FIELD))
+            AwsSecretSettings.fromMap(secretSettingsMap(accessKey, secretKey)),
+            is(new AwsSecretSettings(new SecureString(accessKey.toCharArray()), new SecureString(secretKey.toCharArray())))
         );
     }
 
-    public void testIt_FromMap_ThrowsValidationException_SecretKeyMissing() {
-        var thrownException = expectThrows(
+    public void testFromMap_CreatesSettings_FromMap_IgnoresExtraKeys() {
+        var accessKey = randomAlphaOfLength(10);
+        var secretKey = randomAlphaOfLength(10);
+        assertThat(
+            AwsSecretSettings.fromMap(
+                new HashMap<>(Map.of(ACCESS_KEY_FIELD, accessKey, SECRET_KEY_FIELD, secretKey, "extrakey", "extravalue"))
+            ),
+            is(new AwsSecretSettings(new SecureString(accessKey.toCharArray()), new SecureString(secretKey.toCharArray())))
+        );
+    }
+
+    public void testFromMap_ThrowsValidationException_AccessKeyMissing() {
+        var exception = expectThrows(
             ValidationException.class,
-            () -> AwsSecretSettings.fromMap(new HashMap<>(Map.of(ACCESS_KEY_FIELD, "accesstest")))
+            () -> AwsSecretSettings.fromMap(new HashMap<>(Map.of(SECRET_KEY_FIELD, randomAlphaOfLength(10))))
         );
 
-        assertThat(
-            thrownException.getMessage(),
-            containsString(Strings.format("[secret_settings] does not contain the required setting [%s]", SECRET_KEY_FIELD))
+        assertValidationError(exception, missingRequiredSettingError(ACCESS_KEY_FIELD));
+    }
+
+    public void testFromMap_ThrowsValidationException_SecretKeyMissing() {
+        var exception = expectThrows(
+            ValidationException.class,
+            () -> AwsSecretSettings.fromMap(new HashMap<>(Map.of(ACCESS_KEY_FIELD, randomAlphaOfLength(10))))
         );
+
+        assertValidationError(exception, missingRequiredSettingError(SECRET_KEY_FIELD));
     }
 
     public void testToXContent_CreatesProperContent() throws IOException {
-        var secrets = AwsSecretSettings.fromMap(new HashMap<>(Map.of(ACCESS_KEY_FIELD, "accesstest", SECRET_KEY_FIELD, "secrettest")));
+        var accessKey = randomAlphaOfLength(10);
+        var secretKey = randomAlphaOfLength(10);
+        var secrets = AwsSecretSettings.fromMap(secretSettingsMap(accessKey, secretKey));
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         secrets.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
-        assertThat(xContentResult, CoreMatchers.is("""
-            {"access_key":"accesstest","secret_key":"secrettest"}"""));
+
+        assertThat(xContentResult, is(XContentHelper.stripWhitespace(Strings.format("""
+            {
+                "access_key": "%s",
+                "secret_key": "%s"
+            }
+            """, accessKey, secretKey))));
     }
 
     public static Map<String, Object> getAmazonBedrockSecretSettingsMap(String accessKey, String secretKey) {
-        return new HashMap<String, Object>(Map.of(ACCESS_KEY_FIELD, accessKey, SECRET_KEY_FIELD, secretKey));
+        return new HashMap<>(Map.of(ACCESS_KEY_FIELD, accessKey, SECRET_KEY_FIELD, secretKey));
     }
 
     @Override
@@ -133,6 +171,28 @@ public class AwsSecretSettingsTests extends AbstractBWCWireSerializationTestCase
         return new AwsSecretSettings(
             new SecureString(randomAlphaOfLength(10).toCharArray()),
             new SecureString(randomAlphaOfLength(10).toCharArray())
+        );
+    }
+
+    private static Map<String, Object> secretSettingsMap(String accessKey, String secretKey) {
+        return new HashMap<>(Map.of(ACCESS_KEY_FIELD, accessKey, SECRET_KEY_FIELD, secretKey));
+    }
+
+    private static void assertValidationError(ValidationException exception, String expectedError) {
+        assertThat(exception.validationErrors().size(), is(1));
+        assertThat(exception.validationErrors().getFirst(), is(expectedError));
+    }
+
+    private static String missingRequiredSettingError(String fieldName) {
+        return Strings.format("[service_settings] does not contain the required setting [%s]", fieldName);
+    }
+
+    private static String mustBeUpdatedTogetherError(String missingField) {
+        return Strings.format(
+            "[service_settings] [%s] and [%s] must be updated together; missing: [%s]",
+            ACCESS_KEY_FIELD,
+            SECRET_KEY_FIELD,
+            missingField
         );
     }
 }

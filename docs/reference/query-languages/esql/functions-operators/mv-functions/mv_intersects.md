@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `MV_INTERSECTS` function [esql-mv_intersects]
 
-:::{include} ../../_snippets/functions/layout/mv_intersects.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/mv_intersects.md
 :::

@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `TRANGE` function [esql-trange]
 
-:::{include} ../../_snippets/functions/layout/trange.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/trange.md
 :::

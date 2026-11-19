@@ -37,6 +37,7 @@ import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedInd
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.Shard;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
+import org.elasticsearch.indices.recovery.RecoveryListener;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.test.ESTestCase;
@@ -52,6 +53,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
@@ -87,14 +89,17 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
      */
     public void assertClusterStateMatchesNodeState(ClusterState state, IndicesClusterStateService indicesClusterStateService) {
         final var indicesService = (MockIndicesService) indicesClusterStateService.indicesService;
-        final var failedShardsCache = indicesClusterStateService.failedShardsCache;
+        final var pendingAllocationStates = indicesClusterStateService.pendingAllocationStates;
         final var localRoutingNode = state.getRoutingNodes().node(state.getNodes().getLocalNodeId());
         if (localRoutingNode != null) {
             if (enableRandomFailures == false) {
                 // initializing a shard should succeed when enableRandomFailures is disabled
                 // active shards can be failed if state persistence was disabled in an earlier CS update
-                if (failedShardsCache.values().stream().anyMatch(e -> e.routing().initializing())) {
-                    fail("failed shard cache should not contain initializing shard routing: " + failedShardsCache.values());
+                Predicate<IndicesClusterStateService.PendingAllocationState> failedAndInitializing =
+                    s -> s instanceof IndicesClusterStateService.PendingAllocationState.FailureReported(var routing, var a, var b)
+                        && routing.initializing();
+                if (pendingAllocationStates.values().stream().anyMatch(failedAndInitializing)) {
+                    fail("failed shard cache should not contain initializing shard routing: " + pendingAllocationStates.values());
                 }
             }
             // check that all shards in local routing nodes have been allocated
@@ -103,7 +108,10 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
                 IndexMetadata indexMetadata = state.metadata().getProject().getIndexSafe(index);
 
                 MockIndexShard shard = indicesService.getShardOrNull(shardRouting.shardId());
-                final var failedShard = failedShardsCache.get(shardRouting.shardId());
+                final var failedShard = failedShardFor(pendingAllocationStates, shardRouting.shardId());
+                final boolean isAwaitingRetry = pendingAllocationStates.get(
+                    IndicesClusterStateService.ShardAllocationKey.fromRouting(shardRouting)
+                ) instanceof IndicesClusterStateService.PendingAllocationState.AwaitingRecoveryRetry;
 
                 if (state.blocks().disableStatePersistence()) {
                     if (shard != null) {
@@ -130,12 +138,15 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
                                 + failedShard
                         );
                     }
-                    if (shard == null && failedShard == null) {
-                        // shard must either be there or there must be a failure
-                        fail("Shard with id " + shardRouting + " expected but missing in indicesService and failedShardsCache");
+                    if (shard == null && failedShard == null && isAwaitingRetry == false) {
+                        // shard must either be there, have failed, or be waiting to retry locally
+                        fail("Shard with id " + shardRouting + " expected but missing in indicesService and pendingAllocationStates");
                     }
                     if (enableRandomFailures == false) {
-                        if (shard == null && shardRouting.initializing() && failedShard.routing() == shardRouting) {
+                        if (shard == null
+                            && isAwaitingRetry == false
+                            && shardRouting.initializing()
+                            && failedShard.routing() == shardRouting) {
                             // initializing a shard should succeed when enableRandomFailures is disabled
                             fail("Shard with id " + shardRouting + " expected but missing in indicesService " + failedShard);
                         }
@@ -199,12 +210,26 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
             }
 
             if (shardsFound == false) {
-                // check if we have shards of that index in failedShardsCache
-                // if yes, we might not have cleaned the index as failedShardsCache can be populated by another thread
-                assertFalse(failedShardsCache.keySet().stream().noneMatch(shardId -> shardId.getIndex().equals(index)));
+                // check if we have shards of that index in pendingAllocationStates
+                // if yes, we might not have cleaned the index as pendingAllocationStates can be populated by another thread
+                assertFalse(pendingAllocationStates.keySet().stream().noneMatch(key -> key.shardId().getIndex().equals(index)));
             }
 
         }
+    }
+
+    @Nullable
+    private static IndicesClusterStateService.PendingAllocationState.FailureReported failedShardFor(
+        Map<IndicesClusterStateService.ShardAllocationKey, IndicesClusterStateService.PendingAllocationState> pendingAllocationStates,
+        ShardId shardId
+    ) {
+        for (final var entry : pendingAllocationStates.entrySet()) {
+            if (entry.getKey().shardId().equals(shardId)
+                && entry.getValue() instanceof IndicesClusterStateService.PendingAllocationState.FailureReported failureReported) {
+                return failureReported;
+            }
+        }
+        return null;
     }
 
     /**
@@ -212,6 +237,15 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
      */
     protected class MockIndicesService implements AllocatedIndices<MockIndexShard, MockIndexService> {
         private volatile Map<String, MockIndexService> indices = emptyMap();
+
+        /// Whether [createShard] should immediately simulate a successful recovery by calling
+        /// the given [RecoveryListener#onRecoveryDone]. This mock never actually recovers, and
+        /// [IndicesClusterStateService] now relies on that callback to release the InFlight
+        /// ticket it claimed, so most callers want this. Override to `false` for tests that drive
+        /// recovery completion/failure manually via the captured listener.
+        protected boolean autoCompleteRecovery() {
+            return true;
+        }
 
         @Override
         public synchronized MockIndexService createIndex(
@@ -232,6 +266,12 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         @Override
         public void deleteUnassignedIndex(String reason, IndexMetadata oldIndexMetadata, ProjectMetadata currentProject) {
 
+        }
+
+        @Override
+        public void deleteShardsOutsideIndexRange(IndexMetadata metadata, ActionListener<Void> listener) {
+            // The mock has no on-disk shard stores to delete
+            listener.onResponse(null);
         }
 
         @Override
@@ -261,20 +301,24 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
             final ProjectId projectId,
             final ShardRouting shardRouting,
             final PeerRecoveryTargetService recoveryTargetService,
-            final PeerRecoveryTargetService.RecoveryListener recoveryListener,
+            final RecoveryListener recoveryListener,
             final RepositoriesService repositoriesService,
             final Consumer<IndexShard.ShardFailure> onShardFailure,
             final GlobalCheckpointSyncer globalCheckpointSyncer,
             final RetentionLeaseSyncer retentionLeaseSyncer,
             final DiscoveryNode targetNode,
             final DiscoveryNode sourceNode,
-            long clusterStateVersion
+            long clusterStateVersion,
+            int localRecoveryRetries
         ) throws IOException {
             failRandomly();
-            RecoveryState recoveryState = new RecoveryState(shardRouting, targetNode, sourceNode);
+            RecoveryState recoveryState = new RecoveryState(shardRouting, targetNode, sourceNode, localRecoveryRetries);
             MockIndexService indexService = indexService(recoveryState.getShardId().getIndex());
             MockIndexShard indexShard = indexService.createShard(shardRouting);
             indexShard.recoveryState = recoveryState;
+            if (autoCompleteRecovery()) {
+                recoveryListener.onRecoveryDone(recoveryState, ShardLongFieldRange.UNKNOWN, ShardLongFieldRange.UNKNOWN);
+            }
         }
 
         @Override
@@ -362,6 +406,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         private volatile Set<String> inSyncAllocationIds;
         private volatile IndexShardRoutingTable routingTable;
         private volatile long term;
+        private volatile IndexShardState state = IndexShardState.RECOVERING;
 
         public MockIndexShard(ShardRouting shardRouting, long term) {
             this.shardRouting = shardRouting;
@@ -424,7 +469,11 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
 
         @Override
         public IndexShardState state() {
-            return null;
+            return state;
+        }
+
+        public void setState(IndexShardState state) {
+            this.state = state;
         }
 
         public long term() {

@@ -43,6 +43,8 @@ import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -69,8 +71,8 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
 
     private MockLog mockLog;
 
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void captureMockLog() throws Exception {
         mockLog = MockLog.capture(SnapshotShutdownProgressTracker.class);
     }
 
@@ -79,9 +81,9 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         mockLog = MockLog.capture(SnapshotShutdownProgressTracker.class);
     }
 
-    public void tearDown() throws Exception {
+    @After
+    public void closeMockLog() throws Exception {
         mockLog.close();
-        super.tearDown();
     }
 
     @Override

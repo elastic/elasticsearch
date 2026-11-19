@@ -40,6 +40,11 @@ count by (app) (instance_cpu_time_ns);
 5e3;
 0xc;
 0755;
+1_000;
+0x_1F;
+1_0.5;
+1.5_0;
+1e1_0;
 +5.5e-3;
 -0755;
 1 + 1;
@@ -91,6 +96,10 @@ foo / ignoring(test,blub) group_left(blub) bar;
 foo / ignoring(test,blub) group_left(bar) bar;
 foo - on(test,blub) group_right(bar,foo) bar;
 foo - ignoring(test,blub) group_right(bar,foo) bar;
+foo * on(bar) group_left() (baz);
+foo * on(bar) group_right() (baz);
+foo * on(bar) group_left(baz) +qux;
+foo * on(bar) group_right(baz) -qux;
 
 //
 // evaluation
@@ -112,6 +121,8 @@ foo @ 3e2;
 foo @ 3e-1;
 foo @ 0xA;
 foo @ -3.3e1;
+foo @ +100;
+foo @ +1m;
 
 //
 // selector
@@ -122,6 +133,7 @@ foo:bar{a="bc"};
 {'foo\'bar', `a\dos\path`="boo"};
 {"foo", a="bc"};
 foo{NaN='bc'};
+foo{inf="x", nan="y"};
 foo{bar='}'};
 foo{a="b", foo!="bar", test=~"test", bar!~"baz"};
 {a="b", foo!="bar", "foo", test=~"test", bar!~"baz"};
@@ -198,6 +210,10 @@ a + sum;
 foo{bar="baz"}[10m:6s];
 foo{bar="baz"}[10m5s:1h6ms];
 foo[10m:];
+foo[5m:1];
+foo[5m:1.5];
+foo[5:1];
+foo[5m:0x10];
 min_over_time(rate(foo{bar="baz"}[2s])[5m:5s]);
 min_over_time(rate(foo{bar="baz"}[2s])[5m:])[4m:3s];
 min_over_time(rate(foo{bar="baz"}[2s])[5m:] offset 4m)[4m:3s];
@@ -244,8 +260,31 @@ rate(foo[2m+2m]);
 foo offset -1^1;
 foo offset -(1^2);
 //foo offset (-1^2);
+// the offset and @ modifiers bind to the selector before a binary operator
+foo offset 5m > 120;
+foo offset -5m > 1;
+foo offset +5m;
+foo offset +300 > 120;
+foo offset +(5m - 1m);
+foo offset +5m ^ 2;
+foo @ 100 offset +5m > 120;
+foo offset +(6m - 1m) @ 100 > 120;
+foo offset 5m + bar;
+foo offset 5m and bar;
+foo unless (foo offset 5m > 120);
+foo @ 100 offset 5m > 120;
+foo offset 5m @ 100 > 120;
 //foo[-2^2];
 //foo[0+-2^2];
 (sum(foo));
 (sum(foo) by (bar));
 (sum by (bar) (foo));
+
+limit_ratio(0.5, some_metric);
+limit_ratio(0.3, some_metric) by (pod);
+limit_ratio(0.0, some_metric);
+limit_ratio(1.0, some_metric);
+sort(some_metric);
+sort_desc(some_metric);
+sort_by_label(some_metric, "job");
+sort_by_label_desc(some_metric, "job", "instance");

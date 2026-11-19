@@ -13,6 +13,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.util.ByteMatchers;
 
 import java.nio.charset.StandardCharsets;
 

@@ -6,10 +6,12 @@
  */
 package org.elasticsearch.xpack.ml.datafeed.delayeddatacheck;
 
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -19,9 +21,11 @@ import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlBucketEventCounter;
 
 import java.util.Collections;
 import java.util.Date;
+import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -35,7 +39,7 @@ public class DelayedDataDetectorFactoryTests extends ESTestCase {
         return new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 
-    public void testBuilder() {
+    public void testWindowOutsideBucketSpanLimitsShouldFailAndOtherwiseBuildDetector() {
         Job job = createJob(TimeValue.timeValueSeconds(2));
 
         DatafeedConfig datafeedConfig = createDatafeed(false, null);
@@ -88,7 +92,35 @@ public class DelayedDataDetectorFactoryTests extends ESTestCase {
 
     }
 
+    public void testNormalizedConfigShouldDemoteCpsIndicesOptionsOnDetector() {
+        Job job = createJob(TimeValue.timeValueSeconds(2));
+        IndicesOptions cpsOptions = IndicesOptions.builder(IndicesOptions.STRICT_EXPAND_OPEN)
+            .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+            .build();
+        DatafeedConfig persisted = new DatafeedConfig.Builder("id", "jobId").setIndices(List.of("index1"))
+            .setIndicesOptions(cpsOptions)
+            .setProjectRouting("_alias:prod-*")
+            .setDelayedDataCheckConfig(DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueMinutes(10)))
+            .build();
+        CrossProjectModeDecider decider = new CrossProjectModeDecider(
+            Settings.builder().put("serverless.cross_project.enabled", false).build()
+        );
+        DatafeedConfig effective = DatafeedConfig.withCrossProjectModeIfEnabled(persisted, decider, true);
+        DatafeedDelayedDataDetector detector = (DatafeedDelayedDataDetector) DelayedDataDetectorFactory.buildDetector(
+            job,
+            effective,
+            mock(Client.class),
+            xContentRegistry()
+        );
+        SearchBucketEventCounter counter = (SearchBucketEventCounter) detector.getBucketEventCounter();
+        assertThat(counter.getIndicesOptions().resolveCrossProjectIndexExpression(), equalTo(false));
+    }
+
     private Job createJob(TimeValue bucketSpan) {
+        return createJob(bucketSpan, null);
+    }
+
+    private Job createJob(TimeValue bucketSpan, String summaryCountField) {
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setTimeField("time");
         dataDescription.setTimeFormat(DataDescription.EPOCH_MS);
@@ -96,6 +128,7 @@ public class DelayedDataDetectorFactoryTests extends ESTestCase {
         Detector.Builder d = new Detector.Builder("count", null);
         AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(d.build()));
         analysisConfig.setBucketSpan(bucketSpan);
+        analysisConfig.setSummaryCountFieldName(summaryCountField);
 
         Job.Builder builder = new Job.Builder();
         builder.setId("test-job");
@@ -112,6 +145,91 @@ public class DelayedDataDetectorFactoryTests extends ESTestCase {
             builder.setDelayedDataCheckConfig(DelayedDataCheckConfig.enabledDelayedDataCheckConfig(delayedDatacheckWindow));
         } else {
             builder.setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig());
+        }
+        return builder.build();
+    }
+
+    public void testBuilderGivenEsqlDatafeedAndDelayedDataCheckEnabledShouldReturnEsqlDetector() {
+        Job job = createJob(TimeValue.timeValueSeconds(2), "event_count");
+        DatafeedConfig datafeedConfig = createEsqlDatafeed(
+            DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueMinutes(10))
+        );
+        DelayedDataDetector detector = DelayedDataDetectorFactory.buildDetector(
+            job,
+            datafeedConfig,
+            mock(Client.class),
+            xContentRegistry()
+        );
+
+        assertThat(detector, instanceOf(DatafeedDelayedDataDetector.class));
+        assertThat(((DatafeedDelayedDataDetector) detector).getBucketEventCounter(), instanceOf(EsqlBucketEventCounter.class));
+        assertThat(detector.getWindow(), equalTo(TimeValue.timeValueMinutes(10).millis()));
+    }
+
+    public void testBuilderGivenEsqlDatafeedWithMismatchedGroupingIntervalShouldFailAssertion() {
+        Job job = createJob(TimeValue.timeValueSeconds(2), "event_count");
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("id", "jobId");
+        builder.setEsqlQuery("FROM index1");
+        builder.setSourceTimeField("source_time");
+        builder.setGroupingInterval(TimeValue.timeValueSeconds(4));
+        builder.setDelayedDataCheckConfig(DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueMinutes(10)));
+        DatafeedConfig datafeedConfig = builder.build();
+
+        expectThrows(
+            AssertionError.class,
+            () -> DelayedDataDetectorFactory.buildDetector(job, datafeedConfig, mock(Client.class), xContentRegistry())
+        );
+    }
+
+    public void testBuilderGivenEsqlDatafeedAndDefaultDelayedDataCheckShouldReturnEsqlDetector() {
+        Job job = createJob(TimeValue.timeValueSeconds(2), "event_count");
+        DatafeedConfig datafeedConfig = createEsqlDatafeed(null);
+
+        DelayedDataDetector detector = DelayedDataDetectorFactory.buildDetector(
+            job,
+            datafeedConfig,
+            mock(Client.class),
+            xContentRegistry()
+        );
+
+        assertThat(((DatafeedDelayedDataDetector) detector).getBucketEventCounter(), instanceOf(EsqlBucketEventCounter.class));
+    }
+
+    public void testBuilderGivenEsqlDatafeedAndDelayedDataCheckDisabledShouldReturnNullDetector() {
+        Job job = createJob(TimeValue.timeValueSeconds(2), null);
+        DatafeedConfig datafeedConfig = createEsqlDatafeed(DelayedDataCheckConfig.disabledDelayedDataCheckConfig());
+
+        DelayedDataDetector detector = DelayedDataDetectorFactory.buildDetector(
+            job,
+            datafeedConfig,
+            mock(Client.class),
+            xContentRegistry()
+        );
+
+        assertThat(detector, instanceOf(NullDelayedDataDetector.class));
+    }
+
+    public void testBuilderGivenEsqlDatafeedWithoutSummaryCountFieldShouldFailWithValidatorMessage() {
+        Job job = createJob(TimeValue.timeValueSeconds(2), null);
+        DatafeedConfig datafeedConfig = createEsqlDatafeed(
+            DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueMinutes(10))
+        );
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> DelayedDataDetectorFactory.buildDetector(job, datafeedConfig, mock(Client.class), xContentRegistry())
+        );
+
+        assertEquals(Messages.getMessage(Messages.DATAFEED_ESQL_DELAYED_DATA_REQUIRES_SUMMARY_COUNT_FIELD), e.getMessage());
+    }
+
+    private DatafeedConfig createEsqlDatafeed(DelayedDataCheckConfig delayedDataCheckConfig) {
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("id", "jobId");
+        builder.setEsqlQuery("FROM index1");
+        builder.setSourceTimeField("source_time");
+        builder.setGroupingInterval(TimeValue.timeValueSeconds(2));
+        if (delayedDataCheckConfig != null) {
+            builder.setDelayedDataCheckConfig(delayedDataCheckConfig);
         }
         return builder.build();
     }

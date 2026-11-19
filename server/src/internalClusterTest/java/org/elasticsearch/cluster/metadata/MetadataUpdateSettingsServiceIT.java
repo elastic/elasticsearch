@@ -27,7 +27,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -193,9 +192,7 @@ public class MetadataUpdateSettingsServiceIT extends ESIntegTestCase {
         assertBusy(() -> assertThat(expectedSettingsChangeInClusterState.get(), equalTo(true)));
         assertThat(shardsUnassigned.get(), equalTo(true));
 
-        // Shard reallocation after a static index setting change requires a GatewayAllocator async fetch cycle
-        // followed by desired-balance reconciliation; allow extra time for async ICSS application delays.
-        assertBusy(() -> assertThat(hasUnassignedShards(clusterService.state(), indexName), equalTo(false)), 60, TimeUnit.SECONDS);
+        awaitClusterState(state -> hasUnassignedShards(state, indexName) == false);
 
         success.set(false);
         expectedSettingsChangeInClusterState.set(false);

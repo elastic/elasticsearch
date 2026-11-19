@@ -27,17 +27,13 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Queue;
-import java.util.Set;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -46,6 +42,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class ComputeListenerTests extends ESTestCase {
     private ThreadPool threadPool;
@@ -64,6 +61,12 @@ public class ComputeListenerTests extends ESTestCase {
         return new DriverCompletionInfo(
             randomNonNegativeLong(),
             randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
             randomList(
                 0,
                 2,
@@ -71,6 +74,7 @@ public class ComputeListenerTests extends ESTestCase {
                     randomIdentifier(),
                     randomIdentifier(),
                     randomIdentifier(),
+                    randomNonNegativeLong(),
                     randomNonNegativeLong(),
                     randomNonNegativeLong(),
                     randomNonNegativeLong(),
@@ -91,7 +95,11 @@ public class ComputeListenerTests extends ESTestCase {
                     randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1024),
                     randomPlanTimeProfile()
                 )
-            )
+            ),
+            java.util.Map.of(),
+            randomBoolean(),
+            randomBoolean(),
+            new LinkedHashSet<>(randomList(0, 2, () -> randomAlphaOfLengthBetween(1, 64)))
         );
     }
 
@@ -101,7 +109,7 @@ public class ComputeListenerTests extends ESTestCase {
 
     public void testEmpty() {
         PlainActionFuture<DriverCompletionInfo> results = new PlainActionFuture<>();
-        try (var ignored = new ComputeListener(threadPool, () -> {}, results)) {
+        try (var ignored = new ComputeListener(() -> {}, results)) {
             assertFalse(results.isDone());
         }
         assertTrue(results.isDone());
@@ -112,9 +120,10 @@ public class ComputeListenerTests extends ESTestCase {
         PlainActionFuture<DriverCompletionInfo> future = new PlainActionFuture<>();
         long documentsFound = 0;
         long valuesLoaded = 0;
+        boolean partial = false;
         List<DriverProfile> allProfiles = new ArrayList<>();
         AtomicInteger onFailure = new AtomicInteger();
-        try (var computeListener = new ComputeListener(threadPool, onFailure::incrementAndGet, future)) {
+        try (var computeListener = new ComputeListener(onFailure::incrementAndGet, future)) {
             int tasks = randomIntBetween(1, 100);
             for (int t = 0; t < tasks; t++) {
                 if (randomBoolean()) {
@@ -128,6 +137,7 @@ public class ComputeListenerTests extends ESTestCase {
                     var info = randomCompletionInfo();
                     documentsFound += info.documentsFound();
                     valuesLoaded += info.valuesLoaded();
+                    partial |= info.partial();
                     allProfiles.addAll(info.driverProfiles());
                     ActionListener<DriverCompletionInfo> subListener = computeListener.acquireCompute();
                     threadPool.schedule(
@@ -141,6 +151,7 @@ public class ComputeListenerTests extends ESTestCase {
         DriverCompletionInfo actual = future.actionGet(10, TimeUnit.SECONDS);
         assertThat(actual.documentsFound(), equalTo(documentsFound));
         assertThat(actual.valuesLoaded(), equalTo(valuesLoaded));
+        assertThat(actual.partial(), equalTo(partial));
         assertThat(
             actual.driverProfiles().stream().collect(Collectors.toMap(p -> p, p -> 1, Integer::sum)),
             equalTo(allProfiles.stream().collect(Collectors.toMap(p -> p, p -> 1, Integer::sum)))
@@ -158,7 +169,7 @@ public class ComputeListenerTests extends ESTestCase {
         int failedTasks = between(1, 100);
         PlainActionFuture<DriverCompletionInfo> rootListener = new PlainActionFuture<>();
         final AtomicInteger onFailure = new AtomicInteger();
-        try (var computeListener = new ComputeListener(threadPool, onFailure::incrementAndGet, rootListener)) {
+        try (var computeListener = new ComputeListener(onFailure::incrementAndGet, rootListener)) {
             for (int i = 0; i < successTasks; i++) {
                 ActionListener<DriverCompletionInfo> subListener = computeListener.acquireCompute();
                 threadPool.schedule(
@@ -186,75 +197,120 @@ public class ComputeListenerTests extends ESTestCase {
         assertThat(onFailure.get(), greaterThanOrEqualTo(1));
     }
 
-    public void testCollectWarnings() throws Exception {
-        AtomicLong documentsFound = new AtomicLong();
-        AtomicLong valuesLoaded = new AtomicLong();
-        List<DriverProfile> allProfiles = new ArrayList<>();
-        Map<String, Set<String>> allWarnings = new HashMap<>();
-        ActionListener<DriverCompletionInfo> rootListener = new ActionListener<>() {
+    public void testFailureReportsUsageOfSucceededAndFailedSlots() {
+        PlainActionFuture<DriverCompletionInfo> rootListener = new PlainActionFuture<>();
+        AtomicReference<DriverCompletionInfo> reportedUsage = new AtomicReference<>();
+        var succeeded = randomCompletionInfo();
+        var failedWithUsage = randomCompletionInfo();
+        try (var computeListener = new ComputeListener(() -> {}, rootListener, reportedUsage::set)) {
+            computeListener.acquireCompute().onResponse(succeeded);
+            computeListener.acquireCompute().onFailure(new IllegalStateException("failed"), failedWithUsage);
+            // a slot that fails without saying what it did, and one that does not collect usage, add nothing
+            computeListener.acquireCompute().onFailure(new IllegalStateException("failed too"));
+            computeListener.acquireAvoid().onFailure(new IllegalStateException("failed as well"));
+        }
+        expectThrows(ExecutionException.class, () -> rootListener.get(10, TimeUnit.SECONDS));
+        assertNotNull(reportedUsage.get());
+        assertThat(reportedUsage.get().documentsFound(), equalTo(succeeded.documentsFound() + failedWithUsage.documentsFound()));
+        assertThat(reportedUsage.get().bytesRead(), equalTo(succeeded.bytesRead() + failedWithUsage.bytesRead()));
+        assertThat(reportedUsage.get().readCpuNanos(), equalTo(succeeded.readCpuNanos() + failedWithUsage.readCpuNanos()));
+    }
+
+    public void testSuccessDoesNotReportFailureUsage() {
+        PlainActionFuture<DriverCompletionInfo> rootListener = new PlainActionFuture<>();
+        AtomicInteger reports = new AtomicInteger();
+        try (var computeListener = new ComputeListener(() -> {}, rootListener, usage -> reports.incrementAndGet())) {
+            computeListener.acquireCompute().onResponse(randomCompletionInfo());
+        }
+        rootListener.actionGet(10, TimeUnit.SECONDS);
+        assertThat(reports.get(), equalTo(0));
+    }
+
+    public void testFailureIsDeliveredWhenReportingUsageFails() {
+        PlainActionFuture<DriverCompletionInfo> rootListener = new PlainActionFuture<>();
+        IllegalStateException failure = new IllegalStateException("failed");
+        try (
+            var computeListener = new ComputeListener(() -> {}, rootListener, usage -> { throw new IllegalArgumentException("broken"); })
+        ) {
+            computeListener.acquireCompute().onFailure(failure, randomCompletionInfo());
+        }
+        ExecutionException e = expectThrows(ExecutionException.class, () -> rootListener.get(10, TimeUnit.SECONDS));
+        assertThat(e.getCause(), sameInstance(failure));
+    }
+
+    public void testUsageIsReportedBeforeTheFailureIsDelivered() {
+        List<String> events = new ArrayList<>();
+        ActionListener<DriverCompletionInfo> delegate = ActionListener.wrap(
+            info -> fail("the compute failed"),
+            e -> events.add("failure delivered")
+        );
+        try (var computeListener = new ComputeListener(() -> {}, delegate, usage -> events.add("usage reported"))) {
+            computeListener.acquireCompute().onFailure(new IllegalStateException("failed"), randomCompletionInfo());
+        }
+        assertThat(events, equalTo(List.of("usage reported", "failure delivered")));
+    }
+
+    public void testFailureWithoutUsageAddsNothing() {
+        AtomicReference<DriverCompletionInfo> reportedUsage = new AtomicReference<>();
+        var succeeded = randomCompletionInfo();
+        try (
+            var computeListener = new ComputeListener(
+                () -> {},
+                ActionListener.wrap(info -> fail("the compute failed"), e -> {}),
+                reportedUsage::set
+            )
+        ) {
+            computeListener.acquireCompute().onResponse(succeeded);
+            // the plain failure of a ComputeCompletionListener reports no usage
+            computeListener.acquireCompute().onFailure(new IllegalStateException("failed"));
+        }
+        assertThat(reportedUsage.get().bytesRead(), equalTo(succeeded.bytesRead()));
+        assertThat(reportedUsage.get().cpuNanos(), equalTo(succeeded.cpuNanos()));
+    }
+
+    public void testNestedListenerReportsItsUsageOnlyToItsOwnConsumer() {
+        AtomicReference<DriverCompletionInfo> outerUsage = new AtomicReference<>();
+        AtomicReference<DriverCompletionInfo> innerUsage = new AtomicReference<>();
+        PlainActionFuture<DriverCompletionInfo> rootListener = new PlainActionFuture<>();
+        var outerSucceeded = randomCompletionInfo();
+        var innerSucceeded = randomCompletionInfo();
+        var innerFailed = randomCompletionInfo();
+        try (var outer = new ComputeListener(() -> {}, rootListener, outerUsage::set)) {
+            outer.acquireCompute().onResponse(outerSucceeded);
+            var outerSlot = outer.acquireCompute();
+            try (var inner = new ComputeListener(() -> {}, outerSlot.delegateFailure((l, info) -> l.onResponse(info)), innerUsage::set)) {
+                inner.acquireCompute().onResponse(innerSucceeded);
+                inner.acquireCompute().onFailure(new IllegalStateException("failed"), innerFailed);
+            }
+        }
+        expectThrows(ExecutionException.class, () -> rootListener.get(10, TimeUnit.SECONDS));
+        assertNotNull(innerUsage.get());
+        assertThat(innerUsage.get().bytesRead(), equalTo(innerSucceeded.bytesRead() + innerFailed.bytesRead()));
+        // to the outer listener the failed inner listener is a slot that failed without saying what it did
+        assertThat(outerUsage.get().bytesRead(), equalTo(outerSucceeded.bytesRead()));
+    }
+
+    public void testNotifyOnceDeliversOnlyTheFirstCompletionWithItsUsage() {
+        List<String> events = new ArrayList<>();
+        AtomicReference<DriverCompletionInfo> usage = new AtomicReference<>();
+        ComputeCompletionListener delegate = new ComputeCompletionListener() {
             @Override
-            public void onResponse(DriverCompletionInfo result) {
-                assertThat(result.documentsFound(), equalTo(documentsFound.get()));
-                assertThat(result.valuesLoaded(), equalTo(valuesLoaded.get()));
-                assertThat(
-                    result.driverProfiles().stream().collect(Collectors.toMap(p -> p, p -> 1, Integer::sum)),
-                    equalTo(allProfiles.stream().collect(Collectors.toMap(p -> p, p -> 1, Integer::sum)))
-                );
-                Map<String, Set<String>> responseHeaders = threadPool.getThreadContext()
-                    .getResponseHeaders()
-                    .entrySet()
-                    .stream()
-                    .collect(Collectors.toMap(Map.Entry::getKey, e -> new HashSet<>(e.getValue())));
-                assertThat(responseHeaders, equalTo(allWarnings));
+            public void onResponse(DriverCompletionInfo info) {
+                events.add("response");
             }
 
             @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError(e);
+            public void onFailure(Exception e, DriverCompletionInfo failedUsage) {
+                events.add("failure");
+                usage.set(failedUsage);
             }
         };
-        AtomicInteger onFailure = new AtomicInteger();
-        CountDownLatch latch = new CountDownLatch(1);
-        try (
-            var computeListener = new ComputeListener(
-                threadPool,
-                onFailure::incrementAndGet,
-                ActionListener.runAfter(rootListener, latch::countDown)
-            )
-        ) {
-            int tasks = randomIntBetween(1, 100);
-            for (int t = 0; t < tasks; t++) {
-                if (randomBoolean()) {
-                    ActionListener<Void> subListener = computeListener.acquireAvoid();
-                    threadPool.schedule(
-                        ActionRunnable.wrap(subListener, l -> l.onResponse(null)),
-                        TimeValue.timeValueNanos(between(0, 100)),
-                        threadPool.generic()
-                    );
-                } else {
-                    var resp = randomCompletionInfo();
-                    documentsFound.addAndGet(resp.documentsFound());
-                    valuesLoaded.addAndGet(resp.valuesLoaded());
-                    allProfiles.addAll(resp.driverProfiles());
-                    int numWarnings = randomIntBetween(1, 5);
-                    Map<String, String> warnings = new HashMap<>();
-                    for (int i = 0; i < numWarnings; i++) {
-                        warnings.put("key" + between(1, 10), "value" + between(1, 10));
-                    }
-                    for (Map.Entry<String, String> e : warnings.entrySet()) {
-                        allWarnings.computeIfAbsent(e.getKey(), v -> new HashSet<>()).add(e.getValue());
-                    }
-                    var subListener = computeListener.acquireCompute();
-                    threadPool.schedule(ActionRunnable.wrap(subListener, l -> {
-                        for (Map.Entry<String, String> e : warnings.entrySet()) {
-                            threadPool.getThreadContext().addResponseHeader(e.getKey(), e.getValue());
-                        }
-                        l.onResponse(resp);
-                    }), TimeValue.timeValueNanos(between(0, 100)), threadPool.generic());
-                }
-            }
-        }
-        assertTrue(latch.await(10, TimeUnit.SECONDS));
-        assertThat(onFailure.get(), equalTo(0));
+        ComputeCompletionListener once = ComputeCompletionListener.notifyOnce(delegate);
+        var firstUsage = randomCompletionInfo();
+        once.onFailure(new IllegalStateException("first"), firstUsage);
+        once.onFailure(new IllegalStateException("second"), randomCompletionInfo());
+        once.onResponse(randomCompletionInfo());
+        assertThat(events, equalTo(List.of("failure")));
+        assertThat(usage.get(), sameInstance(firstUsage));
     }
 }

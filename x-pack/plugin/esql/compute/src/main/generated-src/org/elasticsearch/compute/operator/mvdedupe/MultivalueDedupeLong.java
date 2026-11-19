@@ -61,10 +61,13 @@ public class MultivalueDedupeLong {
         }
         try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
+                if (block.isNull(p)) {
+                    builder.appendNull();
+                    continue;
+                }
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);
                 switch (count) {
-                    case 0 -> builder.appendNull();
                     case 1 -> builder.appendLong(block.getLong(first));
                     default -> {
                         /*
@@ -111,10 +114,13 @@ public class MultivalueDedupeLong {
         }
         try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
+                if (block.isNull(p)) {
+                    builder.appendNull();
+                    continue;
+                }
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);
                 switch (count) {
-                    case 0 -> builder.appendNull();
                     case 1 -> builder.appendLong(block.getLong(first));
                     default -> {
                         copyAndSort(first, count);
@@ -141,10 +147,13 @@ public class MultivalueDedupeLong {
         }
         try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
+                if (block.isNull(p)) {
+                    builder.appendNull();
+                    continue;
+                }
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);
                 switch (count) {
-                    case 0 -> builder.appendNull();
                     case 1 -> builder.appendLong(block.getLong(first));
                     default -> {
                         copyMissing(first, count);
@@ -162,10 +171,13 @@ public class MultivalueDedupeLong {
     public LongBlock sortToBlock(BlockFactory blockFactory, boolean ascending) {
         try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
+                if (block.isNull(p)) {
+                    builder.appendNull();
+                    continue;
+                }
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);
                 switch (count) {
-                    case 0 -> builder.appendNull();
                     case 1 -> builder.appendLong(block.getLong(first));
                     default -> {
                         copyAndSort(first, count);
@@ -186,13 +198,14 @@ public class MultivalueDedupeLong {
         try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(block.getPositionCount())) {
             boolean sawNull = false;
             for (int p = 0; p < block.getPositionCount(); p++) {
+                if (block.isNull(p)) {
+                    sawNull = true;
+                    builder.appendInt(0);
+                    continue;
+                }
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);
                 switch (count) {
-                    case 0 -> {
-                        sawNull = true;
-                        builder.appendInt(0);
-                    }
                     case 1 -> {
                         long v = block.getLong(first);
                         hashAdd(builder, hash, v);
@@ -219,10 +232,13 @@ public class MultivalueDedupeLong {
     public IntBlock hashLookup(BlockFactory blockFactory, LongHashTable hash) {
         try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
+                if (block.isNull(p)) {
+                    builder.appendInt(0);
+                    continue;
+                }
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);
                 switch (count) {
-                    case 0 -> builder.appendInt(0);
                     case 1 -> {
                         long v = block.getLong(first);
                         hashLookupSingle(builder, hash, v);
@@ -244,7 +260,7 @@ public class MultivalueDedupeLong {
 
     /**
      * Build a {@link BatchEncoder} which deduplicates values at each position
-     * and then encodes the results into a {@link byte[]} which can be used for
+     * and then encodes the results into a {@code byte[]} which can be used for
      * things like hashing many fields together.
      */
     public BatchEncoder batchEncoder(int batchSize) {
@@ -262,10 +278,13 @@ public class MultivalueDedupeLong {
                     position++;
                 }
                 for (; position < block.getPositionCount(); position++) {
+                    if (block.isNull(position)) {
+                        encodeNull();
+                        continue;
+                    }
                     int count = block.getValueCount(position);
                     int first = block.getFirstValueIndex(position);
                     switch (count) {
-                        case 0 -> encodeNull();
                         case 1 -> {
                             long v = block.getLong(first);
                             if (hasCapacity(1)) {

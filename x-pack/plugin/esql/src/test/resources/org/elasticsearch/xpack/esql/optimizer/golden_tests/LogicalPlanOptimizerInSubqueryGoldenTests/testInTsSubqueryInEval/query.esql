@@ -1,0 +1,4 @@
+TS k8s
+| EVAL m = cluster IN (TS k8s | STATS m = max(rate(network.total_bytes_in)) BY cluster | KEEP cluster)
+| STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster, m
+| SORT cluster

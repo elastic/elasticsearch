@@ -32,13 +32,14 @@ import org.elasticsearch.test.fixture.HttpHeaderParser;
 import org.elasticsearch.test.fixture.RequestEntry;
 
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -47,6 +48,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -56,7 +58,6 @@ import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.elasticsearch.test.fixture.HttpHeaderParser.parseRangeHeader;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -71,6 +72,9 @@ public class S3HttpHandler implements HttpHandler {
 
     private static final Logger logger = LogManager.getLogger(S3HttpHandler.class);
     public static final String STORAGE_CLASS_HEADER = "X-amz-storage-class";
+    public static final String CONTENT_SHA256_HEADER = "X-amz-content-sha256";
+    public static final String COPY_SOURCE_HEADER = "X-amz-copy-source";
+    public static final Pattern SHA256_PATTERN = Pattern.compile("^[0-9a-f]{64}$");
 
     private final String bucket;
     private final String basePath;
@@ -106,11 +110,9 @@ public class S3HttpHandler implements HttpHandler {
 
     private static final String SHA_256_ETAG_PREFIX = "es-test-sha-256-";
 
-    /**
-     * Default {@code LastModified} for ListBucket {@code Contents} entries. Real S3 returns ISO-8601
-     * timestamps; clients such as the AWS SDK map missing elements to {@code null} last-modified.
-     */
-    public static final String DEFAULT_LIST_OBJECT_LAST_MODIFIED = "1970-01-01T00:00:00.000Z";
+    /** ISO-8601 formatter with millisecond precision, always UTC — used for {@code <LastModified>} in list responses. */
+    private static final DateTimeFormatter ISO_MILLIS_UTC = DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss.SSS'Z'")
+        .withZone(ZoneOffset.UTC);
 
     public List<RequestEntry> requestLog() {
         return Collections.unmodifiableList(requestLog);
@@ -131,14 +133,22 @@ public class S3HttpHandler implements HttpHandler {
         }
 
         try (exchange) {
-            if (request.isHeadObjectRequest()) {
+            if (request.isHeadBucketRequest()) {
+                exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
+            } else if (request.isHeadObjectRequest()) {
                 final BlobEntry blobEntry = blobs.get(request.path());
                 if (blobEntry == null) {
                     exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
                 } else {
                     // HEAD response must include Content-Length header for S3 clients (AWS SDK) that read file size
                     exchange.getResponseHeaders().add("Content-Length", String.valueOf(blobEntry.contents().length()));
+                    exchange.getResponseHeaders().add("ETag", getEtagFromContents(blobEntry.contents()));
                     exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
+                    exchange.getResponseHeaders()
+                        .add(
+                            "Last-Modified",
+                            DateTimeFormatter.RFC_1123_DATE_TIME.format(blobEntry.lastModified().atOffset(ZoneOffset.UTC))
+                        );
                     if (!"STANDARD".equals(blobEntry.storageClass())) {
                         exchange.getResponseHeaders().add(STORAGE_CLASS_HEADER, blobEntry.storageClass());
                     }
@@ -224,6 +234,7 @@ public class S3HttpHandler implements HttpHandler {
                         }
                     } else {
                         final Tuple<String, BytesReference> blob = parseRequestBody(exchange);
+                        verifyContentSha256Header(exchange, blob.v2());
                         upload.addPart(blob.v1(), blob.v2());
                         exchange.getResponseHeaders().add("ETag", blob.v1());
                         exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
@@ -322,6 +333,8 @@ public class S3HttpHandler implements HttpHandler {
                     }
                 } else {
                     final Tuple<String, BytesReference> blob = parseRequestBody(exchange);
+                    verifyContentSha256Header(exchange, blob.v2());
+
                     final var updateResponseCode = updateBlobContents(
                         exchange,
                         request.path(),
@@ -342,7 +355,8 @@ public class S3HttpHandler implements HttpHandler {
                 if (prefix != null) {
                     list.append("<Prefix>").append(prefix).append("</Prefix>");
                 }
-                final Set<String> commonPrefixes = new HashSet<>();
+                // Real S3 LIST returns keys (and common prefixes) in lexicographic order.
+                final Set<String> commonPrefixes = new TreeSet<>();
                 final String delimiter = request.getOptionalQueryParam("delimiter").orElse(null);
                 if (delimiter != null) {
                     list.append("<Delimiter>").append(delimiter).append("</Delimiter>");
@@ -350,6 +364,7 @@ public class S3HttpHandler implements HttpHandler {
                 // Would be good to test pagination here (the only real difference between ListObjects and ListObjectsV2) but for now
                 // we return all the results at once.
                 list.append("<IsTruncated>false</IsTruncated>");
+                final List<Map.Entry<String, BlobEntry>> contents = new ArrayList<>();
                 for (Map.Entry<String, BlobEntry> blob : blobs.entrySet()) {
                     if (prefix != null && blob.getKey().startsWith("/" + bucket + "/" + prefix) == false) {
                         continue;
@@ -363,9 +378,15 @@ public class S3HttpHandler implements HttpHandler {
                             continue;
                         }
                     }
+                    contents.add(blob);
+                }
+                contents.sort(Map.Entry.comparingByKey());
+                for (Map.Entry<String, BlobEntry> blob : contents) {
+                    String blobPath = blob.getKey().replace("/" + bucket + "/", "");
                     list.append("<Contents>");
                     list.append("<Key>").append(blobPath).append("</Key>");
-                    list.append("<LastModified>").append(DEFAULT_LIST_OBJECT_LAST_MODIFIED).append("</LastModified>");
+                    list.append("<LastModified>").append(ISO_MILLIS_UTC.format(blob.getValue().lastModified())).append("</LastModified>");
+                    list.append("<ETag>").append(getEtagFromContents(blob.getValue().contents())).append("</ETag>");
                     list.append("<Size>").append(blob.getValue().contents().length()).append("</Size>");
                     list.append("<StorageClass>").append(blob.getValue().storageClass()).append("</StorageClass>");
                     list.append("</Contents>");
@@ -409,6 +430,8 @@ public class S3HttpHandler implements HttpHandler {
                 }
 
                 exchange.getResponseHeaders().add("ETag", etagFromContents);
+                exchange.getResponseHeaders()
+                    .add("Last-Modified", DateTimeFormatter.RFC_1123_DATE_TIME.format(blobEntry.lastModified().atOffset(ZoneOffset.UTC)));
                 if (!"STANDARD".equals(blobEntry.storageClass())) {
                     exchange.getResponseHeaders().add(STORAGE_CLASS_HEADER, blobEntry.storageClass());
                 }
@@ -461,7 +484,9 @@ public class S3HttpHandler implements HttpHandler {
                 exchange.sendResponseHeaders((deletions > 0 ? RestStatus.OK : RestStatus.NO_CONTENT).getStatus(), -1);
 
             } else if (request.isMultiObjectDeleteRequest()) {
-                final String requestBody = Streams.copyToString(new InputStreamReader(exchange.getRequestBody(), UTF_8));
+                final BytesReference requestBodyBytes = Streams.readFully(exchange.getRequestBody());
+                verifyContentMd5Header(exchange, requestBodyBytes);
+                final String requestBody = requestBodyBytes.utf8ToString();
 
                 final StringBuilder deletes = new StringBuilder();
                 deletes.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
@@ -546,80 +571,19 @@ public class S3HttpHandler implements HttpHandler {
         return blobs;
     }
 
-    private static final Pattern chunkSignaturePattern = Pattern.compile("^([0-9a-z]+);chunk-signature=([^\\r\\n]*)$");
+    private static final Pattern chunkSignaturePattern = Pattern.compile("^([0-9a-fA-F]+)(;chunk-signature=[^\\r\\n]*)?$");
 
     private static Tuple<String, BytesReference> parseRequestBody(final HttpExchange exchange) throws IOException {
         try {
-            final BytesReference bytesReference;
-
             final String headerDecodedContentLength = exchange.getRequestHeaders().getFirst("x-amz-decoded-content-length");
+            final var encodedRequestBody = Streams.readFully(exchange.getRequestBody());
+            final BytesReference decodedRequestBody;
             if (headerDecodedContentLength == null) {
-                bytesReference = Streams.readFully(exchange.getRequestBody());
+                decodedRequestBody = encodedRequestBody;
             } else {
-                BytesReference requestBody = Streams.readFully(exchange.getRequestBody());
-                int chunkIndex = 0;
-                final List<BytesReference> chunks = new ArrayList<>();
-
-                while (true) {
-                    chunkIndex += 1;
-
-                    final int headerLength = requestBody.indexOf((byte) '\n', 0) + 1; // includes terminating \r\n
-                    if (headerLength == 0) {
-                        throw new IllegalStateException("header of chunk [" + chunkIndex + "] was not terminated");
-                    }
-                    if (headerLength > 150) {
-                        throw new IllegalStateException(
-                            "header of chunk [" + chunkIndex + "] was too long at [" + headerLength + "] bytes"
-                        );
-                    }
-                    if (headerLength < 3) {
-                        throw new IllegalStateException(
-                            "header of chunk [" + chunkIndex + "] was too short at [" + headerLength + "] bytes"
-                        );
-                    }
-                    if (requestBody.get(headerLength - 1) != '\n' || requestBody.get(headerLength - 2) != '\r') {
-                        throw new IllegalStateException("header of chunk [" + chunkIndex + "] not terminated with [\\r\\n]");
-                    }
-
-                    final String header = requestBody.slice(0, headerLength - 2).utf8ToString();
-                    final Matcher matcher = chunkSignaturePattern.matcher(header);
-                    if (matcher.find() == false) {
-                        throw new IllegalStateException(
-                            "header of chunk [" + chunkIndex + "] did not match expected pattern: [" + header + "]"
-                        );
-                    }
-                    final int chunkSize = Integer.parseUnsignedInt(matcher.group(1), 16);
-
-                    if (requestBody.get(headerLength + chunkSize) != '\r' || requestBody.get(headerLength + chunkSize + 1) != '\n') {
-                        throw new IllegalStateException("chunk [" + chunkIndex + "] not terminated with [\\r\\n]");
-                    }
-
-                    if (chunkSize != 0) {
-                        chunks.add(requestBody.slice(headerLength, chunkSize));
-                    }
-
-                    final int toSkip = headerLength + chunkSize + 2;
-                    requestBody = requestBody.slice(toSkip, requestBody.length() - toSkip);
-
-                    if (chunkSize == 0) {
-                        break;
-                    }
-                }
-
-                bytesReference = CompositeBytesReference.of(chunks.toArray(new BytesReference[0]));
-
-                if (bytesReference.length() != Integer.parseInt(headerDecodedContentLength)) {
-                    throw new IllegalStateException(
-                        "Something went wrong when parsing the chunked request "
-                            + "[bytes read="
-                            + bytesReference.length()
-                            + ", expected="
-                            + headerDecodedContentLength
-                            + "]"
-                    );
-                }
+                decodedRequestBody = parseAmzChunkedRequestBody(Integer.parseInt(headerDecodedContentLength), encodedRequestBody);
             }
-            return Tuple.tuple(getEtagFromContents(bytesReference), bytesReference);
+            return Tuple.tuple(getEtagFromContents(decodedRequestBody), decodedRequestBody);
         } catch (Exception e) {
             logger.error("exception in parseRequestBody", e);
             exchange.sendResponseHeaders(500, 0);
@@ -629,6 +593,67 @@ public class S3HttpHandler implements HttpHandler {
             }
             throw e;
         }
+    }
+
+    static BytesReference parseAmzChunkedRequestBody(int headerDecodedContentLength, BytesReference encodedRequestBody) {
+        int chunkIndex = 0;
+        final List<BytesReference> chunks = new ArrayList<>();
+
+        while (true) {
+            chunkIndex += 1;
+
+            final int headerLength = encodedRequestBody.indexOf((byte) '\n', 0) + 1; // includes terminating \r\n
+            if (headerLength == 0) {
+                throw new IllegalStateException("header of chunk [" + chunkIndex + "] was not terminated");
+            }
+            if (headerLength > 150) {
+                throw new IllegalStateException("header of chunk [" + chunkIndex + "] was too long at [" + headerLength + "] bytes");
+            }
+            if (headerLength < 3) {
+                throw new IllegalStateException("header of chunk [" + chunkIndex + "] was too short at [" + headerLength + "] bytes");
+            }
+            if (encodedRequestBody.get(headerLength - 1) != '\n' || encodedRequestBody.get(headerLength - 2) != '\r') {
+                throw new IllegalStateException("header of chunk [" + chunkIndex + "] not terminated with [\\r\\n]");
+            }
+
+            final String header = encodedRequestBody.slice(0, headerLength - 2).utf8ToString();
+            final Matcher matcher = chunkSignaturePattern.matcher(header);
+            if (matcher.find() == false) {
+                throw new IllegalStateException("header of chunk [" + chunkIndex + "] did not match expected pattern: [" + header + "]");
+            }
+            final int chunkSize = Integer.parseUnsignedInt(matcher.group(1), 16);
+
+            if (chunkSize == 0) {
+                // ignore any trailers (e.g. checksum)
+                break;
+            }
+
+            final int chunkTerminatorIndex = headerLength + chunkSize;
+            if (chunkTerminatorIndex + 2 > encodedRequestBody.length()
+                || encodedRequestBody.get(chunkTerminatorIndex) != '\r'
+                || encodedRequestBody.get(chunkTerminatorIndex + 1) != '\n') {
+                throw new IllegalStateException("chunk [" + chunkIndex + "] not terminated with [\\r\\n]");
+            }
+
+            chunks.add(encodedRequestBody.slice(headerLength, chunkSize));
+
+            final int toSkip = headerLength + chunkSize + 2;
+            encodedRequestBody = encodedRequestBody.slice(toSkip, encodedRequestBody.length() - toSkip);
+        }
+
+        final BytesReference decodedRequestBody = CompositeBytesReference.of(chunks.toArray(new BytesReference[0]));
+
+        if (decodedRequestBody.length() != headerDecodedContentLength) {
+            throw new IllegalStateException(
+                "Something went wrong when parsing the chunked request "
+                    + "[bytes read="
+                    + decodedRequestBody.length()
+                    + ", expected="
+                    + headerDecodedContentLength
+                    + "]"
+            );
+        }
+        return decodedRequestBody;
     }
 
     static List<String> extractPartEtags(BytesReference completeMultipartUploadBody) {
@@ -683,7 +708,7 @@ public class S3HttpHandler implements HttpHandler {
 
     @Nullable // if no X-amz-copy-source header present
     private static String copySourceName(final HttpExchange exchange) {
-        final var copySources = exchange.getRequestHeaders().get("X-amz-copy-source");
+        final var copySources = exchange.getRequestHeaders().get(COPY_SOURCE_HEADER);
         if (copySources != null) {
             if (copySources.size() != 1) {
                 throw new AssertionError("multiple X-amz-copy-source headers found: " + copySources);
@@ -790,6 +815,23 @@ public class S3HttpHandler implements HttpHandler {
         });
     }
 
+    private static void verifyContentSha256Header(final HttpExchange exchange, BytesReference body) {
+        final var contentSha256Header = exchange.getRequestHeaders().getFirst(S3HttpHandler.CONTENT_SHA256_HEADER);
+        if (contentSha256Header != null && SHA256_PATTERN.asMatchPredicate().test(contentSha256Header)) {
+            // This header is optional and if present it may contain a special value indicating a different checksum scheme is in use, but
+            // if it's a real SHA256 checksum then it must match the request's contents.
+            assertEquals(contentSha256Header, MessageDigests.toHexString(MessageDigests.digest(body, MessageDigests.sha256())));
+        }
+    }
+
+    private static void verifyContentMd5Header(final HttpExchange exchange, BytesReference body) {
+        final var contentMd5Header = exchange.getRequestHeaders().getFirst("Content-MD5");
+        if (contentMd5Header != null) {
+            // This header is optional but if present it must be the base64-encoded MD5 digest of the request's contents.
+            assertEquals(contentMd5Header, Base64.getEncoder().encodeToString(MessageDigests.digest(body, MessageDigests.md5())));
+        }
+    }
+
     public S3Request parseRequest(HttpExchange exchange) {
         final String queryString = exchange.getRequestURI().getQuery();
         final Map<String, List<String>> queryParameters;
@@ -884,6 +926,10 @@ public class S3HttpHandler implements HttpHandler {
 
         private boolean isUnderBucketRootAndBasePath() {
             return path.startsWith("/" + bucketAndBasePath + "/");
+        }
+
+        public boolean isHeadBucketRequest() {
+            return "HEAD".equals(method) && isBucketRootPath();
         }
 
         public boolean isHeadObjectRequest() {

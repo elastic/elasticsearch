@@ -12,6 +12,7 @@ import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-test-artifact'
 apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.esql-csv-spec-tests'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.bwc-test'
 apply plugin: 'elasticsearch.bc-upgrade-test'
@@ -35,6 +36,10 @@ dependencies {
   javaRestTestImplementation project(xpackModule('esql:qa:testFixtures'))
   javaRestTestImplementation project(xpackModule('esql:qa:server'))
   javaRestTestImplementation project(xpackModule('esql'))
+  javaRestTestImplementation(testArtifact(project(":modules:ip-location")))
+
+  javaRestTestImplementation project(':test:fixtures:s3-fixture')
+  javaRestTestImplementation project(':test:fixtures:aws-fixture-utils')
 
   clusterPlugins project(xpackModule('esql-datasource-csv'))
   clusterPlugins project(xpackModule('esql-datasource-ndjson'))
@@ -43,16 +48,58 @@ dependencies {
 
 GradleUtils.extendSourceSet(project, "javaRestTest", "yamlRestTest")
 
+esqlCsvSpecTests {
+    specFilesDir = project(xpackModule('esql:qa:testFixtures')).file('src/main/resources')
+    packageName = 'org.elasticsearch.xpack.esql.qa.mixed'
+    // AbstractMixedClusterEsqlSpecIT is the shared base and supplies no addresses, so each variant names the
+    // leaf that pins its coordinator version.
+    variant 'MixedClusterEsqlCurrentCoordinatorSpec', 'AbstractMixedClusterEsqlCurrCoordSpecIT'
+    variant 'MixedClusterEsqlOldCoordinatorSpec', 'AbstractMixedClusterEsqlOldCoordSpecIT'
+}
+
+def dataSourcesBwcVersion = Version.fromString("9.5.0")
+
 // ESQL is available in 8.11 or later
 def supportedVersion = bwcVersion -> {
   return bwcVersion.onOrAfter(Version.fromString("8.11.0")) && bwcVersion != VersionProperties.elasticsearchVersion
 }
 
+// Note: applying 'elasticsearch.internal-java-rest-test' also registers a base (unversioned)
+// 'javaRestTest' task. The bwc-test plugin disables that task and points every versioned
+// StandaloneRestIntegTestTask at the javaRestTest source set, so the task below runs every
+// javaRestTest class unless a version-specific filter excludes it.
 buildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseName ->
   def javaRestTest = tasks.register("v${bwcVersion}#javaRestTest", StandaloneRestIntegTestTask) {
     usesBwcDistribution(bwcVersion)
     systemProperty("tests.old_cluster_version", bwcVersion)
+    if (bwcVersion.before(dataSourcesBwcVersion)) {
+      filter {
+        excludeTestsMatching 'org.elasticsearch.xpack.esql.qa.mixed.MixedClusterExternalSourceIT'
+      }
+    }
+  }
+
+  def csvSpecTestCurrentCoordinator = tasks.register("v${bwcVersion}#csvSpecTestsCurrentCoordinator", StandaloneRestIntegTestTask) {
+    usesBwcDistribution(bwcVersion)
+    systemProperty("tests.old_cluster_version", bwcVersion)
+    // AbstractMixedClusterEsqlSpecIT declares its cluster with shared(true), which is incompatible with parallel forks
     maxParallelForks = 1
+    testClassesDirs = sourceSets.csvSpecTest.output.classesDirs
+    classpath = sourceSets.csvSpecTest.runtimeClasspath
+    dependsOn generateEsqlSpecTests
+    // Restrict to the current-coordinator variant; the old-coordinator classes run under csvSpecTestsOldCoordinator.
+    include '**/MixedClusterEsqlCurrentCoordinatorSpec*IT.class'
+  }
+
+  def csvSpecTestOldCoordinator = tasks.register("v${bwcVersion}#csvSpecTestsOldCoordinator", StandaloneRestIntegTestTask) {
+    usesBwcDistribution(bwcVersion)
+    systemProperty("tests.old_cluster_version", bwcVersion)
+    // AbstractMixedClusterEsqlOldCoordSpecIT also uses shared(true), incompatible with parallel forks
+    maxParallelForks = 1
+    testClassesDirs = sourceSets.csvSpecTest.output.classesDirs
+    classpath = sourceSets.csvSpecTest.runtimeClasspath
+    dependsOn generateEsqlSpecTests
+    include '**/MixedClusterEsqlOldCoordinatorSpec*IT.class'
   }
 
   def yamlRestTest = tasks.register("v${bwcVersion}#yamlRestTest", StandaloneRestIntegTestTask) {
@@ -63,10 +110,26 @@ buildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseN
   }
 
   tasks.register(bwcTaskName(bwcVersion)) {
-    dependsOn javaRestTest, yamlRestTest
+    dependsOn javaRestTest, csvSpecTestCurrentCoordinator, csvSpecTestOldCoordinator, yamlRestTest
   }
 }
 
 tasks.named("yamlRestTest") {
   enabled = false
+}
+
+// bcUpgradeTest is a same-version detached-main cluster: every node reports the current
+// version, so MixedClusterExternalSourceIT cannot select distinct old and current coordinators.
+tasks.named("bcUpgradeTest") {
+  filter {
+    excludeTestsMatching 'org.elasticsearch.xpack.esql.qa.mixed.MixedClusterExternalSourceIT'
+  }
+}
+
+// Serverless BWC re-enables this unversioned task against an overlay Clusters that does not
+// configure federation. Dedicated v*#javaRestTest tasks remain the coverage path.
+tasks.named("javaRestTest") {
+  filter {
+    excludeTestsMatching 'org.elasticsearch.xpack.esql.qa.mixed.MixedClusterExternalSourceIT'
+  }
 }

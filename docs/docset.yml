@@ -4,8 +4,11 @@ products:
 max_toc_depth: 2
 exclude:
   - README.md
+  - AGENTS.md
+  - "**/AGENTS.md"
+  - "**/CLAUDE.md"
   - internal/*
-  - reference/query-languages/esql/kibana/docs/**
+  - reference/query-languages/esql/kibana/**
   - reference/query-languages/esql/README.md
 cross_links:
   - beats
@@ -66,6 +69,8 @@ subs:
   metricbeat:   "Metricbeat"
   es-sql:   "Elasticsearch SQL"
   esql:   "ES|QL"
+  prom:   "Prometheus"
+  promql:   "PromQL"
   security-features:   "security features"
   operator-feature:   "operator privileges feature"
   stack-security-features:   "Elastic Stack security features"
@@ -111,3 +116,5 @@ subs:
   nlp:   "natural language processing"
   index-manage-app:   "Index Management"
   connectors-app:   "Connectors"
+  es-labs:   "Elasticsearch Labs"
+  vectordb:   "Vector Database"

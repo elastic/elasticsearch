@@ -22,6 +22,24 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class VectorEncoderDecoderTests extends ESTestCase {
 
+    public void testByteVectorDecoding() {
+        byte[] expected = new byte[] { 1, 2, 3 };
+        BytesRef vectorBR = new BytesRef(expected);
+        byte[] decoded = new byte[expected.length];
+        VectorEncoderDecoder.decodeDenseVector(vectorBR, decoded);
+        assertArrayEquals(expected, decoded);
+    }
+
+    public void testByteVectorDecodingWithOffset() {
+        // backing array has a prefix byte that should be ignored via vectorBR.offset
+        byte[] backingArray = new byte[] { 99, 1, 2, 3 };
+        byte[] expected = new byte[] { 1, 2, 3 };
+        BytesRef vectorBR = new BytesRef(backingArray, 1, 3);
+        byte[] decoded = new byte[expected.length];
+        VectorEncoderDecoder.decodeDenseVector(vectorBR, decoded);
+        assertArrayEquals(expected, decoded);
+    }
+
     public void testVectorDecodingWithOffset() {
         float[] inputFloats = new float[] { 1f, 2f, 3f, 4f };
         float[] expected = new float[] { 2f, 3f, 4f };

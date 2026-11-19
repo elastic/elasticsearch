@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.generator.command.source;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
+import org.elasticsearch.xpack.esql.generator.GenerationContext;
 import org.elasticsearch.xpack.esql.generator.QueryExecutor;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 
@@ -36,9 +37,10 @@ public class PromQLGenerator implements CommandGenerator {
         List<CommandDescription> previousCommands,
         List<Column> previousOutput,
         QuerySchema schema,
-        QueryExecutor executor
+        QueryExecutor executor,
+        GenerationContext context
     ) {
-        return generateWithIndices(previousCommands, previousOutput, schema, executor, null);
+        return generateWithIndices(previousCommands, previousOutput, schema, executor, context, null);
     }
 
     public CommandDescription generateWithIndices(
@@ -46,6 +48,7 @@ public class PromQLGenerator implements CommandGenerator {
         List<Column> previousOutput,
         QuerySchema schema,
         QueryExecutor executor,
+        GenerationContext context,
         String index
     ) {
         List<Column> acceptableFields = previousOutput.stream()

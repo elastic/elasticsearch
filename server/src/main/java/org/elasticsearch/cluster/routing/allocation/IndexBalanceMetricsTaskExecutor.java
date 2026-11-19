@@ -29,7 +29,7 @@ import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.telemetry.metric.LongWithAttributes;
+import org.elasticsearch.telemetry.metric.LongAsyncMeasurement;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -43,6 +43,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
@@ -59,7 +60,7 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
 
     /**
      * Dynamic setting controlling whether the index balance metrics task is enabled.
-     * Intended for serverless deployments; defaults to false.
+     * Defaults to {@code false}.
      */
     public static final Setting<Boolean> INDEX_BALANCE_METRICS_ENABLED_SETTING = Setting.boolSetting(
         "cluster.routing.allocation.index_balance_metrics.enabled",
@@ -145,34 +146,39 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
         for (int i = 0; i < IndexBalanceMetricsComputer.BUCKET_DEFINITIONS.length; i++) {
             final int bucket = i;
             final var label = IndexBalanceMetricsComputer.BUCKET_DEFINITIONS[i].label();
-            meterRegistry.registerLongsGauge(
+            meterRegistry.registerLongAsyncGauge(
                 primaryMetricNames[i],
                 "Number of indices with " + label + " primary shard imbalance",
                 "{index}",
-                () -> publishIfNotEmpty(executorNodeTask, true, bucket)
+                measurement -> recordIfNotEmpty(executorNodeTask, true, bucket, measurement)
             );
-            meterRegistry.registerLongsGauge(
+            meterRegistry.registerLongAsyncGauge(
                 replicaMetricNames[i],
                 "Number of indices with " + label + " replica shard imbalance",
                 "{index}",
-                () -> publishIfNotEmpty(executorNodeTask, false, bucket)
+                measurement -> recordIfNotEmpty(executorNodeTask, false, bucket, measurement)
             );
         }
         final var clusterSettings = clusterService.getClusterSettings();
         clusterSettings.initializeAndWatch(INDEX_BALANCE_METRICS_REFRESH_INTERVAL_SETTING, this::updateComputationInterval);
     }
 
-    private static List<LongWithAttributes> publishIfNotEmpty(AtomicReference<Task> executorNodeTask, boolean primary, int bucketIndex) {
+    private static void recordIfNotEmpty(
+        AtomicReference<Task> executorNodeTask,
+        boolean primary,
+        int bucketIndex,
+        LongAsyncMeasurement measurement
+    ) {
         final var task = executorNodeTask.get();
         if (task == null) {
-            return List.of();
+            return;
         }
         final var state = task.getLastState();
         if (state == null) {
-            return List.of();
+            return;
         }
         final var histogram = primary ? state.primaryBalanceHistogram() : state.replicaBalanceHistogram();
-        return List.of(new LongWithAttributes(histogram[bucketIndex]));
+        measurement.record(histogram[bucketIndex]);
     }
 
     public static List<NamedXContentRegistry.Entry> getNamedXContentParsers() {
@@ -208,8 +214,6 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
         PersistentTasksCustomMetadata.PersistentTask<TaskParams> taskInProgress,
         Map<String, String> headers
     ) {
-        assert INDEX_BALANCE_METRICS_ENABLED_SETTING.get(clusterService.getSettings())
-            : "index balance metrics task requires [" + INDEX_BALANCE_METRICS_ENABLED_SETTING.getKey() + "] to be enabled";
         return new Task(
             id,
             type,
@@ -288,8 +292,10 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
                 }
                 logger.info("Starting index balance metrics task");
                 needsComputation.set(true);
-                clusterService.addListener(routingTableChangedListener);
                 scheduleComputation(pollIntervalSupplier.get());
+                if (scheduledComputation != null) {
+                    clusterService.addListener(routingTableChangedListener);
+                }
             }
         }
 
@@ -301,6 +307,9 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
                 }
                 cancelScheduledComputation();
                 scheduleComputation(pollIntervalSupplier.get());
+                if (scheduledComputation == null) {
+                    stopListeningAndCancelComputation();
+                }
             }
         }
 
@@ -317,11 +326,12 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
 
         private void scheduleComputation(TimeValue interval) {
             assert Thread.holdsLock(lifecycleLock) : "Must hold lifecycle lock";
-            if (threadPool.scheduler().isShutdown()) {
-                return;
-            }
             assert scheduledComputation == null : "Must not already have a scheduled computation";
-            scheduledComputation = threadPool.scheduleWithFixedDelay(this::runComputation, interval, managementExecutor);
+            try {
+                scheduledComputation = threadPool.scheduleWithFixedDelay(this::runComputation, interval, managementExecutor);
+            } catch (RejectedExecutionException e) {
+                logger.debug("thread pool is shutting down, index balance metrics task will not run on this node");
+            }
         }
 
         private void runComputation() {

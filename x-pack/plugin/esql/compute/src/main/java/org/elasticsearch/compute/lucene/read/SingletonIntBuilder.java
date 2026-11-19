@@ -9,6 +9,7 @@ package org.elasticsearch.compute.lucene.read;
 
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.mapper.BlockLoader;
 
@@ -19,14 +20,16 @@ import org.elasticsearch.index.mapper.BlockLoader;
 public final class SingletonIntBuilder implements BlockLoader.SingletonIntBuilder, Releasable, Block.Builder {
 
     private final int[] values;
+    private final int expectedCount;
     private final BlockFactory blockFactory;
+    private boolean built;
 
     private int count;
 
     public SingletonIntBuilder(int expectedCount, BlockFactory blockFactory) {
         this.blockFactory = blockFactory;
-        blockFactory.adjustBreaker(valuesSize(expectedCount));
-        this.values = new int[expectedCount];
+        this.expectedCount = expectedCount;
+        this.values = blockFactory.acquireInts(expectedCount);
     }
 
     @Override
@@ -60,15 +63,18 @@ public final class SingletonIntBuilder implements BlockLoader.SingletonIntBuilde
 
     @Override
     public long estimatedBytes() {
-        return valuesSize(values.length);
+        return valuesSize(expectedCount);
     }
 
     @Override
     public Block build() {
-        if (values.length != count) {
-            throw new IllegalStateException("expected " + values.length + " values but got " + count);
+        if (expectedCount != count) {
+            throw new IllegalStateException("expected " + expectedCount + " values but got " + count);
         }
-        return blockFactory.newIntArrayVector(values, count).asBlock();
+        IntVector vector = blockFactory.newIntArrayVector(values, count, valuesSize(values.length));
+        built = true;
+        vector.enablePooling();
+        return vector.asBlock();
     }
 
     @Override
@@ -81,15 +87,18 @@ public final class SingletonIntBuilder implements BlockLoader.SingletonIntBuilde
     }
 
     @Override
-    public BlockLoader.SingletonIntBuilder appendInts(int[] values, int from, int length) {
-        System.arraycopy(values, from, values, count, length);
+    public BlockLoader.SingletonIntBuilder appendInts(int[] source, int from, int length) {
+        System.arraycopy(source, from, values, count, length);
         count += length;
         return this;
     }
 
     @Override
     public void close() {
-        blockFactory.adjustBreaker(-valuesSize(values.length));
+        if (built == false) {
+            built = true;
+            blockFactory.recycleInts(values);
+        }
     }
 
     static long valuesSize(int count) {

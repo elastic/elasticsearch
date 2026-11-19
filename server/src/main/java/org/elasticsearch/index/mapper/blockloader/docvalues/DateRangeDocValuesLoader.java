@@ -83,14 +83,16 @@ public class DateRangeDocValuesLoader extends BlockDocValuesReader.DocValuesBloc
                             var range = ranges.get(0);
                             // While the index stores ranges with fully-inclusive bounds [from, to], in ESQL we always
                             // represent and use date ranges as half-open [from, to), so we add 1 to the upper bound here.
+                            // If the stored upper bound is Long.MAX_VALUE we cannot add 1 without overflow, so we leave
+                            // it as Long.MAX_VALUE — effectively treating it as an open/unbounded upper end.
                             builder.from().appendLong((long) range.getFrom());
-                            builder.to().appendLong((long) range.getTo() + 1);
+                            builder.to().appendLong(inclusiveToExclusive((long) range.getTo()));
                         } else {
                             builder.from().beginPositionEntry();
                             builder.to().beginPositionEntry();
                             for (var range : ranges) {
                                 builder.from().appendLong((long) range.getFrom());
-                                builder.to().appendLong((long) range.getTo() + 1);
+                                builder.to().appendLong(inclusiveToExclusive((long) range.getTo()));
                             }
                             builder.from().endPositionEntry();
                             builder.to().endPositionEntry();
@@ -105,5 +107,31 @@ public class DateRangeDocValuesLoader extends BlockDocValuesReader.DocValuesBloc
         public void close() {
             docValues.close();
         }
+    }
+
+    /**
+     * Converts an inclusive upper bound (as stored in Lucene) to the exclusive upper bound used
+     * by ES|QL. Adding 1 is safe for all values except {@code Long.MAX_VALUE}, where it would
+     * overflow to {@code Long.MIN_VALUE} and corrupt every downstream operation. Instead we
+     * return {@code Long.MAX_VALUE} unchanged, treating it as an open/unbounded sentinel.
+     *
+     * <p>Semantic impact of the sentinel: the single millisecond {@code Long.MAX_VALUE} (~year
+     * 292&thinsp;271&thinsp;023 CE) is excluded from the ES|QL representation even though it is
+     * included in the stored range. This produces:
+     * <ul>
+     *   <li><b>False negatives</b> in {@code RANGE_WITHIN} and {@code RANGE_INTERSECTS} only when
+     *       the tested point or range starts exactly at {@code Long.MAX_VALUE} — unreachable with
+     *       real dates.</li>
+     *   <li><b>False positive equality</b>: a range stored with {@code to = Long.MAX_VALUE - 1}
+     *       (inclusive) and one stored with {@code to = Long.MAX_VALUE} (inclusive) both map to
+     *       {@code to = Long.MAX_VALUE} in ES|QL and therefore compare as equal. Same unreachable
+     *       boundary.</li>
+     *   <li><b>No impact</b> on range-in-range {@code RANGE_WITHIN}: {@code a.to() <=
+     *       Long.MAX_VALUE} is always {@code true}, which correctly treats the sentinel as
+     *       "unbounded above".</li>
+     * </ul>
+     */
+    static long inclusiveToExclusive(long inclusiveTo) {
+        return inclusiveTo == Long.MAX_VALUE ? Long.MAX_VALUE : inclusiveTo + 1;
     }
 }

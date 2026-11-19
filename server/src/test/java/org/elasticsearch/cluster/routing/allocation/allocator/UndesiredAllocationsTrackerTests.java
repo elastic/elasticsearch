@@ -19,11 +19,13 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
@@ -179,12 +181,12 @@ public class UndesiredAllocationsTrackerTests extends ESTestCase {
         assertEquals(1, undesiredAllocationsTracker.getUndesiredAllocations().size());
 
         // start a relocation
-        shardRouting = shardRouting.relocate(randomIdentifier(), randomNonNegativeLong());
+        shardRouting = shardRouting.relocate(randomIdentifier(), randomNonNegativeLong(), RecoveryPriority.RELOCATION_CAN_REMAIN_NO);
         undesiredAllocationsTracker.trackUndesiredAllocation(shardRouting);
         assertEquals(1, undesiredAllocationsTracker.getUndesiredAllocations().size());
 
         // cancel that relocation
-        shardRouting = shardRouting.cancelRelocation();
+        shardRouting = randomBoolean() ? shardRouting.cancelRelocation() : shardRouting.failRelocation();
         undesiredAllocationsTracker.removeTracking(shardRouting);
         assertEquals(0, undesiredAllocationsTracker.getUndesiredAllocations().size());
     }
@@ -479,7 +481,8 @@ public class UndesiredAllocationsTrackerTests extends ESTestCase {
             primary,
             primary ? RecoverySource.EmptyStoreRecoverySource.INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, randomIdentifier()),
-            role
+            role,
+            ShardRoutingHelper.recoveryPriorityForNewlyCreatedShard(primary)
         ).initialize(nodeId, null, randomNonNegativeLong());
     }
 

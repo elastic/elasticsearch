@@ -17,6 +17,7 @@ import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
+import org.elasticsearch.indices.recovery.RecoveryMetricsCollector;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.snapshots.SnapshotShardsService;
@@ -44,7 +45,8 @@ public enum IndicesClusterStateServiceTestUtils {
         final SnapshotShardsService snapshotShardsService,
         final PrimaryReplicaSyncer primaryReplicaSyncer,
         final RetentionLeaseSyncer retentionLeaseSyncer,
-        final NodeClient client
+        final NodeClient client,
+        final RecoveryMetricsCollector recoveryMetricsCollector
     ) {
         return new IndicesClusterStateService(
             settings,
@@ -60,7 +62,8 @@ public enum IndicesClusterStateServiceTestUtils {
             snapshotShardsService,
             primaryReplicaSyncer,
             retentionLeaseSyncer,
-            client
+            client,
+            recoveryMetricsCollector
         );
     }
 }

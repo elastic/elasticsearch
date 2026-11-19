@@ -15,12 +15,16 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
+
+import static org.elasticsearch.compute.operator.DriverStatus.ESQL_DRIVER_NANOS;
 
 /**
  * Profile results from a single {@link Driver}.
@@ -32,9 +36,18 @@ import java.util.List;
  * @param startMillis Millis since epoch when the driver started.
  * @param stopMillis Millis since epoch when the driver stopped.
  * @param tookNanos Nanos between creation and completion of the {@link Driver}.
- * @param cpuNanos Nanos this {@link Driver} has been running on the cpu. Does not include async or waiting time.
+ * @param cpuNanos Thread CPU nanos this {@link Driver} has used. Does not include async or waiting time, time spent
+ *                 waiting for a core, or time blocked inside an operator. 0 if the JVM can't measure thread CPU time.
+ *                 Includes the thread CPU time its operators used on other threads
+ *                 ({@link DriverContext#meteredCpu}) and the driver's own work just outside the span
+ *                 {@code driverNanos} covers, such as finishing after its loop, so it can exceed {@code driverNanos}.
+ * @param driverNanos Nanos this {@link Driver} has held a thread. Unlike {@code cpuNanos} this includes time the thread
+ *                    waited for a core, GC pauses and time blocked inside an operator. Does not include async or
+ *                    waiting time.
  * @param iterations The number of times the driver has moved a single page up the chain of operators as far as it'll go.
  * @param operators Status of each {@link Operator} in the driver when it finished.
+ * @param phase The phase of the query the driver ran in, when the query had several. See {@link ProfileLabels}.
+ * @param phaseKind Why that phase ran. See {@link ProfileLabels}.
  */
 public record DriverProfile(
     String description,
@@ -44,10 +57,134 @@ public record DriverProfile(
     long stopMillis,
     long tookNanos,
     long cpuNanos,
+    long driverNanos,
     long iterations,
     List<OperatorStatus> operators,
-    DriverSleeps sleeps
+    DriverSleeps sleeps,
+    @Nullable String phase,
+    @Nullable String phaseKind
 ) implements Writeable, ChunkedToXContentObject {
+
+    public static final ProfileSchema<DriverProfile> PROFILE_SCHEMA = ProfileSchema.chunked(
+        DriverProfile.class,
+        DriverProfile::profileChunks
+    )
+        .required("description", ProfileSchema.string())
+        .required("cluster_name", ProfileSchema.string())
+        .required("node_name", ProfileSchema.string())
+        .optional("kind", ProfileSchema.string())
+        .optional("branch", ProfileSchema.string())
+        .optional("phase", ProfileSchema.string())
+        .optional("phase_kind", ProfileSchema.string())
+        .optional("start", ProfileSchema.string())
+        .required("start_millis", ProfileSchema.integer())
+        .optional("stop", ProfileSchema.string())
+        .required("stop_millis", ProfileSchema.integer())
+        .required("took_nanos", ProfileSchema.integer())
+        .optional("took_time", ProfileSchema.string())
+        .required("cpu_nanos", ProfileSchema.integer())
+        .optional("cpu_time", ProfileSchema.string())
+        .required("driver_nanos", ProfileSchema.integer())
+        .optional("driver_time", ProfileSchema.string())
+        .required("documents_found", ProfileSchema.integer())
+        .required("values_loaded", ProfileSchema.integer())
+        .required("rows_emitted", ProfileSchema.integer())
+        .required("bytes_read", ProfileSchema.integer())
+        .required("read_nanos", ProfileSchema.integer())
+        .required("read_cpu_nanos", ProfileSchema.integer())
+        .required("iterations", ProfileSchema.integer())
+        .required("operators", ProfileSchema.array(OperatorStatus.PROFILE_SCHEMA.schema()))
+        .required("sleeps", DriverSleeps.PROFILE_SCHEMA.schema())
+        .build();
+
+    private static Iterator<? extends ToXContent> profileChunks(DriverProfile value, ToXContent.Params params) {
+        return Iterators.concat(
+            ChunkedToXContentHelper.startObject(),
+            Iterators.single((builder, chunkParams) -> writeProfileFields(builder, value)),
+            ChunkedToXContentHelper.array("operators", value.operators.iterator()),
+            ChunkedToXContentHelper.chunk((builder, chunkParams) -> builder.field("sleeps", value.sleeps)),
+            ChunkedToXContentHelper.endObject()
+        );
+    }
+
+    private static XContentBuilder writeProfileFields(XContentBuilder builder, DriverProfile value) throws IOException {
+        builder.field("description", value.description);
+        builder.field("cluster_name", value.clusterName);
+        builder.field("node_name", value.nodeName);
+        ProfileLabels.write(builder, value.description, value.phase, value.phaseKind);
+        builder.timestampFieldsFromUnixEpochMillis("start_millis", "start", value.startMillis);
+        builder.timestampFieldsFromUnixEpochMillis("stop_millis", "stop", value.stopMillis);
+        builder.field("took_nanos", value.tookNanos);
+        if (builder.humanReadable()) {
+            builder.field("took_time", TimeValue.timeValueNanos(value.tookNanos));
+        }
+        builder.field("cpu_nanos", value.cpuNanos);
+        if (builder.humanReadable()) {
+            builder.field("cpu_time", TimeValue.timeValueNanos(value.cpuNanos));
+        }
+        builder.field("driver_nanos", value.driverNanos);
+        if (builder.humanReadable()) {
+            builder.field("driver_time", TimeValue.timeValueNanos(value.driverNanos));
+        }
+        builder.field("documents_found", value.operators.stream().mapToLong(OperatorStatus::documentsFound).sum());
+        builder.field("values_loaded", value.operators.stream().mapToLong(OperatorStatus::valuesLoaded).sum());
+        builder.field("rows_emitted", value.operators.stream().mapToLong(OperatorStatus::rowsEmitted).sum());
+        builder.field("bytes_read", value.operators.stream().mapToLong(OperatorStatus::bytesRead).sum());
+        builder.field("read_nanos", value.operators.stream().mapToLong(OperatorStatus::readNanos).sum());
+        builder.field("read_cpu_nanos", value.operators.stream().mapToLong(OperatorStatus::readCpuNanos).sum());
+        builder.field("iterations", value.iterations);
+        return builder;
+    }
+
+    /** A driver of a query that ran in one phase. */
+    public DriverProfile(
+        String description,
+        String clusterName,
+        String nodeName,
+        long startMillis,
+        long stopMillis,
+        long tookNanos,
+        long cpuNanos,
+        long driverNanos,
+        long iterations,
+        List<OperatorStatus> operators,
+        DriverSleeps sleeps
+    ) {
+        this(
+            description,
+            clusterName,
+            nodeName,
+            startMillis,
+            stopMillis,
+            tookNanos,
+            cpuNanos,
+            driverNanos,
+            iterations,
+            operators,
+            sleeps,
+            null,
+            null
+        );
+    }
+
+    /** The same driver, labelled with the phase of the query it ran in. */
+    public DriverProfile withPhase(@Nullable String phase, @Nullable String phaseKind) {
+        return new DriverProfile(
+            description,
+            clusterName,
+            nodeName,
+            startMillis,
+            stopMillis,
+            tookNanos,
+            cpuNanos,
+            driverNanos,
+            iterations,
+            operators,
+            sleeps,
+            phase,
+            phaseKind
+        );
+    }
 
     private static final TransportVersion ESQL_DRIVER_NODE_DESCRIPTION = TransportVersion.fromName("esql_driver_node_description");
     private static final TransportVersion ESQL_DRIVER_TASK_DESCRIPTION = TransportVersion.fromName("esql_driver_task_description");
@@ -61,9 +198,12 @@ public record DriverProfile(
             in.readVLong(),
             in.readVLong(),
             in.readVLong(),
+            in.getTransportVersion().supports(ESQL_DRIVER_NANOS) ? in.readVLong() : 0,
             in.readVLong(),
             in.readCollectionAsImmutableList(OperatorStatus::readFrom),
-            DriverSleeps.read(in)
+            DriverSleeps.read(in),
+            in.getTransportVersion().supports(PlanProfile.JSON_PLANS_VERSION) ? in.readOptionalString() : null,
+            in.getTransportVersion().supports(PlanProfile.JSON_PLANS_VERSION) ? in.readOptionalString() : null
         );
     }
 
@@ -80,36 +220,21 @@ public record DriverProfile(
         out.writeVLong(stopMillis);
         out.writeVLong(tookNanos);
         out.writeVLong(cpuNanos);
+        if (out.getTransportVersion().supports(ESQL_DRIVER_NANOS)) {
+            out.writeVLong(driverNanos);
+        }
         out.writeVLong(iterations);
         out.writeCollection(operators);
         sleeps.writeTo(out);
+        if (out.getTransportVersion().supports(PlanProfile.JSON_PLANS_VERSION)) {
+            out.writeOptionalString(phase);
+            out.writeOptionalString(phaseKind);
+        }
     }
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return Iterators.concat(ChunkedToXContentHelper.startObject(), Iterators.single((b, p) -> {
-            b.field("description", description);
-            b.field("cluster_name", clusterName);
-            b.field("node_name", nodeName);
-            b.timestampFieldsFromUnixEpochMillis("start_millis", "start", startMillis);
-            b.timestampFieldsFromUnixEpochMillis("stop_millis", "stop", stopMillis);
-            b.field("took_nanos", tookNanos);
-            if (b.humanReadable()) {
-                b.field("took_time", TimeValue.timeValueNanos(tookNanos));
-            }
-            b.field("cpu_nanos", cpuNanos);
-            if (b.humanReadable()) {
-                b.field("cpu_time", TimeValue.timeValueNanos(cpuNanos));
-            }
-            b.field("documents_found", operators.stream().mapToLong(OperatorStatus::documentsFound).sum());
-            b.field("values_loaded", operators.stream().mapToLong(OperatorStatus::valuesLoaded).sum());
-            b.field("iterations", iterations);
-            return b;
-        }),
-            ChunkedToXContentHelper.array("operators", operators.iterator()),
-            ChunkedToXContentHelper.chunk((b, p) -> b.field("sleeps", sleeps)),
-            ChunkedToXContentHelper.endObject()
-        );
+        return PROFILE_SCHEMA.toXContentChunked(this, params);
     }
 
     @Override

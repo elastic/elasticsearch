@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 161695
+summary: Propagate breaker trips in CSV sampling
+type: bug

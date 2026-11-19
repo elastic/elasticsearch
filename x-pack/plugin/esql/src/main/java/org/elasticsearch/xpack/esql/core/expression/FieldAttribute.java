@@ -13,10 +13,13 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
+import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
@@ -62,7 +65,7 @@ public sealed class FieldAttribute extends TypedAttribute permits TimeSeriesMeta
         EsField.TimeSeriesFieldType.DIMENSION
     );
 
-    static EsField timeSeriesField() {
+    public static EsField timeSeriesField() {
         return TIMESERIES_FIELD;
     }
 
@@ -140,7 +143,7 @@ public sealed class FieldAttribute extends TypedAttribute permits TimeSeriesMeta
         if (in.getTransportVersion().supports(ESQL_FIELD_ATTRIBUTE_DROP_TYPE) == false) {
             in.readOptionalString();
         }
-        Nullability nullability = in.readEnum(Nullability.class);
+        Nullability nullability = Nullability.readFrom(in);
         NameId nameId = NameId.readFrom((PlanStreamInput) in);
         boolean synthetic = in.readBoolean();
 
@@ -183,12 +186,16 @@ public sealed class FieldAttribute extends TypedAttribute permits TimeSeriesMeta
             if (out.getTransportVersion().supports(ESQL_FIELD_ATTRIBUTE_DROP_TYPE) == false) {
                 dataType().writeTo(out);
             }
-            field.writeTo(out);
+            if (field instanceof PotentiallyUnmappedKeywordEsField punk) {
+                punk.writeTo(out, fieldName().string());
+            } else {
+                field.writeTo(out);
+            }
             if (out.getTransportVersion().supports(ESQL_FIELD_ATTRIBUTE_DROP_TYPE) == false) {
                 // We used to write the qualifier here, even though it was always null.
                 out.writeOptionalString(null);
             }
-            out.writeEnum(nullable());
+            nullable().writeTo(out);
             id().writeTo(out);
             out.writeBoolean(synthetic());
             // Keep writing `_timeseries` as `FieldAttribute` and append the extra metadata only
@@ -197,7 +204,7 @@ public sealed class FieldAttribute extends TypedAttribute permits TimeSeriesMeta
                 && MetadataAttribute.isTimeSeriesAttributeName(name())) {
                 if (this instanceof TimeSeriesMetadataAttribute timeSeriesMetadataAttribute) {
                     out.writeBoolean(true);
-                    out.writeStringCollection(timeSeriesMetadataAttribute.withoutFields());
+                    out.writeStringCollection(timeSeriesMetadataAttribute.excludedFields());
                 } else {
                     out.writeBoolean(false);
                 }
@@ -227,37 +234,39 @@ public sealed class FieldAttribute extends TypedAttribute permits TimeSeriesMeta
      * The full name of the field in the index, including all parent fields. E.g. {@code parent.subfield.this_field}.
      */
     public FieldName fieldName() {
-        if (lazyFieldName == null) {
+        FieldName fieldName = lazyFieldName;
+        if (fieldName == null) {
             // Before 8.15, the field name was the same as the attribute's name.
             // On later versions, the attribute can be renamed when creating synthetic attributes.
             // Because until 8.15, we couldn't set `synthetic` to true due to a bug, in that version such FieldAttributes are marked by
             // their
             // name starting with `$$`.
             if ((synthetic() || name().startsWith(SYNTHETIC_ATTRIBUTE_NAME_PREFIX)) == false) {
-                lazyFieldName = new FieldName(name());
+                fieldName = new FieldName(name());
             } else {
-                lazyFieldName = new FieldName(Strings.hasText(parentName) ? parentName + "." + field.getName() : field.getName());
+                fieldName = new FieldName(Strings.hasText(parentName) ? parentName + "." + field.getName() : field.getName());
             }
+            lazyFieldName = fieldName;
         }
-        return lazyFieldName;
+        return fieldName;
     }
 
     public boolean hasTypeConflicts() {
-        return field instanceof InvalidMappedField;
+        return field instanceof TypeConflictedField;
     }
 
     /**
-     * If the underlying field is an {@link InvalidMappedField} (ambiguous type across indices),
+     * If the underlying field is a {@link TypeConflictedField} (ambiguous type across indices),
      * converts this attribute into an {@link UnsupportedAttribute} with a descriptive error message
      * so the analyzer can surface a clear user-facing error.
      */
     public Attribute flagTypeConflicts() {
-        if (field instanceof InvalidMappedField imf) {
+        if (field instanceof TypeConflictedField tcf) {
             // Field has conflicting types across indices — build a user-facing error message.
-            String unresolvedMessage = "Cannot use field [" + name() + "] due to ambiguities being " + imf.errorMessage();
-            List<String> types = imf.getTypesToIndices().keySet().stream().toList();
+            String unresolvedMessage = "Cannot use field [" + name() + "] due to ambiguities being " + tcf.errorMessage();
+            List<String> types = tcf.getTypesToIndices().keySet().stream().toList();
             // Preserve the original NameId so downstream attribute-resolution stays consistent.
-            return new UnsupportedAttribute(source(), name(), new UnsupportedEsField(imf.getName(), types), unresolvedMessage, id());
+            return new UnsupportedAttribute(source(), name(), new UnsupportedEsField(tcf.getName(), types), unresolvedMessage, id());
         }
         return this;
     }
@@ -320,6 +329,10 @@ public sealed class FieldAttribute extends TypedAttribute permits TimeSeriesMeta
         return Objects.hash(super.innerHashCode(ignoreIds), parentName, field);
     }
 
+    public FieldAttribute withField(EsField field) {
+        return new FieldAttribute(source(), parentName(), qualifier(), name(), field, nullable(), id(), synthetic());
+    }
+
     @Override
     protected boolean innerEquals(Object o, boolean ignoreIds) {
         var other = (FieldAttribute) o;
@@ -345,20 +358,28 @@ public sealed class FieldAttribute extends TypedAttribute permits TimeSeriesMeta
         return field;
     }
 
+    /**
+     * Renders the FieldAttribute as {@code [<qual>.]<name>{f[(SubclassName)][$]}#id}. Identifier
+     * mentions route through the supplied {@link NodeStringMapper}; in LIMITED mode the EsField
+     * subclass marker is suppressed to keep the rendering compact.
+     */
     @Override
-    public void nodeString(StringBuilder sb, NodeStringFormat format) {
-        switch (format) {
-            case FULL -> {
-                sb.append(qualifiedName()).append("{").append(label());
-                if (field.getNodeStringName().isEmpty() == false) {
-                    sb.append("(").append(field.getNodeStringName()).append(")");
-                }
-                if (synthetic()) {
-                    sb.append("$");
-                }
-                sb.append("}#").append(id());
-            }
-            case LIMITED -> super.nodeString(sb, format);
+    public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
+        if (qualifier() != null) {
+            sb.append(mapper.column(qualifier())).append('.');
         }
+        sb.append(mapper.column(name())).append('{').append(label());
+        if (format != NodeStringFormat.LIMITED && field.getNodeStringName().isEmpty() == false) {
+            sb.append('(').append(field.getNodeStringName()).append(')');
+        }
+        if (synthetic()) {
+            sb.append('$');
+        }
+        sb.append("}#").append(id());
+    }
+
+    public boolean isPotentiallyUnmapped() {
+        return field() instanceof PotentiallyUnmappedKeywordEsField
+            || field() instanceof UnionTypeEsField utf && utf.getUnmappedConversionExpression() != null;
     }
 }

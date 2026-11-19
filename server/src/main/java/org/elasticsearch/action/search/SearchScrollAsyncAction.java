@@ -18,6 +18,7 @@ import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
@@ -34,6 +35,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
@@ -55,6 +57,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> {
     private final long startTime;
     private final List<ShardSearchFailure> shardFailures = new ArrayList<>();
     private final AtomicInteger successfulOps;
+    private final AtomicReference<DirectoryMetrics> mergedDirectoryMetrics = new AtomicReference<>(DirectoryMetrics.EMPTY);
 
     protected SearchScrollAsyncAction(
         ParsedScrollId scrollId,
@@ -86,7 +89,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> {
     public final void run() {
         final SearchContextIdForNode[] context = scrollId.getContext();
         if (context.length == 0) {
-            listener.onFailure(new SearchPhaseExecutionException("query", "no nodes to search on", ShardSearchFailure.EMPTY_ARRAY));
+            listener.onFailure(new SearchPhaseExecutionException("query", "no nodes to search on", List.of()));
         } else {
             collectNodesAndRun(
                 Arrays.asList(context),
@@ -176,6 +179,8 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> {
                 protected void innerOnResponse(T result) {
                     assert shardIndex == result.getShardIndex()
                         : "shard index mismatch: " + shardIndex + " but got: " + result.getShardIndex();
+                    // scroll has no SearchPhaseResults pipeline; accumulate per-shard DirectoryMetrics here directly
+                    accumulateDirectoryMetrics(result.getDirectoryMetrics());
                     onFirstPhaseResult(shardIndex, result);
                     if (counter.countDown()) {
                         SearchPhase phase = moveToNextPhase(clusterNodeLookup);
@@ -185,9 +190,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> {
                             // we need to fail the entire request here - the entire phase just blew up
                             // don't call onShardFailure or onFailure here since otherwise we'd countDown the counter
                             // again which would result in an exception
-                            listener.onFailure(
-                                new SearchPhaseExecutionException(phase.getName(), "Phase failed", e, ShardSearchFailure.EMPTY_ARRAY)
-                            );
+                            listener.onFailure(new SearchPhaseExecutionException(phase.getName(), "Phase failed", e, List.of()));
                         }
                     }
                 }
@@ -208,11 +211,8 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> {
         }
     }
 
-    synchronized ShardSearchFailure[] buildShardFailures() { // pkg private for testing
-        if (shardFailures.isEmpty()) {
-            return ShardSearchFailure.EMPTY_ARRAY;
-        }
-        return shardFailures.toArray(ShardSearchFailure.EMPTY_ARRAY);
+    synchronized List<ShardSearchFailure> buildShardFailures() { // pkg private for testing
+        return List.copyOf(shardFailures);
     }
 
     // we do our best to return the shard failures, but its ok if its not fully concurrently safe
@@ -243,6 +243,10 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> {
         };
     }
 
+    protected void accumulateDirectoryMetrics(DirectoryMetrics metrics) {
+        DirectoryMetrics.accumulate(mergedDirectoryMetrics, metrics);
+    }
+
     protected final void sendResponse(
         SearchPhaseController.ReducedQueryPhase queryPhase,
         final AtomicArray<? extends SearchPhaseResult> fetchResults
@@ -255,22 +259,21 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> {
                 scrollId = request.scrollId();
             }
             try (var sections = SearchPhaseController.merge(true, queryPhase, fetchResults)) {
-                ActionListener.respondAndRelease(
-                    listener,
-                    new SearchResponse(
-                        sections,
-                        scrollId,
-                        this.scrollId.getContext().length,
-                        successfulOps.get(),
-                        0,
-                        buildTookInMillis(),
-                        buildShardFailures(),
-                        SearchResponse.Clusters.EMPTY,
-                        null,
-                        null,
-                        null
-                    )
+                SearchResponse searchResponse = new SearchResponse(
+                    sections,
+                    scrollId,
+                    this.scrollId.getContext().length,
+                    successfulOps.get(),
+                    0,
+                    buildTookInMillis(),
+                    buildShardFailures(),
+                    SearchResponse.Clusters.EMPTY,
+                    null,
+                    null,
+                    null
                 );
+                searchResponse.setDirectoryMetrics(mergedDirectoryMetrics.get());
+                ActionListener.respondAndRelease(listener, searchResponse);
             }
         } catch (Exception e) {
             listener.onFailure(new ReduceSearchPhaseException("fetch", "inner finish failed", e, buildShardFailures()));
@@ -293,7 +296,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> {
         assert successfulOperations >= 0 : "successfulOperations must be >= 0 but was: " + successfulOperations;
         if (counter.countDown()) {
             if (successfulOps.get() == 0) {
-                ShardSearchFailure[] failures = buildShardFailures();
+                List<ShardSearchFailure> failures = buildShardFailures();
                 Set<String> missingNodeIds = new HashSet<>();
                 for (ShardSearchFailure f : failures) {
                     if (f.getCause() instanceof SearchContextMissingNodesException scmne) {
@@ -313,9 +316,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> {
                     phase.run();
                 } catch (Exception e) {
                     e.addSuppressed(failure);
-                    listener.onFailure(
-                        new SearchPhaseExecutionException(phase.getName(), "Phase failed", e, ShardSearchFailure.EMPTY_ARRAY)
-                    );
+                    listener.onFailure(new SearchPhaseExecutionException(phase.getName(), "Phase failed", e, List.of()));
                 }
             }
         }

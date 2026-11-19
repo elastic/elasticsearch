@@ -12,6 +12,7 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -32,6 +33,7 @@ import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -46,6 +48,7 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
 
@@ -59,7 +62,7 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSP
  * Alternatively, it is well described in PostGIS documentation at
  * <a href="https://postgis.net/docs/ST_Dimension.html">PostGIS:ST_Dimension</a>.
  */
-public class StDimension extends SpatialUnaryDocValuesFunction {
+public class StDimension extends SpatialUnaryDocValuesFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "StDimension",
@@ -75,6 +78,7 @@ public class StDimension extends SpatialUnaryDocValuesFunction {
         returnType = "integer",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.4.0") },
+        briefSummary = "Returns the topological dimension of the supplied geometry.",
         description = "Returns the topological dimension of the supplied geometry.\n"
             + "Points and multi-points return `0`, lines and multi-lines return `1`, "
             + "polygons and multi-polygons return `2`, and geometry collections return the maximum dimension of their components.",
@@ -112,7 +116,7 @@ public class StDimension extends SpatialUnaryDocValuesFunction {
             // Points always have dimension 0, so return a constant
             return new ConstantPointDimensionEvaluator.Factory(toEvaluator.apply(spatialField()));
         }
-        return new StDimensionFromWKBEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
+        return new StDimensionFromWKBEvaluator.Factory(source(), toEvaluator.apply(spatialField()), context -> new BytesRef());
     }
 
     @Override
@@ -136,8 +140,12 @@ public class StDimension extends SpatialUnaryDocValuesFunction {
     }
 
     @Evaluator(extraName = "FromWKB", warnExceptions = { IllegalArgumentException.class })
-    static void fromWellKnownBinary(IntBlock.Builder results, @Position int p, BytesRefBlock wkbBlock) {
-        BytesRef scratch = new BytesRef();
+    static void fromWellKnownBinary(
+        IntBlock.Builder results,
+        @Position int p,
+        BytesRefBlock wkbBlock,
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) BytesRef scratch
+    ) {
         int firstValueIndex = wkbBlock.getFirstValueIndex(p);
         int valueCount = wkbBlock.getValueCount(p);
         int maxDimension = 0;

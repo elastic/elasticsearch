@@ -24,6 +24,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.sagemaker.SageMakerInferenceRequest;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel;
 
@@ -201,8 +202,12 @@ public class SageMakerSchema {
         return Tuple.tuple(errorMessage, restStatus);
     }
 
-    public SageMakerStoredServiceSchema apiServiceSettings(Map<String, Object> serviceSettings, ValidationException validationException) {
-        return schemaPayload.apiServiceSettings(serviceSettings, validationException);
+    public SageMakerStoredServiceSchema apiServiceSettings(
+        Map<String, Object> serviceSettings,
+        ConfigurationParseContext context,
+        ValidationException validationException
+    ) {
+        return schemaPayload.apiServiceSettings(serviceSettings, context, validationException);
     }
 
     public SageMakerStoredTaskSchema apiTaskSettings(Map<String, Object> taskSettings, ValidationException validationException) {

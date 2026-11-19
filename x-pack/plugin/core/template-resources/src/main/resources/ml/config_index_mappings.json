@@ -330,6 +330,10 @@
           }
         }
       },
+      "cloud_internal_credential" : {
+        "type" : "object",
+        "enabled" : false
+      },
       "config_type" : {
         "type" : "keyword"
       },
@@ -424,6 +428,9 @@
         "type" : "keyword"
       },
       "max_empty_searches" : {
+        "type" : "keyword"
+      },
+      "max_consecutive_extraction_failures" : {
         "type" : "keyword"
       },
       "max_num_threads" : {

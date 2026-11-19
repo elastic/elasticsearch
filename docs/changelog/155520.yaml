@@ -1,0 +1,6 @@
+area: TSDB
+issues:
+ - 147995
+pr: 155520
+summary: Dispatch time-series windows per aggregate
+type: enhancement

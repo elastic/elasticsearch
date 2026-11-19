@@ -66,10 +66,11 @@ public final class RangeWithinPointEvaluator implements ExpressionEvaluator {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       LongRangeBlockBuilder.LongRange rangeScratch = new LongRangeBlockBuilder.LongRange();
       position: for (int p = 0; p < positionCount; p++) {
+        if (pointBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (pointBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -77,10 +78,11 @@ public final class RangeWithinPointEvaluator implements ExpressionEvaluator {
               result.appendNull();
               continue position;
         }
+        if (rangeBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (rangeBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -108,7 +110,7 @@ public final class RangeWithinPointEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }

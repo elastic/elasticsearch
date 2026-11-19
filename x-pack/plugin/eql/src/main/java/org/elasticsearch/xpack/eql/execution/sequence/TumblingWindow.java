@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.eql.execution.sequence;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
@@ -759,9 +760,7 @@ public class TumblingWindow implements Executable {
         log.trace("Sending payload for [{}] sequences", completed.size());
 
         if (completed.isEmpty() || (allowPartialSequenceResults == false && shardFailures.isEmpty() == false)) {
-            listener.onResponse(
-                new EmptyPayload(Type.SEQUENCE, timeTook(), shardFailures.values().toArray(new ShardSearchFailure[shardFailures.size()]))
-            );
+            listener.onResponse(new EmptyPayload(Type.SEQUENCE, timeTook(), List.copyOf(shardFailures.values())));
             return;
         }
 
@@ -775,7 +774,7 @@ public class TumblingWindow implements Executable {
                 addMissingEventPlaceholders(listOfHits),
                 false,
                 timeTook(),
-                shardFailures.values().toArray(new ShardSearchFailure[0])
+                List.copyOf(shardFailures.values())
             );
         }));
     }
@@ -886,9 +885,16 @@ public class TumblingWindow implements Executable {
                         partial.add(null);
                     } else {
                         int keySize = originalKeys.length;
+                        // shallow size of one Object[keySize] — computed once, used per expansion step
+                        long sizePerKey = RamUsageEstimator.alignObjectSize(
+                            RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) keySize * RamUsageEstimator.NUM_BYTES_OBJECT_REF
+                        );
+                        long estimatedExpansionBytes = 0;
                         partial.add(new Object[keySize]);
                         for (int i = 0; i < keySize; i++) {
                             if (originalKeys[i] instanceof List<?> possibleValues) {
+                                estimatedExpansionBytes += (long) possibleValues.size() * partial.size() * sizePerKey;
+                                matcher.checkMemory(estimatedExpansionBytes);
                                 List<Object[]> newPartial = new ArrayList<>(possibleValues.size() * partial.size());
                                 for (Object possibleValue : possibleValues) {
                                     for (Object[] partialKey : partial) {

@@ -107,23 +107,25 @@ EXPORT f32_t diskbbq_apply_corrections_maximum_inner_product_bulk_2(
     f32_t maxScore = _mm512_reduce_max_ps(max_score);
 
     for (; i < bulkSize; ++i) {
-        f32_t score = apply_corrections_maximum_inner_product_inner(
+        const f32_t score = apply_base_corrections_common(
             dimensions,
             queryLowerInterval,
             queryUpperInterval,
             queryComponentSum,
-            queryAdditionalCorrection,
             queryBitScale,
             indexBitScale,
-            centroidDp,
             c.lowerIntervals[i],
             c.upperIntervals[i],
             c.targetComponentSums[i],
-            c.additionalCorrections[i],
             scores[i]
         );
-        scores[i] = score;
-        maxScore = __builtin_fmaxf(maxScore, score);
+        scores[i] = maximum_inner_product_correction(
+            score,
+            queryAdditionalCorrection,
+            c.additionalCorrections[i],
+            centroidDp
+        );
+        maxScore = __builtin_fmaxf(maxScore, scores[i]);
     }
 
     return maxScore;

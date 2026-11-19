@@ -42,10 +42,6 @@ expression
 
 subqueryResolution
     : COLON (resolution=duration)?
-    | <assoc=right> TIME_VALUE_WITH_COLON op=CARET expression
-    | TIME_VALUE_WITH_COLON op=(ASTERISK | SLASH) expression
-    | TIME_VALUE_WITH_COLON op=(MINUS|PLUS) expression
-    | TIME_VALUE_WITH_COLON
     ;
 
 value
@@ -73,32 +69,47 @@ selector
     ;
 
 seriesMatcher
-    : identifier (LCB labels? RCB)?
+    : metricName (LCB labels? RCB)?
     | LCB labels RCB
     ;
 
 modifier
-    : matching=(IGNORING | ON) modifierLabels=labelList (joining=(GROUP_LEFT | GROUP_RIGHT) groupLabels=labelList?)?
+    // An opening parenthesis after group_x must start its label list.
+    : matching=(IGNORING | ON) modifierLabels=labelList
+      (joining=(GROUP_LEFT | GROUP_RIGHT) (groupLabels=labelList | {_input.LA(1) != LP}?<fail={"Invalid label list after [" + _input.LT(-1).getText() + "]"}>))?
     ;
 
 // NB: PromQL explicitly allows a trailing comma for label enumeration
-// both inside aggregation functions and metric labels.
+// both inside aggregation functions and metric labels, but requires a comma between labels.
 labelList
-    : LP (labelName COMMA?)* RP
+    : LP (labelListItem (COMMA labelListItem)* COMMA?)? RP
     ;
 
+labelListItem
+    : groupingLabel
+    | STRING
+    | NAMED_OR_POSITIONAL_DOUBLE_PARAMS
+    ;
+
+// like the label list, a selector allows one trailing comma but requires a comma between matchers
 labels
-    :  label (COMMA label?)*
+    :  label (COMMA label)* COMMA?
     ;
 
 label
-    : labelName (kind=(LABEL_EQ | NEQ | LABEL_RGX | LABEL_RGX_NEQ) STRING)?
+    : labelName (kind=(LABEL_EQ | NEQ | LABEL_RGX | LABEL_RGX_NEQ) labelValue)?
     ;
 
+labelValue
+    : STRING
+    | NAMED_OR_POSITIONAL_PARAM
+    ;
+
+// like Prometheus, a selector reads any word as a label name, NaN and Inf included
 labelName
     : identifier
     | STRING
-    | number
+    | INF_OR_NAN
     ;
 
 identifier
@@ -106,13 +117,42 @@ identifier
     | nonReserved
     ;
 
+// the keywords Prometheus also reads as metric names
+metricName
+    : IDENTIFIER
+    | AND
+    | BY
+    | OFFSET
+    | OR
+    | UNLESS
+    | WITHOUT
+    ;
+
+// the keywords Prometheus also reads as grouping labels: all but without
+groupingLabel
+    : IDENTIFIER
+    | AND
+    | BOOL
+    | BY
+    | GROUP_LEFT
+    | GROUP_RIGHT
+    | IGNORING
+    | OFFSET
+    | ON
+    | OR
+    | UNLESS
+    ;
+
 evaluation
     : offset at?
     | at offset?
     ;
 
+// like Prometheus, the offset binds to its selector before any binary operator, so an unparenthesized
+// duration is a single literal: `foo offset 5m > 1` compares the offset selector with 1, and arithmetic
+// over the duration needs parentheses, as in `foo offset (5m - 1m)`
 offset
-    : OFFSET MINUS? duration
+    : OFFSET (PLUS | MINUS)? (timeValue | LP duration RP)
     ;
 
 // do timeunit validation and break-down inside the parser
@@ -126,7 +166,7 @@ duration
     : expression
     ;
 at
-    : AT MINUS? timeValue
+    : AT (PLUS | MINUS)? timeValue
     | AT (AT_START | AT_END)
     ;
 
@@ -137,7 +177,7 @@ constant
     ;
 
 number
-    : DECIMAL_VALUE  #decimalLiteral
+    : (DECIMAL_VALUE | INF_OR_NAN)  #decimalLiteral
     | INTEGER_VALUE  #integerLiteral
     | HEXADECIMAL    #hexLiteral
     ;
@@ -147,8 +187,7 @@ string
     ;
 
 timeValue
-    : TIME_VALUE_WITH_COLON
-    | TIME_VALUE
+    : TIME_VALUE
     | number
     | NAMED_OR_POSITIONAL_PARAM
     ;

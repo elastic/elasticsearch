@@ -16,15 +16,18 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.FilterStreamInput;
 import org.elasticsearch.common.lucene.store.BytesReferenceIndexInput;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
+import org.elasticsearch.xpack.stateless.lucene.IndexDirectory;
 import org.elasticsearch.xpack.stateless.lucene.StatelessCommitRef;
 import org.elasticsearch.xpack.stateless.test.FakeStatelessNode;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -35,6 +38,7 @@ import java.util.Set;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -44,6 +48,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 public class VirtualBatchedCompoundCommitTests extends ESTestCase {
 
@@ -381,23 +386,32 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
             }, "TEST-appendThread");
             appendThread.start();
 
+            record VbccRangeRead(int offset, int length, BytesRef expected) {}
+            var performedReads = new ArrayList<VbccRangeRead>();
+
             while (appendThread.isAlive()) {
                 if (virtualBatchedCompoundCommit.getPendingCompoundCommits().size() > 0) {
-                    try (BytesStreamOutput output = new BytesStreamOutput()) {
-                        // Workaround to serialize VBCC without freezing for testing
-                        try (
-                            var vbccInputStream = VirtualBatchedCompoundCommitTestUtils.getInputStreamForUpload(
-                                virtualBatchedCompoundCommit
-                            )
-                        ) {
-                            Streams.copy(vbccInputStream, output, false);
-                        }
-
-                        var serializedBatchedCompoundCommit = output.bytes();
-                        int randomOffset = randomIntBetween(0, serializedBatchedCompoundCommit.length() - 1);
-                        int randomBytesToRead = randomIntBetween(0, serializedBatchedCompoundCommit.length() - randomOffset);
+                    // Workaround to serialize VBCC without freezing for testing
+                    try (
+                        var vbccInputStream = VirtualBatchedCompoundCommitTestUtils.getInputStreamForUpload(virtualBatchedCompoundCommit)
+                    ) {
+                        // At this point a commit is concurrently appended to this vbcc by `appendThread`.
+                        // Appending a commit first changes `internalDataReadersByOffset` and then advances `currentOffset`.
+                        // `vbcc#getInputStreamForUpload()` returns a stream that contains all files in `internalDataReadersByOffset`
+                        // but some of the files are not ready to be read at this point because `currentOffset` is not advanced yet.
+                        // Doing that causes an assertion failure in `getBytesByRange()`.
+                        // By clamping the commit to `getTotalSizeInBytes()` we ensure we only read files once they are fully appended.
+                        // Note that this is not a problem in production code since 1) commit appends and freeze/uploads are synchronized
+                        // in the caller, 2) callers also clamp the vbcc stream using `getTotalSizeInBytes()`.
+                        // This test is still valuable because we want to verify that concurrent appends do not impact
+                        // reading previously appended commit data (the race explained above only impacts currently appended commit files).
+                        var serializedBatchedCompoundCommit = vbccInputStream.readNBytes(
+                            (int) virtualBatchedCompoundCommit.getTotalSizeInBytes()
+                        );
+                        int randomOffset = randomIntBetween(0, serializedBatchedCompoundCommit.length - 1);
+                        int randomBytesToRead = randomIntBetween(0, serializedBatchedCompoundCommit.length - randomOffset);
                         var serializedBatchedCompoundCommitBytesRef = new BytesRef(
-                            serializedBatchedCompoundCommit.toBytesRef().bytes,
+                            serializedBatchedCompoundCommit,
                             randomOffset,
                             randomBytesToRead
                         );
@@ -408,10 +422,20 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
                             BytesRef.deepCopyOf(serializedBatchedCompoundCommitBytesRef).bytes,
                             BytesRef.deepCopyOf(bytesStreamOutput.bytes().toBytesRef()).bytes
                         );
+                        performedReads.add(
+                            new VbccRangeRead(randomOffset, randomBytesToRead, BytesRef.deepCopyOf(serializedBatchedCompoundCommitBytesRef))
+                        );
                     } catch (Exception e) {
                         assert false : "Unexpected exception: " + e.getMessage();
                     }
                 }
+            }
+
+            virtualBatchedCompoundCommit.freeze();
+            var bytesToUpload = virtualBatchedCompoundCommit.getFrozenInputStreamForUpload().readAllBytes();
+            for (var read : performedReads) {
+                var actualRangeData = new BytesRef(bytesToUpload, read.offset, read.length);
+                assertTrue(actualRangeData.bytesEquals(read.expected));
             }
 
             virtualBatchedCompoundCommit.close();
@@ -456,6 +480,110 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
             final StatelessCommitRef newCommitRef = fakeNode.generateIndexCommits(1).get(0);
             assertFalse(virtualBatchedCompoundCommit.appendCommit(newCommitRef, randomBoolean(), null));
         }
+    }
+
+    /**
+     * Once frozen, a VBCC must pin the local Lucene files it is going to upload. The upload completing (which is when the
+     * {@link IndexDirectory} gives up its own reference to the files) must not free them: they have to stay on disk, and be served from
+     * there, until the VBCC is closed.
+     */
+    public void testFrozenVbccPinsLocalFilesUntilClosed() throws Exception {
+        var primaryTerm = 1;
+        try (var fakeNode = createFakeNode(primaryTerm)) {
+            var commits = fakeNode.generateIndexCommits(randomIntBetween(1, 3));
+            var vbcc = newVbcc(fakeNode, primaryTerm, commits);
+            assertTrue(vbcc.freeze());
+
+            final BytesReference uploadedBytes;
+            try (var output = new BytesStreamOutput(); var uploadStream = vbcc.getFrozenInputStreamForUpload()) {
+                Streams.copy(uploadStream, output, false);
+                uploadedBytes = output.bytes();
+            }
+
+            final Set<String> internalFiles = Set.copyOf(vbcc.getInternalLocations().keySet());
+            assertThat(internalFiles, is(not(empty())));
+            final var indexPath = fakeNode.indexingShardPath.resolveIndex();
+            internalFiles.forEach(
+                file -> assertTrue("file [" + file + "] must exist before upload", Files.exists(indexPath.resolve(file)))
+            );
+
+            markUploaded(fakeNode, vbcc);
+
+            // The upload completed, but the VBCC still pins the files
+            for (String file : internalFiles) {
+                assertTrue("file [" + file + "] must be pinned by the VBCC after upload", Files.exists(indexPath.resolve(file)));
+            }
+            try (var served = new BytesStreamOutput()) {
+                vbcc.getBytesByRange(0, vbcc.getTotalSizeInBytes(), served);
+                assertThat(served.bytes(), equalTo(uploadedBytes));
+            }
+
+            vbcc.close();
+
+            // Releasing the VBCC releases the files
+            for (String file : internalFiles) {
+                assertFalse("file [" + file + "] must be deleted once the VBCC is closed", Files.exists(indexPath.resolve(file)));
+            }
+            assertThat(fakeNode.indexingDirectory.estimateSizeInBytes(), equalTo(0L));
+        }
+    }
+
+    /**
+     * The commit references of a VBCC hold the store open. A shard that closed while the VBCC was waiting for the
+     * search tier leaves them as the last holders, so closing them closes the directory. The pinned local files have to be released before
+     * that, while the directory is still open. The directory goes away with the last commit reference.
+     */
+    public void testPinnedFilesAreReleasedWhileTheCommitReferencesStillKeepTheDirectoryOpen() throws Exception {
+        var primaryTerm = 1;
+        try (var fakeNode = createFakeNode(primaryTerm)) {
+            var numberOfCommits = randomIntBetween(1, 3);
+            var closedCommits = new AtomicInteger();
+            var commits = fakeNode.generateIndexCommits(numberOfCommits, false, true, generation -> {
+                if (closedCommits.incrementAndGet() == numberOfCommits) {
+                    // the last commit reference to go is the last holder of the store, and so of the directory
+                    IOUtils.closeWhileHandlingException(fakeNode.indexingDirectory);
+                }
+            });
+            var vbcc = newVbcc(fakeNode, primaryTerm, commits);
+            assertTrue(vbcc.freeze());
+            markUploaded(fakeNode, vbcc);
+
+            vbcc.close();
+            assertThat(closedCommits.get(), equalTo(numberOfCommits));
+        }
+    }
+
+    private static VirtualBatchedCompoundCommit newVbcc(FakeStatelessNode fakeNode, long primaryTerm, List<StatelessCommitRef> commits) {
+        var vbcc = new VirtualBatchedCompoundCommit(
+            fakeNode.shardId,
+            "node-id",
+            primaryTerm,
+            commits.getFirst().getGeneration(),
+            (fileName) -> {
+                throw new AssertionError("Unexpected call");
+            },
+            ESTestCase::randomNonNegativeLong,
+            fakeNode.sharedCacheService.getRegionSize(),
+            randomIntBetween(0, fakeNode.sharedCacheService.getRegionSize())
+        );
+        for (StatelessCommitRef commit : commits) {
+            assertTrue(vbcc.appendCommit(commit, randomBoolean(), null));
+        }
+        return vbcc;
+    }
+
+    private static void markUploaded(FakeStatelessNode fakeNode, VirtualBatchedCompoundCommit vbcc) {
+        var bcc = vbcc.getFrozenBatchedCompoundCommit();
+        Map<String, BlobFileRanges> blobFileRanges = bcc.compoundCommits()
+            .stream()
+            .flatMap(cc -> cc.commitFiles().entrySet().stream())
+            .collect(Collectors.toMap(Map.Entry::getKey, e -> new BlobFileRanges(e.getValue()), (a, b) -> b));
+        fakeNode.indexingDirectory.updateCommit(
+            bcc.lastCompoundCommit().generation(),
+            bcc.lastCompoundCommit().getAllFilesSizeInBytes(),
+            blobFileRanges.keySet(),
+            blobFileRanges
+        );
     }
 
     public void testReplicatedContent() throws IOException {
@@ -534,6 +662,172 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
                     lastCommitPosition += commit.getSizeInBytes();
                 }
             }
+        }
+    }
+
+    /**
+     * Verifies {@code InternalHeaderReader} re-materialization: ranged reads over header regions are byte-identical to the uploaded blob,
+     * sub-ranges mid-header are correct, and a blob reassembled from chunked reads
+     * round-trips through {@code deserializeBatchedCompoundCommit}.
+     */
+    public void testHeaderBytesAreRematerializedConsistently() throws Exception {
+        var primaryTerm = 1;
+        try (var fakeNode = createFakeNode(primaryTerm)) {
+            var commits = fakeNode.generateIndexCommits(randomIntBetween(2, 4));
+            var virtualBatchedCompoundCommit = new VirtualBatchedCompoundCommit(
+                fakeNode.shardId,
+                "node-id",
+                primaryTerm,
+                commits.getFirst().getGeneration(),
+                (fileName) -> {
+                    throw new AssertionError("Unexpected call");
+                },
+                ESTestCase::randomNonNegativeLong,
+                fakeNode.sharedCacheService.getRegionSize(),
+                randomIntBetween(0, fakeNode.sharedCacheService.getRegionSize())
+            );
+            for (StatelessCommitRef statelessCommitRef : commits) {
+                assertTrue(virtualBatchedCompoundCommit.appendCommit(statelessCommitRef, randomBoolean(), null));
+            }
+            virtualBatchedCompoundCommit.freeze();
+
+            try (BytesStreamOutput output = new BytesStreamOutput()) {
+                try (var frozenInputStream = virtualBatchedCompoundCommit.getFrozenInputStreamForUpload()) {
+                    Streams.copy(frozenInputStream, output, false);
+                }
+                var serializedBatchedCompoundCommit = output.bytes();
+
+                // Reassemble the whole blob from ranged reads of random sizes, as a search node's chunk requests would
+                try (BytesStreamOutput reassembled = new BytesStreamOutput()) {
+                    long offset = 0;
+                    while (offset < serializedBatchedCompoundCommit.length()) {
+                        long chunkSize = Math.min(randomLongBetween(1, 128 * 1024), serializedBatchedCompoundCommit.length() - offset);
+                        virtualBatchedCompoundCommit.getBytesByRange(offset, chunkSize, reassembled);
+                        offset += chunkSize;
+                    }
+                    assertArrayEquals(BytesReference.toBytes(serializedBatchedCompoundCommit), BytesReference.toBytes(reassembled.bytes()));
+                    assertEquals(
+                        virtualBatchedCompoundCommit.getFrozenBatchedCompoundCommit(),
+                        deserializeBatchedCompoundCommit(virtualBatchedCompoundCommit.getBlobName(), reassembled)
+                    );
+                }
+
+                long ccOffset = 0;
+                for (var pendingCompoundCommit : virtualBatchedCompoundCommit.getPendingCompoundCommits()) {
+                    long headerSize = VirtualBatchedCompoundCommitTestUtils.getHeaderSize(pendingCompoundCommit);
+                    byte[] expectedHeader = BytesReference.toBytes(
+                        serializedBatchedCompoundCommit.slice(Math.toIntExact(ccOffset), Math.toIntExact(headerSize))
+                    );
+                    int readCount = randomIntBetween(2, 4);
+                    for (int i = 0; i < readCount; i++) {
+                        try (BytesStreamOutput headerOutput = new BytesStreamOutput()) {
+                            virtualBatchedCompoundCommit.getBytesByRange(ccOffset, headerSize, headerOutput);
+                            assertArrayEquals(expectedHeader, BytesReference.toBytes(headerOutput.bytes()));
+                        }
+                    }
+
+                    long subOffset = randomLongBetween(0, headerSize - 1);
+                    long subLength = randomLongBetween(0, headerSize - subOffset);
+                    try (BytesStreamOutput subRangeOutput = new BytesStreamOutput()) {
+                        virtualBatchedCompoundCommit.getBytesByRange(ccOffset + subOffset, subLength, subRangeOutput);
+                        assertArrayEquals(
+                            BytesReference.toBytes(
+                                serializedBatchedCompoundCommit.slice(Math.toIntExact(ccOffset + subOffset), Math.toIntExact(subLength))
+                            ),
+                            BytesReference.toBytes(subRangeOutput.bytes())
+                        );
+                    }
+                    ccOffset += pendingCompoundCommit.getSizeInBytes();
+                }
+            }
+            virtualBatchedCompoundCommit.close();
+        }
+    }
+
+    public void testSizeInBytesExcludingCopiedGenerationalFiles() throws IOException {
+        var primaryTerm = 1;
+        try (var fakeNode = createFakeNode(primaryTerm)) {
+            var noDeletionsCommits = fakeNode.generateIndexCommits(randomIntBetween(2, 5), false, false, generation -> {});
+            var noDeletionsVbcc = new VirtualBatchedCompoundCommit(
+                fakeNode.shardId,
+                "node-id",
+                primaryTerm,
+                noDeletionsCommits.getFirst().getGeneration(),
+                (fileName) -> {
+                    throw new AssertionError("Unexpected call");
+                },
+                ESTestCase::randomNonNegativeLong,
+                fakeNode.sharedCacheService.getRegionSize(),
+                randomIntBetween(0, fakeNode.sharedCacheService.getRegionSize())
+            );
+            for (StatelessCommitRef statelessCommitRef : noDeletionsCommits) {
+                assertTrue(noDeletionsVbcc.appendCommit(statelessCommitRef, randomBoolean(), null));
+            }
+
+            // Since there are no deletions and therefore no generational files, the sizes match.
+            assertEquals(noDeletionsVbcc.getTotalSizeInBytes(), noDeletionsVbcc.sizeInBytesExcludingCopiedGenerationalFiles());
+
+            var commitsWithDeletions = fakeNode.generateCommitsWithGenerationalFiles(randomIntBetween(3, 8));
+
+            // We add some commits to a new VBCC so that the first of them clears `isFirstCommit` check
+            // and forces a copy of generational files.
+            // Commits beyond the first one help to validate that we only consider the first commit.
+
+            // We need at least 2 commits to be able to produce generational files.
+            int intoNewVbcc = 2;
+
+            var intermediaryVbcc = new VirtualBatchedCompoundCommit(
+                fakeNode.shardId,
+                "node-id",
+                primaryTerm,
+                commitsWithDeletions.getFirst().getGeneration(),
+                noDeletionsVbcc::getBlobLocation,
+                ESTestCase::randomNonNegativeLong,
+                fakeNode.sharedCacheService.getRegionSize(),
+                randomIntBetween(0, fakeNode.sharedCacheService.getRegionSize())
+            );
+            for (int i = 0; i < intoNewVbcc; i++) {
+                assertTrue(intermediaryVbcc.appendCommit(commitsWithDeletions.get(i), randomBoolean(), null));
+            }
+
+            // Since there are no deletions and therefore no generational files, the sizes match.
+            assertEquals(intermediaryVbcc.getTotalSizeInBytes(), intermediaryVbcc.sizeInBytesExcludingCopiedGenerationalFiles());
+
+            var vbccWithCopiedGenerationalFiles = new VirtualBatchedCompoundCommit(
+                fakeNode.shardId,
+                "node-id",
+                primaryTerm,
+                commitsWithDeletions.get(intoNewVbcc).getGeneration(),
+                intermediaryVbcc::getBlobLocation,
+                ESTestCase::randomNonNegativeLong,
+                fakeNode.sharedCacheService.getRegionSize(),
+                randomIntBetween(0, fakeNode.sharedCacheService.getRegionSize())
+            );
+            for (int i = intoNewVbcc; i < commitsWithDeletions.size(); i++) {
+                assertTrue(vbccWithCopiedGenerationalFiles.appendCommit(commitsWithDeletions.get(i), randomBoolean(), null));
+            }
+
+            // We don't always generate deletes so they can be equal.
+            assertTrue(
+                vbccWithCopiedGenerationalFiles.getTotalSizeInBytes() >= vbccWithCopiedGenerationalFiles
+                    .sizeInBytesExcludingCopiedGenerationalFiles()
+            );
+
+            // Only the first commit in the VBCC has copied generational files.
+            StatelessCommitRef firstCommit = commitsWithDeletions.get(intoNewVbcc);
+            StatelessCommitRef previousCommit = commitsWithDeletions.get(intoNewVbcc - 1);
+            long generationalFilesSize = 0;
+            for (String commitFile : firstCommit.getCommitFiles()) {
+                // And we are only interested in _copied_ generational files.
+                if (StatelessCompoundCommit.isGenerationalFile(commitFile) && previousCommit.getCommitFiles().contains(commitFile)) {
+                    generationalFilesSize += firstCommit.getDirectory().fileLength(commitFile);
+                }
+            }
+
+            assertEquals(
+                vbccWithCopiedGenerationalFiles.getTotalSizeInBytes() - generationalFilesSize,
+                vbccWithCopiedGenerationalFiles.sizeInBytesExcludingCopiedGenerationalFiles()
+            );
         }
     }
 

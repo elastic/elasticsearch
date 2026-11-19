@@ -1,0 +1,3 @@
+Limit[1000[INTEGER],false,false]
+\_Project[[txt{f}#0]]
+  \_EsRelation[text_state_mapped,text_state_unmapped][doc_id{f}#1, txt{f}#0]

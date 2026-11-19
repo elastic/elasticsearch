@@ -1,0 +1,5 @@
+FROM employees, view1, view2, view3
+| WHERE emp_no > 10000
+| STATS count(*) by emp_no, language_code
+| RENAME emp_no AS empNo, language_code AS languageCode
+| MV_EXPAND languageCode

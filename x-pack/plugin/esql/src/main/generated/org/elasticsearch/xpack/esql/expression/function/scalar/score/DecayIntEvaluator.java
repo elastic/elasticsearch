@@ -31,11 +31,11 @@ public final class DecayIntEvaluator implements ExpressionEvaluator {
 
   private final ExpressionEvaluator value;
 
-  private final int origin;
+  private final double origin;
 
-  private final int scale;
+  private final double scale;
 
-  private final int offset;
+  private final double offset;
 
   private final double decay;
 
@@ -45,8 +45,8 @@ public final class DecayIntEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings;
 
-  public DecayIntEvaluator(Source source, ExpressionEvaluator value, int origin, int scale,
-      int offset, double decay, Decay.DecayFunction decayFunction, DriverContext driverContext) {
+  public DecayIntEvaluator(Source source, ExpressionEvaluator value, double origin, double scale,
+      double offset, double decay, Decay.DecayFunction decayFunction, DriverContext driverContext) {
     this.source = source;
     this.value = value;
     this.origin = origin;
@@ -76,12 +76,13 @@ public final class DecayIntEvaluator implements ExpressionEvaluator {
   }
 
   public DoubleBlock eval(int positionCount, IntBlock valueBlock) {
-    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
+        if (valueBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (valueBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -97,7 +98,7 @@ public final class DecayIntEvaluator implements ExpressionEvaluator {
   }
 
   public DoubleVector eval(int positionCount, IntVector valueVector) {
-    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
+    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         int value = valueVector.getInt(p);
         result.appendDouble(p, Decay.process(value, this.origin, this.scale, this.offset, this.decay, this.decayFunction));
@@ -118,7 +119,7 @@ public final class DecayIntEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }
@@ -128,18 +129,18 @@ public final class DecayIntEvaluator implements ExpressionEvaluator {
 
     private final ExpressionEvaluator.Factory value;
 
-    private final int origin;
+    private final double origin;
 
-    private final int scale;
+    private final double scale;
 
-    private final int offset;
+    private final double offset;
 
     private final double decay;
 
     private final Decay.DecayFunction decayFunction;
 
-    public Factory(Source source, ExpressionEvaluator.Factory value, int origin, int scale,
-        int offset, double decay, Decay.DecayFunction decayFunction) {
+    public Factory(Source source, ExpressionEvaluator.Factory value, double origin, double scale,
+        double offset, double decay, Decay.DecayFunction decayFunction) {
       this.source = source;
       this.value = value;
       this.origin = origin;

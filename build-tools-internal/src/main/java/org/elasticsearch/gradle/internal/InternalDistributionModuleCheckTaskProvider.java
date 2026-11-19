@@ -19,6 +19,7 @@ import org.gradle.api.logging.Logging;
 import org.gradle.api.tasks.Copy;
 import org.gradle.api.tasks.TaskProvider;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.lang.module.ModuleFinder;
@@ -53,20 +54,27 @@ public class InternalDistributionModuleCheckTaskProvider {
         "org.elasticsearch.base",
         "org.elasticsearch.cli",
         "org.elasticsearch.cli.terminal",
+        "org.elasticsearch.columnar",
         "org.elasticsearch.entitlement",
         "org.elasticsearch.exponentialhistogram",
+        "org.elasticsearch.foreign",
+        "org.elasticsearch.foreign.adapter",
         "org.elasticsearch.geo",
         "org.elasticsearch.grok",
+        "org.elasticsearch.iplocation.api",
         "org.elasticsearch.logging",
+        "org.elasticsearch.lucene.store",
         "org.elasticsearch.lz4",
         "org.elasticsearch.nativeaccess",
         "org.elasticsearch.plugin",
         "org.elasticsearch.plugin.analysis",
         "org.elasticsearch.server",
+        "org.elasticsearch.simdjson",
         "org.elasticsearch.simdvec",
         "org.elasticsearch.tdigest",
         "org.elasticsearch.useragent.api",
-        "org.elasticsearch.xcontent"
+        "org.elasticsearch.xcontent",
+        "org.elasticsearch.zstd"
     );
 
     private static final Predicate<ModuleReference> isESModule = mref -> mref.descriptor().name().startsWith("org.elasticsearch");
@@ -83,17 +91,15 @@ public class InternalDistributionModuleCheckTaskProvider {
     private InternalDistributionModuleCheckTaskProvider() {}
 
     /** Registers the checkModules tasks, which contains all checks relevant to ES Java Modules. */
-    static TaskProvider<Task> registerCheckModulesTask(Project project, TaskProvider<Copy> checkExtraction) {
+    static TaskProvider<Task> registerCheckModulesTask(Project project, TaskProvider<Copy> checkExtraction, File archiveExtractionDir) {
+        // the action captures only the extraction directory, not the Copy task, so the configuration cache can store it
+        final String distributionDir = "elasticsearch-" + VersionProperties.getElasticsearch();
         return project.getTasks().register("checkModules", task -> {
             task.dependsOn(checkExtraction);
             task.doLast(new Action<Task>() {
                 @Override
                 public void execute(Task task) {
-                    final Path libPath = checkExtraction.get()
-                        .getDestinationDir()
-                        .toPath()
-                        .resolve("elasticsearch-" + VersionProperties.getElasticsearch())
-                        .resolve("lib");
+                    final Path libPath = archiveExtractionDir.toPath().resolve(distributionDir).resolve("lib");
                     try {
                         assertAllESJarsAreModular(libPath);
                         assertAllModulesPresent(libPath);

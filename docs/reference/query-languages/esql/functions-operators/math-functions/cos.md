@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `COS` function [esql-cos]
 
-:::{include} ../../_snippets/functions/layout/cos.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/cos.md
 :::

@@ -27,9 +27,11 @@ import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.function.Supplier;
+import java.util.Set;
+import java.util.function.Function;
 
 public class MappingParserTests extends MapperServiceTestCase {
 
@@ -38,6 +40,15 @@ public class MappingParserTests extends MapperServiceTestCase {
     }
 
     private static MappingParser createMappingParser(Settings settings, IndexVersion version, TransportVersion transportVersion) {
+        return createMappingParser(settings, version, transportVersion, type -> MapperService.SINGLE_MAPPING_NAME);
+    }
+
+    private static MappingParser createMappingParser(
+        Settings settings,
+        IndexVersion version,
+        TransportVersion transportVersion,
+        Function<String, String> documentTypeResolver
+    ) {
         ScriptService scriptService = new ScriptService(
             settings,
             Collections.emptyMap(),
@@ -50,12 +61,13 @@ public class MappingParserTests extends MapperServiceTestCase {
         SimilarityService similarityService = new SimilarityService(indexSettings, scriptService, Collections.emptyMap());
         MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, BitsetFilterCache.Listener.NOOP);
-        Supplier<MappingParserContext> mappingParserContextSupplier = () -> new MappingParserContext(
+        Function<MapperService.MergeReason, MappingParserContext> mappingParserContextSupplier = reason -> new MappingParserContext(
             similarityService::getSimilarity,
             type -> mapperRegistry.getMapperParser(type, indexSettings.getIndexVersionCreated()),
             mapperRegistry.getRuntimeFieldParsers()::get,
             indexSettings.getIndexVersionCreated(),
             () -> transportVersion,
+            f -> true,
             () -> {
                 throw new UnsupportedOperationException();
             },
@@ -69,7 +81,7 @@ public class MappingParserTests extends MapperServiceTestCase {
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = mapperRegistry.getMetadataMapperParsers(
             indexSettings.getIndexVersionCreated()
         );
-        MappingParserContext ctx = mappingParserContextSupplier.get();
+        MappingParserContext ctx = mappingParserContextSupplier.apply(MapperService.MergeReason.MAPPING_RECOVERY);
         Map<String, MetadataFieldMapper.Builder> metadataBuilders = new LinkedHashMap<>();
         for (MetadataFieldMapper.TypeParser parser : metadataMapperParsers.values()) {
             MetadataFieldMapper.Builder builder = parser.getDefaultBuilder(ctx);
@@ -77,12 +89,39 @@ public class MappingParserTests extends MapperServiceTestCase {
                 metadataBuilders.put(builder.leafName(), builder);
             }
         }
-        return new MappingParser(
-            mappingParserContextSupplier,
-            metadataMapperParsers,
-            () -> metadataBuilders,
-            type -> MapperService.SINGLE_MAPPING_NAME
+        return new MappingParser(mappingParserContextSupplier, metadataMapperParsers, () -> metadataBuilders, documentTypeResolver);
+    }
+
+    public void testWrappedRootIsNotTakenForATypeNamedLikeOneOfItsEntries() {
+        MappingParser parser = createMappingParser(
+            Settings.EMPTY,
+            IndexVersion.current(),
+            TransportVersion.current(),
+            type -> "properties"
         );
+        Map<String, Object> root = new LinkedHashMap<>();
+        root.put("properties", new LinkedHashMap<>(Map.of("a", new LinkedHashMap<>(Map.of("type", "keyword")))));
+        Map<String, Object> wrapped = new LinkedHashMap<>(Map.of(MapperService.SINGLE_MAPPING_NAME, root));
+
+        // on its own, the first entry of the root is taken for the type, as it is called like the type
+        expectThrows(
+            MapperParsingException.class,
+            () -> parser.parseToBuilder(
+                MapperService.SINGLE_MAPPING_NAME,
+                MapperService.MergeReason.MAPPING_RECOVERY,
+                new LinkedHashMap<>(Map.of("properties", new LinkedHashMap<>(Map.of("a", new LinkedHashMap<>(Map.of("type", "keyword"))))))
+            )
+        );
+
+        MappingBuilder builder = parser.parseToBuilder(
+            MapperService.SINGLE_MAPPING_NAME,
+            MapperService.MergeReason.MAPPING_RECOVERY,
+            wrapped
+        );
+
+        Set<String> paths = new HashSet<>();
+        builder.collectFieldBuilders(MapperService.MergeReason.MAPPING_RECOVERY, (path, fieldBuilder) -> paths.add(path));
+        assertThat(paths, CoreMatchers.hasItem("a"));
     }
 
     public void testFieldNameWithDotsDisallowed() throws Exception {

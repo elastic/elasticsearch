@@ -34,9 +34,15 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 
 import java.io.ByteArrayInputStream;
@@ -53,9 +59,10 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
- * Regression tests for the {@link OptimizedParquetColumnIterator} two-phase decode path,
- * targeting block-lifecycle invariants that were violated by an aliasing bug that crashed
- * production scans on q23 of ClickBench (selective {@code WHERE URL LIKE "*google*"}).
+ * Regression tests for the {@link OptimizedParquetColumnIterator} two-phase and
+ * late-materialization decode paths, targeting block-lifecycle invariants that were
+ * violated by aliasing and double-close bugs that crashed production scans on q23 of
+ * ClickBench (selective {@code WHERE URL LIKE "*google*"}).
  *
  * <p>The pre-fix code copied predicate {@link org.elasticsearch.compute.data.Block} references
  * from a private {@code predicateBlocks} array into the per-Page {@code blocks} array without
@@ -293,6 +300,275 @@ public class TwoPhaseBlockLifecycleTests extends ESTestCase {
     }
 
     // -------------------------------------------------------------------------------------
+    // Regression tests for double-close in decodePredicateBatch (two-phase path)
+
+    private static final MessageType THREE_LONG_SCHEMA = Types.buildMessage()
+        .required(PrimitiveType.PrimitiveTypeName.INT64)
+        .named("id")
+        .required(PrimitiveType.PrimitiveTypeName.INT64)
+        .named("id2")
+        .required(PrimitiveType.PrimitiveTypeName.INT64)
+        .named("extra")
+        .named("three_long_schema");
+
+    private static final MessageType TWO_PRED_LARGE_PROJ_SCHEMA = Types.buildMessage()
+        .required(PrimitiveType.PrimitiveTypeName.INT64)
+        .named("id")
+        .required(PrimitiveType.PrimitiveTypeName.INT64)
+        .named("id2")
+        .required(PrimitiveType.PrimitiveTypeName.BINARY)
+        .as(LogicalTypeAnnotation.stringType())
+        .named("payload")
+        .named("two_pred_large_proj_schema");
+
+    /**
+     * Regression test for the double-close in {@code decodePredicateBatch}: when a
+     * circuit-breaker trip lands on the second predicate column inside the per-batch loop,
+     * the pre-fix code closed {@code predicateBlocks} twice (once in the helper, once in
+     * the outer catch), masking the original {@link CircuitBreakingException} with an
+     * {@code IllegalStateException: can't release already released object}.
+     *
+     * <p>Setup: two predicate LONG columns ({@code id}, {@code id2}) and one large BINARY
+     * projection column ({@code payload}). The large projection keeps the predicate-to-total
+     * byte ratio below the two-phase threshold so two-phase I/O activates. We arm a
+     * countdown breaker with skip=1 before {@code hasNext()} so the first predicate block
+     * ({@code id}) is allowed and the second ({@code id2}) trips — leaving
+     * {@code predicateBlocks[0]} non-null when the exception fires.
+     *
+     * <p>Pre-fix: the helper closes {@code predicateBlocks} before re-throwing, then the
+     * outer catch closes it again → {@code IllegalStateException} masks the breaker error.
+     * Post-fix: the helper is gone; the outer catch is the sole owner and closes exactly once.
+     */
+    public void testDecodePredicateBatchDoubleCloseOnLaterPredicateColumn() throws Exception {
+        byte[] parquetData = buildParquet(TWO_PRED_LARGE_PROJ_SCHEMA, 2_000, i -> {
+            SimpleGroupFactory factory = new SimpleGroupFactory(TWO_PRED_LARGE_PROJ_SCHEMA);
+            Group g = factory.newGroup();
+            g.add("id", (long) i);
+            g.add("id2", (long) i * 2);
+            g.add("payload", repeat('p', 100) + "_" + i);
+            return g;
+        });
+
+        ReferenceAttribute idAttr = new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG);
+        ReferenceAttribute id2Attr = new ReferenceAttribute(Source.EMPTY, "id2", DataType.LONG);
+        // Both id and id2 are predicate columns. id < 50 is selective; id2 > -1 is always true
+        // (so it does not trivially prune the row group but still classifies id2 as a predicate
+        // column, giving us two predicate slots to exercise the double-close scenario).
+        Expression filterA = new LessThan(Source.EMPTY, idAttr, new Literal(Source.EMPTY, 50L, DataType.LONG), null);
+        Expression filterB = new GreaterThan(Source.EMPTY, id2Attr, new Literal(Source.EMPTY, -1L, DataType.LONG), null);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(filterA, filterB));
+
+        CountdownArmedTripBreaker breaker = new CountdownArmedTripBreaker("test-breaker", ByteSizeValue.ofGb(1));
+        BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
+
+        StorageObject obj = nativeAsyncStorage(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+        try (CloseableIterator<Page> it = reader.read(obj, FormatReadContext.builder().batchSize(512).build())) {
+            // Arm with skip=1: the id block allocation is allowed, the id2 block allocation trips.
+            // decodePredicateBatch is driven eagerly inside hasNext() for the two-phase path.
+            breaker.arm(1);
+            CircuitBreakingException thrown = expectThrows(CircuitBreakingException.class, it::hasNext);
+            assertThat("expected the synthetic trip", thrown.getMessage(), org.hamcrest.Matchers.containsString("synthetic"));
+            assertTrue("breaker must have actually fired", breaker.tripped());
+        }
+
+        assertEquals(
+            "breaker must return to zero — pre-fix double-close masked the breaker error and " + "left memory stranded",
+            0L,
+            breaker.getUsed()
+        );
+    }
+
+    // -------------------------------------------------------------------------------------
+    // Regression tests for double-close in nextWithLateMaterialization (single-phase path)
+
+    /**
+     * Regression test for the double-close in {@code nextWithLateMaterialization} Phase 3
+     * ({@code positions == null} branch, line 1827): when the projection-column allocation
+     * trips the breaker, the pre-fix helper closed {@code blocks} before re-throwing, and
+     * the outer catch closed it again, masking the {@link CircuitBreakingException}.
+     *
+     * <p>Setup: one predicate column ({@code id LONG}) + one projection column ({@code extra
+     * LONG}). The filter is {@code id < 1024}: all 512 rows in batch 1 (ids 0–511) survive,
+     * so {@code positions == null} and the projection-column decode takes line 1827 directly.
+     * Synchronous storage (no native async) ensures the single-phase late-mat path is used
+     * rather than two-phase. We arm with skip=1 before {@code next()}: the predicate block
+     * ({@code id}) is allowed, the projection block ({@code extra}) trips.
+     */
+    public void testLateMaterializationPhase3DoubleClosePositionsNull() throws Exception {
+        byte[] parquetData = buildParquet(TWO_COL_SCHEMA, 2_000, i -> {
+            SimpleGroupFactory factory = new SimpleGroupFactory(TWO_COL_SCHEMA);
+            Group g = factory.newGroup();
+            g.add("id", (long) i);
+            g.add("label", repeat('e', 32) + "_" + i);
+            return g;
+        });
+
+        ReferenceAttribute idAttr = new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG);
+        // id < 1024: rows 0–511 in batch 1 all pass → positions == null (no compaction needed).
+        // The row-group max is 1999 >= 1024, so the row group does NOT trivially pass.
+        Expression filter = new LessThan(Source.EMPTY, idAttr, new Literal(Source.EMPTY, 1_024L, DataType.LONG), null);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(filter));
+
+        CountdownArmedTripBreaker breaker = new CountdownArmedTripBreaker("test-breaker", ByteSizeValue.ofGb(1));
+        BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
+
+        // syncStorage: supportsNativeAsync() == false → shouldUseTwoPhase returns false →
+        // nextWithLateMaterialization is used instead of nextTwoPhaseBatch.
+        StorageObject obj = syncStorage(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory).withPushedFilter(pushed);
+        try (CloseableIterator<Page> it = reader.read(obj, FormatReadContext.builder().batchSize(512).build())) {
+            assertTrue("expected at least one row group", it.hasNext());
+            // Arm with skip=1 before next(): Phase 1 allocates the id block (skipped), Phase 3
+            // allocates the projection block (trips).
+            breaker.arm(1);
+            CircuitBreakingException thrown = expectThrows(CircuitBreakingException.class, () -> {
+                Page p = it.next();
+                p.releaseBlocks();
+            });
+            assertThat("expected the synthetic trip", thrown.getMessage(), org.hamcrest.Matchers.containsString("synthetic"));
+            assertTrue("breaker must have actually fired", breaker.tripped());
+        }
+
+        assertEquals("breaker must return to zero — pre-fix double-close masked the breaker error", 0L, breaker.getUsed());
+    }
+
+    /**
+     * Regression test for the double-close in {@code nextWithLateMaterialization} Phase 1
+     * (line 1770): when a trip lands on the second predicate column inside the per-row-batch
+     * loop, the first predicate slot is already populated but the helper closed {@code blocks}
+     * before re-throwing — and the outer catch closed it again.
+     *
+     * <p>Setup: two predicate columns ({@code id LONG}, {@code id2 LONG}) + one projection
+     * column ({@code extra LONG}). Single-phase late-mat (syncStorage, no two-phase). Arm with
+     * skip=1 before {@code next()}: {@code blocks[0]} ({@code id}) is populated, then the
+     * {@code id2} allocation trips. The outer catch must be the sole owner that closes the
+     * array.
+     */
+    public void testLateMaterializationPhase1DoubleCloseOnLaterPredicateColumn() throws Exception {
+        byte[] parquetData = buildParquet(THREE_LONG_SCHEMA, 2_000, i -> {
+            SimpleGroupFactory factory = new SimpleGroupFactory(THREE_LONG_SCHEMA);
+            Group g = factory.newGroup();
+            g.add("id", (long) i);
+            g.add("id2", (long) i * 2);
+            g.add("extra", (long) i + 1);
+            return g;
+        });
+
+        ReferenceAttribute idAttr = new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG);
+        ReferenceAttribute id2Attr = new ReferenceAttribute(Source.EMPTY, "id2", DataType.LONG);
+        // id < 1024 is non-trivially-passing (max id = 1999 >= 1024); id2 > -1 is always true
+        // but still classifies id2 as a predicate column so Phase 1 loops over two columns.
+        Expression filterA = new LessThan(Source.EMPTY, idAttr, new Literal(Source.EMPTY, 1_024L, DataType.LONG), null);
+        Expression filterB = new GreaterThan(Source.EMPTY, id2Attr, new Literal(Source.EMPTY, -1L, DataType.LONG), null);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(filterA, filterB));
+
+        CountdownArmedTripBreaker breaker = new CountdownArmedTripBreaker("test-breaker", ByteSizeValue.ofGb(1));
+        BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
+
+        StorageObject obj = syncStorage(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory).withPushedFilter(pushed);
+        try (CloseableIterator<Page> it = reader.read(obj, FormatReadContext.builder().batchSize(512).build())) {
+            assertTrue("expected at least one row group", it.hasNext());
+            // Arm with skip=1 before next(): Phase 1 allocates id block (skipped), then id2
+            // block trips. blocks[0] is non-null when the exception fires.
+            breaker.arm(1);
+            CircuitBreakingException thrown = expectThrows(CircuitBreakingException.class, () -> {
+                Page p = it.next();
+                p.releaseBlocks();
+            });
+            assertThat("expected the synthetic trip", thrown.getMessage(), org.hamcrest.Matchers.containsString("synthetic"));
+            assertTrue("breaker must have actually fired", breaker.tripped());
+        }
+
+        assertEquals("breaker must return to zero — pre-fix double-close masked the breaker error", 0L, breaker.getUsed());
+    }
+
+    // -------------------------------------------------------------------------------------
+    // Regression test for the trailing-gap skip leak in readBatchSparse fast path (#1963)
+
+    /**
+     * Regression test for the block leak in {@link PageColumnReader#readBatchSparse}'s
+     * contiguous-survivor fast path: when survivors form a contiguous run that does not reach
+     * the last row of the batch ({@code trailing > 0}), the fast path calls
+     * {@link PageColumnReader#skipRows} <em>after</em> allocating the result block. On a
+     * compressed file, {@code skipRows} can charge the circuit breaker via
+     * {@code PrefetchedPageReader.ensureDecompCapacity}; pre-fix, a trip there propagated
+     * through without releasing the already-allocated block, silently leaking its
+     * circuit-breaker reservation.
+     *
+     * <p>Reproduction constraints this test enforces:
+     * <ul>
+     *   <li>SNAPPY so {@code PrefetchedPageReader} uses a real heap decompressor.</li>
+     *   <li>No dictionary encoding — a column dictionary spanning the large trailing values
+     *       would decompress (same breaker label) during {@code readBatch}, before {@code result}
+     *       exists, and steal the grow trip from the trailing-skip site.</li>
+     *   <li>Survivor density {@code > 0.8} so two-phase falls back to a full projection-chunk
+     *       fetch ({@code RowRanges.shouldDiscard()}); with page filtering, trailing pages are
+     *       absent from the queue and {@code skipRows} jumps them without decompressing.</li>
+     *   <li>Tiny labels on survivor rows and large labels on trailing rows, so
+     *       {@code ensureDecompCapacity} must <em>grow</em> during the trailing skip (it is
+     *       grow-only: same-sized pages do not re-charge).</li>
+     *   <li>{@code pageRowCountLimit} aligned with the survivor cut so no data page straddles
+     *       survivors and trailing rows — a straddling page would decompress during
+     *       {@code readBatch} and steal the grow trip.</li>
+     * </ul>
+     *
+     * <p>The breaker is armed only after Phase 1+2 settle ({@code hasNext()}), then refuses the
+     * first large ({@code >= 64 KiB}) {@code parquet page decompression} charge inside
+     * {@code next()}. Survivor pages are ~1 KiB; the trailing page is hundreds of KiB — that
+     * grow is the {@code ensureDecompCapacity} call that races the already-allocated result.
+     */
+    public void testTrailingSkipBreakerTripDoesNotLeakBlock() throws Exception {
+        final int totalRows = 1_000;
+        // Density 0.9 > RowRanges default 0.8 → full projection fetch (trailing pages present).
+        final int survivorRows = 900;
+        final int rowsPerPage = 100; // divides survivorRows so the cut is on a page boundary
+        final int trailingLabelBytes = 8 * 1024;
+        assert survivorRows % rowsPerPage == 0;
+        byte[] parquetData = buildParquet(TWO_COL_SCHEMA, totalRows, i -> {
+            SimpleGroupFactory factory = new SimpleGroupFactory(TWO_COL_SCHEMA);
+            Group g = factory.newGroup();
+            g.add("id", (long) i);
+            if (i < survivorRows) {
+                g.add("label", "s_" + i);
+            } else {
+                g.add("label", repeat('L', trailingLabelBytes) + "_" + i);
+            }
+            return g;
+        }, CompressionCodecName.SNAPPY, 4 * 1024, rowsPerPage);
+
+        // Contiguous survivors [0, survivorRows) with trailing > 0 → readBatchSparse fast path.
+        ReferenceAttribute idAttr = new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG);
+        Expression filter = new LessThan(Source.EMPTY, idAttr, new Literal(Source.EMPTY, (long) survivorRows, DataType.LONG), null);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(filter));
+
+        TripOnDecompGrowBreaker breaker = new TripOnDecompGrowBreaker();
+        BlockFactory bf = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
+        try (
+            CloseableIterator<Page> it = new ParquetFormatReader(bf, true).withPushedFilter(pushed)
+                .read(nativeAsyncStorage(parquetData), FormatReadContext.builder().batchSize(1024).build())
+        ) {
+            // Phase 1 (predicate decode) + Phase 2 (projection prefetch) must succeed; arm only
+            // once next() is about to run readBatchSparse's trailing skip.
+            assertTrue("expected at least one row group to read", it.hasNext());
+            breaker.arm();
+            CircuitBreakingException thrown = expectThrows(CircuitBreakingException.class, () -> {
+                Page page = it.next();
+                page.releaseBlocks();
+            });
+            assertThat(thrown.getMessage(), org.hamcrest.Matchers.containsString("synthetic"));
+            assertTrue("expected a decompression-buffer grow during trailing skipRows", breaker.tripped());
+        }
+        assertEquals(
+            "breaker must return to zero — pre-fix, the result block from readBatch leaked across "
+                + "the trailing skipRows CircuitBreakingException",
+            0L,
+            breaker.getUsed()
+        );
+    }
+
+    // -------------------------------------------------------------------------------------
     // Helpers
 
     /**
@@ -335,8 +611,194 @@ public class TwoPhaseBlockLifecycleTests extends ESTestCase {
         }
     }
 
+    /**
+     * {@link LimitedBreaker} that fires after the test arms it, skipping the first
+     * {@code skipCount} positive-delta allocations. With skip=1 it allows the first block
+     * allocation (e.g. the first predicate column) and trips on the second — ensuring the
+     * first slot is non-null when the exception fires, which is the precondition for the
+     * double-close scenario this class tests.
+     */
+    private static final class CountdownArmedTripBreaker extends LimitedBreaker {
+        private final long limitBytes;
+        private int skipAfterArm = -1;
+        private boolean tripped = false;
+
+        CountdownArmedTripBreaker(String name, ByteSizeValue limit) {
+            super(name, limit);
+            this.limitBytes = limit.getBytes();
+        }
+
+        void arm(int skipCount) {
+            this.skipAfterArm = skipCount;
+        }
+
+        boolean tripped() {
+            return tripped;
+        }
+
+        @Override
+        public void addEstimateBytesAndMaybeBreak(long bytes, String label) {
+            if (skipAfterArm >= 0 && bytes > 0 && tripped == false) {
+                if (skipAfterArm > 0) {
+                    skipAfterArm--;
+                    super.addEstimateBytesAndMaybeBreak(bytes, label);
+                    return;
+                }
+                tripped = true;
+                throw new CircuitBreakingException(
+                    "synthetic trip after countdown (" + bytes + " bytes for [" + label + "])",
+                    bytes,
+                    limitBytes,
+                    CircuitBreaker.Durability.PERMANENT
+                );
+            }
+            super.addEstimateBytesAndMaybeBreak(bytes, label);
+        }
+    }
+
+    /**
+     * Armed breaker that refuses the first large {@code parquet page decompression} charge.
+     * Survivor pages under this test's layout are ~1 KiB; trailing pages are hundreds of KiB.
+     * Same-sized pages do not re-charge {@code ensureDecompCapacity}, so a page-count baseline
+     * is unreliable — a size threshold is what distinguishes the trailing-skip grow.
+     */
+    private static final class TripOnDecompGrowBreaker extends LimitedBreaker {
+        private static final String PAGE_DECOMPRESSION_LABEL = "parquet page decompression";
+        /** Above survivor-page size (~1 KiB) and below one trailing page (~800 KiB). */
+        private static final long TRAILING_PAGE_TRIP_BYTES = 64 * 1024;
+
+        private final long limitBytes;
+        private boolean armed;
+        private boolean tripped;
+
+        TripOnDecompGrowBreaker() {
+            super("test-breaker", ByteSizeValue.ofGb(1));
+            this.limitBytes = ByteSizeValue.ofGb(1).getBytes();
+        }
+
+        void arm() {
+            armed = true;
+        }
+
+        boolean tripped() {
+            return tripped;
+        }
+
+        @Override
+        public void addEstimateBytesAndMaybeBreak(long bytes, String label) {
+            if (armed && tripped == false && bytes >= TRAILING_PAGE_TRIP_BYTES && PAGE_DECOMPRESSION_LABEL.equals(label)) {
+                tripped = true;
+                throw new CircuitBreakingException(
+                    "synthetic trip on decompression grow (" + bytes + " bytes for [" + label + "])",
+                    bytes,
+                    limitBytes,
+                    CircuitBreaker.Durability.TRANSIENT
+                );
+            }
+            super.addEstimateBytesAndMaybeBreak(bytes, label);
+        }
+    }
+
+    /**
+     * In-memory {@link StorageObject} whose {@code supportsNativeAsync()} returns
+     * {@code false}, forcing the single-phase late-materialization path instead of
+     * two-phase I/O (which requires native async support).
+     */
+    private static StorageObject syncStorage(byte[] data) {
+        return new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
+
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
+            @Override
+            public InputStream newStream() {
+                return new ByteArrayInputStream(data);
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) {
+                int pos = (int) position;
+                int len = (int) Math.min(length, data.length - position);
+                return new ByteArrayInputStream(data, pos, len);
+            }
+
+            @Override
+            public long length() {
+                return data.length;
+            }
+
+            @Override
+            public Instant lastModified() {
+                return Instant.now();
+            }
+
+            @Override
+            public boolean exists() {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return StoragePath.of("memory://test.parquet");
+            }
+
+            @Override
+            public boolean supportsNativeAsync() {
+                return false;
+            }
+
+            @Override
+            public void readBytesAsync(
+                long position,
+                long length,
+                DirectBufferFactory factory,
+                Executor executor,
+                ActionListener<DirectReadBuffer> listener
+            ) {
+                throw new UnsupportedOperationException("syncStorage does not support native async");
+            }
+        };
+    }
+
     private static byte[] buildParquet(MessageType schema, int rowCount, java.util.function.IntFunction<Group> rowFactory)
         throws IOException {
+        return buildParquet(schema, rowCount, rowFactory, CompressionCodecName.UNCOMPRESSED);
+    }
+
+    private static byte[] buildParquet(
+        MessageType schema,
+        int rowCount,
+        java.util.function.IntFunction<Group> rowFactory,
+        CompressionCodecName codec
+    ) throws IOException {
+        return buildParquet(schema, rowCount, rowFactory, codec, 0, 0);
+    }
+
+    /**
+     * @param pageSize Parquet page size in bytes; {@code 0} means the writer default (~1 MB).
+     * @param pageRowCountLimit max rows per page; {@code 0} means writer default. When non-zero,
+     *                          used to pin page boundaries (e.g. so a survivor cut does not fall
+     *                          mid-page). Dictionary encoding is disabled whenever either limit is
+     *                          set so a fat dictionary cannot steal breaker trips from the
+     *                          data-page grow path.
+     */
+    private static byte[] buildParquet(
+        MessageType schema,
+        int rowCount,
+        java.util.function.IntFunction<Group> rowFactory,
+        CompressionCodecName codec,
+        int pageSize,
+        int pageRowCountLimit
+    ) throws IOException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         OutputFile out = new OutputFile() {
             @Override
@@ -383,13 +845,21 @@ public class TwoPhaseBlockLifecycleTests extends ESTestCase {
                 return 0;
             }
         };
-        try (
-            ParquetWriter<Group> writer = ExampleParquetWriter.builder(out)
-                .withType(schema)
-                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
-                .withConf(new PlainParquetConfiguration())
-                .build()
-        ) {
+        ExampleParquetWriter.Builder writerBuilder = ExampleParquetWriter.builder(out)
+            .withType(schema)
+            .withCompressionCodec(codec)
+            .withCodecFactory(new PlainCompressionCodecFactory())
+            .withConf(new PlainParquetConfiguration());
+        if (pageSize > 0 || pageRowCountLimit > 0) {
+            writerBuilder = writerBuilder.withDictionaryEncoding(false);
+        }
+        if (pageSize > 0) {
+            writerBuilder = writerBuilder.withPageSize(pageSize);
+        }
+        if (pageRowCountLimit > 0) {
+            writerBuilder = writerBuilder.withPageRowCountLimit(pageRowCountLimit);
+        }
+        try (ParquetWriter<Group> writer = writerBuilder.build()) {
             for (int i = 0; i < rowCount; i++) {
                 writer.write(rowFactory.apply(i));
             }
@@ -399,6 +869,19 @@ public class TwoPhaseBlockLifecycleTests extends ESTestCase {
 
     private static StorageObject nativeAsyncStorage(byte[] data) {
         return new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
+
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
             @Override
             public InputStream newStream() {
                 return new ByteArrayInputStream(data);
@@ -437,10 +920,16 @@ public class TwoPhaseBlockLifecycleTests extends ESTestCase {
             }
 
             @Override
-            public void readBytesAsync(long position, long length, Executor executor, ActionListener<ByteBuffer> listener) {
+            public void readBytesAsync(
+                long position,
+                long length,
+                DirectBufferFactory factory,
+                Executor executor,
+                ActionListener<DirectReadBuffer> listener
+            ) {
                 try (InputStream stream = newStream(position, length)) {
                     byte[] bytes = stream.readAllBytes();
-                    listener.onResponse(ByteBuffer.wrap(bytes));
+                    listener.onResponse(new DirectReadBuffer(ByteBuffer.wrap(bytes), () -> {}));
                 } catch (Exception e) {
                     listener.onFailure(e);
                 }

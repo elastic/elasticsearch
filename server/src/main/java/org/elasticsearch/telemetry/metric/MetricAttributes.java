@@ -9,6 +9,9 @@
 
 package org.elasticsearch.telemetry.metric;
 
+import org.elasticsearch.ExceptionsHelper;
+
+import java.io.IOException;
 import java.util.Set;
 
 public interface MetricAttributes {
@@ -27,11 +30,30 @@ public interface MetricAttributes {
     // refers to https://opentelemetry.io/docs/specs/semconv/registry/attributes/error/#error-type
     String ERROR_TYPE = "error_type";
 
+    /** Index mode of the metered shard; the value is {@link org.elasticsearch.index.IndexMode#getName()}. */
+    String ES_INDEX_MODE = "es_index_mode";
+
     /** The version of the stack. */
     String ES_STACK_VERSION = "es_stack_version";
 
     /** Indicates whether the node is a production release (i.e. not a snapshot, alpha, etc.) */
     String ES_PRODUCTION_RELEASE = "es_production_release";
+
+    /**
+     * The deployment type of the metered node. Currently one of
+     * {@link #HOSTED_DEPLOYMENT_TYPE} or {@link #SERVERLESS_DEPLOYMENT_TYPE}.
+     * <p>
+     * The values are kept as strings (rather than booleans) so
+     * additional deployment types can be introduced in the future without
+     * changing the attribute's type.
+     */
+    String ES_DEPLOYMENT_TYPE = "es_deployment_type";
+
+    /** Deployment type value for hosted (stateful) deployments. */
+    String HOSTED_DEPLOYMENT_TYPE = "hosted";
+
+    /** Deployment type value for serverless (stateless) deployments. */
+    String SERVERLESS_DEPLOYMENT_TYPE = "serverless";
 
     /**
      * This should be used to hold the {@code X-Elastic-Product-Origin} header value.
@@ -61,4 +83,13 @@ public interface MetricAttributes {
         "elastic-synthetics"
     );
 
+    /**
+     * The {@link #ERROR_TYPE} value for a failure: the simple class name of the corruption exception if one is anywhere in the cause or
+     * suppressed chain, otherwise of the innermost non-wrapper cause.
+     */
+    static String errorType(Throwable t) {
+        IOException corruption = ExceptionsHelper.unwrapCorruption(t);
+        Throwable cause = corruption != null ? corruption : ExceptionsHelper.unwrapCause(t);
+        return cause.getClass().getSimpleName();
+    }
 }

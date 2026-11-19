@@ -45,14 +45,14 @@ public class ReadOnlyEngineTests extends EngineTestCase {
         Engine readOnlyEngine = null;
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (Store store = createStore()) {
-            EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
+            EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), globalCheckpoint::get);
             int numDocs = scaledRandomIntBetween(10, 1000);
             final SeqNoStats lastSeqNoStats;
             final List<DocIdSeqNoAndSource> lastDocIds;
             try (InternalEngine engine = createEngine(config)) {
                 Engine.Get get = null;
                 for (int i = 0; i < numDocs; i++) {
-                    ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), new BytesArray("{}"), null);
+                    ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), new BytesArray("{}"));
                     engine.index(
                         new Engine.Index(
                             newUid(doc),
@@ -116,8 +116,12 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                 ) {
                     EngineTestCase.checkNoSoftDeletesLoaded(readOnlyEngineWithLazySoftDeletes);
                 }
-                Engine.Searcher external = readOnlyEngine.acquireSearcher("test", Engine.SearcherScope.EXTERNAL);
-                Engine.Searcher internal = readOnlyEngine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
+                Engine.Searcher external = readOnlyEngine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT);
+                Engine.Searcher internal = readOnlyEngine.acquireSearcher(
+                    "test",
+                    Engine.SearcherScope.INTERNAL,
+                    SplitShardCountSummary.IRRELEVANT
+                );
                 assertSame(external.getIndexReader(), internal.getIndexReader());
                 assertThat(external.getIndexReader(), instanceOf(DirectoryReader.class));
                 DirectoryReader dirReader = external.getDirectoryReader();
@@ -161,12 +165,12 @@ public class ReadOnlyEngineTests extends EngineTestCase {
         IOUtils.close(engine, store);
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (Store store = createStore()) {
-            EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
+            EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), globalCheckpoint::get);
             final int numDocs = scaledRandomIntBetween(10, 100);
             try (InternalEngine engine = createEngine(config)) {
                 long maxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
                 for (int i = 0; i < numDocs; i++) {
-                    ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), new BytesArray("{}"), null);
+                    ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), new BytesArray("{}"));
                     engine.index(
                         new Engine.Index(
                             newUid(doc),
@@ -217,7 +221,7 @@ public class ReadOnlyEngineTests extends EngineTestCase {
         IOUtils.close(engine, store);
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (Store store = createStore()) {
-            EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
+            EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), globalCheckpoint::get);
             store.createEmpty();
             try (
                 ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(
@@ -248,7 +252,7 @@ public class ReadOnlyEngineTests extends EngineTestCase {
         IOUtils.close(engine, store);
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (Store store = createStore()) {
-            EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
+            EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), globalCheckpoint::get);
             store.createEmpty();
             try (
                 ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(
@@ -275,12 +279,12 @@ public class ReadOnlyEngineTests extends EngineTestCase {
         IOUtils.close(engine, store);
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (Store store = createStore()) {
-            EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
+            EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), globalCheckpoint::get);
             int numDocs = scaledRandomIntBetween(10, 100);
             int numSegments;
             try (InternalEngine engine = createEngine(config)) {
                 for (int i = 0; i < numDocs; i++) {
-                    ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), new BytesArray("{}"), null);
+                    ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), new BytesArray("{}"));
                     engine.index(
                         new Engine.Index(
                             newUid(doc),
@@ -337,11 +341,11 @@ public class ReadOnlyEngineTests extends EngineTestCase {
         IOUtils.close(engine, store);
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (Store store = createStore()) {
-            EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
+            EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), globalCheckpoint::get);
             int numDocs = scaledRandomIntBetween(10, 1000);
             try (InternalEngine engine = createEngine(config)) {
                 for (int i = 0; i < numDocs; i++) {
-                    ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), new BytesArray("{}"), null);
+                    ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), new BytesArray("{}"));
                     engine.index(
                         new Engine.Index(
                             newUid(doc),
@@ -379,14 +383,14 @@ public class ReadOnlyEngineTests extends EngineTestCase {
         IOUtils.close(engine, store);
         try (Store store = createStore()) {
             final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
-            EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
+            EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), globalCheckpoint::get);
             final boolean softDeletesEnabled = config.getIndexSettings().isSoftDeleteEnabled();
             final int numDocs = frequently() ? scaledRandomIntBetween(10, 200) : 0;
             int uncommittedDocs = 0;
 
             try (InternalEngine engine = createEngine(config)) {
                 for (int i = 0; i < numDocs; i++) {
-                    ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), new BytesArray("{}"), null);
+                    ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), new BytesArray("{}"));
                     engine.index(
                         new Engine.Index(
                             newUid(doc),
@@ -438,15 +442,7 @@ public class ReadOnlyEngineTests extends EngineTestCase {
         IOUtils.close(engine, store);
         AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (Store store = createStore()) {
-            final EngineConfig config = config(
-                defaultSettings,
-                store,
-                createTempDir(),
-                NoMergePolicy.INSTANCE,
-                null,
-                null,
-                globalCheckpoint::get
-            );
+            final EngineConfig config = config(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, globalCheckpoint::get);
             String lastSearcherId;
             try (InternalEngine engine = createEngine(config)) {
                 lastSearcherId = ReadOnlyEngine.generateSearcherId(engine.getLastCommittedSegmentInfos());
@@ -477,7 +473,8 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                 try (
                     Engine.SearcherSupplier searcher = readOnlyEngine.acquireSearcherSupplier(
                         Function.identity(),
-                        randomFrom(Engine.SearcherScope.values())
+                        randomFrom(Engine.SearcherScope.values()),
+                        SplitShardCountSummary.IRRELEVANT
                     )
                 ) {
                     assertThat(searcher.getSearcherId(), equalTo(lastSearcherId));

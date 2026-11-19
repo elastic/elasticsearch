@@ -11,8 +11,8 @@ Returns documents that match a provided text, number, date or boolean value. The
 
 The `match` query is the standard query for performing a full-text search, including options for fuzzy matching.
 
-`Match` will also work against [semantic_text](/reference/elasticsearch/mapping-reference/semantic-text.md) fields.
-As `semantic_text` does not support lexical text search, `match` queries against `semantic_text` fields will automatically perform the correct semantic search.
+`match` also works against [`semantic`](/reference/elasticsearch/mapping-reference/semantic-field.md) and [`semantic_text`](/reference/elasticsearch/mapping-reference/semantic-text.md) fields.
+Because these fields do not support lexical text search, a `match` query against either field automatically performs semantic search using the field's configured {{infer}} endpoint.
 Because of this, options that specifically target lexical search such as `fuzziness` or `analyzer` will be ignored.
 
 ## Example request [match-query-ex-request]
@@ -153,6 +153,8 @@ The `prefix_length` and `max_expansions` can be set in this case to control the 
 
 Fuzzy transpositions (`ab` → `ba`) are allowed by default but can be disabled by setting `fuzzy_transpositions` to `false`.
 
+Fuzzy matching builds a [`fuzzy` query](/reference/query-languages/query-dsl/query-dsl-fuzzy-query.md) for each term. If [`search.allow_expensive_queries`](/reference/query-languages/querydsl.md#query-dsl-allow-expensive-queries) is `false`, {{es}} returns an error for a `match` query that sets `fuzziness`. If `lenient` is `true`, the query matches no documents in that field instead.
+
 ::::{note}
 Fuzzy matching is not applied to terms with synonyms or in cases where the analysis process produces multiple tokens at the same position. Under the hood these terms are expanded to a special synonym query that blends term frequencies, which does not support fuzzy expansion.
 ::::
@@ -220,6 +222,4 @@ The example above creates a boolean query:
 `(ny OR (new AND york)) city`
 
 that matches documents with the term `ny` or the conjunction `new AND york`. By default the parameter `auto_generate_synonyms_phrase_query` is set to `true`.
-
-
 

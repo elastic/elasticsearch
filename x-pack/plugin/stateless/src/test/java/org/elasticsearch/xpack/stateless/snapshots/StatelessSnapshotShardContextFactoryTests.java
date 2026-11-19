@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
@@ -84,8 +85,7 @@ public class StatelessSnapshotShardContextFactoryTests extends ESTestCase {
     private TestHarness testHarness;
 
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void closeTestHarness() throws Exception {
         if (testHarness != null) {
             testHarness.close();
         }
@@ -299,7 +299,8 @@ public class StatelessSnapshotShardContextFactoryTests extends ESTestCase {
                     true,
                     RecoverySource.EmptyStoreRecoverySource.INSTANCE,
                     new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foobar"),
-                    ShardRouting.Role.INDEX_ONLY
+                    ShardRouting.Role.INDEX_ONLY,
+                    RecoveryPriority.UNASSIGNED_NEW_PRIMARY
                 ),
                 nodeId
             )

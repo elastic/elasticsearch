@@ -7,13 +7,13 @@
 
 package org.elasticsearch.xpack.inference.services.googlevertexai.completion;
 
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.utils.URIBuilder;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.core5.net.URIBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiModel;
@@ -29,6 +29,7 @@ import java.util.Objects;
 import java.util.function.BiConsumer;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.buildUriPreservingColons;
 
 public class GoogleVertexAiChatCompletionModel extends GoogleVertexAiModel {
 
@@ -73,7 +74,7 @@ public class GoogleVertexAiChatCompletionModel extends GoogleVertexAiModel {
         GoogleVertexAiChatCompletionServiceSettings serviceSettings,
         GoogleVertexAiChatCompletionTaskSettings taskSettings,
         @Nullable GoogleVertexAiSecretSettings secrets,
-        BiConsumer<HttpPost, GoogleVertexAiModel> authHeaderDecorator
+        BiConsumer<SimpleHttpRequest, GoogleVertexAiModel> authHeaderDecorator
     ) {
         this(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
@@ -93,7 +94,7 @@ public class GoogleVertexAiChatCompletionModel extends GoogleVertexAiModel {
     public GoogleVertexAiChatCompletionModel(
         ModelConfigurations modelConfigurations,
         ModelSecrets modelSecrets,
-        BiConsumer<HttpPost, GoogleVertexAiModel> authHeaderDecorator
+        BiConsumer<SimpleHttpRequest, GoogleVertexAiModel> authHeaderDecorator
     ) {
         super(
             modelConfigurations,
@@ -128,8 +129,8 @@ public class GoogleVertexAiChatCompletionModel extends GoogleVertexAiModel {
                 var location = serviceSettings.location();
                 var projectId = serviceSettings.projectId();
                 var model = serviceSettings.modelId();
-                streamingUri = buildUriStreaming(location, projectId, model);
-                nonStreamingUri = buildUriNonStreaming(location, projectId, model);
+                streamingUri = buildStreamingUri(location, projectId, model);
+                nonStreamingUri = buildNonStreamingUri(location, projectId, model);
             }
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
@@ -145,7 +146,7 @@ public class GoogleVertexAiChatCompletionModel extends GoogleVertexAiModel {
         streamingURI = model.streamingURI();
     }
 
-    public static GoogleVertexAiChatCompletionModel of(GoogleVertexAiChatCompletionModel model, UnifiedCompletionRequest request) {
+    public static GoogleVertexAiChatCompletionModel of(GoogleVertexAiChatCompletionModel model, UnifiedCompletionRequestBody request) {
         var originalModelServiceSettings = model.getServiceSettings();
 
         var newServiceSettings = new GoogleVertexAiChatCompletionServiceSettings(
@@ -164,7 +165,8 @@ public class GoogleVertexAiChatCompletionModel extends GoogleVertexAiModel {
             model.getConfigurations().getService(),
             newServiceSettings,
             model.getTaskSettings(),
-            model.getSecretSettings()
+            model.getSecretSettings(),
+            model.authHeaderDecorator()
         );
     }
 
@@ -218,39 +220,41 @@ public class GoogleVertexAiChatCompletionModel extends GoogleVertexAiModel {
         return this.streamingURI;
     }
 
-    public static URI buildUriNonStreaming(String location, String projectId, String model) throws URISyntaxException {
-        return new URIBuilder().setScheme("https")
-            .setHost(format("%s%s", location, GoogleVertexAiUtils.GOOGLE_VERTEX_AI_HOST_SUFFIX))
-            .setPathSegments(
-                GoogleVertexAiUtils.V1,
-                GoogleVertexAiUtils.PROJECTS,
-                projectId,
-                GoogleVertexAiUtils.LOCATIONS,
-                GoogleVertexAiUtils.GLOBAL,
-                GoogleVertexAiUtils.PUBLISHERS,
-                GoogleVertexAiUtils.PUBLISHER_GOOGLE,
-                GoogleVertexAiUtils.MODELS,
-                format("%s:%s", model, GoogleVertexAiUtils.GENERATE_CONTENT)
-            )
-            .build();
+    public static URI buildNonStreamingUri(@Nullable String location, String projectId, String model) throws URISyntaxException {
+        return buildUriPreservingColons(
+            new URIBuilder().setScheme("https")
+                .setHost(GoogleVertexAiUtils.resolveHost(location))
+                .setPathSegments(
+                    GoogleVertexAiUtils.V1,
+                    GoogleVertexAiUtils.PROJECTS,
+                    projectId,
+                    GoogleVertexAiUtils.LOCATIONS,
+                    GoogleVertexAiUtils.GLOBAL,
+                    GoogleVertexAiUtils.PUBLISHERS,
+                    GoogleVertexAiUtils.PUBLISHER_GOOGLE,
+                    GoogleVertexAiUtils.MODELS,
+                    format("%s:%s", model, GoogleVertexAiUtils.GENERATE_CONTENT)
+                )
+        );
     }
 
-    public static URI buildUriStreaming(String location, String projectId, String model) throws URISyntaxException {
-        return new URIBuilder().setScheme("https")
-            .setHost(format("%s%s", location, GoogleVertexAiUtils.GOOGLE_VERTEX_AI_HOST_SUFFIX))
-            .setPathSegments(
-                GoogleVertexAiUtils.V1,
-                GoogleVertexAiUtils.PROJECTS,
-                projectId,
-                GoogleVertexAiUtils.LOCATIONS,
-                GoogleVertexAiUtils.GLOBAL,
-                GoogleVertexAiUtils.PUBLISHERS,
-                GoogleVertexAiUtils.PUBLISHER_GOOGLE,
-                GoogleVertexAiUtils.MODELS,
-                format("%s:%s", model, GoogleVertexAiUtils.STREAM_GENERATE_CONTENT)
-            )
-            .setCustomQuery(GoogleVertexAiUtils.QUERY_PARAM_ALT_SSE)
-            .build();
+    public static URI buildStreamingUri(@Nullable String location, String projectId, String model) throws URISyntaxException {
+        return buildUriPreservingColons(
+            new URIBuilder().setScheme("https")
+                .setHost(GoogleVertexAiUtils.resolveHost(location))
+                .setPathSegments(
+                    GoogleVertexAiUtils.V1,
+                    GoogleVertexAiUtils.PROJECTS,
+                    projectId,
+                    GoogleVertexAiUtils.LOCATIONS,
+                    GoogleVertexAiUtils.GLOBAL,
+                    GoogleVertexAiUtils.PUBLISHERS,
+                    GoogleVertexAiUtils.PUBLISHER_GOOGLE,
+                    GoogleVertexAiUtils.MODELS,
+                    format("%s:%s", model, GoogleVertexAiUtils.STREAM_GENERATE_CONTENT)
+                )
+                .setCustomQuery(GoogleVertexAiUtils.QUERY_PARAM_ALT_SSE)
+        );
     }
 
     @Override

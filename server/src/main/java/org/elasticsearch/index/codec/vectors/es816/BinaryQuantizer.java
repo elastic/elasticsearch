@@ -226,7 +226,7 @@ public class BinaryQuantizer {
 
         // q¯ = Δ · q¯𝑢 + 𝑣𝑙 · 1𝐷
         // q¯ is an approximation of q′ (scalar quantized approximation)
-        ESVectorUtil.transposeHalfByte(byteQuery, queryDestination);
+        ESVectorUtil.stride4BitValues(byteQuery, queryDestination);
         QueryFactors factors = new QueryFactors(quantResult.quantizedSum, distToC, lower, width, normVmC, vDotC);
         final float[] indexCorrections;
         if (similarityFunction == EUCLIDEAN) {
@@ -367,7 +367,7 @@ public class BinaryQuantizer {
 
         // q¯ = Δ · q¯𝑢 + 𝑣𝑙 · 1𝐷
         // q¯ is an approximation of q′ (scalar quantized approximation)
-        ESVectorUtil.transposeHalfByte(byteQuery, destination);
+        ESVectorUtil.stride4BitValues(byteQuery, destination);
 
         QueryFactors factors;
         if (similarityFunction != EUCLIDEAN) {

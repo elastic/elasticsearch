@@ -145,9 +145,8 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
         deleteIndex(adminClient(), "index-a");
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void terminateThreadPool() throws Exception {
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 

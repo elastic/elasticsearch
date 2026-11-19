@@ -13,6 +13,9 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
 
 /**
  * Minimal {@link DocumentParserContext} used by the bulk batch-indexing fast path. It holds a
@@ -32,13 +35,19 @@ final class BatchDocumentParserContext extends DocumentParserContext {
     private final BytesRef tsid;
     private XContentParser parser;
 
-    BatchDocumentParserContext(MappingLookup mappingLookup, MappingParserContext mappingParserContext, SourceToParse sourceToParse) {
+    BatchDocumentParserContext(
+        MappingLookup mappingLookup,
+        MappingParserContext mappingParserContext,
+        SourceToParse sourceToParse,
+        Function<Map<String, Object>, MappingBuilder> mappingBuilder
+    ) {
         super(
             mappingLookup,
             mappingParserContext,
             sourceToParse,
             mappingLookup.getMapping().getRoot(),
-            ObjectMapper.Dynamic.getRootDynamic(mappingLookup)
+            ObjectMapper.Dynamic.getRootDynamic(mappingLookup),
+            mappingBuilder
         );
         this.tsid = sourceToParse.tsid();
     }
@@ -78,6 +87,11 @@ final class BatchDocumentParserContext extends DocumentParserContext {
     @Override
     public Iterable<LuceneDocument> nonRootDocuments() {
         return Collections.emptyList();
+    }
+
+    @Override
+    public List<LuceneDocument> luceneDocumentsInShardIndexOrder() {
+        return List.of(document);
     }
 
     @Override

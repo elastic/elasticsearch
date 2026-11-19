@@ -51,35 +51,29 @@ class FunctionArgumentValidation {
         };
     }
 
-    static BiConsumer<Source, List<Expression>> quinaryTs(Class<? extends Function> function, int numOptionalParams) {
-        return quinaryWithTotal(function, 4, numOptionalParams);
-    }
-
-    static BiConsumer<Source, List<Expression>> quinary(Class<? extends Function> function, int numOptionalParams) {
-        return quinaryWithTotal(function, 5, numOptionalParams);
-    }
-
-    private static BiConsumer<Source, List<Expression>> quinaryWithTotal(
-        Class<? extends Function> function,
-        int numTotalParams,
-        int numOptionalParams
-    ) {
+    static BiConsumer<Source, List<Expression>> quinary(Class<? extends Function> function) {
+        int numOptionalParams;
         if (OptionalArgument.class.isAssignableFrom(function)) {
+            numOptionalParams = 1;
+        } else if (TwoOptionalArguments.class.isAssignableFrom(function)) {
+            numOptionalParams = 2;
+        } else if (ThreeOptionalArguments.class.isAssignableFrom(function)) {
+            numOptionalParams = 3;
+        } else {
+            numOptionalParams = 0;
+        }
+        if (numOptionalParams > 0) {
             return (source, children) -> {
-                if (children.size() > numTotalParams || children.size() < numTotalParams - numOptionalParams) {
+                if (children.size() > 5 || children.size() < 5 - numOptionalParams) {
                     throw new QlIllegalArgumentException(
-                        "expects between "
-                            + NUM_NAMES[numTotalParams - numOptionalParams]
-                            + " and "
-                            + NUM_NAMES[numTotalParams]
-                            + " arguments"
+                        "expects between " + NUM_NAMES[5 - numOptionalParams] + " and " + NUM_NAMES[5] + " arguments"
                     );
                 }
             };
         }
         return (source, children) -> {
-            if (children.size() != numTotalParams) {
-                throw new QlIllegalArgumentException("expects exactly " + NUM_NAMES[numTotalParams] + " arguments");
+            if (children.size() != 5) {
+                throw new QlIllegalArgumentException("expects exactly " + NUM_NAMES[5] + " arguments");
             }
         };
     }
@@ -133,6 +127,13 @@ class FunctionArgumentValidation {
             return (source, children) -> {
                 if (children.size() > 4 || children.size() < 2) {
                     throw new QlIllegalArgumentException("expects minimum two, maximum four arguments");
+                }
+            };
+        }
+        if (ThreeOptionalArguments.class.isAssignableFrom(function)) {
+            return (source, children) -> {
+                if (children.size() > 4 || children.isEmpty()) {
+                    throw new QlIllegalArgumentException("expects between one and four arguments");
                 }
             };
         }

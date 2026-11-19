@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `COPY_SIGN` function [esql-copy_sign]
 
-:::{include} ../../_snippets/functions/layout/copy_sign.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/copy_sign.md
 :::

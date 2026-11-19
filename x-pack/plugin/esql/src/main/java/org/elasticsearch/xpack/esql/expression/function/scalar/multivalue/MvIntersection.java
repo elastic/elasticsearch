@@ -20,6 +20,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalarFunction;
@@ -42,7 +43,7 @@ import java.util.Set;
  * Example:
  *   Given set A = {"a","b","c"} and set B = {"b","c","d"}, MV_INTERSECTION(A, B) returns {"b", "c"}
  */
-public class MvIntersection extends MvSetOperationFunction {
+public class MvIntersection extends MvSetOperationFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "MvIntersection",
@@ -50,6 +51,7 @@ public class MvIntersection extends MvSetOperationFunction {
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvIntersection.class)
         .binary(MvIntersection::new)
+        .capabilities("flattened")
         .name("mv_intersection");
 
     @FunctionInfo(
@@ -60,6 +62,7 @@ public class MvIntersection extends MvSetOperationFunction {
             "date",
             "date_nanos",
             "double",
+            "flattened",
             "geo_point",
             "geo_shape",
             "geohash",
@@ -71,6 +74,7 @@ public class MvIntersection extends MvSetOperationFunction {
             "long",
             "unsigned_long",
             "version" },
+        briefSummary = "Returns values present in both multi-value fields.",
         description = "Returns the values that appear in both input fields. Returns `null` if either field is null or if no values match.",
         preview = true,
         examples = {
@@ -92,6 +96,7 @@ public class MvIntersection extends MvSetOperationFunction {
                 "date",
                 "date_nanos",
                 "double",
+                "flattened",
                 "geo_point",
                 "geo_shape",
                 "geohash",
@@ -115,6 +120,7 @@ public class MvIntersection extends MvSetOperationFunction {
                 "date",
                 "date_nanos",
                 "double",
+                "flattened",
                 "geo_point",
                 "geo_shape",
                 "geohash",

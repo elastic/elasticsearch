@@ -21,6 +21,8 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
@@ -48,13 +50,16 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
     private DataType dataType;
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = {
             "boolean",
             "cartesian_point",
             "cartesian_shape",
             "date_nanos",
             "date",
+            "date_range",
             "dense_vector",
+            "double_range",
             "flattened",
             "histogram",
             "geo_point",
@@ -69,6 +74,7 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
             "tdigest",
             "version",
             "exponential_histogram" },
+        briefSummary = "Returns the first of its arguments that is not null.",
         description = "Returns the first of its arguments that is not null. If all arguments are null, it returns `null`.",
         examples = { @Example(file = "null", tag = "coalesce") }
     )
@@ -82,7 +88,9 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
                 "cartesian_shape",
                 "date_nanos",
                 "date",
+                "date_range",
                 "dense_vector",
+                "double_range",
                 "flattened",
                 "histogram",
                 "geo_point",
@@ -108,7 +116,9 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
                 "cartesian_shape",
                 "date_nanos",
                 "date",
+                "date_range",
                 "dense_vector",
+                "double_range",
                 "flattened",
                 "histogram",
                 "geo_point",
@@ -153,9 +163,15 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
 
     @Override
     public DataType dataType() {
-        if (dataType == null) {
-            resolveType();
-        }
+        DataType cached = dataType;
+        return cached != null ? cached : resolveDataType();
+    }
+
+    /**
+     * {@link #resolveType} assigns {@link #dataType}. Reading it after this thread assigned it can't see {@code null}.
+     */
+    private DataType resolveDataType() {
+        resolveType();
         return dataType;
     }
 
@@ -165,22 +181,27 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
             return new TypeResolution("Unresolved children");
         }
 
+        // Compute in a local and publish only the final type: this field is shared by every thread that holds the plan.
+        DataType type = null;
         for (int position = 0; position < children().size(); position++) {
-            if (dataType == null || dataType == NULL) {
-                dataType = children().get(position).dataType().noText();
+            if (type == null || type == NULL) {
+                type = children().get(position).dataType().noText();
                 continue;
             }
+            DataType expected = type;
             TypeResolution resolution = TypeResolutions.isType(
                 children().get(position),
-                t -> t.noText() == dataType,
+                t -> t.noText() == expected,
                 sourceText(),
                 TypeResolutions.ParamOrdinal.fromIndex(position),
-                dataType.typeName()
+                expected.typeName()
             );
             if (resolution.unresolved()) {
+                dataType = type;
                 return resolution;
             }
         }
+        dataType = type;
         return TypeResolution.TYPE_RESOLVED;
     }
 
@@ -192,12 +213,7 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
                 return Nullability.FALSE;
             }
         }
-        /*
-         * Otherwise let’s call this one "unknown". If we returned TRUE here
-         * an optimizer rule would replace this with null if any of our children
-         * fold to null. We don’t want that at all.
-         */
-        return Nullability.UNKNOWN;
+        return Nullability.TRUE;
     }
 
     @Override
@@ -225,14 +241,16 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
                 toEvaluator,
                 children()
             );
-            case KEYWORD, TEXT, CARTESIAN_POINT, CARTESIAN_SHAPE, FLATTENED, HISTOGRAM, GEO_POINT, GEO_SHAPE, IP, VERSION ->
-                CoalesceBytesRefEvaluator.toEvaluator(toEvaluator, children());
+            case KEYWORD, TEXT, CARTESIAN_POINT, CARTESIAN_SHAPE, FLATTENED, HISTOGRAM, GEO_POINT, GEO_SHAPE, IP, VERSION,
+                TIME_SERIES_METADATA_DATA_TYPE -> CoalesceBytesRefEvaluator.toEvaluator(toEvaluator, children());
             case EXPONENTIAL_HISTOGRAM -> CoalesceExponentialHistogramEvaluator.toEvaluator(toEvaluator, children());
             case TDIGEST -> CoalesceTDigestEvaluator.toEvaluator(toEvaluator, children());
             case DENSE_VECTOR -> CoalesceFloatEvaluator.toEvaluator(toEvaluator, children());
+            case DATE_RANGE -> CoalesceLongRangeEvaluator.toEvaluator(toEvaluator, children());
+            case DOUBLE_RANGE -> CoalesceDoubleRangeEvaluator.toEvaluator(toEvaluator, children());
             case NULL -> ConstantEvaluators.CONSTANT_NULL_FACTORY;
             case UNSUPPORTED, SHORT, BYTE, DATE_PERIOD, OBJECT, DOC_DATA_TYPE, SOURCE, TIME_DURATION, FLOAT, HALF_FLOAT, TSID_DATA_TYPE,
-                SCALED_FLOAT, PARTIAL_AGG, AGGREGATE_METRIC_DOUBLE, DATE_RANGE -> throw new UnsupportedOperationException(
+                SCALED_FLOAT, PARTIAL_AGG, AGGREGATE_METRIC_DOUBLE -> throw new UnsupportedOperationException(
                     dataType() + " can't be coalesced"
                 );
         };

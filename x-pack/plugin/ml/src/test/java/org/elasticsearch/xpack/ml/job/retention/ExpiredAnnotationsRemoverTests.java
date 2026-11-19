@@ -11,7 +11,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.tasks.TaskId;
@@ -179,11 +179,12 @@ public class ExpiredAnnotationsRemoverTests extends ESTestCase {
     private void givenDBQRequest(boolean shouldSucceed) {
         doAnswer(invocationOnMock -> {
             capturedDeleteByQueryRequests.add((DeleteByQueryRequest) invocationOnMock.getArguments()[1]);
-            ActionListener<BulkByScrollResponse> listener = (ActionListener<BulkByScrollResponse>) invocationOnMock.getArguments()[2];
+            ActionListener<BulkByPaginatedSearchResponse> listener = (ActionListener<BulkByPaginatedSearchResponse>) invocationOnMock
+                .getArguments()[2];
             if (shouldSucceed) {
-                BulkByScrollResponse bulkByScrollResponse = mock(BulkByScrollResponse.class);
-                when(bulkByScrollResponse.getDeleted()).thenReturn(42L);
-                listener.onResponse(bulkByScrollResponse);
+                BulkByPaginatedSearchResponse bulkByPaginatedSearchResponse = mock(BulkByPaginatedSearchResponse.class);
+                when(bulkByPaginatedSearchResponse.getDeleted()).thenReturn(42L);
+                listener.onResponse(bulkByPaginatedSearchResponse);
             } else {
                 listener.onFailure(new RuntimeException("failed"));
             }

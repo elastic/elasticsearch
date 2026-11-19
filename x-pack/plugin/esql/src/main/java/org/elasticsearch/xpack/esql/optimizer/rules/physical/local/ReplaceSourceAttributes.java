@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
@@ -53,7 +52,7 @@ public class ReplaceSourceAttributes extends PhysicalOptimizerRules.OptimizerRul
         final List<Attribute> attributes = new ArrayList<>();
         attributes.add(getDocAttribute(plan));
 
-        if (plan.indexMode() == IndexMode.TIME_SERIES) {
+        if (plan.indexMode().isTsdb()) {
             for (EsField field : EsQueryExec.TIME_SERIES_SOURCE_FIELDS) {
                 attributes.add(new FieldAttribute(plan.source(), null, null, field.getName(), field));
             }
@@ -66,6 +65,8 @@ public class ReplaceSourceAttributes extends PhysicalOptimizerRules.OptimizerRul
             }
         }
 
+        // EsSourceExec -> EsQueryExec is the local scan translation. Keep the source exec id in origin
+        // so a data-node profile can walk back to the relation that produced the scan.
         return new EsQueryExec(
             plan.source(),
             plan.indexPattern(),
@@ -75,7 +76,7 @@ public class ReplaceSourceAttributes extends PhysicalOptimizerRules.OptimizerRul
             null,
             null,
             List.of(new EsQueryExec.QueryBuilderAndTags(plan.query(), List.of()))
-        );
+        ).withOrigin(plan.planId());
     }
 
     private static PhysicalPlan replaceParameterizedQuery(ParameterizedQueryExec plan) {
@@ -91,7 +92,9 @@ public class ReplaceSourceAttributes extends PhysicalOptimizerRules.OptimizerRul
             plan.matchFields(),
             plan.joinOnConditions(),
             plan.query(),
-            plan.emptyResult()
+            plan.emptyResult(),
+            plan.bulkLookupLeft(),
+            plan.bulkLookupRight()
         );
     }
 

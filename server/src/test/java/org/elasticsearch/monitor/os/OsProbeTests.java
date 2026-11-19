@@ -222,6 +222,22 @@ public class OsProbeTests extends ESTestCase {
         }
     }
 
+    public void testCgroupProbeWithColonInPath() {
+        final int cgroupsVersion = 2;
+        final String hierarchy = "user.slice/user-1000.slice/user@1000.service/app.slice/"
+            + "app-dbus\\x2d:1.2\\x2dorg.gnome.Console.slice/tmux-spawn-uuid.scope";
+
+        final OsProbe probe = new OsProbeMock(hierarchy).setAvailableCgroupsVersion(cgroupsVersion)
+            .setProcSelfCgroupLines(getProcSelfGroupLines(cgroupsVersion, hierarchy));
+
+        final OsStats.Cgroup cgroup = probe.osStats().getCgroup();
+
+        assertNotNull(cgroup);
+        assertThat(cgroup.getCpuAcctControlGroup(), equalTo("/" + hierarchy));
+        assertThat(cgroup.getCpuControlGroup(), equalTo("/" + hierarchy));
+        assertThat(cgroup.getMemoryControlGroup(), equalTo("/" + hierarchy));
+    }
+
     public void testCgroupProbeWithMissingCpuMax() {
         final int cgroupsVersion = 2;
         final var hierarchy = randomAlphaOfLength(16);
@@ -368,6 +384,20 @@ public class OsProbeTests extends ESTestCase {
         meminfoLines = Arrays.asList("MemFree:         10 kB", "Buffers:         20 kB", "Cached:         30 kB");
         probe = buildStubOsProbe(cgroupsVersion, "", List.of(), meminfoLines);
         assertThat(probe.getActualFreePhysicalMemorySize(), equalTo((10 + 20 + 30) * 1024L));
+    }
+
+    public void testGetTotalPhysicalMemorySizeFromMeminfo() {
+        assumeTrue("meminfo parsing is Linux-specific", Constants.LINUX);
+        long memTotalInKb = randomLongBetween(1, Long.MAX_VALUE / 1024L);
+        var meminfoLines = Arrays.asList(
+            "MemTotal:        " + memTotalInKb + " kB",
+            "MemFree:         8467692 kB",
+            "MemAvailable:   39646240 kB",
+            "Buffers:         4699504 kB",
+            "Cached:         23290380 kB"
+        );
+        OsProbe probe = buildStubOsProbe(1, "", List.of(), meminfoLines);
+        assertThat(probe.getTotalPhysicalMemorySizeFromMeminfo(), equalTo(memTotalInKb * 1024L));
     }
 
     public void testTotalMemoryOverride() {

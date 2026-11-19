@@ -8,14 +8,10 @@
 package org.elasticsearch.xpack.oteldata.otlp.docbuilder;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.cluster.routing.TsidBuilder;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.hash.BufferedMurmur3Hasher;
-import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.cluster.routing.TsidLayout;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPoint;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPointGroupingContext;
-import org.elasticsearch.xpack.oteldata.otlp.datapoint.ExponentialHistogramConverter;
 import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 
 import java.io.IOException;
@@ -27,11 +23,12 @@ import java.util.concurrent.TimeUnit;
  * This class constructs an Elasticsearch document representation of a metric data point group.
  * It also handles dynamic templates for metrics based on their attributes.
  */
-public class MetricDocumentBuilder extends OTelDocumentBuilder {
+public class MetricDocumentBuilder extends OTelTsdbDocumentBuilder {
 
-    private final BufferedMurmur3Hasher hasher = new BufferedMurmur3Hasher(0);
+    public static final String METRIC_NAMES_HASH_FIELD = "_metric_names_hash";
+
     private final MappingHints defaultMappingHints;
-    private final ExponentialHistogramConverter.BucketBuffer scratch = new ExponentialHistogramConverter.BucketBuffer();
+    private final DataPoint.SerializationScratch scratch = new DataPoint.SerializationScratch();
 
     public MetricDocumentBuilder(BufferedByteStringAccessor byteStringAccessor, MappingHints defaultMappingHints) {
         super(byteStringAccessor);
@@ -43,7 +40,7 @@ public class MetricDocumentBuilder extends OTelDocumentBuilder {
         DataPointGroupingContext.DataPointGroup dataPointGroup,
         Map<String, String> dynamicTemplates,
         Map<String, Map<String, String>> dynamicTemplateParams,
-        IndexVersion indexVersion
+        TsidLayout tsidLayout
     ) throws IOException {
         List<DataPoint> dataPoints = dataPointGroup.dataPoints();
         builder.startObject();
@@ -51,18 +48,9 @@ public class MetricDocumentBuilder extends OTelDocumentBuilder {
         if (dataPointGroup.getStartTimestampUnixNano() != 0) {
             builder.field("start_timestamp", TimeUnit.NANOSECONDS.toMillis(dataPointGroup.getStartTimestampUnixNano()));
         }
-        // Metrics intentionally skip merging paired *.geo.location.lat/.lon into a [lon, lat] array:
-        // The *.geo.location dynamic template doesn't apply to metrics because geo_point isn't a supported dimension type.
-        // That would mean the merged value would land as a plain [lon, lat] array with no guaranteed element order.
-        buildResource(dataPointGroup.resource(), dataPointGroup.resourceSchemaUrl(), builder);
-        buildDataStream(builder, dataPointGroup.targetIndex());
-        buildScope(builder, dataPointGroup.scope(), dataPointGroup.scopeSchemaUrl());
-        buildAttributes(builder, dataPointGroup.dataPointAttributes(), 0);
-        if (Strings.hasLength(dataPointGroup.unit())) {
-            builder.field("unit", dataPointGroup.unit());
-        }
         String metricNamesHash = dataPointGroup.getMetricNamesHash(hasher);
-        builder.field("_metric_names_hash", metricNamesHash);
+        buildDimensionFields(builder, dataPointGroup, dataPointGroup.targetIndex());
+        builder.field(METRIC_NAMES_HASH_FIELD, metricNamesHash);
 
         long docCount = 0;
         builder.startObject("metrics");
@@ -77,7 +65,7 @@ public class MetricDocumentBuilder extends OTelDocumentBuilder {
                 dynamicTemplates.put(metricFieldPath, dynamicTemplate);
                 if (dataPointGroup.unit() != null && dataPointGroup.unit().isEmpty() == false) {
                     // Store the unit of the metric in the dynamic template parameters
-                    dynamicTemplateParams.put(metricFieldPath, Map.of("unit", dataPointGroup.unit()));
+                    dynamicTemplateParams.put(metricFieldPath, Map.of(UNIT_FIELD, dataPointGroup.unit()));
                 }
             }
             if (mappingHints.docCount()) {
@@ -89,9 +77,7 @@ public class MetricDocumentBuilder extends OTelDocumentBuilder {
             builder.field("_doc_count", docCount);
         }
         builder.endObject();
-        TsidBuilder tsidBuilder = dataPointGroup.tsidBuilder();
-        tsidBuilder.addStringDimension("_metric_names_hash", metricNamesHash);
-        return tsidBuilder.buildTsid(indexVersion);
+        return dataPointGroup.buildMetricTsid(metricNamesHash, tsidLayout);
     }
 
 }

@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
@@ -40,21 +41,24 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 /**
  * Clamps the input values to have an upper limit of max.
  */
-public class ClampMax extends EsqlScalarFunction {
+public class ClampMax extends EsqlScalarFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ClampMax", ClampMax::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ClampMax.class).binary(ClampMax::new).name("clamp_max");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
         .binaryValueTransformation(PromqlFunctionDefinition.MAX_SCALAR, ClampMax::new)
         .description("Clamps the sample values of all elements to have an upper limit of max.")
         .example("clamp_max(http_requests_total, 100)")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
         .name("clamp_max");
 
     private DataType resolvedType;
 
     @FunctionInfo(
         returnType = { "double", "integer", "long", "unsigned_long", "double", "keyword", "ip", "boolean", "date", "version" },
+        briefSummary = "Clamps input values to an upper bound, reducing any value above max to max.",
         description = "Limits (or clamps) all input sample values to an upper bound of max. Any value above max is reduced to max.",
         examples = @Example(file = "k8s-timeseries-clamp", tag = "clamp-max"),
+        preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") }
     )
     public ClampMax(
@@ -62,7 +66,7 @@ public class ClampMax extends EsqlScalarFunction {
         @Param(
             name = "field",
             type = { "double", "integer", "long", "unsigned_long", "double", "keyword", "ip", "boolean", "date", "version" },
-            description = "field to clamp."
+            description = "Expression to clamp. If `null`, the function returns `null`."
         ) Expression field,
         @Param(
             name = "max",
@@ -91,7 +95,15 @@ public class ClampMax extends EsqlScalarFunction {
 
     @Override
     public DataType dataType() {
-        if (resolvedType == null && resolveType().resolved() == false) {
+        DataType cached = resolvedType;
+        return cached != null ? cached : resolveDataType();
+    }
+
+    /**
+     * {@link #resolveType} assigns {@link #resolvedType}. Reading it after this thread assigned it can't see {@code null}.
+     */
+    private DataType resolveDataType() {
+        if (resolveType().resolved() == false) {
             throw new EsqlIllegalArgumentException("Unable to resolve data type for clamp_max");
         }
         return resolvedType;

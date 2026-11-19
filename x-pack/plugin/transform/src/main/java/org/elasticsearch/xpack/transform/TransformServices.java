@@ -10,11 +10,13 @@ package org.elasticsearch.xpack.transform;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.xpack.transform.action.TransformCloudCredentialManager;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.transforms.scheduling.TransformScheduler;
 
+import java.time.Clock;
 import java.util.Objects;
 import java.util.function.Function;
 
@@ -32,7 +34,9 @@ public record TransformServices(
     TransformNode transformNode,
     CrossProjectModeDecider crossProjectModeDecider,
     Function<ProjectId, Boolean> hasLinkedProjects,
-    ProjectResolver projectResolver
+    ProjectResolver projectResolver,
+    TransformCloudCredentialManager cloudCredentialManager,
+    Clock clock
 ) {
     public TransformServices {
         Objects.requireNonNull(configManager);
@@ -43,5 +47,7 @@ public record TransformServices(
         Objects.requireNonNull(crossProjectModeDecider);
         Objects.requireNonNull(hasLinkedProjects);
         Objects.requireNonNull(projectResolver);
+        Objects.requireNonNull(cloudCredentialManager);
+        Objects.requireNonNull(clock);
     }
 }

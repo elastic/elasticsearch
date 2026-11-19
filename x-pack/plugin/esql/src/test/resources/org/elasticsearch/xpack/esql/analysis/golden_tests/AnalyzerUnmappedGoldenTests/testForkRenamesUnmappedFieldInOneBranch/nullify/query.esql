@@ -1,0 +1,5 @@
+SET unmapped_fields="nullify"; FROM partial_mapping_sample_data
+| FORK (WHERE unmapped_message == "Disconnection error")
+       (RENAME unmapped_message AS msg)
+| KEEP _fork, message, unmapped_message, msg
+| SORT _fork, message

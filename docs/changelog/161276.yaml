@@ -1,0 +1,6 @@
+area: PromQL
+issues:
+ - 161115
+pr: 161276
+summary: "PromQL: support time range durations from timestamp params"
+type: enhancement

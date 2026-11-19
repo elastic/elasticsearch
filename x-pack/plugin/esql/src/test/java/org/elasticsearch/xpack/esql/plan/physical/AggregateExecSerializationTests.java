@@ -31,19 +31,7 @@ public class AggregateExecSerializationTests extends AbstractPhysicalPlanSeriali
         if (randomBoolean()) {
             return new AggregateExec(source, child, groupings, aggregates, mode, intermediateAttributes, estimatedRowSize);
         } else {
-            boolean collapsed = randomBoolean();
-            return new TimeSeriesAggregateExec(
-                source,
-                child,
-                groupings,
-                aggregates,
-                mode,
-                intermediateAttributes,
-                estimatedRowSize,
-                null,
-                null,
-                collapsed
-            );
+            return new TimeSeriesAggregateExec(source, child, groupings, aggregates, mode, intermediateAttributes, estimatedRowSize, null);
         }
     }
 
@@ -81,9 +69,7 @@ public class AggregateExecSerializationTests extends AbstractPhysicalPlanSeriali
                 mode,
                 intermediateAttributes,
                 estimatedRowSize,
-                ts.timeBucket(),
-                ts.outputTimeBucket(),
-                ts.isCollapsed()
+                ts.timeBucket()
             );
         }
         PhysicalPlan child = instance.child();

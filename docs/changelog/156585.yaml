@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 156173
+pr: 156585
+summary: Skip loading `unmapped_fields` blob during analysis when there are unpatterned `KEEP` commands
+type: feature

@@ -35,6 +35,16 @@ public abstract class UpdateByQueryScript extends WriteScript {
         return params;
     }
 
+    private Runnable cancellationCheck = null;
+
+    public void _setCancellationCheck(Runnable cancellationCheck) {
+        this.cancellationCheck = cancellationCheck;
+    }
+
+    public Runnable _getCancellationCheck() {
+        return cancellationCheck;
+    }
+
     public abstract void execute();
 
     public interface Factory {

@@ -61,13 +61,14 @@ public final class LengthEvaluator implements ExpressionEvaluator {
   }
 
   public IntBlock eval(int positionCount, BytesRefBlock valBlock) {
-    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount, true)) {
       BytesRef valScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
+        if (valBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (valBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -83,7 +84,7 @@ public final class LengthEvaluator implements ExpressionEvaluator {
   }
 
   public IntVector eval(int positionCount, BytesRefVector valVector) {
-    try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
+    try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount, true)) {
       BytesRef valScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         BytesRef val = valVector.getBytesRef(p, valScratch);
@@ -105,7 +106,7 @@ public final class LengthEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }

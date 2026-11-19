@@ -21,7 +21,9 @@ TS index_pattern [METADATA fields]
 ## Parameters
 
 `index_pattern`
-:   A list of indices, data streams or aliases. Supports wildcards and date math.
+:   A list of indices, data streams or aliases with the [`time_series` index mode](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting). Supports wildcards and date math. Wildcards only match time series indices and silently skip everything else.
+
+    `index_pattern` can't reference [views](/reference/query-languages/esql/esql-views.md) or [subqueries](/reference/query-languages/esql/esql-from-subquery.md), even if they're backed by time series indices. If you name a view explicitly, the query fails. To query a view, use [`FROM`](/reference/query-languages/esql/commands/from.md) instead.
 
 `fields`
 :   A comma-separated list of [metadata fields](/reference/query-languages/esql/esql-metadata-fields.md) to retrieve.
@@ -41,10 +43,22 @@ querying. For supported inner (time series) functions per
 [](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md). These functions also
 apply to downsampled data, with the same semantics as for raw data.
 
+::::{tip}
+To discover which metrics, metric types, and dimensions are available before writing a
+`TS` query, use [`METRICS_INFO`](/reference/query-languages/esql/commands/metrics-info.md)
+or [`TS_INFO`](/reference/query-languages/esql/commands/ts-info.md).
+::::
+
 ::::{note}
 If a query is missing an inner (time series) aggregation function,
-[`LAST_OVER_TIME()`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions/last_over_time.md)
-is assumed and used implicitly. For example, two equivalent queries that return the average of the last memory usage values per time series are shown in [Aggregate with implicit LAST_OVER_TIME](#aggregate-with-implicit-last_over_time). To calculate the average memory usage across per-time-series averages, refer to [Calculate the average of per-time-series averages](#calculate-the-average-of-per-time-series-averages).
+`TS` selects a default based on the field type. Numeric fields use
+[`LAST_OVER_TIME()`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions/last_over_time.md),
+while histogram fields are merged
+{applies_to}`stack: preview 9.3, ga 9.4`.
+For example, two equivalent queries that return the average of the last memory usage values per time series are shown in [Aggregate with implicit LAST_OVER_TIME](#aggregate-with-implicit-last_over_time).
+To calculate the average memory usage across per-time-series averages, refer to [Calculate the average of per-time-series averages](#calculate-the-average-of-per-time-series-averages).
+For histogram examples, refer to
+[Work with histogram metrics](#work-with-histogram-metrics).
 ::::
 
 You can use [time series aggregation functions](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md)
@@ -55,6 +69,91 @@ You can also combine time series aggregation functions with regular [aggregation
 However, using a time series aggregation function in combination with an inner time series function causes an error. For an example, refer to [Invalid query: nested time series functions](#invalid-query-nested-time-series-functions).
 
 If there is no `STATS` command in the query, the output of the `TS` command gets sorted by `@timestamp` in descending order by default. This helps listing recent values across many time series, as opposed to listing the results based on index sort configuration that may just return data points for a single time series.
+
+## When to use TS vs FROM
+
+`TS` is the right choice for aggregating metrics. It's optimized for time series
+data and avoids correctness issues that
+[`FROM`](/reference/query-languages/esql/commands/from.md) `| STATS` runs into on
+raw metric data. The two most common examples where `FROM` silently produces
+wrong results that `TS` handles correctly are counter handling and uneven
+publish intervals for metrics.
+
+### Counters need deltas, not raw sums
+
+Counter metrics (such as a `request_count` that monotonically increases) record a
+running total, not per-interval events. Summing or averaging the raw counter column
+has no meaningful interpretation: the result reflects how many samples each series
+happened to publish, not the underlying rate. Counter resets on process restart make
+the problem worse by mixing pre-reset and post-reset values:
+
+```esql
+FROM metrics | STATS SUM(request_count) BY host
+```
+
+`TS` with [`RATE()`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions/rate.md)
+or [`INCREASE()`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions/increase.md)
+first computes the per-bucket delta for each time series (handling resets correctly
+along the way), then lets you aggregate those deltas across series:
+
+```esql
+TS metrics | STATS SUM(RATE(request_count)) BY host
+```
+
+### Uneven publish intervals for metrics
+
+Different hosts and agents publish at different cadences. A host emitting CPU samples
+every second contributes 120x more rows than one emitting every two minutes, so `AVG()`
+over the raw column weights the chatty host accordingly:
+
+```esql
+FROM metrics | STATS AVG(cpu_usage) BY cluster
+```
+
+`TS` first reduces each time series to a single value per time bucket (using
+[`AVG_OVER_TIME`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions/avg_over_time.md)
+or another inner function), then aggregates across series. Each series contributes
+equally to the outer average:
+
+```esql
+TS metrics
+| STATS AVG(AVG_OVER_TIME(cpu_usage)) BY cluster, TBUCKET(1 minute)
+```
+
+## Work with histogram metrics [work-with-histogram-metrics]
+
+```{applies_to}
+stack: preview 9.3, ga 9.4
+```
+
+Histogram metrics contain distributions rather than individual numeric samples. With `TS`,
+use regular [aggregation functions](/reference/query-languages/esql/functions-operators/aggregation-functions.md)
+such as `COUNT`, `SUM`, `AVG`, `MIN`, `MAX`, `MEDIAN`, and `PERCENTILE` directly on
+histogram metrics. `TS` implicitly merges the histograms for each time series before
+aggregating across time series. Using `*_OVER_TIME` functions on histogram fields is typically not useful.
+
+For an `exponential_histogram` or `tdigest` field, the following query calculates the number of
+garbage collection events, along with their average and 99th-percentile duration, in each time bucket:
+
+```esql
+TS metrics-*
+| WHERE TRANGE(1 hour)
+| STATS count = COUNT(jvm.gc.duration),
+        avg = AVG(jvm.gc.duration),
+        p99 = PERCENTILE(jvm.gc.duration, 99)
+  BY jvm.gc.action, TBUCKET(5 minutes)
+```
+
+If your metric has mixed types (for example, newer indices use `exponential_histogram`, while legacy indices use `histogram`)
+or has the type `histogram`, you must add an explicit cast: `jvm.gc.duration::exponential_histogram`.
+Typically, `::exponential_histogram` is the right choice, unless you know that your metric actually stores T-Digest data.
+
+You can use [`METRICS_INFO`](/reference/query-languages/esql/commands/metrics-info.md) to inspect
+the field type.
+
+For the full list of supported aggregation functions, casting between histogram types, and
+using `FROM` with histogram fields, refer to
+[](/reference/query-languages/esql/esql-histogram-fields.md).
 
 ## Grouping time series [grouping-time-series]
 
@@ -89,24 +188,145 @@ For example, `TS k8s | STATS rate(network.total_bytes_in) BY host` is rejected; 
 query leads to an error.
 ::::
 
+## Query exemplars [esql-ts-exemplars]
+
+```{applies_to}
+stack: preview 9.7
+serverless: preview
+```
+
+Exemplars are individual measurements recorded alongside aggregated metrics, for example the latency of a single
+request together with the trace and span it belongs to. They let you drill down from a metric to the requests behind
+it. Exemplars are typically ingested through
+[OTLP](docs-content://manage-data/data-store/data-streams/tsds-ingest-otlp.md) or
+[{{prom}} remote write](docs-content://manage-data/data-store/data-streams/tsds-ingest-prometheus-remote-write.md),
+which store them in `exemplars-*` data streams next to the `metrics-*` data streams of the metrics
+(refer to [`xpack.metrics.exemplars.enabled`](/reference/elasticsearch/configuration-reference/index-management-settings.md#metric-exemplar-ingestion-settings)).
+
+With the [`exemplars`](/reference/query-languages/esql/directives/set.md#esql-exemplars) setting, a `TS ... | STATS`
+query returns the exemplars that are relevant to it instead of its result. This lets tools such as Kibana show the
+exemplars of an existing metrics query by issuing the same query again with the exemplars setting enabled:
+
+```esql
+SET exemplars=true;
+TS metrics-cpu
+| WHERE attributes.state == "idle"
+| STATS AVG(cpu_time) BY attributes.cpu
+```
+
+| @timestamp:date | metric_name:keyword | value:double | trace_id:keyword | span_id:keyword | _source |
+| --- | --- | --- | --- | --- | --- |
+| 2024-05-10T00:02:20.000Z | cpu_time | 2.9 | trace-idle-cpu1-cpu | span-5 | `{"@timestamp": ..., "attributes": {"cpu": "cpu1", "state": "idle"}, ...}` |
+| 2024-05-10T00:00:10.000Z | cpu_time | 1.7 | trace-idle-cpu0-cpu | span-1 | `{"@timestamp": ..., "attributes": {"cpu": "cpu0", "state": "idle"}, ...}` |
+
+The setting works the same way for [`PROMQL`](/reference/query-languages/esql/commands/promql.md#esql-promql-exemplars).
+Instead of prepending `SET`, you can also pass the setting in the `settings` object of the request body, which leaves
+the query itself unchanged:
+
+```json
+{
+  "query": "TS metrics-cpu | STATS AVG(cpu_time) BY attributes.cpu",
+  "settings": { "exemplars": true }
+}
+```
+
+### How exemplars are selected [esql-ts-exemplars-selection]
+
+The metrics query is not executed. Instead, {{esql}} statically analyzes it and finds the relevant exemplars using
+heuristics that take into account the metrics the query aggregates and its filters on `@timestamp` and on dimensions.
+
+The exemplars are read from the exemplar data streams that belong to the metrics data streams the query targets: the
+exemplars of `metrics-<name>` are stored in `exemplars-<name>`. Aliases and wildcards are resolved to the underlying
+data streams first. A metrics data stream without an exemplar data stream, or one whose name does not start with
+`metrics-`, contributes no exemplars, but doesn't cause an error.
+
+::::{important}
+The heuristics might change between versions, so the same query can return a different set of exemplars after an
+upgrade. If you need stable results, query the exemplar data streams directly with
+[`FROM`](/reference/query-languages/esql/commands/from.md) instead:
+
+```esql
+FROM exemplars-cpu
+| WHERE metric_name == "cpu_time" AND attributes.state == "idle"
+| SORT @timestamp DESC
+```
+::::
+
+### Output [esql-ts-exemplars-output]
+
+The result contains the following columns:
+
+| Column | Description |
+|--------|-------------|
+| `@timestamp` | When the exemplar was recorded |
+| `metric_name` | The metric the exemplar belongs to, without the name of its passthrough object. For example, `cpu_time` for the metric `metrics.cpu_time` |
+| `value` | The observed value |
+| `trace_id` | The trace the exemplar was recorded in |
+| `span_id` | The span the exemplar was recorded in |
+| `_timeseries` | Only with `include_timeseries`. The dimensions of the time series the exemplar belongs to, as a JSON string |
+| `_source` | The full exemplar document, including the additional labels recorded with it |
+
+The most recent exemplars are returned first. Unless you configure a `limit`, the
+[default result set size](/reference/query-languages/esql/limitations.md#esql-max-rows) of a query applies.
+Use a map instead of `true` to configure the number of exemplars or to add the `_timeseries` column:
+
+```esql
+SET exemplars={"limit": 100, "include_timeseries": true};
+TS metrics-cpu | STATS AVG(cpu_time) BY attributes.cpu
+```
+
+### Limitations [esql-ts-exemplars-limitations]
+
+- **One metrics command**: The query can contain at most one `TS ... | STATS` or `PROMQL` command, otherwise it is
+  rejected. A query with neither returns no exemplars.
+- **Views**: Queries that use [views](/reference/query-languages/esql/esql-views.md) are rejected.
+- **No processing of exemplars**: Commands after the metrics query are part of the metrics query, so they can't
+  filter or transform the returned exemplars: For example, filters on `trace_id` or the exemplar value are not possible.
+  To process exemplars, query the exemplar data streams with `FROM`.
+- **Filtered aliases**: Exemplar data streams are found by the names of the metrics data streams, not by alias.
+  The filter of a [filtered alias](docs-content://manage-data/data-store/aliases.md) over the metrics doesn't apply to
+  their exemplars. A user who can only read the metrics through such an alias gets no exemplars, unless they are
+  allowed to read the exemplar data stream directly, which gives them access to all of its exemplars.
+- **Privileges**: Reading exemplars requires the `read` privilege on the exemplar data streams. Exemplar data streams
+  the user can't read contribute no exemplars.
+- **{{ccs-cap}}**: Remote clusters must run version 9.3 or later.
+
 ## Best practices
 
+- [Prefer `TS` over `FROM`](#when-to-use-ts-vs-from) for time series aggregations.
+  `FROM` is still appropriate for non-aggregation uses such as listing document contents.
 - Avoid aggregating multiple metrics in the same query when those metrics have different dimensional cardinalities.
   For example, in `STATS max(rate(foo)) + rate(bar))`, if `foo` and `bar` don't share the same dimension values, the rate
   for one metric will be null for some dimension combinations. Because the + operator returns null when either input
   is null, the entire result becomes null for those dimensions. Additionally, queries that aggregate a single metric
   can filter out null values more efficiently.
-- Use the `TS` command for aggregations on time series data, rather than `FROM`. The `FROM` command is still available
-  (for example, for listing document contents), but it's not optimized for processing time series data and may produce
-  unexpected results.
-- The `TS` command can't be combined with certain operations (such as
-  [`FORK`](/reference/query-languages/esql/commands/fork.md)) before the `STATS` command is applied. Once `STATS` is
-  applied, you can process the tabular output with any applicable ES|QL operations.
 - Add a time range filter on `@timestamp` to limit the data volume scanned and improve query performance.
 - Time series aggregations produce large result sets, especially if they involve many dimensions and small time buckets.
   The limits are updated accordingly, with the default result truncation size increased to 10,000 rows. For more
   information on the limits and how to adjust them, refer to
   [Result set size limitation](/reference/query-languages/esql/_snippets/common/result-set-size-limitation.md).
+
+## Limitations
+
+- **`COUNT(*)` under `TS`**: After the first `STATS` under `TS`, rows are grouped per
+  time series rather than counted as raw metric documents, so `COUNT(*)` does not have
+  the same meaning it does under `FROM`. To count samples for a specific metric, use
+  `COUNT(<field>)` or
+  [`COUNT_OVER_TIME()`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions/count_over_time.md)
+  against a named field.
+- **Commands that reorder rows**: Commands that change row order, such as
+  [`SORT`](/reference/query-languages/esql/commands/sort.md) or
+  [`FORK`](/reference/query-languages/esql/commands/fork.md), cannot appear between
+  `TS` and the first `STATS`. Time series aggregations rely on the natural `@timestamp`
+  ordering produced by `TS`. After the first `STATS`, results are tabular and these
+  commands are available again — see
+  [Process tabular results after the first STATS](#process-tabular-results-after-the-first-stats).
+- **Metric type compatibility**: Time series aggregation functions enforce the field's
+  `metric_type` mapping. For example,
+  [`RATE()`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions/rate.md)
+  requires a counter and rejects gauge fields. See
+  [](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md#metric-type-compatibility)
+  for the per-function mapping.
 
 ## Examples
 
@@ -126,7 +346,7 @@ TS metrics
 
 ### Aggregate with implicit LAST_OVER_TIME
 
-The following two queries are equivalent, returning the average of the last memory usage values per time series. If a query is missing an inner (time series) aggregation function, `LAST_OVER_TIME()` is assumed and used implicitly:
+The following two queries are equivalent, returning the average of the last memory usage values per time series. If a query on a numeric field is missing an inner (time series) aggregation function, `LAST_OVER_TIME()` is assumed and used implicitly:
 
 ```esql
 TS metrics | STATS AVG(memory_usage)
@@ -168,6 +388,22 @@ Use `AVG_OVER_TIME` to compute per-time-series averages, then group the results 
 TS metrics
 | WHERE @timestamp >= now() - 1 day
 | STATS SUM(AVG_OVER_TIME(memory_usage)) BY host, TBUCKET(1 hour)
+```
+
+### Process tabular results after the first STATS
+
+Once the first `STATS` under `TS` completes, the pipeline becomes a regular ES|QL table.
+Chain additional `STATS`, `EVAL`, `SORT`, and similar commands to derive secondary
+aggregations or computed columns. For example, take per-minute rates per cluster, then
+compute the 95th-percentile and maximum rate per cluster and rank clusters by headroom:
+
+```esql
+TS k8s
+| WHERE @timestamp >= now() - 1 hour
+| STATS rate = MAX(RATE(network.total_bytes_in)) BY cluster, TBUCKET(1 minute)
+| STATS p95 = PERCENTILE(rate, 95), peak = MAX(rate) BY cluster
+| EVAL headroom = peak - p95
+| SORT headroom DESC
 ```
 
 ### Group by all dimensions implicitly

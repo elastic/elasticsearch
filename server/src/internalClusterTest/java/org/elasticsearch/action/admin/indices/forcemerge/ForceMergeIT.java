@@ -11,7 +11,6 @@ package org.elasticsearch.action.admin.indices.forcemerge;
 
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.Engine;
@@ -21,52 +20,78 @@ import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ForceMergeIT extends ESIntegTestCase {
 
-    public void testForceMergeUUIDConsistent() throws IOException {
-        internalCluster().ensureAtLeastNumDataNodes(2);
-        final String index = "test-index";
-        createIndex(index, 1, 1);
-        ensureGreen(index);
-        final ClusterState state = clusterService().state();
-        final IndexRoutingTable indexShardRoutingTables = state.routingTable().getIndicesRouting().get(index);
-        final IndexShardRoutingTable shardRouting = indexShardRoutingTables.shard(0);
-        final String primaryNodeId = shardRouting.primaryShard().currentNodeId();
-        final String replicaNodeId = shardRouting.replicaShards().get(0).currentNodeId();
-        final Index idx = shardRouting.primaryShard().index();
-        final IndicesService primaryIndicesService = internalCluster().getInstance(
-            IndicesService.class,
-            state.nodes().get(primaryNodeId).getName()
-        );
-        final IndicesService replicaIndicesService = internalCluster().getInstance(
-            IndicesService.class,
-            state.nodes().get(replicaNodeId).getName()
-        );
-        final IndexShard primary = primaryIndicesService.indexService(idx).getShard(0);
-        final IndexShard replica = replicaIndicesService.indexService(idx).getShard(0);
+    private record ShardCopies(IndexShard primary, IndexShard replica) {}
 
-        assertThat(getForceMergeUUID(primary), nullValue());
-        assertThat(getForceMergeUUID(replica), nullValue());
+    public void testForceMergeUUIDConsistent() throws IOException {
+        final String index = "test-index";
+        final ShardCopies shardCopies = createIndexWithPrimaryAndReplica(index);
+
+        assertThat(getForceMergeUUID(shardCopies.primary()), nullValue());
+        assertThat(getForceMergeUUID(shardCopies.replica()), nullValue());
 
         final BroadcastResponse forceMergeResponse = indicesAdmin().prepareForceMerge(index).setMaxNumSegments(1).get();
 
         assertThat(forceMergeResponse.getFailedShards(), is(0));
         assertThat(forceMergeResponse.getSuccessfulShards(), is(2));
 
-        // Force flush to force a new commit that contains the force flush UUID
+        assertForceMergeUUIDConsistentOnAllCopies(index, shardCopies);
+    }
+
+    public void testForceMergeUUIDConsistentWithOnlyExpungeDeletes() throws IOException {
+        final String index = "test-index";
+        final ShardCopies shardCopies = createIndexWithPrimaryAndReplica(index);
+
+        assertThat(getForceMergeUUID(shardCopies.primary()), nullValue());
+        assertThat(getForceMergeUUID(shardCopies.replica()), nullValue());
+
+        final BroadcastResponse forceMergeResponse = indicesAdmin().prepareForceMerge(index).setOnlyExpungeDeletes(true).get();
+
+        assertThat(forceMergeResponse.getFailedShards(), is(0));
+        assertThat(forceMergeResponse.getSuccessfulShards(), is(2));
+
+        assertForceMergeUUIDConsistentOnAllCopies(index, shardCopies);
+    }
+
+    private ShardCopies createIndexWithPrimaryAndReplica(String index) {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        createIndex(index, 1, 1);
+        ensureGreen(index);
+        final ClusterState state = clusterService().state();
+        final IndexShardRoutingTable shardRouting = state.routingTable().getIndicesRouting().get(index).shard(0);
+        final Index idx = shardRouting.primaryShard().index();
+        return new ShardCopies(
+            shardOnNode(state, shardRouting.primaryShard().currentNodeId(), idx),
+            shardOnNode(state, shardRouting.replicaShards().get(0).currentNodeId(), idx)
+        );
+    }
+
+    private IndexShard shardOnNode(ClusterState state, String nodeId, Index idx) {
+        return internalCluster().getInstance(IndicesService.class, state.nodes().get(nodeId).getName()).indexService(idx).getShard(0);
+    }
+
+    private void assertForceMergeUUIDConsistentOnAllCopies(String index, ShardCopies copies) throws IOException {
+        final String primaryForceMergeUUIDBeforeFlush = getForceMergeUUID(copies.primary());
+        final String replicaForceMergeUUIDBeforeFlush = getForceMergeUUID(copies.replica());
+
+        // Force flush to force a new commit that contains the force merge UUID
         final BroadcastResponse flushResponse = indicesAdmin().prepareFlush(index).setForce(true).get();
         assertThat(flushResponse.getFailedShards(), is(0));
         assertThat(flushResponse.getSuccessfulShards(), is(2));
 
-        final String primaryForceMergeUUID = getForceMergeUUID(primary);
+        final String primaryForceMergeUUID = getForceMergeUUID(copies.primary());
         assertThat(primaryForceMergeUUID, notNullValue());
-
-        final String replicaForceMergeUUID = getForceMergeUUID(replica);
+        assertThat(primaryForceMergeUUID, not(equalTo(primaryForceMergeUUIDBeforeFlush)));
+        final String replicaForceMergeUUID = getForceMergeUUID(copies.replica());
         assertThat(replicaForceMergeUUID, notNullValue());
+        assertThat(replicaForceMergeUUID, not(equalTo(replicaForceMergeUUIDBeforeFlush)));
         assertThat(primaryForceMergeUUID, is(replicaForceMergeUUID));
     }
 

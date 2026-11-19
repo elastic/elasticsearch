@@ -7,22 +7,35 @@
 
 package org.elasticsearch.xpack.esql.score;
 
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
-import org.elasticsearch.compute.operator.ScoreOperator.ExpressionScorer;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 
 /**
- * Maps expressions that have a mapping to an {@link ExpressionScorer}. Allows for transforming expressions into their corresponding scores.
+ * Allows for transforming expressions into their corresponding scores: expressions that contribute to the score map
+ * to an {@link ExpressionEvaluator} that evaluates a {@link org.elasticsearch.compute.data.DoubleBlock} of per-row
+ * scores.
  */
 public interface ExpressionScoreMapper {
     interface ToScorer {
-        ExpressionScorer.Factory toScorer(Expression expression);
+        ExpressionEvaluator.Factory toScorer(Expression expression);
+
+        /**
+         * The regular (non-scoring) evaluator context, used by scorers that need to evaluate their inputs
+         * (e.g. the field values of a runtime full-text function) or resolve analyzers by name.
+         */
+        EvaluatorMapper.ToEvaluator toEvaluator();
 
         default IndexedByShardId<? extends EsPhysicalOperationProviders.ShardContext> shardContexts() {
             throw new UnsupportedOperationException("Shard contexts should only be needed for scoring operations");
         }
     }
 
-    ExpressionScorer.Factory toScorer(ToScorer toScorer);
+    ExpressionEvaluator.Factory toScorer(ToScorer toScorer);
+
+    default boolean contributesToScore() {
+        return true;
+    }
 }

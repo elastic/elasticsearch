@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.stateless.health;
 
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.action.shard.StartedShardEntry;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
@@ -138,7 +139,7 @@ public class StatelessShardsHealthIT extends AbstractStatelessPluginIntegTestCas
         // "INITIALIZING" state until we release it.
         var masterTransportService = MockTransportService.getInstance(internalCluster().getMasterName());
         CountDownLatch latch = new CountDownLatch(1);
-        masterTransportService.<ShardStateAction.StartedShardEntry>addRequestHandlingBehavior(
+        masterTransportService.<StartedShardEntry>addRequestHandlingBehavior(
             ShardStateAction.SHARD_STARTED_ACTION_NAME,
             (handler, request, channel, task) -> {
                 if (request.toString().contains("[myindex]")) {
@@ -215,7 +216,7 @@ public class StatelessShardsHealthIT extends AbstractStatelessPluginIntegTestCas
         var masterTransportService = MockTransportService.getInstance(internalCluster().getMasterName());
         CountDownLatch latch1 = new CountDownLatch(1);
         CountDownLatch latch2 = new CountDownLatch(1);
-        masterTransportService.<ShardStateAction.StartedShardEntry>addRequestHandlingBehavior(
+        masterTransportService.<StartedShardEntry>addRequestHandlingBehavior(
             ShardStateAction.SHARD_STARTED_ACTION_NAME,
             (handler, request, channel, task) -> {
                 // Wait until after peer recovery so that primary is started, but replica is not

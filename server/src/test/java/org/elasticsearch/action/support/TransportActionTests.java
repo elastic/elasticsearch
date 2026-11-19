@@ -12,16 +12,14 @@ package org.elasticsearch.action.support;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
@@ -41,11 +39,7 @@ public class TransportActionTests extends ESTestCase {
 
     @Before
     public void init() throws Exception {
-        threadPool = new ThreadPool(
-            Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "TransportActionTests").build(),
-            MeterRegistry.NOOP,
-            new DefaultBuiltInExecutorBuilders()
-        );
+        threadPool = new TestThreadPool("TransportActionTests");
     }
 
     @After
@@ -132,7 +126,7 @@ public class TransportActionTests extends ESTestCase {
     }
 
     private TransportAction<TestRequest, TestResponse> getTestTransportAction(String actionName, Executor executor) {
-        ActionFilters actionFilters = new ActionFilters(Collections.emptySet());
+        ActionFilters actionFilters = ActionFilters.EMPTY;
         TransportAction<TestRequest, TestResponse> transportAction = new TransportAction<>(
             actionName,
             actionFilters,
@@ -147,7 +141,7 @@ public class TransportActionTests extends ESTestCase {
         return transportAction;
     }
 
-    private static class TestRequest extends LegacyActionRequest {
+    private static class TestRequest extends UntypedActionRequest {
         @Override
         public ActionRequestValidationException validate() {
             return null;

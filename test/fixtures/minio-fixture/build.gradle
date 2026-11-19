@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 apply plugin: 'elasticsearch.java'
-apply plugin: 'elasticsearch.cache-test-fixtures'
+apply plugin: 'elasticsearch.docker-image-cache'
 
 description = 'Fixture for MinIO Storage service'
 
@@ -16,7 +16,7 @@ configurations.all {
 }
 dependencies {
   testImplementation (project(':test:framework'))
-  api "junit:junit:${versions.junit}"
+  api "junit:junit:${versions.junit4}"
   api project(':test:fixtures:testcontainer-utils')
   api("org.testcontainers:testcontainers:${versions.testcontainer}") {
     transitive = false

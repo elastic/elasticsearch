@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
@@ -527,6 +528,12 @@ public class EsqlSession {
         // that planning froze.
         listener = listener.delegateResponse((l, e) -> {
             executionInfo.queryProfile().planningCpuNanos(planningCpu.finish());
+            l.onFailure(e);
+        });
+        // A failed query has no Result to carry the planning warnings, so they go to the thread context, which the error response
+        // and the streaming failure footer read.
+        listener = listener.delegateResponse((l, e) -> {
+            planningWarnings().forEach(HeaderWarning::addWarning);
             l.onFailure(e);
         });
         TimeSpanMarker parsingProfile = executionInfo.queryProfile().parsing();
@@ -1051,10 +1058,17 @@ public class EsqlSession {
     }
 
     /**
-     * Adds the warnings planning collected as data rather than in the thread context, for every response the session builds.
+     * Puts the warnings planning collected as data rather than in the thread context ahead of the compute warnings, for every
+     * response the session builds. Planning warnings come first, as they did when planning wrote them to the thread context.
      */
     private DriverCompletionInfo withPlanningWarnings(DriverCompletionInfo completionInfo) {
-        return completionInfo.withAdditionalWarnings(analysisWarnings).withAdditionalWarnings(externalSourceWarnings);
+        return completionInfo.withLeadingWarnings(planningWarnings());
+    }
+
+    private List<String> planningWarnings() {
+        List<String> warnings = new ArrayList<>(analysisWarnings);
+        warnings.addAll(externalSourceWarnings);
+        return warnings;
     }
 
     private Versioned<Result> attachAdditionalData(

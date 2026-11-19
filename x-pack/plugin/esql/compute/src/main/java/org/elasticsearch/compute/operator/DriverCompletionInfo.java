@@ -166,17 +166,15 @@ public record DriverCompletionInfo(
     }
 
     /**
-     * Returns a copy with {@code additional} raw warning bodies merged in, preserving insertion
-     * order (existing warnings first). Empty or null input returns {@code this}.
+     * Returns a copy with {@code leading} raw warning bodies ahead of the existing ones, so that they survive when
+     * {@code http.max_warning_header_count} drops the warnings at the end. Empty or null input returns {@code this}.
      */
-    public DriverCompletionInfo withAdditionalWarnings(Collection<String> additional) {
-        if (additional == null || additional.isEmpty()) {
+    public DriverCompletionInfo withLeadingWarnings(Collection<String> leading) {
+        if (leading == null || leading.isEmpty()) {
             return this;
         }
-        LinkedHashSet<String> merged = new LinkedHashSet<>(warnings);
-        if (merged.addAll(additional) == false) {
-            return this;
-        }
+        LinkedHashSet<String> merged = new LinkedHashSet<>(leading);
+        merged.addAll(warnings);
         return new DriverCompletionInfo(
             documentsFound,
             valuesLoaded,

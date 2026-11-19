@@ -973,6 +973,61 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         assertAnalysisWarningCarried(PreparedEsqlQueryRequest.analyzeOnly(TEST_PARSER.createStatement(ANALYSIS_WARNING_QUERY), "test"));
     }
 
+    /**
+     * Analysis warnings come before compute warnings, so they survive when {@code http.max_warning_header_count} drops the last ones.
+     */
+    public void testAnalysisWarningsPrecedeComputeWarnings() throws Exception {
+        var request = new EsqlQueryRequest();
+        request.query(ANALYSIS_WARNING_QUERY);
+        request.allowPartialResults(false);
+        String computeWarning = "compute warning";
+        try (DataSourceModule dataSourceModule = makeDataSourceModule()) {
+            var planExecutor = buildPlanExecutor(mockIndexResolver(), dataSourceModule);
+            var executionInfo = createEsqlExecutionInfo(randomBoolean());
+            EsqlSession.PlanRunner runPhase = (role, p, configuration, foldContext, planTimeProfile, maxResultSize, r) -> {
+                executionInfo.markEndQuery();
+                r.onResponse(
+                    new Result(
+                        List.of(),
+                        List.of(),
+                        null,
+                        configuration,
+                        DriverCompletionInfo.EMPTY.withLeadingWarnings(List.of(computeWarning)),
+                        executionInfo,
+                        null
+                    )
+                );
+            };
+            PlainActionFuture<Versioned<Result>> future = new PlainActionFuture<>();
+            executeEsql(planExecutor, request, executionInfo, runPhase, future);
+            assertThat(
+                safeGet(future).inner().completionInfo().warnings(),
+                contains(DetermineUnmappedFieldsToKeep.UNMAPPED_FIELDS_NAME_TAKEN_WARNING, computeWarning)
+            );
+        }
+    }
+
+    /**
+     * A query that fails after analysis has no result to carry its analysis warnings, so they go to the thread context, which the
+     * error response and the streaming failure footer read.
+     */
+    public void testAnalysisWarningsReachThreadContextOnFailure() throws Exception {
+        var request = new EsqlQueryRequest();
+        request.query(ANALYSIS_WARNING_QUERY);
+        request.allowPartialResults(false);
+        try (DataSourceModule dataSourceModule = makeDataSourceModule()) {
+            var planExecutor = buildPlanExecutor(mockIndexResolver(), dataSourceModule);
+            var executionInfo = createEsqlExecutionInfo(randomBoolean());
+            EsqlSession.PlanRunner runPhase = (role, p, configuration, foldContext, planTimeProfile, maxResultSize, r) -> r.onFailure(
+                new IllegalStateException("simulated compute failure")
+            );
+            PlainActionFuture<Versioned<Result>> future = new PlainActionFuture<>();
+            executeEsql(planExecutor, request, executionInfo, runPhase, future);
+            expectThrows(IllegalStateException.class, future::actionGet);
+            assertWarnings(DetermineUnmappedFieldsToKeep.UNMAPPED_FIELDS_NAME_TAKEN_WARNING);
+        }
+    }
+
     private void assertAnalysisWarningCarried(EsqlQueryRequest request) throws Exception {
         try (DataSourceModule dataSourceModule = makeDataSourceModule()) {
             var planExecutor = buildPlanExecutor(mockIndexResolver(), dataSourceModule);

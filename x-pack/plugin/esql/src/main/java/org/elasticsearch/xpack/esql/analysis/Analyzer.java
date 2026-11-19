@@ -4599,6 +4599,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             private final Map<NameId, String> expandedChildren = new HashMap<>();
             /** The generated attributes that convert an expanded child, by id, with the child they convert. */
             private final Map<NameId, FieldAttribute> convertedChildren = new HashMap<>();
+            /** The generated attributes that convert a child {@code NESTED_ANY} reads. They live in its predicate, not the relation. */
+            private final Set<NameId> nestedPredicateConversions = new HashSet<>();
         }
 
         private static LogicalPlan doRule(LogicalPlan plan, UnionTypeResolutionState state, AnalyzerContext context) {
@@ -4632,9 +4634,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (e instanceof ConvertFunction convert) {
                     int before = state.unionFieldAttributes.size();
                     Expression resolved = resolveConvertFunction(convert, state.unionFieldAttributes, context);
-                    if (convertedField(convert) instanceof FieldAttribute child && state.expandedChildren.containsKey(child.id())) {
+                    if (convertedField(convert) instanceof FieldAttribute child) {
                         for (int i = before; i < state.unionFieldAttributes.size(); i++) {
-                            state.convertedChildren.put(state.unionFieldAttributes.get(i).inner().id(), child);
+                            if (state.expandedChildren.containsKey(child.id())) {
+                                state.convertedChildren.put(state.unionFieldAttributes.get(i).inner().id(), child);
+                            } else if (BindNestedAny.readsNestedChild(child)) {
+                                state.nestedPredicateConversions.add(state.unionFieldAttributes.get(i).inner().id());
+                            }
                         }
                     }
                     return resolved;
@@ -4643,7 +4649,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             });
 
             boolean generatedUnionFields = state.unionFieldAttributes.size() > alreadyAddedUnionFieldAttributes;
-            if (generatedUnionFields == false && plan.equals(beforeConverts) == false && referencesMissingFromInputs(plan)) {
+            if (generatedUnionFields == false
+                && plan.equals(beforeConverts) == false
+                && referencesMissingFromInputs(plan, state.nestedPredicateConversions)) {
                 // The cast reused a field an earlier cast created, so no field was generated to carry through the projects between
                 // the two. Bind it for this node within the scope. Only projects below this node are touched, so the scope's final
                 // projection is not widened.
@@ -4673,7 +4681,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
                 plan = addGeneratedFieldsToEsRelations(
                     plan,
-                    generated.stream().filter(fa -> state.convertedChildren.containsKey(fa.id()) == false).toList(),
+                    generated.stream()
+                        .filter(fa -> state.convertedChildren.containsKey(fa.id()) == false)
+                        .filter(fa -> state.nestedPredicateConversions.contains(fa.id()) == false)
+                        .toList(),
                     context.unmappedResolution().loadsAllUnmappedFields()
                 );
             }
@@ -4735,10 +4746,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * leaves behind when a projection between the two casts dropped it. Checked first so that a chain of casts over the same field
          * does not walk the subtree below every cast.
          */
-        private static boolean referencesMissingFromInputs(LogicalPlan plan) {
+        private static boolean referencesMissingFromInputs(LogicalPlan plan, Set<NameId> nestedPredicateConversions) {
             AttributeSet inputs = plan.inputSet();
             for (Attribute reference : plan.references()) {
-                if (reference.synthetic() && inputs.contains(reference) == false) {
+                if (reference.synthetic()
+                    && inputs.contains(reference) == false
+                    && nestedPredicateConversions.contains(reference.id()) == false) {
                     return true;
                 }
             }

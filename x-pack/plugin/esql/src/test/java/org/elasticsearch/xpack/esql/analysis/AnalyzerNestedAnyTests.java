@@ -14,8 +14,10 @@ import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.NestedScopeField;
+import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedAny;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedPredicate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -34,6 +36,7 @@ import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
@@ -230,11 +233,58 @@ public class AnalyzerNestedAnyTests extends AnalyzerTestCase {
         );
     }
 
-    public void testConflictingChildTypesAreRejected() {
+    public void testConflictingChildIsAmbiguousLikeAnOrdinaryColumn() {
         nestedAnalyzer().error(
             "FROM ne_types | WHERE NESTED_ANY(items.v == \"a\")",
-            containsString("NESTED_ANY does not support child type [UNSUPPORTED] for [items.v]")
+            containsString(
+                "Cannot use field [items.v] due to ambiguities being mapped as [2] incompatible types: "
+                    + "[integer] in [ne_types_a], [keyword] in [ne_types_b]"
+            )
         );
+        nestedAnalyzer().error(
+            "FROM ne_types | WHERE NESTED_ANY(items.n > 1)",
+            containsString(
+                "Cannot use field [items.n] due to ambiguities being mapped as [2] incompatible types: "
+                    + "[integer] in [ne_types_b], [short] in [ne_types_a]"
+            )
+        );
+    }
+
+    public void testCastOfConflictingChildReadsEachIndexsType() {
+        LogicalPlan plan = nestedAnalyzer().query("FROM ne_types | WHERE NESTED_ANY(TO_LONG(items.v) == 1) | KEEP id");
+        NestedPredicate predicate = predicate(plan);
+        assertThat(predicate.path(), equalTo("items"));
+        assertThat(predicate.relativePaths(), equalTo(List.of("v")));
+        assertThat(predicate.inputs(), hasSize(1));
+        assertThat(predicate.inputs().getFirst(), instanceOf(FieldAttribute.class));
+        assertThat(((FieldAttribute) predicate.inputs().getFirst()).field(), instanceOf(UnionTypeEsField.class));
+        assertThat(predicate.inputs().getFirst().dataType(), equalTo(DataType.LONG));
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("id")));
+        List<EsRelation> relations = new ArrayList<>();
+        plan.forEachDown(EsRelation.class, relations::add);
+        assertThat(relations.getFirst().output().stream().map(Attribute::name).toList(), everyItem(not(containsString("converted_to"))));
+    }
+
+    public void testSameCastOfConflictingChildIsReadOnce() {
+        LogicalPlan plan = nestedAnalyzer().query("FROM ne_types | WHERE NESTED_ANY(TO_LONG(items.v) > 1 AND TO_LONG(items.v) < 5)");
+        assertThat(predicate(plan).inputs(), hasSize(1));
+    }
+
+    public void testCastOfConflictingChildInTheNestedCollectionForm() {
+        LogicalPlan plan = nestedAnalyzer().query("FROM ne_types | WHERE NESTED_ANY(items, TO_LONG(items.v) == 1)");
+        assertThat(predicate(plan).relativePaths(), equalTo(List.of("v")));
+    }
+
+    public void testUncastConflictInsideACastedBodyIsStillAmbiguous() {
+        nestedAnalyzer().error(
+            "FROM ne_types | WHERE NESTED_ANY(TO_LONG(items.v) == 1 AND items.n > 1)",
+            containsString("Cannot use field [items.n] due to ambiguities being mapped as [2] incompatible types")
+        );
+    }
+
+    public void testSmallNumericChildIsWidenedLikeAnOrdinaryColumn() {
+        LogicalPlan plan = nestedAnalyzer().query("FROM ne_types | WHERE NESTED_ANY(items.small > 1)");
+        assertThat(predicate(plan).inputs().stream().map(Attribute::dataType).toList(), equalTo(List.of(DataType.INTEGER)));
     }
 
     public void testIndicesDisagreeingOnTheNestedPathAreRejected() {

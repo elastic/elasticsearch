@@ -201,3 +201,125 @@ setup:
             | KEEP id
             | SORT id
   - match: { values: [["1"]] }
+
+---
+"NESTED_ANY reads small numeric children as integer like a top-level field":
+  - do:
+      indices.create:
+        index: nested_any_small
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              id:
+                type: keyword
+              ts:
+                type: short
+              tb:
+                type: byte
+              items:
+                type: nested
+                properties:
+                  s:
+                    type: short
+                  b:
+                    type: byte
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "nested_any_small", "_id": "1" } }
+          - { "id": "1", "ts": 5, "tb": 5, "items": [ { "s": 5, "b": 5 } ] }
+          - { "index": { "_index": "nested_any_small", "_id": "2" } }
+          - { "id": "2", "ts": 1, "tb": 1, "items": [ { "s": 1, "b": 1 } ] }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_small | WHERE ts > 2 AND tb > 2 | KEEP id, ts, tb | SORT id'
+  - match: { columns.1.type: "integer" }
+  - match: { columns.2.type: "integer" }
+  - match: { values: [["1", 5, 5]] }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_small | WHERE NESTED_ANY(items.s > 2) AND NESTED_ANY(items.b > 2) | KEEP id | SORT id'
+  - match: { values: [["1"]] }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_small | NESTED_EXPAND items | WHERE items.s > 2 | KEEP id, items.s, items.b | SORT id'
+  - match: { columns.1.type: "integer" }
+  - match: { columns.2.type: "integer" }
+  - match: { values: [["1", 5, 5]] }
+
+---
+"NESTED_ANY resolves a child mapped with different types through a cast":
+  - do:
+      indices.create:
+        index: nested_any_conflict_a
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              id:
+                type: keyword
+              items:
+                type: nested
+                properties:
+                  v:
+                    type: integer
+  - do:
+      indices.create:
+        index: nested_any_conflict_b
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              id:
+                type: keyword
+              items:
+                type: nested
+                properties:
+                  v:
+                    type: keyword
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "nested_any_conflict_a", "_id": "1" } }
+          - { "id": "1", "items": [ { "v": 1 }, { "v": 9 } ] }
+          - { "index": { "_index": "nested_any_conflict_a", "_id": "2" } }
+          - { "id": "2", "items": [ { "v": 5 } ] }
+          - { "index": { "_index": "nested_any_conflict_b", "_id": "3" } }
+          - { "id": "3", "items": [ { "v": "1" } ] }
+          - { "index": { "_index": "nested_any_conflict_b", "_id": "4" } }
+          - { "id": "4", "items": [ { "v": "7" } ] }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_conflict_* | WHERE NESTED_ANY(TO_LONG(items.v) == 1) | KEEP id | SORT id'
+  - match: { values: [["1"], ["3"]] }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_conflict_* | EVAL big = NESTED_ANY(TO_LONG(items.v) > 6) | KEEP id, big | SORT id'
+  - match: { values: [["1", true], ["2", false], ["3", false], ["4", true]] }
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'FROM nested_any_conflict_* | WHERE NESTED_ANY(items.v == 1) | KEEP id'
+  - match: { error.reason: "/(?s).*Cannot\\suse\\sfield\\s\\[items\\.v\\]\\sdue\\sto\\sambiguities.*/" }

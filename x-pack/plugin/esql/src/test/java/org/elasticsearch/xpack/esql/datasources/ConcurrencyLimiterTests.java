@@ -122,6 +122,20 @@ public class ConcurrencyLimiterTests extends ESTestCase {
         assertEquals(42, limiter.maxPermits());
     }
 
+    public void testLiveGetReserveLeavesOneSlot() throws Exception {
+        ExternalSourceSettings.BlobStoreConcurrency pool = new ExternalSourceSettings.BlobStoreConcurrency(4, false);
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", pool.forLiveGets(), 50L);
+        assertEquals(3, limiter.maxPermits());
+        assertEquals(3, limiter.availablePermits());
+        limiter.acquire();
+        limiter.acquire();
+        limiter.acquire();
+        expectThrows(TimeoutException.class, limiter::acquire);
+        limiter.release();
+        limiter.release();
+        limiter.release();
+    }
+
     public void testTryAcquireBargesWithoutBlocking() throws Exception {
         ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(1, false), 30_000L);
         limiter.acquire();

@@ -206,10 +206,11 @@ public final class ExternalSourceSettings {
     static final int MAX_CONCURRENT_REQUESTS_UPPER_BOUND = 500;
 
     /**
-     * The single external-read concurrency knob, per scheme, per node. It sizes both the per-scheme permit semaphore
-     * that bounds in-flight data reads ({@code StorageProviderRegistry}) and the backend SDK HTTP connection pools
-     * (S3 Netty {@code maxConcurrency}, Azure reactor-netty {@code ConnectionProvider}), and — via
-     * {@link #blobStoreConcurrency(Settings)} — the metadata-discovery fan-out. Set to 0 to disable permit-based
+     * The single external-read concurrency knob, per scheme, per node. It sizes the backend SDK HTTP connection
+     * pools (S3 Netty {@code maxConcurrency}, Azure reactor-netty {@code ConnectionProvider}) and — via
+     * {@link #blobStoreConcurrency(Settings)} — the metadata-discovery fan-out. The per-scheme permit semaphore
+     * ({@code StorageProviderRegistry}) issues {@link BlobStoreConcurrency#forLiveGets()} so one pool slot stays
+     * free for a truncated GET to abort while its replacement starts. Set to 0 to disable permit-based
      * concurrency limiting entirely.
      * <p>
      * The default is {@link #defaultBlobStoreConcurrency(Settings)} rather than a fixed literal: CPU slope
@@ -245,6 +246,27 @@ public final class ExternalSourceSettings {
         BlobStoreConcurrency(int permits, boolean settingCanRaiseLimit) {
             this(permits, settingCanRaiseLimit, false);
         }
+
+        /**
+         * Permits issued for in-flight GETs. SDK pools keep {@link #permits}; when that is at least 2,
+         * one slot is not issued so a truncated GET can abort while its replacement starts. {@code 0}
+         * (unlimited) and {@code 1} cannot reserve.
+         */
+        BlobStoreConcurrency forLiveGets() {
+            int live = liveGetPermits(permits);
+            return live == permits ? this : new BlobStoreConcurrency(live, settingCanRaiseLimit, parseFloorBinds);
+        }
+    }
+
+    /**
+     * In-flight GET permits for a connection pool of {@code poolSize}. {@code 0} stays unlimited;
+     * {@code 1} cannot reserve.
+     */
+    static int liveGetPermits(int poolSize) {
+        if (poolSize <= 1) {
+            return poolSize;
+        }
+        return poolSize - 1;
     }
 
     /**

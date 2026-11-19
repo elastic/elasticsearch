@@ -117,19 +117,10 @@ public class S3StorageProvider implements StorageProvider {
      */
     private static final Duration ASYNC_READ_TIMEOUT = Duration.ofSeconds(30);
 
-    /**
-     * Truncated async GET can occupy a pool slot until abort is processed on the event loop.
-     * Resume starts a replacement GET immediately after {@code close()}. Without a spare slot
-     * the new GET waits {@link #CONNECTION_ACQUISITION_TIMEOUT}, matching the REST socket timeout.
-     */
-    private static int nettyMaxConcurrency(int maxConnections) {
-        return Math.addExact(maxConnections, 1);
-    }
-
     private static NettyNioAsyncHttpClient.Builder nettyHttpClientBuilder(int maxConnections) {
         return NettyNioAsyncHttpClient.builder()
             .putChannelOption(ChannelOption.RCVBUF_ALLOCATOR, PooledRecvByteBufAllocator.DEFAULT)
-            .maxConcurrency(nettyMaxConcurrency(maxConnections))
+            .maxConcurrency(maxConnections)
             .connectionAcquisitionTimeout(CONNECTION_ACQUISITION_TIMEOUT)
             .readTimeout(ASYNC_READ_TIMEOUT);
     }
@@ -188,9 +179,10 @@ public class S3StorageProvider implements StorageProvider {
     }
 
     /**
-     * Production constructor. {@code maxConnections} is {@code esql.external.max_concurrent_requests},
-     * read at the plugin's construction path (which holds node {@link Settings}). The async Netty
-     * pool is {@code maxConnections + 1} so a truncated GET can abort while its replacement starts.
+     * Production constructor. {@code maxConnections} sizes the async client's Netty connection pool and is the
+     * value of the {@code esql.external.max_concurrent_requests} node setting, read at the plugin's construction
+     * path (which holds node {@link Settings}). Live GETs are {@code maxConnections - 1}; the node limiter
+     * reserves one slot so a truncated GET can abort while its replacement starts.
      */
     @SuppressWarnings("this-escape")
     public S3StorageProvider(
@@ -476,12 +468,13 @@ public class S3StorageProvider implements StorageProvider {
         // Pass the builder (not a pre-built client) so the SDK takes ownership of the Netty client
         // and closes it when S3AsyncClient.close() is called. A pre-built client passed via
         // .httpClient() is wrapped in NonManagedSdkAsyncHttpClient whose close() is a no-op.
-        // Size the connection pool from esql.external.max_concurrent_requests plus one spare slot
-        // (nettyMaxConcurrency). The SDK's default maxConcurrency is 50, which caps a single query's
-        // read parallelism well below what S3 serves happily — S3 throttles per key-prefix request
-        // rate, not per per-machine connection count, and pushes back with 503/backoff when it
-        // actually needs to. connectionAcquisitionTimeout is generous so brief pool contention
-        // queues rather than failing the read.
+        // Size the connection pool from the single esql.external.max_concurrent_requests knob; the
+        // node limiter issues one fewer live GET so abort/resume can use the spare slot. The SDK's
+        // default maxConcurrency is 50, which caps a single query's read parallelism well below what
+        // S3 serves happily — S3 throttles per key-prefix request rate, not per per-machine
+        // connection count, and pushes back with 503/backoff when it actually needs to.
+        // connectionAcquisitionTimeout is generous so brief pool contention queues rather than
+        // failing the read.
         //
         // SDK-level retries are DISABLED on the async client: it exists solely for
         // S3StorageObject#readBytesAsync, which drives Standard-strategy retries itself so that each

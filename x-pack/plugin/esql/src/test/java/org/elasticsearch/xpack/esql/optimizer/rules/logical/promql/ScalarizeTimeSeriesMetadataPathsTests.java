@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContextV2;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -228,6 +229,46 @@ public class ScalarizeTimeSeriesMetadataPathsTests extends ESTestCase {
         Attribute container = as(keyword.right(), PackDims.class).dims().getFirst();
         assertThat(container.dataType(), sameInstance(DataType.KEYWORD));
         assertThat(expressions(pushDown(plan), TimeSeriesMetadataSet.class), hasSize(1));
+    }
+
+    /**
+     * A join on a label one side has no field for. A keyword pack of what is left of a kept container takes every label the
+     * match keeps, absent where the side has none: both sides pack alike, so a series without the label matches one that has
+     * none, as in Prometheus.
+     */
+    public void testKeywordJoinPacksEveryLabelTheMatchKeeps() {
+        FieldAttribute region = dimension("region");
+        EsRelation withRegion = EsqlTestUtils.relation(IndexMode.TIME_SERIES).withAttributes(List.of(pod, region, value));
+        PackDims left = keptSide(relation, "pod", "region");
+        PackDims right = keptSide(withRegion, "pod", "region");
+        LogicalPlan plan = new HashJoin(SOURCE, left, right, List.of(left.packed()), List.of(right.packed()), List.of(), false);
+
+        HashJoin keyword = as(pushDownKeyword(plan), HashJoin.class);
+        PackDims leftPack = as(keyword.left(), PackDims.class);
+        PackDims rightPack = as(keyword.right(), PackDims.class);
+        assertThat(leftPack.dims(), hasSize(2));
+        assertThat(rightPack.dims(), hasSize(2));
+        assertEquals(List.of("pod", "region"), names(rightPack.dims()));
+        Alias absent = as(leftPack.child(), Eval.class).fields().getLast();
+        assertEquals(leftPack.dims().getLast().id(), absent.id());
+        assertNull(as(absent.child(), Literal.class).value());
+    }
+
+    /** A side of a join over {@code source}, keyed by its labels kept to {@code names}, packed as translation packs it. */
+    private PackDims keptSide(EsRelation source, String... names) {
+        Alias labels = sourceLabels();
+        Alias kept = new Alias(
+            SOURCE,
+            MetadataAttribute.TIMESERIES,
+            new TimeSeriesMetadataFilter(
+                SOURCE,
+                labels.toAttribute(),
+                Arrays.stream(names).<Expression>map(name -> Literal.keyword(SOURCE, name)).toList(),
+                false
+            )
+        );
+        LogicalPlan side = new Eval(SOURCE, timeSeriesAggregate(source, labels, TimeSeriesAggregate.Origin.PROMQL_COMMAND), List.of(kept));
+        return TranslationContextV2.packLabels(SOURCE, side, kept.toAttribute());
     }
 
     /**
@@ -476,8 +517,12 @@ public class ScalarizeTimeSeriesMetadataPathsTests extends ESTestCase {
     }
 
     private TimeSeriesAggregate timeSeriesAggregate(Alias labels, TimeSeriesAggregate.Origin origin) {
+        return timeSeriesAggregate(relation, labels, origin);
+    }
+
+    private TimeSeriesAggregate timeSeriesAggregate(EsRelation source, Alias labels, TimeSeriesAggregate.Origin origin) {
         Alias last = new Alias(SOURCE, "value", new Values(SOURCE, value));
-        return new TimeSeriesAggregate(SOURCE, relation, List.of(labels), List.of(last, labels.toAttribute()), null, null, origin, false);
+        return new TimeSeriesAggregate(SOURCE, source, List.of(labels), List.of(last, labels.toAttribute()), null, null, origin, false);
     }
 
     private static FieldAttribute dimension(String name) {

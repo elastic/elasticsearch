@@ -684,7 +684,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                 new MockLog.SeenEventExpectation(
                     "timeout extended while the relocation source is still healthy",
                     SharedBlobCacheWarmingService.class.getCanonicalName(),
-                    Level.DEBUG,
+                    Level.INFO,
                     "*cache warming timeout extended by ["
                         + relocationTimeoutSlice.getStringRep()
                         + "] (relocation source not shutting down, no cluster shutdown -> "
@@ -695,7 +695,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                 new MockLog.SeenEventExpectation(
                     "timeout extended after the relocation source started shutting down",
                     SharedBlobCacheWarmingService.class.getCanonicalName(),
-                    Level.DEBUG,
+                    Level.INFO,
                     "*cache warming timeout extended by*-> relocation source shutting down*"
                 )
             );
@@ -811,7 +811,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                 new MockLog.UnseenEventExpectation(
                     "timeout never extended",
                     SharedBlobCacheWarmingService.class.getCanonicalName(),
-                    Level.DEBUG,
+                    Level.INFO,
                     "*cache warming timeout extended*"
                 )
             );
@@ -1574,9 +1574,9 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
 
         // make the source node wait at least `minWaitInMillis` before we release the prewarming, so we can then verify prewarm metric
         final var sourceThreadPool = internalCluster().getInstance(ThreadPool.class, sourceNode);
-        final long start = sourceThreadPool.relativeTimeInMillis();
+        final long start = sourceThreadPool.rawRelativeTimeInMillis();
         final long minWaitInMillis = randomLongBetween(10, 100);
-        assertTrue(waitUntil(() -> sourceThreadPool.relativeTimeInMillis() - start >= minWaitInMillis));
+        assertTrue(waitUntil(() -> sourceThreadPool.rawRelativeTimeInMillis() - start >= minWaitInMillis));
 
         releaseEarlyPrewarming.countDown();
         ensureGreen(indexName);

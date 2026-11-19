@@ -35,6 +35,8 @@ import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.decider.ConcurrentRebalanceAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
@@ -66,6 +68,7 @@ import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.recovery.CompositeRecoverySchedulingListener;
+import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.TestRecoverySchedulingListener;
 import org.elasticsearch.node.NodeRoleSettings;
@@ -86,6 +89,7 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.stateless.allocation.StatelessThrottlingConcurrentRecoveriesAllocationDecider;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeoutCalculationService;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
@@ -186,6 +190,9 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
     private boolean hollowIndexShardsZeroTtl;
     // TODO(szybia): remove once merge blobs are uploaded for real
     private MockLog mergeBlobLogCapture;
+    // Drawn once per test so that all nodes share the same recovery throttling configuration
+    // Note that individual tests can override those settings.
+    private Settings recoveryThrottlingSettings = Settings.EMPTY;
 
     @Before
     public void setup() {
@@ -199,6 +206,13 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
         } else if (randomBoolean()) {
             // Randomly make TTL zero for hollowing shards
             hollowIndexShardsZeroTtl = true;
+        }
+        if (randomBoolean()) {
+            recoveryThrottlingSettings = randomDataNodeRecoveryThrottlingSettings();
+            logger.info(
+                "Configuring data node recovery throttling settings (individual tests then may override some of them): {}",
+                recoveryThrottlingSettings
+            );
         }
         if (MERGE_BLOBS_ENABLED) {
             final boolean injectMergeBlobs = randomBoolean();
@@ -516,7 +530,56 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
             var cacheBoostPreference = StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING;
             builder.put(cacheBoostPreference.getKey(), cacheBoostPreference.getDefault(Settings.EMPTY));
         }
+        builder.put(recoveryThrottlingSettings);
         return builder;
+    }
+
+    /// Randomized values for all the data node recovery throttling (DNRT) settings.
+    ///
+    /// DNRT replaces the master-side recovery throttling, so this hands the throttling over to the data nodes and
+    /// unthrottles the master-side deciders. See [DataNodeRecoveryThrottlingSettings] for effective limits.
+    private static Settings randomDataNodeRecoveryThrottlingSettings() {
+        return Settings.builder()
+            .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey(), Integer.MAX_VALUE)
+            .put(
+                ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(),
+                Integer.MAX_VALUE
+            )
+            .put(
+                ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(),
+                Integer.MAX_VALUE
+            )
+            .put(
+                ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.getKey(),
+                Integer.MAX_VALUE
+            )
+            .put(
+                StatelessThrottlingConcurrentRecoveriesAllocationDecider.MIN_HEAP_REQUIRED_FOR_CONCURRENT_PRIMARY_RECOVERIES_SETTING
+                    .getKey(),
+                ByteSizeValue.ZERO
+            )
+            .put(
+                StatelessThrottlingConcurrentRecoveriesAllocationDecider.CONCURRENT_PRIMARY_RECOVERIES_PER_HEAP_GB.getKey(),
+                Integer.MAX_VALUE
+            )
+            .put(ConcurrentRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING.getKey(), -1)
+            .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), between(1, 10))
+            // Tests run with a 512MB heap by default (`tests.heap.size`), so this yields a heap-based limit between 1 and 10
+            .put(
+                DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(),
+                randomDoubleBetween(1, 20, true)
+            )
+            .put(
+                DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING.getKey(),
+                between(50, 100) + "%"
+            )
+            .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), between(1, 10))
+            // Heap-based limit between 1 and 10, as for the incoming side above
+            .put(
+                DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(),
+                randomDoubleBetween(1, 20, true)
+            )
+            .build();
     }
 
     protected String startSearchNode() {
@@ -1402,6 +1465,32 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
         return Settings.builder()
             .put(IndexingMemoryController.SHARD_MEMORY_INTERVAL_TIME_SETTING.getKey(), TimeValue.timeValueHours(1L))
             .put(IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING.getKey(), TimeValue.MINUS_ONE)
+            .build();
+    }
+
+    /// Settings that lift the data node recovery throttling (DNRT) limits on incoming recoveries.
+    protected static Settings unthrottledIncomingRecoveryNodeSettings() {
+        return Settings.builder()
+            .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), Integer.MAX_VALUE)
+            .put(
+                DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(),
+                Double.MAX_VALUE
+            )
+            .put(
+                DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING.getKey(),
+                "100%"
+            )
+            .build();
+    }
+
+    /// Settings that lift the data node recovery throttling (DNRT) limits on outgoing recoveries.
+    protected static Settings unthrottledOutgoingRecoveryNodeSettings() {
+        return Settings.builder()
+            .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), Integer.MAX_VALUE)
+            .put(
+                DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(),
+                Double.MAX_VALUE
+            )
             .build();
     }
 

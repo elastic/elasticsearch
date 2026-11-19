@@ -249,7 +249,45 @@ public class Re2RegExpTests extends ESTestCase {
      * on what it matches: the strings the automaton accepts and random strings over the expression's alphabet.
      */
     public void testAgreesWithMatcher() {
-        String regex = randomRegex(2);
+        assertAgreesWithMatcher(randomRegex(2));
+    }
+
+    /**
+     * An alternation of literals, the shape of most label matchers, is built without parsing it; it matches what the
+     * matcher does, anchors and groups around it included.
+     */
+    public void testLiteralsAgreeWithMatcher() {
+        StringBuilder regex = new StringBuilder(randomFrom("", "^"));
+        String group = randomFrom("", "(", "(?:");
+        regex.append(group);
+        for (int alternatives = between(1, 5); alternatives > 0; alternatives--) {
+            for (int length = between(0, 4); length > 0; length--) {
+                regex.appendCodePoint(randomFrom(ALPHABET));
+            }
+            if (alternatives > 1) {
+                regex.append('|');
+            }
+        }
+        regex.append(group.isEmpty() ? "" : ")").append(randomFrom("", "$"));
+        assertAgreesWithMatcher(regex.toString());
+    }
+
+    public void testLiterals() {
+        assertMatches("", "");
+        assertDoesNotMatch("", "a");
+        assertMatches("^$", "");
+        assertMatches("^(?:)$", "");
+        assertMatches("a|", "a", "");
+        assertMatches("|", "");
+        assertMatches("^(?:foo|bar)$", "foo", "bar");
+        assertDoesNotMatch("^(?:foo|bar)$", "^foo", "foo|bar", "(foo)");
+        assertMatches("(a)", "a");
+        assertMatches("b|a|b", "a", "b");
+        assertMatches("\u212a|\u03b1", "\u212a", "\u03b1");
+        assertDoesNotMatch("k", "K", "\u212a");
+    }
+
+    private static void assertAgreesWithMatcher(String regex) {
         Pattern pattern = Pattern.compile(regex, Pattern.DOTALL);
         Automaton automaton;
         try {

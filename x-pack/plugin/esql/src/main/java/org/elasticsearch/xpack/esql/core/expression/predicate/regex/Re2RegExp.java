@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.core.expression.predicate.regex;
 
 import org.apache.lucene.internal.hppc.IntArrayList;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
@@ -21,7 +22,10 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.Simplify
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.Unicode;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.Utils;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.BitSet;
+import java.util.List;
 
 /**
  * A regular expression in RE2 syntax, compiled to a Lucene {@link Automaton} that accepts the strings it matches whole.
@@ -38,6 +42,8 @@ import java.util.Arrays;
  */
 public final class Re2RegExp {
 
+    /** The strings of an expression that is an alternation of literals, which needs no parsing; null if it isn't one. */
+    private final List<String> literals;
     private final Prog prog;
 
     /**
@@ -45,13 +51,21 @@ public final class Re2RegExp {
      * @throws IllegalArgumentException if the expression isn't valid RE2
      */
     public Re2RegExp(String pattern, int flags) {
-        this.prog = Compiler.compileRegexp(Simplify.simplify(Parser.parse(pattern, flags)));
+        this.literals = (flags & RE2.FOLD_CASE) == 0 ? literals(pattern) : null;
+        this.prog = literals == null ? Compiler.compileRegexp(Simplify.simplify(Parser.parse(pattern, flags))) : null;
     }
 
     /**
      * The automaton accepting the strings the expression matches whole; it is not determinized.
      */
     public Automaton toAutomaton() {
+        if (literals != null) {
+            if (literals.size() == 1) {
+                return Automata.makeString(literals.getFirst());
+            }
+            List<BytesRef> sorted = literals.stream().map(BytesRef::new).sorted().toList();
+            return Automata.makeStringUnion(sorted);
+        }
         Builder builder = new Builder(prog);
         Automaton automaton = builder.build();
         if (builder.mayHaveDeadStates == false) {
@@ -62,6 +76,48 @@ public final class Re2RegExp {
         // none is live if the expression matches nothing: then the empty automaton, as Lucene's RegExp has it, so
         // that a run automaton can be built from the determinized one
         return automaton.getNumStates() == 0 ? Automata.makeEmpty() : automaton;
+    }
+
+    /** The runes that aren't literals in RE2, outside a class. */
+    private static final String META = "\\.+*?()|[]{}^$";
+
+    /**
+     * The strings of an alternation of literals, optionally in a group, optionally anchored at either end, the shape
+     * of most PromQL label matchers, which Grafana's multi-value variables expand to: {@code a}, {@code a|b},
+     * {@code ^(?:a|b)$}. As the expression is matched whole, its anchors at either end hold anyway. Null if the
+     * expression isn't of that shape, or its literals have a rune past the BMP or are too long to make a union of.
+     */
+    private static List<String> literals(String pattern) {
+        int start = 0;
+        int end = pattern.length();
+        if (start < end && pattern.charAt(start) == '^') {
+            start++;
+        }
+        if (start < end && pattern.charAt(end - 1) == '$') {
+            end--;
+        }
+        if (end - start >= 2 && pattern.charAt(start) == '(' && pattern.charAt(end - 1) == ')') {
+            start += pattern.startsWith("?:", start + 1) ? 3 : 1;
+            end--;
+        }
+        List<String> literals = new ArrayList<>();
+        int from = start;
+        for (int i = start; i < end; i++) {
+            char c = pattern.charAt(i);
+            if (c == '|') {
+                literals.add(pattern.substring(from, i));
+                from = i + 1;
+            } else if (META.indexOf(c) >= 0 || Character.isSurrogate(c)) {
+                return null;
+            }
+        }
+        literals.add(pattern.substring(from, end));
+        for (String literal : literals) {
+            if (literal.length() * 3 > Automata.MAX_STRING_UNION_TERM_LENGTH) {
+                return null;
+            }
+        }
+        return literals;
     }
 
     // the classes of the rune on either side of a position; EDGE is before the first or after the last
@@ -84,7 +140,12 @@ public final class Re2RegExp {
 
     private static final class Builder {
         private final Prog prog;
-        /** Whether the program has assertions, and so a state needs the class of the rune before it. */
+        /**
+         * The assertions that hold wherever they are reached: one at the beginning that no rune comes before, as in
+         * {@code ^a}, and one at the end that no rune comes after, as in {@code a$}, as the expression is matched whole.
+         */
+        private final boolean[] holds;
+        /** Whether the program has other assertions, and so a state needs the class of the rune before it. */
         private final boolean contextual;
         private final Automaton.Builder automaton = new Automaton.Builder();
         /** The state of each program counter and class of the rune before, at {@code pc * CLASSES + class}, or -1. */
@@ -113,9 +174,29 @@ public final class Re2RegExp {
 
         Builder(Prog prog) {
             this.prog = prog;
+            int n = prog.numInst();
+            this.holds = new boolean[n];
+            BitSet afterRune = null;
             boolean contextual = false;
-            for (int pc = 0; pc < prog.numInst(); pc++) {
-                contextual |= prog.getInst(pc).op == Inst.EMPTY_WIDTH;
+            for (int pc = 0; pc < n; pc++) {
+                Inst inst = prog.getInst(pc);
+                if (inst.op != Inst.EMPTY_WIDTH) {
+                    continue;
+                }
+                int begin = Utils.EMPTY_BEGIN_TEXT | Utils.EMPTY_BEGIN_LINE;
+                int end = Utils.EMPTY_END_TEXT | Utils.EMPTY_END_LINE;
+                boolean holds = (inst.arg & ~(begin | end)) == 0;
+                if (holds && (inst.arg & begin) != 0) {
+                    if (afterRune == null) {
+                        afterRune = afterRune(prog);
+                    }
+                    holds = afterRune.get(pc) == false;
+                }
+                if (holds && (inst.arg & end) != 0) {
+                    holds = reachesRune(prog, inst.out) == false;
+                }
+                this.holds[pc] = holds;
+                contextual |= holds == false;
             }
             this.contextual = contextual;
             this.mayHaveDeadStates = contextual;
@@ -170,6 +251,10 @@ public final class Re2RegExp {
                     }
                     case Inst.NOP, Inst.CAPTURE -> stack.add(inst.out << 4 | next);
                     case Inst.EMPTY_WIDTH -> {
+                        if (holds[item >>> 4]) {
+                            stack.add(inst.out << 4 | next);
+                            continue;
+                        }
                         int allowed = next & allowedNext(inst.arg, previous);
                         if (allowed != 0) {
                             stack.add(inst.out << 4 | allowed);
@@ -246,6 +331,64 @@ public final class Re2RegExp {
                     j += 2;
                 }
             }
+        }
+
+        /** The instructions the empty moves after a rune reach, the positions that a rune comes before. */
+        private static BitSet afterRune(Prog prog) {
+            BitSet reached = new BitSet(prog.numInst());
+            IntArrayList stack = new IntArrayList();
+            for (int pc = 0; pc < prog.numInst(); pc++) {
+                if (isRune(prog.getInst(pc))) {
+                    stack.add(prog.getInst(pc).out);
+                }
+            }
+            emptyMoves(prog, stack, reached);
+            return reached;
+        }
+
+        /** Whether the empty moves from {@code pc} reach a rune instruction, so that a rune may come after. */
+        private static boolean reachesRune(Prog prog, int pc) {
+            BitSet reached = new BitSet(prog.numInst());
+            IntArrayList stack = new IntArrayList();
+            stack.add(pc);
+            emptyMoves(prog, stack, reached);
+            for (int i = reached.nextSetBit(0); i >= 0; i = reached.nextSetBit(i + 1)) {
+                if (isRune(prog.getInst(i))) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /** Adds the instructions the empty moves from those on {@code stack} reach, them included, to {@code reached}. */
+        private static void emptyMoves(Prog prog, IntArrayList stack, BitSet reached) {
+            while (stack.isEmpty() == false) {
+                int pc = stack.removeLast();
+                if (reached.get(pc)) {
+                    continue;
+                }
+                reached.set(pc);
+                Inst inst = prog.getInst(pc);
+                switch (inst.op) {
+                    case Inst.ALT, Inst.ALT_MATCH -> {
+                        stack.add(inst.out);
+                        stack.add(inst.arg);
+                    }
+                    case Inst.NOP, Inst.CAPTURE, Inst.EMPTY_WIDTH -> stack.add(inst.out);
+                    case Inst.RUNE, Inst.RUNE1, Inst.RUNE_ANY, Inst.RUNE_ANY_NOT_NL, Inst.MATCH, Inst.FAIL -> {
+                        // a move past a rune, or the end of the way
+                    }
+                    default -> throw new IllegalStateException("unknown instruction [" + inst.op + "]");
+                }
+            }
+        }
+
+        private static boolean isRune(Inst inst) {
+            return switch (inst.op) {
+                case Inst.RUNE, Inst.RUNE1, Inst.RUNE_ANY, Inst.RUNE_ANY_NOT_NL -> true;
+                case Inst.ALT, Inst.ALT_MATCH, Inst.NOP, Inst.CAPTURE, Inst.EMPTY_WIDTH, Inst.MATCH, Inst.FAIL -> false;
+                default -> throw new IllegalStateException("unknown instruction [" + inst.op + "]");
+            };
         }
 
         /** The runes a rune instruction matches, as sorted {@code [lo, hi]} pairs. */

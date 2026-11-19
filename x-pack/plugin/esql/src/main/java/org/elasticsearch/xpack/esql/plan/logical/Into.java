@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.tree.Node.NodeStringFormat;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.into.IntoOptions;
 import org.elasticsearch.xpack.esql.into.IntoStats;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
@@ -55,15 +56,17 @@ public class Into extends UnaryPlan
     private static final Set<String> LOCAL_ONLY = Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
 
     private final String destination;
+    private final IntoOptions options;
     private final List<Attribute> output;
 
-    public Into(Source source, LogicalPlan child, String destination) {
-        this(source, child, destination, IntoStats.createAttributes(source));
+    public Into(Source source, LogicalPlan child, String destination, IntoOptions options) {
+        this(source, child, destination, options, IntoStats.createAttributes(source));
     }
 
-    public Into(Source source, LogicalPlan child, String destination, List<Attribute> output) {
+    public Into(Source source, LogicalPlan child, String destination, IntoOptions options, List<Attribute> output) {
         super(source, child);
         this.destination = Objects.requireNonNull(destination);
+        this.options = Objects.requireNonNull(options);
         this.output = output;
     }
 
@@ -76,6 +79,7 @@ public class Into extends UnaryPlan
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(LogicalPlan.class),
             in.readString(),
+            new IntoOptions(in),
             in.readNamedWriteableCollectionAsList(Attribute.class)
         );
     }
@@ -85,6 +89,7 @@ public class Into extends UnaryPlan
         Source.EMPTY.writeTo(out);
         out.writeNamedWriteable(child());
         out.writeString(destination);
+        options.writeTo(out);
         out.writeNamedWriteableCollection(output);
     }
 
@@ -95,6 +100,10 @@ public class Into extends UnaryPlan
 
     public String destination() {
         return destination;
+    }
+
+    public IntoOptions options() {
+        return options;
     }
 
     @Override
@@ -109,12 +118,12 @@ public class Into extends UnaryPlan
 
     @Override
     public Into replaceChild(LogicalPlan newChild) {
-        return new Into(source(), newChild, destination, output);
+        return new Into(source(), newChild, destination, options, output);
     }
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, Into::new, child(), destination, output);
+        return NodeInfo.create(this, Into::new, child(), destination, options, output);
     }
 
     @Override
@@ -181,16 +190,22 @@ public class Into extends UnaryPlan
 
     @Override
     public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
-        sb.append(nodeName()).append('[').append(mapper.index(destination)).append(']');
+        sb.append(nodeName()).append('[').append(mapper.index(destination));
+        options.appendNonDefault(sb);
+        sb.append(']');
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), destination, output);
+        return Objects.hash(super.hashCode(), destination, options, output);
     }
 
     @Override
     public boolean equals(Object obj) {
-        return super.equals(obj) && destination.equals(((Into) obj).destination) && output.equals(((Into) obj).output);
+        if (super.equals(obj) == false) {
+            return false;
+        }
+        Into other = (Into) obj;
+        return destination.equals(other.destination) && options.equals(other.options) && output.equals(other.output);
     }
 }

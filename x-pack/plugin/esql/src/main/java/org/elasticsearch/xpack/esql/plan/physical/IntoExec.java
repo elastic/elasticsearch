@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.into.IntoOptions;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
@@ -45,6 +46,7 @@ public class IntoExec extends UnaryExec {
     }
 
     private final String destination;
+    private final IntoOptions options;
     private final List<Attribute> sourceAttributes;
     private final List<Attribute> outputAttributes;
     private final Mode mode;
@@ -53,12 +55,14 @@ public class IntoExec extends UnaryExec {
         Source source,
         PhysicalPlan child,
         String destination,
+        IntoOptions options,
         List<Attribute> sourceAttributes,
         List<Attribute> outputAttributes,
         Mode mode
     ) {
         super(source, child);
         this.destination = Objects.requireNonNull(destination);
+        this.options = Objects.requireNonNull(options);
         this.sourceAttributes = sourceAttributes;
         this.outputAttributes = outputAttributes;
         this.mode = mode;
@@ -69,6 +73,7 @@ public class IntoExec extends UnaryExec {
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(PhysicalPlan.class),
             in.readString(),
+            new IntoOptions(in),
             in.readNamedWriteableCollectionAsList(Attribute.class),
             in.readNamedWriteableCollectionAsList(Attribute.class),
             in.readEnum(Mode.class)
@@ -80,6 +85,7 @@ public class IntoExec extends UnaryExec {
         Source.EMPTY.writeTo(out);
         out.writeNamedWriteable(child());
         out.writeString(destination);
+        options.writeTo(out);
         out.writeNamedWriteableCollection(sourceAttributes);
         out.writeNamedWriteableCollection(outputAttributes);
         out.writeEnum(mode);
@@ -92,6 +98,10 @@ public class IntoExec extends UnaryExec {
 
     public String destination() {
         return destination;
+    }
+
+    public IntoOptions options() {
+        return options;
     }
 
     public List<Attribute> sourceAttributes() {
@@ -117,22 +127,24 @@ public class IntoExec extends UnaryExec {
 
     @Override
     public UnaryExec replaceChild(PhysicalPlan newChild) {
-        return new IntoExec(source(), newChild, destination, sourceAttributes, outputAttributes, mode);
+        return new IntoExec(source(), newChild, destination, options, sourceAttributes, outputAttributes, mode);
     }
 
     @Override
     protected NodeInfo<? extends PhysicalPlan> info() {
-        return NodeInfo.create(this, IntoExec::new, child(), destination, sourceAttributes, outputAttributes, mode);
+        return NodeInfo.create(this, IntoExec::new, child(), destination, options, sourceAttributes, outputAttributes, mode);
     }
 
     @Override
     public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
-        sb.append(nodeName()).append('[').append(mode).append(',').append(mapper.index(destination)).append(']');
+        sb.append(nodeName()).append('[').append(mode).append(',').append(mapper.index(destination));
+        options.appendNonDefault(sb);
+        sb.append(']');
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), destination, sourceAttributes, outputAttributes, mode);
+        return Objects.hash(super.hashCode(), destination, options, sourceAttributes, outputAttributes, mode);
     }
 
     @Override
@@ -142,6 +154,7 @@ public class IntoExec extends UnaryExec {
         }
         IntoExec other = (IntoExec) obj;
         return destination.equals(other.destination)
+            && options.equals(other.options)
             && sourceAttributes.equals(other.sourceAttributes)
             && outputAttributes.equals(other.outputAttributes)
             && mode == other.mode;

@@ -420,7 +420,15 @@ public class MapperUtils {
     }
 
     static PhysicalPlan mapIntoWrite(Into into, PhysicalPlan child) {
-        return new IntoExec(into.source(), child, into.destination(), into.child().output(), into.output(), IntoExec.Mode.WRITE);
+        return new IntoExec(
+            into.source(),
+            child,
+            into.destination(),
+            into.options(),
+            into.child().output(),
+            into.output(),
+            IntoExec.Mode.WRITE
+        );
     }
 
     static PhysicalPlan unsupported(LogicalPlan p) {

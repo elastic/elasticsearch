@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.parser;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
+import org.elasticsearch.xpack.esql.into.IntoOptions;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Into;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
@@ -17,8 +18,11 @@ import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.Before;
 
+import java.util.List;
+
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.hamcrest.Matchers.equalTo;
 
 public class IntoParserTests extends AbstractStatementParserTests {
@@ -63,6 +67,49 @@ public class IntoParserTests extends AbstractStatementParserTests {
                 EsqlFlags.DEFAULTS
             )
         );
+    }
+
+    public void testEmptyOptions() {
+        Into into = as(query("ROW a = 1 | INTO dst WITH {}"), Into.class);
+        assertThat(into.destination(), equalTo("dst"));
+    }
+
+    public void testUnknownOptionRejected() {
+        expectError("ROW a = 1 | INTO dst WITH {\"foo\": 1}", "Invalid option [foo] in INTO, expected one of [refresh]");
+        expectError("ROW a = 1 | INTO dst WITH {\"foo\": 1, \"bar\": 2}", "Invalid options [foo, bar] in INTO, expected one of [refresh]");
+    }
+
+    public void testRefreshDefaultsToTrue() {
+        assertThat(as(query("ROW a = 1 | INTO dst"), Into.class).options(), equalTo(IntoOptions.DEFAULT));
+        assertThat(as(query("ROW a = 1 | INTO dst WITH {}"), Into.class).options().refresh(), equalTo(true));
+    }
+
+    public void testRefresh() {
+        boolean refresh = randomBoolean();
+        assertThat(as(query("ROW a = 1 | INTO dst WITH {\"refresh\": " + refresh + "}"), Into.class).options().refresh(), equalTo(refresh));
+    }
+
+    public void testOptionNamesAreCaseInsensitive() {
+        assertThat(as(query("ROW a = 1 | INTO dst WITH {\"REFRESH\": false}"), Into.class).options().refresh(), equalTo(false));
+        assertThat(as(query("ROW a = 1 | into dst with {\"Refresh\": false}"), Into.class).options().refresh(), equalTo(false));
+    }
+
+    public void testRefreshFromParameter() {
+        Into into = as(
+            query("ROW a = 1 | INTO dst WITH {\"refresh\": ?r}", new QueryParams(List.of(paramAsConstant("r", false)))),
+            Into.class
+        );
+        assertThat(into.options().refresh(), equalTo(false));
+    }
+
+    public void testRefreshMustBeBoolean() {
+        expectError("ROW a = 1 | INTO dst WITH {\"refresh\": \"no\"}", "Option [refresh] must be a boolean literal");
+        expectError("ROW a = 1 | INTO dst WITH {\"refresh\": 1}", "Option [refresh] must be a boolean literal");
+        expectError("ROW a = 1 | INTO dst WITH {\"refresh\": null}", "Option [refresh] must be a boolean literal");
+    }
+
+    public void testOptionsDifferingOnlyInCaseRejected() {
+        expectError("ROW a = 1 | INTO dst WITH {\"refresh\": true, \"REFRESH\": false}", "Duplicate option [refresh] in INTO");
     }
 
     public void testExplainInto() {

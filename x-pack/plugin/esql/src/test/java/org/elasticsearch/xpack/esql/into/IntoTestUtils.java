@@ -12,6 +12,8 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -24,6 +26,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
@@ -53,6 +56,8 @@ class IntoTestUtils {
     static class CapturingClient extends NoOpClient {
         final List<BulkRequest> bulks = new ArrayList<>();
         final List<ActionListener<BulkResponse>> listeners = new ArrayList<>();
+        final List<RefreshRequest> refreshes = new ArrayList<>();
+        final List<ActionListener<BroadcastResponse>> refreshListeners = new ArrayList<>();
 
         CapturingClient(ThreadPool threadPool) {
             super(threadPool);
@@ -65,9 +70,24 @@ class IntoTestUtils {
             Request request,
             ActionListener<Response> listener
         ) {
+            if (action == RefreshAction.INSTANCE) {
+                refreshes.add((RefreshRequest) request);
+                refreshListeners.add((ActionListener<BroadcastResponse>) listener);
+                return;
+            }
             assertThat(action, equalTo(TransportBulkAction.TYPE));
             bulks.add((BulkRequest) request);
             listeners.add((ActionListener<BulkResponse>) listener);
+        }
+
+        void answerRefresh() {
+            refreshes.removeFirst();
+            refreshListeners.removeFirst().onResponse(new BroadcastResponse(1, 1, 0, List.of()));
+        }
+
+        void failRefresh(Exception e) {
+            refreshes.removeFirst();
+            refreshListeners.removeFirst().onFailure(e);
         }
 
         void answer(Outcome... outcomes) {

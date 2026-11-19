@@ -422,7 +422,7 @@ dedupCommand
     ;
 
 intoCommand
-    : DEV_INTO indexPattern
+    : DEV_INTO indexPattern commandNamedParameters
     ;
 
 highlightCommand

@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.dissect.DissectException;
@@ -62,6 +63,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equ
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.MultiColumnInSubquery;
+import org.elasticsearch.xpack.esql.into.IntoOptions;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlParserUtils;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
@@ -609,7 +611,42 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 destination
             );
         }
-        return input -> new Into(source, input, destination);
+        IntoOptions options = intoOptions(source, visitCommandNamedParameters(ctx.commandNamedParameters()));
+        return input -> new Into(source, input, destination, options);
+    }
+
+    /** Option names are case-insensitive, so they are lowercased before lookup. */
+    private static IntoOptions intoOptions(Source source, @Nullable MapExpression optionsExpression) {
+        if (optionsExpression == null) {
+            return IntoOptions.DEFAULT;
+        }
+        Map<String, Expression> optionsMap = new LinkedHashMap<>();
+        optionsExpression.keyFoldedMap().forEach((key, value) -> {
+            String name = key.toLowerCase(Locale.ROOT);
+            if (optionsMap.put(name, value) != null) {
+                throw new ParsingException(value.source(), "Duplicate option [{}] in INTO", name);
+            }
+        });
+
+        boolean refresh = IntoOptions.DEFAULT.refresh();
+        Expression refreshExpr = optionsMap.remove("refresh");
+        if (refreshExpr != null) {
+            if (refreshExpr instanceof Literal lit && lit.dataType() == DataType.BOOLEAN && lit.value() != null) {
+                refresh = (Boolean) lit.value();
+            } else {
+                throw new ParsingException(refreshExpr.source(), "Option [refresh] must be a boolean literal");
+            }
+        }
+
+        if (optionsMap.isEmpty() == false) {
+            throw new ParsingException(
+                source,
+                "Invalid option{} {} in INTO, expected one of [refresh]",
+                optionsMap.size() > 1 ? "s" : "",
+                optionsMap.keySet()
+            );
+        }
+        return new IntoOptions(refresh);
     }
 
     @Override

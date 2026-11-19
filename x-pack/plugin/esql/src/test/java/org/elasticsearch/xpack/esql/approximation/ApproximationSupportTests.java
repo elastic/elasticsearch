@@ -70,6 +70,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Top;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.UnaryAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.VarianceOverTime;
+import org.elasticsearch.xpack.esql.into.IntoOptions;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
 import org.elasticsearch.xpack.esql.plan.logical.Dedup;
@@ -379,7 +380,7 @@ public class ApproximationSupportTests extends ESTestCase {
             List.of(),
             List.of()
         );
-        Into into = new Into(Source.EMPTY, agg, "dst");
+        Into into = new Into(Source.EMPTY, agg, "dst", IntoOptions.DEFAULT);
         VerificationException e = expectThrows(
             VerificationException.class,
             () -> ApproximationVerifier.verifyPlanOrThrow(into, TransportVersion.current())

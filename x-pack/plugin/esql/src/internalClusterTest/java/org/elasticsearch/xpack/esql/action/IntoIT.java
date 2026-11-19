@@ -444,9 +444,47 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
         assertThat(failed.getMessage(), containsString("unmapped_col"));
     }
 
+    public void testRefreshByDefaultMakesRowsVisible() {
+        disableDestinationRefresh();
+        assertInto("ROW k = [\"a\", \"b\"] | MV_EXPAND k", 2);
+        assertThat(countWithoutRefresh(), equalTo(2L));
+    }
+
+    public void testRefreshByDefaultMakesRowsFromSourceVisible() {
+        createSource();
+        disableDestinationRefresh();
+        assertInto("FROM " + SOURCE, 3);
+        assertThat(countWithoutRefresh(), equalTo(3L));
+    }
+
+    public void testRefreshFalseLeavesRowsInvisibleUntilRefreshed() {
+        disableDestinationRefresh();
+        boolean fromSource = randomBoolean();
+        String producer = fromSource ? "FROM " + SOURCE : "ROW k = [\"a\", \"b\", \"c\"] | MV_EXPAND k";
+        if (fromSource) {
+            createSource();
+        }
+        try (EsqlQueryResponse response = run(producer + " | INTO " + DESTINATION + " WITH {\"refresh\": false}")) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(3L, 3L))));
+        }
+        assertThat(countWithoutRefresh(), equalTo(0L));
+        refresh(DESTINATION);
+        assertThat(countWithoutRefresh(), equalTo(3L));
+    }
+
     public void testIntoRunsOnCoordinatorWithoutDataNodeRequests() {
         assertThat(countDataNodeRequests(() -> assertInto("ROW k = [\"r1\", \"r2\"] | MV_EXPAND k", 2)), equalTo(0));
         assertReadBack("KEEP k | SORT k", List.of(List.of("r1"), List.of("r2")));
+    }
+
+    private void disableDestinationRefresh() {
+        assertAcked(indicesAdmin().prepareUpdateSettings(DESTINATION).setSettings(Settings.builder().put("index.refresh_interval", -1)));
+    }
+
+    private long countWithoutRefresh() {
+        try (EsqlQueryResponse response = run("FROM " + DESTINATION + " | STATS c = COUNT(*)")) {
+            return (long) getValuesList(response).getFirst().getFirst();
+        }
     }
 
     private int countDataNodeRequests(Runnable action) {

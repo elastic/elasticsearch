@@ -12,6 +12,8 @@ mode INTO_MODE;
 INTO_PIPE : PIPE -> type(PIPE), popMode;
 // Pop both INTO_MODE and the enclosing subquery/FORK mode on ')' so the parser sees and rejects the misplaced INTO.
 INTO_RP : RP -> type(RP), popMode, popMode;
+// Declared before INTO_UNQUOTED_SOURCE so an unquoted WITH starts the options map rather than naming a destination.
+INTO_WITH : WITH -> type(WITH), popMode, pushMode(EXPRESSION_MODE);
 INTO_UNQUOTED_SOURCE : UNQUOTED_SOURCE -> type(UNQUOTED_SOURCE);
 INTO_QUOTED_SOURCE : QUOTED_STRING -> type(QUOTED_STRING);
 INTO_COLON : COLON -> type(COLON);

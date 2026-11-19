@@ -5005,6 +5005,11 @@ public class EsqlCapabilities {
         INTO_COMMAND(Build.current().isSnapshot()),
 
         /**
+         * {@code INTO <destination> WITH { ... }} options, starting with {@code refresh}.
+         */
+        INTO_OPTIONS(Build.current().isSnapshot()),
+
+        /**
          * {@code NESTED_EXPAND} turns one parent row into one row per object of a mapped nested field.
          * Snapshot-only until the command is advertised.
          */

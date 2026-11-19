@@ -440,7 +440,6 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             res.add(StatelessSnapshotSettings.STATELESS_SNAPSHOT_ENABLED_SETTING);
             res.add(StatelessSnapshotSettings.STATELESS_SNAPSHOT_WAIT_FOR_ACTIVE_PRIMARY_TIMEOUT_SETTING);
             res.add(StatelessSnapshotSettings.RELOCATION_DURING_SNAPSHOT_ENABLED_SETTING);
-            res.add(ObjectStoreService.OBJECT_STORE_UPLOAD_HOT_THREADS_LOG_INTERVAL);
             res.add(RemoveRefreshClusterBlockService.EXPIRE_AFTER_SETTING);
             res.add(StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING);
             res.add(StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_INDEXING_ENABLED_SETTING);

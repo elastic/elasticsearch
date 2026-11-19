@@ -23,7 +23,6 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.StatelessMockRepositoryPlugin;
 import org.elasticsearch.xpack.stateless.StatelessMockRepositoryStrategy;
-import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommitUploadTask;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 
 import java.io.IOException;
@@ -37,8 +36,6 @@ import static org.hamcrest.Matchers.greaterThan;
 public class UploadProgressLoggingIT extends AbstractStatelessPluginIntegTestCase {
 
     private static final int UPLOAD_MAX_COMMITS = 2;
-
-    private static final TimeValue HOT_THREADS_LOG_INTERVAL = TimeValue.timeValueMillis(200);
 
     private static final TimeValue SLOW_UPLOAD_LOG_THRESHOLD = TimeValue.timeValueMillis(100);
 
@@ -63,10 +60,9 @@ public class UploadProgressLoggingIT extends AbstractStatelessPluginIntegTestCas
         return super.nodeSettings().put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK);
     }
 
-    private static Settings uploadObservabilitySettings(TimeValue hotThreadsLogInterval, TimeValue slowLogThreshold) {
+    private static Settings uploadObservabilitySettings(TimeValue slowLogThreshold) {
         return Settings.builder()
             .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), UPLOAD_MAX_COMMITS)
-            .put(ObjectStoreService.OBJECT_STORE_UPLOAD_HOT_THREADS_LOG_INTERVAL.getKey(), hotThreadsLogInterval)
             .put(StatelessCommitService.STATELESS_UPLOAD_SLOW_LOG_THRESHOLD.getKey(), slowLogThreshold)
             .put(ObjectStoreService.OBJECT_STORE_CONCURRENT_MULTIPART_UPLOADS.getKey(), false)
             .build();
@@ -110,44 +106,11 @@ public class UploadProgressLoggingIT extends AbstractStatelessPluginIntegTestCas
     }
 
     @TestLogging(
-        reason = "need INFO from upload task to observe hot threads logging during upload",
-        value = "org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommitUploadTask:INFO"
-    )
-    public void testBccUploadLogsHotThreadsWhileInFlight() throws Exception {
-        startMasterAndIndexNode(
-            uploadObservabilitySettings(HOT_THREADS_LOG_INTERVAL, TimeValue.timeValueDays(1)),
-            delayedBccUploadStrategy()
-        );
-        var indexName = randomIdentifier();
-        createIndex(
-            indexName,
-            indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE)
-                .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), "1gb")
-                .build()
-        );
-        ensureGreen(indexName);
-
-        MockLog.awaitLogger(
-            () -> triggerBccUpload(indexName),
-            BatchedCompoundCommitUploadTask.class,
-            new MockLog.SeenEventExpectation(
-                "hot threads during upload",
-                BatchedCompoundCommitUploadTask.class.getCanonicalName(),
-                Level.INFO,
-                "*bcc upload*"
-            )
-        );
-    }
-
-    @TestLogging(
         reason = "need INFO from commit service to observe slow upload timing logs",
         value = "org.elasticsearch.xpack.stateless.commits.StatelessCommitService:INFO"
     )
     public void testBccUploadLogsSlowUploadTimings() throws Exception {
-        var indexNode = startMasterAndIndexNode(
-            uploadObservabilitySettings(TimeValue.ZERO, SLOW_UPLOAD_LOG_THRESHOLD),
-            delayedBccUploadStrategy()
-        );
+        var indexNode = startMasterAndIndexNode(uploadObservabilitySettings(SLOW_UPLOAD_LOG_THRESHOLD), delayedBccUploadStrategy());
         var indexName = randomIdentifier();
         createIndex(
             indexName,
@@ -177,7 +140,7 @@ public class UploadProgressLoggingIT extends AbstractStatelessPluginIntegTestCas
         value = "org.elasticsearch.xpack.stateless.commits.StatelessCommitService:INFO"
     )
     public void testBccUploadDoesNotLogSlowUploadWhenDisabled() throws Exception {
-        startMasterAndIndexNode(uploadObservabilitySettings(TimeValue.ZERO, TimeValue.ZERO), delayedBccUploadStrategy());
+        startMasterAndIndexNode(uploadObservabilitySettings(TimeValue.ZERO), delayedBccUploadStrategy());
         var indexName = randomIdentifier();
         createIndex(
             indexName,

@@ -89,13 +89,13 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
               "properties" : { "items" : { "type" : "nested", "properties" : { "qty" : { "type" : "long" } } } }
             } }
             """);
-        MapperService mapped = createMapperService(
-            """
-                { "_doc" : {
-                  "properties" : { "items" : { "type" : "nested", "properties" : { "qty" : { "type" : "long" }, "calc" : { "type" : "long" } } } }
-                } }
-                """
-        );
+        MapperService mapped = createMapperService("""
+            { "_doc" : {
+              "properties" : {
+                "items" : { "type" : "nested", "properties" : { "qty" : { "type" : "long" }, "calc" : { "type" : "long" } } }
+              }
+            } }
+            """);
 
         assertThat(retrieve(runtime).get("items.calc").isRuntimeField(), is(true));
         assertThat(retrieve(mapped).get("items.calc").isRuntimeField(), is(false));

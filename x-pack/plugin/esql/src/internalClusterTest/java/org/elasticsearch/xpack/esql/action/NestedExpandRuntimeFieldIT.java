@@ -157,7 +157,8 @@ public class NestedExpandRuntimeFieldIT extends AbstractEsqlIntegTestCase {
         createIndex("rt", RUNTIME_FROM_SOURCE, false);
         createIndex("mp", CHILD, false);
         assertRows(
-            "FROM rt, mp METADATA _index | NESTED_EXPAND items | WHERE MV_MAX(items.calc) == 4 | STATS n = COUNT(*) BY _index | SORT _index",
+            "FROM rt, mp METADATA _index | NESTED_EXPAND items | WHERE MV_MAX(items.calc) == 4 "
+                + "| STATS n = COUNT(*) BY _index | SORT _index",
             List.of(List.of(1L, "mp"), List.of(2L, "rt"))
         );
     }

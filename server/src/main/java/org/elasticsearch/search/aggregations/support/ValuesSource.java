@@ -565,11 +565,21 @@ public abstract class ValuesSource {
                 @Override
                 public boolean advanceExact(int target) throws IOException {
                     if (longValues.advanceExact(target)) {
-                        resize(longValues.docValueCount());
+                        final int n = longValues.docValueCount();
+                        resize(n);
                         script.setDocument(target);
-                        for (int i = 0; i < docValueCount(); ++i) {
+                        int j = 0;
+                        for (int i = 0; i < n; ++i) {
                             script.setNextAggregationValue(longValues.nextValue());
-                            values[i] = script.runAsLong();
+                            final Object run = script.execute();
+                            // A null result means "no value" for this input value, like the bytes value-script path
+                            if (run != null) {
+                                values[j++] = ((Number) run).longValue();
+                            }
+                        }
+                        resize(j);
+                        if (j == 0) {
+                            return false;
                         }
                         sort();
                         return true;
@@ -596,11 +606,21 @@ public abstract class ValuesSource {
                 @Override
                 public boolean advanceExact(int target) throws IOException {
                     if (doubleValues.advanceExact(target)) {
-                        resize(doubleValues.docValueCount());
+                        final int n = doubleValues.docValueCount();
+                        resize(n);
                         script.setDocument(target);
-                        for (int i = 0; i < docValueCount(); ++i) {
+                        int j = 0;
+                        for (int i = 0; i < n; ++i) {
                             script.setNextAggregationValue(doubleValues.nextValue());
-                            values[i] = script.runAsDouble();
+                            final Object run = script.execute();
+                            // A null result means "no value" for this input value, like the bytes value-script path
+                            if (run != null) {
+                                values[j++] = ((Number) run).doubleValue();
+                            }
+                        }
+                        resize(j);
+                        if (j == 0) {
+                            return false;
                         }
                         sort();
                         return true;

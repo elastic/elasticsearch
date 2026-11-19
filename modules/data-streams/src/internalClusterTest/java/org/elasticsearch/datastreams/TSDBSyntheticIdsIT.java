@@ -590,7 +590,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
 
         final var dataStreamName = randomIdentifier();
         final int numShards = randomIntBetween(1, 10);
-        putDataStreamTemplate(dataStreamName, numShards, 0, useNestedDocs);
+        putDataStreamTemplate(dataStreamName, numShards, 0, randomBatchIndexing(Settings.builder()).build(), useNestedDocs);
 
         final var docsIndices = new HashSet<String>();
         final var docsIndicesById = new HashMap<String, String>();
@@ -829,10 +829,11 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             dataStreamName,
             1,
             0,
-            Settings.builder()
-                .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
-                .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.PB))
-                .build(),
+            randomBatchIndexing(
+                Settings.builder()
+                    .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
+                    .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.PB))
+            ).build(),
             useNestedDocs
         );
 

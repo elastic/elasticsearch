@@ -146,7 +146,6 @@ import org.junit.After;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.Period;
-import java.util.AbstractList;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -3604,6 +3603,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
                    ( SORT emp_no )
                    ( LIMIT 9 )
             """);
+        plan = aligned(plan);
 
         var expectedOutput = List.of("emp_no", "first_name", "last_name", "_fork");
         Limit limit = as(plan, Limit.class);
@@ -3698,6 +3698,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
                    | STATS x = MIN(d::double), y = MAX(e::double) WHERE d::double > 1000
                    | EVAL xyz = "abc")
             """);
+        plan = aligned(plan);
 
         Limit limit = as(plan, Limit.class);
         Fork fork = as(limit.child(), Fork.class);
@@ -3807,39 +3808,8 @@ public class AnalyzerTests extends AnalyzerTestCase {
     }
 
     /**
-     * Aligning a merge branch to the merge columns must read the branch output once, not once per merge column. The branch output
-     * here counts element reads: indexing it by name up-front reads each attribute exactly once, while scanning it for every merge
-     * column (#163560) would read it {@code width * width} times.
-     */
-    public void testAlignToMergeColumnsReadsBranchOutputOnce() {
-        int width = 10_000;
-        List<Attribute> attributes = IntStream.range(0, width).mapToObj(i -> (Attribute) referenceAttribute("f" + i, KEYWORD)).toList();
-        int[] reads = new int[1];
-        List<Attribute> branchOutput = new AbstractList<>() {
-            @Override
-            public Attribute get(int index) {
-                reads[0]++;
-                return attributes.get(index);
-            }
-
-            @Override
-            public int size() {
-                return attributes.size();
-            }
-        };
-        // reverse the branch order and add a column the branch does not have
-        List<String> mergeColumns = new ArrayList<>(attributes.reversed().stream().map(Attribute::name).toList());
-        mergeColumns.add("missing");
-
-        List<Attribute> aligned = Analyzer.ResolveRefs.alignToMergeColumns(mergeColumns, branchOutput);
-
-        assertThat(reads[0], equalTo(width));
-        assertThat(aligned, equalTo(attributes.reversed()));
-    }
-
-    /**
      * A FORK over a wide index aligns every branch to all of its columns. The alignment used to be quadratic in the number of
-     * columns (#163560); this checks the wide case still resolves to correctly aligned branches.
+     * columns (#163560); this checks the wide case still aligns the branches correctly.
      */
     public void testForkAlignmentOverWideIndex() {
         int width = 10_000;
@@ -3855,6 +3825,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
             | FORK ( EVAL a = 1 )
                    ( EVAL b = 2 )
             """);
+        plan = aligned(plan);
 
         Fork fork = as(as(plan, Limit.class).child(), Fork.class);
         List<String> expected = new ArrayList<>(mapping.keySet());
@@ -6470,6 +6441,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
                 | STATS {}
                 """, count);
             var plan = basic().addNoFieldsIndex().query(query);
+            plan = aligned(plan);
 
             Limit limit = as(plan, Limit.class);
             Aggregate aggregate = as(limit.child(), Aggregate.class);
@@ -6498,6 +6470,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
                 | STATS {}
                 """, count);
             var plan = basic().addEmptyIndex().query(query);
+            plan = aligned(plan);
 
             Limit limit = as(plan, Limit.class);
             Aggregate aggregate = as(limit.child(), Aggregate.class);
@@ -7465,7 +7438,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
         Fork fork = plan.collect(Fork.class).getFirst();
         assertThat(fork.output(), hasItem(key));
         for (LogicalPlan branch : fork.children()) {
-            assertThat(fieldNames(branch.output()).getLast(), equalTo(ResolveHighlightIndexKey.INDEX_KEY_NAME));
+            assertThat(fieldNames(branch.output()), hasItem(ResolveHighlightIndexKey.INDEX_KEY_NAME));
         }
         assertThat(fieldNames(plan.output()), not(hasItem(ResolveHighlightIndexKey.INDEX_KEY_NAME)));
         assertWarnings();

@@ -112,7 +112,9 @@ abstract class BalancedOTKMeansLocal<V> extends KMeansLocal<V> {
     @Override
     protected void innerCluster(ClusteringVectorValues<V> vectors, KMeansResult<V> kMeansResult, NeighborHood[] neighborhoods)
         throws IOException {
-        assert neighborhoods == null;
+        // This solver is global over all centroids: it allocates matrices of mini-batch by centroid count, so callers that
+        // hold neighborhoods (and an unbounded centroid count) must use a neighborhood-aware implementation instead.
+        assert neighborhoods == null : "BalancedOTKMeansLocal does not support neighborhoods";
 
         V[] centroids = kMeansResult.centroids();
         int k = centroids.length;

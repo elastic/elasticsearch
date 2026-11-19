@@ -70,7 +70,8 @@ public class AsyncExternalSourceOperator extends SourceOperator {
     /**
      * Factory hold released from {@link #close()} so a producer that finishes during pipeline
      * construction cannot drop the last {@code operatorRefCount} before later {@code get()} calls.
-     * No-op when this operator was not created by {@link AsyncExternalSourceOperatorFactory}.
+     * No-op when this operator was not created by {@link AsyncExternalSourceOperatorFactory} or
+     * {@link AsyncConnectorSourceOperatorFactory}.
      */
     private final Releasable onOperatorClose;
     /**
@@ -95,6 +96,11 @@ public class AsyncExternalSourceOperator extends SourceOperator {
 
     public AsyncExternalSourceOperator(AsyncExternalSourceBuffer buffer, DriverContext driverContext) {
         this(buffer, driverContext, ExternalSourceMetrics.NOOP, null, null, null, null);
+    }
+
+    /** Connector-factory path: {@code onOperatorClose} is the factory's operator hold. */
+    public AsyncExternalSourceOperator(AsyncExternalSourceBuffer buffer, DriverContext driverContext, Releasable onOperatorClose) {
+        this(buffer, driverContext, ExternalSourceMetrics.NOOP, null, null, onOperatorClose, null);
     }
 
     public AsyncExternalSourceOperator(
@@ -554,9 +560,10 @@ public class AsyncExternalSourceOperator extends SourceOperator {
          * Derived from {@link #capturedSourceMetadata} rather than carried as a separate wire field: a
          * stripe-addressed contribution is exactly one carrying {@link ExternalStats#STRIPE_ORDINAL_KEY}
          * (with {@link ExternalStats#STRIPE_SIZE_KEY}, which marks it cacheable). Counts every such
-         * fragment, including sibling fragments of the same stripe, since each is a committed unit of
-         * harvest work; this is a "did harvest happen, and how much" signal, not the deduped final
-         * stripe count.
+         * record. The chunks of one read contribute one record per stripe between them, because their
+         * pieces of a stripe are joined before they reach the sink; two reads that each cover part of a
+         * stripe contribute one record each, since neither can see the other's pieces. So this is a "did
+         * harvest happen, and how much" signal, not the deduped final stripe count.
          */
         public long stripesCommitted() {
             long count = 0;

@@ -17,6 +17,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
@@ -28,6 +30,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.SerializationTestUtils;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -59,7 +62,9 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.logicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class DataNodeRequestSerializationTests extends AbstractWireSerializingTestCase<DataNodeRequest> {
     @Override
@@ -106,6 +111,7 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
         );
         DataNodeRequest request = new DataNodeRequest(
             sessionId,
+            new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),
             randomConfiguration(query, randomTables()),
             randomAlphaOfLength(10),
             shards,
@@ -117,7 +123,8 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
             randomBoolean(),
             randomBoolean(),
             List.of(),
-            randomNonNegativeLong()
+            randomNonNegativeLong(),
+            randomBoolean() ? randomPositiveTimeValue() : null
         );
         request.setParentTask(randomAlphaOfLength(10), randomNonNegativeLong());
         return request;
@@ -128,7 +135,8 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
      * versions sends it after the dropped decline flag.
      */
     public void testClusterStateVersionAcrossTheReadinessVersions() throws IOException {
-        DataNodeRequest request = createTestInstance();
+        // a request for fetch contexts never reaches a node that old
+        DataNodeRequest request = withReaderContextKeepAlive(createTestInstance(), null);
         DataNodeRequest old = copyInstance(
             request,
             TransportVersionUtils.getPreviousVersion(DataNodeRequest.ESQL_EXTERNAL_WORKER_READINESS)
@@ -145,13 +153,61 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
         assertThat(current.requiredClusterStateVersion(), equalTo(request.requiredClusterStateVersion()));
     }
 
+    public void testReaderContextKeepAliveRoundTrips() throws IOException {
+        TimeValue keepAlive = randomPositiveTimeValue();
+        DataNodeRequest request = withReaderContextKeepAlive(createTestInstance(), keepAlive);
+
+        DataNodeRequest copy = copyInstance(request, TransportVersion.current());
+
+        assertTrue(copy.keepFetchContexts());
+        assertThat(copy.readerContextKeepAlive(), equalTo(keepAlive));
+        assertThat(copy.getDescription(), containsString("readerContextKeepAlive=" + keepAlive));
+    }
+
+    /**
+     * The plan of a request that asks for fetch contexts sends documents off the node, which only fetch contexts serve.
+     * An older node can't open them, so the request must not reach it as if it had asked for none.
+     */
+    public void testFetchContextsNeverReachAnOlderNode() throws IOException {
+        TransportVersion older = TransportVersionUtils.getPreviousVersion(DataNodeRequest.ESQL_FETCH_CONTEXTS);
+        DataNodeRequest withoutContexts = withReaderContextKeepAlive(createTestInstance(), null);
+        assertFalse(copyInstance(withoutContexts, older).keepFetchContexts());
+
+        DataNodeRequest withContexts = withReaderContextKeepAlive(withoutContexts, randomPositiveTimeValue());
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> copyInstance(withContexts, older));
+        assertThat(e.getMessage(), containsString("for fetch contexts"));
+    }
+
+    private static DataNodeRequest withReaderContextKeepAlive(DataNodeRequest in, @Nullable TimeValue readerContextKeepAlive) {
+        DataNodeRequest request = new DataNodeRequest(
+            in.sessionId(),
+            in.queryId(),
+            in.configuration(),
+            in.clusterAlias(),
+            in.shards(),
+            in.aliasFilters(),
+            in.plan(),
+            in.indices(),
+            in.indicesOptions(),
+            in.runNodeLevelReduction(),
+            in.reductionLateMaterialization(),
+            in.singleNodeOptimizations(),
+            in.externalSplits(),
+            in.requiredClusterStateVersion(),
+            readerContextKeepAlive
+        );
+        request.setParentTask(in.getParentTask());
+        return request;
+    }
+
     /**
      * The format of the readiness version, which the reader only skips, so that a round trip cannot tell what was written:
      * the decline flag, {@code false}, right ahead of the version, which both formats end with. And a {@code true} from an
      * older coordinator is ignored.
      */
     public void testTheDeclineFlagIsWrittenFalseAndIgnoredAtTheReadinessVersion() throws IOException {
-        DataNodeRequest request = createTestInstance();
+        // a request for fetch contexts never reaches a node that old
+        DataNodeRequest request = withReaderContextKeepAlive(createTestInstance(), null);
         TransportVersion withFlag = TransportVersionUtils.getPreviousVersion(DataNodeRequest.ESQL_EXTERNAL_WORKER_GATING);
         byte[] flagged = serialize(request, withFlag);
         byte[] current = serialize(request, DataNodeRequest.ESQL_EXTERNAL_WORKER_GATING);
@@ -209,6 +265,7 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
 
         DataNodeRequest request = new DataNodeRequest(
             "load-all-session",
+            new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),
             configuration,
             "",
             List.of(new DataNodeRequest.Shard(new ShardId("test", "n/a", 0), SplitShardCountSummary.fromInt(0))),
@@ -224,6 +281,32 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
         DataNodeRequest copy = copyInstance(request, TransportVersion.current());
         UnmappedFieldsAttribute after = unmappedFieldsAttribute(copy.plan());
         assertThat(after, equalTo(before));
+    }
+
+    public void testValidIntoQueryProducesNoDataNodePlanEvenAtOldestVersion() {
+        assumeTrue("INTO is only enabled in snapshot builds", EsqlCapabilities.Cap.INTO_COMMAND.isEnabled());
+
+        TransportVersion oldest = TransportVersion.minimumCompatible();
+        var oldAnalyzer = analyzer().addIndex("test", "mapping-basic.json").minimumTransportVersion(oldest).buildAnalyzer();
+        VerificationException rejected = expectThrows(
+            VerificationException.class,
+            () -> oldAnalyzer.analyze(TEST_PARSER.parseQuery("FROM test | INTO dst"))
+        );
+        assertThat(rejected.getMessage(), containsString("INTO currently only supports ROW as a source, without FORK"));
+
+        String query = "ROW a = 1 | INTO dst";
+        Configuration configuration = randomConfiguration(query, randomTables());
+        LogicalPlan analyzed = oldAnalyzer.analyze(TEST_PARSER.parseQuery(query));
+        LogicalPlan logicallyOptimized = new LogicalPlanOptimizer(logicalOptimizerContext(configuration, FoldContext.small(), oldest))
+            .optimize(analyzed);
+        PhysicalPlan physicalPlan = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration, oldest)).optimize(
+            new Mapper().map(new Versioned<>(logicallyOptimized, oldest))
+        );
+        PhysicalPlan dataNodePlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(
+            EstimatesRowSize.estimateRowSize(0, physicalPlan),
+            configuration
+        ).v2();
+        assertThat(dataNodePlan, nullValue());
     }
 
     private static UnmappedFieldsAttribute unmappedFieldsAttribute(PhysicalPlan plan) {
@@ -242,6 +325,7 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
     @Override
     protected DataNodeRequest mutateInstance(DataNodeRequest in) throws IOException {
         var sessionId = in.sessionId();
+        var queryId = in.queryId();
         var configuration = in.configuration();
         var clusterAlias = in.clusterAlias();
         var shards = in.shards();
@@ -253,9 +337,10 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
         var reductionLateMaterialization = in.reductionLateMaterialization();
         var singleNodeOptimizations = in.singleNodeOptimizations();
         var requiredClusterStateVersion = in.requiredClusterStateVersion();
+        var readerContextKeepAlive = in.readerContextKeepAlive();
         TaskId parentTask = in.getParentTask();
 
-        switch (between(0, 11)) {
+        switch (between(0, 13)) {
             case 0 -> sessionId = randomValueOtherThan(sessionId, () -> randomAlphaOfLength(20));
             case 1 -> configuration = randomValueOtherThan(configuration, () -> randomConfiguration());
             case 2 -> shards = randomValueOtherThan(
@@ -305,11 +390,20 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
             }
             case 10 -> singleNodeOptimizations = singleNodeOptimizations == false;
             case 11 -> requiredClusterStateVersion = randomValueOtherThan(requiredClusterStateVersion, ESTestCase::randomNonNegativeLong);
+            case 12 -> queryId = new TaskId(
+                randomValueOtherThan(queryId.getNodeId(), () -> randomAlphaOfLength(10)),
+                randomNonNegativeLong()
+            );
+            case 13 -> readerContextKeepAlive = randomValueOtherThan(
+                readerContextKeepAlive,
+                () -> randomBoolean() ? randomPositiveTimeValue() : null
+            );
             default -> throw new AssertionError("invalid value");
         }
 
         var request = new DataNodeRequest(
             sessionId,
+            queryId,
             configuration,
             clusterAlias,
             shards,
@@ -321,7 +415,8 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
             reductionLateMaterialization,
             singleNodeOptimizations,
             List.of(),
-            requiredClusterStateVersion
+            requiredClusterStateVersion,
+            readerContextKeepAlive
         );
         request.setParentTask(parentTask);
         return request;

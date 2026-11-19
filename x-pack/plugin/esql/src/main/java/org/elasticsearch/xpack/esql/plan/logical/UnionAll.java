@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
@@ -42,7 +42,7 @@ public class UnionAll extends MergePlan {
 
     @Override
     public LogicalPlan replaceChildren(List<LogicalPlan> newChildren) {
-        return new UnionAll(source(), newChildren, output());
+        return passIdentityTo(new UnionAll(source(), newChildren, output()));
     }
 
     @Override
@@ -52,12 +52,12 @@ public class UnionAll extends MergePlan {
 
     @Override
     public UnionAll replaceSubPlans(List<LogicalPlan> subPlans) {
-        return new UnionAll(source(), subPlans, output());
+        return passIdentityTo(new UnionAll(source(), subPlans, output()));
     }
 
     @Override
     public UnionAll replaceSubPlansAndOutput(List<LogicalPlan> subPlans, List<Attribute> output) {
-        return new UnionAll(source(), subPlans, output);
+        return passIdentityTo(new UnionAll(source(), subPlans, output));
     }
 
     /**
@@ -77,7 +77,7 @@ public class UnionAll extends MergePlan {
         if (kept.size() == children().size()) {
             return this;
         }
-        return new UnionAll(source(), kept, output());
+        return passIdentityTo(new UnionAll(source(), kept, output()));
     }
 
     @Override
@@ -106,7 +106,7 @@ public class UnionAll extends MergePlan {
         if (output().size() != other.output().size()) {
             return false;
         }
-        // LOAD_ALL alignment can rewrite output without changing children. Default UnionAll identity is children-only.
+        // LOAD_ALL's _unmapped_fields can rewrite output without changing children. Default UnionAll identity is children-only.
         return (hasUnmappedFieldsAttribute() || other.hasUnmappedFieldsAttribute()) == false || Objects.equals(output(), other.output());
     }
 
@@ -176,7 +176,7 @@ public class UnionAll extends MergePlan {
         String branchLevelSource,
         Failures failures
     ) {
-        if (plan instanceof AbstractSubqueryJoin subqueryJoin) {
+        if (plan instanceof IndependentSubqueryJoin subqueryJoin) {
             checkNestedSubqueryLimits(subqueryJoin.right(), maxBranches, maxLevels, branchCountSource, branchLevelSource, failures);
             checkInSubqueryLimits(subqueryJoin.left(), maxBranches, maxLevels, branchCountSource, branchLevelSource, failures);
             return;
@@ -241,8 +241,8 @@ public class UnionAll extends MergePlan {
      * Summarizes the merge plans under {@code plan}. A subtree with no merge plan is one producer leaf. Otherwise its leaf count is the
      * sum of its children's leaves. Its depth is the longest child depth, plus one when {@code plan} is itself a merge plan. The right
      * side of a {@link Join} is excluded: a {@code LOOKUP JOIN} (and {@code INLINE STATS}) lookup/stub is not a union producer leaf, and
-     * the right side of an {@link AbstractSubqueryJoin} is an independently executed query counted via {@link #checkInSubqueryLimits}. The
-     * first and deepest unions provide distinct failure locations when both limits are exceeded.
+     * the right side of an {@link IndependentSubqueryJoin} is an independently executed query counted via
+     * {@link #checkInSubqueryLimits}. The first and deepest unions provide distinct failure locations when both limits are exceeded.
      * <p>
      * The stats of every node reached are kept in {@code cache} by identity, so a plan whose FORK branches still share their input,
      * as they do before analysis, is walked once rather than once per path.

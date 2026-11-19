@@ -9,6 +9,8 @@
 
 package org.elasticsearch.cluster.service;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -17,8 +19,10 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -31,6 +35,44 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class AsyncClusterStateApplierTests extends ESTestCase {
+
+    public void testApplicationFailureIsRetained() {
+        final var initialState = ClusterState.EMPTY_STATE;
+        final var failingState = ClusterState.builder(initialState).incrementVersion().build();
+        final var stagedState = ClusterState.builder(failingState).incrementVersion().build();
+        final var tasks = new ArrayDeque<Runnable>();
+        final var applicationStarted = new SubscribableListener<Void>();
+        final var failure = new IllegalStateException("simulated application failure");
+        final var applier = new AsyncClusterStateApplier(event -> {
+            applicationStarted.onResponse(null);
+            throw failure;
+        }, tasks::addLast);
+
+        final var stagedWaiter = new PlainActionFuture<Void>();
+        applicationStarted.addListener(ActionListener.running(() -> {
+            applier.applyClusterState(new ClusterChangedEvent("stage next state", stagedState, failingState));
+            applier.awaitCurrentStateApplication(stagedWaiter);
+        }));
+        applier.applyClusterState(new ClusterChangedEvent("fail application", failingState, initialState));
+        final var currentWaiter = new PlainActionFuture<Void>();
+        applier.awaitCurrentStateApplication(currentWaiter);
+
+        assertSame(failure, expectThrows(AssertionError.class, tasks.removeFirst()::run).getCause());
+        final var futureWaiter = new PlainActionFuture<Void>();
+        applier.awaitCurrentStateApplication(futureWaiter);
+
+        final var laterState = ClusterState.builder(stagedState).incrementVersion().build();
+        applier.applyClusterState(new ClusterChangedEvent("publish after failure", laterState, stagedState));
+        final var laterWaiter = new PlainActionFuture<Void>();
+        applier.awaitCurrentStateApplication(laterWaiter);
+
+        for (var waiter : List.of(currentWaiter, stagedWaiter, futureWaiter, laterWaiter)) {
+            assertTrue(waiter.isDone());
+            assertSame(failure, expectThrows(IllegalStateException.class, waiter::actionGet));
+        }
+        assertTrue(tasks.isEmpty());
+        assertEquals(initialState.version(), applier.appliedStateVersion());
+    }
 
     public void testAwaitCurrentStateApplication() {
         final var threadPool = new TestThreadPool(getTestName());

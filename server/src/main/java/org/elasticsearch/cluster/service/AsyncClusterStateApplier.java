@@ -48,7 +48,7 @@ public class AsyncClusterStateApplier implements ClusterStateApplier {
     /// Accumulates listeners to notify at the end of the application of the last cluster state provided to [#applyClusterState] before
     /// the invocation of this method.
     ///
-    /// Complete if the applier is idle.
+    /// Complete if the applier is idle, exceptionally if a previous application failed.
     /// If the applier is active but [#pendingState] is `null` then it will be completed when the current application completes.
     /// If the applier is active and [#pendingState] is not `null` then it will be completed when the _next_ application completes.
     private volatile SubscribableListener<Void> listeners = SubscribableListener.nullSuccess();
@@ -94,8 +94,12 @@ public class AsyncClusterStateApplier implements ClusterStateApplier {
                 return;
             }
 
-            // idle, so start applying the state
-            assert listeners.isSuccess();
+            assert listeners.isDone();
+            if (listeners.isSuccess() == false) {
+                // The delegate may have partially applied the failed state. Keep reporting the failure to future waiters.
+                return;
+            }
+
             isApplying = true;
             pendingState = newState;
             listeners = new SubscribableListener<>();
@@ -170,16 +174,15 @@ public class AsyncClusterStateApplier implements ClusterStateApplier {
                     Thread.currentThread().interrupt();
                 }
 
-                // Drain any pending-batch listener.
+                final var asException = t instanceof Exception ex ? ex : new RuntimeException(t);
                 final SubscribableListener<Void> stagedListeners;
                 synchronized (AsyncClusterStateApplier.this) {
                     stagedListeners = (listeners != applyListener) ? listeners : null;
-                    listeners = SubscribableListener.nullSuccess();
+                    listeners = SubscribableListener.newFailed(asException);
                     pendingState = null;
                     isApplying = false;
                 }
 
-                final var asException = t instanceof Exception ex ? ex : new RuntimeException(t);
                 if (applyListener.isDone() == false) {
                     applyListener.onFailure(asException);
                 }

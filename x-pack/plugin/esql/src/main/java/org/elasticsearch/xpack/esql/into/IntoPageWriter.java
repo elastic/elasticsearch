@@ -7,10 +7,12 @@
 
 package org.elasticsearch.xpack.esql.into;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.EscfBulkService;
@@ -25,6 +27,8 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.IsBlockedResult;
@@ -51,13 +55,18 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  * Streams an {@code INTO} query's pages through one {@link EscfBulkWriter}. Each driver has
  * its own producer. The writer bounds the bulks in flight with the node's {@link EscfBulkService#defaultPolicy()} and
- * charges the query breaker and coordinating indexing pressure.
+ * charges the query breaker and coordinating indexing pressure. Rows are written with {@code create} unless
+ * {@link IntoOptions#collisions()} is {@link IntoOptions.Collisions#REPLACE}, which overwrites with {@code index}. A
+ * {@value #ID_COLUMN} column sets each document's id instead of being written to its source.
  * A row the destination refuses fails the run, unless {@link IntoOptions#keepGoing()} is set: then it is counted and the
  * run continues. A bulk request that fails as a whole always fails the run, as does a row whose failure is transient
  * (too many requests or service unavailable), because that row was not refused by the destination and dropping it would
- * silently lose data.
+ * silently lose data. A row whose {@code _id} already exists is a collision, handled by {@link IntoOptions#collisions()}
+ * and not a refusal.
  */
 public final class IntoPageWriter {
+    /** The column whose value becomes the document id rather than a source field. */
+    public static final String ID_COLUMN = "_id";
 
     private static final int MAX_FAILURE_DETAIL_LENGTH = 1024;
 
@@ -76,11 +85,17 @@ public final class IntoPageWriter {
         private final IntoOptions options;
         @Nullable
         private final EscfBulkWriter writer;
+        /** Position of {@link #ID_COLUMN} in {@link #columns}, or {@code -1} when the destination assigns every id. */
+        private final int idColumn;
+        private final DocWriteRequest.OpType opType;
+        private final IntoOptions.Collisions collisions;
         private final AtomicLong total = new AtomicLong();
         private final AtomicLong created = new AtomicLong();
         private final AtomicLong failures = new AtomicLong();
         // The reasons for the first refusals. Every access synchronizes on this list, because bulks are acknowledged on several threads.
         private final List<String> failureDetails = new ArrayList<>(IntoStats.MAX_FAILURE_DETAILS);
+        private final AtomicLong updated = new AtomicLong();
+        private final AtomicLong versionConflicts = new AtomicLong();
         private final AtomicReference<Exception> failure = new AtomicReference<>();
         private final AtomicInteger openProducers = new AtomicInteger();
         private final List<IntoPageWriter> drivers = new CopyOnWriteArrayList<>();
@@ -121,6 +136,12 @@ public final class IntoPageWriter {
             this.columns = columns;
             this.types = types;
             this.options = options;
+            this.idColumn = columns.indexOf(ID_COLUMN);
+            this.collisions = options.collisions();
+            this.opType = switch (collisions) {
+                case ABORT, KEEP -> DocWriteRequest.OpType.CREATE;
+                case REPLACE -> DocWriteRequest.OpType.INDEX;
+            };
             this.writer = indexing == Indexing.INDEX
                 ? bulks.newWriter(client, breaker, destination, bulks.defaultPolicy(), this::onResponse, this::onCapacity)
                 : null;
@@ -144,18 +165,25 @@ public final class IntoPageWriter {
 
         private Exception onResponse(BulkResponse response) {
             long createdItems = 0;
+            long updatedItems = 0;
+            long conflictingItems = 0;
             long refusedItems = 0;
             for (BulkItemResponse item : response) {
-                if (item.isFailed() == false) {
-                    createdItems++;
-                } else if (options.keepGoing() && isRefusal(item.getFailure())) {
-                    recordRefusal(item.getFailure());
-                    refusedItems++;
-                } else {
-                    Exception cause = item.getFailure().getCause();
+                if (item.isFailed()) {
+                    BulkItemResponse.Failure refused = item.getFailure();
+                    if (refused.getStatus() == RestStatus.CONFLICT && collisions == IntoOptions.Collisions.KEEP) {
+                        conflictingItems++;
+                        continue;
+                    }
+                    if (options.keepGoing() && isRefusal(refused)) {
+                        recordRefusal(refused);
+                        refusedItems++;
+                        continue;
+                    }
+                    Exception cause = refused.getCause();
                     ElasticsearchStatusException failed = new ElasticsearchStatusException(
                         "INTO [{}] failed: {}",
-                        item.getFailure().getStatus(),
+                        refused.getStatus(),
                         cause,
                         destination,
                         cause.getMessage()
@@ -163,9 +191,17 @@ public final class IntoPageWriter {
                     failure.compareAndSet(null, failed);
                     return failed;
                 }
+                DocWriteResponse.Result result = item.getResponse().getResult();
+                switch (result) {
+                    case CREATED -> createdItems++;
+                    case UPDATED -> updatedItems++;
+                    case DELETED, NOT_FOUND, NOOP -> throw new IllegalStateException("unexpected bulk item result [" + result + "]");
+                }
             }
-            total.addAndGet(createdItems + refusedItems);
+            total.addAndGet(response.getItems().length);
             created.addAndGet(createdItems);
+            updated.addAndGet(updatedItems);
+            versionConflicts.addAndGet(conflictingItems);
             failures.addAndGet(refusedItems);
             return null;
         }
@@ -235,7 +271,7 @@ public final class IntoPageWriter {
 
         IntoStats stats() {
             synchronized (failureDetails) {
-                return new IntoStats(total.get(), created.get(), failures.get(), failureDetails);
+                return new IntoStats(total.get(), created.get(), updated.get(), versionConflicts.get(), failures.get(), failureDetails);
             }
         }
 
@@ -325,10 +361,13 @@ public final class IntoPageWriter {
     public void consume(Page page) {
         try {
             if (producer != null && page.getPositionCount() > 0 && sink.failure.get() == null) {
+                if (sink.idColumn >= 0) {
+                    requireSingleValuedIds(page);
+                }
                 if (asyncAction.compareAndSet(false, true)) {
                     driverContext.addAsyncAction();
                 }
-                producer.add(new PageRows(page, sink.columns, sink.types, sink.destination), false);
+                producer.add(new PageRows(page, sink.columns, sink.types, sink.destination, sink.idColumn, sink.opType), false);
                 Exception failed = sink.writer.failure();
                 if (failed != null) {
                     throw ExceptionsHelper.convertToRuntime(sink.recordWriterFailure(failed));
@@ -336,6 +375,31 @@ public final class IntoPageWriter {
             }
         } finally {
             page.releaseBlocks();
+        }
+    }
+
+    /** Fails every driver of the run, not just this one, so a row that can never be written does not keep the others sending. */
+    private void requireSingleValuedIds(Page page) {
+        BytesRefBlock ids = page.getBlock(sink.idColumn);
+        for (int row = 0; row < page.getPositionCount(); row++) {
+            int count = ids.getValueCount(row);
+            if (count > 1) {
+                BytesRef scratch = new BytesRef();
+                int start = ids.getFirstValueIndex(row);
+                List<String> values = new ArrayList<>(count);
+                for (int i = 0; i < count; i++) {
+                    values.add(ids.getBytesRef(start + i, scratch).utf8ToString());
+                }
+                ElasticsearchStatusException failed = new ElasticsearchStatusException(
+                    "INTO [{}] failed: [{}] must be single-valued, found [{}]",
+                    RestStatus.BAD_REQUEST,
+                    sink.destination,
+                    ID_COLUMN,
+                    values
+                );
+                sink.failure.compareAndSet(null, failed);
+                throw failed;
+            }
         }
     }
 
@@ -419,7 +483,14 @@ public final class IntoPageWriter {
         return finished && (producer == null || sink.settled);
     }
 
-    private record PageRows(Page page, List<String> columns, List<DataType> types, String destination) implements EscfBulkWriter.Rows {
+    private record PageRows(
+        Page page,
+        List<String> columns,
+        List<DataType> types,
+        String destination,
+        int idColumn,
+        DocWriteRequest.OpType opType
+    ) implements EscfBulkWriter.Rows {
         @Override
         public int count() {
             return page.getPositionCount();
@@ -427,12 +498,26 @@ public final class IntoPageWriter {
 
         @Override
         public void append(EscfBatchBuilder batch) {
-            PageToEscfBatch.append(batch, page, columns, types);
+            PageToEscfBatch.append(batch, page, columns, types, idColumn);
         }
 
         @Override
         public IndexRequest request(int row) {
-            return new IndexRequest(destination).opType(DocWriteRequest.OpType.CREATE);
+            return new IndexRequest(destination).id(documentId(row)).opType(opType);
+        }
+
+        /** The {@value #ID_COLUMN} value of {@code row}, or {@code null} when the destination assigns the id. */
+        @Nullable
+        private String documentId(int row) {
+            if (idColumn < 0) {
+                return null;
+            }
+            Block ids = page.getBlock(idColumn);
+            if (ids.isNull(row)) {
+                return null;
+            }
+            BytesRefBlock block = (BytesRefBlock) ids;
+            return block.getBytesRef(block.getFirstValueIndex(row), new BytesRef()).utf8ToString();
         }
     }
 }

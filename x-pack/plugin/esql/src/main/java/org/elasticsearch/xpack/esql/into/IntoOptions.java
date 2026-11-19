@@ -17,6 +17,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
+import java.util.Optional;
 
 /**
  * The {@code WITH { ... }} options of an {@code INTO} command. They travel with the plan to every node that writes or
@@ -24,12 +26,14 @@ import java.util.Locale;
  *
  * @param keepGoing when {@code true}, a row the destination refuses is counted as a failure and the query continues;
  *                  when {@code false}, the first refused row fails the query
+ * @param collisions what a writer does with a row whose {@code _id} already exists in the destination
  */
-public record IntoOptions(boolean refresh, boolean keepGoing) implements Writeable {
+public record IntoOptions(boolean refresh, boolean keepGoing, Collisions collisions) implements Writeable {
     /** The options that users can write in {@code WITH { ... }}. */
     public enum Option {
         REFRESH,
-        KEEP_GOING;
+        KEEP_GOING,
+        COLLISIONS;
 
         /** The names of every option, in the order that error messages list them. */
         public static final List<String> NAMES = Arrays.stream(values()).map(Option::optionName).toList();
@@ -40,16 +44,44 @@ public record IntoOptions(boolean refresh, boolean keepGoing) implements Writeab
         }
     }
 
-    public static final IntoOptions DEFAULT = new IntoOptions(true, false);
+    /** What happens when a written row's {@code _id} already exists in the destination. */
+    public enum Collisions {
+        /** Fails the query on the first collision. */
+        ABORT,
+        /** Leaves the existing document untouched and counts the collision in {@code version_conflicts}. */
+        KEEP,
+        /** Overwrites the existing document and counts it in {@code updated}. */
+        REPLACE;
+
+        /** The lower-case names users write, in the order error messages list them. */
+        public static final List<String> NAMES = Arrays.stream(values()).map(Collisions::optionValue).toList();
+
+        public String optionValue() {
+            return name().toLowerCase(Locale.ROOT);
+        }
+
+        /** Resolves {@code value} case-insensitively, or returns empty when it names no policy. */
+        public static Optional<Collisions> parse(String value) {
+            String normalized = value.toLowerCase(Locale.ROOT);
+            return Arrays.stream(values()).filter(c -> c.optionValue().equals(normalized)).findFirst();
+        }
+    }
+
+    public static final IntoOptions DEFAULT = new IntoOptions(true, false, Collisions.ABORT);
+
+    public IntoOptions {
+        Objects.requireNonNull(collisions);
+    }
 
     public IntoOptions(StreamInput in) throws IOException {
-        this(in.readBoolean(), in.readBoolean());
+        this(in.readBoolean(), in.readBoolean(), in.readEnum(Collisions.class));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeBoolean(refresh);
         out.writeBoolean(keepGoing);
+        out.writeEnum(collisions);
     }
 
     /** Appends each option that differs from {@link #DEFAULT}, so a plan that sets none keeps its existing rendering. */
@@ -60,6 +92,9 @@ public record IntoOptions(boolean refresh, boolean keepGoing) implements Writeab
         }
         if (keepGoing != DEFAULT.keepGoing) {
             nonDefault.add(Option.KEEP_GOING.optionName() + "=" + keepGoing);
+        }
+        if (collisions != DEFAULT.collisions) {
+            nonDefault.add(Option.COLLISIONS.optionName() + "=" + collisions.optionValue());
         }
         if (nonDefault.isEmpty() == false) {
             sb.append(',').append(Strings.collectionToCommaDelimitedString(nonDefault));
@@ -74,6 +109,7 @@ public record IntoOptions(boolean refresh, boolean keepGoing) implements Writeab
     public static final class Builder {
         private boolean refresh = DEFAULT.refresh;
         private boolean keepGoing = DEFAULT.keepGoing;
+        private Collisions collisions = DEFAULT.collisions;
 
         private Builder() {}
 
@@ -87,8 +123,13 @@ public record IntoOptions(boolean refresh, boolean keepGoing) implements Writeab
             return this;
         }
 
+        public Builder collisions(Collisions collisions) {
+            this.collisions = collisions;
+            return this;
+        }
+
         public IntoOptions build() {
-            return new IntoOptions(refresh, keepGoing);
+            return new IntoOptions(refresh, keepGoing, collisions);
         }
     }
 }

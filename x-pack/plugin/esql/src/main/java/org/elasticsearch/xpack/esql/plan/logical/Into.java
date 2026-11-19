@@ -21,7 +21,9 @@ import org.elasticsearch.xpack.esql.core.tree.Node.NodeStringFormat;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.into.IntoOptions;
+import org.elasticsearch.xpack.esql.into.IntoPageWriter;
 import org.elasticsearch.xpack.esql.into.IntoStats;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
@@ -39,7 +41,7 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
  * Terminal command that writes the query's rows into {@link #destination()}.
  * It is a {@link PipelineBreaker} so the mapper ends the data-node fragment at the write and
  * wraps it in a coordinator-side MERGE_STATS node. {@link #output()} is the one-row {@link IntoStats}
- * result returned to the caller.
+ * result returned to the caller. {@link #options()} are the {@code WITH} options, applied by every writer.
  */
 public class Into extends UnaryPlan
     implements
@@ -52,6 +54,9 @@ public class Into extends UnaryPlan
         + "add a LIMIT after the SORT, or remove the SORT";
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Into", Into::new);
+
+    /** {@code NULL} is an all-null {@code _id} column, which leaves every id to the destination. */
+    private static final Set<DataType> ID_TYPES = Set.of(DataType.KEYWORD, DataType.TEXT, DataType.NULL);
 
     private static final Set<String> LOCAL_ONLY = Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
 
@@ -159,6 +164,18 @@ public class Into extends UnaryPlan
         OrderBy sort = unboundedSort(child());
         if (sort != null) {
             failures.add(fail(this, UNBOUNDED_SORT, sort.sourceText()));
+        }
+        for (Attribute column : child().output()) {
+            if (column.name().equals(IntoPageWriter.ID_COLUMN) && ID_TYPES.contains(column.dataType()) == false) {
+                failures.add(
+                    fail(
+                        column,
+                        "INTO column [{}] must be of type [keyword] or [text], found [{}]",
+                        IntoPageWriter.ID_COLUMN,
+                        column.dataType().typeName()
+                    )
+                );
+            }
         }
     }
 

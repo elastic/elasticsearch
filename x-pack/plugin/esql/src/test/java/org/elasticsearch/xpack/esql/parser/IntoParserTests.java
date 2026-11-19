@@ -11,8 +11,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.into.IntoOptions;
+import org.elasticsearch.xpack.esql.into.IntoOptions.Collisions;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Into;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -80,7 +82,7 @@ public class IntoParserTests extends AbstractStatementParserTests {
     public void testMultipleUnknownOptionsRejected() {
         expectError(
             "ROW a = 1 | INTO dst WITH {\"foo\": 1, \"bar\": 2}",
-            "Invalid options [foo, bar] in INTO, expected one of [refresh, keep_going]"
+            "Invalid options [foo, bar] in INTO, expected one of [refresh, keep_going, collisions]"
         );
     }
 
@@ -181,5 +183,85 @@ public class IntoParserTests extends AbstractStatementParserTests {
 
     public void testKeywordDestination() {
         assertThat(as(query("ROW a = 1 | INTO \"with\""), Into.class).destination(), equalTo("with"));
+    }
+
+    public void testOptionsDefaultWithoutWith() {
+        assertThat(intoOptions("ROW a = 1 | INTO dst"), equalTo(IntoOptions.DEFAULT));
+    }
+
+    public void testEmptyWithUsesDefaults() {
+        assertThat(intoOptions("ROW a = 1 | INTO dst WITH {}"), equalTo(IntoOptions.DEFAULT));
+        assertThat(intoOptions("ROW a = 1 | INTO \"my-dst\" WITH {}"), equalTo(IntoOptions.DEFAULT));
+    }
+
+    public void testUnknownOptionRejectedAlongsideKnownOnes() {
+        expectError(
+            "ROW a = 1 | INTO dst WITH {\"collisions\": \"keep\", \"foo\": 1}",
+            "Invalid option [foo] in INTO, expected one of [collisions, refresh]"
+        );
+        expectError(
+            "ROW a = 1 | INTO dst WITH {\"refresh\": false, \"foo\": 1}",
+            "Invalid option [foo] in INTO, expected one of [collisions, refresh]"
+        );
+    }
+
+    public void testDuplicateOptionRejected() {
+        expectError(
+            "ROW a = 1 | INTO dst WITH {\"collisions\": \"keep\", \"collisions\": \"abort\"}",
+            "Duplicated named parameters with the same name [collisions] is not supported"
+        );
+        expectError(
+            "ROW a = 1 | INTO dst WITH {\"collisions\": \"keep\", \"COLLISIONS\": \"abort\"}",
+            "Duplicate option [collisions] in INTO"
+        );
+    }
+
+    public void testCollisionsDefaultsToAbort() {
+        assertThat(IntoOptions.DEFAULT.collisions(), equalTo(Collisions.ABORT));
+    }
+
+    public void testCollisionsValues() {
+        assertThat(intoOptions("ROW a = 1 | INTO dst WITH {\"collisions\": \"abort\"}").collisions(), equalTo(Collisions.ABORT));
+        assertThat(intoOptions("ROW a = 1 | INTO dst WITH {\"collisions\": \"keep\"}").collisions(), equalTo(Collisions.KEEP));
+        assertThat(intoOptions("ROW a = 1 | INTO dst WITH {\"collisions\": \"replace\"}").collisions(), equalTo(Collisions.REPLACE));
+    }
+
+    public void testCollisionsNameAndValueAreCaseInsensitive() {
+        assertThat(intoOptions("ROW a = 1 | INTO dst WITH {\"collisions\": \"REPLACE\"}").collisions(), equalTo(Collisions.REPLACE));
+        assertThat(intoOptions("ROW a = 1 | INTO dst WITH {\"Collisions\": \"Keep\"}").collisions(), equalTo(Collisions.KEEP));
+    }
+
+    public void testCollisionsFromParameter() {
+        LogicalPlan plan = query(
+            "ROW a = 1 | INTO dst WITH {\"collisions\": ?p}",
+            new QueryParams(List.of(paramAsConstant("p", "replace")))
+        );
+        assertThat(as(plan, Into.class).options().collisions(), equalTo(Collisions.REPLACE));
+    }
+
+    public void testCollisionsInvalidValue() {
+        expectError(
+            "ROW a = 1 | INTO dst WITH {\"collisions\": \"overwrite\"}",
+            "Invalid value [overwrite] for option [collisions] in INTO, expected one of [abort, keep, replace]"
+        );
+    }
+
+    public void testCollisionsMustBeAString() {
+        String error = "Option [collisions] must be a string literal, one of [abort, keep, replace]";
+        expectError("ROW a = 1 | INTO dst WITH {\"collisions\": 1}", error);
+        expectError("ROW a = 1 | INTO dst WITH {\"collisions\": true}", error);
+        expectError("ROW a = 1 | INTO dst WITH {\"collisions\": null}", error);
+        expectError("ROW a = 1 | INTO dst WITH {\"collisions\": {\"x\": \"keep\"}}", error);
+    }
+
+    public void testRefreshAndCollisionsTogether() {
+        assertThat(
+            intoOptions("ROW a = 1 | INTO dst WITH {\"refresh\": false, \"collisions\": \"keep\"}"),
+            equalTo(IntoOptions.builder().refresh(false).collisions(Collisions.KEEP).build())
+        );
+    }
+
+    private IntoOptions intoOptions(String query) {
+        return as(query(query), Into.class).options();
     }
 }

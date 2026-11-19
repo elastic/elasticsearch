@@ -46,9 +46,16 @@ final class PageToEscfBatch {
 
     /** Appends the page to partition 0 of {@code batch}, one row at a time. */
     static void append(EscfBatchBuilder batch, Page page, List<String> names, List<DataType> types) {
+        append(batch, page, names, types, -1);
+    }
+
+    /**
+     * As {@link #append(EscfBatchBuilder, Page, List, List)}, but leaves out the column at {@code skippedColumn}, if it is not negative.
+     */
+    static void append(EscfBatchBuilder batch, Page page, List<String> names, List<DataType> types, int skippedColumn) {
         boolean[] absent = new boolean[names.size()];
         for (int c = 0; c < names.size(); c++) {
-            absent[c] = page.getBlock(c).areAllValuesNull();
+            absent[c] = c == skippedColumn || page.getBlock(c).areAllValuesNull();
         }
         BytesRef scratch = new BytesRef();
         for (int row = 0; row < page.getPositionCount(); row++) {

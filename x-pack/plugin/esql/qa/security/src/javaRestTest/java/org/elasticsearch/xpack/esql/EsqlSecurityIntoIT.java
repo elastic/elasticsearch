@@ -147,8 +147,8 @@ public class EsqlSecurityIntoIT extends ESRestTestCase {
 
     private static void assertSummary(Response response) throws IOException {
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
-        // total, created, failures, failure_details
-        assertThat(entityAsMap(response).get("values"), equalTo(List.of(Arrays.asList(2, 2, 0, null))));
+        // total, created, updated, version_conflicts, failures, failure_details
+        assertThat(entityAsMap(response).get("values"), equalTo(List.of(Arrays.asList(2, 2, 0, 0, 0, null))));
     }
 
     private static String warning(Response response) {

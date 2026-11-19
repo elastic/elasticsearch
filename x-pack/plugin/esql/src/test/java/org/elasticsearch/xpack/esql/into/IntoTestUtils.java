@@ -32,6 +32,7 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.index.IndexingPressure;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
@@ -69,7 +70,11 @@ class IntoTestUtils {
         /** The mapping rejects the row with a {@link MapperException}, which has no status of its own and is reported as a 500. */
         MAPPER_REJECTED,
         /** Like {@link #MAPPER_REJECTED}, but another node handled the mapping update, so the exception arrives wrapped. */
-        REMOTE_MAPPER_REJECTED
+        REMOTE_MAPPER_REJECTED,
+        /** The {@code _id} existed and the document was overwritten. */
+        UPDATED,
+        /** The {@code _id} existed and a {@code create} was refused with a 409 version conflict. */
+        CONFLICT
     }
 
     static final int LONG_MESSAGE_LENGTH = 5000;
@@ -129,6 +134,16 @@ class IntoTestUtils {
                     case REFUSED -> refused(i, opType, new IllegalArgumentException("mapper_parsing_exception[" + i + "]"));
                     case REFUSED_WITHOUT_MESSAGE -> refused(i, opType, new IllegalArgumentException());
                     case REFUSED_WITH_LONG_MESSAGE -> refused(i, opType, new IllegalArgumentException("x".repeat(LONG_MESSAGE_LENGTH)));
+                    case UPDATED -> BulkItemResponse.success(i, opType, new IndexResponse(SHARD, "id-" + i, 0, 1, 2, false));
+                    case CONFLICT -> BulkItemResponse.failure(
+                        i,
+                        opType,
+                        new BulkItemResponse.Failure(
+                            DEST,
+                            "id-" + i,
+                            new VersionConflictEngineException(SHARD, "[id-" + i + "]", "document already exists")
+                        )
+                    );
                     case REJECTED -> BulkItemResponse.failure(
                         i,
                         opType,
@@ -222,6 +237,6 @@ class IntoTestUtils {
 
     /** Stats of a run in which the destination refused nothing. */
     static IntoStats noFailures(long total, long created) {
-        return new IntoStats(total, created, 0, List.of());
+        return new IntoStats(total, created, 0, 0, 0, List.of());
     }
 }

@@ -6,6 +6,43 @@ ROW into_long = [1, 2, 3]
 | INTO into_destination
 ;
 
-total:long | created:long | failures:long | failure_details:keyword
-3          | 3            | 0             | null
+total:long | created:long | updated:long | version_conflicts:long | failures:long | failure_details:keyword
+3          | 3            | 0            | 0                      | 0             | null
+;
+
+// The cluster is shared across runs, so these leave _id to the destination to stay repeatable. Each test writes its own
+// destination: auto-generated ids are not unique across tests here and trip an engine assertion.
+rowIntoIndexWithCollisionsKeep
+required_capability: into_command
+
+ROW into_long = [1, 2]
+| MV_EXPAND into_long
+| INTO into_destination_keep WITH {"collisions": "keep"}
+;
+
+total:long | created:long | updated:long | version_conflicts:long | failures:long | failure_details:keyword
+2          | 2            | 0            | 0                      | 0             | null
+;
+
+rowIntoIndexWithCollisionsReplace
+required_capability: into_command
+
+ROW into_long = [1, 2]
+| MV_EXPAND into_long
+| INTO into_destination_replace WITH {"collisions": "replace"}
+;
+
+total:long | created:long | updated:long | version_conflicts:long | failures:long | failure_details:keyword
+2          | 2            | 0            | 0                      | 0             | null
+;
+
+rowIntoIndexWithNullId
+required_capability: into_command
+
+ROW _id = null, into_long = 1
+| INTO into_destination_null_id WITH {"collisions": "replace"}
+;
+
+total:long | created:long | updated:long | version_conflicts:long | failures:long | failure_details:keyword
+1          | 1            | 0            | 0                      | 0             | null
 ;

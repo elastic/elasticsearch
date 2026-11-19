@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
+import org.elasticsearch.xpack.esql.into.IntoOptions.Collisions;
 import org.junit.After;
 import org.junit.Before;
 
@@ -67,6 +68,7 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.xpack.esql.into.IntoPageWriter.Factory.Indexing.INDEX;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.DEST;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.IN_FLIGHT;
+import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.CONFLICT;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.CREATED;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.FAILED;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.FORBIDDEN;
@@ -76,6 +78,7 @@ import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.REFUSED_WI
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.REFUSED_WITH_LONG_MESSAGE;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.REJECTED;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.REMOTE_MAPPER_REJECTED;
+import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.UPDATED;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.bulks;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.mockBigArrays;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.noFailures;
@@ -384,7 +387,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
 
         assertTrue(writer.isFinished());
         assertThat(writer.failure(), nullValue());
-        assertThat(writer.stats(), equalTo(new IntoStats(4, 3, 1, List.of("[400] mapper_parsing_exception[1]"))));
+        assertThat(writer.stats(), equalTo(new IntoStats(4, 3, 0, 0, 1, List.of("[400] mapper_parsing_exception[1]"))));
     }
 
     public void testKeepGoingCapsFailureDetailsKeepingTheFirstOnes() {
@@ -534,6 +537,128 @@ public class IntoPageWriterTests extends ComputeTestCase {
         assertThat(client.bulks, empty());
         assertTrue(writer.isFinished());
         assertThat(writer.stats(), equalTo(noFailures(0, 0)));
+    }
+
+    public void testIdColumnSetsTheDocumentIdAndIsLeftOutOfTheSource() throws IOException {
+        IntoPageWriter idWriter = writerWithIds(Collisions.ABORT);
+        idWriter.consume(idPage(new String[] { "a", null }, "h1", "h2"));
+
+        BulkRequest bulk = client.bulks.getFirst();
+        assertThat(bulk.requests().stream().map(DocWriteRequest::id).toList(), equalTo(Arrays.asList("a", null)));
+        assertThat(sources(bulk), equalTo(List.of(Map.of("host", "h1"), Map.of("host", "h2"))));
+        client.answer(CREATED, CREATED);
+    }
+
+    public void testMultiValuedIdIsRejected() {
+        IntoPageWriter idWriter = writerWithIds(Collisions.ABORT);
+        Page page;
+        try (
+            BytesRefBlock.Builder id = blockFactory.newBytesRefBlockBuilder(1);
+            BytesRefBlock.Builder host = blockFactory.newBytesRefBlockBuilder(1)
+        ) {
+            id.beginPositionEntry().appendBytesRef(new BytesRef("a")).appendBytesRef(new BytesRef("b")).endPositionEntry();
+            host.appendBytesRef(new BytesRef("h1"));
+            page = new Page(id.build(), host.build());
+        }
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> idWriter.consume(page));
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(e.getMessage(), containsString("_id"));
+        assertThat(client.bulks, empty());
+        assertThat(driverContext.breaker().getUsed(), equalTo(0L));
+    }
+
+    public void testAbortAndKeepSendCreateRequests() {
+        for (Collisions collisions : List.of(Collisions.ABORT, Collisions.KEEP)) {
+            IntoPageWriter idWriter = writerWithIds(collisions);
+            idWriter.consume(idPage(new String[] { "a" }, "h1"));
+            assertThat(client.bulks.getFirst().requests().getFirst().opType(), equalTo(DocWriteRequest.OpType.CREATE));
+            client.answer(CREATED);
+        }
+    }
+
+    public void testReplaceSendsIndexRequests() {
+        IntoPageWriter idWriter = writerWithIds(Collisions.REPLACE);
+        idWriter.consume(idPage(new String[] { "a", "b" }, "h1", "h2"));
+        assertThat(
+            client.bulks.getFirst().requests().stream().map(DocWriteRequest::opType).toList(),
+            everyItem(equalTo(DocWriteRequest.OpType.INDEX))
+        );
+        client.answer(CREATED, UPDATED);
+        idWriter.finish();
+        assertThat(idWriter.stats(), equalTo(new IntoStats(2, 1, 1, 0, 0, List.of())));
+        assertThat(sink.failure(), nullValue());
+    }
+
+    public void testAbortFailsOnCollision() {
+        IntoPageWriter idWriter = writerWithIds(Collisions.ABORT);
+        idWriter.consume(idPage(new String[] { "a", "b" }, "h1", "h2"));
+        client.answer(CREATED, CONFLICT);
+        ElasticsearchStatusException failure = asInstanceOf(ElasticsearchStatusException.class, sink.failure());
+        assertThat(failure.status(), equalTo(RestStatus.CONFLICT));
+        assertThat(failure.getMessage(), containsString("version conflict"));
+
+        idWriter.consume(idPage(new String[] { "c" }, "dropped"));
+        assertThat(client.bulks, empty());
+    }
+
+    public void testKeepCountsCollisionsAndContinues() {
+        IntoPageWriter idWriter = writerWithIds(Collisions.KEEP);
+        idWriter.consume(idPage(new String[] { "a", "b", "c" }, "h1", "h2", "h3"));
+        client.answer(CREATED, CONFLICT, CONFLICT);
+        assertThat(sink.failure(), nullValue());
+
+        idWriter.consume(idPage(new String[] { "d" }, "h4"));
+        client.answer(CREATED);
+        idWriter.finish();
+        assertTrue(idWriter.isFinished());
+        assertThat(idWriter.stats(), equalTo(new IntoStats(4, 2, 0, 2, 0, List.of())));
+    }
+
+    public void testKeepStillFailsOnARefusedRow() {
+        IntoPageWriter idWriter = writerWithIds(Collisions.KEEP);
+        idWriter.consume(idPage(new String[] { "a", "b" }, "h1", "h2"));
+        client.answer(CONFLICT, REFUSED);
+        ElasticsearchStatusException failure = asInstanceOf(ElasticsearchStatusException.class, sink.failure());
+        assertThat(failure.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(failure.getMessage(), containsString("mapper_parsing_exception"));
+    }
+
+    public void testReplaceFailsOnAConflict() {
+        // An index op has no version check, so a 409 under replace means something else went wrong and is not tolerated
+        IntoPageWriter idWriter = writerWithIds(Collisions.REPLACE);
+        idWriter.consume(idPage(new String[] { "a" }, "h1"));
+        client.answer(CONFLICT);
+        ElasticsearchStatusException failure = asInstanceOf(ElasticsearchStatusException.class, sink.failure());
+        assertThat(failure.status(), equalTo(RestStatus.CONFLICT));
+    }
+
+    private IntoPageWriter writerWithIds(Collisions collisions) {
+        List<Attribute> columns = List.of(
+            new ReferenceAttribute(Source.EMPTY, IntoPageWriter.ID_COLUMN, DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, "host", DataType.KEYWORD)
+        );
+        IntoOptions options = IntoOptions.builder().collisions(collisions).build();
+        sink = IntoPageWriter.Factory.createFactory(bulks(), client, blockFactory.breaker(), DEST, columns, INDEX, options);
+        return sink.create(driverContext);
+    }
+
+    /** One row per host, with {@code ids[i]} as the {@code _id} of row {@code i}; a {@code null} id is a null {@code _id}. */
+    private Page idPage(String[] ids, String... hosts) {
+        assertThat(ids.length, equalTo(hosts.length));
+        try (
+            BytesRefBlock.Builder id = blockFactory.newBytesRefBlockBuilder(ids.length);
+            BytesRefBlock.Builder host = blockFactory.newBytesRefBlockBuilder(hosts.length)
+        ) {
+            for (int i = 0; i < ids.length; i++) {
+                if (ids[i] == null) {
+                    id.appendNull();
+                } else {
+                    id.appendBytesRef(new BytesRef(ids[i]));
+                }
+                host.appendBytesRef(new BytesRef(hosts[i]));
+            }
+            return new Page(id.build(), host.build());
+        }
     }
 
     private IntoPageWriter.Factory newSink(CircuitBreaker breaker) {

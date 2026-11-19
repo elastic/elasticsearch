@@ -1,2 +1,2 @@
-ExchangeSinkExec[[total{r}#0, created{r}#1, failures{r}#2, failure_details{r}#3],false]
-\_ExchangeSourceExec[[total{r}#0, created{r}#1, failures{r}#2, failure_details{r}#3],false]
+ExchangeSinkExec[[total{r}#0, created{r}#1, updated{r}#2, version_conflicts{r}#3, failures{r}#4, failure_details{r}#5],false]
+\_ExchangeSourceExec[[total{r}#0, created{r}#1, updated{r}#2, version_conflicts{r}#3, failures{r}#4, failure_details{r}#5],false]

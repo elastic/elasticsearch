@@ -31,14 +31,40 @@ public class IntoSerializationTests extends AbstractLogicalPlanSerializationTest
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
             case 1 -> destination = randomValueOtherThan(destination, () -> randomAlphaOfLength(10));
             case 2 -> output = IntoStats.createAttributes(instance.source());
-            case 3 -> options = randomValueOtherThan(options, IntoSerializationTests::randomIntoOptions);
+            case 3 -> options = mutateIntoOptions(options);
             default -> throw new AssertionError("Unexpected case");
         }
         return new Into(instance.source(), child, destination, options, output);
     }
 
     public static IntoOptions randomIntoOptions() {
-        return IntoOptions.builder().refresh(randomBoolean()).keepGoing(randomBoolean()).build();
+        return IntoOptions.builder()
+            .refresh(randomBoolean())
+            .keepGoing(randomBoolean())
+            .collisions(randomFrom(IntoOptions.Collisions.values()))
+            .build();
+    }
+
+    /** Changes exactly one option, so each field's part in equality and serialization is exercised. */
+    public static IntoOptions mutateIntoOptions(IntoOptions options) {
+        return switch (between(0, 2)) {
+            case 0 -> IntoOptions.builder()
+                .refresh(options.refresh() == false)
+                .keepGoing(options.keepGoing())
+                .collisions(options.collisions())
+                .build();
+            case 1 -> IntoOptions.builder()
+                .refresh(options.refresh())
+                .keepGoing(options.keepGoing() == false)
+                .collisions(options.collisions())
+                .build();
+            case 2 -> IntoOptions.builder()
+                .refresh(options.refresh())
+                .keepGoing(options.keepGoing())
+                .collisions(randomValueOtherThan(options.collisions(), () -> randomFrom(IntoOptions.Collisions.values())))
+                .build();
+            default -> throw new AssertionError("Unexpected case");
+        };
     }
 
     @Override

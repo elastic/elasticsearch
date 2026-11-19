@@ -2,5 +2,5 @@ area: ES|QL
 issues:
  - 165306
 pr: 165949
-summary: Propagate warnings via `DriverContext`
+summary: Fix analysis warnings sometimes missing from the response
 type: bug

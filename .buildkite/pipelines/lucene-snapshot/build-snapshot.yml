@@ -1,15 +1,28 @@
 # TARGET_BRANCH unset (lucene_snapshot): upload + push version bump + tests.
 # TARGET_BRANCH set (main → lucene_snapshot_11): S3 upload only, then Archimedes
-# compiles and either pushes or opens a PR.
+# compiles and either pushes or opens a PR. That path defaults Lucene to
+# branch_11x / JDK 25 so a manual TARGET_BRANCH run does not build 10.6.
+env:
+  TARGET_BRANCH: "${TARGET_BRANCH:-}"
+  LUCENE_BUILD_ID: "${LUCENE_BUILD_ID:-}"
+
 steps:
   - trigger: apache-lucene-build-snapshot
     label: Trigger pipeline to build lucene snapshot
     key: lucene-build
-    if: build.env("LUCENE_BUILD_ID") == null || build.env("LUCENE_BUILD_ID") == ""
+    if: (build.env("LUCENE_BUILD_ID") == null || build.env("LUCENE_BUILD_ID") == "") && (build.env("TARGET_BRANCH") == null || build.env("TARGET_BRANCH") == "")
     build:
       branch: "${LUCENE_BRANCH:-branch_10_6}"
       env:
         JDK_VERSION: "${LUCENE_JDK_VERSION:-21}"
+  - trigger: apache-lucene-build-snapshot
+    label: Trigger pipeline to build lucene snapshot for lucene_snapshot_*
+    key: lucene-build-target
+    if: (build.env("LUCENE_BUILD_ID") == null || build.env("LUCENE_BUILD_ID") == "") && build.env("TARGET_BRANCH") != null && build.env("TARGET_BRANCH") != ""
+    build:
+      branch: "${LUCENE_BRANCH:-branch_11x}"
+      env:
+        JDK_VERSION: "${LUCENE_JDK_VERSION:-25}"
   - wait
   - label: Upload and update lucene snapshot
     command: .buildkite/scripts/lucene-snapshot/upload-snapshot.sh

@@ -50,22 +50,23 @@
 # The CI agent configuration the archimedes step runs on is overridable via the
 # ARCHIMEDES_AGENT_* trigger vars (image/machine type/disk type), defaulting to
 # the standard elasticsearch-ubuntu-2404 / n4-standard-4 orchestrator shape.
-# lucene-merge-conflicts compiles in-process, so it defaults to n4-standard-16
-# via ARCHIMEDES_LUCENE_MERGE_MACHINE_TYPE (not the analysis-shaped 4).
-# lucene-snapshot-update also compiles in-process; its trigger sets
-# ARCHIMEDES_AGENT_MACHINE_TYPE to n4-standard-16.
+# lucene-merge-conflicts and lucene-snapshot-update compile in-process, so they
+# default to n4-standard-16 (not the analysis-shaped 4). They share
+# concurrency_group archimedes-lucene/${TARGET_BRANCH} so a bump and a merge
+# cannot both push lucene_snapshot_* at once; the later job waits.
 env:
-  WORKFLOW:                              "${WORKFLOW:-}"
-  ISSUE_URL:                             "${ISSUE_URL:-}"
-  PR_URL:                                "${PR_URL:-}"
-  TARGET_BRANCH:                         "${TARGET_BRANCH:-}"
-  LUCENE_SNAPSHOT_VERSION:               "${LUCENE_SNAPSHOT_VERSION:-}"
-  LUCENE_SHA:                            "${LUCENE_SHA:-}"
-  ARCHIMEDES_TRIAGE_MODE:                "${ARCHIMEDES_TRIAGE_MODE:-}"
-  ARCHIMEDES_AGENT_IMAGE:                "${ARCHIMEDES_AGENT_IMAGE:-family/elasticsearch-ubuntu-2404}"
-  ARCHIMEDES_AGENT_MACHINE_TYPE:         "${ARCHIMEDES_AGENT_MACHINE_TYPE:-n4-standard-4}"
-  ARCHIMEDES_LUCENE_MERGE_MACHINE_TYPE:  "${ARCHIMEDES_LUCENE_MERGE_MACHINE_TYPE:-n4-standard-16}"
-  ARCHIMEDES_AGENT_DISK_TYPE:            "${ARCHIMEDES_AGENT_DISK_TYPE:-hyperdisk-balanced}"
+  WORKFLOW:                                "${WORKFLOW:-}"
+  ISSUE_URL:                               "${ISSUE_URL:-}"
+  PR_URL:                                  "${PR_URL:-}"
+  TARGET_BRANCH:                           "${TARGET_BRANCH:-}"
+  LUCENE_SNAPSHOT_VERSION:                 "${LUCENE_SNAPSHOT_VERSION:-}"
+  LUCENE_SHA:                              "${LUCENE_SHA:-}"
+  ARCHIMEDES_TRIAGE_MODE:                  "${ARCHIMEDES_TRIAGE_MODE:-}"
+  ARCHIMEDES_AGENT_IMAGE:                  "${ARCHIMEDES_AGENT_IMAGE:-family/elasticsearch-ubuntu-2404}"
+  ARCHIMEDES_AGENT_MACHINE_TYPE:           "${ARCHIMEDES_AGENT_MACHINE_TYPE:-n4-standard-4}"
+  ARCHIMEDES_LUCENE_MERGE_MACHINE_TYPE:    "${ARCHIMEDES_LUCENE_MERGE_MACHINE_TYPE:-n4-standard-16}"
+  ARCHIMEDES_LUCENE_SNAPSHOT_MACHINE_TYPE: "${ARCHIMEDES_LUCENE_SNAPSHOT_MACHINE_TYPE:-n4-standard-16}"
+  ARCHIMEDES_AGENT_DISK_TYPE:              "${ARCHIMEDES_AGENT_DISK_TYPE:-hyperdisk-balanced}"
 
 steps:
   # ── Run archimedes ───────────────────────────────────────────────────────────
@@ -112,7 +113,7 @@ steps:
     if: build.env("WORKFLOW") == "lucene-merge-conflicts"
     timeout_in_minutes: 150
     concurrency: 1
-    concurrency_group: "archimedes-lucene-merge/${TARGET_BRANCH}"
+    concurrency_group: "archimedes-lucene/${TARGET_BRANCH}"
     env:
       USE_ARCHIMEDES: "true"
       ARCHIMEDES_SESSION_DIR: "/tmp/archimedes-sessions"
@@ -133,22 +134,29 @@ steps:
 
   # lucene-snapshot-update compiles in-process. Worst case is prepare (incl.
   # verification-metadata gradle) + compile 50 + compile-fix 50; 150 covers that.
-  # The build-snapshot trigger sets ARCHIMEDES_AGENT_MACHINE_TYPE to n4-standard-16.
+  # Machine type defaults to n4-standard-16 so a manual New Build does not land
+  # on the analysis-shaped 4. Shares concurrency_group with lucene-merge-conflicts
+  # (the later job waits; it is not skipped). Retry is agent loss only.
   - label: ":robot_face: Archimedes — lucene-snapshot-update"
     key: archimedes-lucene-snapshot-update
     if: build.env("WORKFLOW") == "lucene-snapshot-update"
     timeout_in_minutes: 150
+    concurrency: 1
+    concurrency_group: "archimedes-lucene/${TARGET_BRANCH}"
     env:
       USE_ARCHIMEDES: "true"
       ARCHIMEDES_SESSION_DIR: "/tmp/archimedes-sessions"
     agents:
       provider:       gcp
       image:          "${ARCHIMEDES_AGENT_IMAGE}"
-      machineType:    "${ARCHIMEDES_AGENT_MACHINE_TYPE}"
+      machineType:    "${ARCHIMEDES_LUCENE_SNAPSHOT_MACHINE_TYPE}"
       diskType:       "${ARCHIMEDES_AGENT_DISK_TYPE}"
       buildDirectory: /dev/shm/bk
     retry:
       automatic:
-        - exit_status: "*"
+        - exit_status: "-1"
+          signal_reason: none
+          limit: 1
+        - signal_reason: agent_stop
           limit: 1
     command: archimedes ci

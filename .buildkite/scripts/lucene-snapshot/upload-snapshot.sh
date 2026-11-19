@@ -6,7 +6,7 @@ LUCENE_BUILD_ID=${LUCENE_BUILD_ID:-}
 
 if [[ -z "$LUCENE_BUILD_ID" ]]; then
   build_json=$(curl -sH "Authorization: Bearer $BUILDKITE_API_TOKEN" "https://api.buildkite.com/v2/organizations/elastic/pipelines/$BUILDKITE_PIPELINE_SLUG/builds/$BUILDKITE_BUILD_NUMBER")
-  LUCENE_BUILD_ID=$(jq -r '.jobs[] | select(.step_key == "lucene-build").triggered_build.id' <<< "$build_json")
+  LUCENE_BUILD_ID=$(jq -r '[.jobs[] | select((.step_key == "lucene-build" or .step_key == "lucene-build-target") and .triggered_build.id != null) | .triggered_build.id] | first // empty' <<< "$build_json")
 fi
 
 export LUCENE_BUILD_ID
@@ -37,9 +37,18 @@ if ! which aws; then
   rm -rf awscliv2.zip aws
 fi
 
+uploaded=0
 for i in {1..3}; do
-    aws s3 sync lucene-snapshot/ "s3://download.elasticsearch.org/lucenesnapshots/$LUCENE_SHA/" --acl public-read && break || sleep 5
+  if aws s3 sync lucene-snapshot/ "s3://download.elasticsearch.org/lucenesnapshots/$LUCENE_SHA/" --acl public-read; then
+    uploaded=1
+    break
+  fi
+  sleep 5
 done
+if [[ "$uploaded" -ne 1 ]]; then
+  echo "Error: S3 upload failed after 3 attempts" >&2
+  exit 1
+fi
 
 # TARGET_BRANCH set (agentic path): S3 only. update-es-snapshot.sh pushes on
 # lucene_snapshot* and rejects main; Archimedes owns the ES bump after this.

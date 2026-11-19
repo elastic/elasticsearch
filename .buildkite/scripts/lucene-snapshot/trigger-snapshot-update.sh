@@ -43,5 +43,4 @@ steps:
         TARGET_BRANCH: $(yaml_string "$TARGET_BRANCH")
         LUCENE_SNAPSHOT_VERSION: $(yaml_string "$VERSION")
         LUCENE_SHA: $(yaml_string "$SHA")
-        ARCHIMEDES_AGENT_MACHINE_TYPE: "n4-standard-16"
 EOF

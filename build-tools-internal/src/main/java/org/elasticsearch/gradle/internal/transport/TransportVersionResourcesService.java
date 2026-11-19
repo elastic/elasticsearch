@@ -245,6 +245,26 @@ public abstract class TransportVersionResourcesService implements BuildService<T
         return null;
     }
 
+    /** Fetch a branch from the elastic remote and return a file at its head. The path is relative to the repository root. */
+    public String getFileFromElasticBranch(String branch, String path) {
+        String remote = findElasticRemoteName();
+        if (remote == null) {
+            throw new IllegalStateException(
+                "No git remote points to an elastic GitHub repository, cannot read [" + path + "] from " + branch
+            );
+        }
+        // tasks run in parallel, and two fetches that update the same remote ref at once can fail to lock it
+        synchronized (baseRefName) {
+            gitCommand("fetch", remote, branch);
+        }
+        return gitCommand("show", remote + "/" + branch + ":" + path);
+    }
+
+    /** Return a file at the commit this change branched from the branch it targets, see {@link #getTargetBranchName()}. The path is relative to the repository root. */
+    public String getFileFromBaseRef(String path) {
+        return gitCommand("show", getBaseRefName() + ":" + path);
+    }
+
     /** Retrieve an upper bound from the given git ref by name, or null if it doesn't exist at that ref */
     public TransportVersionUpperBound getUpperBoundFromRef(String ref, String name) {
         Path resourcePath = getUpperBoundRelativePath(name);

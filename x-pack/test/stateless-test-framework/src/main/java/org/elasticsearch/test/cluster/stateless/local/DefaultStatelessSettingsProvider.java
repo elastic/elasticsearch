@@ -30,10 +30,6 @@ public class DefaultStatelessSettingsProvider extends DefaultSettingsProvider {
     private static final Map<String, String> UNTHROTTLED_MASTER_RECOVERY_SETTINGS = Map.of(
         "cluster.routing.allocation.node_concurrent_recoveries",
         String.valueOf(Integer.MAX_VALUE),
-        "cluster.routing.allocation.node_concurrent_incoming_recoveries",
-        String.valueOf(Integer.MAX_VALUE),
-        "cluster.routing.allocation.node_concurrent_outgoing_recoveries",
-        String.valueOf(Integer.MAX_VALUE),
         "cluster.routing.allocation.node_initial_primaries_recoveries",
         String.valueOf(Integer.MAX_VALUE),
         "cluster.routing.allocation.min_heap_required_for_concurrent_primary_recoveries",
@@ -47,22 +43,30 @@ public class DefaultStatelessSettingsProvider extends DefaultSettingsProvider {
     @Override
     public Map<String, String> get(LocalClusterSpec.LocalNodeSpec nodeSpec) {
         Map<String, String> defaultSettings = super.get(nodeSpec);
-        initUploadMaxCommitsSettings(defaultSettings);
-        initDataNodeRecoveryThrottlingSettings(nodeSpec, defaultSettings);
+        initRandomizedSettings(nodeSpec, defaultSettings);
         EXCLUDED_SETTINGS.forEach(defaultSettings::remove);
         return defaultSettings;
     }
 
     private boolean initialized;
     private int uploadMaxCommits;
+    /// Data node recovery throttling (DNRT) settings applied to every node.
+    private Map<String, String> dataNodeRecoveryThrottlingSettings;
 
-    private synchronized void initUploadMaxCommitsSettings(Map<String, String> settings) {
+    /// Draws all the randomized settings once per cluster, in a fixed order, and applies the same values to every node.
+    ///
+    /// The nodes resolve their settings on parallel worker threads, and each new thread gets its own random stream, seeded
+    /// identically from the test seed. Drawing everything at once, on whichever thread comes first, keeps the values reproducible
+    /// from the seed. Initializing the settings separately could draw them from different threads' streams.
+    private synchronized void initRandomizedSettings(LocalClusterSpec.LocalNodeSpec nodeSpec, Map<String, String> settings) {
         if (initialized == false) {
             final Random random = RandomizedContext.current().getRandom();
             initialized = true;
             uploadMaxCommits = random.nextBoolean() ? random.nextInt(1, 10) : 100;
+            dataNodeRecoveryThrottlingSettings = randomDataNodeRecoveryThrottlingSettings(nodeSpec, random);
         }
         settings.put("stateless.upload.max_commits", String.valueOf(uploadMaxCommits));
+        settings.putAll(dataNodeRecoveryThrottlingSettings);
     }
 
     /// How recoveries are throttled in the test cluster.
@@ -79,28 +83,19 @@ public class DefaultStatelessSettingsProvider extends DefaultSettingsProvider {
     /// First version in which the stateless plugin registers all the DNRT settings used below.
     private static final Version DNRT_SETTINGS_MIN_VERSION = Version.fromString("9.7.0");
 
-    /// Data node recovery throttling (DNRT) settings applied to every node, drawn on first use.
-    private Map<String, String> dataNodeRecoveryThrottlingSettings;
-
-    private synchronized void initDataNodeRecoveryThrottlingSettings(
-        LocalClusterSpec.LocalNodeSpec nodeSpec,
-        Map<String, String> settings
-    ) {
-        if (dataNodeRecoveryThrottlingSettings == null) {
-            final Random random = RandomizedContext.current().getRandom();
-            // Older versions (e.g. in rolling upgrade tests) do not register all the DNRT settings.
-            // Decided once, so that the nodes keep agreeing after they are upgraded.
-            final boolean allNodesSupportDNRTSettings = nodeSpec.getCluster()
-                .getNodes()
-                .stream()
-                .allMatch(node -> node.getVersion().onOrAfter(DNRT_SETTINGS_MIN_VERSION));
-            final RecoveryThrottlingMode mode = allNodesSupportDNRTSettings
-                ? RandomPicks.randomFrom(random, RecoveryThrottlingMode.values())
-                : RecoveryThrottlingMode.MASTER;
-            dataNodeRecoveryThrottlingSettings = dataNodeRecoveryThrottlingSettings(mode, random);
-            LOGGER.info("Using data node recovery throttling mode [{}] with settings {}", mode, dataNodeRecoveryThrottlingSettings);
-        }
-        settings.putAll(dataNodeRecoveryThrottlingSettings);
+    private static Map<String, String> randomDataNodeRecoveryThrottlingSettings(LocalClusterSpec.LocalNodeSpec nodeSpec, Random random) {
+        // Older versions (e.g. in rolling upgrade tests) do not register all the DNRT settings.
+        // Decided once, so that the nodes keep agreeing after they are upgraded.
+        final boolean allNodesSupportDNRTSettings = nodeSpec.getCluster()
+            .getNodes()
+            .stream()
+            .allMatch(node -> node.getVersion().onOrAfter(DNRT_SETTINGS_MIN_VERSION));
+        final RecoveryThrottlingMode mode = allNodesSupportDNRTSettings
+            ? RandomPicks.randomFrom(random, RecoveryThrottlingMode.values())
+            : RecoveryThrottlingMode.MASTER;
+        final Map<String, String> settings = dataNodeRecoveryThrottlingSettings(mode, random);
+        LOGGER.info("Using data node recovery throttling mode [{}] with settings {}", mode, settings);
+        return settings;
     }
 
     private static Map<String, String> dataNodeRecoveryThrottlingSettings(RecoveryThrottlingMode mode, Random random) {

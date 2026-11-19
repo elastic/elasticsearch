@@ -1,0 +1,253 @@
+// Ookla Open Data, fixed-broadband tiles for 2024: 4 hive-partitioned Parquet quarters on
+// anonymous S3 (26,364,521 rows, ~1.4 GiB). quarter (integer 1-4) is a DETECTED hive-partition
+// column, asserted by q08/q45. Deviation from the source plan, recorded: the Parquet is
+// internally SNAPPY, not zstd (verified from footers) - codec=zstd stays a declared gap pointed
+// at Overture (Phase 3). Expected tables derived at authoring time by clickhouse local over the
+// scratch copy of the same pinned objects.
+
+// corpus: ookla-fixed-2024
+// reference-variant: ookla-fixed-2024-s3-parquet-snappy-hive
+// pinned: 4 objects, 1440356335 bytes, type=fixed/year=2024 quarters
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() FROM file('quarter=*/*.parquet')
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 1
+q01_countTiles
+required_capability: dataset_in_from_command
+dataset: ookla: "{{corpus}}"
+FROM ookla | STATS count = COUNT(*);
+
+count:long
+26364521
+;
+
+// corpus: ookla-fixed-2024
+// reference-variant: ookla-fixed-2024-s3-parquet-snappy-hive
+// pinned: 4 objects, 1440356335 bytes, type=fixed/year=2024 quarters
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() FROM file('quarter=*/*.parquet') WHERE tests >= 100
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 1
+q02_countBusyTiles
+required_capability: dataset_in_from_command
+dataset: ookla: "{{corpus}}"
+FROM ookla | WHERE tests >= 100 | STATS count = COUNT(*);
+
+count:long
+791672
+;
+
+// corpus: ookla-fixed-2024
+// reference-variant: ookla-fixed-2024-s3-parquet-snappy-hive
+// pinned: 4 objects, 1440356335 bytes, type=fixed/year=2024 quarters
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT sum(tests), count(), avg(avg_d_kbps) FROM file('quarter=*/*.parquet')
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 1
+q03_statsTestsTotals
+required_capability: dataset_in_from_command
+dataset: ookla: "{{corpus}}"
+FROM ookla | STATS sum_tests = SUM(tests), count = COUNT(*), avg_download = AVG(avg_d_kbps);
+
+sum_tests:long | count:long | avg_download:double
+434760320      | 26364521   | 162401.2203191175
+;
+
+// corpus: ookla-fixed-2024
+// reference-variant: ookla-fixed-2024-s3-parquet-snappy-hive
+// pinned: 4 objects, 1440356335 bytes, type=fixed/year=2024 quarters
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT avg(avg_u_kbps) FROM file('quarter=*/*.parquet')
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 1
+q04_statsAvgUpload
+required_capability: dataset_in_from_command
+dataset: ookla: "{{corpus}}"
+FROM ookla | STATS avg_upload = AVG(avg_u_kbps);
+
+avg_upload:double
+83631.26402140968
+;
+
+// corpus: ookla-fixed-2024
+// reference-variant: ookla-fixed-2024-s3-parquet-snappy-hive
+// pinned: 4 objects, 1440356335 bytes, type=fixed/year=2024 quarters
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT uniqExact(quadkey) FROM file('quarter=*/*.parquet')
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 1
+// note: no nulls in quadkey; plain uniqExact mirrors the two-stage distinct
+q05_distinctQuadkeys
+required_capability: dataset_in_from_command
+dataset: ookla: "{{corpus}}"
+FROM ookla | STATS BY quadkey | STATS u = COUNT(*);
+
+u:long
+11107338
+;
+
+// corpus: ookla-fixed-2024
+// reference-variant: ookla-fixed-2024-s3-parquet-snappy-hive
+// pinned: 4 objects, 1440356335 bytes, type=fixed/year=2024 quarters
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() AS c, quarter FROM file('quarter=*/*.parquet') GROUP BY quarter ORDER BY c DESC, quarter ASC LIMIT 4
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 4
+// note: quarter is a DETECTED hive-partition column (integer 1-4)
+q08_tilesByQuarter
+required_capability: dataset_in_from_command
+dataset: ookla: "{{corpus}}"
+FROM ookla | STATS c = COUNT(*) BY quarter | SORT c DESC, quarter ASC | LIMIT 4;
+
+c:long  | quarter:integer
+6655986 | 1
+6655377 | 3
+6561086 | 4
+6492072 | 2
+;
+
+// corpus: ookla-fixed-2024
+// reference-variant: ookla-fixed-2024-s3-parquet-snappy-hive
+// pinned: 4 objects, 1440356335 bytes, type=fixed/year=2024 quarters
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT sum(tests) AS t, quadkey FROM file('quarter=*/*.parquet') GROUP BY quadkey ORDER BY t DESC, quadkey ASC LIMIT 10
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 10
+q13_topQuadkeysByTests
+required_capability: dataset_in_from_command
+dataset: ookla: "{{corpus}}"
+FROM ookla | STATS t = SUM(tests) BY quadkey | SORT t DESC, quadkey ASC | LIMIT 10;
+
+t:long | quadkey:keyword
+128250 | 1221122102313122
+110935 | 0320020202210003
+77715  | 1221300110231021
+55766  | 0302222122321110
+36407  | 1200310202132202
+25299  | 3101022111302222
+22629  | 1221211220003331
+21651  | 1323031220010321
+21414  | 1323031220010302
+21403  | 1202310022130102
+;
+
+// corpus: ookla-fixed-2024
+// reference-variant: ookla-fixed-2024-s3-parquet-snappy-hive
+// pinned: 4 objects, 1440356335 bytes, type=fixed/year=2024 quarters
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT quadkey FROM file('quarter=*/*.parquet') WHERE quadkey = '0022133222312323'
+// oracle-run: 2026-08-14
+// read-shape: scan
+// max-rows: 10
+// sort-reviewed: every returned value is the needle itself; order carries no information
+// note: needle = the lexically smallest quadkey present in all four quarters (4 rows)
+q20_scanNeedleQuadkey
+required_capability: dataset_in_from_command
+dataset: ookla: "{{corpus}}"
+FROM ookla | WHERE quadkey == "0022133222312323" | KEEP quadkey;
+
+quadkey:keyword
+0022133222312323
+0022133222312323
+0022133222312323
+0022133222312323
+;
+
+// corpus: ookla-fixed-2024
+// reference-variant: ookla-fixed-2024-s3-parquet-snappy-hive
+// pinned: 4 objects, 1440356335 bytes, type=fixed/year=2024 quarters
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT quadkey, avg_d_kbps, avg_u_kbps, tests, quarter FROM file('quarter=*/*.parquet') ORDER BY avg_d_kbps DESC NULLS LAST, quadkey ASC, quarter ASC LIMIT 10
+// oracle-run: 2026-08-14
+// read-shape: topn
+// max-rows: 10
+q24_topDownloadTiles
+required_capability: dataset_in_from_command
+dataset: ookla: "{{corpus}}"
+FROM ookla | SORT avg_d_kbps DESC NULLS LAST, quadkey ASC, quarter ASC | KEEP quadkey, avg_d_kbps, avg_u_kbps, tests, quarter | LIMIT 10;
+
+quadkey:keyword  | avg_d_kbps:long | avg_u_kbps:long | tests:long | quarter:integer
+1303311223030020 | 9594032         | 1605062         | 1          | 1
+0302331003102133 | 9385171         | 5557303         | 1          | 3
+0231310202120213 | 9384856         | 6214463         | 4          | 2
+0320030101320310 | 8175631         | 6353328         | 1          | 4
+0320030101303310 | 8170346         | 6472404         | 2          | 4
+0320030101322022 | 8025777         | 5396841         | 2          | 4
+1321132110221132 | 7568125         | 2344731         | 1          | 4
+1202032203013000 | 7172204         | 1458321         | 2          | 1
+1321132101013222 | 6773849         | 1979824         | 1          | 1
+0320211001011113 | 5560039         | 1575257         | 1          | 2
+;
+
+// corpus: ookla-fixed-2024
+// reference-variant: ookla-fixed-2024-s3-parquet-snappy-hive
+// pinned: 4 objects, 1440356335 bytes, type=fixed/year=2024 quarters
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT quadkey FROM file('quarter=*/*.parquet') ORDER BY quadkey ASC, quarter ASC LIMIT 10
+// oracle-run: 2026-08-14
+// read-shape: topn
+// max-rows: 10
+// sort-reviewed: ties on (quadkey, quarter) project identical quadkey values
+q26_sortQuadkeysAsc
+required_capability: dataset_in_from_command
+dataset: ookla: "{{corpus}}"
+FROM ookla | SORT quadkey ASC, quarter ASC | KEEP quadkey | LIMIT 10;
+
+quadkey:keyword
+0022022300230211
+0022022300231020
+0022022300231021
+0022022333020022
+0022131333200033
+0022131333202101
+0022133222312323
+0022133222312323
+0022133222312323
+0022133222312323
+;
+
+// corpus: ookla-fixed-2024
+// reference-variant: ookla-fixed-2024-s3-parquet-snappy-hive
+// pinned: 4 objects, 1440356335 bytes, type=fixed/year=2024 quarters
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT quadkey FROM file('quarter=*/*.parquet') WHERE quadkey = '0022133222312323' LIMIT 10
+// oracle-run: 2026-08-14
+// read-shape: limit
+// max-rows: 10
+// sort-reviewed: every returned value is the needle itself; order carries no information
+q44_limitNeedleQuadkey
+required_capability: dataset_in_from_command
+dataset: ookla: "{{corpus}}"
+FROM ookla | WHERE quadkey == "0022133222312323" | KEEP quadkey | LIMIT 10;
+
+quadkey:keyword
+0022133222312323
+0022133222312323
+0022133222312323
+0022133222312323
+;
+
+// corpus: ookla-fixed-2024
+// reference-variant: ookla-fixed-2024-s3-parquet-snappy-hive
+// pinned: 4 objects, 1440356335 bytes, type=fixed/year=2024 quarters
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() FROM file('quarter=*/*.parquet') WHERE quarter = 3
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 1
+// note: partition-pruning probe on the detected quarter column
+q45_quarterPartitionFilter
+required_capability: dataset_in_from_command
+dataset: ookla: "{{corpus}}"
+FROM ookla | WHERE quarter == 3 | STATS count = COUNT(*);
+
+count:long
+6655377
+;

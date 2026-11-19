@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 156187
+pr: 156188
+summary: Fix FUSE plan nodes ignoring fields in equals
+type: bug

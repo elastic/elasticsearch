@@ -18,6 +18,11 @@ final class EsqlDatafeedColumnValues {
 
     private EsqlDatafeedColumnValues() {}
 
+    /** Whether a response column of this public REST type name holds dates. */
+    static boolean isDateColumnType(String outputType) {
+        return "date".equals(outputType) || "date_nanos".equals(outputType);
+    }
+
     static Long toEpochMillisOrNull(Object value, boolean isDate) {
         if (value == null) {
             return null;

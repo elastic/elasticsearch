@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.datafeed.extractor;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
@@ -21,14 +22,16 @@ import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
-import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryParser;
 import org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregatedSearchRequestBuilder;
 import org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationDataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.CompositeAggregationDataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.RollupDataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.chunked.ChunkedDataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDataExtractorFactory;
+import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDatafeedQuery;
 import org.elasticsearch.xpack.ml.datafeed.extractor.scroll.ScrollDataExtractorFactory;
+
+import java.util.Objects;
 
 public interface DataExtractorFactory {
 
@@ -57,7 +60,7 @@ public interface DataExtractorFactory {
         Job job,
         NamedXContentRegistry xContentRegistry,
         DatafeedTimingStatsReporter timingStatsReporter,
-        EsqlQueryParser esqlQueryParser,
+        @Nullable EsqlDatafeedQuery esqlQuery,
         ActionListener<DataExtractorFactory> listener
     ) {
         create(
@@ -69,7 +72,7 @@ public interface DataExtractorFactory {
             xContentRegistry,
             timingStatsReporter,
             DatafeedSearchTelemetry.NOOP,
-            esqlQueryParser,
+            esqlQuery,
             listener
         );
     }
@@ -83,7 +86,7 @@ public interface DataExtractorFactory {
         NamedXContentRegistry xContentRegistry,
         DatafeedTimingStatsReporter timingStatsReporter,
         DatafeedSearchTelemetry searchTelemetry,
-        EsqlQueryParser esqlQueryParser,
+        @Nullable EsqlDatafeedQuery esqlQuery,
         ActionListener<DataExtractorFactory> listener
     ) {
         final Client searchClient = cloudCredentialManager.wrapClient(client, datafeed.getCloudInternalCredential());
@@ -91,13 +94,27 @@ public interface DataExtractorFactory {
         ActionListener<DataExtractorFactory> factoryHandler = listener.delegateFailureAndWrap(
             (l, factory) -> l.onResponse(
                 datafeed.getChunkingConfig().isEnabled()
-                    ? new ChunkedDataExtractorFactory(datafeed, job, xContentRegistry, factory)
+                    ? new ChunkedDataExtractorFactory(
+                        datafeed,
+                        job,
+                        xContentRegistry,
+                        factory,
+                        esqlQuery != null && esqlQuery.injectsRowLimit()
+                    )
                     : factory
             )
         );
 
         if (datafeed.getEsqlQuery() != null) {
-            EsqlDataExtractorFactory.create(searchClient, datafeed, job, timingStatsReporter, esqlQueryParser, factoryHandler);
+            factoryHandler.onResponse(
+                new EsqlDataExtractorFactory(
+                    searchClient,
+                    datafeed,
+                    job,
+                    timingStatsReporter,
+                    Objects.requireNonNull(esqlQuery, "an ES|QL datafeed needs its parsed query")
+                )
+            );
             return;
         }
 

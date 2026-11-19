@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryParser;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
+import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDatafeedQuery;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 
@@ -219,6 +220,13 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
                 new ParentTaskAssigningClient(client, parentTaskId),
                 callerCredential
             );
+            final EsqlDatafeedQuery esqlQuery;
+            try {
+                esqlQuery = EsqlDatafeedQuery.forDatafeed(esqlQueryParser, effectiveDatafeedConfig);
+            } catch (Exception e) {
+                responseHeaderPreservingListener.onFailure(e);
+                return;
+            }
             DataExtractorFactory.create(
                 previewClient,
                 cloudCredentialManager,
@@ -228,7 +236,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
                 xContentRegistry,
                 // Fake DatafeedTimingStatsReporter that does not have access to results index
                 new DatafeedTimingStatsReporter(new DatafeedTimingStats(datafeedConfig.getJobId()), (ts, refreshPolicy, listener1) -> {}),
-                esqlQueryParser,
+                esqlQuery,
                 responseHeaderPreservingListener.delegateFailure(
                     (l, dataExtractorFactory) -> isDateNanos(
                         previewClient,

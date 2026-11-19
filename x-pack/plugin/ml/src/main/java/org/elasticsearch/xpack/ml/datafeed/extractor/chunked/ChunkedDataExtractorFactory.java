@@ -12,7 +12,6 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.Intervals;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
-import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDataExtractorFactory;
 
 import java.util.Objects;
 
@@ -22,17 +21,21 @@ public class ChunkedDataExtractorFactory implements DataExtractorFactory {
     private final Job job;
     private final DataExtractorFactory dataExtractorFactory;
     private final NamedXContentRegistry xContentRegistry;
+    /** Whether ML caps the rows of an ES|QL datafeed itself, so a result at the cap means truncation. */
+    private final boolean injectsEsqlRowLimit;
 
     public ChunkedDataExtractorFactory(
         DatafeedConfig datafeedConfig,
         Job job,
         NamedXContentRegistry xContentRegistry,
-        DataExtractorFactory dataExtractorFactory
+        DataExtractorFactory dataExtractorFactory,
+        boolean injectsEsqlRowLimit
     ) {
         this.datafeedConfig = Objects.requireNonNull(datafeedConfig);
         this.job = Objects.requireNonNull(job);
         this.dataExtractorFactory = Objects.requireNonNull(dataExtractorFactory);
         this.xContentRegistry = xContentRegistry;
+        this.injectsEsqlRowLimit = injectsEsqlRowLimit;
     }
 
     public DataExtractorFactory getDelegate() {
@@ -45,8 +48,6 @@ public class ChunkedDataExtractorFactory implements DataExtractorFactory {
         // End rounds down so the still-open bucket at the window edge is never extracted (real-time relies on this).
         long alignedEnd = timeAligner.alignToFloor(end);
         boolean hasEsqlQuery = datafeedConfig.getEsqlQuery() != null;
-        boolean injectsEsqlRowLimit = dataExtractorFactory instanceof EsqlDataExtractorFactory esqlFactory
-            && esqlFactory.query().injectsRowLimit();
         ChunkedDataExtractorContext dataExtractorContext = new ChunkedDataExtractorContext(
             job.getId(),
             datafeedConfig.getScrollSize(),

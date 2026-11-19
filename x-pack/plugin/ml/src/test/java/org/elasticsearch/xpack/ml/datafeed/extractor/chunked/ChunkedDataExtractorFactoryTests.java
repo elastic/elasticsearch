@@ -181,14 +181,15 @@ public class ChunkedDataExtractorFactoryTests extends ESTestCase {
         datafeedConfigBuilder.setGroupingInterval(groupingInterval);
         DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
         Job job = jobBuilder.build(new Date());
+        EsqlDatafeedQuery query = EsqlDatafeedQuery.parse(parser, esqlQuery);
         EsqlDataExtractorFactory esqlFactory = new EsqlDataExtractorFactory(
             mock(Client.class),
             datafeedConfig,
             job,
             mock(DatafeedTimingStatsReporter.class),
-            EsqlDatafeedQuery.parse(parser, esqlQuery)
+            query
         );
-        return new ChunkedDataExtractorFactory(datafeedConfig, job, xContentRegistry(), esqlFactory);
+        return new ChunkedDataExtractorFactory(datafeedConfig, job, xContentRegistry(), esqlFactory, query.injectsRowLimit());
     }
 
     private ChunkedDataExtractorFactory createFactory(long histogramInterval) {
@@ -215,7 +216,8 @@ public class ChunkedDataExtractorFactoryTests extends ESTestCase {
             datafeedConfigBuilder.build(),
             jobBuilder.build(new Date()),
             xContentRegistry(),
-            dataExtractorFactory
+            dataExtractorFactory,
+            false
         );
     }
 }

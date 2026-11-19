@@ -281,6 +281,24 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(harness.capturedRouting, equalTo("_alias:_origin"));
     }
 
+    public void testMintAccessWithQueryMlRejectsShouldFailBeforeTheProbe() {
+        ValidatorHarness harness = new ValidatorHarness(buildResponse(List.of(mockColumn(TIME_FIELD, "date"))));
+        AtomicReference<Exception> failure = new AtomicReference<>();
+
+        harness.validator.validateAccessForMint(
+            null,
+            Collections.emptyMap(),
+            "SET time_zone=\"Europe/Berlin\"; FROM logs",
+            null,
+            ActionListener.wrap(ignored -> fail("expected a rejection"), failure::set),
+            null
+        );
+
+        assertThat(failure.get(), instanceOf(ElasticsearchStatusException.class));
+        assertThat(((ElasticsearchStatusException) failure.get()).status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(harness.capturedQuery, nullValue());
+    }
+
     public void testMintAccessWithTrailingLineCommentShouldAppendLimitZeroOnNewLine() {
         ValidatorHarness harness = new ValidatorHarness(buildResponse(List.of(mockColumn(TIME_FIELD, "date"))));
 
@@ -362,8 +380,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         List<String> queriesWithNonQualifierColons = List.of(
             "FROM project-a:logs-* | LIMIT 10",
             "FROM logs | WHERE message : \"error\"",
-            "FROM logs | MATCH(f, \"q\", {\"fuzziness\": 1})",
-            "FROM logs | LOOKUP JOIN idx ON k",
+            "FROM logs | WHERE MATCH(f, \"q\", {\"fuzziness\": 1})",
             "FROM (FROM logs) | LIMIT 10"
         );
         for (String query : queriesWithNonQualifierColons) {
@@ -374,7 +391,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
                 Collections.emptyMap(),
                 query,
                 "_alias:*",
-                ActionTestUtils.assertNoFailureListener(ignored -> deferred.set(true)),
+                ActionListener.wrap(ignored -> deferred.set(true), e -> fail("query [" + query + "]: " + e)),
                 null
             );
             assertThat("query [" + query + "]", deferred.get(), is(true));
@@ -905,7 +922,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
                 List.of(
                     allOf(
                         containsString("ES|QL datafeed [datafeed-1] query contains an outer LIMIT [20]"),
-                        containsString("ML sets the row limit")
+                        containsString("ML cannot detect truncated results")
                     )
                 )
             );

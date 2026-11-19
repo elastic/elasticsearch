@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.ml.datafeed.extractor.esql;
 
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryParser;
@@ -18,6 +20,7 @@ import java.time.ZoneOffset;
 import java.util.Objects;
 import java.util.OptionalInt;
 import java.util.OptionalLong;
+import java.util.Set;
 
 /** An ES|QL datafeed query with its parsed form: the datafeed rules that depend on the query shape, and the query texts ML runs. */
 public final class EsqlDatafeedQuery {
@@ -27,8 +30,6 @@ public final class EsqlDatafeedQuery {
      * lowering {@code esql.query.result_truncation_max_size} (dynamic, default 10_000) below this value defeats detection.
      */
     public static final long INJECTED_ROW_LIMIT = 10_000L;
-
-    private static final String LIMIT_ZERO = "LIMIT 0";
 
     private final String query;
     private final ParsedEsqlQuery parsed;
@@ -49,6 +50,12 @@ public final class EsqlDatafeedQuery {
      */
     public static EsqlDatafeedQuery parseWithoutViewCheck(EsqlQueryParser parser, String query) {
         return of(parser.parseWithoutViewCheck(query), query);
+    }
+
+    /** Parses the query of {@code datafeed}, or returns {@code null} when it is not an ES|QL datafeed. */
+    @Nullable
+    public static EsqlDatafeedQuery forDatafeed(EsqlQueryParser parser, DatafeedConfig datafeed) {
+        return datafeed.getEsqlQuery() == null ? null : parse(parser, datafeed.getEsqlQuery());
     }
 
     private static EsqlDatafeedQuery of(ParsedEsqlQuery parsed, String query) {
@@ -75,8 +82,9 @@ public final class EsqlDatafeedQuery {
         return query;
     }
 
-    ParsedEsqlQuery parsed() {
-        return parsed;
+    /** The index patterns the source command and its subqueries read. */
+    Set<String> indexPatterns() {
+        return parsed.indexPatterns();
     }
 
     /** Whether the query aggregates, so source document count is a poor proxy for output rows. */
@@ -94,9 +102,9 @@ public final class EsqlDatafeedQuery {
         return parsed.outputLimit();
     }
 
-    /** {@code query | LIMIT 0}: resolves the output columns without reading rows. Text-level so it also works before parsing. */
-    static String limitZeroQuery(String query) {
-        return query + "\n| " + LIMIT_ZERO;
+    /** {@code query | LIMIT 0}: resolves the output columns without reading rows. */
+    EsqlQueryWithParams limitZeroQuery() {
+        return parsed.limitZeroQuery();
     }
 
     /** The user query sorted on {@code timeField} and, when {@link #injectsRowLimit}, capped after the sort. */

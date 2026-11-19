@@ -72,6 +72,7 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedRunner;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryParser;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
+import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDatafeedQuery;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
@@ -417,6 +418,32 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             datafeed.getCloudInternalCredential() != null
         );
 
+        ActionListener<DataExtractorFactory> factoryListener = ActionListener.wrap(
+            unused -> persistentTasksService.sendStartRequest(
+                MlTasks.datafeedTaskId(params.getDatafeedId()),
+                MlTasks.DATAFEED_TASK_NAME,
+                params,
+                MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
+                listener
+            ),
+            e -> {
+                Exception enriched = DatafeedProjectRoutingDiagnostics.enrichIfNoMatchingProject(
+                    effectiveDatafeed.getId(),
+                    effectiveDatafeed.getProjectRouting(),
+                    e,
+                    DatafeedProjectRoutingDiagnostics.Phase.VALIDATE_BEFORE_MINT
+                );
+                auditor.error(job.getId(), enriched.getMessage());
+                listener.onFailure(enriched);
+            }
+        );
+        EsqlDatafeedQuery esqlQuery;
+        try {
+            esqlQuery = EsqlDatafeedQuery.forDatafeed(esqlQueryParser, datafeed);
+        } catch (Exception e) {
+            factoryListener.onFailure(e);
+            return;
+        }
         DataExtractorFactory.create(
             new ParentTaskAssigningClient(client, clusterService.localNode(), task),
             CloudCredentialsExtension.getInstance().credentialManager(),
@@ -426,26 +453,8 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             xContentRegistry,
             // Fake DatafeedTimingStatsReporter that does not have access to results index
             new DatafeedTimingStatsReporter(new DatafeedTimingStats(job.getId()), (ts, refreshPolicy, listener1) -> {}),
-            esqlQueryParser,
-            ActionListener.wrap(
-                unused -> persistentTasksService.sendStartRequest(
-                    MlTasks.datafeedTaskId(params.getDatafeedId()),
-                    MlTasks.DATAFEED_TASK_NAME,
-                    params,
-                    MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
-                    listener
-                ),
-                e -> {
-                    Exception enriched = DatafeedProjectRoutingDiagnostics.enrichIfNoMatchingProject(
-                        effectiveDatafeed.getId(),
-                        effectiveDatafeed.getProjectRouting(),
-                        e,
-                        DatafeedProjectRoutingDiagnostics.Phase.VALIDATE_BEFORE_MINT
-                    );
-                    auditor.error(job.getId(), enriched.getMessage());
-                    listener.onFailure(enriched);
-                }
-            )
+            esqlQuery,
+            factoryListener
         );
     }
 

@@ -2741,7 +2741,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     // keys stay physical — the declared-overlay stats boundary rekeys physical->logical, not the factory.
                     PhysicalNames.translateSchema(perFileReadSchema, renames),
                     fileSplit.offset(),
-                    state.buffer.capturedSourceMetadataSink(),
+                    statisticsCaptureSink(state.buffer),
                     state.buffer::recordWarning,
                     bufferedInformationalWarningSink(state.buffer),
                     state.buffer.readCounters(),
@@ -2789,7 +2789,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 } else {
                     pages = applyRowPositionStrategy(fileReader, pages, readerCols);
                 }
-                pages = StatsCapturingIterator.wrap(pages, state.buffer.capturedSourceMetadataSink());
+                pages = StatsCapturingIterator.wrap(pages, statisticsCaptureSink(state.buffer));
             }
             // The adapter uses the same per-file schema and projected column order pinned above so it
             // can disambiguate LongBlock sources when stringifying under UBN; sharing the one source of
@@ -3008,7 +3008,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 // Physical (translated) names so harvest keys stay physical; see the split path above.
                 PhysicalNames.translateSchema(perFileReadSchema, renames),
                 0L,
-                state.buffer.capturedSourceMetadataSink(),
+                statisticsCaptureSink(state.buffer),
                 state.buffer::recordWarning,
                 bufferedInformationalWarningSink(state.buffer),
                 state.buffer.readCounters(),
@@ -3034,7 +3034,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 pages = state.buffer.readCounters().meteredCpu(() -> thisFileReader.read(obj, ctx));
             }
             pages = applyRowPositionStrategy(fileReader, pages, perFileCols);
-            pages = StatsCapturingIterator.wrap(pages, state.buffer.capturedSourceMetadataSink());
+            pages = StatsCapturingIterator.wrap(pages, statisticsCaptureSink(state.buffer));
             CloseableIterator<Page> adapted = adaptSchema(
                 pages,
                 mapping,
@@ -3208,7 +3208,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         true,
                         null,
                         0L,
-                        buffer.capturedSourceMetadataSink(),
+                        statisticsCaptureSink(buffer),
                         buffer::recordWarning,
                         bufferedInformationalWarningSink(buffer),
                         buffer.readCounters(),
@@ -3237,7 +3237,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 final CloseableIterator<Page> finalPages;
                 try {
                     pages = applyRowPositionStrategy(reader, pages, projectedColumns);
-                    pages = StatsCapturingIterator.wrap(pages, buffer.capturedSourceMetadataSink());
+                    pages = StatsCapturingIterator.wrap(pages, statisticsCaptureSink(buffer));
                     CloseableIterator<Page> withEncoder = wrapWithEncoderIfNeeded(pages, projectedColumns, driverContext);
                     finalPages = releasingReader(
                         wrapWithVirtualColumns(
@@ -3292,6 +3292,29 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         }));
     }
 
+    /**
+     * The sink per-file statistics are captured into, or {@code null} when this read harvests nothing.
+     * <p>
+     * {@link StripeColumnScope#NONE} means the read measures nothing, and the format readers already honour it.
+     * Honouring it here too takes the rest of the capture machinery out of the read rather than leaving it to run
+     * against a result nobody accepts: {@link StatsCapturingIterator#wrap} returns the delegate unwrapped on a null
+     * sink, the parsing coordinators bind no per-worker capture handle and stage no stripes, and their
+     * unclean-close poison marker is guarded on the sink being present. That marker is the term that does not
+     * scale with bytes: one map per FILE, written by whichever coordinator ran when the read did not drain
+     * cleanly -- a cancellation, an error, a non-strict record-size truncation, or a filtered LIMIT that stops
+     * once enough rows have passed the filter. A LIMIT pushed INTO the source is not one of those: it leaves
+     * {@code rowLimit != NO_LIMIT}, which keeps {@link #openWithParallelism} from building a coordinator in the
+     * first place. {@code null} is the coordinators' own documented off switch for source-stats capture, not a
+     * new contract.
+     * <p>
+     * Distinct from {@code FormatReadContext.statsStripeSink}, where {@code null} means the chunk publishes its own
+     * stripe pieces instead of staging them. The two must not be conflated.
+     */
+    @Nullable
+    private ConcurrentMap<String, List<Map<String, Object>>> statisticsCaptureSink(AsyncExternalSourceBuffer buffer) {
+        return statsColumnScope == StripeColumnScope.NONE ? null : buffer.capturedSourceMetadataSink();
+    }
+
     private void consumePagesInBackground(
         CloseableIterator<Page> pages,
         AsyncExternalSourceBuffer buffer,
@@ -3300,7 +3323,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         List<String> projectedColumns,
         @Nullable FormatReadCounters formatCounters
     ) {
-        final CloseableIterator<Page> capturing = StatsCapturingIterator.wrap(pages, buffer.capturedSourceMetadataSink());
+        final CloseableIterator<Page> capturing = StatsCapturingIterator.wrap(pages, statisticsCaptureSink(buffer));
         ActionListener<Void> failureListener = ActionListener.wrap(v -> {}, e -> {
             closeQuietly(capturing);
             if (isRegistryClosedAfterBufferFinished(e, buffer) == false) {

@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 166728
+summary: Harvest no statistics when the external-source cache is disabled
+type: enhancement

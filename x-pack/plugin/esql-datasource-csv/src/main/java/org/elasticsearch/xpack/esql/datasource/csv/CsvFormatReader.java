@@ -2695,7 +2695,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
         // the finalize marker is present.
         boolean wholeFileRead = context.firstSplit() && context.recordAligned() == false && context.lastSplit();
         boolean chunkMode = context.recordAligned();
-        boolean cacheable = wholeFileRead || chunkMode;
+        // Under NONE this read harvests nothing, so it takes no cacheable identity: that skips the mtime probe
+        // below, which is a cache-only metadata read (a HEAD on a store that carries no Last-Modified hint), and
+        // leaves cacheableObject null, which is what every publish and every accumulator downstream keys off.
+        // The read SHAPE is deliberately left alone -- wholeFileRead and chunkMode still describe the split, so
+        // parsing behaviour is identical with statistics on or off.
+        boolean cacheable = (wholeFileRead || chunkMode) && context.statsColumnScope() != StripeColumnScope.NONE;
         long pinnedMtimeMillis = -1L;
         if (cacheable) {
             try {
@@ -5495,7 +5500,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 // loop (see appendStagedRow) instead of re-walking every built block. Build the
                 // accumulator eagerly here so the staging loop can feed it; captureBlockStats then skips
                 // direct-produced pages (lastBatchAccumulatedStats) to avoid double counting.
-                if (cacheableObject != null) {
+                // PROJECTED is the only scope that consumes these: captureBlockStats returns early for every
+                // other, and NONE means the read harvests nothing at all, so accumulating would fold a min/max/null
+                // per cell on the parse loop for a result no one reads. The direct path is never entered under ALL
+                // (see directEligible), and COUNT wants the row count only.
+                if (cacheableObject != null && statsColumnScope == StripeColumnScope.PROJECTED) {
                     columnStats = ColumnStatsAccumulator.forProjectedAttributes(projectedAttrs);
                     accumulateDirectStats = columnStats.isEmpty() == false;
                 }

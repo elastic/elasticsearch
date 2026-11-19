@@ -54,7 +54,7 @@ public final class TimeSeriesMetadataSet extends AbstractTimeSeriesMetadataFunct
 
     @Override
     public DataType dataType() {
-        return DataType.TIME_SERIES_METADATA_DATA_TYPE;
+        return containerType();
     }
 
     @Override

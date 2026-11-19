@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matcher;
-import org.junit.BeforeClass;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -31,78 +30,72 @@ public class TimeSeriesMetadataSetTests extends AbstractScalarFunctionTestCase {
         this.testCase = testCaseSupplier.get();
     }
 
-    @BeforeClass
-    public static void requireTimeSeriesType() {
-        // Every case takes a _timeseries container, which release builds can't serialize while it is under construction.
-        assumeTrue("_timeseries is under construction", DataType.TIME_SERIES_METADATA_DATA_TYPE.supportedVersion().supportedLocally());
-    }
-
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
+        for (DataType type : TimeSeriesMetadataFilterTests.containerTypes()) {
+            suppliers.addAll(cases(type));
+        }
+        // A keyword container is the source document: nested, prefixed and in any order, read into the canonical form.
+        String source = "{\"pod\":\"a\",\"labels\":{\"job\":\"api\"}}";
+        suppliers.add(set("source document", DataType.KEYWORD, source, "env", "prod", "{\"env\":\"prod\",\"job\":\"api\",\"pod\":\"a\"}"));
+        suppliers.add(set("source document, prefixed label", DataType.KEYWORD, source, "job", "web", "{\"job\":\"web\",\"pod\":\"a\"}"));
+        return parameterSuppliersFromTypedData(suppliers);
+    }
+
+    private static List<TestCaseSupplier> cases(DataType type) {
+        List<TestCaseSupplier> suppliers = new ArrayList<>();
         String labels = "{\"job\":\"api\",\"pod\":\"a\"}";
-        suppliers.add(set("before every label", labels, "env", "prod", "{\"env\":\"prod\",\"job\":\"api\",\"pod\":\"a\"}"));
-        suppliers.add(set("between labels", labels, "lab", "x", "{\"job\":\"api\",\"lab\":\"x\",\"pod\":\"a\"}"));
-        suppliers.add(set("after every label", labels, "zone", "z", "{\"job\":\"api\",\"pod\":\"a\",\"zone\":\"z\"}"));
-        suppliers.add(set("replaces a label", labels, "pod", "b", "{\"job\":\"api\",\"pod\":\"b\"}"));
-        suppliers.add(set("empty value removes the label", labels, "pod", "", "{\"job\":\"api\"}"));
-        suppliers.add(set("empty value of an absent label", labels, "env", "", labels));
-        suppliers.add(set("empty label container", "{}", "pod", "a", "{\"pod\":\"a\"}"));
-        suppliers.add(set("replaces several values", "{\"pod\":[\"b\",\"a\"]}", "pod", "c", "{\"pod\":\"c\"}"));
+        suppliers.add(set("before every label", type, labels, "env", "prod", "{\"env\":\"prod\",\"job\":\"api\",\"pod\":\"a\"}"));
+        suppliers.add(set("between labels", type, labels, "lab", "x", "{\"job\":\"api\",\"lab\":\"x\",\"pod\":\"a\"}"));
+        suppliers.add(set("after every label", type, labels, "zone", "z", "{\"job\":\"api\",\"pod\":\"a\",\"zone\":\"z\"}"));
+        suppliers.add(set("replaces a label", type, labels, "pod", "b", "{\"job\":\"api\",\"pod\":\"b\"}"));
+        suppliers.add(set("empty value removes the label", type, labels, "pod", "", "{\"job\":\"api\"}"));
+        suppliers.add(set("empty value of an absent label", type, labels, "env", "", labels));
+        suppliers.add(set("empty label container", type, "{}", "pod", "a", "{\"pod\":\"a\"}"));
+        suppliers.add(set("replaces several values", type, "{\"pod\":[\"b\",\"a\"]}", "pod", "c", "{\"pod\":\"c\"}"));
         suppliers.add(
             set(
                 "escaped name and value",
+                type,
                 labels,
                 "label\"\\",
                 "value\"\\\n\u03bb\ud83d\ude00",
                 "{\"job\":\"api\",\"label\\\"\\\\\":\"value\\\"\\\\\\n\u03bb\ud83d\ude00\",\"pod\":\"a\"}"
             )
         );
-        suppliers.add(
-            new TestCaseSupplier(
-                "several values",
-                List.of(DataType.TIME_SERIES_METADATA_DATA_TYPE, DataType.KEYWORD, DataType.KEYWORD),
-                () -> {
-                    List<TestCaseSupplier.TypedData> data = List.of(
-                        new TestCaseSupplier.TypedData(new BytesRef(labels), DataType.TIME_SERIES_METADATA_DATA_TYPE, "labelContainer"),
-                        new TestCaseSupplier.TypedData(new BytesRef("pod"), DataType.KEYWORD, "label").forceLiteral(),
-                        new TestCaseSupplier.TypedData(
-                            List.of(new BytesRef("b"), new BytesRef(""), new BytesRef("c")),
-                            DataType.KEYWORD,
-                            "value"
-                        )
-                    );
-                    return new TestCaseSupplier.TestCase(
-                        data,
-                        evaluator("pod"),
-                        DataType.TIME_SERIES_METADATA_DATA_TYPE,
-                        equalTo(new BytesRef("{\"job\":\"api\",\"pod\":[\"b\",\"c\"]}"))
-                    );
-                }
-            )
-        );
-        return parameterSuppliersFromTypedData(suppliers);
+        suppliers.add(new TestCaseSupplier("several values", List.of(type, DataType.KEYWORD, DataType.KEYWORD), () -> {
+            List<TestCaseSupplier.TypedData> data = List.of(
+                new TestCaseSupplier.TypedData(new BytesRef(labels), type, "labelContainer"),
+                new TestCaseSupplier.TypedData(new BytesRef("pod"), DataType.KEYWORD, "label").forceLiteral(),
+                new TestCaseSupplier.TypedData(List.of(new BytesRef("b"), new BytesRef(""), new BytesRef("c")), DataType.KEYWORD, "value")
+            );
+            return new TestCaseSupplier.TestCase(
+                data,
+                evaluator(type, "pod"),
+                type,
+                equalTo(new BytesRef("{\"job\":\"api\",\"pod\":[\"b\",\"c\"]}"))
+            );
+        }));
+        return suppliers;
     }
 
-    private static String evaluator(String label) {
-        return "TimeSeriesMetadataFunctionEvaluator[operation=SET, names=["
+    private static String evaluator(DataType type, String label) {
+        return "TimeSeriesMetadataFunctionEvaluator[operation=SET"
+            + (type == DataType.KEYWORD ? ", keyword" : "")
+            + ", names=["
             + label
             + "], labelContainer=Attribute[channel=0], value=Attribute[channel=1]]";
     }
 
-    private static TestCaseSupplier set(String name, String labelContainer, String label, String value, String expected) {
-        return new TestCaseSupplier(name, List.of(DataType.TIME_SERIES_METADATA_DATA_TYPE, DataType.KEYWORD, DataType.KEYWORD), () -> {
+    private static TestCaseSupplier set(String name, DataType type, String labelContainer, String label, String value, String expected) {
+        return new TestCaseSupplier(name, List.of(type, DataType.KEYWORD, DataType.KEYWORD), () -> {
             List<TestCaseSupplier.TypedData> data = List.of(
-                new TestCaseSupplier.TypedData(new BytesRef(labelContainer), DataType.TIME_SERIES_METADATA_DATA_TYPE, "labelContainer"),
+                new TestCaseSupplier.TypedData(new BytesRef(labelContainer), type, "labelContainer"),
                 new TestCaseSupplier.TypedData(new BytesRef(label), DataType.KEYWORD, "label").forceLiteral(),
                 new TestCaseSupplier.TypedData(new BytesRef(value), DataType.KEYWORD, "value")
             );
-            return new TestCaseSupplier.TestCase(
-                data,
-                evaluator(label),
-                DataType.TIME_SERIES_METADATA_DATA_TYPE,
-                equalTo(new BytesRef(expected))
-            );
+            return new TestCaseSupplier.TestCase(data, evaluator(type, label), type, equalTo(new BytesRef(expected)));
         });
     }
 

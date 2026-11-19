@@ -1618,7 +1618,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (plan instanceof PromqlCommand promql) {
                 return resolvePromql(promql, childrenOutput).transformDown(PromqlCommand.class, p -> {
                     Failures failures = new Failures();
-                    p.verify(failures, context.maxBranchCountPerMerge(), context.maxBranchCountPerMergeLimitSource());
+                    p.verify(
+                        failures,
+                        context.maxBranchCountPerMerge(),
+                        context.maxBranchCountPerMergeLimitSource(),
+                        PromqlCommand.containerFunctions(context.minimumVersion())
+                    );
                     if (failures.hasFailures()) {
                         throw new VerificationException(failures);
                     }

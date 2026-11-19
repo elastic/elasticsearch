@@ -2838,6 +2838,13 @@ public class EsqlCapabilities {
         FIX_PROMQL_OFFSET_PRECEDENCE(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
+         * PromQL reads and rewrites labels in {@code _timeseries} with the label container functions, which every node of the
+         * cluster must know: the shapes this admits, and the canonical {@code _timeseries} the command outputs. A cluster with a
+         * node that does not know them keeps rejecting those shapes. Gates test coverage of both.
+         */
+        PROMQL_TIMESERIES_METADATA_FUNCTIONS(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
          * Support for the {@code TS_COLLAPSE} pipe command, which collapses PromQL results
          * into one multi-valued row per series.
          */
@@ -4333,6 +4340,18 @@ public class EsqlCapabilities {
          * exposes the value as a label.
          */
         PROMQL_COUNT_VALUES(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
+         * PromQL {@code topk}, {@code bottomk}, {@code limitk} and {@code limit_ratio} with {@code without(...)}: they partition
+         * by every label of a series but the listed ones and the metric name.
+         */
+        PROMQL_REDUCTION_WITHOUT(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
+         * PromQL {@code without(...)} over another {@code without(...)}: each level leaves out its own labels from what the level
+         * below kept.
+         */
+        PROMQL_NESTED_WITHOUT(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
          * Fix PromQL {@code count_over_time} and {@code present_over_time} over a series without a sample in the window,

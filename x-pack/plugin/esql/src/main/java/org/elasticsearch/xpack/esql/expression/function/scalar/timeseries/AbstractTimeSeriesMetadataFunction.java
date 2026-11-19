@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.timeseries;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -27,8 +28,19 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFol
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
-/** Internal function that evaluates expressions on metadata container {@link DataType#TIME_SERIES_METADATA_DATA_TYPE}. */
+/**
+ * Internal function that evaluates expressions on a metadata container: the typed {@link DataType#TIME_SERIES_METADATA_DATA_TYPE}, or the
+ * keyword {@code _timeseries} JSON object of a series' dimensions, which reads as the label container it holds.
+ */
 public abstract class AbstractTimeSeriesMetadataFunction extends EsqlScalarFunction {
+    /**
+     * Nodes that know the label container functions. A plan reaches a node only when it knows every function in it, so a
+     * translation emits these functions only when every node does.
+     */
+    public static final TransportVersion ESQL_TIMESERIES_METADATA_FUNCTIONS = TransportVersion.fromName(
+        "esql_timeseries_metadata_functions"
+    );
+
     protected AbstractTimeSeriesMetadataFunction(Source source, List<Expression> arguments) {
         super(source, arguments);
     }
@@ -60,7 +72,7 @@ public abstract class AbstractTimeSeriesMetadataFunction extends EsqlScalarFunct
         // A null metadata container is the empty one.
         TypeResolution resolution = isType(
             children().getFirst(),
-            type -> type == DataType.TIME_SERIES_METADATA_DATA_TYPE,
+            type -> type == DataType.TIME_SERIES_METADATA_DATA_TYPE || type == DataType.KEYWORD,
             sourceText(),
             ParamOrdinal.FIRST,
             "_timeseries"
@@ -79,6 +91,14 @@ public abstract class AbstractTimeSeriesMetadataFunction extends EsqlScalarFunct
         return name.fold(FoldContext.small()) instanceof BytesRef bytes && bytes.length > 0
             ? TypeResolution.TYPE_RESOLVED
             : new TypeResolution("dimension names in [" + sourceText() + "] must be non-empty, single-valued strings");
+    }
+
+    /**
+     * The type of the metadata container: keyword when the container is a keyword {@code _timeseries}, so a rewrite of it stays
+     * keyword, typed otherwise.
+     */
+    protected DataType containerType() {
+        return children().getFirst().dataType() == DataType.KEYWORD ? DataType.KEYWORD : DataType.TIME_SERIES_METADATA_DATA_TYPE;
     }
 
     @Override

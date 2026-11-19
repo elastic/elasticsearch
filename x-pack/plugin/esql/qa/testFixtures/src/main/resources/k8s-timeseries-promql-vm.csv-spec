@@ -870,6 +870,10 @@ r:double           | cluster:keyword | pod:keyword | step:datetime
 1.8742138364779874 | prod            | two         | 2024-05-10T00:10:00.000Z
 ;
 
+// group_left(l)/group_right(l) take l from the "one" side and delete it where that side lacks it, so an opaque
+// many side cannot keep a label the one side does not carry: Prometheus fails `tx / on (cluster) group_left (pod)
+// sum by (cluster) (rx)` with "multiple matches for labels: grouping labels must ensure unique matches".
+
 // Opaque many / concrete one: the LHS keeps per-series identity; pod survives as
 // an output column materialized from the LHS (the one side has no pod to copy).
 // Same numbers as vector_match_group_left.

@@ -38,6 +38,7 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Releasable;
@@ -103,8 +104,10 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
     /**
      * Bytes reserved for each document before the page exists. The search size is what the worker asked to fetch, so the
      * estimate is this many bytes times that size, plus the request context, and it stops at the coordinating limit.
+     * Taken from the setting default, which is what a node reserves when the setting is unset.
      */
-    private static final int ESTIMATED_HIT_BYTES = 64 * 1024;
+    private static final long ESTIMATED_HIT_BYTES = IndexingPressure.REINDEX_BYTES_ESTIMATE_PER_DOCUMENT.getDefault(Settings.EMPTY)
+        .getBytes();
 
     private final List<ScriptedClock> clocks = new ArrayList<>();
 
@@ -870,6 +873,54 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
         BulkByPaginatedSearchResponse response = harness.listener.actionGet(TimeValue.ZERO);
         assertThat(response.getUpdated(), equalTo(1L));
         assertThat(hit.releases.get(), equalTo(1));
+    }
+
+    /**
+     * A 32kb guess reserves twice the per-document bytes of the 16kb default for the same page. A page whose guess is
+     * above the coordinating limit still reserves only that limit. The second reserve reads the updated setting.
+     */
+    public void testLargerBytesEstimateReservesTwiceAsMuchUntilTheLimit() {
+        int pageSize = 2;
+        ScriptedClock clock = new ScriptedClock();
+        long context = clock.getThreadPool().getThreadContext().estimatedRequestContextBytes();
+        long perDocument = ESTIMATED_HIT_BYTES;
+        long doubled = perDocument * 2;
+        long roomy = doubled * pageSize + context + 4_096;
+        Settings nodeSettings = Settings.builder().put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), roomy + "b").build();
+        ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        IndexingPressure pressure = new IndexingPressure(nodeSettings);
+        clusterSettings.initializeAndWatch(
+            IndexingPressure.REINDEX_BYTES_ESTIMATE_PER_DOCUMENT,
+            pressure::setReindexBytesEstimatePerDocument
+        );
+
+        long atDefault = reservedPage(clock, pressure, pageSize);
+        assertThat(atDefault, equalTo(pageSize * perDocument + context));
+
+        clusterSettings.applySettings(
+            Settings.builder().put(IndexingPressure.REINDEX_BYTES_ESTIMATE_PER_DOCUMENT.getKey(), doubled + "b").build()
+        );
+        long atDouble = reservedPage(clock, pressure, pageSize);
+        assertThat(atDouble, equalTo(pageSize * doubled + context));
+        assertThat(atDouble - context, equalTo(2 * (atDefault - context)));
+        assertThat(atDouble, lessThan(pressure.getCoordinatingLimitInBytes()));
+
+        int cappedPage = pageSize * 2;
+        long capped = reservedPage(clock, pressure, cappedPage);
+        assertThat((long) cappedPage * doubled + context, greaterThan(pressure.getCoordinatingLimitInBytes()));
+        assertThat(capped, equalTo(pressure.getCoordinatingLimitInBytes()));
+    }
+
+    private long reservedPage(ScriptedClock clock, IndexingPressure pressure, int pageSize) {
+        Harness harness = new Harness(clock, pressure, updateRequest(pageSize), NoopCircuitBreaker.INSTANCE, null);
+        harness.client.handler = (bulk, listener) -> listener.onResponse(harness.success(bulk));
+        harness.onDone = harness::finishWithEmptyPage;
+        harness.start();
+        long reserved = harness.chargedBytes();
+        harness.feed(List.of(harness.hit(bytes(32))));
+        harness.listener.actionGet(TimeValue.ZERO);
+        assertThat(pressure.stats().getCurrentCoordinatingBytes(), equalTo(0L));
+        return reserved;
     }
 
     private static long rawEstimate(ThreadPool threadPool, int pageSize) {

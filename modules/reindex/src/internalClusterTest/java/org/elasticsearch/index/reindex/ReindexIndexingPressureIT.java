@@ -88,9 +88,10 @@ public class ReindexIndexingPressureIT extends ESIntegTestCase {
     }
 
     public void testSecondUpdateByQueryWaitsWhileOneBatchIsHeld() throws Exception {
-        // A search reserves one 64KiB per document in the page. Leave a little room beside that estimate for the
-        // index request already sitting in the write pool, and no room for a second page of the same size.
-        long estimate = (long) DOCS_PER_BATCH * 64 * 1024;
+        // A search reserves the setting's per-document guess for each document in the page. Leave a little room beside
+        // that estimate for the index request already sitting in the write pool, and no room for a second page.
+        long perDocument = IndexingPressure.REINDEX_BYTES_ESTIMATE_PER_DOCUMENT.getDefault(Settings.EMPTY).getBytes();
+        long estimate = (long) DOCS_PER_BATCH * perDocument;
         memoryLimit.set(estimate + 32 * 1024);
         String node = internalCluster().startNode();
         ensureStableCluster(1);
@@ -126,7 +127,7 @@ public class ReindexIndexingPressureIT extends ESIntegTestCase {
             // the documents actually found, and either of those is far larger than the blocked index request.
             assertBusy(() -> {
                 long heldBytes = pressure.stats().getCurrentCoordinatingBytes() - baseline;
-                assertThat(heldBytes, greaterThan(64L * 1024));
+                assertThat(heldBytes, greaterThan(perDocument));
             });
             assertFalse(admitted.isDone());
 
@@ -138,7 +139,7 @@ public class ReindexIndexingPressureIT extends ESIntegTestCase {
             });
 
             long held = pressure.stats().getCurrentCoordinatingBytes() - baseline;
-            assertThat(held, greaterThan(64L * 1024));
+            assertThat(held, greaterThan(perDocument));
             assertFalse(admitted.isDone());
             assertFalse(waiting.isDone());
 

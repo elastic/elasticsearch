@@ -1063,6 +1063,10 @@ class NodeConstruction {
         );
 
         final IndexingPressure indexingLimits = new IndexingPressure(settings);
+        // The coordinating budget is fixed for the life of the node. This guess is dynamic, so the next page reserve
+        // has to see an update that arrives after the node has started.
+        clusterService.getClusterSettings()
+            .initializeAndWatch(IndexingPressure.REINDEX_BYTES_ESTIMATE_PER_DOCUMENT, indexingLimits::setReindexBytesEstimatePerDocument);
         final EscfBulkService escfBulkService = new EscfBulkService(indexingLimits, threadPool.generic(), bigArrays.bytesRefRecycler());
 
         final var linkedProjectConfigService = pluginsService.loadSingletonServiceProvider(

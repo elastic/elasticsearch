@@ -88,6 +88,20 @@ public class IndexingPressure implements IndexingPressureMonitor {
         Setting.Property.NodeScope
     );
 
+    /**
+     * Coordinating bytes guessed for one document before a reindex, update-by-query, or delete-by-query search page
+     * is fetched. The page is only a document count at that point. The real bulk replaces this guess once the page
+     * arrives.
+     */
+    public static final Setting<ByteSizeValue> REINDEX_BYTES_ESTIMATE_PER_DOCUMENT = Setting.byteSizeSetting(
+        "indexing_pressure.reindex.bytes_estimate_per_document",
+        ByteSizeValue.ofKb(16),
+        ByteSizeValue.ofBytes(1),
+        ByteSizeValue.ofBytes(Long.MAX_VALUE),
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     private static final Logger logger = LogManager.getLogger(IndexingPressure.class);
 
     private final AtomicLong currentCombinedCoordinatingAndPrimaryBytes = new AtomicLong(0);
@@ -133,6 +147,12 @@ public class IndexingPressure implements IndexingPressureMonitor {
     private final long replicaLimit;
     private final long operationLimit;
 
+    /**
+     * Read on each page reserve. A dynamic update applies to the next reserve, and a charge already held keeps the
+     * size it took.
+     */
+    private volatile long reindexBytesEstimatePerDocument;
+
     private final List<IndexingPressureListener> listeners = new CopyOnWriteArrayList<>();
 
     public IndexingPressure(Settings settings) {
@@ -144,6 +164,21 @@ public class IndexingPressure implements IndexingPressureMonitor {
         this.primaryLimit = MAX_PRIMARY_BYTES.get(settings).getBytes();
         this.replicaLimit = MAX_REPLICA_BYTES.get(settings).getBytes();
         this.operationLimit = MAX_OPERATION_SIZE.get(settings).getBytes();
+        this.reindexBytesEstimatePerDocument = REINDEX_BYTES_ESTIMATE_PER_DOCUMENT.get(settings).getBytes();
+    }
+
+    /**
+     * Bytes guessed for one document on the next reindex, update-by-query, or delete-by-query page reserve.
+     */
+    public long reindexBytesEstimatePerDocument() {
+        return reindexBytesEstimatePerDocument;
+    }
+
+    /**
+     * Applies a dynamic update of {@link #REINDEX_BYTES_ESTIMATE_PER_DOCUMENT}. The next page reserve reads it.
+     */
+    public void setReindexBytesEstimatePerDocument(ByteSizeValue estimate) {
+        this.reindexBytesEstimatePerDocument = estimate.getBytes();
     }
 
     private static Releasable wrapReleasable(Releasable releasable) {

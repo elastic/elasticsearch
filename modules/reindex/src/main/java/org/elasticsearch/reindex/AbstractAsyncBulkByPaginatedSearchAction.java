@@ -208,12 +208,6 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
 
     private final AtomicBoolean listeningForCancellation = new AtomicBoolean();
 
-    /**
-     * Bytes reserved per document before the page exists. An estimate above the coordinating limit is rejected on an empty node, so the
-     * reservation is capped at that limit.
-     */
-    private static final int ESTIMATED_HIT_BYTES = 64 * 1024;
-
     protected CircuitBreaker getCircuitBreaker() {
         return circuitBreaker;
     }
@@ -1409,7 +1403,9 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
     }
 
     private long estimatedPageBytes(IndexingPressure pressure) {
-        long raw = (long) pageDocCount() * ESTIMATED_HIT_BYTES + threadPool.getThreadContext().estimatedRequestContextBytes();
+        // Read at reserve time so a dynamic update applies to this reserve, not to a value captured when the node started.
+        long raw = (long) pageDocCount() * pressure.reindexBytesEstimatePerDocument()
+            + threadPool.getThreadContext().estimatedRequestContextBytes();
         // A reservation larger than the limit is rejected even when the node is empty, so the estimate stops at the limit.
         return min(raw, pressure.getCoordinatingLimitInBytes());
     }

@@ -9,24 +9,17 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.nested;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
-import org.apache.lucene.index.SortedSetDocValues;
-import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.DocBlock;
-import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
@@ -38,13 +31,13 @@ import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.compute.test.NoOpReleasable;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
@@ -54,6 +47,7 @@ import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.expression.function.BlockLoaderWarnings;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.EsqlSearchExecutionContext;
 import org.junit.After;
 
@@ -68,8 +62,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Reads the children of real nested documents through {@link NestedChildren}, which picks and wraps the block loader of each
- * child field, so {@link NestedParentBlockLoader} and {@link NestedChildSourceBlockLoader} are driven the way a query drives
- * them. A runtime field without a script reads its values from the parent's {@code _source}, wherever it is named.
+ * child field, so {@link NestedChildSourceBlockLoader} is driven the way a query drives it. A runtime field without a script reads
+ * its values from the parent's {@code _source}, wherever it is named, and is read with the parent documents rather than the children.
  */
 public class NestedChildLoadersTests extends ComputeTestCase {
     private static final Settings SYNTHETIC = Settings.builder().put("index.mapping.source.mode", "synthetic").build();
@@ -94,39 +88,60 @@ public class NestedChildLoadersTests extends ComputeTestCase {
     }
 
     public void testRuntimeKeywordOfSyntheticSourceReadsEveryValueOfTheParent() throws IOException {
-        List<List<Object>> rows = readChildren(SYNTHETIC, runtimeMapping("keyword"), List.of("""
+        List<Object> values = readParents(SYNTHETIC, runtimeMapping("keyword"), List.of("""
             {"items": [{"qty": 1, "calc": "x"}, {"qty": 2, "calc": "y"}]}""", """
-            {"items": [{"qty": 3, "calc": ["p", "q"]}]}"""), List.of("qty", "calc"), List.of(DataType.LONG, DataType.KEYWORD));
-        assertThat(rows, equalTo(List.of(row(0, 1L, List.of("x", "y")), row(0, 2L, List.of("x", "y")), row(1, 3L, List.of("p", "q")))));
+            {"items": [{"qty": 3, "calc": ["p", "q"]}]}"""), DataType.KEYWORD);
+        assertThat(values, equalTo(List.of(List.of("x", "y"), List.of("p", "q"))));
     }
 
     public void testRuntimeKeywordOfStoredSourceReadsTheSameValues() throws IOException {
-        List<List<Object>> rows = readChildren(Settings.EMPTY, runtimeMapping("keyword"), List.of("""
+        List<Object> values = readParents(Settings.EMPTY, runtimeMapping("keyword"), List.of("""
             {"items": [{"qty": 1, "calc": "x"}, {"qty": 2, "calc": "y"}]}""", """
-            {"items": [{"qty": 3, "calc": ["p", "q"]}]}"""), List.of("qty", "calc"), List.of(DataType.LONG, DataType.KEYWORD));
-        assertThat(rows, equalTo(List.of(row(0, 1L, List.of("x", "y")), row(0, 2L, List.of("x", "y")), row(1, 3L, List.of("p", "q")))));
+            {"items": [{"qty": 3, "calc": ["p", "q"]}]}"""), DataType.KEYWORD);
+        assertThat(values, equalTo(List.of(List.of("x", "y"), List.of("p", "q"))));
     }
 
     public void testRuntimeLongOfSyntheticSourceReadsEveryValueOfTheParent() throws IOException {
-        List<List<Object>> rows = readChildren(SYNTHETIC, runtimeMapping("long"), List.of("""
-            {"items": [{"qty": 1, "calc": 3}, {"qty": 2, "calc": 4}]}"""), List.of("qty", "calc"), List.of(DataType.LONG, DataType.LONG));
-        assertThat(rows, equalTo(List.of(row(0, 1L, List.of(3L, 4L)), row(0, 2L, List.of(3L, 4L)))));
+        List<Object> values = readParents(SYNTHETIC, runtimeMapping("long"), List.of("""
+            {"items": [{"qty": 1, "calc": 3}, {"qty": 2, "calc": 4}]}"""), DataType.LONG);
+        assertThat(values, equalTo(List.of(List.of(3L, 4L))));
     }
 
     public void testRuntimeFieldOfOneParentDoesNotLeakIntoTheNextParent() throws IOException {
-        List<List<Object>> rows = readChildren(Settings.EMPTY, runtimeMapping("long"), List.of("""
-            {"items": [{"qty": 1, "calc": 3}, {"qty": 2, "calc": 4}]}""", """
-            {"items": [{"qty": 3, "calc": 9}]}""", """
-            {"items": []}""", """
-            {"items": [{"qty": 4, "calc": 7}]}"""), List.of("qty", "calc"), List.of(DataType.LONG, DataType.LONG));
-        assertThat(rows, equalTo(List.of(row(0, 1L, List.of(3L, 4L)), row(0, 2L, List.of(3L, 4L)), row(1, 3L, 9L), row(3, 4L, 7L))));
+        for (Settings settings : List.of(Settings.EMPTY, SYNTHETIC)) {
+            List<Object> values = readParents(settings, runtimeMapping("long"), List.of("""
+                {"items": [{"qty": 1, "calc": 3}, {"qty": 2, "calc": 4}]}""", """
+                {"items": [{"qty": 3, "calc": 9}]}""", """
+                {"items": []}""", """
+                {"items": [{"qty": 4, "calc": 7}]}"""), DataType.LONG);
+            assertThat(values, equalTo(Arrays.asList(List.of(3L, 4L), 9L, null, 7L)));
+            closeIndexForNextRun();
+        }
     }
 
     public void testRuntimeFieldOfAParentWithoutTheValueIsNull() throws IOException {
-        List<List<Object>> rows = readChildren(Settings.EMPTY, runtimeMapping("keyword"), List.of("""
-            {"items": [{"qty": 1}]}""", """
-            {"items": [{"qty": 2, "calc": "z"}]}"""), List.of("qty", "calc"), List.of(DataType.LONG, DataType.KEYWORD));
-        assertThat(rows, equalTo(List.of(row(0, 1L, null), row(1, 2L, "z"))));
+        for (Settings settings : List.of(Settings.EMPTY, SYNTHETIC)) {
+            List<Object> values = readParents(settings, runtimeMapping("keyword"), List.of("""
+                {"items": [{"qty": 1}]}""", """
+                {"items": [{"qty": 2, "calc": "z"}]}"""), DataType.KEYWORD);
+            assertThat(values, equalTo(Arrays.asList(null, "z")));
+            closeIndexForNextRun();
+        }
+    }
+
+    public void testRuntimeFieldIsNoChildOfTheNestedObject() throws IOException {
+        for (Settings settings : List.of(Settings.EMPTY, SYNTHETIC)) {
+            List<List<Object>> rows = readChildren(
+                settings,
+                runtimeMapping("long"),
+                List.of("""
+                    {"items": [{"qty": 1, "calc": 3}, {"qty": 2, "calc": 4}]}"""),
+                List.of("qty", "calc"),
+                List.of(DataType.LONG, DataType.LONG)
+            );
+            assertThat(rows, equalTo(List.of(row(0, 1L, null), row(0, 2L, null))));
+            closeIndexForNextRun();
+        }
     }
 
     /** The nested object keeps its whole source, so the child's values are in the parent's rather than the child's own. */
@@ -173,40 +188,15 @@ public class NestedChildLoadersTests extends ComputeTestCase {
     }
 
     public void testRuntimeKeywordOfSyntheticSourceReadsNumbersAndBooleansAsText() throws IOException {
-        assertThat(runtimeKeyword(SYNTHETIC, "42"), equalTo(List.of(row(0, 1L, "42"))));
-        assertThat(runtimeKeyword(SYNTHETIC, "true"), equalTo(List.of(row(0, 1L, "true"))));
-        assertThat(runtimeKeyword(SYNTHETIC, "[\"a\", 1, true]"), equalTo(List.of(row(0, 1L, List.of("a", "1", "true")))));
+        assertThat(runtimeKeyword(SYNTHETIC, "42"), equalTo(List.of("42")));
+        assertThat(runtimeKeyword(SYNTHETIC, "true"), equalTo(List.of("true")));
+        assertThat(runtimeKeyword(SYNTHETIC, "[\"a\", 1, true]"), equalTo(List.of(List.of("a", "1", "true"))));
     }
 
     public void testRuntimeKeywordOfStoredSourceReadsNumbersAndBooleansAsText() throws IOException {
-        assertThat(runtimeKeyword(Settings.EMPTY, "42"), equalTo(List.of(row(0, 1L, "42"))));
-        assertThat(runtimeKeyword(Settings.EMPTY, "true"), equalTo(List.of(row(0, 1L, "true"))));
-        assertThat(runtimeKeyword(Settings.EMPTY, "[\"a\", 1, true]"), equalTo(List.of(row(0, 1L, List.of("a", "1", "true")))));
-    }
-
-    public void testRuntimeFieldIsReadOncePerParentWhereItsChildrenSpanTwoPages() throws IOException {
-        for (StoredFieldsSpec spec : List.of(StoredFieldsSpec.NO_REQUIREMENTS, StoredFieldsSpec.NEEDS_SOURCE)) {
-            Counted counted = readRuntimeLongOfParents(spec, List.of("""
-                {"items": [{"calc": 3}, {"calc": 4}, {"calc": 5}]}"""), List.of(new int[] { 0, 1 }, new int[] { 2 }));
-            assertThat(counted.values(), equalTo(Collections.nCopies(3, List.of(3L, 4L, 5L))));
-            assertThat(counted.delegateReads(), equalTo(1));
-            closeIndexForNextRun();
-        }
-    }
-
-    public void testRuntimeFieldIsReadOncePerParentOfSeveralParents() throws IOException {
-        for (StoredFieldsSpec spec : List.of(StoredFieldsSpec.NO_REQUIREMENTS, StoredFieldsSpec.NEEDS_SOURCE)) {
-            Counted counted = readRuntimeLongOfParents(spec, List.of("""
-                {"items": [{"calc": 3}, {"calc": 4}]}""", """
-                {"items": [{"calc": 9}]}""", """
-                {"items": [{"calc": 7}, {"calc": 8}, {"calc": 6}]}"""), List.of(new int[] { 0, 1, 3, 5 }, new int[] { 6, 7 }));
-            assertThat(
-                counted.values(),
-                equalTo(List.of(List.of(3L, 4L), List.of(3L, 4L), 9L, List.of(7L, 8L, 6L), List.of(7L, 8L, 6L), List.of(7L, 8L, 6L)))
-            );
-            assertThat(counted.delegateReads(), equalTo(3));
-            closeIndexForNextRun();
-        }
+        assertThat(runtimeKeyword(Settings.EMPTY, "42"), equalTo(List.of("42")));
+        assertThat(runtimeKeyword(Settings.EMPTY, "true"), equalTo(List.of("true")));
+        assertThat(runtimeKeyword(Settings.EMPTY, "[\"a\", 1, true]"), equalTo(List.of(List.of("a", "1", "true"))));
     }
 
     public void testFlattenedKeyReadsThroughTheCastToTheColumnType() throws IOException {
@@ -267,13 +257,13 @@ public class NestedChildLoadersTests extends ComputeTestCase {
 
     public void testRuntimeDateWithAFormatReadsTheSameFromStoredAndSyntheticSource() throws IOException {
         for (String calc : List.of("5", "\"5\"", "[5, 6]")) {
-            List<List<Object>> stored = runtimeCalc(
+            List<Object> stored = runtimeCalc(
                 Settings.EMPTY,
                 runtimeMapping("date", "\"format\": \"epoch_second\""),
                 calc,
                 DataType.DATETIME
             );
-            List<List<Object>> synthetic = runtimeCalc(
+            List<Object> synthetic = runtimeCalc(
                 SYNTHETIC,
                 runtimeMapping("date", "\"format\": \"epoch_second\""),
                 calc,
@@ -283,14 +273,14 @@ public class NestedChildLoadersTests extends ComputeTestCase {
         }
         assertThat(
             runtimeCalc(SYNTHETIC, runtimeMapping("date", "\"format\": \"epoch_second\""), "5", DataType.DATETIME),
-            equalTo(List.of(row(0, 1L, 5000L)))
+            equalTo(List.of(5000L))
         );
     }
 
     public void testRuntimeDateWithTheDefaultFormatReadsTheSameFromStoredAndSyntheticSource() throws IOException {
         for (String calc : List.of("\"2020-07-22T16:09:41.355Z\"", "1595434181355", "\"not a date\"")) {
-            List<List<Object>> stored = runtimeCalc(Settings.EMPTY, runtimeMapping("date", ""), calc, DataType.DATETIME);
-            List<List<Object>> synthetic = runtimeCalc(SYNTHETIC, runtimeMapping("date", ""), calc, DataType.DATETIME);
+            List<Object> stored = runtimeCalc(Settings.EMPTY, runtimeMapping("date", ""), calc, DataType.DATETIME);
+            List<Object> synthetic = runtimeCalc(SYNTHETIC, runtimeMapping("date", ""), calc, DataType.DATETIME);
             assertThat(calc, synthetic, equalTo(stored));
         }
     }
@@ -298,46 +288,27 @@ public class NestedChildLoadersTests extends ComputeTestCase {
     public void testRuntimeKeywordOfAnObjectAndAStringReadsTheSameFromStoredAndSyntheticSource() throws IOException {
         List<String> documents = List.of("""
             {"items": [{"qty": 1, "calc": {"raw": "v"}}, {"qty": 2, "calc": "ok"}]}""");
-        List<List<Object>> stored = readChildren(
-            Settings.EMPTY,
-            runtimeMapping("keyword", ""),
-            documents,
-            List.of("qty", "calc"),
-            List.of(DataType.LONG, DataType.KEYWORD)
-        );
+        List<Object> stored = readParents(Settings.EMPTY, runtimeMapping("keyword", ""), documents, DataType.KEYWORD);
         closeIndexForNextRun();
-        List<List<Object>> synthetic = readChildren(
-            SYNTHETIC,
-            runtimeMapping("keyword", ""),
-            documents,
-            List.of("qty", "calc"),
-            List.of(DataType.LONG, DataType.KEYWORD)
-        );
+        List<Object> synthetic = readParents(SYNTHETIC, runtimeMapping("keyword", ""), documents, DataType.KEYWORD);
         assertThat(synthetic, equalTo(stored));
     }
 
-    private List<List<Object>> runtimeCalc(Settings settings, String mapping, String calc, DataType type) throws IOException {
-        List<List<Object>> rows = readChildren(
-            settings,
-            mapping,
-            List.of("{\"items\": [{\"qty\": 1, \"calc\": " + calc + "}]}"),
-            List.of("qty", "calc"),
-            List.of(DataType.LONG, type)
-        );
+    private List<Object> runtimeCalc(Settings settings, String mapping, String calc, DataType type) throws IOException {
+        List<Object> values = readParents(settings, mapping, List.of("{\"items\": [{\"qty\": 1, \"calc\": " + calc + "}]}"), type);
         closeIndexForNextRun();
-        return rows;
+        return values;
     }
 
-    private List<List<Object>> runtimeKeyword(Settings settings, String calc) throws IOException {
-        List<List<Object>> rows = readChildren(
+    private List<Object> runtimeKeyword(Settings settings, String calc) throws IOException {
+        List<Object> values = readParents(
             settings,
             runtimeMapping("keyword"),
             List.of("{\"items\": [{\"qty\": 1, \"calc\": " + calc + "}]}"),
-            List.of("qty", "calc"),
-            List.of(DataType.LONG, DataType.KEYWORD)
+            DataType.KEYWORD
         );
         closeIndexForNextRun();
-        return rows;
+        return values;
     }
 
     private void closeIndexForNextRun() throws IOException {
@@ -372,136 +343,6 @@ public class NestedChildLoadersTests extends ComputeTestCase {
         return """
             {"_doc": {"properties": {"items": {"type": "nested", "properties": {"attrs": {"type": "flattened"}}}}}}
             """;
-    }
-
-    private record Counted(int delegateReads, List<Object> values) {}
-
-    /** Wraps {@code delegate}, counting its row reads and reporting {@code spec} as what it loads for. */
-    private static final class CountingLoader implements BlockLoader {
-        private final BlockLoader delegate;
-        private final StoredFieldsSpec spec;
-        private int reads;
-
-        CountingLoader(BlockLoader delegate, StoredFieldsSpec spec) {
-            this.delegate = delegate;
-            this.spec = spec;
-        }
-
-        @Override
-        public Builder builder(BlockFactory factory, int expectedCount) {
-            return delegate.builder(factory, expectedCount);
-        }
-
-        @Override
-        public IOFunction<CircuitBreaker, ColumnAtATimeReader> columnAtATimeReader(LeafReaderContext context) {
-            return null;
-        }
-
-        @Override
-        public RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
-            RowStrideReader reader = delegate.rowStrideReader(breaker, context);
-            return new RowStrideReader() {
-                @Override
-                public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-                    reads++;
-                    reader.read(docId, storedFields, builder);
-                }
-
-                @Override
-                public boolean canReuse(int startingDocID) {
-                    return reader.canReuse(startingDocID);
-                }
-
-                @Override
-                public void close() {
-                    reader.close();
-                }
-            };
-        }
-
-        @Override
-        public StoredFieldsSpec rowStrideStoredFieldSpec() {
-            return spec;
-        }
-
-        @Override
-        public boolean supportsOrdinals() {
-            return false;
-        }
-
-        @Override
-        public SortedSetDocValues ordinals(LeafReaderContext context) {
-            throw new UnsupportedOperationException();
-        }
-    }
-
-    /**
-     * Reads {@code items.calc}, a runtime {@code long}, of the children of {@code documents} through a {@link NestedParentBlockLoader}
-     * around a loader that counts its reads, with the children given to the reader in {@code pages} of child doc ids.
-     */
-    private Counted readRuntimeLongOfParents(StoredFieldsSpec spec, List<String> documents, List<int[]> pages) throws IOException {
-        index(Settings.EMPTY, runtimeMapping("long"), documents);
-        BlockFactory blockFactory = blockFactory();
-        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
-        BlockLoader real = shard.nestedChildBlockLoader(
-            "items.calc",
-            new BlockLoaderWarnings(driverContext, Source.EMPTY),
-            PlannerSettings.DEFAULTS.blockLoaderSizeOrdinals(),
-            PlannerSettings.DEFAULTS.blockLoaderSizeScript()
-        );
-        CountingLoader counting = new CountingLoader(real, spec);
-        SearchExecutionContext context = shard.executionContext();
-        BitSetProducer parents = context.bitsetFilter(Queries.newNonNestedFilter(context.indexVersionCreated()));
-        BlockLoader loader = new NestedParentBlockLoader(
-            counting,
-            parents,
-            shard::newSourceLoader,
-            NestedParentBlockLoader.valueBlockFactory(blockFactory)
-        );
-        var infos = List.of(
-            new ValuesSourceReaderOperator.FieldInfo(
-                "items.calc",
-                ElementType.LONG,
-                false,
-                (dc, s) -> ValuesSourceReaderOperator.load(loader)
-            )
-        );
-        var readers = new IndexedByShardIdFromSingleton<>(
-            new ValuesSourceReaderOperator.ShardContext(
-                reader,
-                sourcePaths -> shard.newNestedChildSourceLoader(),
-                shard.storedFieldsSequentialProportion()
-            )
-        );
-        List<Object> values = new ArrayList<>();
-        try (
-            var operator = new ValuesSourceReaderOperator.Factory(
-                PlannerSettings.DEFAULTS.valuesLoadingJumboSize(),
-                infos,
-                readers,
-                true,
-                0,
-                PlannerSettings.DEFAULTS.sourceReservationFactor(),
-                () -> 0
-            ).get(driverContext)
-        ) {
-            for (int[] page : pages) {
-                try (DocBlock.Builder docs = DocBlock.newBlockBuilder(blockFactory, page.length)) {
-                    for (int doc : page) {
-                        docs.appendShard(0).appendSegment(0).appendDoc(doc);
-                    }
-                    operator.addInput(new Page(docs.build()));
-                }
-                for (Page out = operator.getOutput(); out != null; out = operator.getOutput()) {
-                    for (int p = 0; p < out.getPositionCount(); p++) {
-                        values.add(normalize(BlockUtils.toJavaObject(out.<Block>getBlock(1), p)));
-                    }
-                    out.releaseBlocks();
-                }
-            }
-        }
-        assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
-        return new Counted(counting.reads, values);
     }
 
     private static String runtimeMapping(String type) {
@@ -584,6 +425,55 @@ public class NestedChildLoadersTests extends ComputeTestCase {
         }
         assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
         return rows;
+    }
+
+    /** Indexes {@code documents} and reads {@code items.calc} of every parent with the loader of a top-level field. */
+    private List<Object> readParents(Settings settings, String mapping, List<String> documents, DataType type) throws IOException {
+        index(settings, mapping, documents);
+        BlockFactory blockFactory = blockFactory();
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        BlockLoader loader = shard.blockLoader(
+            "items.calc",
+            false,
+            MappedFieldType.FieldExtractPreference.NONE,
+            null,
+            new BlockLoaderWarnings(driverContext, Source.EMPTY),
+            PlannerSettings.DEFAULTS.blockLoaderSizeOrdinals(),
+            PlannerSettings.DEFAULTS.blockLoaderSizeScript()
+        );
+        var infos = List.of(
+            new ValuesSourceReaderOperator.FieldInfo(
+                "items.calc",
+                PlannerUtils.toElementType(type),
+                false,
+                (dc, s) -> ValuesSourceReaderOperator.load(loader)
+            )
+        );
+        var readers = new IndexedByShardIdFromSingleton<>(
+            new ValuesSourceReaderOperator.ShardContext(reader, shard::newSourceLoader, shard.storedFieldsSequentialProportion())
+        );
+        List<Object> values = new ArrayList<>();
+        try (
+            var operator = new ValuesSourceReaderOperator.Factory(
+                PlannerSettings.DEFAULTS.valuesLoadingJumboSize(),
+                infos,
+                readers,
+                true,
+                0,
+                PlannerSettings.DEFAULTS.sourceReservationFactor(),
+                () -> 0
+            ).get(driverContext)
+        ) {
+            operator.addInput(new Page(parents(blockFactory, parentDocs)));
+            for (Page out = operator.getOutput(); out != null; out = operator.getOutput()) {
+                for (int p = 0; p < out.getPositionCount(); p++) {
+                    values.add(normalize(BlockUtils.toJavaObject(out.<Block>getBlock(1), p)));
+                }
+                out.releaseBlocks();
+            }
+        }
+        assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
+        return values;
     }
 
     /** Indexes {@code documents}, each a parent with its children stored before it in one segment. */

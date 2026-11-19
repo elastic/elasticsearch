@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -1908,7 +1909,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             NamedExpression target = expand.target();
             // The plan can only run if every node can read and serialize the command
-            if (context.minimumVersion().supports(NestedExpand.VERSION) == false) {
+            if (context.minimumVersion().supports(NestedExpand.VERSION) == false
+                || context.minimumVersion().supports(FieldCapabilities.FIELD_CAPS_RUNTIME_FIELD) == false) {
                 throw nestedExpandError(target, "NESTED_EXPAND requires all nodes to support nested expansion");
             }
             String name = target.name();
@@ -1967,14 +1969,74 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             children.sort(Comparator.comparing(FieldAttribute::name));
             List<Attribute> expanded = new ArrayList<>();
             List<String> paths = new ArrayList<>();
+            List<Alias> parentValues = new ArrayList<>();
+            List<Alias> merged = new ArrayList<>();
             for (FieldAttribute child : children) {
                 String relative = child.name().substring(NestedScopeField.PREFIX.length() + path.length() + 1);
                 String childName = path + "." + relative;
                 String parentName = childName.substring(0, childName.lastIndexOf('.'));
-                expanded.add(fieldAttribute(expand.source(), parentName, childName, ((NestedScopeField) child.field()).leaf(), false));
+                FieldAttribute expandedChild = fieldAttribute(
+                    expand.source(),
+                    parentName,
+                    childName,
+                    ((NestedScopeField) child.field()).leaf(),
+                    false
+                );
+                expanded.add(expandedChild);
                 paths.add(relative);
+                FieldAttribute parentField = runtimeFieldOfTheParent(childrenOutput, childName);
+                if (parentField != null) {
+                    if (parentField.dataType() != expandedChild.dataType()) {
+                        throw nestedExpandError(
+                            target,
+                            Strings.format(
+                                "NESTED_EXPAND cannot read [%s]: it is a runtime field of type [%s] in some indices and a field of "
+                                    + "nested [%s] of type [%s] in others",
+                                childName,
+                                parentField.dataType().typeName(),
+                                path,
+                                expandedChild.dataType().typeName()
+                            )
+                        );
+                    }
+                    Alias parentValue = new Alias(
+                        expand.source(),
+                        Attribute.rawTemporaryName("nested_expand", "parent", childName),
+                        parentField,
+                        null,
+                        true
+                    );
+                    parentValues.add(parentValue);
+                    merged.add(
+                        new Alias(
+                            expand.source(),
+                            childName,
+                            new Coalesce(expand.source(), parentValue.toAttribute(), List.of(expandedChild))
+                        )
+                    );
+                }
             }
-            return new NestedExpand(expand.source(), expand.child(), null, path, expanded, paths);
+            if (parentValues.isEmpty()) {
+                return new NestedExpand(expand.source(), expand.child(), null, path, expanded, paths);
+            }
+            // Indices that define a name under the collection as a runtime field and map it as a child of the collection give it
+            // two owners. The expansion's own column replaces the parent's by name, so the parent's value is kept under a hidden
+            // name until it is merged back: each shard has only one of the two values.
+            LogicalPlan parentWithValues = new Eval(expand.source(), expand.child(), parentValues);
+            return new Eval(expand.source(), new NestedExpand(expand.source(), parentWithValues, null, path, expanded, paths), merged);
+        }
+
+        /** The column of the parent documents named {@code name}: what an index that defines it as a runtime field gives. */
+        private static FieldAttribute runtimeFieldOfTheParent(List<Attribute> output, String name) {
+            for (Attribute attribute : output) {
+                if (attribute instanceof FieldAttribute field
+                    && field.synthetic() == false
+                    && field.field() instanceof NestedScopeField == false
+                    && field.name().equals(name)) {
+                    return field;
+                }
+            }
+            return null;
         }
 
         private static boolean inNestedPath(String attributeName, String path) {

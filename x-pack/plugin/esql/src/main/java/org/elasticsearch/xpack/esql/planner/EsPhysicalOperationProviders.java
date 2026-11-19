@@ -73,7 +73,6 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -227,8 +226,14 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             return false;
         }
 
+        /**
+         * Whether ES|QL reads {@code name} as a field of the parent documents: a mapped field that is not a child of a nested field.
+         * A runtime field is one wherever its name falls, as it is defined at the root of the mapping.
+         */
         public boolean isExtractableMappedField(String name) {
-            return isMappedField(name) && mappingLookup().nestedLookup().hasNestedParent(name) == false;
+            return isMappedField(name)
+                && (mappingLookup().nestedLookup().hasNestedParent(name) == false
+                    || mappingLookup().getFieldType(name) instanceof AbstractScriptFieldType<?>);
         }
     }
 
@@ -991,11 +996,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 : ValuesSourceReaderOperator.loadAndConvert(keys, new TypeConverter((EsqlScalarFunction) cast));
         }
 
-        /**
-         * Loads a field under a nested object from the hidden child documents. A runtime field runs on the parent document and
-         * reads the parent's {@code _source} through its mapper, as it does for a top-level field, rather than the
-         * {@code _ignored_source} that synthetic source keeps.
-         */
+        /** Loads a field under a nested object from the hidden child documents, or gives nulls where this shard has no such field. */
         public BlockLoader nestedChildBlockLoader(
             String name,
             Warnings warnings,
@@ -1006,7 +1007,6 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             if (fieldType == null) {
                 return ConstantNull.INSTANCE;
             }
-            boolean runtimeField = fieldType instanceof AbstractScriptFieldType;
             BlockLoader loader = fieldType.blockLoader(
                 new EsqlBlockLoaderContext(
                     ctx,
@@ -1015,12 +1015,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                     warnings,
                     blockLoaderSizeOrdinals,
                     blockLoaderSizeScript
-                ) {
-                    @Override
-                    public SearchLookup lookup() {
-                        return runtimeField ? super.lookup().withoutOnlyMappedAsRuntimeField() : super.lookup();
-                    }
-                }
+                )
             );
             return loader == null ? ConstantNull.INSTANCE : loader;
         }

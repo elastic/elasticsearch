@@ -42,6 +42,10 @@ import java.util.Map;
  *                       field ({@code multi_value=false}); see {@code MappedFieldType#isStaticallySingleValued}.
  *                       {@code false} means "no guarantee", not that the field definitely has multiple values. This is the
  *                       default value.
+ * @param isRuntimeField {@code true} when the field is defined in the {@code runtime} section of the mapping. A runtime field
+ *                       is defined at the root of the mapping whatever its name, so one named under a {@code nested} object
+ *                       is not a field of that object's child documents. {@code false} also when the node that answered
+ *                       does not report this.
  */
 
 public record IndexFieldCapabilities(
@@ -58,7 +62,8 @@ public record IndexFieldCapabilities(
     @Nullable String indexAnalyzer,
     int indexAnalyzerPositionIncrementGap,
     boolean indexLocalAnalyzer,
-    boolean isStaticallySingleValued
+    boolean isStaticallySingleValued,
+    boolean isRuntimeField
 ) implements Writeable {
 
     public IndexFieldCapabilities {
@@ -89,6 +94,7 @@ public record IndexFieldCapabilities(
             : null;
         boolean isStaticallySingleValued = in.getTransportVersion().supports(FieldCapabilities.FIELD_CAPS_SINGLE_VALUED)
             && in.readBoolean();
+        boolean isRuntimeField = in.getTransportVersion().supports(FieldCapabilities.FIELD_CAPS_RUNTIME_FIELD) && in.readBoolean();
         return new IndexFieldCapabilities(
             name,
             type,
@@ -103,7 +109,8 @@ public record IndexFieldCapabilities(
             indexAnalyzer,
             indexAnalyzerPositionIncrementGap,
             indexLocalAnalyzer,
-            isStaticallySingleValued
+            isStaticallySingleValued,
+            isRuntimeField
         );
     }
 
@@ -133,6 +140,9 @@ public record IndexFieldCapabilities(
         }
         if (out.getTransportVersion().supports(FieldCapabilities.FIELD_CAPS_SINGLE_VALUED)) {
             out.writeBoolean(isStaticallySingleValued);
+        }
+        if (out.getTransportVersion().supports(FieldCapabilities.FIELD_CAPS_RUNTIME_FIELD)) {
+            out.writeBoolean(isRuntimeField);
         }
     }
 

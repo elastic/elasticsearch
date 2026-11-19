@@ -257,12 +257,94 @@ public class NestedScopeFieldTests extends ESTestCase {
         }
     }
 
+    public void testRuntimeFieldNamedUnderANestedFieldIsNoChildOfIt() {
+        EsField root = NestedScopeField.namespace(
+            List.of(index("a", field("items", "nested"), field("items.sku", "keyword"), runtimeField("items.calc", "long"))),
+            FIRST_OCCURRENCE
+        );
+        NestedScopeField items = scoped(root, "items");
+        assertThat(items.getProperties().keySet(), equalTo(Set.of("sku")));
+    }
+
+    public void testRuntimeFieldNamedUnderANestedFieldIsNotInNestedScope() {
+        Map<String, IndexFieldCapabilities> fields = new HashMap<>();
+        IndexFieldCapabilities runtime = runtimeField("items.calc", "long");
+        fields.put("items", field("items", "nested"));
+        fields.put("items.sku", field("items.sku", "keyword"));
+        fields.put("items.calc", runtime);
+        assertThat(NestedScopeField.inNestedScope(runtime, fields), equalTo(false));
+        assertThat(NestedScopeField.inNestedScope(fields.get("items.sku"), fields), equalTo(true));
+    }
+
+    public void testFieldNamedUnderANestedFieldThatNoIndexReportsAsRuntimeIsAChildAsBefore() {
+        EsField root = NestedScopeField.namespace(
+            List.of(index("a", field("items", "nested"), field("items.calc", "long"))),
+            FIRST_OCCURRENCE
+        );
+        assertThat(scoped(scoped(root, "items"), "calc").conflict(), nullValue());
+    }
+
+    public void testRuntimeFieldInOneIndexAndNestedChildInAnotherIsAChildOfTheSecondOnly() {
+        EsField root = NestedScopeField.namespace(
+            List.of(
+                index("a", field("items", "nested"), field("items.sku", "keyword"), runtimeField("items.calc", "long")),
+                index("b", field("items", "nested"), field("items.sku", "keyword"), field("items.calc", "keyword"))
+            ),
+            FIRST_OCCURRENCE
+        );
+        NestedScopeField calc = scoped(scoped(root, "items"), "calc");
+        assertThat(calc.kind(), equalTo(NestedScopeField.Kind.VALUE));
+        assertThat(calc.getDataType(), equalTo(DataType.KEYWORD));
+        assertThat(calc.conflict(), nullValue());
+    }
+
+    public void testTheOwnerOfANameCanDifferInEveryIndex() {
+        EsField root = NestedScopeField.namespace(
+            List.of(
+                index("d", field("items", "nested"), field("items.calc", "long")),
+                index("c", field("items", "nested"), runtimeField("items.calc", "long")),
+                index("b", field("items", "nested"), field("items.calc", "long")),
+                index("a", field("items", "nested"), runtimeField("items.calc", "long"))
+            ),
+            FIRST_OCCURRENCE
+        );
+        NestedScopeField calc = scoped(scoped(root, "items"), "calc");
+        assertThat(calc.getDataType(), equalTo(DataType.LONG));
+        assertThat(calc.conflict(), nullValue());
+    }
+
+    public void testRuntimeFieldInEveryIndexLeavesTheNestedCollectionWithoutIt() {
+        EsField root = NestedScopeField.namespace(
+            List.of(
+                index("a", field("items", "nested"), field("items.sku", "keyword"), runtimeField("items.calc", "long")),
+                index("b", field("items", "nested"), field("items.sku", "keyword"), runtimeField("items.calc", "long"))
+            ),
+            FIRST_OCCURRENCE
+        );
+        assertThat(scoped(root, "items").getProperties().containsKey("calc"), equalTo(false));
+    }
+
+    public void testRuntimeFieldDoesNotHideTheConflictOfTheNestedPath() {
+        EsField root = NestedScopeField.namespace(
+            List.of(
+                index("a", field("items", "nested"), field("items.sku", "keyword"), runtimeField("items.calc", "long")),
+                index("b", field("items", "object"), field("items.sku", "keyword"))
+            ),
+            FIRST_OCCURRENCE
+        );
+        assertThat(scoped(scoped(root, "items"), "sku").conflict(), equalTo("[items] is [nested] in [a] but [object] in [b]"));
+    }
+
     private static NestedScopeField scoped(EsField parent, String name) {
         return (NestedScopeField) parent.getProperties().get(name);
     }
 
     private static IndexFieldCapabilities field(String name, String type) {
         return new IndexFieldCapabilitiesBuilder(name, type).build();
+    }
+
+    private static IndexFieldCapabilities runtimeField(String name, String type) {
+        return new IndexFieldCapabilitiesBuilder(name, type).isRuntimeField(true).build();
     }
 
     private static FieldCapabilitiesIndexResponse index(String name, IndexFieldCapabilities... fields) {

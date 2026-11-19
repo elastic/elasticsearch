@@ -58,6 +58,7 @@ import java.util.Set;
 import static org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateNanosToLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
+import static org.hamcrest.Matchers.is;
 
 public class SearchContextStatsTests extends MapperServiceTestCase {
     private final Directory directory = newDirectory();
@@ -884,6 +885,38 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
             assertEquals("count must ignore the nested shard", 1L, mixed.count(field));
         } finally {
             IOUtils.close(toClose);
+        }
+    }
+
+    /**
+     * A runtime field is defined at the root of the mapping whatever its name, so one named under a nested field is a field of the
+     * parent documents that {@code IndexResolver} reports as an ordinary column.
+     */
+    public void testRuntimeFieldNamedUnderANestedFieldIsExtractable() throws IOException {
+        final MapperService mapper = createMapperService("""
+            { "doc": {
+                "runtime": { "item.calc": { "type": "long" } },
+                "properties": {
+                    "id": { "type": "keyword" },
+                    "item": { "type": "nested", "properties": { "value": { "type": "integer" } } }
+                }
+            }}""");
+        final Directory dir = newDirectory();
+        final IndexReader reader;
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+            writer.addDocument(List.of(new StringField("id", "a", Field.Store.NO)));
+            reader = writer.getReader();
+        }
+        try {
+            SearchExecutionContext context = createSearchExecutionContext(mapper, newSearcher(reader));
+            assertTrue(context.isMappedField("item.calc"));
+            assertNotNull(context.nestedLookup().getNestedParent("item.calc"));
+            assertThat(SearchContextStats.isExtractableMappedField(context, "item.calc"), is(true));
+            assertThat(SearchContextStats.isExtractableMappedField(context, "item.value"), is(false));
+            assertThat(SearchContextStats.from(List.of(context)).exists(new FieldAttribute.FieldName("item.calc")), is(true));
+            assertThat(SearchContextStats.from(List.of(context)).exists(new FieldAttribute.FieldName("item.value")), is(false));
+        } finally {
+            IOUtils.close(reader, mapper, dir);
         }
     }
 

@@ -136,11 +136,11 @@ public final class NestedScopeField extends EsField {
     }
 
     /**
-     * Whether {@code field} belongs to the private nested scope rather than to ordinary resolution.
-     * Each shard decides how to read a child it maps as a runtime field.
+     * Whether {@code field} belongs to the private nested scope rather than to ordinary resolution. A runtime field is defined at
+     * the root of the mapping whatever its name, so one named under a nested object is an ordinary field of the parent documents.
      */
     public static boolean inNestedScope(IndexFieldCapabilities field, Map<String, IndexFieldCapabilities> fields) {
-        return pathFor(field.name(), fields) != null;
+        return field.isRuntimeField() == false && pathFor(field.name(), fields) != null;
     }
 
     /** The nested collection that owns {@code name} in this index, or {@code null} when none does. */
@@ -261,7 +261,7 @@ public final class NestedScopeField extends EsField {
                 Map<String, IndexFieldCapabilities> fields = response.get();
                 for (var fc : fields.values()) {
                     String path = pathFor(fc.name(), fields);
-                    if (path == null) {
+                    if (path == null || fc.isRuntimeField()) {
                         continue;
                     }
                     ScopedMapping mapping = facts.scoped.computeIfAbsent(fc.name(), k -> new ScopedMapping(path, response.getIndexName()));

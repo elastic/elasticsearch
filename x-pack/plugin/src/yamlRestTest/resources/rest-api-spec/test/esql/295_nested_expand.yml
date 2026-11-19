@@ -274,6 +274,25 @@ setup:
   - length: { values: 2 }
   - match: { values.0: [1, 5] }
   - match: { values.1: [2, 5] }
+  # The runtime field is a column of the parent, with or without the command and before it
+  - do:
+      esql.query:
+        body:
+          query: 'FROM ne_runtime | KEEP parent_value, items.calculated | LIMIT 10'
+  - length: { values: 1 }
+  - match: { values.0: [5, 5] }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM ne_runtime | WHERE items.calculated > 1 | NESTED_EXPAND items | KEEP items.qty, items.calculated | SORT items.qty | LIMIT 10'
+  - length: { values: 2 }
+  - match: { values.0: [1, 5] }
+  - match: { values.1: [2, 5] }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM ne_runtime | WHERE items.calculated > 5 | NESTED_EXPAND items | KEEP items.qty | LIMIT 10'
+  - length: { values: 0 }
 
 ---
 "A nested collection with no mapped leaf fields is unknown":
@@ -1076,7 +1095,7 @@ setup:
   - match: { values.1: ["a", "other"] }
 
 ---
-"A runtime child converts like an indexed one when another index maps the field with a different type":
+"A name that is a runtime field in one index and a nested child in another is read per index":
   - do:
       indices.create:
         index: ne_mix_runtime_long
@@ -1164,22 +1183,39 @@ setup:
           - { "index": { "_index": "ne_mix_long", "_id": "1" } }
           - { "id": "l", "items": [ { "v": 9 } ] }
   - do:
+      catch: '/NESTED_EXPAND cannot read \[items.v\]: it is a runtime field of type \[long\] in some indices and a field of nested \[items\] of type \[keyword\] in others/'
       esql.query:
         body:
-          query: 'FROM ne_mix_runtime_long, ne_mix_keyword | NESTED_EXPAND items | EVAL s = TO_STRING(items.v) | KEEP id, s | SORT id, s | LIMIT 10'
-  - length: { values: 4 }
-  - match: { values.0: ["k", "x"] }
-  - match: { values.1: ["k", "y"] }
-  - match: { values.2: ["rl", "7"] }
-  - match: { values.3: ["rl", "7"] }
+          query: 'FROM ne_mix_runtime_long, ne_mix_keyword | NESTED_EXPAND items | KEEP id'
+  - do:
+      catch: '/NESTED_EXPAND cannot read \[items.v\]: it is a runtime field of type \[keyword\] in some indices and a field of nested \[items\] of type \[long\] in others/'
+      esql.query:
+        body:
+          query: 'FROM ne_mix_runtime_keyword, ne_mix_long | NESTED_EXPAND items | KEEP id'
+  # Where both indices give the name the same type, each index gives its own values
   - do:
       esql.query:
         body:
-          query: 'FROM ne_mix_runtime_keyword, ne_mix_long | NESTED_EXPAND items | EVAL n = TO_LONG(items.v) | KEEP id, n | SORT id, n | LIMIT 10'
+          query: 'FROM ne_mix_runtime_long, ne_mix_long | NESTED_EXPAND items | KEEP id, items.v | SORT id, items.v | LIMIT 10'
   - length: { values: 3 }
   - match: { values.0: ["l", 9] }
-  - match: { values.1: ["rk", 5] }
-  - match: { values.2: ["rk", 5] }
+  - match: { values.1: ["rl", 7] }
+  - match: { values.2: ["rl", 7] }
+  # Without the command the runtime field is the column, and the index that maps a child of that name has no such column
+  - do:
+      esql.query:
+        body:
+          query: 'FROM ne_mix_runtime_long, ne_mix_keyword | KEEP id, items.v | SORT id | LIMIT 10'
+  - length: { values: 2 }
+  - match: { values.0: ["k", null] }
+  - match: { values.1: ["rl", 7] }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM ne_mix_runtime_keyword, ne_mix_long | KEEP id, items.v | SORT id | LIMIT 10'
+  - length: { values: 2 }
+  - match: { values.0: ["l", null] }
+  - match: { values.1: ["rk", "5"] }
 
 ---
 "A source-only runtime keyword under a nested name reads the parent's synthetic source like stored source":

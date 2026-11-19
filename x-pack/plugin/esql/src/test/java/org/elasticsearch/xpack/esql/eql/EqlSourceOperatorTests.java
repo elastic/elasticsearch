@@ -585,8 +585,12 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
         DriverContext driverContext = driverContext();
         Source source = new Source(1, 0, "eqlq");
         Hits hits = new Hits(List.of(fieldEvent("a")), null, new TotalHits(1, TotalHits.Relation.EQUAL_TO));
-        // isPartial=true: the delegate returned partial results because the enclosing ES|QL query allowed them.
-        EqlSearchResponse response = new EqlSearchResponse(hits, 1, false, null, false, true, new ShardSearchFailure[0]);
+        EqlSearchResponse response = new EqlSearchResponse(
+            hits,
+            1,
+            false,
+            new ShardSearchFailure[] { new ShardSearchFailure(new IllegalStateException("shard failure")) }
+        );
 
         SourceOperator operator = operator(
             client,

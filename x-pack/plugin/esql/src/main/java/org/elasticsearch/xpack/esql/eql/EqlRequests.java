@@ -76,8 +76,7 @@ public final class EqlRequests {
         // result_position is the one string option with a closed value set; validate it at parse time (the others are
         // free-form field names) so a miscased "TAIL" fails loud here rather than as a late engine-worded error.
         stringOption(options, "result_position", Set.of("head", "tail"), EqlSearchRequest::resultPosition);
-        // The one EQL knob ESQL has no equivalent for: whether a sequence that spanned a failed shard may be
-        // returned. Defaulted false in build() (fail-safe) and opted into here.
+        // The one EQL knob ESQL has no equivalent for: whether a sequence that spanned a failed shard may be returned.
         options.put(
             "allow_partial_sequence_results",
             new Option(Boolean.class, "boolean", 0, Set.of(), (request, value) -> request.allowPartialSequenceResults((Boolean) value))
@@ -198,11 +197,8 @@ public final class EqlRequests {
         request.indicesOptions(IndexResolver.DEFAULT_OPTIONS);
         request.query(query);
         // Honor the enclosing ES|QL query's own partial-results contract: an event source then behaves exactly like a
-        // FROM source under a shard failure. Sequences are a separate axis, defaulted fail-safe just below.
+        // FROM source under a shard failure. Sequences are a separate axis, left to the EQL cluster default unless WITH sets it.
         request.allowPartialSearchResults(enclosing.allowPartialSearchResults());
-        // Fail-safe default: a sequence that lost a stage on a failed shard is a corrupt match, not a shorter one.
-        // A WITH {"allow_partial_sequence_results": true} option opts into resilience over completeness.
-        request.allowPartialSequenceResults(false);
         if (enclosing.projectRouting() != null) {
             request.projectRouting(enclosing.projectRouting());
         }

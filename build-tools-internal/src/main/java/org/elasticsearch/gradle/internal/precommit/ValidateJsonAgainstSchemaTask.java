@@ -22,9 +22,9 @@ import org.gradle.api.DefaultTask;
 import org.gradle.api.UncheckedIOException;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.problems.Problem;
-import org.gradle.api.problems.ProblemId;
 import org.gradle.api.problems.ProblemReporter;
 import org.gradle.api.problems.Problems;
+import org.gradle.api.problems.ThirdLevelProblemGroup;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.InputFiles;
@@ -63,10 +63,12 @@ public class ValidateJsonAgainstSchemaTask extends DefaultTask {
     private File report;
     private FileCollection inputFiles;
     private final ProblemReporter problemReporter;
+    private final ThirdLevelProblemGroup problemGroup;
 
     @Inject
     public ValidateJsonAgainstSchemaTask(Problems problems) {
         this.problemReporter = problems.getReporter();
+        this.problemGroup = ElasticsearchBuildProblems.JSON_VALIDATION.group(problems);
     }
 
     @Incremental
@@ -176,7 +178,7 @@ public class ValidateJsonAgainstSchemaTask extends DefaultTask {
                 .add(String.format("%s: %s", file.getAbsolutePath(), message.toString()));
             problems.add(
                 problemReporter.create(
-                    ProblemId.create("schema-violation", fileType + " schema violation", ElasticsearchBuildProblems.JSON_VALIDATION),
+                    problemGroup.problemId("Schema violation"),
                     spec -> spec.contextualLabel(fileType + " validation error in " + file.getName() + ": " + message)
                         .fileLocation(file.getAbsolutePath())
                         .solution("Fix the " + fileType + " file to conform to the schema at " + getJsonSchema().getAbsolutePath())

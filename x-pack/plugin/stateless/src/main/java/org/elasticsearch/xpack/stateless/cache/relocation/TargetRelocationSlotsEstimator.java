@@ -66,18 +66,18 @@ public class TargetRelocationSlotsEstimator {
     /// the relocations of a shutting-down node at once. So the settings are trusted only when the cluster state agrees, see
     /// [#allSearchShardsOnShuttingDownNodesRelocating].
     public int knownAvailableSlots(final ClusterState state, final int relocationsInFlight) {
-        return dataNodeRecoveryThrottlingEnabled() && allSearchShardsOnShuttingDownNodesRelocating(state)
-            ? maxConcurrentNonCriticalRecoveries
-            : Math.min(maxConcurrentNonCriticalRecoveries, relocationsInFlight);
+        final int maxRecoveries = maxConcurrentNonCriticalRecoveries;
+        return dataNodeRecoveryThrottlingEnabled(maxRecoveries) && allSearchShardsOnShuttingDownNodesRelocating(state)
+            ? maxRecoveries
+            : Math.min(maxRecoveries, relocationsInFlight);
     }
 
     /// The data nodes throttle the relocations, and not the master, when their non-critical limit is finite and the master does not
     /// throttle, see [#masterThrottlingDisabled]. The data node settings are only registered by the stateless plugin, and are unbounded by
     /// default. While the master throttles, the cluster state shows only the relocations it has started, whatever the data node limit is.
     // TODO: move to DataNodeRecoveryThrottlingSettings (elastic/elasticsearch-team#5653)
-    private boolean dataNodeRecoveryThrottlingEnabled() {
-        return maxConcurrentNonCriticalRecoveries < IncomingRecoveryLimits.UNBOUNDED.maxConcurrentNonCriticalRecoveries()
-            && masterThrottlingDisabled;
+    private boolean dataNodeRecoveryThrottlingEnabled(int maxRecoveries) {
+        return maxRecoveries < IncomingRecoveryLimits.UNBOUNDED.maxConcurrentNonCriticalRecoveries() && masterThrottlingDisabled;
     }
 
     /// Whether every search shard on the search nodes marked for removal has already started to relocate. Shards that are not started

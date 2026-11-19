@@ -57,6 +57,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -1133,6 +1134,39 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
             getLastMaxTotalPostingsInMemoryBytes(service),
             equalTo(postingsBytes[1])
         );
+    }
+
+    public void testLargestOperationSizeIsConvertedWithLocalIndexingPressureLimit() {
+        final AtomicLong now = new AtomicLong(0L);
+        final StatelessMemoryMetricsService timed = new StatelessMemoryMetricsService(now::get, clusterService);
+        final long operationSize = randomLongBetween(1L, 50_000_000L);
+        timed.updateLargestIndexingOperationSize(operationSize);
+        assertThat(
+            timed.minimumRequiredHeapForAcceptingLargeIndexingOps(),
+            equalTo(StatelessMemoryMetricsService.heapRequiredForOperation(clusterService.getSettings(), operationSize))
+        );
+
+        timed.updateLargestIndexingOperationSize(Math.max(0L, operationSize - 1));
+        assertThat(
+            timed.minimumRequiredHeapForAcceptingLargeIndexingOps(),
+            equalTo(StatelessMemoryMetricsService.heapRequiredForOperation(clusterService.getSettings(), operationSize))
+        );
+
+        final long legacyHeap = timed.minimumRequiredHeapForAcceptingLargeIndexingOps() + randomLongBetween(1L, 1_000L);
+        timed.updateIndexingOperationsHeapMemoryRequirements(legacyHeap);
+        assertThat(timed.minimumRequiredHeapForAcceptingLargeIndexingOps(), equalTo(legacyHeap));
+
+        now.addAndGet(StatelessMemoryMetricsService.DEFAULT_INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY.nanos() + 1);
+        assertThat(timed.minimumRequiredHeapForAcceptingLargeIndexingOps(), equalTo(0L));
+    }
+
+    public void testLegacyIndexingHeapRequirementIsReturnedAsIs() {
+        final long heap = randomLongBetween(1L, 50_000_000L);
+        service.updateIndexingOperationsHeapMemoryRequirements(heap);
+        assertThat(service.minimumRequiredHeapForAcceptingLargeIndexingOps(), equalTo(heap));
+        final var published = service.getValidIndexingOperationsHeapMemoryRequirements();
+        assertNotNull(published);
+        assertThat(published.minimumRequiredHeapInBytes(), equalTo(heap));
     }
 
     private static Map<ShardId, ShardMappingSize> createShardMappingMetricsWithPointsInMemory(

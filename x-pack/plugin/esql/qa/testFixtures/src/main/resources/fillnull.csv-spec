@@ -1671,6 +1671,7 @@ emp_no:integer | salary:integer | m:integer | gender:keyword
 
 fillNullBetweenTwoInlineStats
 required_capability: fillnull
+required_capability: fillnull_inline_stats_pass_through
 required_capability: inline_stats
 
 FROM employees
@@ -1863,20 +1864,23 @@ fillNullOutputColumnsOfChangePoint
 required_capability: fillnull
 required_capability: change_point
 
+// The series has one detection, a dip at 00:01, so FILLNULL has a non-null type and pvalue to leave alone next to the nulls it fills.
 FROM k8s
-| STATS count = COUNT() BY @timestamp = BUCKET(@timestamp, 1 MINUTE)
-| CHANGE_POINT count ON @timestamp AS type, pvalue
+| STATS m = MAX(network.cost) BY @timestamp = BUCKET(@timestamp, 1 MINUTE)
+| EVAL m = CASE(@timestamp < "2024-05-10T00:02:00Z", null, m)
+| FILLNULL 0 ON m
+| CHANGE_POINT m ON @timestamp AS type, pvalue
 | FILLNULL "none" ON type
 | FILLNULL 1.0 ON pvalue
 | SORT @timestamp
-| LIMIT 3
+| LIMIT 4
 ;
 
-
-count:long | @timestamp:datetime      | type:keyword | pvalue:double
-4          | 2024-05-10T00:00:00.000Z | none         | 1.0
-4          | 2024-05-10T00:01:00.000Z | none         | 1.0
-8          | 2024-05-10T00:02:00.000Z | none         | 1.0
+@timestamp:datetime      | m:double | type:keyword | pvalue:double
+2024-05-10T00:00:00.000Z | 0.0      | none         | 1.0
+2024-05-10T00:01:00.000Z | 0.0      | dip          | 0.0
+2024-05-10T00:02:00.000Z | 11.25    | none         | 1.0
+2024-05-10T00:03:00.000Z | 12.125   | none         | 1.0
 ;
 
 fillNullInsideOneSubqueryBranchOnly

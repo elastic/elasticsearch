@@ -155,8 +155,8 @@ final class PlainValues {
         /**
          * @param constantLength   the length every value has, which the caller knows before writing any of them,
          *                         or {@code -1}; a column with one keeps no lengths
-         * @param tracksOwnerChunk whether the caller asks {@link #ownerChunk} which chunk owns each slot, which only a
-         *                         column that captures bounds does
+         * @param tracksOwnerChunk whether the caller reads {@link #ownerChunk}, which only a column that captures
+         *                         bounds does
          */
         Writer(
             ChunkCodec codec,
@@ -273,7 +273,10 @@ final class PlainValues {
             count++;
         }
 
-        /** The chunk that owns the slot just written: the one holding its first byte, or the one being filled if it has none. */
+        /**
+         * The chunk that owns the slot just written: the one holding its first byte, or the one being filled if it has none.
+         * Valid only if the writer was built with {@code tracksOwnerChunk}.
+         */
         int ownerChunk() {
             assert tracksOwnerChunk : "the writer was not asked to track the chunk that owns a slot";
             return ownerChunk;

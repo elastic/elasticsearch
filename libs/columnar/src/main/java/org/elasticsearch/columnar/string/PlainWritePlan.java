@@ -9,12 +9,7 @@
 package org.elasticsearch.columnar.string;
 
 /**
- * How a plain column is written, settled once before its first value so that no loop works it out again.
- *
- * <p>A column that captures bounds needs every value in hand: the region proves the order and takes a separator from the
- * first value of each chunk, and a streamed column never holds one. The two do not combine, so a column that captures
- * bounds is written from values. The writer's own check of the order finds out whether a search can bisect the column,
- * which the region answers too, so the writer checks only where no region does.
+ * Holds the parameters that determine how a plain column is written.
  *
  * @param capturesBounds whether the bounds of each chunk are captured for a skip region
  * @param streamsValues  whether bytes are copied from the cursor a piece at a time instead of read as values
@@ -23,7 +18,10 @@ package org.elasticsearch.columnar.string;
 record PlainWritePlan(boolean capturesBounds, boolean streamsValues, boolean checksOrder) {
 
     /**
-     * @param skipIndexRequested       whether the column's options ask for a skip region
+     * Returns the plan for a column, given its options and what its cursor offers.
+     * At most one of {@code capturesBounds}, {@code streamsValues} and {@code checksOrder} is true.
+     *
+     * @param skipIndexRequested      whether the column's options ask for a skip region
      * @param skipIndexOutputAvailable whether the caller gave an output to write the region to
      * @param inputsStream             whether the cursor can hand over values without a caller holding them
      * @param inputsMayBeSorted        whether the values may arrive in ascending term order

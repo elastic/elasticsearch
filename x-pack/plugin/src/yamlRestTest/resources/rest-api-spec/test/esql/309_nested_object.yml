@@ -1,0 +1,125 @@
+setup:
+  - requires:
+      test_runner_features: [capabilities, allowed_warnings_regex]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [fn_nested_object]
+      reason: "NESTED_OBJECT is snapshot-only"
+  - do:
+      indices.create:
+        index: no_orders
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            dynamic: strict
+            properties:
+              id:
+                type: keyword
+              items:
+                type: nested
+                properties:
+                  price:
+                    type: long
+                  sku:
+                    type: keyword
+              shipments:
+                type: nested
+                properties:
+                  carrier:
+                    type: keyword
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "no_orders", "_id": "a" } }
+          - { "id": "a", "items": [ { "price": 20, "sku": "book" }, { "price": 5, "sku": "pen" } ], "shipments": [ { "carrier": "ups" } ] }
+          - { "index": { "_index": "no_orders", "_id": "b" } }
+          - { "id": "b", "items": [] }
+
+---
+"A reference named like its collection is accepted":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM no_orders | EVAL items = NESTED_OBJECT(items) | KEEP id, items | SORT id'
+  - length: { columns: 1 }
+  - match: { columns.0.name: id }
+  - length: { values: 2 }
+  - match: { values.0: ["a"] }
+  - match: { values.1: ["b"] }
+
+---
+"A reference is not a returned column":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM no_orders | EVAL o = NESTED_OBJECT(items) | KEEP *  | SORT id'
+  - length: { columns: 1 }
+  - match: { columns.0.name: id }
+
+---
+"Only the reference is kept":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM no_orders | EVAL items = NESTED_OBJECT(items) | KEEP items'
+  - length: { columns: 0 }
+
+---
+"A reference is not a value":
+  - do:
+      catch: /\[o\] is a reference to the nested collection \[items\]/
+      esql.query:
+        body:
+          query: 'FROM no_orders | EVAL o = NESTED_OBJECT(items) | WHERE o IS NOT NULL'
+  - do:
+      catch: /\[o\] is a reference to the nested collection \[items\]/
+      esql.query:
+        body:
+          query: 'FROM no_orders | EVAL o = NESTED_OBJECT(items) | STATS c = COUNT(*) BY o'
+
+---
+"The argument must be a nested collection":
+  - do:
+      catch: /NESTED_OBJECT requires a nested collection, not \[items.price\]/
+      esql.query:
+        body:
+          query: 'FROM no_orders | EVAL x = NESTED_OBJECT(items.price)'
+  - do:
+      catch: /NESTED_OBJECT requires a nested collection, not \[id\]/
+      esql.query:
+        body:
+          query: 'FROM no_orders | EVAL x = NESTED_OBJECT(id)'
+
+---
+"A reference is only supported in EVAL":
+  - do:
+      catch: /NESTED_OBJECT is supported in EVAL/
+      esql.query:
+        body:
+          query: 'FROM no_orders | WHERE NESTED_OBJECT(items) IS NOT NULL'
+
+---
+"A reference cannot be named like another nested collection":
+  - do:
+      catch: '/NESTED_OBJECT cannot be named \[items\]: that name is a nested collection/'
+      esql.query:
+        body:
+          query: 'FROM no_orders | EVAL items = NESTED_OBJECT(shipments)'
+
+---
+"Expanding a reference is refused until NESTED_EXPAND can run":
+  - do:
+      catch: /NESTED_EXPAND is not supported yet/
+      esql.query:
+        body:
+          query: 'FROM no_orders | EVAL o = NESTED_OBJECT(items) | NESTED_EXPAND o'

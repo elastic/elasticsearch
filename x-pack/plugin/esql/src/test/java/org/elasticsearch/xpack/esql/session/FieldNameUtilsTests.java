@@ -47,6 +47,8 @@ import static org.elasticsearch.xpack.esql.session.IndexResolver.ALL_FIELDS;
 import static org.elasticsearch.xpack.esql.session.IndexResolver.INDEX_METADATA_FIELD;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 public class FieldNameUtilsTests extends ESTestCase {
@@ -4887,6 +4889,26 @@ public class FieldNameUtilsTests extends ESTestCase {
         var preAnalysisResult = FieldNameUtils.resolveFieldNames(parsed, false, includePrefixFields);
         assertThat("Parent paths", preAnalysisResult.parentPaths(), equalTo(expected));
         assertThat("Parent paths are requested", preAnalysisResult.fieldNames().containsAll(expected), equalTo(true));
+    }
+
+    public void testNestedObjectAsksForTheCollectionAndTheNestedScope() {
+        var result = resolveFieldNames("from test | eval o = nested_object(items) | nested_expand o | keep id");
+        assertThat(result.nestedScope(), is(true));
+        assertThat(result.fieldNames(), hasItems("items", "items.*", "id", "id.*"));
+    }
+
+    public void testNestedObjectAloneAsksForTheNestedScope() {
+        var result = resolveFieldNames("from test | eval items = nested_object(items) | keep items");
+        assertThat(result.nestedScope(), is(true));
+        assertThat(result.fieldNames(), hasItems("items", "items.*"));
+    }
+
+    public void testWithoutNestedObjectTheNestedScopeIsNotAsked() {
+        assertThat(resolveFieldNames("from test | eval x = 1 | keep id").nestedScope(), is(false));
+    }
+
+    private static EsqlSession.PreAnalysisResult resolveFieldNames(String query) {
+        return FieldNameUtils.resolveFieldNames(InSubqueryResolver.resolve(TEST_PARSER.parseQuery(query)), false, false);
     }
 
     private void assertFieldNames(String query, Set<String> expected) {

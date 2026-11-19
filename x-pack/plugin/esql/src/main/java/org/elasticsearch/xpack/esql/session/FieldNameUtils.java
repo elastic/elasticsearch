@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TStep;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.TRange;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedObject;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
@@ -116,9 +117,14 @@ public class FieldNameUtils {
         Set<String> collections = new HashSet<>();
         parsed.forEachDown(NestedExpand.class, expand -> {
             if (expand.bound() == false && expand.target() != null) {
-                // TODO: When collection aliases/references are supported, resolve their owning
-                // source and mapped path here; the target name may be an alias in the query.
+                // The target may be a NESTED_OBJECT reference, whose collection is asked for through that function's argument.
                 collections.add(expand.target().name());
+            }
+        });
+        parsed.forEachExpressionDown(UnresolvedFunction.class, function -> {
+            if (function.name().equalsIgnoreCase(NestedObject.DEFINITION.name())
+                && function.children().getFirst() instanceof UnresolvedAttribute collection) {
+                collections.add(collection.name());
             }
         });
         if (collections.isEmpty()) {

@@ -33,7 +33,10 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.AnalyzerRule;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.ParameterizedAnalyzerRule;
+import org.elasticsearch.xpack.esql.analysis.rules.BindNestedObject;
 import org.elasticsearch.xpack.esql.analysis.rules.DetermineUnmappedFieldsToKeep;
+import org.elasticsearch.xpack.esql.analysis.rules.NestedReference;
+import org.elasticsearch.xpack.esql.analysis.rules.RemoveNestedReferences;
 import org.elasticsearch.xpack.esql.analysis.rules.ResolveFunctions;
 import org.elasticsearch.xpack.esql.analysis.rules.ResolveHighlight;
 import org.elasticsearch.xpack.esql.analysis.rules.ResolveHighlightFieldMappings;
@@ -147,6 +150,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToText;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToUnsignedLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedObject;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.expression.function.vector.VectorFunction;
@@ -368,7 +372,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new Batch<>(
                 "Finish Analysis",
                 Limiter.ONCE,
+                new BindNestedObject(),
                 new HideNestedScopeFields(),
+                new RemoveNestedReferences(),
                 // Before ResolveDescribe replaces a ROW producer with a LocalRelation.
                 new RejectUnsupportedIntoSource(),
                 new ResolveDescribe(),
@@ -895,7 +901,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     private static class HideNestedScopeFields extends Rule<LogicalPlan, LogicalPlan> {
         @Override
         public LogicalPlan apply(LogicalPlan plan) {
-            if (plan.anyMatch(NestedExpand.class::isInstance) == false) {
+            if (plan.anyMatch(NestedExpand.class::isInstance) == false && usesNestedReference(plan) == false) {
                 return plan;
             }
             return plan.transformUp(EsRelation.class, relation -> {
@@ -906,6 +912,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private static boolean isNestedScope(Attribute attribute) {
             return attribute instanceof FieldAttribute field && field.field() instanceof NestedScopeField;
+        }
+
+        private static boolean usesNestedReference(LogicalPlan plan) {
+            boolean[] found = { false };
+            plan.forEachExpressionDown(NestedObject.class, reference -> found[0] = true);
+            return found[0];
         }
     }
 
@@ -1774,6 +1786,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 childrenOutput.addAll(output);
             }
 
+            // Nested fields are synthetic, so ordinary resolution cannot see them. Point NESTED_OBJECT at that schema first.
+            plan = BindNestedObject.scope(plan, childrenOutput);
+
             var resolved = switch (plan) {
                 case Aggregate a -> resolveAggregate(a, childrenOutput);
                 case Completion c -> resolveCompletion(c, childrenOutput);
@@ -1810,7 +1825,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             NamedExpression target = expand.target();
             String name = target.name();
-            String rootName = NestedScopeField.PREFIX + name;
+            String referenced = NestedReference.referencedPath(expand.child(), name);
+            String rootName = NestedScopeField.PREFIX + (referenced != null ? referenced : name);
             FieldAttribute root = null;
             Set<String> collections = new HashSet<>();
             for (Attribute attribute : childrenOutput) {
@@ -1840,7 +1856,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     "NESTED_EXPAND cannot read [" + name + "] from a LOOKUP JOIN index; that index's documents are not the rows being read"
                 );
             }
-            if (childrenOutput.stream().anyMatch(a -> a.synthetic() == false && a.name().equals(path))) {
+            if (childrenOutput.stream().anyMatch(a -> a.synthetic() == false && a.name().equals(path))
+                && NestedReference.referencedPath(expand.child(), path) == null) {
                 throw nestedExpandError(target, "NESTED_EXPAND cannot use [" + path + "]: a column of that name replaces it here");
             }
             if (collections.stream().anyMatch(parent -> path.startsWith(parent + "."))) {
@@ -1871,7 +1888,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // cast resolution see a type conflict, but that needs the conversion to belong to this NestedExpand rather than to the
                 // parent relation, the same conversion applied when the child is read, and ReplaceFieldWithConstantOrNull keeping the
                 // child (SearchContextStats#exists is false for nested subfields). To be done with the execution of NESTED_EXPAND.
-                expanded.add(new ReferenceAttribute(expand.source(), path + "." + relative, child.dataType()));
+                expanded.add(new ReferenceAttribute(expand.source(), name + "." + relative, child.dataType()));
                 paths.add(relative);
             }
             return new NestedExpand(expand.source(), expand.child(), null, path, expanded, paths);

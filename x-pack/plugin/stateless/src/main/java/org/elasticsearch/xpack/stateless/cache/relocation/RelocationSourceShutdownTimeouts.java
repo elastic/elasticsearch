@@ -150,9 +150,9 @@ public class RelocationSourceShutdownTimeouts {
 
     /// Returns this source's share of the target's relocation slots: how many of the shards of sourceNodeId can actively recover
     /// on targetNodeId concurrently: the source's share of the slots known to be available to the relocations from shutting-down nodes,
-    /// see [TargetRelocationSlotsEstimator#knownAvailableSlots], split between the sources in proportion to their relocations in flight, and not
-    /// more than `shardsOnSource`. It scales the equal share of one shard to the time the shards of the source can use the slots together.
-    /// It can be fractional and below one, when the slots are split between sources.
+    /// see [TargetRelocationSlotsEstimator#knownAvailableSlots], split between the sources in proportion to their relocations in flight,
+    /// and not more than `shardsOnSource`. It scales the equal share of one shard to the time the shards of the source can use the slots
+    /// together. It can be fractional and below one, when the slots are split between sources.
     /// Without data node recovery throttling, it is the relocations from the source to the target that are in flight.
     private double estimateConcurrentRelocations(
         final ClusterState state,

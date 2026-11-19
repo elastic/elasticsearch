@@ -27,10 +27,12 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -49,8 +51,17 @@ class IntoTestUtils {
 
     enum Outcome {
         CREATED,
-        REFUSED
+        /** The destination refuses the row with a 400 whose message is {@code mapper_parsing_exception[<item index>]}. */
+        REFUSED,
+        /** Like {@link #REFUSED}, but the cause has no message. */
+        REFUSED_WITHOUT_MESSAGE,
+        /** Like {@link #REFUSED}, but the message is {@link #LONG_MESSAGE_LENGTH} characters long. */
+        REFUSED_WITH_LONG_MESSAGE,
+        /** The item fails with a transient 429, which says nothing about the row. */
+        REJECTED
     }
+
+    static final int LONG_MESSAGE_LENGTH = 5000;
 
     static class CapturingClient extends NoOpClient {
         final List<BulkRequest> bulks = new ArrayList<>();
@@ -104,14 +115,26 @@ class IntoTestUtils {
                 DocWriteRequest.OpType opType = bulk.requests().get(i).opType();
                 items[i] = switch (outcomes[i]) {
                     case CREATED -> BulkItemResponse.success(i, opType, new IndexResponse(SHARD, "id-" + i, 0, 1, 1, true));
-                    case REFUSED -> BulkItemResponse.failure(
+                    case REFUSED -> refused(i, opType, new IllegalArgumentException("mapper_parsing_exception[" + i + "]"));
+                    case REFUSED_WITHOUT_MESSAGE -> refused(i, opType, new IllegalArgumentException());
+                    case REFUSED_WITH_LONG_MESSAGE -> refused(i, opType, new IllegalArgumentException("x".repeat(LONG_MESSAGE_LENGTH)));
+                    case REJECTED -> BulkItemResponse.failure(
                         i,
                         opType,
-                        new BulkItemResponse.Failure(DEST, "id-" + i, new IllegalArgumentException("mapper_parsing_exception"))
+                        new BulkItemResponse.Failure(
+                            DEST,
+                            "id-" + i,
+                            new EsRejectedExecutionException("rejected"),
+                            RestStatus.TOO_MANY_REQUESTS
+                        )
                     );
                 };
             }
             listeners.removeFirst().onResponse(new BulkResponse(items, 1));
+        }
+
+        private static BulkItemResponse refused(int item, DocWriteRequest.OpType opType, Exception cause) {
+            return BulkItemResponse.failure(item, opType, new BulkItemResponse.Failure(DEST, "id-" + item, cause));
         }
 
         void fail(Exception e) {

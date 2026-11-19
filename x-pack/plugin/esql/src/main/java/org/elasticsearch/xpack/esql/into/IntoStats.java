@@ -28,6 +28,8 @@ import java.util.List;
  * Details beyond that limit are dropped, keeping the first ones, so the result stays small however many rows are refused.
  */
 public record IntoStats(long total, long created, long failures, List<String> failureDetails) {
+    // TODO: the stats page grew from two to four columns without a TransportVersion gate; cover it with the minimum-version
+    // gating of Into (see the TODO in Into#postAnalysisVerification) before INTO leaves snapshot.
     public static final int MAX_FAILURE_DETAILS = 20;
 
     public static final IntoStats EMPTY = new IntoStats(0, 0, 0, List.of());

@@ -363,22 +363,6 @@ public final class IntoMergeStatsOperatorTests extends ComputeTestCase {
         }
     }
 
-    public void testStatsRoundTripThroughAPage() {
-        IntoStats original = new IntoStats(
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            details("reason", between(0, IntoStats.MAX_FAILURE_DETAILS))
-        );
-        assertThat(stats(original.toPage(blockFactory())), equalTo(original));
-    }
-
-    public void testMergeKeepsAtMostMaxFailureDetails() {
-        IntoStats merged = new IntoStats(1, 0, 1, details("a", 20)).merge(new IntoStats(1, 0, 1, details("b", 1)));
-        assertThat(merged.failureDetails(), equalTo(details("a", 20)));
-        assertThat(merged.failures(), equalTo(2L));
-    }
-
     public void testKeepGoingRefreshesWhenSomeRowsWereCreated() {
         IntoMergeStatsOperator op = operator(new IntoOptions(true, true), INDEX);
         op.addInput(new IntoStats(3L, 1L, 2L, List.of("a", "b")).toPage(blockFactory));

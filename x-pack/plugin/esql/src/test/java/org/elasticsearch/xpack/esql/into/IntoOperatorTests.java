@@ -113,7 +113,7 @@ public class IntoOperatorTests extends ComputeTestCase {
         op.addInput(page("ok", "bad"));
         op.finish();
         client.answer(CREATED, REFUSED);
-        assertThat(stats(op.getOutput()), equalTo(new IntoStats(2, 1, 1, List.of("[400] mapper_parsing_exception"))));
+        assertThat(stats(op.getOutput()), equalTo(new IntoStats(2, 1, 1, List.of("[400] mapper_parsing_exception[1]"))));
         assertTrue(op.isFinished());
     }
 

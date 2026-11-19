@@ -132,6 +132,9 @@ public class IntoParserTests extends AbstractStatementParserTests {
 
     public void testKeepGoingDefaultsToFalse() {
         assertFalse(as(query("ROW a = 1 | INTO dst"), Into.class).options().keepGoing());
+    }
+
+    public void testExplicitKeepGoingFalse() {
         assertFalse(as(query("ROW a = 1 | INTO dst WITH {\"keep_going\": false}"), Into.class).options().keepGoing());
     }
 
@@ -141,6 +144,9 @@ public class IntoParserTests extends AbstractStatementParserTests {
 
     public void testKeepGoingNameIsCaseInsensitive() {
         assertTrue(as(query("ROW a = 1 | INTO dst WITH {\"KEEP_Going\": true}"), Into.class).options().keepGoing());
+    }
+
+    public void testCaseFoldedDuplicateRejected() {
         expectError("ROW a = 1 | INTO dst WITH {\"keep_going\": true, \"KEEP_GOING\": false}", "Duplicate option [keep_going] in INTO");
     }
 

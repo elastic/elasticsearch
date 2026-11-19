@@ -149,9 +149,9 @@ public class Into extends UnaryPlan
 
     @Override
     public void postAnalysisVerification(Failures failures) {
-        // TODO: before INTO leaves snapshot, gate Into on a minimum TransportVersion in Verifier for mixed-version clusters.
-        // That gating must also cover the wire format: the new options field of Into and IntoExec is written without a
-        // TransportVersion check.
+        // TODO: before INTO leaves snapshot, gate on a minimum TransportVersion in Verifier for mixed-version clusters. This must cover
+        // the wire changes that are currently ungated: the options field of Into and IntoExec, and the four-column IntoStats page
+        // that the write phase sends to the merge phase.
         // RejectUnsupportedIntoSource already saw the original producer. DESCRIBE has since replaced it with a LocalRelation.
         if (unsupportedSource(child())) {
             failures.add(fail(this, UNSUPPORTED_SOURCE));

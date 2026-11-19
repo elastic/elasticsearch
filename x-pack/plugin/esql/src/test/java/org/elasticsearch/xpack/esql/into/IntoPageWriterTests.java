@@ -61,12 +61,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.esql.into.IntoPageWriter.Factory.Indexing.INDEX;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.DEST;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.IN_FLIGHT;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.CREATED;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.REFUSED;
+import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.REFUSED_WITHOUT_MESSAGE;
+import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.REFUSED_WITH_LONG_MESSAGE;
+import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.REJECTED;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.bulks;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.mockBigArrays;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.noFailures;
@@ -77,8 +81,10 @@ import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.hamcrest.Matchers.startsWith;
 
 public class IntoPageWriterTests extends ComputeTestCase {
     private static final List<Attribute> COLUMNS = List.of(
@@ -386,45 +392,84 @@ public class IntoPageWriterTests extends ComputeTestCase {
     }
 
     public void testKeepGoingCountsRefusedRowsAndKeepsWriting() {
-        IntoPageWriter keepGoing = keepGoingWriter();
-        keepGoing.consume(page("ok", "bad", "ok"));
+        keepGoingSink();
+        writer.consume(page("ok", "bad", "ok"));
         client.answer(CREATED, REFUSED, CREATED);
         assertThat(sink.failure(), nullValue());
 
-        keepGoing.consume(page("later"));
+        writer.consume(page("later"));
         client.answer(CREATED);
-        keepGoing.finish();
+        writer.finish();
 
-        assertTrue(keepGoing.isFinished());
-        assertThat(keepGoing.failure(), nullValue());
-        assertThat(keepGoing.stats(), equalTo(new IntoStats(4, 3, 1, List.of("[400] mapper_parsing_exception"))));
+        assertTrue(writer.isFinished());
+        assertThat(writer.failure(), nullValue());
+        assertThat(writer.stats(), equalTo(new IntoStats(4, 3, 1, List.of("[400] mapper_parsing_exception[1]"))));
     }
 
-    public void testKeepGoingCapsFailureDetails() {
-        IntoPageWriter keepGoing = keepGoingWriter();
+    public void testKeepGoingCapsFailureDetailsKeepingTheFirstOnes() {
+        keepGoingSink();
         int refused = IntoStats.MAX_FAILURE_DETAILS + between(1, 10);
         String[] hosts = new String[refused];
         Arrays.fill(hosts, "bad");
-        keepGoing.consume(page(hosts));
+        writer.consume(page(hosts));
         IntoTestUtils.Outcome[] outcomes = new IntoTestUtils.Outcome[refused];
         Arrays.fill(outcomes, REFUSED);
         client.answer(outcomes);
-        keepGoing.finish();
+        writer.finish();
 
-        IntoStats stats = keepGoing.stats();
+        IntoStats stats = writer.stats();
+        assertThat(stats.total(), equalTo((long) refused));
         assertThat(stats.failures(), equalTo((long) refused));
         assertThat(stats.created(), equalTo(0L));
-        assertThat(stats.failureDetails(), hasSize(IntoStats.MAX_FAILURE_DETAILS));
+        assertThat(
+            stats.failureDetails(),
+            equalTo(IntStream.range(0, IntoStats.MAX_FAILURE_DETAILS).mapToObj(i -> "[400] mapper_parsing_exception[" + i + "]").toList())
+        );
+    }
+
+    public void testKeepGoingDetailFallsBackToTheExceptionNameWithoutAMessage() {
+        keepGoingSink();
+        writer.consume(page("bad"));
+        client.answer(REFUSED_WITHOUT_MESSAGE);
+        writer.finish();
+
+        assertThat(writer.stats().failureDetails(), equalTo(List.of("[400] IllegalArgumentException")));
+    }
+
+    public void testKeepGoingTruncatesLongFailureDetails() {
+        keepGoingSink();
+        writer.consume(page("bad"));
+        client.answer(REFUSED_WITH_LONG_MESSAGE);
+        writer.finish();
+
+        List<String> details = writer.stats().failureDetails();
+        assertThat(details, hasSize(1));
+        assertThat(details.getFirst().length(), lessThanOrEqualTo(1024));
+        assertThat(details.getFirst(), startsWith("[400] xxx"));
+    }
+
+    public void testKeepGoingStillFailsOnTransientItemFailure() {
+        keepGoingSink();
+        writer.consume(page("ok", "busy"));
+        client.answer(CREATED, REJECTED);
+        writer.finish();
+
+        ElasticsearchStatusException failure = asInstanceOf(ElasticsearchStatusException.class, sink.failure());
+        assertThat(failure.status(), equalTo(RestStatus.TOO_MANY_REQUESTS));
+        assertThat(writer.stats().failures(), equalTo(0L));
+
+        writer.consume(page("dropped"));
+        assertThat(client.bulks, empty());
     }
 
     public void testKeepGoingStillFailsOnWholeBulkFailure() {
-        IntoPageWriter keepGoing = keepGoingWriter();
-        keepGoing.consume(page("h1"));
+        keepGoingSink();
+        writer.consume(page("h1"));
         Exception rejected = new EsRejectedExecutionException("rejected");
         client.fail(rejected);
-        keepGoing.finish();
+        writer.finish();
 
-        assertThat(keepGoing.failure(), sameInstance(rejected));
+        assertThat(writer.failure(), sameInstance(rejected));
     }
 
     public void testWholeBulkFailureIsRecordedAndSettles() {
@@ -455,7 +500,8 @@ public class IntoPageWriterTests extends ComputeTestCase {
         assertThat(writer.stats(), equalTo(noFailures(0, 0)));
     }
 
-    private IntoPageWriter keepGoingWriter() {
+    /** Replaces the default {@link #sink} and {@link #writer} with ones that run under {@code keep_going}. */
+    private void keepGoingSink() {
         sink = IntoPageWriter.Factory.createFactory(
             bulks(),
             client,
@@ -465,7 +511,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
             INDEX,
             new IntoOptions(IntoOptions.DEFAULT.refresh(), true)
         );
-        return sink.create(driverContext);
+        writer = sink.create(driverContext);
     }
 
     public void testUnsignedLongAboveLongMaxIsRejected() {

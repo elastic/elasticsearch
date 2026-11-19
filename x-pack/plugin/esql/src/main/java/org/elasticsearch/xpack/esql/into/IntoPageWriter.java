@@ -23,13 +23,13 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.escf.EscfBatchBuilder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.ingest.IngestService;
@@ -52,9 +52,13 @@ import java.util.concurrent.atomic.AtomicReference;
  * its own producer. The writer bounds the bulks in flight with the node's {@link EscfBulkService#defaultPolicy()} and
  * charges the query breaker and coordinating indexing pressure.
  * A row the destination refuses fails the run, unless {@link IntoOptions#keepGoing()} is set: then it is counted and the
- * run continues. A bulk request that fails as a whole always fails the run.
+ * run continues. A bulk request that fails as a whole always fails the run, as does a row whose failure is transient
+ * (too many requests or service unavailable), because that row was not refused by the destination and dropping it would
+ * silently lose data.
  */
 public final class IntoPageWriter {
+
+    private static final int MAX_FAILURE_DETAIL_LENGTH = 1024;
 
     /** Holds the query-scoped configuration, counters, and failure state across drivers for one {@code INTO} run. */
     public static final class Factory {
@@ -143,7 +147,7 @@ public final class IntoPageWriter {
             for (BulkItemResponse item : response) {
                 if (item.isFailed() == false) {
                     createdItems++;
-                } else if (options.keepGoing()) {
+                } else if (options.keepGoing() && isRefusal(item.getFailure())) {
                     recordRefusal(item.getFailure());
                     refusedItems++;
                 } else {
@@ -165,10 +169,19 @@ public final class IntoPageWriter {
             return null;
         }
 
+        /** Transient failures say nothing about the row, so they are never counted as the destination refusing it. */
+        private static boolean isRefusal(BulkItemResponse.Failure failure) {
+            RestStatus status = failure.getStatus();
+            return status != RestStatus.TOO_MANY_REQUESTS && status != RestStatus.SERVICE_UNAVAILABLE;
+        }
+
         private void recordRefusal(BulkItemResponse.Failure refusal) {
             synchronized (failureDetails) {
                 if (failureDetails.size() < IntoStats.MAX_FAILURE_DETAILS) {
-                    failureDetails.add("[" + refusal.getStatus().getStatus() + "] " + refusal.getCause().getMessage());
+                    Exception cause = refusal.getCause();
+                    String reason = Objects.requireNonNullElse(cause.getMessage(), cause.getClass().getSimpleName());
+                    String detail = "[" + refusal.getStatus().getStatus() + "] " + reason;
+                    failureDetails.add(Strings.cleanTruncate(detail, MAX_FAILURE_DETAIL_LENGTH));
                 }
             }
         }

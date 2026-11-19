@@ -84,7 +84,7 @@ public class ForceMergeStep extends AsyncActionStep {
             if (response.getFailedShards() == 0) {
                 l.onResponse(null);
             } else {
-                List<DefaultShardOperationFailedException> failures = response.shardFailuresList();
+                List<DefaultShardOperationFailedException> failures = response.getShardFailures();
                 String policyName = indexMetadata.getLifecyclePolicyName();
                 String errorMessage = Strings.format(
                     "index [%s] in policy [%s] encountered failures [%s] on step [%s]",

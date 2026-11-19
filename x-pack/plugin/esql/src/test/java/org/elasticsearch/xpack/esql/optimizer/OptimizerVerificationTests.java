@@ -1186,6 +1186,99 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
         );
     }
 
+    public void testRemoteEnrichRejectedAfterEql() {
+        String err = error(eqlAnalyzer().query("""
+            EQL eql_test "process where true"
+            | EVAL language_code = TO_INT(pid / 100)
+            | ENRICH _remote:languages ON language_code
+            """));
+        assertThat(
+            err,
+            containsString(
+                "3:3: ENRICH with remote policy can't be executed after [EQL eql_test \"process where true\"]@1:1"
+                    + "; the EQL source command returns its events to the coordinating node and is incompatible with remote ENRICH"
+            )
+        );
+    }
+
+    public void testLookupJoinBeforeRemoteEnrichRejectedAfterEql() {
+        String err = error(eqlAnalyzer().query("""
+            EQL eql_test "process where true"
+            | EVAL language_code = TO_INT(pid / 100)
+            | LOOKUP JOIN languages_lookup ON language_code
+            | ENRICH _remote:languages ON language_code
+            """));
+        assertThat(
+            err,
+            containsString("3:3: LOOKUP JOIN with remote indices can't be executed after [EQL eql_test \"process where true\"]@1:1")
+        );
+    }
+
+    public void testRemoteEnrichAllowedAfterCoordinatorOnlyPlanInWhereInSubquery() {
+        assumeTrue("requires WHERE IN subqueries", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
+        var testAnalyzer = analyzer().addDefaultIndex()
+            .addEnrichPolicy(Enrich.Mode.REMOTE, MATCH_TYPE, "languages", "language_code", "languages_idx", "mapping-languages.json");
+        optimize(testAnalyzer.query("""
+            FROM test
+            | WHERE languages IN (FROM test | STATS c = COUNT(*) BY languages | KEEP languages)
+            | EVAL language_code = languages
+            | ENRICH _remote:languages ON language_code
+            """));
+    }
+
+    public void testRemoteEnrichRejectedAfterEqlFilteredByWhereInSubquery() {
+        assumeTrue("requires WHERE IN subqueries", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
+        String err = error(eqlAnalyzer().addDefaultIndex().query("""
+            EQL eql_test "process where true"
+            | EVAL languages = TO_INT(pid / 100)
+            | WHERE languages IN (FROM test | KEEP languages)
+            | EVAL language_code = languages
+            | ENRICH _remote:languages ON language_code
+            """));
+        assertThat(
+            err,
+            containsString(
+                "5:3: ENRICH with remote policy can't be executed after [EQL eql_test \"process where true\"]@1:1"
+                    + "; the EQL source command returns its events to the coordinating node and is incompatible with remote ENRICH"
+            )
+        );
+    }
+
+    public void testRemoteEnrichRejectedAfterCoordinatorOnlyPlanFilteredByWhereInSubquery() {
+        assumeTrue("requires WHERE IN subqueries", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
+        var testAnalyzer = analyzer().addDefaultIndex()
+            .addEnrichPolicy(Enrich.Mode.REMOTE, MATCH_TYPE, "languages", "language_code", "languages_idx", "mapping-languages.json");
+        String err = error(testAnalyzer.query("""
+            FROM test
+            | STATS c = COUNT(*) BY languages
+            | WHERE c IN (FROM test | EVAL c = TO_LONG(languages) | KEEP c)
+            | EVAL language_code = languages
+            | ENRICH _remote:languages ON language_code
+            """));
+        assertThat(err, containsString("5:3: ENRICH with remote policy can't be executed after [STATS c = COUNT(*) BY languages]@2:3"));
+    }
+
+    public void testLookupJoinAfterEqlIsRemoteWhenWhereInSubqueryReadsRemoteIndices() {
+        assumeTrue("requires WHERE IN subqueries", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
+        String err = error(eqlAnalyzer().addIndex("test,remote:test", "mapping-default.json").query("""
+            EQL eql_test "process where true"
+            | EVAL language_code = TO_INT(pid / 100)
+            | WHERE language_code IN (FROM test,remote:test | KEEP languages)
+            | LOOKUP JOIN languages_lookup ON language_code
+            """));
+        assertThat(
+            err,
+            containsString("4:3: LOOKUP JOIN with remote indices can't be executed after [EQL eql_test \"process where true\"]@1:1")
+        );
+    }
+
+    private TestAnalyzer eqlAnalyzer() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+        return analyzer().addIndex("eql_test", "mapping-eql_test.json")
+            .addLanguagesLookup()
+            .addEnrichPolicy(Enrich.Mode.REMOTE, MATCH_TYPE, "languages", "language_code", "languages_idx", "mapping-languages.json");
+    }
+
     public void testEmbeddingLiteralValues() {
         assumeTrue("Embedding function must be enabled", EsqlCapabilities.Cap.EMBEDDING_FUNCTION.isEnabled());
 

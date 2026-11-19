@@ -825,6 +825,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
                 SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
                 stripeSize,
                 StripeColumnScope.PROJECTED,
+                FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
                 false // not the file's final split, so the trailing chunk anchors no right grid line
             );
             try (outer) {
@@ -1353,6 +1354,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             -1L,
             StripeColumnScope.PROJECTED,
+            FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
             false,
             metrics
         );
@@ -2565,6 +2567,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
                 SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
                 -1L,
                 StripeColumnScope.PROJECTED,
+                FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
                 true,
                 ExternalSourceMetrics.NOOP,
                 null,

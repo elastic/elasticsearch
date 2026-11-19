@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 
 import java.util.List;
 import java.util.Map;
@@ -49,7 +50,7 @@ public class TextFormatStatsTests extends ESTestCase {
     );
 
     public void testAKeywordExtremumWiderThanTheLimitIsWithheldAndItsCountsSurvive() {
-        BytesRef wide = keyword(TextFormatStats.MAX_EXTREMUM_BYTES + 1);
+        BytesRef wide = keyword(FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES + 1);
 
         Map<String, Object> published = publish(1, Map.of("k", new ExternalStats.ColumnStats(0, 1, wide, wide)));
 
@@ -68,14 +69,14 @@ public class TextFormatStatsTests extends ESTestCase {
 
     /**
      * The limit is bytes, not characters, and an ASCII fixture cannot tell the two apart. A value of
-     * {@code MAX_EXTREMUM_BYTES / 2 + 1} two-byte characters is under the limit counted in characters and over
+     * {@code DEFAULT_MAX_EXTREMUM_BYTES / 2 + 1} two-byte characters is under the limit counted in characters and over
      * it counted in bytes, so it withholds only if the predicate reads {@link BytesRef#length}.
      */
     public void testTheLimitIsBytesNotCharacters() {
-        int chars = TextFormatStats.MAX_EXTREMUM_BYTES / 2 + 1;
+        int chars = FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES / 2 + 1;
         BytesRef twoByteChars = new BytesRef("\u00e9".repeat(chars));
         assertEquals("the fixture must be over the limit in bytes", 2 * chars, twoByteChars.length);
-        assertThat("and under it in characters", chars, lessThanOrEqualTo(TextFormatStats.MAX_EXTREMUM_BYTES));
+        assertThat("and under it in characters", chars, lessThanOrEqualTo(FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES));
 
         Map<String, Object> published = publish(1, Map.of("k", new ExternalStats.ColumnStats(0, 1, twoByteChars, twoByteChars)));
 
@@ -128,8 +129,35 @@ public class TextFormatStatsTests extends ESTestCase {
         assertEquals("an encoded address is under the limit", address, SourceStatisticsSerializer.extractColumnMax(published, "ip"));
     }
 
+    /**
+     * The width is {@code esql.external.cache.stats.max_extremum_size}, not a constant. The same value is
+     * published at the default and withheld under a narrower setting, so the setting is what decides.
+     */
+    public void testANarrowerWidthWithholdsWhatTheDefaultPublishes() {
+        BytesRef value = keyword(64);
+
+        Map<String, Object> atDefault = publish(1, Map.of("k", new ExternalStats.ColumnStats(0, 1, value, value)));
+        assertEquals("64 bytes is well under the default", value, SourceStatisticsSerializer.extractColumnMin(atDefault, "k"));
+
+        Map<String, Object> narrowed = publish(1, Map.of("k", new ExternalStats.ColumnStats(0, 1, value, value)), 32);
+        assertNull("the same value is withheld once the width is 32 bytes", SourceStatisticsSerializer.extractColumnMin(narrowed, "k"));
+        assertNull("both ends go", SourceStatisticsSerializer.extractColumnMax(narrowed, "k"));
+        assertEquals("the counts are untouched", (Long) 1L, SourceStatisticsSerializer.extractColumnValueCount(narrowed, "k"));
+    }
+
+    /** Zero is a meaningful setting rather than "unset": it withholds every text extremum and keeps the counts. */
+    public void testAZeroWidthWithholdsEveryTextExtremum() {
+        BytesRef shortest = keyword(1);
+
+        Map<String, Object> published = publish(1, Map.of("k", new ExternalStats.ColumnStats(0, 1, shortest, shortest)), 0);
+
+        assertNull("a one-byte value is wider than zero", SourceStatisticsSerializer.extractColumnMin(published, "k"));
+        assertNull("a one-byte value is wider than zero", SourceStatisticsSerializer.extractColumnMax(published, "k"));
+        assertEquals("the row count still publishes", 1L, published.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+    }
+
     public void testAnExtremumAtTheWidthLimitIsPublished() {
-        BytesRef widest = keyword(TextFormatStats.MAX_EXTREMUM_BYTES);
+        BytesRef widest = keyword(FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES);
 
         Map<String, Object> published = publish(1, Map.of("k", new ExternalStats.ColumnStats(0, 1, widest, widest)));
 
@@ -140,7 +168,7 @@ public class TextFormatStatsTests extends ESTestCase {
     /** The limit is a width, not a type: a narrow keyword beside a wide one in the same record keeps its extrema. */
     public void testTheLimitAppliesPerExtremumNotPerRead() {
         BytesRef narrow = keyword(8);
-        BytesRef wide = keyword(TextFormatStats.MAX_EXTREMUM_BYTES + 1);
+        BytesRef wide = keyword(FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES + 1);
 
         Map<String, Object> published = publish(
             2,
@@ -167,7 +195,7 @@ public class TextFormatStatsTests extends ESTestCase {
      */
     public void testAFoldOverAWithheldExtremumIsUnservable() {
         BytesRef narrow = keyword(8);
-        BytesRef wide = keyword(TextFormatStats.MAX_EXTREMUM_BYTES + 1);
+        BytesRef wide = keyword(FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES + 1);
 
         Map<String, Object> publishing = publish(1, Map.of("k", new ExternalStats.ColumnStats(0, 1, narrow, narrow)));
         Map<String, Object> withholding = publish(1, Map.of("k", new ExternalStats.ColumnStats(0, 1, wide, wide)));
@@ -200,7 +228,7 @@ public class TextFormatStatsTests extends ESTestCase {
     public void testTheFoldPoisonsOnlyTheWithheldEndOfAColumn() {
         BytesRef lower = new BytesRef("aaaa");
         BytesRef higher = new BytesRef("mmmm");
-        BytesRef wide = keyword(TextFormatStats.MAX_EXTREMUM_BYTES + 1);
+        BytesRef wide = keyword(FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES + 1);
 
         Map<String, Object> oneSided = publish(1, Map.of("k", new ExternalStats.ColumnStats(0, 1, lower, wide)));
         Map<String, Object> bothEnds = publish(1, Map.of("k", new ExternalStats.ColumnStats(0, 1, higher, higher)));
@@ -233,7 +261,7 @@ public class TextFormatStatsTests extends ESTestCase {
         List<Attribute> schema = List.of(attribute("n", DataType.LONG), attribute("k", DataType.KEYWORD));
 
         harvest(staging, schema, 0, 512, false, 1L, new BytesRef("a"));
-        harvest(staging, schema, 512, 1024, true, 2L, keyword(TextFormatStats.MAX_EXTREMUM_BYTES + 1));
+        harvest(staging, schema, 512, 1024, true, 2L, keyword(FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES + 1));
 
         Map<String, Object> record = sink.get(PATH).get(0);
         assertNull("the published extremum is not the stripe's", SourceStatisticsSerializer.extractColumnMax(record, "k"));
@@ -264,10 +292,14 @@ public class TextFormatStatsTests extends ESTestCase {
 
     /** The flat {@code _stats.*} map a text read publishes for one record of {@code rowCount} rows. */
     private static Map<String, Object> publish(long rowCount, Map<String, ExternalStats.ColumnStats> columns) {
+        return publish(rowCount, columns, FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES);
+    }
+
+    private static Map<String, Object> publish(long rowCount, Map<String, ExternalStats.ColumnStats> columns, int maxExtremumBytes) {
         ExternalStats.Stats stats = new ExternalStats.Stats(rowCount, OptionalLong.empty(), columns);
         return SourceStatisticsSerializer.embedStatistics(
             Map.of(),
-            TextFormatStats.build(Optional.of(stats), OptionalLong.empty(), SCHEMA)
+            TextFormatStats.build(Optional.of(stats), OptionalLong.empty(), SCHEMA, maxExtremumBytes)
         );
     }
 

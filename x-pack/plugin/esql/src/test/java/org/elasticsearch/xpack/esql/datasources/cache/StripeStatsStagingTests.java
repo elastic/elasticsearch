@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.SplitStats;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StripeStatsSink;
 
@@ -471,8 +472,8 @@ public class StripeStatsStagingTests extends ESTestCase {
         chunk(staging, 1024, true, 0, 1024, row(0, 1L, "a"), new Row(16, null, null));
         chunk(staging, 2048, true, MTIME, null, false, 0, 2048, row(0, 5L, "q"));
         chunk(staging, 4096, true, MTIME, "", true, 0, 4096, new Row(0, null, null));
-        // One bound narrow, the other withheld for width.
-        chunk(staging, 8192, true, 0, 8192, row(0, 9L, "a"), row(16, 11L, "z".repeat(TextFormatStats.MAX_EXTREMUM_BYTES + 1)));
+        // One end narrow, the other withheld for width.
+        chunk(staging, 8192, true, 0, 8192, row(0, 9L, "a"), row(16, 11L, "z".repeat(FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES + 1)));
 
         List<Map<String, Object>> records = staged(sink);
         assertEquals("each read staged its own stripe", 4, records.size());
@@ -535,7 +536,7 @@ public class StripeStatsStagingTests extends ESTestCase {
         chunk(staging, 1024, true, 0, 1024, row(0, 1L, "a"));
         chunk(staging, 2048, true, MTIME, null, false, 0, 2048, row(0, 5L, "q"));
         chunk(staging, 4096, true, MTIME, "", true, 0, 4096, new Row(0, null, null));
-        chunk(staging, 8192, true, 0, 8192, row(0, 9L, "a"), row(16, 11L, "z".repeat(TextFormatStats.MAX_EXTREMUM_BYTES + 1)));
+        chunk(staging, 8192, true, 0, 8192, row(0, 9L, "a"), row(16, 11L, "z".repeat(FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES + 1)));
 
         List<Map<String, Object>> records = staged(sink);
         assertEquals("each read staged its own stripe", 4, records.size());

@@ -11,6 +11,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 
 import java.util.List;
@@ -178,6 +179,32 @@ public final class ExternalSourceCacheSettings {
     );
 
     /**
+     * The widest text extremum a line-oriented read publishes. A staged record copies both extrema of every
+     * harvested column into itself at whatever width the data has, so one long value in a column sets the
+     * size of every record that column appears in -- and an extremum big enough to push the whole
+     * measurement past the statistics store's per-entry ceiling takes the row count and every other column
+     * down with it, leaving that file with no statistics at all. Past this width a read publishes the
+     * column's counts and no extremum, and {@code MIN}/{@code MAX} over it is answered by a scan.
+     * <p>
+     * Only the line-oriented readers consult it. A columnar format derives its extrema from the footer and
+     * never passes through {@link TextFormatStats}.
+     * <p>
+     * Unlike {@link #STRIPE_SIZE} this does NOT participate in stripe identity, so changing it does not
+     * invalidate anything: a cached wide extremum is a TRUE extremum, and the cap is about footprint rather
+     * than correctness. Lowering it leaves wider extrema already in the store served until their entries
+     * turn over; raising it leaves columns withheld under the old width answered by a scan until the same.
+     * Restart-only for the reason {@link #STRIPE_COLUMNS} is: its consumer reads it from the node's startup
+     * {@code Settings}, so declaring it Dynamic would accept a runtime update and silently never observe it.
+     */
+    public static final Setting<ByteSizeValue> STATS_MAX_EXTREMUM_SIZE = Setting.byteSizeSetting(
+        "esql.external.cache.stats.max_extremum_size",
+        ByteSizeValue.ofBytes(FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES),
+        ByteSizeValue.ZERO,
+        ByteSizeValue.ofMb(1),
+        Setting.Property.NodeScope
+    );
+
+    /**
      * Rejects a non-positive footer cache budget at settings-parse time. Both footer caches are
      * built lazily, when a format reader is first constructed, so without this the node would
      * accept {@code 0b}/{@code 0%} at startup and only fail on the first Parquet or ORC query.
@@ -298,6 +325,7 @@ public final class ExternalSourceCacheSettings {
             LISTING_TTL_OLD,
             STRIPE_SIZE,
             STRIPE_COLUMNS,
+            STATS_MAX_EXTREMUM_SIZE,
             FOOTER_CACHE_SIZE,
             FOOTER_PARSED_CACHE_SIZE,
             FOOTER_CACHE_TTL,

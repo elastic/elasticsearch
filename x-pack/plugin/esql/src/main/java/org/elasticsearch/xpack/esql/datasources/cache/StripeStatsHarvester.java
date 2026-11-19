@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources.cache;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StripeStatsSink;
 
@@ -83,6 +84,8 @@ public final class StripeStatsHarvester {
      * own piece of every stripe it overlapped, which is what the staging area exists to stop.
      */
     private final StripeStatsSink staging;
+    /** The widest text extremum this read publishes; see {@code esql.external.cache.stats.max_extremum_size}. */
+    private final int maxExtremumBytes;
     /** Per-stripe accumulators keyed by ordinal; the emit loop reads them by byte-range geometry. */
     private final TreeMap<Long, StripeAccum> stripeAccums = new TreeMap<>();
 
@@ -91,9 +94,14 @@ public final class StripeStatsHarvester {
     }
 
     public StripeStatsHarvester(long stripeSize, boolean fileFinal, StripeStatsSink staging) {
+        this(stripeSize, fileFinal, staging, FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES);
+    }
+
+    public StripeStatsHarvester(long stripeSize, boolean fileFinal, StripeStatsSink staging, int maxExtremumBytes) {
         this.stripeSize = stripeSize;
         this.fileFinal = fileFinal;
         this.staging = staging;
+        this.maxExtremumBytes = maxExtremumBytes;
     }
 
     /** Stripe ordinal a record starting at {@code recordStartOffset} is attributed to. */
@@ -251,12 +259,16 @@ public final class StripeStatsHarvester {
                     TextFormatStats.build(
                         Optional.of(new ExternalStats.Stats(rows, OptionalLong.empty(), cols)),
                         OptionalLong.empty(),
-                        schema
+                        schema,
+                        maxExtremumBytes
                     )
                 );
                 continue;
             }
-            ExternalStatsCapture.record(sourceLocation, flatten(identity, ordinal, start, end, atStart, atEnd, eof, rows, cols, schema));
+            ExternalStatsCapture.record(
+                sourceLocation,
+                flatten(identity, ordinal, start, end, atStart, atEnd, eof, rows, cols, schema, maxExtremumBytes)
+            );
         }
     }
 
@@ -275,10 +287,11 @@ public final class StripeStatsHarvester {
         boolean eof,
         long rows,
         Map<String, ExternalStats.ColumnStats> cols,
-        List<Attribute> schema
+        List<Attribute> schema,
+        int maxExtremumBytes
     ) {
         ExternalStats.Stats statsRecord = new ExternalStats.Stats(rows, OptionalLong.empty(), cols);
-        SourceStatistics sourceStats = TextFormatStats.build(Optional.of(statsRecord), OptionalLong.empty(), schema);
+        SourceStatistics sourceStats = TextFormatStats.build(Optional.of(statsRecord), OptionalLong.empty(), schema, maxExtremumBytes);
         return flatten(identity, ordinal, start, end, atStart, atEnd, eof, sourceStats);
     }
 

@@ -30,18 +30,20 @@ import java.util.OptionalLong;
 public final class TextFormatStats {
 
     /**
-     * The widest text extremum a read publishes, in bytes. Every contribution a scan stages, and every record
-     * the statistics store keeps, carries a copy of both extrema of every harvested column, so without a limit
-     * one long value in each column sets the size of all of them.
+     * The cap is applied once, where a measurement becomes a published record. {@link #harvested} is handed a
+     * harvest that already went through {@link #build}, so it has nothing left to withhold and says so with
+     * this rather than re-reading the setting -- two application points could carry two different widths, and
+     * a record counts its entries and writes them from the same statistics.
      */
-    static final int MAX_EXTREMUM_BYTES = 1024;
+    private static final int ALREADY_CAPPED = Integer.MAX_VALUE;
 
     private TextFormatStats() {}
 
     public static SourceStatistics build(
         Optional<ExternalStats.Stats> cachedStats,
         OptionalLong lengthDerivedSizeInBytes,
-        List<Attribute> schema
+        List<Attribute> schema,
+        int maxExtremumBytes
     ) {
         OptionalLong rowCount;
         OptionalLong sizeInBytes;
@@ -50,7 +52,7 @@ public final class TextFormatStats {
             ExternalStats.Stats s = cachedStats.get();
             rowCount = OptionalLong.of(s.rowCount());
             sizeInBytes = lengthDerivedSizeInBytes.isPresent() ? lengthDerivedSizeInBytes : s.bytesRead();
-            columns = buildColumns(s.columns(), schema);
+            columns = buildColumns(s.columns(), schema, maxExtremumBytes);
         } else {
             rowCount = OptionalLong.empty();
             sizeInBytes = lengthDerivedSizeInBytes;
@@ -69,7 +71,7 @@ public final class TextFormatStats {
     static SourceStatistics harvested(long rowCount, Map<String, ExternalStats.ColumnStats> columns) {
         Map<String, SourceStatistics.ColumnStatistics> cols = new HashMap<>();
         for (Map.Entry<String, ExternalStats.ColumnStats> entry : columns.entrySet()) {
-            cols.put(entry.getKey(), toSpi(entry.getValue()));
+            cols.put(entry.getKey(), toSpi(entry.getValue(), ALREADY_CAPPED));
         }
         return statistics(OptionalLong.of(rowCount), OptionalLong.empty(), cols);
     }
@@ -102,7 +104,8 @@ public final class TextFormatStats {
 
     private static Map<String, SourceStatistics.ColumnStatistics> buildColumns(
         Map<String, ExternalStats.ColumnStats> cached,
-        List<Attribute> schema
+        List<Attribute> schema,
+        int maxExtremumBytes
     ) {
         if (cached.isEmpty() || schema == null || schema.isEmpty()) {
             return Map.of();
@@ -116,12 +119,12 @@ public final class TextFormatStats {
             if (cs == null) {
                 continue;
             }
-            out.put(a.name(), toSpi(cs));
+            out.put(a.name(), toSpi(cs, maxExtremumBytes));
         }
         return out;
     }
 
-    private static SourceStatistics.ColumnStatistics toSpi(ExternalStats.ColumnStats cs) {
+    private static SourceStatistics.ColumnStatistics toSpi(ExternalStats.ColumnStats cs, int maxExtremumBytes) {
         return new SourceStatistics.ColumnStatistics() {
             @Override
             public OptionalLong nullCount() {
@@ -140,18 +143,18 @@ public final class TextFormatStats {
 
             @Override
             public Optional<Object> minValue() {
-                return Optional.ofNullable(publishable(cs.min()));
+                return Optional.ofNullable(publishable(cs.min(), maxExtremumBytes));
             }
 
             @Override
             public Optional<Object> maxValue() {
-                return Optional.ofNullable(publishable(cs.max()));
+                return Optional.ofNullable(publishable(cs.max(), maxExtremumBytes));
             }
         };
     }
 
     /**
-     * {@code extremum}, or {@code null} when it is wider than {@link #MAX_EXTREMUM_BYTES}. The limit is on
+     * {@code extremum}, or {@code null} when it is wider than {@code maxExtremumBytes}. The limit is on
      * the stored {@link BytesRef}, so it covers {@code KEYWORD}, {@code TEXT} and {@code IP} alike; an
      * address is 16 bytes and never reaches it. Counts are unaffected, and so is the other end of the same
      * column — a withheld end is answered by a scan, and a fold marks that end unservable rather than
@@ -162,9 +165,9 @@ public final class TextFormatStats {
      * {@code SourceStatisticsSerializer}'s flat map, which does not come through here. So a wide extremum
      * already in the store is served until its entry turns over.
      */
-    static Object publishable(Object extremum) {
+    static Object publishable(Object extremum, int maxExtremumBytes) {
         assert extremum instanceof CharSequence == false
             : "a text extremum must reach the cap as a BytesRef; [" + extremum.getClass().getName() + "] would pass uncapped";
-        return extremum instanceof BytesRef bytes && bytes.length > MAX_EXTREMUM_BYTES ? null : extremum;
+        return extremum instanceof BytesRef bytes && bytes.length > maxExtremumBytes ? null : extremum;
     }
 }

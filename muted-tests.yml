@@ -88,7 +88,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   tasks:
   - :x-pack:plugin:esql:qa:server:single-node:generativeTests
-  - :x-pack:plugin:esql:qa:server:single-node:javaRestTest
   method: test {feature:UNMAPPED_FIELDS_LOAD}
   issue: https://github.com/elastic/elasticsearch/issues/148619
 - class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobContainerRetriesTests

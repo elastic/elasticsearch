@@ -12,13 +12,19 @@ import fixture.s3.S3ConsistencyModel;
 import fixture.s3.S3HttpFixture;
 import fixture.s3.S3HttpHandler;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import com.sun.net.httpserver.HttpHandler;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.junit.Before;
@@ -32,6 +38,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -42,8 +50,9 @@ import static fixture.aws.AwsFixtureUtils.sendError;
 /**
  * A freshly minted access key can 403 {@code InvalidAccessKeyId} until IAM has propagated it.
  * The S3 SDK Standard strategy retries that code; a permission denial ({@code AccessDenied}) still
- * fails on the first attempt.
+ * fails on the first attempt. Async range reads use the same strategy outside the SDK client.
  */
+@ThreadLeakFilters(filters = { S3StorageObjectAsyncTests.DelaySchedulerThreadFilter.class })
 public class S3CredentialPropagationRetryTests extends ESTestCase {
 
     private static final String ACCESS_KEY = "test-access-key";
@@ -88,6 +97,49 @@ public class S3CredentialPropagationRetryTests extends ESTestCase {
         assertEquals(List.of("file.csv"), names);
         assertEquals(2, s3Fixture.requests().size());
         assertTrue(s3Fixture.requests().stream().allMatch(r -> r.startsWith("LIST ")));
+    }
+
+    public void testAsyncRangeReadRetriesOneInvalidAccessKeyId() throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<DirectReadBuffer> result = new AtomicReference<>();
+        AtomicReference<Exception> error = new AtomicReference<>();
+        DirectBufferFactory factory = DirectBufferFactory.forBreaker(NoopCircuitBreaker.INSTANCE);
+        StoragePath path = StoragePath.of("s3://" + BUCKET + "/" + KEY);
+        try (S3StorageProvider provider = new S3StorageProvider(config())) {
+            Releasable cancel = provider.newObject(path, BODY.length)
+                .startReadBytesAsync(0, BODY.length, factory, Runnable::run, new ActionListener<>() {
+                    @Override
+                    public void onResponse(DirectReadBuffer buffer) {
+                        result.set(buffer);
+                        latch.countDown();
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        error.set(e);
+                        latch.countDown();
+                    }
+                });
+            boolean settled = false;
+            try {
+                settled = latch.await(30, TimeUnit.SECONDS);
+                assertTrue("async range read never settled", settled);
+            } finally {
+                if (settled == false) {
+                    cancel.close();
+                }
+            }
+        }
+        if (error.get() != null) {
+            throw new AssertionError("async range read failed", error.get());
+        }
+        try (DirectReadBuffer buf = result.get()) {
+            assertNotNull(buf);
+            byte[] got = new byte[buf.buffer().remaining()];
+            buf.buffer().get(got);
+            assertArrayEquals(BODY, got);
+        }
+        assertEquals(List.of(getRequest(), getRequest()), s3Fixture.requests());
     }
 
     public void testAccessDeniedIsNotRetried() throws IOException {

@@ -12,6 +12,7 @@ package org.elasticsearch.index.shard;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
@@ -23,6 +24,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
+import org.elasticsearch.telemetry.metric.MetricAttributes;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Collection;
@@ -33,6 +35,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 /**
  * Checks that a node passes its real meter registry down to every shard, so flush failures reach APM. Which failures are counted is
@@ -77,7 +80,19 @@ public class FlushMetricsIT extends ESIntegTestCase {
         }
 
         final List<Measurement> measurements = plugin.getLongCounterMeasurement(FlushMetrics.FLUSH_FAILURE_TOTAL);
-        assertThat(measurements.stream().mapToLong(Measurement::getLong).sum(), equalTo(1L));
+        assertThat(measurements, hasSize(1));
+        assertThat(measurements.getFirst().getLong(), equalTo(1L));
+        assertThat(
+            measurements.getFirst().attributes(),
+            equalTo(
+                Map.of(
+                    MetricAttributes.ES_INDEX_MODE,
+                    IndexMode.STANDARD.getName(),
+                    MetricAttributes.ERROR_TYPE,
+                    IllegalStateException.class.getSimpleName()
+                )
+            )
+        );
     }
 
     /**

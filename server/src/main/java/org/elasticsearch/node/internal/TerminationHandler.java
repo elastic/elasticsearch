@@ -23,9 +23,29 @@ package org.elasticsearch.node.internal;
 public interface TerminationHandler {
 
     /**
-     * The method which is called when the node is signalled to shut down. This method should block until the node is ready to shut down.
+     * Whether the node is confirmed safe to shut down once {@link #handleTermination()} returns.
      */
-    void handleTermination();
+    enum Outcome {
+        /**
+         * The cluster confirmed that the node's work, such as its shards, is safe to serve elsewhere. The node can then stop
+         * accepting new work that a peer can retry elsewhere, and drain the work it already accepted.
+         */
+        READY,
+        /**
+         * Anything short of {@link #READY}: the confirmation failed, timed out or was never obtained. The node then only waits for
+         * the work in flight, without turning new work away.
+         */
+        NOT_READY
+    }
+
+    /**
+     * The method which is called when the node is signalled to shut down. This method should block until the node is ready to shut down,
+     * or until it gives up waiting.
+     *
+     * @return {@link Outcome#READY} only if the node is confirmed safe to shut down, {@link Outcome#NOT_READY} otherwise. A handler
+     *         that throws is treated as {@link Outcome#NOT_READY}.
+     */
+    Outcome handleTermination();
 
     /**
      * Block termination of this node.

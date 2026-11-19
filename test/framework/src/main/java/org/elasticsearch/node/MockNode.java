@@ -297,7 +297,8 @@ public class MockNode extends Node {
                     httpServerTransport,
                     transportService,
                     terminationHandler,
-                    actionsToAwaitOnShutdown(pluginsService)
+                    actionsToAwaitOnShutdown(pluginsService),
+                    drainsOnShutdown(pluginsService)
                 );
             }
             return super.newShutdownPrepareService(pluginsService, settings, httpServerTransport, transportService, terminationHandler);

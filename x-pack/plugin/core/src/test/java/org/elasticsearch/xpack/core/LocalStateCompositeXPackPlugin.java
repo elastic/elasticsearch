@@ -14,6 +14,8 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.action.support.RefCountingListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -738,5 +740,22 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
     @Override
     public Collection<String> getActionsToAwaitOnShutdown() {
         return filterPlugins(ShutdownAwarePlugin.class).stream().flatMap(plugin -> plugin.getActionsToAwaitOnShutdown().stream()).toList();
+    }
+
+    @Override
+    public SubscribableListener<Void> startDrainOnShutdown() {
+        final var drained = new SubscribableListener<Void>();
+        try (var listeners = new RefCountingListener(drained)) {
+            for (var plugin : filterPlugins(ShutdownAwarePlugin.class)) {
+                // a plugin that fails to start its drain must not keep the others from starting theirs
+                final var pluginDrained = listeners.acquire();
+                try {
+                    plugin.startDrainOnShutdown().addListener(pluginDrained);
+                } catch (Exception e) {
+                    pluginDrained.onFailure(e);
+                }
+            }
+        }
+        return drained;
     }
 }

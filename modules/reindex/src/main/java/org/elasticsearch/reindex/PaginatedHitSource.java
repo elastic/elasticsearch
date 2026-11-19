@@ -206,6 +206,7 @@ public abstract class PaginatedHitSource {
         private final boolean timedOut;
         private final List<PaginatedSearchFailure> failures;
         private final long totalHits;
+        // hits and searchAfterValues are mutable but not volatile: they're only read and written on the worker thread.
         private List<? extends Hit> hits;
         private final String scrollId;
         private Object[] searchAfterValues;

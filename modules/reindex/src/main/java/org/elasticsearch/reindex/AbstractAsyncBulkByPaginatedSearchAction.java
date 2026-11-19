@@ -1895,9 +1895,11 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
          * keep its hits reachable. Call only once every hit has been consumed and released.
          */
         void dropHits() {
-            // Swap the list before resetting the offset so a concurrent reader never sees a stale list with a fresh offset.
+            // Leave consumedOffset alone. remainingHits() reads hits.size() and then consumedOffset, so resetting the offset
+            // could pair the old list with a zero offset, which looks like hits remain and would stop
+            // releaseChargeWhenNothingRemains closing the page charge. With the old offset kept, both the old list and the
+            // empty list report nothing remaining. doReleaseRemainingHits is then a no-op as well.
             hits = List.of();
-            consumedOffset = 0;
             asyncResponse.response().dropHits();
         }
 

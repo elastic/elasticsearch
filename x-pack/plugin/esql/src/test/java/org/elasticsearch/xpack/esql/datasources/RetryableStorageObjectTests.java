@@ -2026,6 +2026,56 @@ public class RetryableStorageObjectTests extends ESTestCase {
     }
 
     /**
+     * {@code newStream()} open-retry sleep ignored {@code aborted}: iterator close could sit out a
+     * 30s throttle hop with no GET in flight. Same composition resume already uses.
+     */
+    public void testNewStreamOpenBackoffAbortsWhenObjectClosed() throws Exception {
+        assertOpenBackoffWakesOnClose(RetryableStorageObject::newStream);
+    }
+
+    /** Same as {@link #testNewStreamOpenBackoffAbortsWhenObjectClosed} for the ranged open. */
+    public void testRangeNewStreamOpenBackoffAbortsWhenObjectClosed() throws Exception {
+        assertOpenBackoffWakesOnClose(obj -> obj.newStream(0, 100));
+    }
+
+    private void assertOpenBackoffWakesOnClose(OpenCall open) throws Exception {
+        RetryPolicy policy = new RetryPolicy(0, 0, 0, 10, 30_000, 30_000, RetryPolicy.NO_BUDGET, null);
+        AlwaysFailingStorageObject delegate = new AlwaysFailingStorageObject(
+            StoragePath.of("s3://bucket/key"),
+            new ExternalUnavailableException(Condition.STORE_THROTTLED, StoragePath.NONE, "", "", true, 0L)
+        );
+        RetryableStorageObject obj = new RetryableStorageObject(delegate, policy);
+        AtomicReference<Exception> error = new AtomicReference<>();
+        Thread opener = new Thread(() -> {
+            try {
+                open.call(obj);
+            } catch (Exception e) {
+                error.set(e);
+            }
+        }, "retryable-close-during-open-backoff");
+        opener.start();
+        try {
+            assertBusy(() -> assertEquals(Thread.State.TIMED_WAITING, opener.getState()));
+            long startNanos = System.nanoTime();
+            obj.close();
+            opener.join(TimeUnit.SECONDS.toMillis(5));
+            long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
+            assertFalse("object close must wake open-retry backoff, not sleep the 30s hop", opener.isAlive());
+            assertThat(elapsedMs, lessThan(5_000L));
+            assertThat(error.get(), instanceOf(IOException.class));
+            assertThat(error.get().getMessage(), containsString("read aborted"));
+        } finally {
+            opener.interrupt();
+            opener.join(TimeUnit.SECONDS.toMillis(5));
+        }
+    }
+
+    @FunctionalInterface
+    private interface OpenCall {
+        InputStream call(RetryableStorageObject obj) throws IOException;
+    }
+
+    /**
      * A stream that drops repeatedly but makes progress each time is <em>not</em> stuck: the budget resets
      * on every byte delivered, so it re-opens as many times as needed and completes byte-exact. This is the
      * realistic "flaky connection over a large object" case.

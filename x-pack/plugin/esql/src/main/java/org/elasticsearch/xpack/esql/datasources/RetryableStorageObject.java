@@ -220,14 +220,7 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
         // otherwise treat as a hard error. Local file reads surface plain IOExceptions and are intentionally NOT
         // typed: a local-disk read fault is a genuine hard error, not a transient transport drop. In production
         // the decompressor sits ABOVE this layer, so a resume re-opens the (length-bearing) compressed bytes.
-        InputStream initial = retryPolicy.execute(
-            this::openOrAbort,
-            "newStream",
-            delegate.path(),
-            retryCounters::addRetry,
-            storageTelemetry
-        );
-        return new ResumingInputStream(initial, 0, READ_TO_END);
+        return new ResumingInputStream(openWithRetry(this::openOrAbort, "newStream"), 0, READ_TO_END);
     }
 
     @Override
@@ -236,14 +229,7 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
         // re-opens the remaining byte range and resumes — byte-exact, governed by the same RetryPolicy.
         // This is the path text segments and parquet row-groups/footers read through, so closing the
         // mid-read gap here makes every format resilient without per-format code.
-        InputStream initial = retryPolicy.execute(
-            () -> openOrAbort(position, length),
-            "newStream(range)",
-            delegate.path(),
-            retryCounters::addRetry,
-            storageTelemetry
-        );
-        return new ResumingInputStream(initial, position, length);
+        return new ResumingInputStream(openWithRetry(() -> openOrAbort(position, length), "newStream(range)"), position, length);
     }
 
     @Override
@@ -334,6 +320,27 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
     public void close() throws IOException {
         aborted = true;
         delegate.close();
+    }
+
+    /**
+     * Runs the open-retry loop with {@link #aborted} composed into the ambient cancel signal so
+     * {@link RetryPolicy#execute} backoff (up to 30s throttle) wakes on {@link #close()} the same
+     * way {@link ResumingInputStream} already does. Query cancel still surfaces as
+     * {@link TaskCancelledException}; object close maps to {@code read aborted}.
+     */
+    private InputStream openWithRetry(RetryPolicy.IOSupplier<InputStream> open, String operationName) throws IOException {
+        BooleanSupplier previous = StorageRetryCancellation.current();
+        try {
+            return StorageRetryCancellation.callWithCancellation(
+                () -> aborted || (previous != null && previous.getAsBoolean()),
+                () -> retryPolicy.execute(open, operationName, delegate.path(), retryCounters::addRetry, storageTelemetry)
+            );
+        } catch (TaskCancelledException tce) {
+            if (aborted) {
+                throw new IOException("read aborted", tce);
+            }
+            throw tce;
+        }
     }
 
     private InputStream openOrAbort() throws IOException {

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.ml.datafeed.extractor.esql;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
@@ -22,19 +21,14 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.esql.EsqlParserTestSupport;
 import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryParser;
-import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.Date;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -136,67 +130,34 @@ public class EsqlDataExtractorFactoryTests extends ESTestCase {
         assertThat(extractor.getContext().projectRouting(), equalTo("_alias:_origin"));
     }
 
-    public void testCreateShouldInvokeListenerWithEsqlFactory() {
-        Job job = buildJob("job-1", TIME_FIELD, null);
-        DatafeedConfig datafeed = buildDatafeed("datafeed-1", "job-1", null, null);
-
-        AtomicReference<DataExtractorFactory> onResponse = new AtomicReference<>();
-        AtomicBoolean onFailureCalled = new AtomicBoolean(false);
-        ActionListener<DataExtractorFactory> listener = ActionListener.wrap(onResponse::set, e -> onFailureCalled.set(true));
-
-        EsqlDataExtractorFactory.create(client, datafeed, job, timingStatsReporter, PARSER, listener);
-
-        assertThat(onFailureCalled.get(), is(false));
-        assertThat(onResponse.get(), instanceOf(EsqlDataExtractorFactory.class));
-        EsqlDataExtractorFactory factory = (EsqlDataExtractorFactory) onResponse.get();
-        assertThat(factory.client(), equalTo(client));
-        assertThat(factory.datafeed(), equalTo(datafeed));
-        assertThat(factory.job(), equalTo(job));
-        assertThat(factory.timingStatsReporter(), equalTo(timingStatsReporter));
-    }
-
-    public void testInvalidQueryShouldFailFactoryCreation() {
-        Job job = buildJob("job-1", TIME_FIELD, null);
+    public void testInvalidQueryShouldFailQueryParsing() {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed-1", "job-1");
         builder.setEsqlQuery("FROM logs | NOT_A_COMMAND x");
         builder.setSourceTimeField(SOURCE_TIME_FIELD);
         builder.setGroupingInterval(TimeValue.timeValueMinutes(1));
-        AtomicReference<Exception> failure = new AtomicReference<>();
 
-        EsqlDataExtractorFactory.create(
-            client,
-            builder.build(),
-            job,
-            timingStatsReporter,
-            PARSER,
-            ActionListener.wrap(f -> fail("expected a parse failure"), failure::set)
+        ElasticsearchException failure = expectThrows(
+            ElasticsearchException.class,
+            () -> EsqlDatafeedQuery.forDatafeed(PARSER, builder.build())
         );
 
-        assertThat(failure.get(), instanceOf(ElasticsearchException.class));
-        assertThat(((ElasticsearchException) failure.get()).status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(failure.status(), equalTo(RestStatus.BAD_REQUEST));
     }
 
-    public void testNonUtcTimeZoneInQueryShouldFailFactoryCreation() {
-        Job job = buildJob("job-1", TIME_FIELD, null);
+    public void testNonUtcTimeZoneInQueryShouldFailQueryParsing() {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed-1", "job-1");
         // A saved or inline-preview query reaches the factory without the PUT check.
         builder.setEsqlQuery("SET time_zone=\"Europe/Berlin\"; FROM logs");
         builder.setSourceTimeField(SOURCE_TIME_FIELD);
         builder.setGroupingInterval(TimeValue.timeValueMinutes(1));
-        AtomicReference<Exception> failure = new AtomicReference<>();
 
-        EsqlDataExtractorFactory.create(
-            client,
-            builder.build(),
-            job,
-            timingStatsReporter,
-            PARSER,
-            ActionListener.wrap(f -> fail("expected a time zone failure"), failure::set)
+        ElasticsearchException failure = expectThrows(
+            ElasticsearchException.class,
+            () -> EsqlDatafeedQuery.forDatafeed(PARSER, builder.build())
         );
 
-        assertThat(failure.get(), instanceOf(ElasticsearchException.class));
-        assertThat(((ElasticsearchException) failure.get()).status(), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(failure.get().getMessage(), containsString("UTC"));
+        assertThat(failure.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(failure.getMessage(), containsString("UTC"));
     }
 
     private static Job buildJob(String jobId, String timeField, String summaryCountFieldName) {

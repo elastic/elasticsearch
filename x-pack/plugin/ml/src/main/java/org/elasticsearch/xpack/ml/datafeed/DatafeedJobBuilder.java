@@ -105,12 +105,15 @@ public class DatafeedJobBuilder {
     }
 
     /** The latest record time to resume after, or {@code -1} if no record has been processed. */
-    private long latestRecordTimeMs(DatafeedConfig datafeedConfig, @Nullable Long latestRecordTimeMs) {
+    private static long latestRecordTimeMs(
+        DatafeedConfig datafeedConfig,
+        @Nullable EsqlDatafeedQuery esqlQuery,
+        @Nullable Long latestRecordTimeMs
+    ) {
         if (latestRecordTimeMs == null) {
             return -1;
         }
-        if (datafeedConfig.getEsqlQuery() != null
-            && EsqlDatafeedQuery.parse(esqlQueryParser, datafeedConfig.getEsqlQuery()).hasAggregation()) {
+        if (esqlQuery != null && esqlQuery.hasAggregation()) {
             // Aggregating ES|QL emits bucket-floor timestamps; {@link ChunkedDataExtractorFactory} floors the window start on
             // restart, so advance past the last fully emitted grouping bucket. Raw {@code FROM} rows keep source timestamps.
             return latestRecordTimeMs + datafeedConfig.getGroupingInterval().millis() - 1;
@@ -125,9 +128,11 @@ public class DatafeedJobBuilder {
         final long latestFinalBucketEndMs = context.restartTimeInfo().getLatestFinalBucketTimeMs() == null
             ? -1
             : context.restartTimeInfo().getLatestFinalBucketTimeMs() + job.getAnalysisConfig().getBucketSpan().millis() - 1;
+        final EsqlDatafeedQuery esqlQuery;
         final long latestRecordTimeMs;
         try {
-            latestRecordTimeMs = latestRecordTimeMs(datafeedConfig, context.restartTimeInfo().getLatestRecordTimeMs());
+            esqlQuery = EsqlDatafeedQuery.forDatafeed(esqlQueryParser, datafeedConfig);
+            latestRecordTimeMs = latestRecordTimeMs(datafeedConfig, esqlQuery, context.restartTimeInfo().getLatestRecordTimeMs());
         } catch (Exception e) {
             listener.onFailure(e);
             return;
@@ -192,7 +197,7 @@ public class DatafeedJobBuilder {
             xContentRegistry,
             timingStatsReporter,
             searchTelemetry,
-            esqlQueryParser,
+            esqlQuery,
             dataExtractorFactoryHandler
         );
     }
@@ -212,9 +217,11 @@ public class DatafeedJobBuilder {
         final long latestFinalBucketEndMs = context.restartTimeInfo().getLatestFinalBucketTimeMs() == null
             ? -1
             : context.restartTimeInfo().getLatestFinalBucketTimeMs() + job.getAnalysisConfig().getBucketSpan().millis() - 1;
+        final EsqlDatafeedQuery esqlQuery;
         final long latestRecordTimeMs;
         try {
-            latestRecordTimeMs = latestRecordTimeMs(datafeedConfig, context.restartTimeInfo().getLatestRecordTimeMs());
+            esqlQuery = EsqlDatafeedQuery.forDatafeed(esqlQueryParser, datafeedConfig);
+            latestRecordTimeMs = latestRecordTimeMs(datafeedConfig, esqlQuery, context.restartTimeInfo().getLatestRecordTimeMs());
         } catch (Exception e) {
             listener.onFailure(e);
             return;

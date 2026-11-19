@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryParser;
 import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryWithParams;
-import org.elasticsearch.xpack.ml.datafeed.esql.spi.ParsedEsqlQuery;
 
 import java.time.DateTimeException;
 import java.util.Iterator;
@@ -128,7 +127,7 @@ public class EsqlDatafeedQueryValidator {
             return;
         }
         warnForOuterLimit(datafeedId, query, summaryCountField != null);
-        String limitZeroQuery = EsqlDatafeedQuery.limitZeroQuery(esqlQuery);
+        EsqlQueryWithParams limitZeroQuery = query.limitZeroQuery();
 
         ActionListener<EsqlQueryResponse> responseListener = ActionListener.wrap(response -> {
             try {
@@ -149,7 +148,7 @@ public class EsqlDatafeedQueryValidator {
             }
         });
 
-        executeEsqlQueryAsync(client, limitZeroQuery, headers, projectRouting, List.of(), responseListener);
+        executeEsqlQueryAsync(client, limitZeroQuery.query(), headers, projectRouting, limitZeroQuery.params(), responseListener);
     }
 
     /**
@@ -204,7 +203,7 @@ public class EsqlDatafeedQueryValidator {
         if (esqlQuery == null) {
             return;
         }
-        ParsedEsqlQuery query = EsqlDatafeedQuery.parseWithoutViewCheck(parser, esqlQuery).parsed();
+        EsqlDatafeedQuery query = EsqlDatafeedQuery.parseWithoutViewCheck(parser, esqlQuery);
         if (crossProjectEnabled) {
             return;
         }
@@ -233,7 +232,7 @@ public class EsqlDatafeedQueryValidator {
     private void checkSourceTimeFieldType(List<? extends ColumnInfo> columns, String sourceTimeField, @Nullable String datafeedId) {
         // KEEP probe returns the one requested column or fails before a response (validateSourceTimeField onFailure).
         String outputType = columns.isEmpty() ? null : columns.get(0).outputType();
-        if (outputType == null || EsqlColumnTypes.isDate(outputType) == false) {
+        if (EsqlDatafeedColumnValues.isDateColumnType(outputType) == false) {
             throw new IllegalArgumentException(
                 Messages.getMessage(
                     Messages.DATAFEED_ESQL_SOURCE_TIME_FIELD_NOT_DATE,
@@ -302,7 +301,14 @@ public class EsqlDatafeedQueryValidator {
         ActionListener<Void> listener,
         @Nullable String datafeedId
     ) {
-        String limitZeroQuery = EsqlDatafeedQuery.limitZeroQuery(esqlQuery);
+        EsqlQueryWithParams limitZeroQuery;
+        try {
+            // No view check yet, for the reason given in validateQuery.
+            limitZeroQuery = EsqlDatafeedQuery.parseWithoutViewCheck(parser, esqlQuery).limitZeroQuery();
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
 
         ActionListener<EsqlQueryResponse> responseListener = ActionListener.wrap(response -> {
             try {
@@ -334,7 +340,7 @@ public class EsqlDatafeedQueryValidator {
             }
         });
 
-        executeEsqlQueryAsync(client, limitZeroQuery, headers, projectRouting, List.of(), responseListener);
+        executeEsqlQueryAsync(client, limitZeroQuery.query(), headers, projectRouting, limitZeroQuery.params(), responseListener);
     }
 
     static void validateEmittedTimesInSourceWindow(
@@ -346,7 +352,7 @@ public class EsqlDatafeedQueryValidator {
         long sourceWindowEnd
     ) {
         int emittedTimeColumnIndex = indexOfColumn(columns, emittedTimeField);
-        boolean emittedTimeIsDate = EsqlColumnTypes.isDate(columns.get(emittedTimeColumnIndex).outputType());
+        boolean emittedTimeIsDate = EsqlDatafeedColumnValues.isDateColumnType(columns.get(emittedTimeColumnIndex).outputType());
         for (Iterable<Object> row : rows) {
             validateEmittedTimeValueInSourceWindow(
                 jobId,

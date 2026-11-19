@@ -31,7 +31,7 @@ class EsqlToJsonProcessor implements Releasable {
         this.outputStream = Objects.requireNonNull(outputStream);
         this.isDateColumn = new boolean[columns.size()];
         for (int i = 0; i < columns.size(); i++) {
-            isDateColumn[i] = EsqlColumnTypes.isDate(columns.get(i).outputType());
+            isDateColumn[i] = EsqlDatafeedColumnValues.isDateColumnType(columns.get(i).outputType());
         }
         this.jsonBuilder = new XContentBuilder(JsonXContent.jsonXContent, outputStream);
     }

@@ -12,11 +12,11 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import static org.hamcrest.Matchers.is;
 
-public class EsqlColumnTypesTests extends ESTestCase {
+public class EsqlDatafeedColumnValuesTests extends ESTestCase {
 
     public void testIsDateShouldAgreeWithEsqlDataTypes() {
         for (DataType type : DataType.values()) {
-            assertThat(type.typeName(), EsqlColumnTypes.isDate(type.outputType()), is(type.isDate()));
+            assertThat(type.typeName(), EsqlDatafeedColumnValues.isDateColumnType(type.outputType()), is(type.isDate()));
         }
     }
 }

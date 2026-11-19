@@ -153,6 +153,6 @@ public class EsqlDatafeedQueryTests extends ESTestCase {
     }
 
     public void testLimitZeroQueryShouldAppendOnNewLine() {
-        assertThat(EsqlDatafeedQuery.limitZeroQuery("FROM logs // c"), equalTo("FROM logs // c\n| LIMIT 0"));
+        assertThat(parse("FROM logs // c").limitZeroQuery().query(), equalTo("FROM logs // c\n| LIMIT 0"));
     }
 }

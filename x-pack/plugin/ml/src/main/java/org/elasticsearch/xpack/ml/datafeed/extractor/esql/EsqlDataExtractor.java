@@ -187,8 +187,8 @@ public class EsqlDataExtractor implements DataExtractor {
 
     private DataSummary parseSummaryResponse(EsqlResponse response) {
         List<? extends ColumnInfo> columns = response.columns();
-        boolean earliestIsDate = columns.isEmpty() == false && EsqlColumnTypes.isDate(columns.get(0).outputType());
-        boolean latestIsDate = columns.size() > 1 && EsqlColumnTypes.isDate(columns.get(1).outputType());
+        boolean earliestIsDate = columns.isEmpty() == false && EsqlDatafeedColumnValues.isDateColumnType(columns.get(0).outputType());
+        boolean latestIsDate = columns.size() > 1 && EsqlDatafeedColumnValues.isDateColumnType(columns.get(1).outputType());
         var rowIterator = response.rows().iterator();
         if (rowIterator.hasNext() == false) {
             return new DataSummary(null, null, 0L);

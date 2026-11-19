@@ -7,16 +7,14 @@
 
 package org.elasticsearch.xpack.ml.datafeed.extractor.esql;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
-import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryParser;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 
-/** Builds extractors for one ES|QL datafeed; the query is parsed once, when the factory is created. */
+/** Builds extractors for one ES|QL datafeed; the query is parsed once by the caller. */
 public record EsqlDataExtractorFactory(
     Client client,
     DatafeedConfig datafeed,
@@ -24,24 +22,6 @@ public record EsqlDataExtractorFactory(
     DatafeedTimingStatsReporter timingStatsReporter,
     EsqlDatafeedQuery query
 ) implements DataExtractorFactory {
-
-    public static void create(
-        Client client,
-        DatafeedConfig datafeed,
-        Job job,
-        DatafeedTimingStatsReporter timingStatsReporter,
-        EsqlQueryParser parser,
-        ActionListener<DataExtractorFactory> factoryHandler
-    ) {
-        EsqlDatafeedQuery query;
-        try {
-            query = EsqlDatafeedQuery.parse(parser, datafeed.getEsqlQuery());
-        } catch (Exception e) {
-            factoryHandler.onFailure(e);
-            return;
-        }
-        factoryHandler.onResponse(new EsqlDataExtractorFactory(client, datafeed, job, timingStatsReporter, query));
-    }
 
     @Override
     public DataExtractor newExtractor(long start, long end) {

@@ -82,6 +82,7 @@ import static org.elasticsearch.xpack.stateless.cache.SearchRecoveryWarmingTestU
 import static org.elasticsearch.xpack.stateless.cache.SearchRecoveryWarmingTestUtils.initializingSearchReplica;
 import static org.elasticsearch.xpack.stateless.cache.SearchRecoveryWarmingTestUtils.mockIndexShard;
 import static org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.totalBytesToWarm;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -157,6 +158,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
                 SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_FILTER_SOURCE_SHARDS_BY_TARGET_SETTING,
                 SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING,
                 SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING,
+                SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_SHARE_SLOTS_WITH_SHUTTING_DOWN_NODES_SETTING,
                 SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_IGNORE_NON_SEARCH_NODE_SHUTDOWNS_SETTING
             )
         );
@@ -644,7 +646,17 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
      */
     public void testSearchRecoveryReevaluationSwitchesToShutdownTimeoutWhenAnotherClusterNodeStartsShuttingDown() {
         try (var threadPool = new TestThreadPool(getTestName(), StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true))) {
-            final var service = newCalculationService(threadPool);
+            // the data nodes throttle the relocations, which is when the slots of the target can be shared, and the sharing is off
+            final var clusterSettings = newClusterSettings(
+                Settings.builder()
+                    .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 2)
+                    .put(
+                        SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_SHARE_SLOTS_WITH_SHUTTING_DOWN_NODES_SETTING.getKey(),
+                        false
+                    )
+                    .build()
+            );
+            final var service = newCalculationService(threadPool, clusterSettings, 0L);
             final ClusterState stateWithoutShutdown = ClusterStateCreationUtils.state(
                 DEFAULT_PROJECT_ID,
                 "test",
@@ -686,11 +698,29 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
                     )
                 )
             );
+            // slot sharing is off, so the shard simply waits for the with-shutdown timeout
             assertThat(
                 reevaluatedPlan.timeoutContext(),
                 equalTo(TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_CLUSTER_SHUTDOWN_METADATA_PRESENT)
             );
             assertThat(reevaluatedPlan.extendable(), is(true));
+
+            // once enabled, the target has enough free relocation slots for the shutting-down node, so the shard is not squeezed
+            clusterSettings.applySettings(
+                Settings.builder()
+                    .put(
+                        SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_SHARE_SLOTS_WITH_SHUTTING_DOWN_NODES_SETTING.getKey(),
+                        true
+                    )
+                    .build()
+            );
+            final var slotSharingPlan = service.searchRecoveryTimeout(stateWithOtherNodeShutdown, mockIndexShard(self), 0L, null);
+            assertThat(slotSharingPlan.timeout(), equalTo(reevaluatedPlan.timeout()));
+            assertThat(
+                slotSharingPlan.timeoutContext(),
+                equalTo(TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_SLOTS_AVAILABLE)
+            );
+            assertThat(slotSharingPlan.extendable(), is(true));
         }
     }
 
@@ -1147,6 +1177,8 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
         final var reshardTarget = TimeoutContext.RESHARD_SPLIT_TARGET;
         final var noShutdown = TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_NO_CLUSTER_SHUTDOWN;
         final var metadataPresent = TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_CLUSTER_SHUTDOWN_METADATA_PRESENT;
+        final var slotsAvailable = TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_SLOTS_AVAILABLE;
+        final var otherNodeEqualShare = TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_EQUAL_SHARE;
         final var graceElapsed = TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_GRACE_ELAPSED;
         final var dataVolume = TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_DATA_VOLUME;
         final var warmAmount = TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_WARM_AMOUNT;
@@ -1159,24 +1191,74 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             // extends, including the first data-volume or warm-amount plan
             anotherActiveCopy,
             Tuple.tuple(
-                EnumSet.of(anotherActiveCopy, noShutdown, metadataPresent, dataVolume, warmAmount, equalShare),
+                EnumSet.of(
+                    anotherActiveCopy,
+                    noShutdown,
+                    metadataPresent,
+                    slotsAvailable,
+                    otherNodeEqualShare,
+                    dataVolume,
+                    warmAmount,
+                    equalShare
+                ),
                 EnumSet.of(reshardTarget, graceElapsed, skip)
             ),
             noShutdown,
             Tuple.tuple(
-                EnumSet.of(anotherActiveCopy, noShutdown, metadataPresent, dataVolume, warmAmount, equalShare),
+                EnumSet.of(
+                    anotherActiveCopy,
+                    noShutdown,
+                    metadataPresent,
+                    slotsAvailable,
+                    otherNodeEqualShare,
+                    dataVolume,
+                    warmAmount,
+                    equalShare
+                ),
                 EnumSet.of(reshardTarget, graceElapsed, skip)
             ),
-            // staying in "metadata present" does not extend again
+            // staying in "metadata present" does not extend again, and a data-volume plan is only handed out as the first plan, so it does
+            // not follow the equal-share plan. The data-volume plan itself is not extendable, so it is not listed as a previous plan
             metadataPresent,
             Tuple.tuple(
-                EnumSet.of(anotherActiveCopy, noShutdown, dataVolume, warmAmount, equalShare),
+                EnumSet.of(anotherActiveCopy, noShutdown, slotsAvailable, otherNodeEqualShare, dataVolume, warmAmount, equalShare),
                 EnumSet.of(reshardTarget, metadataPresent, graceElapsed, skip)
+            ),
+            // when no other shard queues behind this one, the plan behaves like "no shutdown" as the previous plan
+            slotsAvailable,
+            Tuple.tuple(
+                EnumSet.of(
+                    anotherActiveCopy,
+                    noShutdown,
+                    metadataPresent,
+                    slotsAvailable,
+                    otherNodeEqualShare,
+                    dataVolume,
+                    warmAmount,
+                    equalShare
+                ),
+                EnumSet.of(reshardTarget, graceElapsed, skip)
+            ),
+            // the shards competing with the shutting-down node's ones were budgeted by the previous plan, which the calculation takes into
+            // account, so any plan may follow it, as it may follow a plan without a shutdown involved
+            otherNodeEqualShare,
+            Tuple.tuple(
+                EnumSet.of(
+                    anotherActiveCopy,
+                    noShutdown,
+                    metadataPresent,
+                    slotsAvailable,
+                    otherNodeEqualShare,
+                    dataVolume,
+                    warmAmount,
+                    equalShare
+                ),
+                EnumSet.of(reshardTarget, graceElapsed, skip)
             ),
             // within the shutdown phase only time saved by finished shards is handed out; a data-volume or warm-amount plan never follows
             equalShare,
             Tuple.tuple(
-                EnumSet.of(anotherActiveCopy, noShutdown, metadataPresent, equalShare),
+                EnumSet.of(anotherActiveCopy, noShutdown, metadataPresent, slotsAvailable, otherNodeEqualShare, equalShare),
                 EnumSet.of(reshardTarget, dataVolume, warmAmount, graceElapsed, skip)
             )
         );
@@ -2793,6 +2875,452 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
                 equalTo(Math.round(remaining / (double) numShards * shareFactor * numToTarget))
             );
         }
+    }
+
+    /// Builds a cluster state where shard 0 relocates from `healthy-source`, which is not shutting down, to `target-node`,
+    /// while `pendingShards` other search shards are still STARTED on the shutting-down `shutting-node`, which is marked for REMOVE
+    /// since `shutdownStartedAtMillis`.
+    private static ClusterState clusterStateRelocationWithOtherNodeShuttingDown(
+        int pendingShards,
+        Index index,
+        long shutdownStartedAtMillis
+    ) {
+        return clusterStateRelocationWithOtherNodesShuttingDown(
+            index,
+            List.of(new ShuttingDownNode("shutting-node", pendingShards, shutdownStartedAtMillis))
+        );
+    }
+
+    /// A node marked for REMOVE since `startedAtMillis`, with `pendingShards` search shards still STARTED on it.
+    private record ShuttingDownNode(String nodeId, int pendingShards, long startedAtMillis) {}
+
+    /// Like [#clusterStateRelocationWithOtherNodeShuttingDown], with several shutting-down nodes, which may have different deadlines.
+    private static ClusterState clusterStateRelocationWithOtherNodesShuttingDown(Index index, List<ShuttingDownNode> shuttingDownNodes) {
+        final String primaryNodeId = "primary-node";
+        final String masterNodeId = "master-node";
+        final int numShards = 1 + shuttingDownNodes.stream().mapToInt(ShuttingDownNode::pendingShards).sum();
+        final IndexMetadata indexMetadata = IndexMetadata.builder(index.getName())
+            .settings(indexSettings(IndexVersion.current(), index.getUUID(), numShards, 1))
+            .build();
+        final IndexRoutingTable.Builder routingBuilder = IndexRoutingTable.builder(index);
+        // shard 0 relocates, then the pending shards of each shutting-down node follow one after another
+        final List<String> pendingShardNodeIds = new ArrayList<>();
+        for (ShuttingDownNode shuttingDownNode : shuttingDownNodes) {
+            for (int i = 0; i < shuttingDownNode.pendingShards(); i++) {
+                pendingShardNodeIds.add(shuttingDownNode.nodeId());
+            }
+        }
+        for (int s = 0; s < numShards; s++) {
+            final ShardId sid = new ShardId(index, s);
+            final ShardRouting primary = TestShardRouting.shardRoutingBuilder(sid, primaryNodeId, true, STARTED)
+                .withRole(ShardRouting.Role.INDEX_ONLY)
+                .build();
+            final ShardRouting searchShard = s == 0
+                ? TestShardRouting.shardRoutingBuilder(sid, "healthy-source", false, RELOCATING)
+                    .withRelocatingNodeId("target-node")
+                    .withRole(ShardRouting.Role.SEARCH_ONLY)
+                    .build()
+                : TestShardRouting.shardRoutingBuilder(sid, pendingShardNodeIds.get(s - 1), false, STARTED)
+                    .withRole(ShardRouting.Role.SEARCH_ONLY)
+                    .build();
+            routingBuilder.addIndexShard(new IndexShardRoutingTable.Builder(sid).addShard(primary).addShard(searchShard));
+        }
+        final Map<String, SingleNodeShutdownMetadata> shutdowns = new HashMap<>();
+        final DiscoveryNodes.Builder nodes = DiscoveryNodes.builder()
+            .add(DiscoveryNodeUtils.create(masterNodeId))
+            .masterNodeId(masterNodeId)
+            .localNodeId(masterNodeId)
+            .add(DiscoveryNodeUtils.create(primaryNodeId))
+            .add(DiscoveryNodeUtils.create("healthy-source"))
+            .add(DiscoveryNodeUtils.create("target-node"));
+        for (ShuttingDownNode shuttingDownNode : shuttingDownNodes) {
+            nodes.add(DiscoveryNodeUtils.create(shuttingDownNode.nodeId()));
+            shutdowns.put(
+                shuttingDownNode.nodeId(),
+                SingleNodeShutdownMetadata.builder()
+                    .setNodeId(shuttingDownNode.nodeId())
+                    .setType(SingleNodeShutdownMetadata.Type.REMOVE)
+                    .setReason("SearchRecoveryTimeoutCalculationServiceTests")
+                    .setStartedAtMillis(shuttingDownNode.startedAtMillis())
+                    .setNodeSeen(true)
+                    .build()
+            );
+        }
+        return ClusterState.builder(new ClusterName("test"))
+            .nodes(nodes.build())
+            .metadata(
+                Metadata.builder()
+                    .putCustom(NodesShutdownMetadata.TYPE, new NodesShutdownMetadata(shutdowns))
+                    .put(ProjectMetadata.builder(DEFAULT_PROJECT_ID).put(indexMetadata, false))
+                    .build()
+            )
+            .routingTable(GlobalRoutingTable.builder().put(DEFAULT_PROJECT_ID, RoutingTable.builder().add(routingBuilder).build()).build())
+            .build();
+    }
+
+    /// An early deadline of a single shard must not squeeze the time of the many shards with a later one. Node A has 1 pending shard and
+    /// 4s left, node B 5 pending shards and 8s left, the limit is 2 concurrent relocations. Taking the earliest deadline for all the 7
+    /// competing shards would give `4s / 7 * 2 ≈ 1.1s`. Per deadline: A gives `4s / 2 * 2 = 4s`, B gives `8s / 7 * 2 ≈ 2.3s`, and the
+    /// tightest of them decides. A deadline that has passed is skipped.
+    public void testRelocationWithOtherNodeShutdownChecksEachGraceDeadline() {
+        try (
+            var threadPool = new FakeTimeThreadPool(
+                getTestName(),
+                randomNonNegativeLong() / 2,
+                StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true)
+            )
+        ) {
+            final var service = newCalculationService(threadPool, otherNodeShutdownSettings(), 1000L);
+            final long shutdownStartedAtMillis = randomLongBetween(1, 100_000);
+            threadPool.setCurrentTimeInMillis(shutdownStartedAtMillis);
+            final long now = threadPool.absoluteTimeInMillis();
+            final var index = new Index("idx", randomUUID());
+            // the grace cap is 10s: the deadline of the early node is `now + 6s` and the one of the late node `now + 10s`
+            final var state = clusterStateRelocationWithOtherNodesShuttingDown(
+                index,
+                List.of(new ShuttingDownNode("early-node", 1, now - 4000), new ShuttingDownNode("late-node", 5, now))
+            );
+            final var self = mockIndexShard(selfOfOtherNodeShutdown(state, index));
+            threadPool.setCurrentTimeInMillis(shutdownStartedAtMillis + 2000);
+
+            final var plan = service.searchRecoveryTimeout(state, self, 0L, null);
+            assertThat(plan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_EQUAL_SHARE));
+            // equal share for the late node deadline: 8s / (1 + 5 + 1) * 2 slots
+            assertThat(plan.timeout().millis(), equalTo(Math.round(8000 / 7.0 * 2)));
+
+            // once the early deadline has passed it is skipped, but its shard still competes for the target with the late node's shards
+            threadPool.setCurrentTimeInMillis(shutdownStartedAtMillis + 6500);
+            final var afterEarlyDeadline = service.searchRecoveryTimeout(state, self, 0L, null);
+            assertThat(afterEarlyDeadline.timeout().millis(), equalTo(Math.round(3500 / 7.0 * 2)));
+        }
+    }
+
+    /// A relocation from a source that is not shutting down while another node shuts down: the target accepts 2 incoming recoveries,
+    /// and this shard and the one pending shard of the shutting-down node fit in them concurrently, so nobody queues and the shard keeps
+    /// the full relocation-with-shutdown timeout.
+    public void testRelocationWithOtherNodeShutdownKeepsFullTimeoutWhenSlotsAreAvailable() {
+        try (
+            var threadPool = new FakeTimeThreadPool(
+                getTestName(),
+                randomNonNegativeLong() / 2,
+                StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true)
+            )
+        ) {
+            final var service = newCalculationService(threadPool, otherNodeShutdownSettings(), 1000L);
+            final var index = new Index("idx", randomUUID());
+            final var state = clusterStateRelocationWithOtherNodeShuttingDown(1, index, threadPool.absoluteTimeInMillis());
+
+            final var plan = service.searchRecoveryTimeout(state, mockIndexShard(selfOfOtherNodeShutdown(state, index)), 1000L, null);
+            assertThat(plan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_SLOTS_AVAILABLE));
+            assertThat(
+                plan.timeout(),
+                equalTo(
+                    SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_WITH_SHUTDOWN_SETTING.getDefault(
+                        Settings.EMPTY
+                    )
+                )
+            );
+            assertThat(plan.extendable(), is(true));
+        }
+    }
+
+    /// With 3 search shards pending on the shutting-down node, this shard and a limit of 2 concurrent relocations, the 4 competing shards
+    /// share the time left until the grace deadline (8s of the 10s cap), 2 at a time: equal share = 8s / 4 * 2 = 4s. The shard waits for
+    /// that share however much data it has to warm, as a longer wait would take slots that the shards of the shutting-down node need.
+    public void testRelocationWithOtherNodeShutdownSharesFreeSlotsWhenSlotsAreScarce() {
+        try (
+            var threadPool = new FakeTimeThreadPool(
+                getTestName(),
+                randomNonNegativeLong() / 2,
+                StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true)
+            )
+        ) {
+            final var service = newCalculationService(threadPool, otherNodeShutdownSettings(), 1000L);
+            final long shutdownStartedAtMillis = randomLongBetween(1, 100_000);
+            threadPool.setCurrentTimeInMillis(shutdownStartedAtMillis);
+            final var index = new Index("idx", randomUUID());
+            final var state = clusterStateRelocationWithOtherNodeShuttingDown(3, index, threadPool.absoluteTimeInMillis());
+            final var self = mockIndexShard(selfOfOtherNodeShutdown(state, index));
+            threadPool.setCurrentTimeInMillis(shutdownStartedAtMillis + 2000);
+
+            // a shard with nothing to warm, a shard with a part of the warming cache budget and one with all of it wait for the same share
+            for (final long bytesToWarm : List.of(0L, 150L, 500L)) {
+                final var plan = service.searchRecoveryTimeout(state, self, bytesToWarm, null);
+                assertThat(plan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_EQUAL_SHARE));
+                assertThat(plan.timeout().millis(), equalTo(4000L));
+            }
+        }
+    }
+
+    /// The equal share is waited for in full, so a big shard gets more than the relocation-with-shutdown timeout (60s) when the slots
+    /// allow it, but never more than the equal share: it would take slots that the shards of the shutting-down node need. With a 10m
+    /// grace period, 5 shards pending on the shutting-down node and a limit of 2 the equal share is `600s / 6 * 2 = 200s`, for a shard
+    /// needing 150 of the 500 bytes warming cache budget as well, and the plan can be extended when the slots get free.
+    public void testRelocationWithOtherNodeShutdownWaitsForTheWholeEqualShareAndNoLonger() {
+        try (
+            var threadPool = new FakeTimeThreadPool(
+                getTestName(),
+                randomNonNegativeLong() / 2,
+                StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true)
+            )
+        ) {
+            final var settings = Settings.builder()
+                .put(otherNodeShutdownSettings())
+                .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING.getKey(), "10m")
+                .build();
+            final long shutdownStartedAtMillis = randomLongBetween(1, 100_000);
+            threadPool.setCurrentTimeInMillis(shutdownStartedAtMillis);
+            final var index = new Index("idx", randomUUID());
+            final var state = clusterStateRelocationWithOtherNodeShuttingDown(5, index, threadPool.absoluteTimeInMillis());
+            final var self = mockIndexShard(selfOfOtherNodeShutdown(state, index));
+
+            final var service = newCalculationService(threadPool, settings, 1000L);
+            for (final long bytesToWarm : List.of(0L, 150L, 500L)) {
+                final var plan = service.searchRecoveryTimeout(state, self, bytesToWarm, null);
+                assertThat(plan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_EQUAL_SHARE));
+                assertThat(plan.timeout(), equalTo(TimeValue.timeValueSeconds(200)));
+                assertThat(plan.extendable(), is(true));
+            }
+        }
+    }
+
+    /// A big shard does not get more than the equal share while the shards of the shutting-down node still compete for the slots. Once
+    /// they are through and everything fits in the slots, the re-evaluation after the equal share extends the wait.
+    public void testRelocationWithOtherNodeShutdownExtendsTheWaitOnceTheSlotsGetFree() {
+        try (
+            var threadPool = new FakeTimeThreadPool(
+                getTestName(),
+                randomNonNegativeLong() / 2,
+                StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true)
+            )
+        ) {
+            final var settings = Settings.builder()
+                .put(otherNodeShutdownSettings())
+                .put(reevaluationSettings(true, TimeValue.timeValueMinutes(10), TimeValue.timeValueMillis(300)))
+                .build();
+            final var service = newCalculationService(threadPool, settings, 1000L);
+            final long shutdownStartedAtMillis = randomLongBetween(1, 100_000);
+            threadPool.setCurrentTimeInMillis(shutdownStartedAtMillis);
+            final var index = new Index("idx", randomUUID());
+            // 3 pending shards compete with this one for 2 slots: equal share = 8s / 4 * 2 = 4s
+            final var competing = clusterStateRelocationWithOtherNodeShuttingDown(3, index, threadPool.absoluteTimeInMillis());
+            final var self = mockIndexShard(selfOfOtherNodeShutdown(competing, index));
+            threadPool.setCurrentTimeInMillis(shutdownStartedAtMillis + 2000);
+            final long bytesToWarm = 500L;
+
+            final var firstPlan = service.searchRecoveryTimeout(competing, self, bytesToWarm, null);
+            assertThat(firstPlan.timeout().millis(), equalTo(4000L));
+            assertThat(firstPlan.extendable(), is(true));
+
+            // the equal share has passed and the shards of the shutting-down node still compete: no more time for this shard
+            threadPool.setCurrentTimeInMillis(shutdownStartedAtMillis + 6000);
+            final var elapsed = firstPlan.timeout();
+            assertThat(
+                service.extendedTimeout(competing, self, bytesToWarm, 0L, firstPlan, elapsed),
+                equalTo(SearchRecoveryTimeout.skip())
+            );
+
+            // all but one of the shutting-down node's shards are through: this shard and that one fit in the 2 slots
+            final var free = clusterStateRelocationWithOtherNodeShuttingDown(1, index, shutdownStartedAtMillis);
+            final var extended = service.extendedTimeout(free, self, bytesToWarm, 0L, firstPlan, elapsed);
+            assertThat(extended.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_SLOTS_AVAILABLE));
+            assertThat(
+                extended.timeout(),
+                equalTo(
+                    SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_WITH_SHUTDOWN_SETTING.getDefault(
+                        Settings.EMPTY
+                    )
+                )
+            );
+        }
+    }
+
+    /// A re-evaluation of the equal share extends the wait by the time saved by the shards of the shutting-down node that finished earlier
+    /// than planned. With a 10m grace period, 5 shards pending on the shutting-down node and 2 slots, the first plan waits
+    /// `600s / 6 * 2 = 200s` and budgets every competing shard `600s / 6 = 100s`. After those 200s a plan expects 1 shard (one fewer than
+    /// the slots, as this shard holds one) to have finished; only when more of them did, the fresh per-shard share is above the budgeted
+    /// one and the difference, for the 2 slots, is the extension. Otherwise there is nothing to extend by, and handing out a fresh equal
+    /// share instead would add up to the whole time left.
+    public void testRelocationWithOtherNodeShutdownExtendsByTheTimeSavedByFinishedShards() {
+        try (
+            var threadPool = new FakeTimeThreadPool(
+                getTestName(),
+                randomNonNegativeLong() / 2,
+                StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true)
+            )
+        ) {
+            final var settings = Settings.builder()
+                .put(otherNodeShutdownSettings())
+                .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING.getKey(), "10m")
+                .put(reevaluationSettings(true, TimeValue.timeValueMinutes(10), TimeValue.timeValueMillis(300)))
+                .build();
+            final var service = newCalculationService(threadPool, settings, 1000L);
+            final long shutdownStartedAtMillis = randomLongBetween(1, 100_000);
+            threadPool.setCurrentTimeInMillis(shutdownStartedAtMillis);
+            final long shutdownStartedAt = threadPool.absoluteTimeInMillis();
+            final var index = new Index("idx", randomUUID());
+            final var firstState = clusterStateRelocationWithOtherNodeShuttingDown(5, index, shutdownStartedAt);
+            final var self = mockIndexShard(selfOfOtherNodeShutdown(firstState, index));
+            final var firstPlan = service.searchRecoveryTimeout(firstState, self, 0L, null);
+            assertThat(firstPlan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_EQUAL_SHARE));
+            assertThat(firstPlan.timeout(), equalTo(TimeValue.timeValueSeconds(200)));
+            assertThat(firstPlan.perShardShareMs(), closeTo(100_000.0, 1e-6));
+
+            threadPool.setCurrentTimeInMillis(shutdownStartedAtMillis + 200_000);
+            final var elapsed = firstPlan.timeout();
+            // none, the one expected, or one more than that finished: the fresh share is not above the budgeted one
+            for (final int pendingShards : List.of(5, 4, 3)) {
+                final var state = clusterStateRelocationWithOtherNodeShuttingDown(pendingShards, index, shutdownStartedAt);
+                assertThat(
+                    "pending shards: " + pendingShards,
+                    service.extendedTimeout(state, self, 0L, 0L, firstPlan, elapsed),
+                    equalTo(SearchRecoveryTimeout.skip())
+                );
+            }
+
+            // 3 of the 5 finished: 400s left for this shard and 2 pending ones, `400s / 3 - 100s = 33.3s` per slot, for 2 slots
+            final var state = clusterStateRelocationWithOtherNodeShuttingDown(2, index, shutdownStartedAt);
+            final var extended = service.extendedTimeout(state, self, 0L, 0L, firstPlan, elapsed);
+            assertThat(extended.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_EQUAL_SHARE));
+            assertThat(extended.timeout().millis(), equalTo(Math.round((400_000 / 3.0 - 100_000) * 2)));
+            assertThat(extended.perShardShareMs(), closeTo(400_000 / 3.0, 1e-6));
+        }
+    }
+
+    /// A plan that does not budget a per-shard share, such as the plain timeout, leaves nothing to compare the fresh share to: the equal
+    /// share is handed out as for a first plan.
+    public void testRelocationWithOtherNodeShutdownComputesLikeAFirstPlanWithoutABudgetedShare() {
+        try (
+            var threadPool = new FakeTimeThreadPool(
+                getTestName(),
+                randomNonNegativeLong() / 2,
+                StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true)
+            )
+        ) {
+            final var settings = Settings.builder()
+                .put(otherNodeShutdownSettings())
+                .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING.getKey(), "10m")
+                .build();
+            final var service = newCalculationService(threadPool, settings, 1000L);
+            final long shutdownStartedAtMillis = randomLongBetween(1, 100_000);
+            threadPool.setCurrentTimeInMillis(shutdownStartedAtMillis);
+            final var index = new Index("idx", randomUUID());
+            final var state = clusterStateRelocationWithOtherNodeShuttingDown(5, index, threadPool.absoluteTimeInMillis());
+            final var self = mockIndexShard(selfOfOtherNodeShutdown(state, index));
+            threadPool.setCurrentTimeInMillis(shutdownStartedAtMillis + 100_000);
+
+            final var withoutShare = new SearchRecoveryTimeout(
+                TimeValue.timeValueSeconds(60),
+                TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_SLOTS_AVAILABLE
+            );
+            // 500s left, shared by this shard and the 5 pending ones, 2 at a time
+            final var plan = service.searchRecoveryTimeout(state, self, 0L, withoutShare);
+            assertThat(plan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_EQUAL_SHARE));
+            assertThat(plan.timeout().millis(), equalTo(Math.round(500_000 / 6.0 * 2)));
+            assertThat(plan.perShardShareMs(), closeTo(500_000 / 6.0, 1e-6));
+        }
+    }
+
+    /// When the relocation source starts shutting down while this shard waits, or the other way round, the previous plan's share divides
+    /// the time left between other shards. The fresh share is compared to it all the same, which never extends the wait by more than the
+    /// equal share handed out as for a first plan.
+    public void testRelocationWithOtherNodeShutdownNeverExtendsByMoreThanAFirstPlanAfterAPlanOfTheSource() {
+        try (
+            var threadPool = new FakeTimeThreadPool(
+                getTestName(),
+                randomNonNegativeLong() / 2,
+                StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true)
+            )
+        ) {
+            final var settings = Settings.builder()
+                .put(otherNodeShutdownSettings())
+                .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING.getKey(), "10m")
+                .build();
+            final var service = newCalculationService(threadPool, settings, 1000L);
+            final long shutdownStartedAtMillis = randomLongBetween(1, 100_000);
+            threadPool.setCurrentTimeInMillis(shutdownStartedAtMillis);
+            final var index = new Index("idx", randomUUID());
+            final var state = clusterStateRelocationWithOtherNodeShuttingDown(5, index, threadPool.absoluteTimeInMillis());
+            final var self = mockIndexShard(selfOfOtherNodeShutdown(state, index));
+            threadPool.setCurrentTimeInMillis(shutdownStartedAtMillis + 100_000);
+
+            // the fresh per-shard share is 500s / 6 = 83.3s, 2 slots: a first plan would wait 166.7s
+            final long firstPlanMillis = Math.round(500_000 / 6.0 * 2);
+            for (final double sourcePlanShareMs : List.of(100_000.0, 83_333.0, 50_000.0, 1.0)) {
+                final var ofTheSource = new SearchRecoveryTimeout(
+                    TimeValue.timeValueSeconds(60),
+                    TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE,
+                    sourcePlanShareMs
+                );
+                final var plan = service.searchRecoveryTimeout(state, self, 0L, ofTheSource);
+                assertThat(plan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_EQUAL_SHARE));
+                assertThat(plan.timeout().millis(), equalTo(Math.max(0L, Math.round((500_000 / 6.0 - sourcePlanShareMs) * 2))));
+                assertThat(plan.timeout().millis(), lessThan(firstPlanMillis));
+            }
+        }
+    }
+
+    private static Settings otherNodeShutdownSettings() {
+        return Settings.builder()
+            .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING.getKey(), "10s")
+            .put(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_SHARE_SLOTS_WITH_SHUTTING_DOWN_NODES_SETTING.getKey(), true)
+            // the data nodes throttle the relocations, as the master does not (see newClusterSettings), and accept 2 at once
+            .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 2)
+            .build();
+    }
+
+    /// The slots of the target can be shared with the shards of the shutting-down node only while the data nodes throttle the relocations.
+    /// While the master throttles, the shutting-down node's shards that will come to the target are not visible in the cluster state, so
+    /// the shard waits for the plain relocation-with-shutdown timeout, as when there is no data node limit at all.
+    public void testRelocationWithOtherNodeShutdownWaitsForThePlainTimeoutWhileTheMasterThrottles() {
+        try (
+            var threadPool = new FakeTimeThreadPool(
+                getTestName(),
+                randomNonNegativeLong() / 2,
+                StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true)
+            )
+        ) {
+            final var masterThrottles = Settings.builder()
+                .put(otherNodeShutdownSettings())
+                .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 2)
+                .build();
+            final var noDataNodeLimit = Settings.builder()
+                .put(otherNodeShutdownSettings())
+                .putNull(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey())
+                .build();
+            final long shutdownStartedAtMillis = randomLongBetween(1, 100_000);
+            threadPool.setCurrentTimeInMillis(shutdownStartedAtMillis);
+            final var index = new Index("idx", randomUUID());
+            // the same scenario as when the data nodes throttle: 3 pending shards, which would share the slots, 8s of the grace left
+            final var state = clusterStateRelocationWithOtherNodeShuttingDown(3, index, threadPool.absoluteTimeInMillis());
+            final var self = mockIndexShard(selfOfOtherNodeShutdown(state, index));
+            threadPool.setCurrentTimeInMillis(shutdownStartedAtMillis + 2000);
+
+            for (final var settings : List.of(masterThrottles, noDataNodeLimit)) {
+                final var plan = newCalculationService(threadPool, settings, 1000L).searchRecoveryTimeout(state, self, 0L, null);
+                assertThat(
+                    plan.timeoutContext(),
+                    equalTo(TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_CLUSTER_SHUTDOWN_METADATA_PRESENT)
+                );
+                assertThat(
+                    plan.timeout(),
+                    equalTo(
+                        SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_WITH_SHUTDOWN_SETTING.get(Settings.EMPTY)
+                    )
+                );
+            }
+        }
+    }
+
+    private static ShardRouting selfOfOtherNodeShutdown(ClusterState state, Index index) {
+        return state.routingTable(DEFAULT_PROJECT_ID)
+            .shardRoutingTable(new ShardId(index, 0))
+            .shardsWithState(RELOCATING)
+            .stream()
+            .filter(shard -> shard.primary() == false)
+            .findFirst()
+            .orElseThrow()
+            .getTargetRelocatingShard();
     }
 
     /**

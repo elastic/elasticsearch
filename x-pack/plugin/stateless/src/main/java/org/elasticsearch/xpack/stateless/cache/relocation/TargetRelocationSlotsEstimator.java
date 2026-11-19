@@ -72,6 +72,19 @@ public class TargetRelocationSlotsEstimator {
             : Math.min(maxRecoveries, relocationsInFlight);
     }
 
+    /// Like [#knownAvailableSlots(ClusterState, int)], but trusts the settings without the check of the cluster state. For the callers
+    /// for which shards that are not relocating yet are expected, as the ones that wait on the target for the relocations of shutting-down
+    /// nodes.
+    public int knownAvailableSlots(final int relocationsInFlight) {
+        final int maxRecoveries = maxConcurrentNonCriticalRecoveries;
+        return dataNodeRecoveryThrottlingEnabled(maxRecoveries) ? maxRecoveries : Math.min(maxRecoveries, relocationsInFlight);
+    }
+
+    /// Whether the data nodes throttle the relocations, and not the master, see [#dataNodeRecoveryThrottlingEnabled(int)].
+    public boolean dataNodeRecoveryThrottlingEnabled() {
+        return dataNodeRecoveryThrottlingEnabled(maxConcurrentNonCriticalRecoveries);
+    }
+
     /// The data nodes throttle the relocations, and not the master, when their non-critical limit is finite and the master does not
     /// throttle, see [#masterThrottlingDisabled]. The data node settings are only registered by the stateless plugin, and are unbounded by
     /// default. While the master throttles, the cluster state shows only the relocations it has started, whatever the data node limit is.

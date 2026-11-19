@@ -48,6 +48,7 @@ public class SearchShardRelocationsTests extends ESTestCase {
     private static final String TARGET = "target-node";
     private static final String OTHER_TARGET = "other-target-node";
     private static final String PRIMARY_NODE = "primary-node";
+    private static final String INDEX_TARGET = "index-target-node";
     private static final String MASTER_NODE = "master-node";
 
     private record Relocation(String source, String target) {}
@@ -61,11 +62,12 @@ public class SearchShardRelocationsTests extends ESTestCase {
                 new Relocation(SOURCE_B, TARGET)
             ),
             // a shard that can be promoted to primary only lives on an index node, which is not a search node
-            List.of(new Relocation(PRIMARY_NODE, TARGET)),
+            List.of(new Relocation(PRIMARY_NODE, INDEX_TARGET)),
             Map.of()
         );
 
         assertThat(SearchShardRelocations.countBetween(state, PRIMARY_NODE, TARGET), equalTo(0));
+        assertThat(SearchShardRelocations.countBetween(state, PRIMARY_NODE, INDEX_TARGET), equalTo(0));
         assertThat(SearchShardRelocations.countBetween(state, SOURCE_A, TARGET), equalTo(2));
         assertThat(SearchShardRelocations.countBetween(state, SOURCE_A, OTHER_TARGET), equalTo(1));
         assertThat(SearchShardRelocations.countBetween(state, SOURCE_B, TARGET), equalTo(1));
@@ -92,8 +94,8 @@ public class SearchShardRelocationsTests extends ESTestCase {
                 // not shutting down
                 new Relocation(SOURCE_C, TARGET)
             ),
-            // an index node shutting down is not a source of search shard relocations
-            List.of(new Relocation(PRIMARY_NODE, TARGET)),
+            // an index node shutting down relocates its shards to an index node, which is not a search node
+            List.of(new Relocation(PRIMARY_NODE, INDEX_TARGET)),
             Map.of(
                 SOURCE_A,
                 removalType,
@@ -109,6 +111,7 @@ public class SearchShardRelocationsTests extends ESTestCase {
 
         assertThat(SearchShardRelocations.countFromShuttingDownNodesTo(state, TARGET), equalTo(2));
         assertThat(SearchShardRelocations.countFromShuttingDownNodesTo(state, OTHER_TARGET), equalTo(1));
+        assertThat(SearchShardRelocations.countFromShuttingDownNodesTo(state, INDEX_TARGET), equalTo(0));
     }
 
     public void testFromShuttingDownNodesSumsAcrossShuttingDownNodes() {
@@ -120,6 +123,33 @@ public class SearchShardRelocationsTests extends ESTestCase {
 
         assertThat(SearchShardRelocations.countFromShuttingDownNodesTo(state, TARGET), equalTo(3));
         assertThat(SearchShardRelocations.countFromShuttingDownNodesTo(state, OTHER_TARGET), equalTo(0));
+    }
+
+    public void testFromNodesNotShuttingDownCountsOnlyRelocationsFromNodesNotMarkedForRemoval() {
+        final var state = clusterState(
+            List.of(
+                new Relocation(SOURCE_A, TARGET),
+                new Relocation(SOURCE_A, OTHER_TARGET),
+                // restarting node is not marked for removal
+                new Relocation(SOURCE_B, TARGET),
+                new Relocation(SOURCE_B, TARGET),
+                // not shutting down
+                new Relocation(SOURCE_C, TARGET),
+                new Relocation(SOURCE_C, OTHER_TARGET)
+            ),
+            List.of(),
+            Map.of(
+                SOURCE_A,
+                randomFrom(SingleNodeShutdownMetadata.Type.REMOVE, SingleNodeShutdownMetadata.Type.SIGTERM),
+                SOURCE_B,
+                SingleNodeShutdownMetadata.Type.RESTART
+            )
+        );
+
+        assertThat(SearchShardRelocations.countFromNodesNotShuttingDownTo(state, TARGET), equalTo(3));
+        assertThat(SearchShardRelocations.countFromNodesNotShuttingDownTo(state, OTHER_TARGET), equalTo(1));
+        assertThat(SearchShardRelocations.countFromNodesNotShuttingDownTo(state, SOURCE_A), equalTo(0));
+        assertThat(SearchShardRelocations.countFromNodesNotShuttingDownTo(state, "no-such-node"), equalTo(0));
     }
 
     private static DiscoveryNode searchNode(String nodeId) {
@@ -181,6 +211,7 @@ public class SearchShardRelocationsTests extends ESTestCase {
             .masterNodeId(MASTER_NODE)
             .localNodeId(MASTER_NODE)
             .add(DiscoveryNodeUtils.builder(PRIMARY_NODE).roles(Set.of(DiscoveryNodeRole.INDEX_ROLE)).build())
+            .add(DiscoveryNodeUtils.builder(INDEX_TARGET).roles(Set.of(DiscoveryNodeRole.INDEX_ROLE)).build())
             .add(searchNode(SOURCE_A))
             .add(searchNode(SOURCE_B))
             .add(searchNode(SOURCE_C))

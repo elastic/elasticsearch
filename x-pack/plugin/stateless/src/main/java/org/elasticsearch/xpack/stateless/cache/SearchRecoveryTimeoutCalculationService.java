@@ -93,6 +93,17 @@ public class SearchRecoveryTimeoutCalculationService {
         Setting.Property.Dynamic
     );
 
+    /// When enabled, a shard relocating from a source that is not shutting down while a search node is shutting down shares the target's
+    /// free relocation slots with the shards of the shutting-down node, which makes delaying them past their grace period less likely, see
+    /// [RelocationOtherNodeShutdownTimeouts#timeout]. When disabled, or when the data nodes do not throttle the
+    /// relocations, such a shard always waits for the plain relocation-with-shutdown timeout.
+    public static final Setting<Boolean> OFFLINE_WARMING_SHARE_SLOTS_WITH_SHUTTING_DOWN_NODES_SETTING = Setting.boolSetting(
+        SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME + ".recovery_warming_share_slots_with_shutting_down_nodes",
+        true, // FIXME remove before merging
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private final RelocationSourceShutdownTimeouts relocationSourceShutdownTimeouts;
     private final RelocationOtherNodeShutdownTimeouts relocationOtherNodeShutdownTimeouts;
     private volatile TimeValue searchRecoveryWarmingRelocationTimeout;
@@ -111,15 +122,22 @@ public class SearchRecoveryTimeoutCalculationService {
         ByteSizeValue maxHeap,
         TelemetryProvider telemetryProvider
     ) {
+        final var targetRelocationSlotsEstimator = new TargetRelocationSlotsEstimator(clusterSettings, nodeSettings, maxHeap);
+        final var shutdownWarmingDeadline = new ShutdownWarmingDeadline(clusterSettings);
         this.relocationSourceShutdownTimeouts = new RelocationSourceShutdownTimeouts(
-            new TargetRelocationSlotsEstimator(clusterSettings, nodeSettings, maxHeap),
-            new ShutdownWarmingDeadline(clusterSettings),
+            targetRelocationSlotsEstimator,
+            shutdownWarmingDeadline,
             cacheService,
             threadPool,
             clusterSettings,
             telemetryProvider
         );
-        this.relocationOtherNodeShutdownTimeouts = new RelocationOtherNodeShutdownTimeouts(clusterSettings);
+        this.relocationOtherNodeShutdownTimeouts = new RelocationOtherNodeShutdownTimeouts(
+            targetRelocationSlotsEstimator,
+            shutdownWarmingDeadline,
+            threadPool,
+            clusterSettings
+        );
         clusterSettings.initializeAndWatch(
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_SETTING,
             value -> this.searchRecoveryWarmingRelocationTimeout = value
@@ -224,7 +242,7 @@ public class SearchRecoveryTimeoutCalculationService {
                 );
             }
             if (hasShuttingDownSearchNodeWithShards(state)) {
-                return relocationOtherNodeShutdownTimeouts.timeout();
+                return relocationOtherNodeShutdownTimeouts.timeout(state, targetNodeId, previousPlan);
             }
             return new SearchRecoveryTimeout(
                 searchRecoveryWarmingRelocationTimeout,

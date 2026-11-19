@@ -125,7 +125,7 @@ import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessElectionS
 import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessHeartbeatStore;
 import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessPersistedClusterStateService;
 import org.elasticsearch.xpack.stateless.commits.BCCHeaderReadExecutor;
-import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.ClosedShardService;
 import org.elasticsearch.xpack.stateless.commits.GetVirtualBatchedCompoundCommitChunksPressure;
@@ -922,7 +922,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                     StatelessCompoundCommit commit,
                     BlobStoreCacheDirectory directory,
                     WarmingRatioProvider warmingRatioProvider,
-                    @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
+                    @Nullable Map<BccBlob, WarmTarget> endTargetsToWarm,
                     boolean preWarmForIdLookup,
                     ActionListener<Void> listener
                 ) {

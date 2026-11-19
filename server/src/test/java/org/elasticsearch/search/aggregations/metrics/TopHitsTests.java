@@ -9,6 +9,7 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
@@ -172,6 +173,20 @@ public class TopHitsTests extends BaseAggregationTestCase<TopHitsAggregationBuil
         assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
         Exception e = expectThrows(IllegalArgumentException.class, () -> AggregatorFactories.parseAggregators(parser));
         assertThat(e.toString(), containsString("Aggregator [top_tags_hits] of type [top_hits] cannot accept sub-aggregations"));
+    }
+
+    public void testParseScriptFieldWithoutScript() throws IOException {
+        for (String scriptField : List.of("{}", "{ \"ignore_failure\": true }")) {
+            String source = "{ \"top\": { \"top_hits\": { \"script_fields\": { \"field\": " + scriptField + " } } } }";
+            XContentParser parser = createParser(JsonXContent.jsonXContent, source);
+            assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
+            ParsingException e = expectThrows(
+                ParsingException.class,
+                "script field " + scriptField,
+                () -> AggregatorFactories.parseAggregators(parser)
+            );
+            assertThat(e.getMessage(), containsString("script"));
+        }
     }
 
     @Override

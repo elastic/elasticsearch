@@ -90,6 +90,11 @@ public abstract class AbstractOTLPBatchBuilder implements Releasable {
         return schema.appendLeaf(name, parentIdx);
     }
 
+    /** Returns the sub-schema of {@code name} under {@code parentIdx}, see {@link SourceSchema#getSubSchema}. */
+    protected final <T> T getSubSchema(int parentIdx, String name, SourceSchema.SubSchemaFactory<T> factory) {
+        return schema.getSubSchema(parentIdx, name, factory);
+    }
+
     /**
      * Resolves a leaf field that is registered on first use. {@code cached} is the field's current value
      * ({@link #NOT_REGISTERED} if never written on this builder); callers store the result back so later
@@ -191,6 +196,18 @@ public abstract class AbstractOTLPBatchBuilder implements Releasable {
     }
 
     /**
+     * Opens an array value at {@code colIdx} and returns the column builder to stream its elements into via
+     * {@link EscfColumnBuilder#appendLong} or {@link EscfColumnBuilder#appendDouble}. Arrays of different columns
+     * may be open at the same time, but each must be closed with {@link EscfColumnBuilder#endArray} before the
+     * column is written again or the batch is built.
+     */
+    public final EscfColumnBuilder beginArray(int colIdx) {
+        EscfColumnBuilder builder = catchUp(colIdx, docCount);
+        builder.beginArray(docCount);
+        return builder;
+    }
+
+    /**
      * Returns {@code true} if {@code colIdx} has already been written as a leaf in the current (uncommitted) row.
      * Callers writing fields whose name comes from the payload (e.g. attribute keys) use this to skip
      * duplicates, which a column can't represent.
@@ -209,6 +226,7 @@ public abstract class AbstractOTLPBatchBuilder implements Releasable {
             builders.add(new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.SPLIT, recycler));
         }
         EscfColumnBuilder builder = builders.get(colIdx);
+        assert builder.isArrayOpen() == false : "array of [" + schema.getFullPath(colIdx) + "] is still open";
         int gap = targetRow - builder.nextAppendRow();
         if (gap < 0) {
             throw new IllegalArgumentException("Duplicate field [" + schema.getFullPath(colIdx) + "]");

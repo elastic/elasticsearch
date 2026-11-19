@@ -36,7 +36,7 @@ public final class Fetch extends UnaryPlan implements ExecutesOn.Coordinator {
     private final List<Attribute> fetchedAttributes;
     private final String indexPattern;
     private final List<String> originalIndices;
-    private List<Attribute> lazyOutput;
+    private volatile List<Attribute> lazyOutput;
 
     /**
      * @param doc               the {@code _doc} column of {@code child}

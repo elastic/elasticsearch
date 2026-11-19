@@ -81,6 +81,21 @@ public class AnalyzerLetGoldenTests extends GoldenTestCase {
             """, STAGES);
     }
 
+    // -- LET binding beside an index in one FROM, without METADATA --
+
+    /**
+     * A binding is a branch of the FROM in its own right: it carries the SUBQUERY identity of a subquery, while the index
+     * beside it is the bare INDEX branch.
+     */
+    public void testLetBindingBesideIndex() {
+        requireLetSupport();
+        runGoldenTest("""
+            LET top_langs = (FROM languages | WHERE language_code > 1 | KEEP language_name, language_code);
+            FROM top_langs, languages
+            | SORT language_code
+            """, STAGES);
+    }
+
     // -- LET body used as the right-hand side of an IN subquery --
 
     public void testLetBindingInsideInSubquery() {

@@ -72,7 +72,7 @@ public class ViewMetadataIT extends AbstractViewSubqueryIntegTestCase {
      * Same chain as {@link #testNestedViewMetadataPassesThroughAllLevels} but each view body is a
      * pure {@code FROM ... METADATA _index} with no pipeline — exercising the fast-path through
      * {@code ViewResolver.resolve()} that returns a bare {@code UnresolvedRelation} rather than a
-     * {@code NamedSubquery}.
+     * {@code ViewSubquery}.
      */
     public void testNestedViewMetadataPassesThroughAllLevelsPureFROM() {
         createView("view_languages_pure_c_it", "FROM languages");

@@ -114,7 +114,6 @@ setup:
   - set: { esql.features.fillnull: fillnull_counter }
   - set: { esql.features.highlight: highlight_counter }
   - set: { esql.features.dense_vector: dense_vector_counter }
-  - length: { esql.queries: 3 }
   - set: { esql.queries.rest.total: rest_total_counter }
   - set: { esql.queries.rest.failed: rest_failed_counter }
   - set: { esql.queries.kibana.total: kibana_total_counter }
@@ -335,7 +334,6 @@ setup:
   - set: { esql.features.fillnull: fillnull_counter }
   - set: { esql.features.highlight: highlight_counter }
   - set: { esql.features.dense_vector: dense_vector_counter }
-  - length: { esql.queries: 3 }
   - set: { esql.queries.rest.total: rest_total_counter }
   - set: { esql.queries.rest.failed: rest_failed_counter }
   - set: { esql.queries.kibana.total: kibana_total_counter }

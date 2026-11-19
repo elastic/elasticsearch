@@ -40,7 +40,7 @@ $$$esql-federation-enabled$$$
 
     {applies_to}`stack: preview 9.6+` During a rolling upgrade from 9.5, upgraded nodes have this setting on by default and older nodes have it off. Refer to [errors for a dataset that exists](esql-data-federation-querying.md#unknown-index-dataset).
 
-    {applies_to}`stack: preview 9.6+` {{esql}} Data Federation isn't available on Windows. If you explicitly set this setting to `true` on a Windows node, {{es}} ignores it and logs an error at startup. The node still starts.
+    {applies_to}`self:` {{esql}} Data Federation isn't available on Windows. If you explicitly set this setting to `true` on a Windows node, {{es}} ignores it and logs an error at startup. The node still starts.
 
 ## Object limits
 

@@ -727,3 +727,13 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testSearchShardGenerationFilesRetention
   issue: https://github.com/elastic/elasticsearch/issues/166692
+- class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testUnpromotableRegisterCommitForRecoveryTracksAllBlobsPessimisticallyAndWaitsUntilShardStarts
+  issue: https://github.com/elastic/elasticsearch/issues/166734
+- class: org.elasticsearch.xpack.esql.into.IntoPageWriterTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testCrankyBreakerReleasesAndStatsMatchWrittenRows
+  issue: https://github.com/elastic/elasticsearch/issues/166741

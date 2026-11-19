@@ -1,0 +1,5 @@
+pr: 150319
+summary: Build competitive iterator immediately for `search_after` queries
+area: Logs
+type: enhancement
+issues: []

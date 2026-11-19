@@ -3280,6 +3280,15 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertFalse(plan.anyMatch(p -> p.expressions().stream().anyMatch(e -> e.anyMatch(NullCast.class::isInstance))));
     }
 
+    public void testImpossibleCastOfTimeSeriesAggregateKeepsTheColumn() {
+        assumeTrue("Impossible casts are null on current nodes", versionMode == VersionMode.CURRENT);
+        var plan = planMetrics("TS k8s | STATS x = MAX(RATE(network.total_bytes_in))::ip BY cluster");
+        assertWarnings("[MAX(RATE(network.total_bytes_in))] of type [double] cannot be converted to [IP] and will be null.");
+        assertThat(Expressions.names(plan.output()), equalTo(List.of("x", "cluster")));
+        assertThat(plan.output().getFirst().dataType(), equalTo(IP));
+        assertFalse(plan.anyMatch(p -> p.expressions().stream().anyMatch(e -> e.anyMatch(NullCast.class::isInstance))));
+    }
+
     public void testFoldInEval() {
         var plan = optimizedPlan("""
             from test

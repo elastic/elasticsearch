@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.expression.NullCast;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
@@ -216,9 +217,9 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
         Holder<Boolean> requiredTimeSeriesSource = new Holder<>(Boolean.FALSE);
         TemporaryNameGenerator internalNames = new TemporaryNameGenerator.Monotonic();
         for (NamedExpression agg : aggregate.aggregates()) {
-            if (agg instanceof Alias alias && alias.child() instanceof Function function) {
+            if (agg instanceof Alias alias && (alias.child() instanceof Function || alias.child() instanceof NullCast)) {
                 // due to InsertDefaultInnerTimeSeriesAggregate, we'll always have a TimeSeriesAggregateFunction here
-                Expression outerAgg = function.transformDown(AggregateFunction.class, af -> {
+                Expression outerAgg = alias.child().transformDown(AggregateFunction.class, af -> {
                     if (af instanceof TimeSeriesAggregateFunction tsAgg) {
                         if (tsAgg.requiredTimeSeriesSource()) {
                             requiredTimeSeriesSource.set(Boolean.TRUE);

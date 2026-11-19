@@ -229,6 +229,14 @@ $$$esql-external-cache-schema-ttl$$$
     - **Default:** `20m`
     - **Valid values:** A time value. `0` removes the limit on schemas, and the memoized dataset total stays on `esql.external.cache.listing.ttl`.
 
+$$$esql-external-cache-stats-max-extremum-size$$$
+
+`esql.external.cache.stats.max_extremum_size` {applies_to}`stack: preview 9.6+`
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The widest minimum or maximum a CSV, TSV or NDJSON read stores for a text column. A value wider than this isn't stored, and `MIN` or `MAX` over that column reads the file instead. The column keeps its row and null counts either way, and the rest of the file's measurements are still stored. Raise it to answer `MIN` and `MAX` without reading files whose text columns hold long values; lower it to keep long values out of memory. Columnar formats such as Parquet read their statistics from the file itself and aren't affected.
+
+    - **Default:** `1kb`
+    - **Valid values:** A byte size from `0b` to `1mb`. `0b` stores no text minimum or maximum at all.
+
 $$$esql-external-cache-footer-size$$$
 
 `esql.external.cache.footer.size` {applies_to}`stack: preview 9.6+`

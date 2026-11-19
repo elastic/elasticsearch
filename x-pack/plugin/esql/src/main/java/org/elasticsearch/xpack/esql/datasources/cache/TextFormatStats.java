@@ -29,12 +29,7 @@ import java.util.OptionalLong;
  */
 public final class TextFormatStats {
 
-    /**
-     * The cap is applied once, where a measurement becomes a published record. {@link #harvested} is handed a
-     * harvest that already went through {@link #build}, so it has nothing left to withhold and says so with
-     * this rather than re-reading the setting -- two application points could carry two different widths, and
-     * a record counts its entries and writes them from the same statistics.
-     */
+    /** {@link #harvested} is handed a harvest {@link #build} already capped, so it has nothing left to withhold. */
     private static final int ALREADY_CAPPED = Integer.MAX_VALUE;
 
     private TextFormatStats() {}
@@ -156,7 +151,7 @@ public final class TextFormatStats {
     /**
      * {@code extremum}, or {@code null} when it is wider than {@code maxExtremumBytes}. The limit is on
      * the stored {@link BytesRef}, so it covers {@code KEYWORD}, {@code TEXT} and {@code IP} alike; an
-     * address is 16 bytes and never reaches it. Counts are unaffected, and so is the other end of the same
+     * address is 16 bytes and stays under the default. Counts are unaffected, and so is the other end of the same
      * column — a withheld end is answered by a scan, and a fold marks that end unservable rather than
      * answer it from the reads that did publish one.
      * <p>
@@ -165,7 +160,7 @@ public final class TextFormatStats {
      * {@code SourceStatisticsSerializer}'s flat map, which does not come through here. So a wide extremum
      * already in the store is served until its entry turns over.
      */
-    static Object publishable(Object extremum, int maxExtremumBytes) {
+    private static Object publishable(Object extremum, int maxExtremumBytes) {
         assert extremum instanceof CharSequence == false
             : "a text extremum must reach the cap as a BytesRef; [" + extremum.getClass().getName() + "] would pass uncapped";
         return extremum instanceof BytesRef bytes && bytes.length > maxExtremumBytes ? null : extremum;

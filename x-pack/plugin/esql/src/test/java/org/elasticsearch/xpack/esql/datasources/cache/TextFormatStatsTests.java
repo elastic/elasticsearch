@@ -95,7 +95,7 @@ public class TextFormatStatsTests extends ESTestCase {
      * {@code ColumnStatTypeSupport}: {@code INTEGER} holds an {@code Integer}, {@code LONG}/{@code DATETIME}/
      * {@code DATE_NANOS} a {@code Long}, {@code DOUBLE} a {@code Double}, {@code BOOLEAN} a {@code Boolean},
      * and {@code KEYWORD}/{@code TEXT}/{@code IP} a {@link BytesRef}. The cap reads {@link BytesRef#length},
-     * so only the last of those can reach it, and an encoded address is 16 bytes and never does.
+     * so only the last of those can reach it, and an encoded address is 16 bytes and stays under the default.
      */
     public void testEveryHarvestedCarrierSurvivesTheCap() {
         BytesRef address = new BytesRef(InetAddressPoint.encode(InetAddresses.forString("10.0.0.1")));
@@ -125,8 +125,8 @@ public class TextFormatStatsTests extends ESTestCase {
         assertEquals("a long max is not text", Long.valueOf(9L), SourceStatisticsSerializer.extractColumnMax(published, "n"));
         assertEquals("a double min is not text", Double.valueOf(-0.5d), SourceStatisticsSerializer.extractColumnMin(published, "d"));
         assertEquals("a double max is not text", Double.valueOf(0.5d), SourceStatisticsSerializer.extractColumnMax(published, "d"));
-        assertEquals("an encoded address is under the limit", address, SourceStatisticsSerializer.extractColumnMin(published, "ip"));
-        assertEquals("an encoded address is under the limit", address, SourceStatisticsSerializer.extractColumnMax(published, "ip"));
+        assertEquals("an encoded address is under the default", address, SourceStatisticsSerializer.extractColumnMin(published, "ip"));
+        assertEquals("an encoded address is under the default", address, SourceStatisticsSerializer.extractColumnMax(published, "ip"));
     }
 
     /**
@@ -145,8 +145,11 @@ public class TextFormatStatsTests extends ESTestCase {
         assertEquals("the counts are untouched", (Long) 1L, SourceStatisticsSerializer.extractColumnValueCount(narrowed, "k"));
     }
 
-    /** Zero is a meaningful setting rather than "unset": it withholds every text extremum and keeps the counts. */
-    public void testAZeroWidthWithholdsEveryTextExtremum() {
+    /**
+     * Zero is a meaningful setting rather than "unset". The predicate is a strict {@code >}, so it withholds
+     * every text extremum carrying any bytes while an empty one survives — the one value that is free to store.
+     */
+    public void testAZeroWidthWithholdsEveryTextExtremumThatHasBytes() {
         BytesRef shortest = keyword(1);
 
         Map<String, Object> published = publish(1, Map.of("k", new ExternalStats.ColumnStats(0, 1, shortest, shortest)), 0);
@@ -154,6 +157,10 @@ public class TextFormatStatsTests extends ESTestCase {
         assertNull("a one-byte value is wider than zero", SourceStatisticsSerializer.extractColumnMin(published, "k"));
         assertNull("a one-byte value is wider than zero", SourceStatisticsSerializer.extractColumnMax(published, "k"));
         assertEquals("the row count still publishes", 1L, published.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+
+        BytesRef empty = new BytesRef("");
+        Map<String, Object> withEmpty = publish(1, Map.of("k", new ExternalStats.ColumnStats(0, 1, empty, empty)), 0);
+        assertEquals("an empty extremum is not wider than zero", empty, SourceStatisticsSerializer.extractColumnMin(withEmpty, "k"));
     }
 
     public void testAnExtremumAtTheWidthLimitIsPublished() {

@@ -191,8 +191,11 @@ public final class ExternalSourceCacheSettings {
      * <p>
      * Unlike {@link #STRIPE_SIZE} this does NOT participate in stripe identity, so changing it does not
      * invalidate anything: a cached wide extremum is a TRUE extremum, and the cap is about footprint rather
-     * than correctness. Lowering it leaves wider extrema already in the store served until their entries
-     * turn over; raising it leaves columns withheld under the old width answered by a scan until the same.
+     * than correctness. The store is on-heap and this is read at startup, so a node never serves an entry
+     * measured under a width other than its own; only a cluster part-way through a restart mixes the two,
+     * and either width yields a true extremum or a miss. Raising it does not leave a column stuck: the next
+     * scan that projects the column re-measures it and the value merges into the same record. It stays
+     * unanswerable only where a fold wrote an unservable marker, which outlives the value.
      * Restart-only for the reason {@link #STRIPE_COLUMNS} is: its consumer reads it from the node's startup
      * {@code Settings}, so declaring it Dynamic would accept a runtime update and silently never observe it.
      */

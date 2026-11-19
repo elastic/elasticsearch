@@ -82,6 +82,11 @@ import java.util.function.Consumer;
  *                         {@link StripeColumnScope#PROJECTED} (back-compat for call sites that predate the
  *                         setting); the compact constructor collapses {@code null} to that default so
  *                         readers do one check.
+ * @param statsMaxExtremumBytes the widest text extremum a harvest publishes, in bytes (see
+ *                         {@code ExternalSourceCacheSettings#STATS_MAX_EXTREMUM_SIZE}). A negative width means
+ *                         unset and the compact constructor collapses it to
+ *                         {@link #DEFAULT_MAX_EXTREMUM_BYTES}; zero is meaningful and withholds every text
+ *                         extremum that has any bytes at all.
  * @param statsStripeSink  where this chunk hands its pieces of the stripes it overlapped, so the pieces of one
  *                         stripe become a single contribution instead of one per chunk (see
  *                         {@link StripeStatsSink}). {@code null} — a reader driven outside a parallel read, in a
@@ -135,8 +140,9 @@ public record FormatReadContext(
 
     /**
      * Default for {@code esql.external.cache.stats.max_extremum_size}, the widest text extremum a
-     * line-oriented read publishes. It lives here rather than with the predicate that applies it because the
-     * reader modules compile against this package and not against the cache. A negative width means unset.
+     * line-oriented read publishes. It lives here rather than beside the predicate that applies it because this
+     * package depends on nothing in the cache package, and the normalisation below needs the value. A negative
+     * width means unset.
      */
     public static final int DEFAULT_MAX_EXTREMUM_BYTES = 1024;
 

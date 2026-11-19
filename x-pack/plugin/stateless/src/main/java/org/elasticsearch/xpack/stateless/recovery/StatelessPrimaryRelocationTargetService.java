@@ -81,7 +81,7 @@ public class StatelessPrimaryRelocationTargetService {
             final var latestBccBlob = request.latestBccBlob();
             // We don't need otherBlobs for prewarming
             final var sourceBlobsInfo = new StatelessCommitService.SourceBlobsInfo(
-                latestBccBlob.blobFile(),
+                latestBccBlob.bccBlob(),
                 latestBccBlob.length(),
                 Set.of()
             );

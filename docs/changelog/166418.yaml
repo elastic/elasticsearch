@@ -1,5 +1,0 @@
-area: Snapshot/Restore
-issues: []
-pr: 166418
-summary: Continue data stream lifecycle transitions when a snapshot mount response omits shard counts
-type: bug

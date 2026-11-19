@@ -68,6 +68,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
@@ -730,14 +731,17 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
     public void testVectorMatchOnLabelAbsentFromBothOperandsJoinsOnStep() {
         assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
         // on (pod) references a label neither operand exposes (both are sum by (cluster)). PromQL matches an absent
-        // label as the empty string on both sides, so it cannot discriminate: the key set degrades to step only, and a
-        // resulting many-to-many match surfaces as the runtime's unique-build-key error, exactly like Prometheus.
+        // label as the empty string on both sides, so it cannot discriminate: the label key is the same constant on both
+        // sides, and a resulting many-to-many match surfaces as the runtime's unique-build-key error, exactly like Prometheus.
         var plan = planPromql(
             "PROMQL index=k8s step=5m result=(sum by (cluster) (network.eth0.tx) / on (pod) sum by (cluster) (network.eth0.rx))"
         );
         var joins = plan.collect(HashJoin.class);
         assertThat(joins, hasSize(1));
-        assertThat(joins.getFirst().leftFields().stream().map(Attribute::name).toList(), containsInAnyOrder("step"));
+        HashJoin join = joins.getFirst();
+        assertThat(join.leftFields().getFirst().name(), equalTo("step"));
+        assertThat(keyLabels(join.left(), join.leftFields().get(1)), empty());
+        assertThat(keyLabels(join.right(), join.rightFields().get(1)), empty());
     }
 
     /**

@@ -28,6 +28,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.reshard.ReshardIndexRequest;
+import org.elasticsearch.xpack.stateless.reshard.SplitSourceService;
 import org.elasticsearch.xpack.stateless.reshard.TransportReshardAction;
 
 import java.util.Collection;
@@ -48,6 +49,11 @@ import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.not;
 
 public class StatelessShardsHealthIT extends AbstractStatelessPluginIntegTestCase {
+
+    @Override
+    protected Settings.Builder nodeSettings() {
+        return super.nodeSettings().put(SplitSourceService.RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD.getKey(), TimeValue.ZERO);
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -518,7 +524,7 @@ public class StatelessShardsHealthIT extends AbstractStatelessPluginIntegTestCas
         ensureStableCluster(3);
 
         // shorten the grace period so that test does not take forever to run
-        final var replicaBufferTime = TimeValue.timeValueSeconds(10);
+        final var replicaBufferTime = TimeValue.timeValueMillis(200);
         updateClusterSettings(
             Settings.builder().put(ShardsAvailabilityHealthIndicatorService.REPLICA_INACTIVE_BUFFER_TIME.getKey(), replicaBufferTime)
         );
@@ -546,7 +552,7 @@ public class StatelessShardsHealthIT extends AbstractStatelessPluginIntegTestCas
             // split created the target shards. Health stays GREEN in the meantime since an initializing RESHARD_SPLIT
             // primary makes both the primary and its search shards provisionally unavailable.
             safeSleep(replicaBufferTime);
-            assertThat(getShardsAvailabilityStatus(), equalTo(HealthStatus.GREEN));
+            assertThat(getShardsAvailabilityIndicator().status(), equalTo(HealthStatus.GREEN));
 
             logger.info("--> releasing target primary shard-started notification");
             releaseTargetPrimaryStarted.onResponse(null);
@@ -596,10 +602,6 @@ public class StatelessShardsHealthIT extends AbstractStatelessPluginIntegTestCas
         return safeGet(client().execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(indicator, true, 10))).findIndicator(
             indicator
         );
-    }
-
-    private HealthStatus getShardsAvailabilityStatus() {
-        return getShardsAvailabilityIndicator().status();
     }
 
     /**

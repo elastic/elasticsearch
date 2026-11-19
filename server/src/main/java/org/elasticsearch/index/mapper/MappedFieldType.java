@@ -570,6 +570,19 @@ public abstract class MappedFieldType {
     }
 
     /**
+     * Fails if this field has no doc values. A {@code distance_feature} query reads doc values to compute scores even when
+     * the field is indexed, so it cannot run on a field mapped with {@code doc_values: false}.
+     */
+    protected final void failIfNoDocValuesForDistanceFeature() {
+        if (hasDocValues() == false) {
+            // we throw an IAE rather than an ISE so that it translates to a 4xx code rather than 5xx code on the http layer
+            throw new IllegalArgumentException(
+                "Cannot run [distance_feature] query on field [" + name() + "] since it does not have doc values."
+            );
+        }
+    }
+
+    /**
      * @return if this field type should load global ordinals eagerly
      */
     public boolean eagerGlobalOrdinals() {

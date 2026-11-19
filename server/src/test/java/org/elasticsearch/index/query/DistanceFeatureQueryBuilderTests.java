@@ -12,6 +12,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.document.LongField;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -20,6 +21,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.DistanceFeatureQueryBuilder.Origin;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
@@ -27,8 +29,29 @@ import java.io.IOException;
 import java.time.Instant;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<DistanceFeatureQueryBuilder> {
+    private static final String DATE_NO_DOC_VALUES_FIELD_NAME = "date_no_doc_values";
+    private static final String DATE_NANOS_NO_DOC_VALUES_FIELD_NAME = "date_nanos_no_doc_values";
+    private static final String GEO_POINT_NO_DOC_VALUES_FIELD_NAME = "geo_point_no_doc_values";
+
+    @Override
+    protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
+        mapperService.merge(
+            "_doc",
+            new CompressedXContent(Strings.format("""
+                {
+                  "properties": {
+                    "%s": { "type": "date", "index": true, "doc_values": false },
+                    "%s": { "type": "date_nanos", "index": true, "doc_values": false },
+                    "%s": { "type": "geo_point", "index": true, "doc_values": false }
+                  }
+                }""", DATE_NO_DOC_VALUES_FIELD_NAME, DATE_NANOS_NO_DOC_VALUES_FIELD_NAME, GEO_POINT_NO_DOC_VALUES_FIELD_NAME)),
+            MapperService.MergeReason.MAPPING_UPDATE
+        );
+    }
+
     @Override
     protected DistanceFeatureQueryBuilder doCreateTestQueryBuilder() {
         String field = randomFrom(DATE_FIELD_NAME, DATE_NANOS_FIELD_NAME, GEO_POINT_FIELD_NAME);
@@ -232,5 +255,36 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
             () -> parseQuery(query).toQuery(createSearchExecutionContext())
         );
         assertThat(e.getMessage(), containsString("query can only be run on a date, date_nanos or geo_point field type!"));
+    }
+
+    public void testQueryFailsOnDateFieldWithoutDocValues() {
+        assertFailsWithoutDocValues(DATE_NO_DOC_VALUES_FIELD_NAME, "\"2018-01-01T13:10:30Z\"", "7d");
+    }
+
+    public void testQueryFailsOnDateNanosFieldWithoutDocValues() {
+        assertFailsWithoutDocValues(DATE_NANOS_NO_DOC_VALUES_FIELD_NAME, "\"2018-01-01T13:10:30.123456789Z\"", "100nanos");
+    }
+
+    public void testQueryFailsOnGeoPointFieldWithoutDocValues() {
+        assertFailsWithoutDocValues(GEO_POINT_NO_DOC_VALUES_FIELD_NAME, "\"40,-70\"", "1km");
+    }
+
+    private void assertFailsWithoutDocValues(String field, String origin, String pivot) {
+        String query = Strings.format("""
+            {
+              "distance_feature": {
+                "field": "%s",
+                "origin": %s,
+                "pivot": "%s"
+              }
+            }""", field, origin, pivot);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> parseQuery(query).toQuery(createSearchExecutionContext())
+        );
+        assertThat(
+            e.getMessage(),
+            equalTo("Cannot run [distance_feature] query on field [" + field + "] since it does not have doc values.")
+        );
     }
 }

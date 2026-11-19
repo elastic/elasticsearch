@@ -85,6 +85,7 @@ public class IntoExec extends UnaryExec {
         Source.EMPTY.writeTo(out);
         out.writeNamedWriteable(child());
         out.writeString(destination);
+        // TODO: gate the options field on a TransportVersion together with the Into gating (see Into#postAnalysisVerification)
         options.writeTo(out);
         out.writeNamedWriteableCollection(sourceAttributes);
         out.writeNamedWriteableCollection(outputAttributes);

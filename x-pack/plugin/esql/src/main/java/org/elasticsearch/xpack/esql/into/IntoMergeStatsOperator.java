@@ -7,12 +7,15 @@
 
 package org.elasticsearch.xpack.esql.into;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -22,7 +25,9 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.rest.RestStatus;
 
+import java.util.List;
 import java.util.function.Supplier;
 
 /**
@@ -67,11 +72,29 @@ public final class IntoMergeStatsOperator implements Operator {
     public record Refresher(Client client, Supplier<ThreadContext.StoredContext> caller, String destination) {
         void refresh(ActionListener<Void> listener) {
             try (ThreadContext.StoredContext ignored = caller.get()) {
-                client.execute(RefreshAction.INSTANCE, new RefreshRequest(destination), listener.map(response -> null));
-            } catch (Exception e) {
-                listener.onFailure(e);
+                ActionListener<Void> once = ActionListener.notifyOnce(listener);
+                try {
+                    client.execute(RefreshAction.INSTANCE, new RefreshRequest(destination), once.delegateFailureAndWrap((l, response) -> {
+                        if (response.getFailedShards() > 0) {
+                            l.onFailure(firstShardFailure(response));
+                        } else {
+                            l.onResponse(null);
+                        }
+                    }));
+                } catch (Exception e) {
+                    once.onFailure(e);
+                }
             }
         }
+    }
+
+    private static Exception firstShardFailure(BroadcastResponse response) {
+        List<DefaultShardOperationFailedException> failures = response.getShardFailures();
+        if (failures.isEmpty()) {
+            return new ElasticsearchException("[{}] shards failed to refresh", response.getFailedShards());
+        }
+        Throwable cause = failures.getFirst().getCause();
+        return cause instanceof Exception e ? e : new ElasticsearchException(failures.getFirst().reason(), cause);
     }
 
     private final DriverContext driverContext;
@@ -137,12 +160,18 @@ public final class IntoMergeStatsOperator implements Operator {
     }
 
     private void recordRefreshFailure(Exception cause) {
+        RestStatus status = ExceptionsHelper.status(cause);
+        String hint = status == RestStatus.FORBIDDEN
+            ? " (refreshing requires the [maintenance] privilege on the destination; use \"refresh\": false to skip it)"
+            : "";
         refreshFailure = new ElasticsearchStatusException(
-            "INTO [{}] refresh failed: {}",
-            ExceptionsHelper.status(cause),
+            "INTO [{}] wrote [{}] documents but the refresh failed: {}{}",
+            status,
             cause,
             refresher.destination(),
-            cause.getMessage()
+            createdSum,
+            cause.getMessage(),
+            hint
         );
     }
 

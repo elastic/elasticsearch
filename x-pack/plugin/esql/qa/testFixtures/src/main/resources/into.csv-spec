@@ -10,6 +10,7 @@ total:long | created:long
 3          | 3
 ;
 
+// Only smoke-tests parsing and capability gating of WITH {"refresh": false}; refresh behaviour is covered by IntoIT.
 rowIntoIndexNoRefresh
 required_capability: into_command
 required_capability: into_options

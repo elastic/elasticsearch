@@ -631,8 +631,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         boolean refresh = IntoOptions.DEFAULT.refresh();
         Expression refreshExpr = optionsMap.remove("refresh");
         if (refreshExpr != null) {
-            if (refreshExpr instanceof Literal lit && lit.dataType() == DataType.BOOLEAN && lit.value() != null) {
-                refresh = (Boolean) lit.value();
+            if (refreshExpr instanceof Literal lit && lit.value() instanceof Boolean value) {
+                refresh = value;
             } else {
                 throw new ParsingException(refreshExpr.source(), "Option [refresh] must be a boolean literal");
             }

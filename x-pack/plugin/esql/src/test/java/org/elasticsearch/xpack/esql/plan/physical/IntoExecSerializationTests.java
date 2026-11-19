@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.into.IntoOptions;
+import org.elasticsearch.xpack.esql.plan.logical.IntoSerializationTests;
 
 import java.io.IOException;
 import java.util.List;
@@ -44,7 +45,7 @@ public class IntoExecSerializationTests extends AbstractPhysicalPlanSerializatio
             case 2 -> sourceAttributes = randomValueOtherThan(sourceAttributes, () -> randomAttributes(3));
             case 3 -> outputAttributes = randomValueOtherThan(outputAttributes, () -> randomAttributes(3));
             case 4 -> mode = randomValueOtherThan(mode, () -> randomFrom(IntoExec.Mode.values()));
-            case 5 -> options = randomValueOtherThan(options, () -> randomIntoOptions());
+            case 5 -> options = randomValueOtherThan(options, IntoSerializationTests::randomIntoOptions);
             default -> throw new AssertionError("Unexpected case");
         }
         return new IntoExec(instance.source(), child, destination, options, sourceAttributes, outputAttributes, mode);

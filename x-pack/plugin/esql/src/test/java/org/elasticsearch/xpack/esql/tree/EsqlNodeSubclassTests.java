@@ -64,6 +64,7 @@ import org.elasticsearch.xpack.esql.expression.promql.function.PromqlBuiltinFunc
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
+import org.elasticsearch.xpack.esql.into.IntoOptions;
 import org.elasticsearch.xpack.esql.plan.logical.BranchIdentity;
 import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
@@ -526,6 +527,8 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         } else if (argClass == Grok.Parser.class) {
             // Grok.Parser is a record / final, cannot be mocked
             return Grok.pattern(Source.EMPTY, randomGrokPattern());
+        } else if (argClass == IntoOptions.class) {
+            return new IntoOptions(randomBoolean());
         } else if (argClass == FileList.class) {
             // FileList implementations are package-private; use coordinator sentinel.
             return FileList.UNRESOLVED;

@@ -72,16 +72,19 @@ public class IntoParserTests extends AbstractStatementParserTests {
     public void testEmptyOptions() {
         Into into = as(query("ROW a = 1 | INTO dst WITH {}"), Into.class);
         assertThat(into.destination(), equalTo("dst"));
+        assertThat(into.options(), equalTo(IntoOptions.DEFAULT));
     }
 
     public void testUnknownOptionRejected() {
         expectError("ROW a = 1 | INTO dst WITH {\"foo\": 1}", "Invalid option [foo] in INTO, expected one of [refresh]");
+    }
+
+    public void testMultipleUnknownOptionsRejected() {
         expectError("ROW a = 1 | INTO dst WITH {\"foo\": 1, \"bar\": 2}", "Invalid options [foo, bar] in INTO, expected one of [refresh]");
     }
 
     public void testRefreshDefaultsToTrue() {
         assertThat(as(query("ROW a = 1 | INTO dst"), Into.class).options(), equalTo(IntoOptions.DEFAULT));
-        assertThat(as(query("ROW a = 1 | INTO dst WITH {}"), Into.class).options().refresh(), equalTo(true));
     }
 
     public void testRefresh() {
@@ -91,6 +94,9 @@ public class IntoParserTests extends AbstractStatementParserTests {
 
     public void testOptionNamesAreCaseInsensitive() {
         assertThat(as(query("ROW a = 1 | INTO dst WITH {\"REFRESH\": false}"), Into.class).options().refresh(), equalTo(false));
+    }
+
+    public void testKeywordsAreCaseInsensitiveWithOptions() {
         assertThat(as(query("ROW a = 1 | into dst with {\"Refresh\": false}"), Into.class).options().refresh(), equalTo(false));
     }
 
@@ -102,10 +108,24 @@ public class IntoParserTests extends AbstractStatementParserTests {
         assertThat(into.options().refresh(), equalTo(false));
     }
 
-    public void testRefreshMustBeBoolean() {
+    public void testRefreshMustBeBoolean_string() {
         expectError("ROW a = 1 | INTO dst WITH {\"refresh\": \"no\"}", "Option [refresh] must be a boolean literal");
+    }
+
+    public void testRefreshMustBeBoolean_number() {
         expectError("ROW a = 1 | INTO dst WITH {\"refresh\": 1}", "Option [refresh] must be a boolean literal");
+    }
+
+    public void testRefreshMustBeBoolean_null() {
         expectError("ROW a = 1 | INTO dst WITH {\"refresh\": null}", "Option [refresh] must be a boolean literal");
+    }
+
+    public void testRefreshMustBeSingleValued() {
+        expectError("ROW a = 1 | INTO dst WITH {\"refresh\": [true, false]}", "Option [refresh] must be a boolean literal");
+    }
+
+    public void testRefreshMustNotBeMultiValuedSingleElement() {
+        expectError("ROW a = 1 | INTO dst WITH {\"refresh\": [true]}", "Option [refresh] must be a boolean literal");
     }
 
     public void testOptionsDifferingOnlyInCaseRejected() {
@@ -115,5 +135,14 @@ public class IntoParserTests extends AbstractStatementParserTests {
     public void testExplainInto() {
         Explain explain = as(query("EXPLAIN (ROW a = 1 | INTO dst)"), Explain.class);
         assertThat(as(explain.query(), Into.class).destination(), equalTo("dst"));
+    }
+
+    public void testExplainIntoWithOptions() {
+        Explain explain = as(query("EXPLAIN (ROW a = 1 | INTO dst WITH {\"refresh\": false})"), Explain.class);
+        assertThat(as(explain.query(), Into.class).options().refresh(), equalTo(false));
+    }
+
+    public void testKeywordDestination() {
+        assertThat(as(query("ROW a = 1 | INTO \"with\""), Into.class).destination(), equalTo("with"));
     }
 }

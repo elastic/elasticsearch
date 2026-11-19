@@ -7,8 +7,12 @@
 
 package org.elasticsearch.xpack.esql.into;
 
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.IsBlockedResult;
@@ -26,7 +30,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.esql.into.IntoPageWriter.Factory.Indexing.DISCARD;
 import static org.elasticsearch.xpack.esql.into.IntoPageWriter.Factory.Indexing.INDEX;
-import static org.elasticsearch.xpack.esql.into.IntoTestUtils.DESTINATION;
+import static org.elasticsearch.xpack.esql.into.IntoTestUtils.DEST;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.stats;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -38,6 +42,8 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class IntoMergeStatsOperatorTests extends ComputeTestCase {
     private static final IntoOptions NO_REFRESH = new IntoOptions(false);
+
+    private static final String CALLER_HEADER = "x-caller";
 
     private ThreadPool threadPool;
     private IntoTestUtils.CapturingClient client;
@@ -85,7 +91,7 @@ public class IntoMergeStatsOperatorTests extends ComputeTestCase {
 
         op.finish();
         assertThat(client.refreshes, hasSize(1));
-        assertThat(List.of(client.refreshes.getFirst().indices()), equalTo(List.of(DESTINATION)));
+        assertThat(List.of(client.refreshes.getFirst().indices()), equalTo(List.of(DEST)));
         IsBlockedResult blocked = op.isBlocked();
         assertFalse(blocked.listener().isDone());
         assertFalse(op.canProduceMoreDataWithoutExtraInput());
@@ -135,14 +141,58 @@ public class IntoMergeStatsOperatorTests extends ComputeTestCase {
         op.finish();
         IsBlockedResult blocked = op.isBlocked();
 
-        client.failRefresh(new IndexNotFoundException(DESTINATION));
+        client.failRefresh(new IndexNotFoundException(DEST));
         assertTrue(blocked.listener().isDone());
         assertFalse(driverContext.hasPendingAsyncActions());
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, op::getOutput);
         assertThat(e.status(), equalTo(RestStatus.NOT_FOUND));
-        assertThat(e.getMessage(), containsString("INTO [" + DESTINATION + "] refresh failed"));
+        assertThat(e.getMessage(), containsString("INTO [" + DEST + "] wrote [1] documents but the refresh failed"));
         assertThat(e.getCause(), instanceOf(IndexNotFoundException.class));
         assertFalse(op.isFinished());
+    }
+
+    public void testForbiddenRefreshExplainsDocumentsWereWritten() {
+        IntoMergeStatsOperator op = operator(IntoOptions.DEFAULT, INDEX);
+        op.addInput(new IntoStats(4L, 4L).toPage(blockFactory));
+        op.finish();
+
+        client.failRefresh(new ElasticsearchSecurityException("action [indices:admin/refresh] is unauthorized", RestStatus.FORBIDDEN));
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, op::getOutput);
+        assertThat(e.status(), equalTo(RestStatus.FORBIDDEN));
+        assertThat(e.getMessage(), containsString("wrote [4] documents"));
+        assertThat(e.getMessage(), containsString("[maintenance] privilege"));
+        assertThat(e.getMessage(), containsString("\"refresh\": false"));
+    }
+
+    public void testShardFailuresFailTheRefresh() {
+        IntoMergeStatsOperator op = operator(IntoOptions.DEFAULT, INDEX);
+        op.addInput(new IntoStats(1L, 1L).toPage(blockFactory));
+        op.finish();
+
+        client.answerRefresh(
+            new BroadcastResponse(
+                2,
+                1,
+                1,
+                List.of(new DefaultShardOperationFailedException(DEST, 0, new IllegalStateException("shard is closed")))
+            )
+        );
+        assertFalse(driverContext.hasPendingAsyncActions());
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, op::getOutput);
+        assertThat(e.getMessage(), containsString("wrote [1] documents but the refresh failed"));
+        assertThat(e.getCause(), instanceOf(IllegalStateException.class));
+    }
+
+    public void testRefreshRunsWithTheCallersThreadContext() {
+        threadPool.getThreadContext().putHeader(CALLER_HEADER, "caller");
+        IntoMergeStatsOperator op = operator(IntoOptions.DEFAULT, INDEX);
+        op.addInput(new IntoStats(1L, 1L).toPage(blockFactory));
+        try (ThreadContext.StoredContext ignored = threadPool.getThreadContext().stashContext()) {
+            assertThat(threadPool.getThreadContext().getHeader(CALLER_HEADER), nullValue());
+            op.finish();
+        }
+        assertThat(client.refreshHeaders, equalTo(List.of("caller")));
+        client.answerRefresh();
     }
 
     public void testFinishTwiceRefreshesOnce() {
@@ -156,6 +206,6 @@ public class IntoMergeStatsOperatorTests extends ComputeTestCase {
     }
 
     private IntoMergeStatsOperator operator(IntoOptions options, IntoPageWriter.Factory.Indexing indexing) {
-        return (IntoMergeStatsOperator) IntoMergeStatsOperator.Factory.create(client, DESTINATION, options, indexing).get(driverContext);
+        return (IntoMergeStatsOperator) IntoMergeStatsOperator.Factory.create(client, DEST, options, indexing).get(driverContext);
     }
 }

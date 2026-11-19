@@ -21,12 +21,12 @@ import org.elasticsearch.action.bulk.EscfBulkService;
 import org.elasticsearch.action.bulk.EscfBulkWriter;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
-import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
@@ -58,6 +58,8 @@ class IntoTestUtils {
         final List<ActionListener<BulkResponse>> listeners = new ArrayList<>();
         final List<RefreshRequest> refreshes = new ArrayList<>();
         final List<ActionListener<BroadcastResponse>> refreshListeners = new ArrayList<>();
+        /** The {@code x-caller} header visible when each refresh was sent, to check the caller's context is restored. */
+        final List<String> refreshHeaders = new ArrayList<>();
 
         CapturingClient(ThreadPool threadPool) {
             super(threadPool);
@@ -72,6 +74,7 @@ class IntoTestUtils {
         ) {
             if (action == RefreshAction.INSTANCE) {
                 refreshes.add((RefreshRequest) request);
+                refreshHeaders.add(threadPool().getThreadContext().getHeader("x-caller"));
                 refreshListeners.add((ActionListener<BroadcastResponse>) listener);
                 return;
             }
@@ -81,8 +84,12 @@ class IntoTestUtils {
         }
 
         void answerRefresh() {
+            answerRefresh(new BroadcastResponse(1, 1, 0, List.of()));
+        }
+
+        void answerRefresh(BroadcastResponse response) {
             refreshes.removeFirst();
-            refreshListeners.removeFirst().onResponse(new BroadcastResponse(1, 1, 0, List.of()));
+            refreshListeners.removeFirst().onResponse(response);
         }
 
         void failRefresh(Exception e) {

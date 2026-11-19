@@ -420,40 +420,133 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         LogicalPlan verified = verify(analyzed, gatherPreAnalysisMetrics(plan, partialMetrics));
         // verify throws on failure, so we only reach here once the plan is valid: flush the warnings deferred during analysis.
         context().deferredHeaderWarnings().forEach(HeaderWarning::addWarning);
-        viewBoundaryNullFillWarnings(context().viewBoundaryNullFills()).forEach(HeaderWarning::addWarning);
+        String viewBoundaryWarning = viewBoundaryNullFillWarning(context().viewBoundaryNullFills());
+        if (viewBoundaryWarning != null) {
+            HeaderWarning.addWarning(viewBoundaryWarning);
+        }
         return verified;
     }
 
     /**
-     * One warning per view boundary whose output null-filled outer references because the referencing scope's
-     * {@code unmapped_fields} mode does not apply inside it.
+     * At most this many field names are listed in the {@link #viewBoundaryNullFillWarning}, counted across its entries; the rest
+     * are only counted. Together with {@link #MAX_LISTED_VIEW_BOUNDARY_VIEW_NAMES} this bounds the {@code Warning} header, which
+     * some clients reject when it grows too large, however many views an index pattern matches.
      */
-    static List<String> viewBoundaryNullFillWarnings(Set<AnalyzerContext.ViewBoundaryNullFill> nullFills) {
-        Map<AnalyzerContext.ViewBoundary, List<String>> fieldsByBoundary = new LinkedHashMap<>();
-        for (AnalyzerContext.ViewBoundaryNullFill fill : nullFills) {
-            fieldsByBoundary.computeIfAbsent(fill.boundary(), k -> new ArrayList<>()).add(fill.fieldName());
+    static final int MAX_LISTED_VIEW_BOUNDARY_FIELDS = 10;
+
+    /**
+     * At most this many view names are printed in the {@link #viewBoundaryNullFillWarning}, counted across its entries: a view and
+     * the view whose definition SET the mode each count, as each can be up to 255 bytes long and three
+     * times that once percent-encoded in the header. Views that no longer fit are only counted. See
+     * {@link #MAX_LISTED_VIEW_BOUNDARY_FIELDS}.
+     */
+    static final int MAX_LISTED_VIEW_BOUNDARY_VIEW_NAMES = 5;
+
+    /**
+     * Views that null-filled the same fields under the {@code SET} of the same scope, reported as one entry of the
+     * {@link #viewBoundaryNullFillWarning}. {@code fields} is a set so that views whose fields were filled in different orders,
+     * e.g. by sibling subqueries that reference them in different orders, still share the entry; it lists them in the order of
+     * the first such view.
+     */
+    private record ViewBoundaryEntry(@Nullable String settingView, Set<String> fields) {}
+
+    /**
+     * The one warning about outer references null-filled at view outputs because the loading {@code unmapped_fields} mode of the
+     * referencing scope does not apply inside those views, or {@code null} if there are none. A user who knows a view's contents
+     * may expect that mode to reach them.
+     * <p>
+     * The advice comes first and the list of fields last, so a client that truncates the header only loses part of the list.
+     * Views that lack the same fields under the same {@code SET} share one entry, so an index pattern over many similar views
+     * reads as one short entry; the listed names are capped by {@link #MAX_LISTED_VIEW_BOUNDARY_FIELDS} and
+     * {@link #MAX_LISTED_VIEW_BOUNDARY_VIEW_NAMES}. The mode itself is not named: the advice is the same for every loading mode.
+     */
+    @Nullable
+    static String viewBoundaryNullFillWarning(Set<AnalyzerContext.ViewBoundaryNullFill> nullFills) {
+        if (nullFills.isEmpty()) {
+            return null;
         }
-        List<String> warnings = new ArrayList<>(fieldsByBoundary.size());
-        fieldsByBoundary.forEach((boundary, fields) -> warnings.add(viewBoundaryNullFillWarning(boundary, fields)));
-        return warnings;
+        Map<AnalyzerContext.ViewBoundary, Set<String>> fieldsByBoundary = new LinkedHashMap<>();
+        Set<String> allFields = new HashSet<>();
+        for (AnalyzerContext.ViewBoundaryNullFill fill : nullFills) {
+            fieldsByBoundary.computeIfAbsent(fill.boundary(), k -> new LinkedHashSet<>()).add(fill.fieldName());
+            allFields.add(fill.fieldName());
+        }
+        Map<ViewBoundaryEntry, List<AnalyzerContext.ViewBoundary>> boundariesByEntry = new LinkedHashMap<>();
+        fieldsByBoundary.forEach(
+            (boundary, fields) -> boundariesByEntry.computeIfAbsent(
+                new ViewBoundaryEntry(boundary.settingView(), fields),
+                k -> new ArrayList<>()
+            ).add(boundary)
+        );
+
+        StringBuilder list = new StringBuilder();
+        int fieldBudget = MAX_LISTED_VIEW_BOUNDARY_FIELDS;
+        int viewNameBudget = MAX_LISTED_VIEW_BOUNDARY_VIEW_NAMES;
+        Set<String> listedFields = new HashSet<>();
+        Set<String> unlistedFields = new HashSet<>();
+        int unlistedViews = 0;
+        for (Map.Entry<ViewBoundaryEntry, List<AnalyzerContext.ViewBoundary>> e : boundariesByEntry.entrySet()) {
+            List<String> fields = List.copyOf(e.getKey().fields());
+            List<AnalyzerContext.ViewBoundary> views = e.getValue();
+            int settingViewNames = e.getKey().settingView() == null ? 0 : 1;
+            int viewsListed = Math.min(views.size(), viewNameBudget - settingViewNames);
+            if (fieldBudget == 0 || viewsListed <= 0) {
+                unlistedFields.addAll(fields);
+                unlistedViews += views.size();
+                continue;
+            }
+            viewNameBudget -= settingViewNames + viewsListed;
+            int fieldsListed = Math.min(fields.size(), fieldBudget);
+            fieldBudget -= fieldsListed;
+            listedFields.addAll(fields.subList(0, fieldsListed));
+            if (list.isEmpty() == false) {
+                list.append("; ");
+            }
+            appendBoundedList(list, fields, fieldsListed, field -> "[" + field + "]");
+            list.append(views.size() == 1 ? " in view " : " in views ");
+            appendBoundedList(list, views, viewsListed, view -> "[" + view.viewName() + "]");
+            if (e.getKey().settingView() != null) {
+                list.append(" (SET by view [").append(e.getKey().settingView()).append("])");
+            }
+        }
+        unlistedFields.removeAll(listedFields);
+        if (unlistedViews > 0) {
+            list.append("; and ");
+            if (unlistedFields.isEmpty() == false) {
+                list.append("[")
+                    .append(unlistedFields.size())
+                    .append("] more field")
+                    .append(unlistedFields.size() == 1 ? "" : "s")
+                    .append(" in ");
+            }
+            list.append("[").append(unlistedViews).append("] more view").append(unlistedViews == 1 ? "" : "s");
+        }
+
+        boolean oneView = fieldsByBoundary.size() == 1;
+        boolean oneField = allFields.size() == 1;
+        return Strings.format(
+            "SET unmapped_fields does not affect the contents of %s, so %s null in %s rows; to load %s, %s must reference %s "
+                + "under SET unmapped_fields=\"load\": %s",
+            oneView ? "a view" : "views",
+            oneField ? "this field is" : "these fields are",
+            oneView ? "its" : "their",
+            oneField ? "it" : "them",
+            oneView ? "the view definition" : "the view definitions",
+            oneField ? "it" : "them",
+            list
+        );
     }
 
-    static String viewBoundaryNullFillWarning(AnalyzerContext.ViewBoundary boundary, List<String> fieldNames) {
-        assert fieldNames.isEmpty() == false : "no fields to warn about";
-        boolean one = fieldNames.size() == 1;
-        return Strings.format(
-            "SET unmapped_fields=\"%s\"%s does not affect the contents of view [%s]%s, so field%s %s %s null in its rows; "
-                + "to load such fields, the view definition must %s them itself",
-            boundary.resolution().settingValue(),
-            boundary.settingView() == null ? "" : " in view [" + boundary.settingView() + "]",
-            boundary.viewName(),
-            boundary.enclosingView() == null ? "" : " nested in view [" + boundary.enclosingView() + "]",
-            one ? "" : "s",
-            ViewQuerySettings.bracketedList(fieldNames),
-            one ? "is" : "are",
-            // A view that already SETs load loads only the fields its own body references.
-            boundary.viewLoadsUnmappedFields() ? "reference" : "SET unmapped_fields=\"load\" and reference"
-        );
+    /**
+     * Appends the first {@code listed} of {@code items} as a comma-separated list, followed by {@code and [N] more} for the rest.
+     */
+    private static <T> void appendBoundedList(StringBuilder sb, List<T> items, int listed, Function<T, String> format) {
+        for (int i = 0; i < listed; i++) {
+            sb.append(i == 0 ? "" : ", ").append(format.apply(items.get(i)));
+        }
+        if (items.size() > listed) {
+            sb.append(" and [").append(items.size() - listed).append("] more");
+        }
     }
 
     public LogicalPlan verify(LogicalPlan plan, BitSet partialMetrics) {

@@ -27,6 +27,7 @@ import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings;
 import org.elasticsearch.telemetry.metric.DoubleAsyncCounter;
 import org.elasticsearch.telemetry.metric.DoubleAsyncGauge;
 import org.elasticsearch.telemetry.metric.DoubleAsyncMeasurement;
+import org.elasticsearch.telemetry.metric.DoubleAsyncUpDownCounter;
 import org.elasticsearch.telemetry.metric.DoubleCounter;
 import org.elasticsearch.telemetry.metric.DoubleGauge;
 import org.elasticsearch.telemetry.metric.DoubleHistogram;
@@ -35,6 +36,7 @@ import org.elasticsearch.telemetry.metric.Instrument;
 import org.elasticsearch.telemetry.metric.LongAsyncCounter;
 import org.elasticsearch.telemetry.metric.LongAsyncGauge;
 import org.elasticsearch.telemetry.metric.LongAsyncMeasurement;
+import org.elasticsearch.telemetry.metric.LongAsyncUpDownCounter;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongGauge;
 import org.elasticsearch.telemetry.metric.LongHistogram;
@@ -131,6 +133,7 @@ public class APMMeterRegistryTests extends ESTestCase {
         DoubleHistogram dh = registry.registerDoubleHistogram("es.test.dh.histogram", "", "");
         DoubleGauge dg = registry.registerDoubleGauge("es.test.dg.total", "", "");
         DoubleAsyncCounter dac = registry.registerDoubleAsyncCounter("es.test.dac.total", "", "", doubleCallback);
+        DoubleAsyncUpDownCounter daudc = registry.registerDoubleAsyncUpDownCounter("es.test.daudc.current", "", "", doubleCallback);
         DoubleAsyncGauge dag = registry.registerDoubleAsyncGauge("es.test.dag.current", "", "", doubleCallback);
 
         Consumer<LongAsyncMeasurement> longCallback = measurement -> measurement.record(100);
@@ -139,6 +142,7 @@ public class APMMeterRegistryTests extends ESTestCase {
         LongHistogram lh = registry.registerLongHistogram("es.test.lh.histogram", "", "");
         LongGauge lg = registry.registerLongGauge("es.test.lg.total", "", "");
         LongAsyncCounter lac = registry.registerLongAsyncCounter("es.test.lac.total", "", "", longCallback);
+        LongAsyncUpDownCounter laudc = registry.registerLongAsyncUpDownCounter("es.test.laudc.current", "", "", longCallback);
         LongAsyncGauge lag = registry.registerLongAsyncGauge("es.test.lag.current", "", "", longCallback);
 
         apmMeter.setEnabled(true);
@@ -158,6 +162,7 @@ public class APMMeterRegistryTests extends ESTestCase {
         hasOneDouble(dh, 1.0d);
         hasOneDouble(dg, 1.0d);
         hasOneDouble(dac, 1.5d);
+        hasOneDouble(daudc, 1.5d);
         hasOneDouble(dag, 1.5d);
 
         hasOneLong(lc, 1L);
@@ -165,6 +170,7 @@ public class APMMeterRegistryTests extends ESTestCase {
         hasOneLong(lh, 1L);
         hasOneLong(lg, 1L);
         hasOneLong(lac, 100L);
+        hasOneLong(laudc, 100L);
         hasOneLong(lag, 100L);
     }
 

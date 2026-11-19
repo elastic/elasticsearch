@@ -705,6 +705,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return internalCluster().clusterService();
     }
 
+    public ClusterService clusterService(String node) {
+        return internalCluster().clusterService(node);
+    }
+
     public static Client client() {
         return client(null);
     }

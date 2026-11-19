@@ -331,6 +331,9 @@ class FastDateTimeParser implements DateTimeParser {
          * The only variable aspect comes from the timezone, which (fortunately) is only present at the end of the string,
          * at any point after a time field.
          * It also does not use exceptions, instead returning {@code null} where a value cannot be parsed.
+         * <p>
+         * {@link #tryParseEpoch(byte[], int, int, boolean)} mirrors common layouts here to avoid allocations during columnar indexing.
+         * Keep their shared rules in sync so both paths index the same timestamps.
          */
         private ParseResult parse(CharSequence str, @Nullable ZoneId defaultTimezone) {
             int len = str.length();
@@ -559,7 +562,10 @@ class FastDateTimeParser implements DateTimeParser {
             return ParseResult.error(pos);
         }
 
-        /** Fast path for a subset of {@link #parse}. Keep their parsing rules in sync. */
+        /**
+         * Computes epoch values directly from UTF-8, avoiding String and {@link TemporalAccessor} allocations.
+         * Keep the shared rules in sync with {@link #parse(CharSequence, ZoneId)} so values accepted here produce the same timestamps.
+         */
         long tryParseEpoch(byte[] b, int off, int len, boolean nanosResolution) {
             final long declined = DateFormatter.DECLINED;
             if (defaults.isEmpty() == false

@@ -3983,7 +3983,8 @@ public class CsvFormatReaderTests extends ESTestCase {
         String csv = "id,blob\n1," + "x".repeat(200) + "\n";
         CsvFormatReader reader = new CsvFormatReader(blockFactory).withSchemaSampleBytes(50);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> reader.metadata(createStorageObject(csv)));
-        assertThat(e.getMessage(), containsString("decoded-byte sample limit"));
+        // A glob fails on the first file whose first record is over-wide, so the message says which one.
+        assertThat(e.getMessage(), containsString("CSV schema inference of [test.csv] reached the decoded-byte sample limit"));
         assertThat(e.getMessage(), containsString("declare a schema"));
     }
 
@@ -7648,7 +7649,8 @@ public class CsvFormatReaderTests extends ESTestCase {
         });
         assertTrue(
             "expected budget message, got: " + e.getMessage(),
-            e.getMessage().contains("schema sampling: [") && e.getMessage().contains("over [max_errors] of [5]; first errors: ")
+            e.getMessage().contains("CSV schema sampling of [test.csv]: [")
+                && e.getMessage().contains("over [max_errors] of [5]; first errors: ")
         );
         assertEquals(org.elasticsearch.rest.RestStatus.BAD_REQUEST, e.status());
     }

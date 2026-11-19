@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
+import org.elasticsearch.xpack.esql.datasources.spi.RowLocation;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.WidenedColumn;
 import org.elasticsearch.xpack.esql.datasources.spi.WithinFileWideningWarnings;
@@ -417,7 +418,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
                 blockFactory.breaker(),
                 widenings
             );
-            refuseEmptySampleAtByteBudget(sampled.sampleRows(), counted.count());
+            refuseEmptySampleAtByteBudget(sampled.sampleRows(), counted.count(), object);
             // No SourceMetadata reaches a reconciliation step from this read-time inference path (unlike
             // metadata(), which the coordinator consults during planning), so there is no widenedColumns()
             // for schema_resolution: strict to read here — only the warning, so a user reading through
@@ -596,11 +597,20 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
      * A prefix that hits the decoded-byte sample cap without a complete record cannot infer a schema:
      * the first line is wider than the budget. Declaring the schema is the way out — retrying the
      * same request cannot succeed.
+     * <p>
+     * Names the object, because a glob fails on the first object that trips this and the user otherwise learns
+     * only that one of their files has an over-wide first line. The format is the literal {@code NDJSON} rather
+     * than {@link #formatName()}: that method returns the configuration-level id {@code ndjson}, while every
+     * user-facing message in this reader spells the format in capitals. CSV takes its name from a field for a
+     * reason that does not apply here -- one reader there serves both CSV and TSV.
      */
-    private void refuseEmptySampleAtByteBudget(int sampleRows, long bytesRead) {
+    private void refuseEmptySampleAtByteBudget(int sampleRows, long bytesRead, StorageObject object) {
+        String objectName = RowLocation.displayObjectName(object.path().objectName());
         Check.clientError(
             sampleRows > 0 || bytesRead < schemaSampleBytes,
-            "schema inference reached the decoded-byte sample limit [{}] before reading a complete record; declare a schema",
+            "NDJSON schema inference{} reached the decoded-byte sample limit [{}] before reading a complete "
+                + "record; declare a schema",
+            objectName.isEmpty() ? "" : " of [" + objectName + "]",
             ByteSizeValue.ofBytes(schemaSampleBytes)
         );
     }
@@ -624,7 +634,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
                 blockFactory.breaker(),
                 widenings
             );
-            refuseEmptySampleAtByteBudget(sampled.sampleRows(), counted.count());
+            refuseEmptySampleAtByteBudget(sampled.sampleRows(), counted.count(), object);
             List<Attribute> schema = sampled.schema();
             String location = object.path().toString();
             String sourceLocation = ExternalFailures.redactHttpUrl(location);

@@ -313,8 +313,25 @@ public class NdJsonFormatReaderTests extends ESTestCase {
         byte[] bytes = ("{\"blob\":\"" + "x".repeat(200) + "\"}\n").getBytes(StandardCharsets.UTF_8);
         FormatReader reader = new NdJsonFormatReader(null, blockFactory).withSchemaSampleBytes(50);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> reader.metadata(new BytesObject(bytes)));
-        assertThat(e.getMessage(), containsString("decoded-byte sample limit"));
+        // This fixture's path carries no last segment, so there is no object to name: the clause has to
+        // disappear whole rather than leave a dangling preposition or an empty bracket.
+        assertThat(e.getMessage(), containsString("NDJSON schema inference reached the decoded-byte sample limit"));
+        assertThat(e.getMessage(), not(containsString("of []")));
         assertThat(e.getMessage(), containsString("declare a schema"));
+    }
+
+    /**
+     * The same refusal over an object that does have a name. A glob fails on the first file whose first line is
+     * over-wide, so without this the user learns only that one of their files is too wide, not which.
+     */
+    public void testSchemaSampleBytesRefusalNamesTheObject() {
+        byte[] bytes = ("{\"blob\":\"" + "x".repeat(200) + "\"}\n").getBytes(StandardCharsets.UTF_8);
+        FormatReader reader = new NdJsonFormatReader(null, blockFactory).withSchemaSampleBytes(50);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> reader.metadata(new NamedBytesObject(bytes)));
+        assertThat(
+            e.getMessage(),
+            containsString("NDJSON schema inference of [wide-first-line.ndjson] reached the decoded-byte sample limit")
+        );
     }
 
     /**
@@ -810,6 +827,23 @@ public class NdJsonFormatReaderTests extends ESTestCase {
         @Override
         public StoragePath path() {
             return StoragePath.of("mem://test");
+        }
+    }
+
+    /**
+     * The other fixtures are all {@code mem://test}, whose path component is empty, so
+     * {@link StoragePath#objectName()} returns {@code ""} for them and any message that names the object
+     * renders without one. This carries a last path segment, so the object clause is exercised rather than
+     * silently skipped.
+     */
+    private static final class NamedBytesObject extends BytesObject {
+        NamedBytesObject(byte[] bytes) {
+            super(bytes);
+        }
+
+        @Override
+        public StoragePath path() {
+            return StoragePath.of("mem://bucket/wide-first-line.ndjson");
         }
     }
 

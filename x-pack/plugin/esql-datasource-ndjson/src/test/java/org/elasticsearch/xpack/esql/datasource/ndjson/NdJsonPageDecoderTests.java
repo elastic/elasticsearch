@@ -3398,6 +3398,36 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     }
 
     /**
+     * The budget failure reports an aggregate, and its row count is this decoder's own, so it needs the same
+     * window clause the per-row details carry. Without it {@code [1] errors in [2] rows of [object]} reads as a
+     * statement about the whole file while counting only one chunk of it -- the per-row mis-location this class
+     * stopped making, reappearing in the summary that replaces those rows when the read fails.
+     */
+    public void testErrorBudgetFailureNamesTheWindowInAChunk() throws IOException {
+        ErrorPolicy noBudget = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 0, 0.0, false);
+        try (
+            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                new ByteArrayInputStream("{\"v\":1}\n{not json}\n".getBytes(StandardCharsets.UTF_8)),
+                null,
+                List.of(attribute("v", DataType.LONG)),
+                null,
+                10,
+                blockFactory,
+                noBudget,
+                "test://chunked-budget",
+                new NdJsonReaderCounters()
+            )
+        ) {
+            decoder.setRecordOffsetBase(4194304L);
+            ParsingException e = expectThrows(ParsingException.class, decoder::decodePage);
+            assertThat(
+                e.getMessage(),
+                Matchers.containsString("rows of [test://chunked-budget] counted from byte [4194304]; over [max_errors] of [0]")
+            );
+        }
+    }
+
+    /**
      * The whole-line failure takes the clause too, and its window matters most here: one decoder is built per
      * chunk on the streaming path, so this message is the one that used to give the same ordinal for one record
      * per chunk with nothing to choose between them.

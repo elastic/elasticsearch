@@ -2285,7 +2285,15 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         capturedErrors.add(rowErrorReason(e.getMessage(), format));
                     }
                     if (policy.isBudgetExceeded(errorCount, totalRowCount)) {
-                        throw budgetExceededSamplingError(errorCount, totalRowCount, policy, capturedErrors, firstCause);
+                        throw budgetExceededSamplingError(
+                            errorCount,
+                            totalRowCount,
+                            policy,
+                            capturedErrors,
+                            firstCause,
+                            format,
+                            sourceLocation
+                        );
                     }
                     if (consecutiveFailures >= MAX_CONSECUTIVE_SAMPLING_FAILURES) {
                         // Jackson cannot resync; bail with whatever we have. If we have at least
@@ -2300,7 +2308,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 if (recordReader != null && sampledBefore == 0 && sampleRows.size() == 1) {
                     Check.clientError(
                         recordReader.lastRecordBytes() <= maxSampleBytes,
-                        "schema inference reached the decoded-byte sample limit [{}] before reading a complete record; declare a schema",
+                        "{} schema inference{} reached the decoded-byte sample limit [{}] before reading a complete "
+                            + "record; declare a schema",
+                        displayName(format),
+                        objectClause(" of", sourceLocation),
                         ByteSizeValue.ofBytes(maxSampleBytes)
                     );
                 }
@@ -2364,10 +2375,18 @@ public class CsvFormatReader implements SegmentableFormatReader {
         long rowCount,
         ErrorPolicy policy,
         List<String> capturedErrors,
-        Throwable firstCause
+        Throwable firstCause,
+        String format,
+        String sourceLocation
     ) {
         Exception cause = firstCause instanceof Exception ex ? ex : null;
-        StringBuilder details = new StringBuilder("schema sampling: [").append(errorCount)
+        // The fifth schema-path message, and the last to name only itself: its two siblings grew a format and an
+        // object here, so a glob tripping the sampling budget said less about where it failed than a glob
+        // tripping any of the others.
+        StringBuilder details = new StringBuilder(displayName(format)).append(" schema sampling")
+            .append(objectClause(" of", sourceLocation))
+            .append(": [")
+            .append(errorCount)
             .append("] errors in [")
             .append(rowCount)
             .append("] rows, ")
@@ -7873,6 +7892,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
             if (errorPolicy.isBudgetExceeded(errorCount, totalRowCount)) {
                 // Budget exceeded is a client-data problem (the file has too many bad rows for the
                 // user-configured tolerance), not a server bug — surface as HTTP 400.
+                // The row count is this reader's own, so it takes the window clause the per-row details take.
+                // Without it the aggregate reads as a statement about the whole object, which on a later split
+                // it is not -- the mis-location this change removes from the detail lines, left in the summary.
                 throw ExternalFailures.rowError(
                     cause,
                     "["
@@ -7881,7 +7903,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         + totalRowCount
                         + "] rows of ["
                         + messageLocation
-                        + "]; "
+                        + "]"
+                        + RowLocation.countedIn(messageStartByte)
+                        + "; "
                         + errorPolicy.trippedLimit(errorCount)
                 );
             }

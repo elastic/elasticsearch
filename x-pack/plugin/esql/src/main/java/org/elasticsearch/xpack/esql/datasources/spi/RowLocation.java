@@ -98,29 +98,53 @@ public final class RowLocation {
         if (objectName != null && objectName.isEmpty() == false) {
             where.append(" of [").append(shorten(objectName)).append(']');
         }
+        return where.append(countedIn(readStartByte)).toString();
+    }
+
+    /**
+     * The window clause on its own: what {@link #of} appends after the row and the object, for a message that
+     * reports an AGGREGATE rather than one row and so has no ordinal to carry.
+     * <p>
+     * Both readers' error-budget failures say how many rows they read before giving up, and that count is
+     * split-relative for the same reason a row ordinal is — the reader counts its own input. Without this clause
+     * {@code [N] errors in [M] rows of [object]} reads as a statement about the whole object, which on a later
+     * split it is not, so the aggregate reproduced exactly the mis-location this class removes from the per-row
+     * text. Sharing the rendering keeps the two kinds of message agreeing about the window: a detail line that
+     * says {@code counted from byte [B]} and a summary that quietly implied byte zero would be a worse pair than
+     * either message alone.
+     * <p>
+     * Returns the empty string for a read from the start of the file, whose counts ARE the file's and need no
+     * qualification.
+     */
+    public static String countedIn(long readStartByte) {
         if (readStartByte > 0L) {
-            where.append(" counted from byte [").append(readStartByte).append(']');
-        } else if (readStartByte < 0L) {
-            where.append(" counted within a split");
+            return " counted from byte [" + readStartByte + "]";
         }
-        return where.toString();
+        return readStartByte < 0L ? " counted within a split" : "";
     }
 
     /**
      * Reduces an object name to the token every message must use for it. A reader applies this where it assigns
      * its message-location field, so the summary warning and the per-row details sitting under it carry the SAME
      * token: capping only inside {@link #of} would make a long name render two ways in one response, which reads
-     * as two different objects. It also escapes the name's control characters, for the reason given on
-     * {@link #escapeControlCharacters}. {@link #of} applies both again, idempotently — escaped text holds no
-     * control character left to escape, and a name already inside the cap is returned as it stands — so a
-     * caller that has not cannot emit an uncut or unescaped name. This is the one statement of that rationale;
-     * call sites point here rather than repeat it.
+     * as two different objects. It also escapes the characters a name could use to impersonate the text around
+     * it, for the reasons given on {@link #escapeImpersonatingCharacters}. {@link #of} applies both again,
+     * idempotently — escaped text holds no such character left to escape, and a name already inside the cap is
+     * returned as it stands — so a caller that has not cannot emit an uncut or unescaped name. This is the one
+     * statement of that rationale; call sites point here rather than repeat it.
      * <p>
      * Two names agreeing on the kept head and tail but differing in the cut middle reduce to one token, so
      * objects that would otherwise have been told apart can produce identical text and the exact-string
      * deduplication then keeps only the first. That is the same limitation as the shared-basename case this
      * class documents above, reached through the cap rather than through the path, and it is accepted for the
      * same reason: the alternative is an unbounded name in a response header.
+     * <p>
+     * What that acceptance covers is two HONEST names coinciding — a glob whose objects happen to share a
+     * basename, or a head and a tail. It does not extend to a name built to impersonate the location text
+     * around it, where the collapse is the point rather than the accident and whoever chose the name decides
+     * which other row's warning disappears. {@link #escapeImpersonatingCharacters} closes that off separately,
+     * and the distinction is why the two live apart: a coincidence is bounded by what users happen to call
+     * their files, and a forgery is bounded by nothing.
      * <p>
      * Cuts to {@link #MAX_OBJECT_NAME_CHARS}, keeping both ends. Same head/tail shape as
      * {@link ErrorExcerpts#summarize}, without its character count: the count tells a user how much of a VALUE
@@ -131,7 +155,7 @@ public final class RowLocation {
     }
 
     private static String shorten(String objectName) {
-        String displayable = escapeControlCharacters(objectName);
+        String displayable = escapeImpersonatingCharacters(objectName);
         if (displayable.length() <= MAX_OBJECT_NAME_CHARS) {
             return displayable;
         }
@@ -153,8 +177,11 @@ public final class RowLocation {
     }
 
     /**
-     * Replaces every control character in an object name with a backslash-u escape of its code point (a newline
-     * becomes {@code 000A}), because this clause is
+     * Replaces, with a backslash-u escape of its code point (a newline becomes {@code \u000A}), every character in
+     * an object name that the name could otherwise use to impersonate the text around it. Two such characters, for
+     * two different channels.
+     * <p>
+     * A control character, because this clause is
      * the one piece of an object's name that reaches the node log: the readers pass the whole rendered location
      * to {@code logger.warn} alongside the client warning, so that the operator reading the log and the user
      * reading the response see the same row of the same object. A name is store-supplied text — an S3 key may
@@ -164,36 +191,53 @@ public final class RowLocation {
      * {@code HeaderWarning.encode} leaves the C0 range out of its unencoded set, so a newline travels as
      * {@code %0A} with or without this.
      * <p>
+     * A square bracket, because the name is printed inside one and the clause is built by concatenation, so a name
+     * is free to close its own bracket and open the next field: an object actually called
+     * {@code v.csv] counted from byte [12} renders {@code row [1] of [v.csv] counted from byte [12]}, which is
+     * character-for-character what a byte-12 read of {@code v.csv} renders. That is worse than a merely confusing
+     * name, because {@code InformationalWarningBudget} deduplicates by exact string: the forged detail and the
+     * real one collapse into one warning and the user is told about one failing row where there were two. Escaping
+     * either bracket is enough to break the forgery; both are escaped so the rule is "a bracket in a name is never
+     * a bracket in the message" rather than a rule about which one happened to matter.
+     * <p>
      * Escaping is one-way and is not meant to be reversed: a name holding a literal backslash followed by
      * {@code u} renders the same as one holding the escape of that code point. The clause's job is to identify
      * which object a row came from, which survives the ambiguity; a name recovered from a log line is not
      * something to feed back to a store.
      * <p>
      * Applied before the cap, so {@link #MAX_OBJECT_NAME_CHARS} bounds what is actually emitted — an escape is
-     * six characters where the control was one, and capping first would let a name of controls expand past the
+     * six characters where the original was one, and capping first would let a name of them expand past the
      * bound afterwards.
      */
-    private static String escapeControlCharacters(String objectName) {
-        int firstControl = -1;
+    private static String escapeImpersonatingCharacters(String objectName) {
+        int firstEscapable = -1;
         for (int i = 0; i < objectName.length(); i++) {
-            if (Character.isISOControl(objectName.charAt(i))) {
-                firstControl = i;
+            if (impersonates(objectName.charAt(i))) {
+                firstEscapable = i;
                 break;
             }
         }
-        if (firstControl < 0) {
+        if (firstEscapable < 0) {
             return objectName;
         }
-        StringBuilder escaped = new StringBuilder(objectName.length() + 8).append(objectName, 0, firstControl);
-        for (int i = firstControl; i < objectName.length(); i++) {
+        StringBuilder escaped = new StringBuilder(objectName.length() + 8).append(objectName, 0, firstEscapable);
+        for (int i = firstEscapable; i < objectName.length(); i++) {
             char c = objectName.charAt(i);
-            if (Character.isISOControl(c)) {
+            if (impersonates(c)) {
                 escaped.append(Strings.format("\\u%04X", (int) c));
             } else {
                 escaped.append(c);
             }
         }
         return escaped.toString();
+    }
+
+    /**
+     * The characters {@link #escapeImpersonatingCharacters} rewrites, in one predicate so the scan and the
+     * rewrite cannot disagree about the set.
+     */
+    private static boolean impersonates(char c) {
+        return Character.isISOControl(c) || c == '[' || c == ']';
     }
 
     /**

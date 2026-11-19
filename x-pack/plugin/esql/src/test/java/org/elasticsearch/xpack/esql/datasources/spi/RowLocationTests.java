@@ -83,6 +83,44 @@ public class RowLocationTests extends ESTestCase {
     }
 
     /**
+     * The window clause is reachable on its own because the error-budget failures report an aggregate and have
+     * no ordinal to hang it on. Pinned here against the rendering inside a full clause so the summary a failed
+     * read returns and the details it would have returned cannot describe different windows.
+     */
+    public void testTheWindowClauseRendersTheSameAloneAsItDoesInAFullClause() {
+        assertThat("a read from the start of the file qualifies nothing", RowLocation.countedIn(0L), equalTo(""));
+        assertThat(RowLocation.countedIn(4194304L), equalTo(" counted from byte [4194304]"));
+        assertThat(RowLocation.countedIn(RowLocation.BYTE_UNKNOWN), equalTo(" counted within a split"));
+        for (long startByte : new long[] { 0L, 4194304L, RowLocation.BYTE_UNKNOWN }) {
+            assertThat(
+                "the aggregate and the per-row detail must agree about the window",
+                RowLocation.of(7, "v.csv", startByte),
+                equalTo("row [7] of [v.csv]" + RowLocation.countedIn(startByte))
+            );
+        }
+    }
+
+    /**
+     * The clause is built by concatenation and prints the name inside brackets, so a name holding a bracket can
+     * close its own field and open the next one. The forged text is not merely confusing: the warning budget
+     * deduplicates by exact string, so a name that renders as another row's location makes that row's warning
+     * disappear and the user is told about one failure where there were two.
+     */
+    public void testABracketInAnObjectNameCannotForgeALocation() {
+        String forged = RowLocation.of(1, "v.csv] counted from byte [12", 0L);
+        String honest = RowLocation.of(1, "v.csv", 12L);
+        assertThat("a byte-zero read must not render as a byte-12 read of another object", forged, not(equalTo(honest)));
+        assertThat(
+            "the forged read starts at byte zero, so it carries no byte clause",
+            forged,
+            not(containsString("counted from byte [12]"))
+        );
+        assertThat("the bracket is named rather than dropped", forged, containsString("005D"));
+        assertThat("the rest of the name survives", forged, containsString("v.csv"));
+        assertThat(RowLocation.of(2, "a[b].csv", 0L), equalTo("row [2] of [a\\u005Bb\\u005D.csv]"));
+    }
+
+    /**
      * Escaping expands a control character into six, so it has to run before the cap — capping first would let a
      * name made of control characters grow past the bound afterwards, which is the bound the response header needs.
      */

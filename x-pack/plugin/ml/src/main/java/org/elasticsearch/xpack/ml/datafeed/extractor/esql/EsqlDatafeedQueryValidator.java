@@ -27,7 +27,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.DelayedDataCheckConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.ml.datafeed.esql.BoundEsqlQueryParser;
+import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryParser;
 import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryWithParams;
 import org.elasticsearch.xpack.ml.datafeed.esql.spi.ParsedEsqlQuery;
 
@@ -47,14 +47,14 @@ public class EsqlDatafeedQueryValidator {
 
     private static final Logger logger = LogManager.getLogger(EsqlDatafeedQueryValidator.class);
 
-    private final BoundEsqlQueryParser parser;
+    private final EsqlQueryParser parser;
     private final EsqlQueryRunner queryRunner;
 
-    public EsqlDatafeedQueryValidator(BoundEsqlQueryParser parser) {
+    public EsqlDatafeedQueryValidator(EsqlQueryParser parser) {
         this(parser, EsqlQueryRunner.DEFAULT);
     }
 
-    EsqlDatafeedQueryValidator(BoundEsqlQueryParser parser, EsqlQueryRunner queryRunner) {
+    EsqlDatafeedQueryValidator(EsqlQueryParser parser, EsqlQueryRunner queryRunner) {
         this.parser = Objects.requireNonNull(parser);
         this.queryRunner = Objects.requireNonNull(queryRunner);
     }
@@ -124,7 +124,6 @@ public class EsqlDatafeedQueryValidator {
         EsqlDatafeedQuery query;
         try {
             query = EsqlDatafeedQuery.parse(parser, esqlQuery);
-            rejectOuterTimeFilter(datafeedId, query, timeField);
         } catch (Exception e) {
             listener.onFailure(e);
             return;
@@ -268,15 +267,6 @@ public class EsqlDatafeedQueryValidator {
             causeMessage
         );
         return new IllegalArgumentException(message, cause);
-    }
-
-    /** The datafeed applies its own time window, so a WHERE on the job time field would silently empty older windows. */
-    static void rejectOuterTimeFilter(@Nullable String datafeedId, EsqlDatafeedQuery query, String timeField) {
-        if (query.hasOuterTimeFilter(timeField)) {
-            throw ExceptionsHelper.badRequestException(
-                Messages.getMessage(Messages.DATAFEED_ESQL_OUTER_TIME_FILTER_NOT_SUPPORTED, esqlDatafeedSubject(datafeedId), timeField)
-            );
-        }
     }
 
     /** ML sets the row cap itself, so an outer LIMIT after the last STATS is allowed but may truncate the output. */

@@ -12,7 +12,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
-import org.elasticsearch.xpack.ml.datafeed.esql.BoundEsqlQueryParser;
+import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryParser;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 
@@ -30,7 +30,7 @@ public record EsqlDataExtractorFactory(
         DatafeedConfig datafeed,
         Job job,
         DatafeedTimingStatsReporter timingStatsReporter,
-        BoundEsqlQueryParser parser,
+        EsqlQueryParser parser,
         ActionListener<DataExtractorFactory> factoryHandler
     ) {
         EsqlDatafeedQuery query;

@@ -27,12 +27,28 @@ import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 final class EsqlQueryExecutor {
 
     private static final String EPOCH_MILLIS = "epoch_millis";
+    static final String UTC_TIME_ZONE_SET = "SET time_zone=\"UTC\";\n";
 
     private EsqlQueryExecutor() {}
 
     /** Source-level {@code [start, end)} filter on {@code timeField}, in epoch millis. */
     static QueryBuilder timeRangeFilter(String timeField, long start, long end) {
         return new RangeQueryBuilder(timeField).gte(start).lt(end).format(EPOCH_MILLIS);
+    }
+
+    /**
+     * Runs the query in UTC whatever the cluster default time zone is, so bucket boundaries match the job bucket alignment. A
+     * {@code SET time_zone} in the query comes after this one and wins, which is why the validator rejects a non-UTC one. The text is
+     * not changed for the validation probes, so their error positions are those of the query the user wrote.
+     */
+    static EsqlQueryRequestBuilder<? extends EsqlQueryRequest, ? extends EsqlQueryResponse> newUtcRequest(
+        Client client,
+        String query,
+        @Nullable QueryBuilder filter,
+        List<EsqlQueryParam> params,
+        @Nullable String projectRouting
+    ) {
+        return newRequest(client, UTC_TIME_ZONE_SET + query, filter, params, projectRouting);
     }
 
     @SuppressWarnings("unchecked")

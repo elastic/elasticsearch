@@ -38,8 +38,8 @@ import org.elasticsearch.xpack.core.esql.action.EsqlResponse;
 import org.elasticsearch.xpack.core.esql.action.internal.SharedSecrets;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
-import org.elasticsearch.xpack.ml.datafeed.esql.BoundEsqlQueryParser;
 import org.elasticsearch.xpack.ml.datafeed.esql.EsqlParserTestSupport;
+import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryParser;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.junit.After;
 import org.junit.Before;
@@ -79,7 +79,7 @@ import static org.mockito.Mockito.when;
 
 public class EsqlDataExtractorTests extends ESTestCase {
 
-    private static final BoundEsqlQueryParser PARSER = EsqlParserTestSupport.parser();
+    private static final EsqlQueryParser PARSER = EsqlParserTestSupport.parser();
 
     private static final String DEFAULT_QUERY = "FROM logs";
     private static final String TIME_FIELD = "ts";
@@ -221,7 +221,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
 
             extractor.next();
 
-            verify(builder).query(DEFAULT_QUERY + "\n| SORT ??timeField ASC\n| LIMIT 10000");
+            verify(builder).query(EsqlQueryExecutor.UTC_TIME_ZONE_SET + DEFAULT_QUERY + "\n| SORT ??timeField ASC\n| LIMIT 10000");
             verify(builder).filter(any(RangeQueryBuilder.class));
             verify(builder).params(List.of(new EsqlQueryParam("timeField", TIME_FIELD, IDENTIFIER)));
             verify(builder).allowPartialResults(false);

@@ -98,9 +98,6 @@ public final class Messages {
     public static final String DATAFEED_ESQL_PROBE_UNKNOWN_ERROR = "unknown error";
     public static final String DATAFEED_ESQL_EXPECTED_DATE_VALUE = "expected date value";
     public static final String DATAFEED_ESQL_EXPECTED_NUMERIC_TIMESTAMP = "expected numeric timestamp";
-    public static final String DATAFEED_ESQL_OUTER_TIME_FILTER_NOT_SUPPORTED =
-        "{0} query contains a WHERE clause on job time field [{1}]. ES|QL datafeeds do not support a time filter in esql_query "
-            + "because ML owns the request window. Remove the time-field WHERE clause.";
     public static final String DATAFEED_ESQL_OUTER_LIMIT_WARNING =
         "{0} query contains an outer LIMIT [{1}]. ML sets the row limit. Remove the LIMIT.";
     public static final String DATAFEED_ESQL_OUTER_LIMIT_DELAYED_DATA_WARNING =

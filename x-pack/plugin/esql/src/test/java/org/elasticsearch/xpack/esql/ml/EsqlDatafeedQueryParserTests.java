@@ -160,11 +160,19 @@ public class EsqlDatafeedQueryParserTests extends ESTestCase {
         assertThat(query.setsProjectRoutingInQuery(), is(false));
     }
 
-    public void testTimeZoneSetInQueryShouldWinOverClusterDefault() {
+    public void testTimeZoneShouldBeTheOneSetInQueryAndNotTheClusterDefault() {
         try (ClusterService berlin = clusterService(Settings.builder().put("esql.query.settings.time_zone", "Europe/Berlin").build())) {
-            assertThat(parserFor(berlin).parse("FROM idx").timeZone(), equalTo(ZoneId.of("Europe/Berlin")));
+            // ML sends UTC with every request, so the cluster default is of no interest.
+            assertThat(parserFor(berlin).parse("FROM idx").timeZone(), equalTo(ZoneOffset.UTC));
             assertThat(parserFor(berlin).parse("SET time_zone=\"Asia/Tokyo\"; FROM idx").timeZone(), equalTo(ZoneId.of("Asia/Tokyo")));
         }
+    }
+
+    public void testTimeZoneSetAgainAfterUtcPrefixShouldParse() {
+        // ML puts SET time_zone="UTC" in front of every query it runs; the query may set the same setting itself.
+        ParsedEsqlQuery query = parse("SET time_zone=\"UTC\";\nSET time_zone=\"UTC\"; FROM idx");
+        assertThat(query.timeZone(), equalTo(ZoneOffset.UTC));
+        assertThat(query.indexPatterns(), contains("idx"));
     }
 
     public void testProjectRoutingSetInQueryShouldBeReportedWhenCrossProjectIsEnabled() {

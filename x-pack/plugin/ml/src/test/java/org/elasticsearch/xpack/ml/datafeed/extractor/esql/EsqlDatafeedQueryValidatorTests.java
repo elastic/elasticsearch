@@ -36,8 +36,8 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.ml.datafeed.crossproject.NoMatchingProjectTestMessages;
-import org.elasticsearch.xpack.ml.datafeed.esql.BoundEsqlQueryParser;
 import org.elasticsearch.xpack.ml.datafeed.esql.EsqlParserTestSupport;
+import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryParser;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -64,7 +64,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
     private static final String ESQL_QUERY =
         "FROM logs | STATS avg_bytes = AVG(bytes), doc_count = COUNT(*) BY ts = BUCKET(@timestamp, 1 hour)";
     private static final String TIME_FIELD = "ts";
-    private static final BoundEsqlQueryParser PARSER = EsqlParserTestSupport.parser();
+    private static final EsqlQueryParser PARSER = EsqlParserTestSupport.parser();
     private static final EsqlDatafeedQueryValidator STRUCTURE_VALIDATOR = new EsqlDatafeedQueryValidator(PARSER);
     private static final String SUMMARY_COUNT_FIELD = "doc_count";
 
@@ -769,7 +769,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         );
 
         assertThat(succeeded.get(), is(true));
-        assertThat(harness.capturedQuery, equalTo("FROM metrics-* | KEEP ??timeField | LIMIT 0"));
+        assertThat(harness.capturedQuery, equalTo("TS metrics-* | STATS t = MAX(MAX_OVER_TIME(??timeField)) | LIMIT 0"));
     }
 
     public void testNullEmittedTimeInSourceWindowShouldUseMessages() {
@@ -943,7 +943,6 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
                     + "| KEEP `WHERE ts`, value /* WHERE ts | SORT ts | LIMIT 20 /* WHERE ts */ */ "
                     + "// WHERE ts | SORT ts | LIMIT 20\n"
             );
-            EsqlDatafeedQueryValidator.rejectOuterTimeFilter("datafeed-1", query, TIME_FIELD);
             EsqlDatafeedQueryValidator.warnForOuterLimit("datafeed-1", query, true);
 
             assertWarnings();
@@ -1264,6 +1263,14 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         STRUCTURE_VALIDATOR.validateQueryStructure("SET time_zone=\"Etc/UTC\"; FROM logs", false);
     }
 
+    public void testNonUtcClusterDefaultTimeZoneShouldPassStructureValidation() {
+        // ML sends UTC with every run, so only a time zone the query sets itself is rejected.
+        EsqlDatafeedQueryValidator validator = new EsqlDatafeedQueryValidator(
+            EsqlParserTestSupport.parser(Settings.builder().put("esql.query.settings.time_zone", "Europe/Berlin").build())
+        );
+        validator.validateQueryStructure("FROM logs", false);
+    }
+
     public void testInvalidQueryShouldFailStructureValidationWithBadRequest() {
         ElasticsearchException e = expectThrows(
             ElasticsearchException.class,
@@ -1305,17 +1312,24 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         }
     }
 
-    public void testBacktickTimeFieldFilterShouldBeRejected() {
-        ElasticsearchException e = expectThrows(
-            ElasticsearchException.class,
-            () -> EsqlDatafeedQueryValidator.rejectOuterTimeFilter(
-                "datafeed-1",
-                EsqlDatafeedQuery.parse(PARSER, "FROM logs | WHERE `@timestamp` > NOW() - 1 day"),
-                "@timestamp"
-            )
-        );
-        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(e.getMessage(), containsString("WHERE clause on job time field [@timestamp]"));
+    public void testTimeFilterAndSortOnTimeFieldShouldPassValidationWithoutWarning() {
+        // As with DSL datafeeds, the query's own time filter is combined with the datafeed window.
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        HeaderWarning.setThreadContext(threadContext);
+        try {
+            List<ColumnInfo> columns = List.of(mockColumn(TIME_FIELD, "date"));
+            ValidatorHarness harness = new ValidatorHarness(buildResponse(columns));
+            assertValidationSucceeds(
+                harness.validator,
+                "FROM logs | WHERE ts > NOW() - 1 day | SORT ts DESC | KEEP ts",
+                null,
+                TIME_FIELD,
+                null
+            );
+            assertWarnings();
+        } finally {
+            HeaderWarning.removeThreadContext(threadContext);
+        }
     }
 
     private static ElasticsearchStatusException expectRejected(String query) {

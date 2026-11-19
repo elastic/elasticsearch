@@ -38,7 +38,6 @@ import org.elasticsearch.xpack.core.ml.action.SetUpgradeModeAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.ml.autoscaling.AbstractNodeAvailabilityZoneMapper;
 import org.elasticsearch.xpack.ml.autoscaling.NodeRealAvailabilityZoneMapper;
-import org.elasticsearch.xpack.ml.datafeed.esql.BoundEsqlQueryParser;
 import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryParser;
 import org.elasticsearch.xpack.ml.datafeed.esql.spi.ParsedEsqlQuery;
 import org.elasticsearch.xpack.ml.rest.RestMlInfoAction;
@@ -347,7 +346,7 @@ public class MachineLearningTests extends ESTestCase {
     public void testNoEsqlQueryParserProviderShouldFallBackToUnavailableParser() throws IOException {
         try (MachineLearning machineLearning = new MachineLearning(Settings.EMPTY)) {
             machineLearning.loadExtensions(esqlParserLoader());
-            BoundEsqlQueryParser parser = machineLearning.esqlQueryParser(mock(ClusterService.class));
+            EsqlQueryParser parser = machineLearning.esqlQueryParser();
             ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> parser.parse("FROM a"));
             assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
         }
@@ -357,8 +356,8 @@ public class MachineLearningTests extends ESTestCase {
         try (MachineLearning machineLearning = new MachineLearning(Settings.EMPTY)) {
             machineLearning.loadExtensions(null);
             machineLearning.loadExtensions(esqlParserLoader(new FirstTestParser()));
-            // The provider is reached through the bound parser: its stub throws where the unavailable parser would answer 400.
-            BoundEsqlQueryParser parser = machineLearning.esqlQueryParser(mock(ClusterService.class));
+            // The loaded provider is used: its stub throws where the unavailable parser would answer 400.
+            EsqlQueryParser parser = machineLearning.esqlQueryParser();
             expectThrows(UnsupportedOperationException.class, () -> parser.parse("FROM a"));
         }
     }
@@ -368,7 +367,7 @@ public class MachineLearningTests extends ESTestCase {
             ExtensiblePlugin.ExtensionLoader loader = esqlParserLoader(new FirstTestParser(), new FirstTestParser());
             machineLearning.loadExtensions(loader);
             machineLearning.loadExtensions(loader);
-            BoundEsqlQueryParser parser = machineLearning.esqlQueryParser(mock(ClusterService.class));
+            EsqlQueryParser parser = machineLearning.esqlQueryParser();
             expectThrows(UnsupportedOperationException.class, () -> parser.parse("FROM a"));
         }
     }

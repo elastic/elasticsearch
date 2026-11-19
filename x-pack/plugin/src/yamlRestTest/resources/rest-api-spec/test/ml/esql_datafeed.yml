@@ -512,7 +512,8 @@ setup:
           }
 
   - do:
-      catch: /do not support SET project_routing/
+      # Without cross-project search ES|QL rejects the setting itself; ML's own message is covered by unit tests.
+      catch: '/Error validating setting \[project_routing\]: cross-project search not enabled/'
       ml.put_datafeed:
         datafeed_id: esql-datafeed-project-routing
         body: >
@@ -536,8 +537,22 @@ setup:
           }
 
   - do:
+      catch: /\[LIMIT\] before \[STATS\] is not supported in ES\|QL datafeeds.*Move it after the last STATS or remove it/
+      ml.put_datafeed:
+        datafeed_id: esql-datafeed-limit-before-stats
+        body: >
+          {
+            "job_id": "esql-datafeed-limit-stats-job",
+            "delayed_data_check_config": {"enabled": false},
+            "source_time_field": "time",
+            "grouping_interval": "1h",
+            "esql_query": "FROM index-esql-datafeed-lifecycle | LIMIT 500 | STATS doc_count = COUNT(*) BY time = BUCKET(time, 1 hour)"
+          }
+
+  # A LIMIT after the last STATS caps the output and is accepted with a warning; the trailing comment must not swallow ML's pipeline.
+  - do:
       warnings_regex:
-        - ".*applies LIMIT \\[[0-9]+\\] before an aggregation.*"
+        - ".*outer LIMIT \\[500\\].*"
       ml.put_datafeed:
         datafeed_id: esql-datafeed-limit-stats
         body: >
@@ -546,7 +561,7 @@ setup:
             "delayed_data_check_config": {"enabled": false},
             "source_time_field": "time",
             "grouping_interval": "1h",
-            "esql_query": "FROM index-esql-datafeed-lifecycle // trailing comment\n| LIMIT 500 | STATS doc_count = COUNT(*) BY time = BUCKET(time, 1 hour)"
+            "esql_query": "FROM index-esql-datafeed-lifecycle // trailing comment\n| STATS doc_count = COUNT(*) BY time = BUCKET(time, 1 hour) | LIMIT 500"
           }
 
   - do:

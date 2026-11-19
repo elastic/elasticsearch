@@ -11,8 +11,8 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.datafeed.esql.BoundEsqlQueryParser;
 import org.elasticsearch.xpack.ml.datafeed.esql.EsqlParserTestSupport;
+import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryParser;
 import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryWithParams;
 
 import java.util.OptionalInt;
@@ -22,7 +22,7 @@ import static org.hamcrest.Matchers.is;
 
 public class EsqlDatafeedQueryTests extends ESTestCase {
 
-    private static final BoundEsqlQueryParser PARSER = EsqlParserTestSupport.parser();
+    private static final EsqlQueryParser PARSER = EsqlParserTestSupport.parser();
     private static final String SORT = "\n| SORT ??timeField ASC";
     private static final String CAP = "\n| LIMIT 10000";
 
@@ -88,10 +88,18 @@ public class EsqlDatafeedQueryTests extends ESTestCase {
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
     }
 
+    public void testCommandsThatDependOnTheTimeWindowShouldBeRejected() {
+        String[] queries = {
+            "FROM logs-* | STATS c = COUNT(*) | LIMIT 5 | STATS d = COUNT(*)",
+            "FROM logs-* | SAMPLE 0.1 | STATS c = COUNT(*)" };
+        for (String query : queries) {
+            ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> parse(query));
+            assertThat(query, e.status(), equalTo(RestStatus.BAD_REQUEST));
+        }
+    }
+
     public void testLimitAfterStatsShouldCapOutput() {
         assertThat(parse("FROM logs-* | STATS c = COUNT(*) | LIMIT 5").outputLimit(), equalTo(OptionalInt.of(5)));
-        assertThat(parse("FROM logs-* | STATS c = COUNT(*) | LIMIT 5 | STATS d = COUNT(*)").injectsRowLimit(), is(true));
-        assertThat(parse("FROM logs-* | SAMPLE 0.1 | STATS c = COUNT(*)").injectsRowLimit(), is(true));
         assertThat(parse("FROM logs-* | LIMIT 5").injectsRowLimit(), is(false));
     }
 
@@ -111,13 +119,6 @@ public class EsqlDatafeedQueryTests extends ESTestCase {
             ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> parse(query));
             assertThat(query, e.status(), equalTo(RestStatus.BAD_REQUEST));
         }
-    }
-
-    public void testTimeFieldFilterShouldBeDetectedByFieldName() {
-        assertThat(parse("FROM logs | WHERE ts > 0").hasOuterTimeFilter("ts"), is(true));
-        assertThat(parse("FROM logs | WHERE `@timestamp` > NOW() - 1 day").hasOuterTimeFilter("@timestamp"), is(true));
-        assertThat(parse("FROM logs | WHERE message == \"WHERE ts\"").hasOuterTimeFilter("ts"), is(false));
-        assertThat(parse("FROM logs | SORT ts DESC").hasOuterTimeFilter("ts"), is(false));
     }
 
     public void testSourceProbesShouldKeepSettingsAndSourceCommandOnly() {

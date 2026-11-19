@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.esql;
 
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.ml.datafeed.esql.BoundEsqlQueryParser;
+import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryParser;
 import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryWithParams;
 import org.elasticsearch.xpack.ml.datafeed.esql.spi.ParsedEsqlQuery;
 
@@ -37,7 +37,7 @@ public final class EsqlDatafeedQuery {
     }
 
     /** Parses {@code query}; throws a 400 if it is not valid ES|QL, uses an unsupported construct, or has no index source. */
-    public static EsqlDatafeedQuery parse(BoundEsqlQueryParser parser, String query) {
+    public static EsqlDatafeedQuery parse(EsqlQueryParser parser, String query) {
         ParsedEsqlQuery parsed = parser.parse(query);
         if (parsed.indexPatterns().isEmpty()) {
             // Source probes and the extractor time filter need an index source.
@@ -68,10 +68,6 @@ public final class EsqlDatafeedQuery {
     /** The user LIMIT that caps the output rows, if any. */
     OptionalInt outputLimit() {
         return parsed.outputLimit();
-    }
-
-    boolean hasOuterTimeFilter(String timeField) {
-        return parsed.filtersOn(timeField);
     }
 
     /** {@code query | LIMIT 0}: resolves the output columns without reading rows. Text-level so it also works before parsing. */

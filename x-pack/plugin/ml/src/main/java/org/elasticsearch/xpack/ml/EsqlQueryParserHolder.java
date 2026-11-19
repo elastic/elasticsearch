@@ -7,14 +7,14 @@
 
 package org.elasticsearch.xpack.ml;
 
-import org.elasticsearch.xpack.ml.datafeed.esql.BoundEsqlQueryParser;
+import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryParser;
 
 import java.util.Objects;
 
 /**
- * Makes the {@link BoundEsqlQueryParser} injectable into transport actions: Guice binds plugin components by their concrete class.
+ * Makes the {@link EsqlQueryParser} injectable into transport actions: Guice binds plugin components by their concrete class.
  */
-public record EsqlQueryParserHolder(BoundEsqlQueryParser parser) {
+public record EsqlQueryParserHolder(EsqlQueryParser parser) {
 
     public EsqlQueryParserHolder {
         Objects.requireNonNull(parser);

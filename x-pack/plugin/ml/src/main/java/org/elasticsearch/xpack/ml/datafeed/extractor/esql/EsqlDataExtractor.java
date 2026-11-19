@@ -272,7 +272,7 @@ public class EsqlDataExtractor implements DataExtractor {
     }
 
     private EsqlQueryResponse executeDefaultSyncQuery(String orderedQuery, QueryBuilder timeFilter, List<EsqlQueryParam> params) {
-        return execute(EsqlQueryExecutor.newRequest(client, orderedQuery, timeFilter, params, context.projectRouting()));
+        return execute(EsqlQueryExecutor.newUtcRequest(client, orderedQuery, timeFilter, params, context.projectRouting()));
     }
 
     EsqlQueryResponse execute(EsqlQueryRequestBuilder<? extends EsqlQueryRequest, ? extends EsqlQueryResponse> request) {

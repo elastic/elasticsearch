@@ -69,7 +69,7 @@ public final class EsqlBucketEventCounter implements BucketEventCounter {
             sourceTimeField,
             (query, filter, params) -> EsqlQueryExecutor.executeSync(
                 client,
-                EsqlQueryExecutor.newRequest(client, query, filter, params, projectRouting),
+                EsqlQueryExecutor.newUtcRequest(client, query, filter, params, projectRouting),
                 headers
             )
         );

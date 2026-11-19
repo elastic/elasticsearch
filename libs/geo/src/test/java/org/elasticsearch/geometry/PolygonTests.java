@@ -28,26 +28,19 @@ public class PolygonTests extends BaseGeometryTestCase<Polygon> {
 
     public void testBasicSerialization() throws IOException, ParseException {
         GeometryValidator validator = GeographyValidator.instance(true);
-        assertEquals(
+        assertSerialization(
+            validator,
+            true,
             "POLYGON ((3.0 1.0, 4.0 2.0, 5.0 3.0, 3.0 1.0))",
-            WellKnownText.toWKT(new Polygon(new LinearRing(new double[] { 3, 4, 5, 3 }, new double[] { 1, 2, 3, 1 })))
+            new Polygon(new LinearRing(new double[] { 3, 4, 5, 3 }, new double[] { 1, 2, 3, 1 }))
         );
-        assertEquals(
-            new Polygon(new LinearRing(new double[] { 3, 4, 5, 3 }, new double[] { 1, 2, 3, 1 })),
-            WellKnownText.fromWKT(validator, true, "POLYGON ((3 1, 4 2, 5 3, 3 1))")
-        );
-
-        assertEquals(
+        assertSerialization(
+            validator,
+            true,
             "POLYGON ((3.0 1.0 5.0, 4.0 2.0 4.0, 5.0 3.0 3.0, 3.0 1.0 5.0))",
-            WellKnownText.toWKT(
-                new Polygon(new LinearRing(new double[] { 3, 4, 5, 3 }, new double[] { 1, 2, 3, 1 }, new double[] { 5, 4, 3, 5 }))
-            )
+            new Polygon(new LinearRing(new double[] { 3, 4, 5, 3 }, new double[] { 1, 2, 3, 1 }, new double[] { 5, 4, 3, 5 }))
         );
-        assertEquals(
-            new Polygon(new LinearRing(new double[] { 3, 4, 5, 3 }, new double[] { 1, 2, 3, 1 }, new double[] { 5, 4, 3, 5 })),
-            WellKnownText.fromWKT(validator, true, "POLYGON ((3 1 5, 4 2 4, 5 3 3, 3 1 5))")
-        );
-
+        assertSerialization(validator, true, "POLYGON EMPTY", Polygon.EMPTY);
         // Auto closing in coerce mode
         assertEquals(
             new Polygon(new LinearRing(new double[] { 3, 4, 5, 3 }, new double[] { 1, 2, 3, 1 })),
@@ -64,9 +57,6 @@ public class PolygonTests extends BaseGeometryTestCase<Polygon> {
             ),
             WellKnownText.fromWKT(validator, true, "POLYGON ((3 1, 4 2, 5 3, 3 1), (0.5 1.5, 2.5 1.5, 2.0 1.0))")
         );
-
-        assertEquals("POLYGON EMPTY", WellKnownText.toWKT(Polygon.EMPTY));
-        assertEquals(Polygon.EMPTY, WellKnownText.fromWKT(validator, true, "POLYGON EMPTY)"));
     }
 
     public void testInitValidation() {

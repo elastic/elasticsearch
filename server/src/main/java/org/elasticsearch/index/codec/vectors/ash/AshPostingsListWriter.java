@@ -86,6 +86,11 @@ public class AshPostingsListWriter {
      * @param skipDocIds when {@code true}, per-block doc IDs are not written into the posting lists.
      *        Used for sliced flush segments where vectors are in ordinal order and the reader
      *        translates ordinals to doc IDs via {@code KnnVectorValues.ordToDoc()}.
+     * @param reusedMatrix a projection matrix to use as-is, keeping its id, or {@code null} to warm-start from
+     *        {@code inherited} or train W. Used at merge time to keep the projection matrix of an input segment, so that
+     *        the merged segment shares W with the other segments that use it. Takes precedence over {@code inherited}.
+     *        When supplied, it must project {@code originalDim} to the configured projected dimensions; a mismatch is a
+     *        programming error and throws.
      * @param inherited an already-learned projection matrix to warm-start from instead of training a new one, or
      *        {@code null} to train W from the supplied vectors. Used at merge time to seed the merged segment's
      *        projection matrix from an existing input segment. When supplied, it must project {@code originalDim} to
@@ -106,6 +111,7 @@ public class AshPostingsListWriter {
         TaskExecutor quantizerExec,
         VectorSimilarityFunction similarityFunction,
         boolean skipDocIds,
+        AshProjectionMatrix reusedMatrix,
         AshProjectionMatrix inherited,
         boolean useMergeTrainingFactor
     ) throws IOException {
@@ -140,13 +146,29 @@ public class AshPostingsListWriter {
         int nDims = ashQuantizer.nDims(originalDim);
 
         // Projection matrix selection:
+        // - merge with a W to reuse (reusedMatrix != null): use it unchanged, with its id.
         // - merge with an inheritable W (inherited != null): warm-start from it, running a couple of steps of
         // subspace iteration against the merged set's second-moment matrix, then applying a new rotation.
         // - otherwise: train W from scratch: the PCA subspace of the training sample, then a rotation (random, unless
         // Procrustes iterations are configured).
         CheckedIntFunction<float[], IOException> centroidGetter = i -> centroidSupplier.centroid(assignments[i]);
         final AsymmetricHashingQuantizer.TrainedProjection trained;
-        if (inherited != null) {
+        if (reusedMatrix != null) {
+            if (reusedMatrix.hasShape(originalDim, nDims) == false) {
+                throw new IllegalArgumentException(
+                    "reused projection matrix projects ["
+                        + reusedMatrix.originalDim()
+                        + "] to ["
+                        + reusedMatrix.nDims()
+                        + "] dims but expected ["
+                        + originalDim
+                        + "] to ["
+                        + nDims
+                        + "]"
+                );
+            }
+            trained = AsymmetricHashingQuantizer.unchangedProjection(reusedMatrix);
+        } else if (inherited != null) {
             trained = ashQuantizer.trainWarmStart(vectors, nVectors, originalDim, centroidGetter, inherited, WARM_START_REFINE_ITERATIONS);
         } else {
             // LEARNED learns the PCA subspace from the training sample and rotates it.
@@ -156,7 +178,7 @@ public class AshPostingsListWriter {
         // Store the projection matrix for later serialization. The quantizer reports whether W was learned from
         // enough vectors to be inherited/warm-started at merge time. A random orthonormal fallback, or a
         // projection learned from fewer than twice as many vectors as projected dimensions (a small segment), is
-        // marked learned=false so that merge does not inherit it.
+        // marked learned=false so that merge does not inherit it. A reused matrix is kept as-is, with its id.
         this.ashProjectionMatrix = trained.matrix();
 
         // Build cluster-to-vector mappings, counting primary + SOAR overspill assignments

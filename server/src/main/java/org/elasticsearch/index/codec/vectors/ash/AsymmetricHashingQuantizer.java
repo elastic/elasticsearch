@@ -193,9 +193,9 @@ public final class AsymmetricHashingQuantizer {
         );
     }
 
-    /** The inherited projection, unchanged, keeping its id and training sample size. */
-    private static TrainedProjection inheritedProjection(AshProjectionMatrix inherited) {
-        return new TrainedProjection(ESVectorUtil.transposeMatrix(inherited.wT(), inherited.nDims(), inherited.originalDim()), inherited);
+    /** An existing projection, unchanged, keeping its id and training sample size. */
+    static TrainedProjection unchangedProjection(AshProjectionMatrix matrix) {
+        return new TrainedProjection(ESVectorUtil.transposeMatrix(matrix.wT(), matrix.nDims(), matrix.originalDim()), matrix);
     }
 
     /**
@@ -369,7 +369,7 @@ public final class AsymmetricHashingQuantizer {
         }
         if (method != Method.LEARNED || count < nDims * 2 || refineIterations <= 0) {
             // Not refinable — return the inherited matrix as-is
-            return inheritedProjection(inherited);
+            return unchangedProjection(inherited);
         }
 
         // No dimensionality reduction: the subspace is the whole space, so there is nothing to refine, and without
@@ -382,7 +382,7 @@ public final class AsymmetricHashingQuantizer {
         float[] secondMoment = buildSecondMoment(vectors, count, centroids, originalDim, trainingSize);
         if (trace(secondMoment, originalDim) <= 0) {
             // no variance in the merged vectors to refine the inherited matrix with
-            return inheritedProjection(inherited);
+            return unchangedProjection(inherited);
         }
 
         // refineSubspace overwrites its starting basis, and the inherited matrix stays in use by its segment

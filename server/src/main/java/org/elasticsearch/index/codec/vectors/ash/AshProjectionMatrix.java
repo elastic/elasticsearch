@@ -113,6 +113,20 @@ public final class AshProjectionMatrix {
     }
 
     /**
+     * Returns whether W was learned from a full training sample of at least {@code requiredSampleSize} vectors, and so
+     * is as good a projection for another segment of the same field as one that segment would learn itself. Only such a
+     * matrix is reused as-is by other segments.
+     */
+    public boolean isShareable(int requiredSampleSize) {
+        return learned && trainingSampleSize >= requiredSampleSize;
+    }
+
+    /** Returns whether this matrix projects vectors of {@code expectedOriginalDim} dimensions to {@code expectedNDims}. */
+    public boolean hasShape(int expectedOriginalDim, int expectedNDims) {
+        return originalDim == expectedOriginalDim && nDims == expectedNDims;
+    }
+
+    /**
      * Returns the transposed projection matrix W^T in row-major order, shape (nDims, originalDim).
      *
      * @return the transposed projection matrix

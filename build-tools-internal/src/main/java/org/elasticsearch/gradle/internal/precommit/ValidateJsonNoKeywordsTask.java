@@ -19,9 +19,9 @@ import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.problems.Problem;
-import org.gradle.api.problems.ProblemId;
 import org.gradle.api.problems.ProblemReporter;
 import org.gradle.api.problems.Problems;
+import org.gradle.api.problems.ThirdLevelProblemGroup;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.InputFiles;
@@ -65,10 +65,12 @@ public class ValidateJsonNoKeywordsTask extends DefaultTask {
     private File report;
     private FileCollection inputFiles;
     private final ProblemReporter problemReporter;
+    private final ThirdLevelProblemGroup problemGroup;
 
     @Inject
     public ValidateJsonNoKeywordsTask(Problems problems) {
         this.problemReporter = problems.getReporter();
+        this.problemGroup = ElasticsearchBuildProblems.JSON_VALIDATION.group(problems);
     }
 
     @Incremental
@@ -146,11 +148,7 @@ public class ValidateJsonNoKeywordsTask extends DefaultTask {
                             errorsForFile.add(detail);
                             problems.add(
                                 problemReporter.create(
-                                    ProblemId.create(
-                                        "keyword-conflict",
-                                        "API name conflicts with reserved keyword",
-                                        ElasticsearchBuildProblems.JSON_VALIDATION
-                                    ),
+                                    problemGroup.problemId("API name conflicts with reserved keyword"),
                                     spec -> spec.contextualLabel(
                                         "'" + component + "' in " + file.getName() + " conflicts with reserved keywords"
                                     )

@@ -303,7 +303,7 @@ public class HeapAttackExternalIT extends HeapAttackRestHelpers {
         assertBusy(() -> assertThat("regular queries", requestBreakerBytes(), lessThanOrEqualTo(baseline + LEAK_SLACK_BYTES)));
 
         for (int q = 0; q < 10; q++) {
-            StreamSummary s = streamQuery(esql, 10);
+            StreamSummary s = streamQuery(esql);
             assertThat(s.errors(), empty());
             assertThat(s.rowCount(), equalTo(1L));
         }

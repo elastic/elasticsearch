@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.querydsl.query.BestEffortQueryBuilder;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -143,15 +144,17 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
             queries.addAll(classified.bestEffort);
             Queries.Clause combiningQueryClauseType = queryExec.hasScoring() ? Queries.Clause.MUST : Queries.Clause.FILTER;
             var query = Queries.combine(combiningQueryClauseType, queries);
-            queryExec = new EsQueryExec(
-                queryExec.source(),
-                queryExec.indexPattern(),
-                queryExec.indexMode(),
-                queryExec.output(),
-                queryExec.limit(),
-                queryExec.sorts(),
-                queryExec.estimatedRowSize(),
-                List.of(new EsQueryExec.QueryBuilderAndTags(query, List.of()))
+            queryExec = queryExec.passIdentityTo(
+                new EsQueryExec(
+                    queryExec.source(),
+                    queryExec.indexPattern(),
+                    queryExec.indexMode(),
+                    queryExec.output(),
+                    queryExec.limit(),
+                    queryExec.sorts(),
+                    queryExec.estimatedRowSize(),
+                    List.of(new EsQueryExec.QueryBuilderAndTags(query, List.of()))
+                )
             );
             // If the eval contains other aliases, not just field attributes, we need to keep them in the plan
             PhysicalPlan plan = evalFields.isEmpty() ? queryExec : new EvalExec(filterExec.source(), queryExec, evalFields);
@@ -304,10 +307,21 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         // conjuncts in the FilterExec on every node. The names come from the serialized stamp via the
         // node-safe accessor — never the coordinator-only fileList, which is UNRESOLVED on a data node
         // (reading it there returned an empty set and pushed the partition conjunct: the bug this fixes).
+        //
+        // Conjuncts on a column that some file on this node stores at another type than the query's (a
+        // union_by_name widening, e.g. int64 in one file and string in another reconciled to keyword) are
+        // pushed AND kept. The reader still evaluates them exactly on the files that store the column at
+        // the query's type, but on a widened file the cast runs above the reader (SchemaAdaptingIterator),
+        // so the reader's evaluator sees the file's block type, cannot answer the predicate, and lets every
+        // row through. A YES conjunct would then never be re-checked and the query would keep every row of
+        // the widened file; retaining it in the FilterExec re-checks it on the cast page. RECHECK and NO
+        // conjuncts already end up in the remainder, so this only adds the YES ones.
         Set<String> partitionColumnNames = externalExec.partitionColumnNames();
+        Set<String> castColumnNames = externalExec.reconciliationCastColumnNames(referencedColumnNames(filters, partitionColumnNames));
         List<Expression> partitionConjuncts = new ArrayList<>();
+        List<Expression> castConjuncts = new ArrayList<>();
         List<Expression> pushableCandidates = new ArrayList<>();
-        if (partitionColumnNames.isEmpty()) {
+        if (partitionColumnNames.isEmpty() && castColumnNames.isEmpty()) {
             pushableCandidates = filters;
         } else {
             for (Expression filter : filters) {
@@ -315,6 +329,9 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
                     partitionConjuncts.add(filter);
                 } else {
                     pushableCandidates.add(filter);
+                    if (referencesAnyColumn(filter, castColumnNames)) {
+                        castConjuncts.add(filter);
+                    }
                 }
             }
         }
@@ -349,10 +366,16 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
                 PhysicalNames.translateExpressionNames(result.pushedExpressions(), toLogical)
             );
 
-            // Combine partition conjuncts (always kept) with the SPI's remainder (mapped back to logical), if any.
+            // Combine partition conjuncts (always kept) with the SPI's remainder (mapped back to logical), if any,
+            // and the conjuncts over reconciliation-cast columns the SPI did not already hand back.
             List<Expression> remainder = new ArrayList<>(partitionConjuncts);
             if (result.hasRemainder()) {
                 remainder.addAll(PhysicalNames.translateExpressionNames(result.remainder(), toLogical));
+            }
+            for (Expression castConjunct : castConjuncts) {
+                if (remainder.contains(castConjunct) == false) {
+                    remainder.add(castConjunct);
+                }
             }
             if (remainder.isEmpty()) {
                 return newExternalExec;
@@ -366,6 +389,23 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
 
     static boolean referencesAnyColumn(Expression expr, Set<String> columnNames) {
         return expr.references().stream().anyMatch(a -> columnNames.contains(a.name()));
+    }
+
+    /**
+     * Names of the columns {@code filters} read, minus {@code excluded} (the partition columns, which are held back
+     * on their own and are path-derived rather than file-typed). Bounds the per-split schema walk in
+     * {@link ExternalSourceExec#reconciliationCastColumnNames} to the columns a conjunct can actually reference.
+     */
+    static Set<String> referencedColumnNames(List<Expression> filters, Set<String> excluded) {
+        Set<String> names = new HashSet<>();
+        for (Expression filter : filters) {
+            for (Attribute attribute : filter.references()) {
+                if (excluded.contains(attribute.name()) == false) {
+                    names.add(attribute.name());
+                }
+            }
+        }
+        return names;
     }
 
     /**
@@ -451,8 +491,7 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
      * When {@code aliasReplacedBy} is non-empty, alias resolution is applied before
      * the translatability check, but the original (unresolved) expressions are stored
      * so that non-pushable filters still reference the EvalExec output attributes.
-     */
-    /**
+     *
      * @param bestEffortPredicates the predicates to push a filter that some shards here cannot query to every shard anyway,
      *                             see {@link LucenePushdownPredicates#bestEffort()}; {@code null} to push only what every shard can query
      */

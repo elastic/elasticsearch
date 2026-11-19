@@ -64,6 +64,7 @@ import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 import org.elasticsearch.xpack.stateless.action.FetchShardCommitsInUseAction;
 import org.elasticsearch.xpack.stateless.action.GetVirtualBatchedCompoundCommitChunkRequest;
 import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
@@ -789,11 +790,11 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 .primaryTermAndGeneration()
                 .generation();
 
-            Set<BlobFile> trackedUploadedBlobFiles = testHarness.commitService.getTrackedUploadedBlobFilesUpTo(
+            Set<BccBlob> trackedUploadedBccBlobs = testHarness.commitService.getTrackedUploadedBccBlobsUpTo(
                 testHarness.shardId,
                 maxUploadedGeneration
             );
-            Set<Long> trackedUploadedGenerations = trackedUploadedBlobFiles.stream()
+            Set<Long> trackedUploadedGenerations = trackedUploadedBccBlobs.stream()
                 .map(bf -> bf.termAndGeneration().generation())
                 .collect(Collectors.toSet());
 
@@ -806,7 +807,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             );
 
             // Verify the blob names returned match the actually uploaded BCC blobs
-            Set<String> uploadedBlobNames = trackedUploadedBlobFiles.stream().map(BlobFile::blobName).collect(Collectors.toSet());
+            Set<String> uploadedBlobNames = trackedUploadedBccBlobs.stream().map(BccBlob::blobName).collect(Collectors.toSet());
             Set<String> capturedBccBlobs = actuallyUploadedBccBlobs.stream()
                 .filter(BatchedCompoundCommit::startsWithBlobPrefix)
                 .collect(Collectors.toSet());
@@ -929,7 +930,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             // waitUntilBCCIsUploaded returns after the generation listener fires, but before search node notification processing
             // (which closes external readers on older BlobReferences) on the same shard write pool thread. Flush all threads
             // to ensure notification processing is complete and external references released.
-            flushThreadPoolExecutor(testHarness.threadPool, StatelessPlugin.SHARD_WRITE_THREAD_POOL);
+            flushThreadPoolExecutor(testHarness.threadPool, StatelessThreadPools.SHARD_WRITE_THREAD_POOL);
 
             final var future = new PlainActionFuture<Void>();
             when(testHarness.indexShard.getActiveOperationsCount()).thenReturn(IndexShard.OPERATIONS_BLOCKED);
@@ -1828,7 +1829,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 Map.of(
                     "segments_2",
                     new BlobLocation(
-                        new BlobFile(BatchedCompoundCommit.blobNameFromGeneration(1), new PrimaryTermAndGeneration(2, 1)),
+                        new BccBlob(BatchedCompoundCommit.blobNameFromGeneration(1), new PrimaryTermAndGeneration(2, 1)),
                         12,
                         12
                     )
@@ -1842,7 +1843,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             );
             int count = rarely() ? 50000 : 10000;
             var unreferencedFiles = IntStream.range(1, count)
-                .mapToObj(i -> new BlobFile(BatchedCompoundCommit.blobNameFromGeneration(i), new PrimaryTermAndGeneration(1, i)))
+                .mapToObj(i -> new BccBlob(BatchedCompoundCommit.blobNameFromGeneration(i), new PrimaryTermAndGeneration(1, i)))
                 .collect(Collectors.toSet());
             testHarness.commitService.markRecoveredBcc(
                 testHarness.shardId,

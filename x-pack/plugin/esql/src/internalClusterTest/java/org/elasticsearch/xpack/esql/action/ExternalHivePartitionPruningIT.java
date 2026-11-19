@@ -78,8 +78,9 @@ import static org.hamcrest.Matchers.not;
  * dropped row from a never-matching one, and a file count cannot tell a correct answer from a lucky one.
  *
  * <p>Cases that expect <em>fewer</em> files than the fixture holds assert that pruning fired. Cases that expect the full
- * count are the opposite guard — they pin that a data-column filter, an un-evaluable {@code OR} arm, or a row-derived
- * column does <em>not</em> prune, so they fail if pruning is ever drawn too wide.
+ * count are the opposite guard — they pin that a CSV data-column filter, an un-evaluable {@code OR} arm, or a row-derived
+ * column does <em>not</em> prune, so they fail if pruning is ever drawn too wide. Parquet data-column filters
+ * <em>do</em> drop files whose footer min/max cannot overlap the predicate.
  */
 public class ExternalHivePartitionPruningIT extends AbstractExternalDataSourceIT {
 
@@ -178,13 +179,13 @@ public class ExternalHivePartitionPruningIT extends AbstractExternalDataSourceIT
         );
     }
 
-    public void testParquetRequestFilterTimePlusDataColumnDoesNotOverPrune() throws Exception {
-        // The partition arm prunes files; the data-column arm (id is not path-derived) only filters rows.
+    public void testParquetRequestFilterTimePlusDataColumnPrunesFiles() throws Exception {
+        // year=2025 keeps 4 files; id > 20250200 then drops the two January files whose max id is 20250115.
         assertPruneFilter(
             registerTree("pq_rf_mixed", "parquet"),
             QueryBuilders.boolQuery().filter(QueryBuilders.termQuery("year", 2025)).filter(QueryBuilders.rangeQuery("id").gt(20250200)),
             TOTAL_FILES,
-            4,
+            2,
             idsWhere((y, m, d) -> y == 2025 && idFor(y, m, d) > 20250200)
         );
     }
@@ -329,26 +330,41 @@ public class ExternalHivePartitionPruningIT extends AbstractExternalDataSourceIT
         );
     }
 
-    public void testParquetYearPlusDataColumnDoesNotOverPrune() throws Exception {
+    public void testParquetYearPlusDataColumnPrunesFiles() throws Exception {
+        // year=2025 keeps 4 files; footer min/max on id then drops January, leaving the two June files.
         assertPrune(
             "pq_mixed",
             "parquet",
             "WHERE year == 2025 AND id > 20250200",
-            4,
+            2,
             idsWhere((y, m, d) -> y == 2025 && idFor(y, m, d) > 20250200)
         );
     }
 
-    // -- Negative / no-prune sanity: filter on a data-only column must never prune a partition file --
+    // -- Data-column filters: CSV has no per-split stats so it still scans every file; Parquet drops MISS files --
 
     public void testCsvDataColumnOnlyFilterScansAllFiles() throws Exception {
-        // id is a data column present in every file; filtering on it must scan ALL 8 files (never prune on a
-        // non-partition column -> no wrong results). Exactly one row matches.
+        // id is a data column present in every file; CSV splits carry no min/max, so filtering on it must
+        // scan ALL 8 files. Exactly one row matches.
         assertPrune("csv_data", "csv", "WHERE id == 20250615", TOTAL_FILES, idsWhere((y, m, d) -> idFor(y, m, d) == 20250615));
     }
 
-    public void testParquetDataColumnOnlyFilterScansAllFiles() throws Exception {
-        assertPrune("pq_data", "parquet", "WHERE id == 20250615", TOTAL_FILES, idsWhere((y, m, d) -> idFor(y, m, d) == 20250615));
+    public void testParquetDataColumnOnlyFilterPrunesToMatchingFile() throws Exception {
+        assertPrune("pq_data", "parquet", "WHERE id == 20250615", 1, idsWhere((y, m, d) -> idFor(y, m, d) == 20250615));
+    }
+
+    public void testParquetDataColumnZeroMatchPrunesToNoFiles() throws Exception {
+        assertPrune("pq_data_zero", "parquet", "WHERE id == 1", 0, idsWhere((y, m, d) -> idFor(y, m, d) == 1));
+    }
+
+    public void testParquetMvInRangeDataColumnPrunesToMatchingFile() throws Exception {
+        assertPrune(
+            "pq_data_range",
+            "parquet",
+            "WHERE mv_in_range(id, 20250615, 20250615)",
+            1,
+            idsWhere((y, m, d) -> idFor(y, m, d) == 20250615)
+        );
     }
 
     // -- Zero-match: a partition filter matching no folder prunes to the empty set (not an error, not a full scan) --
@@ -774,11 +790,12 @@ public class ExternalHivePartitionPruningIT extends AbstractExternalDataSourceIT
     // the file back. The fixture is registerSignedZeroTree: d=-0e0 holds id 0, d=0e0 holds id 1, d=1e5 holds id 2.
 
     public void testCsvNegativeZeroPartitionIsNotPrunedByEqualsZero() throws Exception {
-        assertSignedZeroEquality(registerSignedZeroTree("csv_signed_zero", "csv", false));
+        assertSignedZeroEquality(registerSignedZeroTree("csv_signed_zero", "csv", false), SIGNED_ZERO_FILES);
     }
 
     public void testParquetNegativeZeroPartitionIsNotPrunedByEqualsZero() throws Exception {
-        assertSignedZeroEquality(registerSignedZeroTree("pq_signed_zero", "parquet", false));
+        // id is a data column: parquet footer min/max drops the two non-zero files. CSV cannot.
+        assertSignedZeroEquality(registerSignedZeroTree("pq_signed_zero", "parquet", false), 1);
     }
 
     /**
@@ -857,8 +874,8 @@ public class ExternalHivePartitionPruningIT extends AbstractExternalDataSourceIT
      * The zero folders are readable and the non-zero folder answers its own equality, so an empty answer to
      * {@code d == 0.0} can only come from pruning.
      */
-    private void assertSignedZeroEquality(String dataset) {
-        assertPrune(dataset, "WHERE id == 0", SIGNED_ZERO_FILES, SIGNED_ZERO_FILES, List.of(0L));
+    private void assertSignedZeroEquality(String dataset, int expectedIdFilesScanned) {
+        assertPrune(dataset, "WHERE id == 0", SIGNED_ZERO_FILES, expectedIdFilesScanned, List.of(0L));
         assertPrune(dataset, "WHERE d == 100000.0", SIGNED_ZERO_FILES, 1, List.of(2L));
         assertPrune(dataset, "WHERE d == 0.0", SIGNED_ZERO_FILES, 2, List.of(0L, 1L));
     }

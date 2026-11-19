@@ -442,12 +442,25 @@ public class OTLPMetricsTransportActionTests extends AbstractOTLPTransportAction
             ExportMetricsServiceRequest.parseFrom(createMetricsRequest(createMetric()).getRequest().streamInput())
         );
         String target = "metrics-generic.otel-default";
-        assertTrue(
-            metricsAction.canUseBatchIndexing(true, batchIndexingProject(target, IndexSettings.TIME_SERIES_BATCH_INDEXING.getKey()), groups)
+        // the deprecated key is only read when the tsdb_batch_indexing feature flag is enabled
+        assertThat(
+            metricsAction.canUseBatchIndexing(
+                true,
+                batchIndexingProject(target, IndexSettings.TIME_SERIES_BATCH_INDEXING.getKey()),
+                groups
+            ),
+            equalTo(BatchIndexingEnabled.TSDB_FEATURE_FLAG.isEnabled())
         );
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] { IndexSettings.TIME_SERIES_BATCH_INDEXING });
+        if (BatchIndexingEnabled.TSDB_FEATURE_FLAG.isEnabled()) {
+            assertSettingDeprecationsAndWarnings(new Setting<?>[] { IndexSettings.TIME_SERIES_BATCH_INDEXING });
+        }
         assertTrue(metricsAction.canUseBatchIndexing(true, batchIndexingProject(target, IndexSettings.BATCH_INDEXING.getKey()), groups));
-        assertFalse(metricsAction.canUseBatchIndexing(true, batchIndexingProject(target, null), groups));
+        assertThat(
+            metricsAction.canUseBatchIndexing(true, batchIndexingProject(target, null), groups),
+            equalTo(BatchIndexingEnabled.TSDB_FEATURE_FLAG.isEnabled())
+        );
+        Settings optOut = Settings.builder().put(IndexSettings.BATCH_INDEXING.getKey(), false).build();
+        assertFalse(metricsAction.canUseBatchIndexing(true, timeSeriesProject(optOut, target), groups));
     }
 
     public void testAttributeFanoutReturns413() {
@@ -493,12 +506,12 @@ public class OTLPMetricsTransportActionTests extends AbstractOTLPTransportAction
     }
 
     /**
-     * A data-point group whose resource carries an ARRAY attribute cannot be expressed as scalar ESCF
-     * columns. The transport action now discovers this optimistically — while actually writing the row,
-     * not via an upfront eligibility scan — and falls all the way back to the doc-mode (XContent) path for
-     * the whole request rather than throwing.
+     * A data-point group whose resource carries a bytes value inside an array has no ESCF encoding: no inline
+     * array element type is binary. The transport action discovers this optimistically — while actually
+     * writing the row, not via an upfront eligibility scan — and falls all the way back to the doc-mode
+     * (XContent) path for the whole request rather than throwing.
      */
-    public void testEscfFallsBackToDocModeForArrayResourceAttribute() throws Exception {
+    public void testEscfFallsBackToDocModeForUnencodableResourceAttribute() throws Exception {
         assumeTrue("requires batch indexing", BatchIndexingEnabled.FEATURE_FLAG.isEnabled());
         String target = "metrics-generic.otel-default";
         OTLPMetricsTransportAction action = createMetricsAction(Settings.EMPTY, batchIndexingProject(target));
@@ -507,7 +520,10 @@ public class OTLPMetricsTransportActionTests extends AbstractOTLPTransportAction
         ExportMetricsServiceRequest request = ExportMetricsServiceRequest.newBuilder()
             .addResourceMetrics(
                 OtlpUtils.createResourceMetrics(
-                    List.of(keyValue("service.name", "svc"), keyValue("tags", "a", "b")), // ARRAY attribute
+                    List.of(
+                        keyValue("service.name", "svc"),
+                        OtlpUtils.keyValueArray("tags", OtlpUtils.anyValue("a"), OtlpUtils.anyValueBytes(new byte[] { 1 }))
+                    ),
                     List.of(
                         OtlpUtils.createScopeMetrics(
                             "s",
@@ -523,7 +539,7 @@ public class OTLPMetricsTransportActionTests extends AbstractOTLPTransportAction
         action.prepareBulkRequest(new OTLPActionRequest(new BytesArray(request.toByteArray())), bulkRequestBuilder);
 
         BulkRequest bulkRequest = bulkRequestBuilder.request();
-        assertFalse("ESCF batch must not be registered once a non-scalar attribute is found", bulkRequest.hasPreBuiltBatches());
+        assertFalse("ESCF batch must not be registered once an unencodable attribute is found", bulkRequest.hasPreBuiltBatches());
         var requests = bulkRequest.requests();
         assertThat(requests, hasSize(1));
         assertThat(requests.get(0).index(), equalTo(target));
@@ -536,7 +552,7 @@ public class OTLPMetricsTransportActionTests extends AbstractOTLPTransportAction
         );
         ctx.groupDataPoints(request);
         List<DataPointGroupingContext.DataPointGroup> groups = new ArrayList<>();
-        ctx.consume(groups::add);
+        ctx.forEachGroup(groups::add);
         return groups;
     }
 

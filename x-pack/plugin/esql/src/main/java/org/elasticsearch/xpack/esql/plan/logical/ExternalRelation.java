@@ -393,6 +393,12 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
     }
 
     @Override
+    public Object jsonPropertyValue(Object property) {
+        // The same as nodeString shows: the plan JSON must not reveal the bucket and prefix either
+        return sourcePath.equals(property) ? StoragePath.objectName(sourcePath) : property;
+    }
+
+    @Override
     public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
         // Only the object name (last path segment) is included; bucket, prefix, and full URI are
         // always omitted. sourceType is a low-cardinality format enum, never redacted.

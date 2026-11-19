@@ -92,6 +92,13 @@ tasks.named('nmcpZipAggregation').configure {
   from(zipTree("build-tools/build/nmcp/zip/allPublications.zip"))
 }
 
+tasks.named('prepareDraSnapshotMavenAggregation').configure {
+  // This task reuses nmcpZipAggregation's copy-spec source, which includes the build-tools
+  // zip above via a plain file path. That path carries no task dependency, and the dependsOn
+  // declared on nmcpZipAggregation is not inherited, so wire the build-tools zip task explicitly.
+  dependsOn gradle.includedBuild('build-tools').task(':nmcpZipAllPublications')
+}
+
 /**
  * This is a convenient method for declaring test artifact dependencies provided by the internal
  * test artifact plugin. It replaces basically the longer dependency notation with explicit capability
@@ -563,17 +570,11 @@ tasks.register("validateBuildGradleScripts", ValidateBuildGradleScriptsTask).con
       'x-pack/qa/smoke-test-plugins/build.gradle',
       'x-pack/qa/smoke-test-plugins-ssl/build.gradle',
     ],
-    'distribution-closure-assignment': [
-      'distribution/build.gradle::6',
-    ],
     // Measured on main ff3ed1ce5a62. Counts are direct model references, not action counts.
     'execution-closure-project-reference': [
       'build.gradle::6',
-      'docs/build.gradle::1', // Temporary until #164877 merges.
       'modules/lang-painless/build.gradle::4',
       'qa/vector/build.gradle::1',
-      'x-pack/plugin/esql-datasource-orc/qa/build.gradle::1', // Temporary until #164877 merges.
-      'x-pack/plugin/stack/build.gradle::4', // Temporary until #164877 merges.
     ],
   ])
 }

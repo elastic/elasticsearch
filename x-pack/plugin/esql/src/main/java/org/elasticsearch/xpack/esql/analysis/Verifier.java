@@ -14,6 +14,7 @@ import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.LicenseAware;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.analysis.rules.ViewUtils;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
@@ -69,8 +70,8 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
+import org.elasticsearch.xpack.esql.plan.logical.MMR;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
-import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
@@ -79,8 +80,14 @@ import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.ViewSubquery;
+import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
+import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -251,7 +258,7 @@ public class Verifier {
         Holder<Long> total,
         Holder<FillNull> overflowing
     ) {
-        if (plan instanceof AbstractSubqueryJoin subqueryJoin) {
+        if (plan instanceof IndependentSubqueryJoin subqueryJoin) {
             countFillNullFields(subqueryJoin.left(), failures, maxFields, total, overflowing);
             checkFillNullFieldCount(subqueryJoin.right(), failures, maxFields);
             return;
@@ -604,15 +611,14 @@ public class Verifier {
 
     /**
      * Pre-order search for the first {@link Limit}/{@link LimitBy} below {@code plan}, skipping the right branch of any
-     * {@link AbstractSubqueryJoin}: a LIMIT inside an IN subquery only bounds the independently executed subquery result, not the main
+     * {@link IndependentSubqueryJoin}: a LIMIT inside an IN subquery only bounds the independently executed subquery result, not the main
      * stream feeding INLINE STATS. Returns {@code null} when no LIMIT is found.
      */
     private static LogicalPlan findLimitSkippingSubqueryJoins(LogicalPlan plan) {
         if (plan instanceof Limit || plan instanceof LimitBy) {
             return plan;
         }
-        List<LogicalPlan> children = plan instanceof AbstractSubqueryJoin subqueryJoin ? List.of(subqueryJoin.left()) : plan.children();
-        for (LogicalPlan child : children) {
+        for (LogicalPlan child : IndependentSubqueryJoin.mainScopeChildren(plan)) {
             LogicalPlan limit = findLimitSkippingSubqueryJoins(child);
             if (limit != null) {
                 return limit;
@@ -707,7 +713,10 @@ public class Verifier {
                 failures.add(fail(ts, "PROMQL is not supported with unmapped_fields=\"{}\"", resolution.settingValue()));
                 promqlReported = true;
             }
-            checkFlattenedSubFieldLoad(plan, failures, resolution);
+            // Where a name under a flattened field is its key, each shard reads that key
+            if (context.configuration().flattenedKeys(context.minimumVersion()) == false) {
+                checkFlattenedSubFieldLoad(plan, failures, resolution);
+            }
         }
         for (LogicalPlan child : plan.children()) {
             promqlReported = checkLoadRestrictions(child, resolution, context, failures, promqlReported);
@@ -718,13 +727,15 @@ public class Verifier {
     /**
      * Temporary MVP guardrail for {@code unmapped_fields="LOAD_ALL"} until the interaction of all commands with
      * {@code _unmapped_fields} is designed and implemented.
+     * <p>
+     * The caller's setting does not reach into a view, which cannot set {@code LOAD_ALL} itself, so view bodies are not checked.
      */
     private static void checkLoadAllModeSupportedCommands(LogicalPlan plan, Failures failures) {
-        plan.forEachDown(p -> {
+        ViewUtils.forEachOutsideViews(plan, p -> {
             if (supportedInLoadAllMode(p) == false) {
                 String command = p instanceof EsRelation esr && esr.indexMode().isTsdb() ? "TS"
                     : p instanceof BranchPlan ? "BranchPlan"
-                    : p instanceof NamedSubquery ? "NamedSubquery"
+                    : p instanceof ViewSubquery ? "ViewSubquery"
                     : p instanceof TelemetryAware ta ? ta.telemetryLabel()
                     : p.nodeName();
                 failures.add(fail(p, loadAllUnsupportedCommandMessage(command)));
@@ -736,7 +747,8 @@ public class Verifier {
         return "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, GROK, DISSECT, IP_LOCATION, "
             + (EsqlCapabilities.Cap.FILLNULL.isEnabled() ? "FILLNULL, " : "")
             + "REGISTERED_DOMAIN, URI_PARTS, USER_AGENT, MV_EXPAND, SAMPLE, CHANGE_POINT, DEDUP, WHERE, SORT, LIMIT, "
-            + "LIMIT BY, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; ["
+            + "LIMIT BY, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, COMPLETION, DENSE_VECTOR, RERANK, FUSE, HIGHLIGHT, MMR, "
+            + "FORK and subquery commands; ["
             + command
             + "] is not supported yet";
     }
@@ -772,7 +784,16 @@ public class Verifier {
             // so nothing is loaded from _source inside it. It has no _unmapped_fields column; unions null-fill it where a sibling has one.
             || plan instanceof BranchPlan
             || (plan instanceof UnionAll && plan instanceof BranchPlan == false)
-            || (plan instanceof Subquery && plan instanceof NamedSubquery == false)
+            || (plan instanceof Subquery && plan instanceof ViewSubquery == false)
+            // These commands read or add columns of their own and pass the rest through, so the _unmapped_fields column survives them.
+            // FUSE groups its input, so, like STATS, it does not return the column.
+            || plan instanceof Completion
+            || plan instanceof DenseVector
+            || plan instanceof Rerank
+            || plan instanceof Fuse
+            || plan instanceof FuseScoreEval
+            || plan instanceof Highlight
+            || plan instanceof MMR
             || plan instanceof AbstractSubqueryJoin;
     }
 

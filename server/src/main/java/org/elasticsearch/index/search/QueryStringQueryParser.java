@@ -583,7 +583,11 @@ public class QueryStringQueryParser extends QueryParser {
                 source = getAnalyzer().tokenStream(field, termStr);
                 source.reset();
             } catch (IOException e) {
-                return super.getPrefixQuery(field, termStr);
+                return currentFieldType.prefixQuery(
+                    getAnalyzer().normalize(field, termStr).utf8ToString(),
+                    getMultiTermRewriteMethod(),
+                    context
+                );
             }
             tlist = new ArrayList<>();
             List<String> currentPos = new ArrayList<>();
@@ -644,7 +648,12 @@ public class QueryStringQueryParser extends QueryParser {
             } else {
                 List<BooleanClause> innerClauses = new ArrayList<>();
                 for (String token : plist) {
-                    innerClauses.add(new BooleanClause(super.getPrefixQuery(field, token), BooleanClause.Occur.SHOULD));
+                    innerClauses.add(
+                        new BooleanClause(
+                            currentFieldType.prefixQuery(token, getMultiTermRewriteMethod(), context),
+                            BooleanClause.Occur.SHOULD
+                        )
+                    );
                 }
                 posQuery = getBooleanQuery(innerClauses);
             }

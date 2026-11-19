@@ -295,11 +295,11 @@ public record StatelessCompoundCommit(
     /**
      * Returns the BCC blob file that physically contains this compound commit's internal files.
      */
-    public BlobFile getContainingBccBlobFile() {
+    public BccBlob getContainingBccBlobFile() {
         for (String internalFile : internalFiles) {
             BlobLocation location = commitFiles.get(internalFile);
             assert location != null : "internal file [" + internalFile + "] does not exist as a commit file [" + commitFiles + "]";
-            return location.blobFile();
+            return location.bccBlob();
         }
         assert false : "a commit should always have at least one internal file";
         return null;
@@ -329,8 +329,8 @@ public record StatelessCompoundCommit(
         return commitBoundary;
     }
 
-    public Set<BlobFile> getBlobFiles() {
-        return commitFiles.values().stream().map(BlobLocation::blobFile).collect(Collectors.toSet());
+    public Set<BccBlob> getBlobFiles() {
+        return commitFiles.values().stream().map(BlobLocation::bccBlob).collect(Collectors.toSet());
     }
 
     /**
@@ -636,7 +636,7 @@ public record StatelessCompoundCommit(
         @Nullable TimestampFieldValueRange timestampFieldValueRange
     ) {
         PrimaryTermAndGeneration bccTermAndGen = new PrimaryTermAndGeneration(primaryTerm, bccGenSupplier.apply(generation));
-        var blobFile = new BlobFile(BatchedCompoundCommit.blobNameFromGeneration(bccTermAndGen.generation()), bccTermAndGen);
+        var blobFile = new BccBlob(BatchedCompoundCommit.blobNameFromGeneration(bccTermAndGen.generation()), bccTermAndGen);
         final var combinedCommitFilesResult = combineCommitFiles(
             blobFile,
             replicatedContentRanges,
@@ -707,7 +707,7 @@ public record StatelessCompoundCommit(
      * Additionally, calculates the extra content files of the commit and returns them separately.
      */
     static CombinedCommitFilesResult combineCommitFiles(
-        BlobFile blobFile,
+        BccBlob bccBlob,
         InternalFilesReplicatedRanges replicatedContentRanges,
         List<InternalFile> internalFiles,
         Map<String, BlobLocation> referencedBlobFiles,
@@ -720,7 +720,7 @@ public record StatelessCompoundCommit(
 
         long currentOffset = offset + headerSizeInBytes + replicatedContentRanges.dataSizeInBytes();
         for (InternalFile internalFile : internalFiles) {
-            commitFiles.put(internalFile.name(), new BlobLocation(blobFile, currentOffset, internalFile.length()));
+            commitFiles.put(internalFile.name(), new BlobLocation(bccBlob, currentOffset, internalFile.length()));
             currentOffset += internalFile.length();
         }
 
@@ -728,7 +728,7 @@ public record StatelessCompoundCommit(
             ? Map.of()
             : Maps.newHashMapWithExpectedSize(extraContent.size());
         for (InternalFile extraFile : extraContent) {
-            extraContentMap.put(extraFile.name(), new BlobLocation(blobFile, currentOffset, extraFile.length()));
+            extraContentMap.put(extraFile.name(), new BlobLocation(bccBlob, currentOffset, extraFile.length()));
             currentOffset += extraFile.length();
         }
 

@@ -145,7 +145,7 @@ public final class UnmappedSinkFieldMapper extends MetadataFieldMapper {
 
     /**
      * Absorbed leaves are routed here explicitly by {@code ShardBatchMapper} under {@code dynamic: flattened}. {@code resolvesColumnGroup}
-     * is deliberately left at the inherited {@code false}, so a document leaf under {@code _unmapped.} resolves as a conflict and falls
+     * is deliberately left at the inherited {@code NONE}, so a document leaf under {@code _unmapped.} resolves as a conflict and falls
      * back to the sequential parser, which rejects it, instead of being silently written into the sink.
      */
     @Override

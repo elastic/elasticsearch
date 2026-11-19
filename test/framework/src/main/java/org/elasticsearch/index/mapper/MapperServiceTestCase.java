@@ -37,6 +37,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
@@ -47,11 +48,11 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NameOrDefinition;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.analysis.TokenCountingMetrics;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.codec.ElasticsearchStoredFieldsFormat;
 import org.elasticsearch.index.codec.PerFieldMapperCodec;
@@ -90,6 +91,7 @@ import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.telemetry.TelemetryLogResourceProvider;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.FieldMaskingReader;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -284,6 +286,17 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         return mapperService;
     }
 
+    /**
+     * A random index version on which strict-columnar indices still honour {@code doc_values: false}, i.e. one created before
+     * {@link IndexVersions#DOC_VALUES_NO_OP_IN_COLUMNAR}.
+     */
+    protected static IndexVersion randomVersionBeforeDocValuesNoOp() {
+        return IndexVersionUtils.randomVersionBetween(
+            IndexVersions.DOC_VALUES_TOP_LEVEL_ATTRIBUTES,
+            IndexVersionUtils.getPreviousVersion(IndexVersions.DOC_VALUES_NO_OP_IN_COLUMNAR)
+        );
+    }
+
     protected final MapperService createMapperService(IndexVersion indexVersion, Settings settings, XContentBuilder mappings)
         throws IOException {
         MapperService mapperService = createMapperService(indexVersion, settings, () -> true, mappings);
@@ -462,7 +475,14 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         Environment env = TestEnvironment.newEnvironment(envSettings);
         var telemetryProvider = getPlugins().stream()
             .filter(p -> p instanceof TelemetryPlugin)
-            .map(p -> ((TelemetryPlugin) p).getTelemetryProvider(env, List.of(), new TelemetryLogResourceProvider.Default()))
+            .map(
+                p -> ((TelemetryPlugin) p).getTelemetryProvider(
+                    new ThreadContext(Settings.EMPTY),
+                    env,
+                    List.of(),
+                    new TelemetryLogResourceProvider.Default()
+                )
+            )
             .findFirst()
             .orElse(TelemetryProvider.NOOP);
         return new MapperMetrics(new SourceFieldMetrics(telemetryProvider.getMeterRegistry(), new LongSupplier() {
@@ -472,7 +492,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
             public long getAsLong() {
                 return value++;
             }
-        }), new TokenCountingMetrics(telemetryProvider.getMeterRegistry()));
+        }));
     }
 
     protected static void withLuceneIndex(
@@ -485,9 +505,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
             mapperService::fieldType,
             (ft, s) -> ft.fielddataBuilder(FieldDataContext.noRuntimeFields("index", "")).build(null, null)
         );
-        IndexWriterConfig iwc = new IndexWriterConfig(
-            IndexShard.buildIndexAnalyzer(mapperService, mapperService.getMapperMetrics().tokenCountingMetrics())
-        ).setCodec(
+        IndexWriterConfig iwc = new IndexWriterConfig(IndexShard.buildIndexAnalyzer(mapperService)).setCodec(
             new PerFieldMapperCodec(
                 Lucene104Codec.Mode.BEST_SPEED,
                 ElasticsearchStoredFieldsFormat.Mode.LUCENE,
@@ -669,7 +687,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
     }
 
     protected static void mergeDynamicUpdate(MapperService mapperService, CompressedXContent dynamicUpdate) {
-        mapperService.merge("_doc", dynamicUpdate, MapperService.MergeReason.MAPPING_UPDATE);
+        mapperService.merge("_doc", dynamicUpdate, MapperService.MergeReason.MAPPING_AUTO_UPDATE);
     }
 
     public static XContentBuilder fieldMapping(CheckedConsumer<XContentBuilder, IOException> buildField) throws IOException {

@@ -47,6 +47,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -317,7 +318,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         );
         this.documentParser = new DocumentParser(
             parserConfiguration,
-            this.mappingParserContextSupplier.apply(MergeReason.MAPPING_RECOVERY)
+            this.mappingParserContextSupplier.apply(MergeReason.MAPPING_RECOVERY),
+            this::parseStoredMappings
         );
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = mapperRegistry.getMetadataMapperParsers(
             indexSettings.getIndexVersionCreated()
@@ -624,7 +626,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         MergedMapping merged = mergeBuilders(
             mappingParser,
             indexSettings,
-            updateBuilder,
+            List.of(updateBuilder),
             reason,
             existing,
             clusterSupportsFeature(clusterSupportsFeature, reason)
@@ -643,7 +645,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         MergedMapping merged = mergeBuilders(
             mappingParser,
             indexSettings,
-            updateBuilder,
+            List.of(updateBuilder),
             reason,
             documentMapper(),
             clusterSupportsFeature(clusterSupportsFeature, reason)
@@ -689,6 +691,13 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return mappingParser.parseToBuilder(SINGLE_MAPPING_NAME, reason, MappingParser.convertToMap(mappingSource));
     }
 
+    /**
+     * Parses the decoded root object of a mapping that is already stored
+     */
+    MappingBuilder parseStoredMappings(Map<String, Object> decodedRoot) {
+        return mappingParser.parseToBuilder(SINGLE_MAPPING_NAME, MergeReason.MAPPING_RECOVERY, Map.of(SINGLE_MAPPING_NAME, decodedRoot));
+    }
+
     private DocumentMapper doMerge(String type, MergeReason reason, Map<String, Object> mappingSourceAsMap) {
         assert reason != MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT;
         MappingBuilder incomingBuilder;
@@ -700,7 +709,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         // synchronized concurrent mapper updates are guaranteed to set merged mappers derived from the mapper value previously read
         // TODO: can we even have concurrent updates here?
         synchronized (this) {
-            MergedMapping merged = mergeBuilders(incomingBuilder, reason);
+            MergedMapping merged = mergeBuilders(List.of(incomingBuilder), reason);
             DocumentMapper newMapper = newDocumentMapper(merged.mapping(), reason, merged.builder().toCompressedXContent());
             this.mapper = newMapper;
             assert assertSerialization(newMapper, reason);
@@ -713,40 +722,74 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      */
     record MergedMapping(MappingBuilder builder, Mapping mapping) {}
 
-    private MergedMapping mergeBuilders(MappingBuilder incomingBuilder, MergeReason reason) {
+    private MergedMapping mergeBuilders(List<MappingBuilder> incomingBuilders, MergeReason reason) {
         return mergeBuilders(
             mappingParser,
             indexSettings,
-            incomingBuilder,
+            incomingBuilders,
             reason,
             this.mapper,
             clusterSupportsFeature(clusterSupportsFeature, reason)
         );
     }
 
+    /**
+     * Merges dynamic mapping updates in order and validates and publishes a single resulting mapper. Conflicting leaf field types
+     * retain the existing type, as with a single {@link MergeReason#MAPPING_AUTO_UPDATE}. If parsing, merging or final validation fails,
+     * the exception is propagated and this service is left unchanged. Intermediate mappings are not built or validated.
+     *
+     * @param mappingSources a non-empty list of dynamic mapping updates
+     */
+    public DocumentMapper mergeDynamicMappingUpdates(List<CompressedXContent> mappingSources) {
+        assert mappingSources.isEmpty() == false;
+        final MergeReason reason = MergeReason.MAPPING_AUTO_UPDATE;
+        List<MappingBuilder> incomingBuilders = new ArrayList<>(mappingSources.size());
+        for (CompressedXContent mappingSource : mappingSources) {
+            try {
+                incomingBuilders.add(mappingParser.parseToBuilder(SINGLE_MAPPING_NAME, reason, MappingParser.convertToMap(mappingSource)));
+            } catch (Exception e) {
+                throw new MapperParsingException("Failed to parse mapping: {}", e, e.getMessage());
+            }
+        }
+        synchronized (this) {
+            MergedMapping merged = mergeBuilders(incomingBuilders, reason);
+            DocumentMapper newMapper = newDocumentMapper(merged.mapping(), reason, merged.builder().toCompressedXContent());
+            this.mapper = newMapper;
+            assert assertSerialization(newMapper, reason);
+            return newMapper;
+        }
+    }
+
     private static MergedMapping mergeBuilders(
         MappingParser mappingParser,
         IndexSettings indexSettings,
-        MappingBuilder incomingBuilder,
+        List<MappingBuilder> incomingBuilders,
         MergeReason reason,
         DocumentMapper currentMapper,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
         NewFieldsBudget budget = getBudget(currentMapper, indexSettings, reason);
+        long nestedFieldsLimit = reason == MergeReason.MAPPING_RECOVERY ? Long.MAX_VALUE : indexSettings.getMappingNestedFieldsLimit();
         if (currentMapper == null) {
             try {
-                return buildMapping(applyFieldsBudget(incomingBuilder, budget, reason, clusterSupportsFeature), reason);
+                MappingBuilder accumulated = incomingBuilders.get(0).withoutMappers();
+                ParseFieldLimits fieldLimits = ParseFieldLimits.forMerge(nestedFieldsLimit, 0, budget);
+                for (MappingBuilder incomingBuilder : incomingBuilders) {
+                    accumulated.merge(incomingBuilder, reason, fieldLimits, clusterSupportsFeature);
+                }
+                return buildMapping(accumulated, reason);
             } catch (MapperParsingException e) {
                 throw e;
             } catch (Exception e) {
                 throw new MapperParsingException("Failed to parse mapping: {}", e, e.getMessage());
             }
         }
-        long nestedFieldsLimit = reason == MergeReason.MAPPING_RECOVERY ? Long.MAX_VALUE : indexSettings.getMappingNestedFieldsLimit();
         long existingNestedCount = currentMapper.mappers().nestedLookup().getNestedMappers().size();
         ParseFieldLimits fieldLimits = ParseFieldLimits.forMerge(nestedFieldsLimit, existingNestedCount, budget);
         MappingBuilder existingBuilder = mappingParser.parseToBuilder(currentMapper.type(), reason, currentMapper.mappingSource());
-        existingBuilder.merge(incomingBuilder, reason, fieldLimits, clusterSupportsFeature);
+        for (MappingBuilder incomingBuilder : incomingBuilders) {
+            existingBuilder.merge(incomingBuilder, reason, fieldLimits, clusterSupportsFeature);
+        }
         return buildMapping(existingBuilder, reason);
     }
 

@@ -82,7 +82,7 @@ public class BranchPlan extends UnionAll {
 
     @Override
     public LogicalPlan replaceChildren(List<LogicalPlan> newChildren) {
-        return new BranchPlan(source(), asSubqueryMap(newChildren), branchIdentities, output());
+        return passIdentityTo(new BranchPlan(source(), asSubqueryMap(newChildren), branchIdentities, output()));
     }
 
     @Override
@@ -98,12 +98,12 @@ public class BranchPlan extends UnionAll {
 
     @Override
     public BranchPlan replaceSubPlans(List<LogicalPlan> subPlans) {
-        return new BranchPlan(source(), asSubqueryMap(subPlans), branchIdentities, output());
+        return passIdentityTo(new BranchPlan(source(), asSubqueryMap(subPlans), branchIdentities, output()));
     }
 
     @Override
     public BranchPlan replaceSubPlansAndOutput(List<LogicalPlan> subPlans, List<Attribute> output) {
-        return new BranchPlan(source(), asSubqueryMap(subPlans), branchIdentities, output);
+        return passIdentityTo(new BranchPlan(source(), asSubqueryMap(subPlans), branchIdentities, output));
     }
 
     // Currently for testing only, could also be useful for EXPLAIN and PROFILE
@@ -242,7 +242,7 @@ public class BranchPlan extends UnionAll {
             return true;
         }
         // Delegate the children/output part to UnionAll: output arity is resolution state (compaction builds this node
-        // with an empty output for resolveMergePlan to fill in) and LOAD_ALL alignment rewrites the output without
+        // with an empty output for resolveMergePlan to fill in) and LOAD_ALL's _unmapped_fields rewrites the output without
         // changing children; ignoring the output here would make transformUp discard both rewrites. super.equals also
         // rejects nulls and other classes via getClass().
         if (super.equals(o) == false) {

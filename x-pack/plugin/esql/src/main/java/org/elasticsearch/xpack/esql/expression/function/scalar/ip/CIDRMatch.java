@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecyc
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.Signature;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
@@ -76,6 +77,7 @@ public class CIDRMatch extends EsqlScalarFunction implements TranslationAware.Si
     @FunctionInfo(
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = "boolean",
+        signatures = { @Signature(params = { "ip", "STRING" }, returnType = "boolean") },
         briefSummary = "Returns true if the provided IP is contained in one of the provided CIDR blocks.",
         description = "Returns true if the provided IP is contained in one of the provided CIDR blocks.",
         examples = @Example(file = "ip", tag = "cdirMatchMultipleArgs")

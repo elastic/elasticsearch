@@ -69,23 +69,27 @@ public class IndexShardCacheWarmer {
         preWarmIndexShardCache(indexShard, INDEXING_EARLY);
     }
 
+    /// schedule the pre-warming of a shard during a primary relocation
+    /// @param listener completes once the prewarming has completed or failed
     public void preWarmIndexShardCacheForPeerRecovery(
         IndexShard indexShard,
         StatelessCommitService.SourceBlobsInfo sourceBlobsInfo,
-        boolean preWarmForIdLookup
+        boolean preWarmForIdLookup,
+        ActionListener<Void> listener
     ) {
-        preWarmIndexShardCache(indexShard, INDEXING_EARLY, sourceBlobsInfo, preWarmForIdLookup);
+        preWarmIndexShardCache(indexShard, INDEXING_EARLY, sourceBlobsInfo, preWarmForIdLookup, listener);
     }
 
     public void preWarmIndexShardCache(IndexShard indexShard, SharedBlobCacheWarmingService.Type warmingType) {
-        preWarmIndexShardCache(indexShard, warmingType, null, false);
+        preWarmIndexShardCache(indexShard, warmingType, null, false, ActionListener.noop());
     }
 
-    public void preWarmIndexShardCache(
+    private void preWarmIndexShardCache(
         IndexShard indexShard,
         SharedBlobCacheWarmingService.Type warmingType,
         @Nullable StatelessCommitService.SourceBlobsInfo sourceBlobsInfo,
-        boolean preWarmForIdLookup
+        boolean preWarmForIdLookup,
+        ActionListener<Void> listener
     ) {
         final IndexShardState currentState = indexShard.state(); // single volatile read
         if (currentState == IndexShardState.CLOSED) {
@@ -101,14 +105,16 @@ public class IndexShardCacheWarmer {
         assert warmingType != INDEXING_EARLY || indexShard.recoveryState().getRecoverySource().getType() == RecoverySource.Type.PEER
             : "Only peer recoveries are supported";
         assert sourceBlobsInfo == null || warmingType == INDEXING_EARLY;
-        threadPool.generic().execute(() -> doPreWarmIndexShardCache(indexShard, warmingType, sourceBlobsInfo, preWarmForIdLookup));
+        threadPool.generic()
+            .execute(() -> doPreWarmIndexShardCache(indexShard, warmingType, sourceBlobsInfo, preWarmForIdLookup, listener));
     }
 
     private void doPreWarmIndexShardCache(
         IndexShard indexShard,
         SharedBlobCacheWarmingService.Type warmingType,
         @Nullable StatelessCommitService.SourceBlobsInfo sourceBlobsInfo,
-        boolean preWarmForIdLookup
+        boolean preWarmForIdLookup,
+        ActionListener<Void> listener
     ) {
         assert indexShard.routingEntry().isPromotableToPrimary();
         final Store store = indexShard.store();
@@ -133,17 +139,24 @@ public class IndexShardCacheWarmer {
                     true,
                     sourceBlobsInfo,
                     ActionListener.releaseAfter(ActionListener.wrap(state -> {
-                        updateMetadataAndWarmCache(indexShard, warmingType, state, prewarmingDirectory, true, preWarmForIdLookup);
-                    }, e -> logException(indexShard.shardId(), e)), store::decRef)
+                        updateMetadataAndWarmCache(indexShard, warmingType, state, prewarmingDirectory, true, preWarmForIdLookup, listener);
+                    }, e -> {
+                        logException(indexShard.shardId(), e);
+                        listener.onFailure(e);
+                    }), store::decRef)
                 );
                 success = true;
             } catch (Exception e) {
                 logException(indexShard.shardId(), e);
+                listener.onFailure(e);
             } finally {
                 if (success == false) {
                     store.decRef();
                 }
             }
+        } else {
+            // the store is closing, the recovery will not use the cache either
+            listener.onResponse(null);
         }
     }
 
@@ -152,7 +165,7 @@ public class IndexShardCacheWarmer {
             final var blobStore = objectStoreService.getProjectBlobStore(indexShard.shardId());
             final var shardBasePath = objectStoreService.shardBasePath(indexShard.shardId());
             var prewarmingDirectory = createNewBlobStoreCacheDirectoryForWarming(store, blobStore, shardBasePath);
-            updateMetadataAndWarmCache(indexShard, Type.UNHOLLOWING, state, prewarmingDirectory, false, false);
+            updateMetadataAndWarmCache(indexShard, Type.UNHOLLOWING, state, prewarmingDirectory, false, false, ActionListener.noop());
         } catch (Exception e) {
             logException(indexShard.shardId(), e);
         }
@@ -175,12 +188,15 @@ public class IndexShardCacheWarmer {
         ObjectStoreService.IndexingShardState state,
         IndexBlobStoreCacheDirectory prewarmingDirectory,
         boolean readSingleBlobIfHollow,
-        boolean preWarmForIdLookup
+        boolean preWarmForIdLookup,
+        ActionListener<Void> listener
     ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
 
         var batchedCompoundCommit = state.latestCommit();
-        if (batchedCompoundCommit != null) {
+        if (batchedCompoundCommit == null) {
+            listener.onResponse(null);
+        } else {
             StatelessCompoundCommit last = batchedCompoundCommit.lastCompoundCommit();
             // We do not want to update the internal directory metadata this early as this gets dispatched
             // into the GENERIC thread pool and, it can make the directory to go backwards if the recovery
@@ -194,9 +210,10 @@ public class IndexShardCacheWarmer {
                     last,
                     prewarmingDirectory,
                     preWarmForIdLookup,
-                    ActionListener.noop()
+                    listener
                 );
-
+            } else {
+                listener.onResponse(null);
             }
         }
     }

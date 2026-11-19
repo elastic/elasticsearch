@@ -23,6 +23,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
@@ -106,6 +107,10 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
     public void testIndexOrDocValuesRangeChargesAndReleasesAcrossSearch() throws IOException {
         Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(FIELD, 0L, NUM_DOCS * 3L / 4L);
         assertChargesThenReleases(new IndexOrDocValuesQuery(denseRangeQuery(), dvQuery));
+    }
+
+    public void testBoostedRangeChargesAndReleasesAcrossSearch() throws IOException {
+        assertChargesThenReleases(new BoostQuery(denseRangeQuery(), 2f));
     }
 
     public void testMatchAllRangeChargesNothing() throws IOException {

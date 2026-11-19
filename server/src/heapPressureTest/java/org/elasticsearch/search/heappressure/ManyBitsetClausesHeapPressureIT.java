@@ -21,7 +21,7 @@ import java.util.function.IntFunction;
 
 /**
  * Clauses other than point ranges and multi-term queries that build a full-segment bit set per clause while the scorers of a
- * {@code bool} are created, and that the request circuit breaker does not see.
+ * {@code bool} are created.
  *
  * <p>{@link BoolQueryHeapPressureIT#testRangeClausesTripBreaker} covers {@code PointRangeQuery}. These cases use the same shape, one
  * {@code bool} of {@link #MANY_CLAUSES} clauses that each match most of a single segment of {@link #DOCS} documents, about 62kb of bit
@@ -32,8 +32,9 @@ import java.util.function.IntFunction;
  * <li>{@code geo_shape} with a polygon on {@code geo_point}, a {@code LatLonPointQuery};
  * <li>{@code range} on a {@code long_range} field, a {@code RangeFieldQuery}.
  * </ul>
- * The query cache is off so that every clause is built. A case passes if the request either succeeds or is rejected by a circuit breaker
- * and the node survives. Each case should be run on its own, since a case that kills the node skips the rest.
+ * The query cache is off so that every clause is built. The {@code terms} and {@code long_range} cases must be rejected under
+ * {@code points-execution}. The geo cases are not charged yet: they pass if the request either succeeds or is rejected by a circuit
+ * breaker and the node survives. Each case should be run on its own, since a case that kills the node skips the rest.
  */
 public class ManyBitsetClausesHeapPressureIT extends SearchHeapPressureTestCase {
 
@@ -81,13 +82,13 @@ public class ManyBitsetClausesHeapPressureIT extends SearchHeapPressureTestCase 
 
     /** {@code terms} on {@code ip}: each clause matches half the documents. */
     public void testIpTermsClauses() throws IOException {
-        assertOnlyTripsOrSucceeds(n -> search(INDEX, searchBody(should(n, i -> Strings.format("""
+        assertTripsUnderPointsLabel(n -> search(INDEX, searchBody(should(n, i -> Strings.format("""
             {"terms": {"ip": ["10.0.0.1", "172.16.%d.%d"]}}""", i / 256, i % 256)))));
     }
 
     /** {@code terms} on {@code long}: each clause matches half the documents. */
     public void testLongTermsClauses() throws IOException {
-        assertOnlyTripsOrSucceeds(n -> search(INDEX, searchBody(should(n, i -> Strings.format("""
+        assertTripsUnderPointsLabel(n -> search(INDEX, searchBody(should(n, i -> Strings.format("""
             {"terms": {"n": [0, %d]}}""", 1000 + i)))));
     }
 
@@ -113,8 +114,12 @@ public class ManyBitsetClausesHeapPressureIT extends SearchHeapPressureTestCase 
 
     /** {@code range} on {@code long_range}: each clause intersects nearly every document. */
     public void testLongRangeFieldClauses() throws IOException {
-        assertOnlyTripsOrSucceeds(n -> search(INDEX, searchBody(should(n, i -> Strings.format("""
+        assertTripsUnderPointsLabel(n -> search(INDEX, searchBody(should(n, i -> Strings.format("""
             {"range": {"r": {"gte": %d, "lte": 10000000}}}""", 1000 + i)))));
+    }
+
+    private void assertTripsUnderPointsLabel(IntFunction<Request> request) throws IOException {
+        assertTripsOnlyWhenLarge(request, FEW_CLAUSES, MANY_CLAUSES, "points-execution");
     }
 
     private void assertOnlyTripsOrSucceeds(IntFunction<Request> request) throws IOException {

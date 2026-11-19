@@ -1,0 +1,6 @@
+area: Ingest Node
+issues:
+ - 162787
+pr: 162786
+summary: Configure Grok watchdog for redact processor
+type: bug

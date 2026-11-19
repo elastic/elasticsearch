@@ -15,6 +15,7 @@ import org.elasticsearch.grok.GrokBuiltinPatterns;
 import org.elasticsearch.grok.GrokCaptureExtracter;
 import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.grok.PatternBank;
+import org.elasticsearch.grok.WatchedMatcher;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
@@ -24,8 +25,6 @@ import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.XPackField;
-import org.joni.Matcher;
-import org.joni.Option;
 import org.joni.Region;
 
 import java.nio.charset.StandardCharsets;
@@ -195,26 +194,28 @@ public class RedactProcessor extends AbstractProcessor {
     }
 
     private static void matchRepeat(Grok grok, byte[] utf8Bytes, RegionTrackingMatchExtractor extractor) {
-        Matcher matcher = grok.getCompiledExpression().matcher(utf8Bytes, 0, utf8Bytes.length);
         int result;
         int offset = 0;
         int length = utf8Bytes.length;
 
-        do {
-            result = matcher.search(offset, length, Option.DEFAULT);
-            if (result < 0) {
-                break;
-            }
+        try (WatchedMatcher matcher = grok.watchedMatcher(utf8Bytes, 0, utf8Bytes.length)) {
+            do {
+                // throws if the watchdog interrupts the search, rather than reporting "no more matches"
+                result = matcher.search(offset, length);
+                if (result < 0) {
+                    break;
+                }
 
-            extractor.extract(utf8Bytes, 0, matcher.getEagerRegion());
+                extractor.extract(utf8Bytes, 0, matcher.getEagerRegion());
 
-            if (matcher.getEnd() == offset) {
-                ++offset;
-            } else {
-                offset = matcher.getEnd();
-            }
+                if (matcher.getEnd() == offset) {
+                    ++offset;
+                } else {
+                    offset = matcher.getEnd();
+                }
 
-        } while (offset != length);
+            } while (offset != length);
+        }
     }
 
     private void updateMetadataIfNecessary(IngestDocument ingestDocument, String fieldValue, String redacted) {

@@ -53,6 +53,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
+import java.util.SortedSet;
 import java.util.TreeMap;
 import java.util.TreeSet;
 
@@ -446,6 +447,8 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
             private final Set<String> without = new TreeSet<>();
             /** The labels promoted out of the container, each held by an expression of its own. */
             private SortedMap<String, Expression> labels = new TreeMap<>();
+            /** Where nothing is left of the container after a TS_KEEP: every label it keeps, promoted or absent. Null otherwise. */
+            private @Nullable SortedSet<String> kept;
 
             private Parts(@Nullable Expression container) {
                 this.container = container;
@@ -847,7 +850,8 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
          * The pack of the parts of each label container it reads. A typed container is packed whole, the promoted labels it does
          * not hold written back: the same label set is the same value wherever it is packed. A pack of one typed container is
          * gone: the container keys as it is. A keyword container cannot be written to: the container that is left is packed with
-         * each promoted label, a label of several values as a whole. A container no part is left of packs as absent.
+         * each promoted label, a label of several values as a whole, and nothing left of a kept container is packed with every
+         * label kept, absent where a series has none. A container no part is left of packs as absent.
          */
         private LogicalPlan rewritePackDims(PackDims pack) {
             var evals = new ArrayList<Alias>();
@@ -867,7 +871,16 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
                     if (parts.container != null) {
                         taken.add((Attribute) parts.container);
                     }
-                    parts.labels.values().forEach(label -> taken.add((Attribute) label));
+                    // What is left of a kept container is every label kept, absent where a series has none: two packs of the
+                    // same labels kept take alike, whatever labels their sources have fields for.
+                    var names = new TreeSet<>(parts.labels.keySet());
+                    if (parts.container == null && parts.kept != null) {
+                        names.addAll(parts.kept);
+                    }
+                    for (String name : names) {
+                        Expression label = parts.labels.get(name);
+                        taken.add(label != null ? (Attribute) label : attribute(absent(dim.source()), name, evals));
+                    }
                     if (taken.isEmpty()) {
                         taken.add(attribute(absent(dim.source()), MetadataAttribute.TIMESERIES, evals));
                     }
@@ -964,6 +977,9 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
                         List<String> names = names(filter.labels());
                         unset(parts, names, call.source());
                         parts.labels.keySet().removeAll(names);
+                        if (parts.kept != null) {
+                            parts.kept.removeAll(names);
+                        }
                     }
                     // TS_KEEP: the read of each name. Nothing is left of the container
                     case TimeSeriesMetadataFilter filter -> {
@@ -977,6 +993,7 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
                         parts.container = null;
                         parts.without.clear();
                         parts.labels = kept;
+                        parts.kept = new TreeSet<>(names(filter.labels()));
                     }
                     // TS_SET: the value is promoted, and the container is without the label. Writing null removes the label
                     case TimeSeriesMetadataSet set -> {
@@ -984,6 +1001,9 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
                         Expression value = emptyAsAbsent(scalar(set.value()));
                         unset(parts, List.of(name), call.source());
                         parts.labels.remove(name);
+                        if (parts.kept != null) {
+                            parts.kept.add(name);
+                        }
                         if (isAbsent(value) == false) {
                             parts.labels.put(name, value);
                         }
@@ -1013,6 +1033,7 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
                 Parts parts = new Parts(below.container);
                 parts.without.addAll(below.without);
                 parts.labels.putAll(below.labels);
+                parts.kept = below.kept == null ? null : new TreeSet<>(below.kept);
                 return parts;
             }
             if (under instanceof Attribute attribute && isLabelContainer(attribute)) {

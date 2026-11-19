@@ -40,6 +40,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -1141,16 +1142,10 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         final StatelessMemoryMetricsService timed = new StatelessMemoryMetricsService(now::get, clusterService);
         final long operationSize = randomLongBetween(1L, 50_000_000L);
         timed.updateLargestIndexingOperationSize(operationSize);
-        assertThat(
-            timed.minimumRequiredHeapForAcceptingLargeIndexingOps(),
-            equalTo(StatelessMemoryMetricsService.heapRequiredForOperation(clusterService.getSettings(), operationSize))
-        );
+        assertThat(timed.minimumRequiredHeapForAcceptingLargeIndexingOps(), equalTo(operationSize * 10));
 
         timed.updateLargestIndexingOperationSize(Math.max(0L, operationSize - 1));
-        assertThat(
-            timed.minimumRequiredHeapForAcceptingLargeIndexingOps(),
-            equalTo(StatelessMemoryMetricsService.heapRequiredForOperation(clusterService.getSettings(), operationSize))
-        );
+        assertThat(timed.minimumRequiredHeapForAcceptingLargeIndexingOps(), equalTo(operationSize * 10));
 
         final long legacyHeap = timed.minimumRequiredHeapForAcceptingLargeIndexingOps() + randomLongBetween(1L, 1_000L);
         timed.updateIndexingOperationsHeapMemoryRequirements(legacyHeap);
@@ -1158,6 +1153,15 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
 
         now.addAndGet(StatelessMemoryMetricsService.DEFAULT_INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY.nanos() + 1);
         assertThat(timed.minimumRequiredHeapForAcceptingLargeIndexingOps(), equalTo(0L));
+    }
+
+    public void testPercentageLimitIsTenTimesTheOperationAndAbsoluteLimitIsNotAHeapRequirement() {
+        final long operationSize = 4_000_000L;
+        final Settings tenPercent = Settings.builder().put(IndexingPressure.MAX_OPERATION_SIZE.getKey(), "10%").build();
+        assertThat(StatelessMemoryMetricsService.heapRequiredForOperation(tenPercent, operationSize), equalTo(40_000_000L));
+
+        final Settings absolute = Settings.builder().put(IndexingPressure.MAX_OPERATION_SIZE.getKey(), "50mb").build();
+        assertThat(StatelessMemoryMetricsService.heapRequiredForOperation(absolute, operationSize), equalTo(0L));
     }
 
     public void testLegacyIndexingHeapRequirementIsReturnedAsIs() {

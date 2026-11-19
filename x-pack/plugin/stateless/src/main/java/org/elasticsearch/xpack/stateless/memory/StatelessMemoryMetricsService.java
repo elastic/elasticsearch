@@ -43,7 +43,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.AutoscalingMissedIndicesUpdateException;
-import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.xpack.core.ml.inference.IngestModelMemoryProvider;
 import org.elasticsearch.xpack.stateless.MetricQuality;
 import org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageAllocationDecider;
@@ -375,23 +374,24 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
     }
 
     /**
-     * Heap required on this node to accept an indexing operation of {@code operationSizeInBytes}, using this node's
-     * {@link IndexingPressure#MAX_OPERATION_SIZE} and JVM heap maximum.
+     * Heap an indexing node needs in order to accept an operation of {@code operationSizeInBytes} under this node's
+     * {@link IndexingPressure#MAX_OPERATION_SIZE}.
      * <p>
-     * {@code ceil(operationSize / (limit / heapMax))}. A percentage limit cancels the local heap, so the default 10%
-     * limit is ten times the operation size. An absolute limit is interpreted against this node's heap.
+     * A percentage limit does not depend on which JVM evaluates it: {@code ceil(operationSize / (percent / 100))}.
+     * The default 10% is ten times the operation size. An absolute byte limit accepts or rejects the operation on its
+     * own, so it is not turned into a heap requirement from this node's JVM heap.
      */
     static long heapRequiredForOperation(Settings nodeSettings, long operationSizeInBytes) {
-        final long limitBytes = IndexingPressure.MAX_OPERATION_SIZE.get(nodeSettings).getBytes();
-        final long heapMaxBytes = JvmInfo.jvmInfo().getMem().getHeapMax().getBytes();
-        if (limitBytes == 0L || heapMaxBytes == 0L) {
+        final String configured = nodeSettings.get(IndexingPressure.MAX_OPERATION_SIZE.getKey());
+        final String limit = configured == null ? IndexingPressure.MAX_OPERATION_SIZE.getDefaultRaw(nodeSettings) : configured;
+        if (limit.endsWith("%") == false) {
             return 0L;
         }
-        final double ratio = (double) limitBytes / (double) heapMaxBytes;
-        if (ratio == 0d) {
+        final double percent = Double.parseDouble(limit.substring(0, limit.length() - 1));
+        if (percent == 0d) {
             return 0L;
         }
-        return (long) Math.ceil(operationSizeInBytes / ratio);
+        return (long) Math.ceil(operationSizeInBytes * 100.0d / percent);
     }
 
     private long validLegacyIndexingHeap(long now) {

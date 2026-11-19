@@ -52,6 +52,28 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.greaterThan;
 
+/**
+ * Exact-stat validation for the orthogonal per-stripe stats path of the NDJSON reader. These are the
+ * correctness gate the user mandated: a reader must never produce a silently-wrong cached aggregate, so
+ * every misalignment between records, pages, stripes, and chunk boundaries is exercised against an exact
+ * expected row count — both at the reader's fragment-emission layer and end-to-end through the production
+ * coordinator reconciler ({@link ExternalSourceCacheService#reconcileSourceStatsFromContributions}).
+ *
+ * <p>Stripes are a pure addressing grid; the reader attributes each record to {@code floor(recordStart / B)}
+ * (recordStart = the byte of the record's opening brace) as it parses, and emits one fragment per stripe the
+ * chunk's byte range overlaps using the byte-range cover model shared with the CSV reader (see
+ * {@code StripeStatsHarvester}). A page is NOT capped at stripe lines — it may span stripes; the iterator
+ * splits the page's rows by their recorded offsets. Each fragment's byte sub-range is the chunk range clamped
+ * to the stripe's grid cell, so sibling chunks' fragments for a split stripe tile contiguously.
+ *
+ * <p>The format-agnostic byte-range-cover GEOMETRY (dense ordinals, contiguous tiling, empty stripes for
+ * oversized records, the partial trailing stripe of a non-final chunk, a record starting on a stripe boundary)
+ * is tested directly at the shared component's own layer in {@code StripeStatsHarvesterTests} and is not
+ * duplicated here. What stays in this file is reader-specific: end-to-end folds through the production
+ * reconciler, the harvest-scope (COUNT/PROJECTED/ALL) tests, and the NDJSON iterator's page-cap / page-split
+ * behavior ({@link #testPageWouldStraddleStripeButIsCapped}, {@link #testTinyBatchSplitsStripeAcrossPagesThenFolds}),
+ * which exercise the decoder's own paging rather than the harvester's cover math.
+ */
 public class NdJsonStripeStatsCaptureTests extends ESTestCase {
 
     private BlockFactory blockFactory;

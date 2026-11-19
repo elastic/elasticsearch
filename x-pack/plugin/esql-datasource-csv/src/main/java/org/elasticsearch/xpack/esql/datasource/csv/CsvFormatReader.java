@@ -2696,10 +2696,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
         boolean wholeFileRead = context.firstSplit() && context.recordAligned() == false && context.lastSplit();
         boolean chunkMode = context.recordAligned();
         // Under NONE this read harvests nothing, so it takes no cacheable identity: that skips the mtime probe
-        // below, which is a cache-only metadata read (a HEAD on a store that carries no Last-Modified hint), and
+        // below, which is a cache-only metadata read (a HEAD on a store carrying no Last-Modified header), and
         // leaves cacheableObject null, which is what every publish and every accumulator downstream keys off.
-        // The read SHAPE is deliberately left alone -- wholeFileRead and chunkMode still describe the split, so
-        // parsing behaviour is identical with statistics on or off.
         boolean cacheable = (wholeFileRead || chunkMode) && context.statsColumnScope() != StripeColumnScope.NONE;
         long pinnedMtimeMillis = -1L;
         if (cacheable) {
@@ -4573,10 +4571,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             this.statsColumnScope = statsColumnScope != null ? statsColumnScope : StripeColumnScope.PROJECTED;
             this.statsFileFinal = statsFileFinal;
             this.stripeHarvester = statsStripeSize > 0 ? new StripeStatsHarvester(statsStripeSize, statsFileFinal, statsStripeSink) : null;
-            // A read that measures nothing must reach none of the statistics machinery, so the two states that
-            // would betray it are asserted rather than left to a reader of the gates: a live grid, and the
-            // inline per-cell fold below. Both are off in production, so these cost nothing there and every
-            // capture test exercises them.
+            // Pins the call site's scope term: drop it and chunkMode alone leaves a positive grid under NONE, so
+            // this builds a harvester nothing can feed. Assertions are off in production.
             assert this.statsColumnScope != StripeColumnScope.NONE || this.stripeHarvester == null : "stripe grid active under NONE";
             // Same fallback as SkipWarnings, so a read context without a sink (tests, benchmarks) does not silence one
             // read-time channel while the other still reaches HeaderWarning. Production read paths always supply one.
@@ -5509,16 +5505,18 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 // loop (see appendStagedRow) instead of re-walking every built block. Build the
                 // accumulator eagerly here so the staging loop can feed it; captureBlockStats then skips
                 // direct-produced pages (lastBatchAccumulatedStats) to avoid double counting.
-                // PROJECTED is the only scope that consumes these: captureBlockStats returns early for every
-                // other, and NONE means the read harvests nothing at all, so accumulating would fold a min/max/null
-                // per cell on the parse loop for a result no one reads. The direct path is never entered under ALL
-                // (see directEligible), and COUNT wants the row count only.
+                // PROJECTED is the only scope whose whole-file publish reads these, and captureBlockStats returns
+                // early for every other, so accumulating under another scope folds a min/max/null per cell on the
+                // parse loop for a result no one reads. The direct path is never entered under ALL (see
+                // directEligible), and COUNT wants the row count alone.
                 if (cacheableObject != null && statsColumnScope == StripeColumnScope.PROJECTED) {
                     columnStats = ColumnStatsAccumulator.forProjectedAttributes(projectedAttrs);
                     accumulateDirectStats = columnStats.isEmpty() == false;
                 }
-                assert statsColumnScope != StripeColumnScope.NONE || accumulateDirectStats == false
-                    : "direct-path column fold active under NONE";
+                // PROJECTED, not "not NONE": under COUNT the file is still cacheable, so the scope is the only
+                // thing standing between this path and a per-cell fold whose result COUNT never publishes.
+                assert statsColumnScope == StripeColumnScope.PROJECTED || accumulateDirectStats == false
+                    : "direct-path column fold active under " + statsColumnScope;
             }
         }
 

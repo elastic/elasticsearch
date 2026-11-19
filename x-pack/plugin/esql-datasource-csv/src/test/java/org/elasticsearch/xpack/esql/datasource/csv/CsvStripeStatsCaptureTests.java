@@ -1532,10 +1532,12 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
     }
 
     /**
-     * COUNT is documented as the row count alone. On the direct-block path — the CSV default — the per-cell
-     * min/max/null fold runs inside the parse loop rather than over the built blocks, so the block-walking
-     * gate never sees it; nothing but the scope stops it. A whole-file read is what exposes it, because that
-     * publish is the only consumer of the inline accumulator.
+     * COUNT is documented as the row count alone, and on the direct-block path — the CSV default — nothing but
+     * the scope kept per-column statistics out of its publish: the accumulator was built from the projected
+     * attributes whenever the file was cacheable, and a whole-file publish is the one consumer that reads it.
+     * What this pins is the published contribution, not the per-cell fold specifically — at this row count the
+     * schema sample may consume every row, in which case the parent still publishes the empty accumulator's
+     * per-column entries. Either way COUNT must carry none of them.
      */
     public void testCountScopePublishesNoColumnStatsOnTheDirectPath() throws Exception {
         byte[] full = concat("n\n".getBytes(StandardCharsets.UTF_8), asciiCsv(0, 10));

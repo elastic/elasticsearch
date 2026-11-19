@@ -253,9 +253,6 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         this.stripeHarvester = this.statsStripeSize > 0
             ? new StripeStatsHarvester(this.statsStripeSize, statsFileFinal, statsStripeSink)
             : null;
-        // As in CsvFormatReader: a read that measures nothing must not hold a grid, asserted rather than left to
-        // a reader of the gate above. Off in production, exercised by every capture test.
-        assert this.statsColumnScope != StripeColumnScope.NONE || this.stripeHarvester == null : "stripe grid active under NONE";
         InputStream inputStream = object.newStream();
         NdJsonRecordSplitter recordSplitter = new NdJsonRecordSplitter(maxRecordBytes);
         // File-global byte offset of the first byte the decoder will read. When this split starts

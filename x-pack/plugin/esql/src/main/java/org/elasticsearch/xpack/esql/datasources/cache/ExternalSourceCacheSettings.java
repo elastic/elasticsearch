@@ -68,7 +68,7 @@ public final class ExternalSourceCacheSettings {
      * the coordinator, reads on that data node measure nothing, so the coordinator never warms for the files
      * those nodes read. That follows from the node scope — the node was told to do no cache work — and closing
      * it would mean the coordinator deciding and shipping the decision with the plan, which is a wire field. Set
-     * it cluster-wide, which the dynamic path does, and the two halves always agree.
+     * it cluster-wide and the two halves agree on every node that observes the update.
      * <p>
      * It does not reach the footer caches, which are built per format reader from {@link #FOOTER_CACHE_SIZE} and
      * {@link #FOOTER_PARSED_CACHE_SIZE}; bound those with their own budgets.

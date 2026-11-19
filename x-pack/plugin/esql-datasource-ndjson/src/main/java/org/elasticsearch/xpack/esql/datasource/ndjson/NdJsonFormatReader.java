@@ -760,10 +760,8 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         boolean wholeFileRead = context.firstSplit() && context.recordAligned() == false && context.lastSplit();
         boolean chunkMode = context.recordAligned();
         // Under NONE this read harvests nothing, so it takes no cacheable identity: that skips the mtime probe
-        // below, which is a cache-only metadata read (a HEAD on a store that carries no Last-Modified hint), and
+        // below, which is a cache-only metadata read (a HEAD on a store carrying no Last-Modified header), and
         // leaves cacheableObject null, which is what every publish and every accumulator downstream keys off.
-        // The read SHAPE is deliberately left alone -- wholeFileRead and chunkMode still describe the split, so
-        // parsing behaviour is identical with statistics on or off.
         boolean cacheable = (wholeFileRead || chunkMode) && context.statsColumnScope() != StripeColumnScope.NONE;
         long pinnedMtimeMillis = -1L;
         if (cacheable) {

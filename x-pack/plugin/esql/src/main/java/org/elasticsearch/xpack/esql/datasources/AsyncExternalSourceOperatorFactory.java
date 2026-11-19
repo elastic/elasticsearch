@@ -3295,20 +3295,14 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     /**
      * The sink per-file statistics are captured into, or {@code null} when this read harvests nothing.
      * <p>
-     * {@link StripeColumnScope#NONE} means the read measures nothing, and the format readers already honour it.
-     * Honouring it here too takes the rest of the capture machinery out of the read rather than leaving it to run
-     * against a result nobody accepts: {@link StatsCapturingIterator#wrap} returns the delegate unwrapped on a null
-     * sink, the parsing coordinators bind no per-worker capture handle and stage no stripes, and their
-     * unclean-close poison marker is guarded on the sink being present. That marker is the term that does not
-     * scale with bytes: one map per FILE, written by whichever coordinator ran when the read did not drain
-     * cleanly -- a cancellation, an error, a non-strict record-size truncation, or a filtered LIMIT that stops
-     * once enough rows have passed the filter. A LIMIT pushed INTO the source is not one of those: it leaves
-     * {@code rowLimit != NO_LIMIT}, which keeps {@link #openWithParallelism} from building a coordinator in the
-     * first place. {@code null} is the coordinators' own documented off switch for source-stats capture, not a
-     * new contract.
+     * The readers already honour {@link StripeColumnScope#NONE}; honouring it here takes the rest of the capture
+     * machinery out of the read. {@link StatsCapturingIterator#wrap} returns the delegate unwrapped on a null sink,
+     * and the parsing coordinators then bind no per-worker handle, stage no stripes, and write no unclean-close
+     * marker — all three already guard on the sink being present, so {@code null} is their own off switch rather
+     * than a new contract.
      * <p>
-     * Distinct from {@code FormatReadContext.statsStripeSink}, where {@code null} means the chunk publishes its own
-     * stripe pieces instead of staging them. The two must not be conflated.
+     * Not to be confused with {@code FormatReadContext.statsStripeSink}, whose {@code null} means the chunk
+     * publishes its own stripe pieces instead of staging them.
      */
     @Nullable
     private ConcurrentMap<String, List<Map<String, Object>>> statisticsCaptureSink(AsyncExternalSourceBuffer buffer) {

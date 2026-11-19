@@ -15,7 +15,7 @@ DESCRIBE
 
 `DESCRIBE` takes no arguments. It describes the columns the query has at that point, after views, renames and computations are resolved, and reads no data. Its output is a table like any other, so the rest of the query can filter, sort or aggregate it.
 
-`DESCRIBE` returns the following columns. New columns can be added in future versions, so use [`KEEP`](/reference/query-languages/esql/commands/keep.md) to select the ones you need rather than relying on their position.
+`DESCRIBE` returns the following columns. New columns, and new values in columns such as `role` and `origin`, can be added in future versions, and the classification of a column can be refined. Use [`KEEP`](/reference/query-languages/esql/commands/keep.md) to select the columns you need rather than relying on their position.
 
 `name`
 :   The name of the column.

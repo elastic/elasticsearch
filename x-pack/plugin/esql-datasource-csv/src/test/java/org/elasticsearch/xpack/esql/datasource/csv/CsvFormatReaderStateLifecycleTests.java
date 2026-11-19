@@ -42,9 +42,9 @@ public class CsvFormatReaderStateLifecycleTests extends ESTestCase {
         .build();
 
     /**
-     * Instance fields carrying no cross-instance mutable state. {@code sharedCsvMapper} qualifies because every
-     * copy builds its own in the constructor ({@code createMapper(options)}) and it is only configured there,
-     * never reconfigured during reads.
+     * Instance fields carrying no cross-instance mutable state. {@code sharedCsvMapper} is only configured
+     * in the constructor, never reconfigured during reads. Copies that keep the same {@code options}
+     * ({@code withBlockFactory}, {@code withReadConfig}) reuse the receiver's mapper.
      */
     private static final Set<String> IMMUTABLE_OR_CONFIG_FIELDS = Set.of(
         "blockFactory",
@@ -184,6 +184,13 @@ public class CsvFormatReaderStateLifecycleTests extends ESTestCase {
                             "withBlockFactory must copy onto the distinct factory, not keep the node's",
                             fieldOf(receiver, "blockFactory"),
                             fieldOf(product, "blockFactory")
+                        );
+                    }
+                    if (m.getName().equals("withBlockFactory") || m.getName().equals("withReadConfig")) {
+                        assertSame(
+                            "wither [" + m.getName() + "] must reuse sharedCsvMapper; options are unchanged",
+                            fieldOf(receiver, "sharedCsvMapper"),
+                            fieldOf(product, "sharedCsvMapper")
                         );
                     }
                 }

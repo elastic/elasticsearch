@@ -52,8 +52,9 @@ import java.util.function.IntConsumer;
 ///
 /// The additional [#INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING] defines the proportion of
 /// this max limit that non-critical recoveries may use. These are recoveries whose delay does not cause additional
-/// unavailability: relocations, recoveries of unassigned shards added for performance reasons, and snapshot restores
-/// (which may take a long time, and whose index is expected to be unavailable until they complete). See
+/// unavailability: relocations, recoveries of unassigned shards added for performance reasons, reshard split target
+/// primaries (whose source keeps serving the whole index until the handoff), and snapshot restores (which may take a
+/// long time, and whose index is expected to be unavailable until they complete). See
 /// [org.elasticsearch.cluster.routing.RecoveryPriority#isCritical()].
 ///
 /// ## Source (outgoing) side

@@ -45,8 +45,8 @@ import java.util.function.Supplier;
 /**
  * Streams an {@code INTO} query's pages to its destination as bulk {@code create} requests. At most
  * {@link #MAX_IN_FLIGHT_BYTES} of source bytes wait for an acknowledgement per driver, and {@link #MAX_SHARED_IN_FLIGHT_BYTES}
- * across the drivers of one run on a node. Each row's source is reserved on the request circuit breaker until that bulk settles. The caller's {@link ThreadContext} is restored
- * around each request.
+ * across the drivers of one run on a node. Each row's source is reserved on the request circuit breaker until that bulk
+ * settles. The caller's {@link ThreadContext} is restored around each request.
  */
 public final class IntoPageWriter {
     // visible for testing

@@ -77,23 +77,25 @@ teardown:
   - match: { nodes.$node_id.breakers.request.estimated_size_in_bytes: 0 }
 
   # Under the same limit, the same shape at a size whose prediction fits builds and matches, as does a long bounded repeat.
+  # No hits are fetched: a fetch's bytes leave the request breaker only after the response is sent.
   - do:
       search:
         rest_total_hits_as_int: true
         index: test_regexp
         body:
+          size: 0
           query:
             regexp:
               str:
                 value: "x?{300}"
   - match: { hits.total: 1 }
-  - match: { hits.hits.0._id: "2" }
 
   - do:
       search:
         rest_total_hits_as_int: true
         index: test_regexp
         body:
+          size: 0
           query:
             regexp:
               str:

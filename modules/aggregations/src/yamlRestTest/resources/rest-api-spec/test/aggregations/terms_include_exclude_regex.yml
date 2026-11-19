@@ -79,8 +79,8 @@ teardown:
 
 ---
 "include with an intersection and complement excludes the complemented language":
-  # The '~' complement operator is compiled the same way whether the request was parsed
-  # locally or deserialized on a data node; before, the two used different flags.
+  # '~' is the complement operator. That it stays one on a node that deserialized the request is pinned in
+  # IncludeExcludeTests: a single-node run of this suite never sends the request over the wire.
   - do:
       search:
         rest_total_hits_as_int: true

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.plan.logical.promql.selector;
 
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -122,9 +123,14 @@ public class LabelMatcherTests extends ESTestCase {
     /**
      * Nested bounded repeats expand far beyond the pattern's length: the budget must refuse a repeat before it is built,
      * in a single-value and in a multi-value matcher alike. The middle repeat fits the work limit and predicts well past
-     * the budget, so that is where the build stops.
+     * the budget, so that is where the build stops. The budget is 5% of the heap and the middle repeat reserves about
+     * 155 MB, so a heap over 3 GB has room for it and the work limit refuses the outer repeat instead.
      */
     public void testHugeRegexIsRefusedBeforeItIsBuilt() {
+        assumeTrue(
+            "the budget has room for the middle repeat",
+            FoldContext.small().initialAllowedBytes() < ByteSizeValue.ofMb(100).getBytes()
+        );
         LabelMatcher single = new LabelMatcher("l", "[ab]{1000}{900}{1000}", Matcher.REG);
         expectThrows(FoldContext.FoldTooMuchMemoryException.class, single::automaton);
         LabelMatcher multi = new LabelMatcher("l", List.of("a", "[ab]{1000}{900}{1000}"), Matcher.NREG);

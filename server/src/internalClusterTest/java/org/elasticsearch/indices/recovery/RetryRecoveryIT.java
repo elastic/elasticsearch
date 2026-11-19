@@ -27,7 +27,6 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
@@ -61,7 +60,6 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
     private final AtomicReference<FailureTarget> failureTarget = new AtomicReference<>();
     private final AtomicInteger remainingFailures = new AtomicInteger();
-    private final AtomicInteger recoveryCounter = new AtomicInteger();
     private final AtomicReference<CyclicBarrier> recoveryBarrier = new AtomicReference<>();
 
     private final IndexEventListener recoveryListener = new IndexEventListener() {
@@ -80,18 +78,6 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         public void afterIndexShardRecovery(IndexShard indexShard, ActionListener<Void> listener) {
             maybeThrow(AFTER_INDEX_SHARD_RECOVERY);
             listener.onResponse(null);
-        }
-
-        @Override
-        public void indexShardStateChanged(
-            IndexShard indexShard,
-            IndexShardState previousState,
-            IndexShardState currentState,
-            String reason
-        ) {
-            if (currentState == IndexShardState.RECOVERING) {
-                recoveryCounter.incrementAndGet();
-            }
         }
 
         private void maybeThrow(FailureTarget target) {

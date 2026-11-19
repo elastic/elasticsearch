@@ -41,10 +41,6 @@ import java.util.function.BooleanSupplier;
  * <p>
  * Thread-safe and designed to be shared across all queries targeting the same storage scheme.
  * A permits value of 0 disables limiting entirely (all operations pass through).
- * Production wiring ({@code StorageProviderRegistry}) passes {@link
- * ExternalSourceSettings.BlobStoreConcurrency#forLiveGets()} so live GETs sit one below the
- * SDK pool size; a truncated GET can abort while its replacement starts without waiting for
- * connection acquisition.
  */
 class ConcurrencyLimiter implements AdmissionGate {
 

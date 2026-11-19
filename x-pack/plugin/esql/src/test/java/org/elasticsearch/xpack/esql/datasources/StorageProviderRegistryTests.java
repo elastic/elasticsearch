@@ -204,28 +204,8 @@ public class StorageProviderRegistryTests extends ESTestCase {
         try (StorageProviderRegistry registry = new StorageProviderRegistry(settings)) {
             ConcurrencyLimiter limiter = registry.limiterForScheme("gs");
             assertEquals("gs", limiter.scheme());
-            assertEquals(2, ExternalSourceSettings.blobStoreConcurrency(settings));
-            assertEquals(1, limiter.maxPermits());
+            assertEquals(2, limiter.maxPermits());
             assertTrue(limiter.settingCanRaiseLimit());
-        } catch (IOException e) {
-            throw new AssertionError(e);
-        }
-    }
-
-    public void testLimiterForSchemeReservesOnePoolSlot() {
-        Settings settings = Settings.builder().put("esql.external.max_concurrent_requests", 4).build();
-        try (StorageProviderRegistry registry = new StorageProviderRegistry(settings)) {
-            ConcurrencyLimiter limiter = registry.limiterForScheme("s3");
-            assertEquals(4, ExternalSourceSettings.blobStoreConcurrency(settings));
-            assertEquals(3, limiter.maxPermits());
-            assertEquals(3, limiter.availablePermits());
-            ConcurrencyBudgetAllocator allocator = registry.allocatorForScheme("s3");
-            QueryConcurrencyBudget budget = allocator.register();
-            try {
-                assertEquals(3, budget.maxPermits());
-            } finally {
-                allocator.deregister(budget);
-            }
         } catch (IOException e) {
             throw new AssertionError(e);
         }
@@ -237,8 +217,7 @@ public class StorageProviderRegistryTests extends ESTestCase {
         try (StorageProviderRegistry registry = new StorageProviderRegistry(settings)) {
             ConcurrencyLimiter limiter = registry.limiterForScheme("gs");
             assertEquals("gs", limiter.scheme());
-            assertEquals(expected.permits(), ExternalSourceSettings.blobStoreConcurrency(settings));
-            assertEquals(expected.forLiveGets().permits(), limiter.maxPermits());
+            assertEquals(expected.permits(), limiter.maxPermits());
             assertFalse(limiter.settingCanRaiseLimit());
         } catch (IOException e) {
             throw new AssertionError(e);

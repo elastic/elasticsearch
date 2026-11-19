@@ -179,10 +179,8 @@ public class S3StorageProvider implements StorageProvider {
     }
 
     /**
-     * Production constructor. {@code maxConnections} sizes the async client's Netty connection pool and is the
-     * value of the {@code esql.external.max_concurrent_requests} node setting, read at the plugin's construction
-     * path (which holds node {@link Settings}). Live GETs are {@code maxConnections - 1}; the node limiter
-     * reserves one slot so a truncated GET can abort while its replacement starts.
+     * Production constructor. {@code maxConnections} sizes the async client's Netty connection pool
+     * ({@link ExternalSourceSettings#sdkConnectionPoolSize(Settings)} from {@code esql.external.max_concurrent_requests}).
      */
     @SuppressWarnings("this-escape")
     public S3StorageProvider(
@@ -468,11 +466,11 @@ public class S3StorageProvider implements StorageProvider {
         // Pass the builder (not a pre-built client) so the SDK takes ownership of the Netty client
         // and closes it when S3AsyncClient.close() is called. A pre-built client passed via
         // .httpClient() is wrapped in NonManagedSdkAsyncHttpClient whose close() is a no-op.
-        // Size the connection pool from the single esql.external.max_concurrent_requests knob; the
-        // node limiter issues one fewer live GET so abort/resume can use the spare slot. The SDK's
-        // default maxConcurrency is 50, which caps a single query's read parallelism well below what
-        // S3 serves happily — S3 throttles per key-prefix request rate, not per per-machine
-        // connection count, and pushes back with 503/backoff when it actually needs to.
+        // Size the connection pool from esql.external.max_concurrent_requests via
+        // sdkConnectionPoolSize (N+1, or the default when unlimited). The SDK's default
+        // maxConcurrency is 50, which caps a single query's read parallelism well below what S3
+        // serves happily — S3 throttles per key-prefix request rate, not per per-machine connection
+        // count, and pushes back with 503/backoff when it actually needs to.
         // connectionAcquisitionTimeout is generous so brief pool contention queues rather than
         // failing the read.
         //

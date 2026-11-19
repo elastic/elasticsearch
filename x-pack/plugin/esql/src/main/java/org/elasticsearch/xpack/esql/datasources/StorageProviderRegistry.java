@@ -375,12 +375,7 @@ public class StorageProviderRegistry implements Closeable {
         }
         return allocators.computeIfAbsent(
             scheme,
-            k -> new ConcurrencyBudgetAllocator(
-                concurrency.forLiveGets().permits(),
-                QueryAdmission.DEFAULT_ACQUIRE_TIMEOUT_MS,
-                admissionTracker,
-                k
-            )
+            k -> new ConcurrencyBudgetAllocator(concurrency.permits(), QueryAdmission.DEFAULT_ACQUIRE_TIMEOUT_MS, admissionTracker, k)
         );
     }
 
@@ -405,7 +400,7 @@ public class StorageProviderRegistry implements Closeable {
             scheme,
             k -> concurrency.permits() <= 0
                 ? ConcurrencyLimiter.UNLIMITED
-                : new ConcurrencyLimiter(k, concurrency.forLiveGets(), QueryAdmission.DEFAULT_ACQUIRE_TIMEOUT_MS, admissionTracker)
+                : new ConcurrencyLimiter(k, concurrency, QueryAdmission.DEFAULT_ACQUIRE_TIMEOUT_MS, admissionTracker)
         );
     }
 

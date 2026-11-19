@@ -103,21 +103,14 @@ public class ExternalSourceSettingsTests extends ESTestCase {
         assertEquals(0, ExternalSourceSettings.blobStoreConcurrency(0, ByteSizeValue.ofMb(256).getBytes(), requestLimit(256)));
     }
 
-    public void testLiveGetPermitsReservesOneWhenPoolAllows() {
-        assertEquals(0, ExternalSourceSettings.liveGetPermits(0));
-        assertEquals(1, ExternalSourceSettings.liveGetPermits(1));
-        assertEquals(1, ExternalSourceSettings.liveGetPermits(2));
-        assertEquals(3, ExternalSourceSettings.liveGetPermits(4));
-        assertEquals(4, ExternalSourceSettings.liveGetPermits(5));
-        ExternalSourceSettings.BlobStoreConcurrency pool = new ExternalSourceSettings.BlobStoreConcurrency(4, true, false);
-        ExternalSourceSettings.BlobStoreConcurrency live = pool.forLiveGets();
-        assertEquals(3, live.permits());
-        assertTrue(live.settingCanRaiseLimit());
-        assertFalse(live.parseFloorBinds());
-        ExternalSourceSettings.BlobStoreConcurrency one = new ExternalSourceSettings.BlobStoreConcurrency(1, false);
-        assertSame(one, one.forLiveGets());
-        ExternalSourceSettings.BlobStoreConcurrency unlimited = new ExternalSourceSettings.BlobStoreConcurrency(0, false);
-        assertSame(unlimited, unlimited.forLiveGets());
+    public void testSdkConnectionPoolSizeAddsOneExceptUnlimited() {
+        assertEquals(8, ExternalSourceSettings.sdkConnectionPoolSize(0, 8));
+        assertEquals(2, ExternalSourceSettings.sdkConnectionPoolSize(1, 8));
+        assertEquals(5, ExternalSourceSettings.sdkConnectionPoolSize(4, 8));
+        Settings unlimited = Settings.builder().put("esql.external.max_concurrent_requests", 0).build();
+        assertEquals(ExternalSourceSettings.defaultBlobStoreConcurrency(unlimited), ExternalSourceSettings.sdkConnectionPoolSize(unlimited));
+        Settings one = Settings.builder().put("esql.external.max_concurrent_requests", 1).build();
+        assertEquals(2, ExternalSourceSettings.sdkConnectionPoolSize(one));
     }
 
     public void testPositiveOverrideHonorsParseFloorOnTinyHeap() {

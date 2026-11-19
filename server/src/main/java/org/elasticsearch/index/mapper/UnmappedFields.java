@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOFunction;
 import org.apache.lucene.util.UnicodeUtil;
@@ -259,7 +260,8 @@ public final class UnmappedFields {
             XContentParser parser = XContentHelper.createParserNotCompressed(XContentParserConfiguration.EMPTY, source, sourceType);
             HeldValues heldValues = HeldValues.ofValues(breaker, allowance);
             HeldValues writtenJson = HeldValues.ofWrittenJson(breaker, jsonAllowance);
-            XContentBuilder out = walk.filter == null ? null : XContentFactory.jsonBuilder(new ChargingByteArrayOutputStream(writtenJson))
+            ChargingByteArrayOutputStream jsonBuffer = walk.filter == null ? null : new ChargingByteArrayOutputStream(writtenJson);
+            XContentBuilder out = jsonBuffer == null ? null : XContentFactory.jsonBuilder(jsonBuffer)
         ) {
             if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
                 throw new IllegalStateException("expected an object but was [" + parser.currentToken() + "]");
@@ -279,7 +281,15 @@ public final class UnmappedFields {
             if (walked == false) {
                 return null;
             }
-            return new Found(extraction.wrote ? BytesReference.bytes(out).toBytesRef() : null, extraction.named);
+            // Hand out the buffer's own array rather than copying it with BytesReference.bytes(out)/toByteArray(), which would keep the
+            // charged array and its copy alive together. The charge is released when the stream closes, leaving the JSON uncharged over
+            // the same window as the "Not covered" note on HeldValues.
+            BytesRef json = null;
+            if (extraction.wrote) {
+                out.flush();
+                json = jsonBuffer.bytesRefSharingArray();
+            }
+            return new Found(json, extraction.named);
         }
     }
 
@@ -347,7 +357,6 @@ public final class UnmappedFields {
         private final XContentBuilder out;
         private final Walk walk;
         private final HeldValues heldValues;
-        /** Charges the JSON written to {@link #out}, before it is written. */
         /** The values found of each name of the walk. */
         private Map<String, NamedValues> named = Map.of();
         /**
@@ -654,8 +663,9 @@ public final class UnmappedFields {
      * a document whose JSON is far larger than its {@code _source} trips the breaker instead of the heap. What it charges is what is
      * written, whatever the format of {@code _source} and the escaping and encoding of what it holds.
      * <p>
-     * A {@link ByteArrayOutputStream} grows by copying into a new array, so the old array and the new one are alive together: the
-     * capacity of the new one is charged before the copy, and the old one is given back after it.
+     * It grows the array itself, so the charge does not depend on how {@link ByteArrayOutputStream} grows it: the old array and the new
+     * one are alive together while the bytes are copied, so the capacity of the new one is charged before the copy and the old one is
+     * given back after it.
      */
     private static final class ChargingByteArrayOutputStream extends ByteArrayOutputStream {
         private final HeldValues charge;
@@ -667,41 +677,38 @@ public final class UnmappedFields {
 
         @Override
         public synchronized void write(int b) {
-            long previous = buf.length;
-            long grown = chargeGrowth(1);
+            ensureCapacity((long) count + 1);
             super.write(b);
-            settle(previous, grown);
         }
 
         @Override
         public synchronized void write(byte[] bytes, int offset, int length) {
-            long previous = buf.length;
-            long grown = chargeGrowth(length);
+            ensureCapacity((long) count + length);
             super.write(bytes, offset, length);
-            settle(previous, grown);
         }
 
         /**
-         * Charges the capacity that the array grows to when {@code length} more bytes are written, as {@link ByteArrayOutputStream} grows
-         * it: by what is needed, or by its length if that is more.
-         *
-         * @return what was charged, {@code 0} if the array does not grow
+         * Grows the array so it holds {@code needed} bytes, charging the new capacity before the copy and releasing the old one after it.
+         * {@link ByteArrayOutputStream#write} then finds the array large enough and never grows it, so the charge does not depend on its
+         * growth policy. Does nothing if the array already holds {@code needed}.
          */
-        private long chargeGrowth(int length) {
-            long needed = (long) count + length;
+        private void ensureCapacity(long needed) {
             if (needed <= buf.length) {
-                return 0;
+                return;
             }
-            long grown = buf.length + Math.max(needed - buf.length, buf.length);
+            int oldLength = buf.length;
+            int grown = ArrayUtil.oversize(Math.toIntExact(needed), Byte.BYTES);
             charge.add(grown);
-            return grown;
+            buf = Arrays.copyOf(buf, grown);
+            charge.release(oldLength);
         }
 
-        /** Gives back the old array, and what was charged beyond the capacity the array has now. */
-        private void settle(long previous, long grown) {
-            if (grown > 0) {
-                charge.release(previous + grown - buf.length);
-            }
+        /**
+         * The JSON written so far, over this stream's own array rather than the copy that {@link #toByteArray} makes. The array outlives
+         * the charge, so the caller must flush what it wants first and not write more after this.
+         */
+        synchronized BytesRef bytesRefSharingArray() {
+            return new BytesRef(buf, 0, count);
         }
     }
 

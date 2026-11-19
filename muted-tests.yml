@@ -674,6 +674,11 @@ tests:
   - :x-pack:plugin:esql:internalClusterTest
   method: testSyncTaskCancelHardFailsWithNoRows
   issue: https://github.com/elastic/elasticsearch/issues/166559
+- class: org.elasticsearch.xpack.esql.plugin.EsqlQueryMetricsCollectorIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testFailedQueryMidScanIsMetered
+  issue: https://github.com/elastic/elasticsearch/issues/166565
 - class: org.elasticsearch.search.heappressure.ManyBitsetClausesHeapPressureIT
   method: testIpTermsClauses
   issue: https://github.com/elastic/elasticsearch/issues/166396

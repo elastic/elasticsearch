@@ -206,7 +206,8 @@ public abstract class PaginatedHitSource {
         private final boolean timedOut;
         private final List<PaginatedSearchFailure> failures;
         private final long totalHits;
-        // hits and searchAfterValues are mutable but not volatile: they're only read and written on the worker thread.
+        // hits and searchAfterValues are mutable but not volatile: they're accessed one stage at a time (the search callback,
+        // then the bulk callback), never concurrently, and each stage is handed to the next.
         private List<? extends Hit> hits;
         private final String scrollId;
         private Object[] searchAfterValues;
@@ -321,7 +322,7 @@ public abstract class PaginatedHitSource {
         /**
          * Forgets the hits of this batch so they can be garbage collected while something still holds the response.
          * Only call this once every hit has been released and nothing needs to read the hits again. The scroll id,
-         * search-after values and PIT id are kept because the next search still needs them.
+         * search-after values and PIT id are kept so a later reader of the response still sees the cursor for this page.
          */
         public void dropHits() {
             // When no explicit values were given the getter falls back to the last hit, so pin that answer down before the hits go.

@@ -28,8 +28,10 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -241,7 +243,9 @@ public class SemanticChunkScorerTests extends MapperServiceTestCase {
         var doc = mapperService.documentMapper().parse(source);
         assertNull(doc.dynamicMappingsUpdate());
         try (Directory dir = newDirectory()) {
-            IndexWriterConfig iwc = newIndexWriterConfig(new StandardAnalyzer());
+            IndexWriterConfig iwc = newIndexWriterConfig(new StandardAnalyzer()).setCodec(
+                new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null).codec("default")
+            );
             RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
             iw.addDocuments(doc.docs());
             try (DirectoryReader reader = wrapInMockESDirectoryReader(iw.getReader())) {

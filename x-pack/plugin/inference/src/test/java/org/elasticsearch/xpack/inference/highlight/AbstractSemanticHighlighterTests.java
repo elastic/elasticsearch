@@ -16,7 +16,6 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
@@ -25,8 +24,10 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
@@ -70,7 +71,6 @@ import java.util.zip.GZIPInputStream;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.mockito.Mockito.mock;
 
-@LuceneTestCase.SuppressCodecs("*")
 public abstract class AbstractSemanticHighlighterTests extends MapperServiceTestCase {
     private static final String SEMANTIC_FIELD = "field-semantic";
     private static final String SEMANTIC_FIELD_DISK_BBQ = "field-semantic-disk_bbq";
@@ -310,7 +310,9 @@ public abstract class AbstractSemanticHighlighterTests extends MapperServiceTest
         var doc = mapperService.documentMapper().parse(source);
         assertNull(doc.dynamicMappingsUpdate());
         try (Directory dir = newDirectory()) {
-            IndexWriterConfig iwc = newIndexWriterConfig(new StandardAnalyzer());
+            IndexWriterConfig iwc = newIndexWriterConfig(new StandardAnalyzer()).setCodec(
+                new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null).codec("default")
+            );
             RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
             iw.addDocuments(doc.docs());
             try (DirectoryReader reader = wrapInMockESDirectoryReader(iw.getReader())) {

@@ -372,9 +372,8 @@ public final class EscfBulkWriter implements Releasable {
         return tripped == 0 && (chunks.isEmpty() || bulksInFlight < policy.maxBulksInFlight());
     }
 
-    // visible for testing
     @Nullable
-    Exception failure() {
+    public Exception failure() {
         return failure;
     }
 

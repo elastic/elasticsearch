@@ -242,6 +242,7 @@ class ServerCli extends EnvironmentAwareCommand {
         String command = getJavaCommand(processInfo);
         List<String> jvmArgs = getJvmArgs(processInfo);
         Map<String, String> environment = getEnvironment(processInfo, tempDir);
+        addGlibcEnvironment(terminal, jvmOptions, environment);
         byte[] serverArgsBytes = serializeServerArgs(args);
 
         LaunchDescriptor descriptor = new LaunchDescriptor(
@@ -291,6 +292,31 @@ class ServerCli extends EnvironmentAwareCommand {
         }
         envVars.remove("ES_JAVA_OPTS");
         return envVars;
+    }
+
+    /**
+     * Prefix of the system properties that are passed to the server process as environment variables:
+     * {@code -Des.glibc.env.MALLOC_ARENA_MAX=96} sets {@code MALLOC_ARENA_MAX=96}.
+     *
+     * <p> glibc reads its malloc parameters ({@code MALLOC_ARENA_MAX}, {@code MALLOC_MMAP_THRESHOLD_},
+     * {@code MALLOC_TRIM_THRESHOLD_}, {@code GLIBC_TUNABLES}) from the environment when the process starts, so they cannot
+     * be changed from inside the server once it runs. Passing them as system properties let this launcher set them on the
+     * server process environment.
+     */
+    static final String GLIBC_ENV_SYSPROP_PREFIX = "es.glibc.env.";
+
+    /**
+     * Adds an environment variable to {@code environment} for each {@link #GLIBC_ENV_SYSPROP_PREFIX} system property in
+     * {@code jvmOptions}, overriding any variable of the same name. Prints each one so that the log shows what was set.
+     */
+    static void addGlibcEnvironment(Terminal terminal, List<String> jvmOptions, Map<String, String> environment) {
+        JvmErgonomics.extractSystemProperties(jvmOptions).forEach((key, value) -> {
+            if (key.startsWith(GLIBC_ENV_SYSPROP_PREFIX)) {
+                String name = key.substring(GLIBC_ENV_SYSPROP_PREFIX.length());
+                environment.put(name, value);
+                terminal.println("Setting environment variable [" + name + "=" + value + "] from system property [" + key + "]");
+            }
+        });
     }
 
     protected static byte[] serializeServerArgs(ServerArgs args) throws IOException {

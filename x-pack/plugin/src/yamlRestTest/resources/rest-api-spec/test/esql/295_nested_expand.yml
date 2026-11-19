@@ -1014,7 +1014,7 @@ setup:
           query: 'FROM ne_price_a, ne_price_b | NESTED_EXPAND items | WHERE items.price IS NOT NULL'
 
 ---
-"Full-text matching on an expanded child is rejected while the parent's own fields still match":
+"Full-text matching on an expanded child is a per-row search while the parent's own fields still match":
   - do:
       indices.create:
         index: ne_match
@@ -1041,25 +1041,37 @@ setup:
           - { "index": { "_index": "ne_match", "_id": "b" } }
           - { "id": "b", "title": "bye", "items": [ { "note": "hello there" }, { "note": "nothing" } ] }
   - do:
-      catch: '/Full-text matching on expanded nested fields is not supported yet/'
       esql.query:
         body:
           query: 'FROM ne_match | NESTED_EXPAND items | WHERE MATCH(items.note, "hello") | KEEP id, items.note | SORT id, items.note | LIMIT 10'
+  - length: { values: 2 }
+  - match: { values.0: ["a", "hello"] }
+  - match: { values.1: ["b", "hello there"] }
   - do:
-      catch: '/Full-text matching on expanded nested fields is not supported yet/'
       esql.query:
         body:
-          query: 'FROM ne_match | NESTED_EXPAND items | WHERE MATCH_PHRASE(items.note, "hello") | KEEP id, items.note | LIMIT 10'
+          query: 'FROM ne_match | NESTED_EXPAND items | WHERE MATCH_PHRASE(items.note, "hello there") | KEEP id, items.note | LIMIT 10'
+  - length: { values: 1 }
+  - match: { values.0: ["b", "hello there"] }
   - do:
-      catch: '/Full-text matching on expanded nested fields is not supported yet/'
       esql.query:
         body:
-          query: 'FROM ne_match | NESTED_EXPAND items | WHERE items.note : "hello" | KEEP id, items.note | LIMIT 10'
+          query: 'FROM ne_match | NESTED_EXPAND items | WHERE items.note : "hello" | KEEP id, items.note | SORT id, items.note | LIMIT 10'
+  - length: { values: 2 }
+  - match: { values.0: ["a", "hello"] }
+  - match: { values.1: ["b", "hello there"] }
   - do:
-      catch: '/Full-text matching on expanded nested fields is not supported yet/'
       esql.query:
         body:
-          query: 'FROM ne_match | NESTED_EXPAND items | RENAME items.note AS n | WHERE MATCH(n, "hello") | KEEP id, n | LIMIT 10'
+          query: 'FROM ne_match | NESTED_EXPAND items | RENAME items.note AS n | WHERE MATCH(n, "hello") | KEEP id, n | SORT id, n | LIMIT 10'
+  - length: { values: 2 }
+  - match: { values.0: ["a", "hello"] }
+  - match: { values.1: ["b", "hello there"] }
+  - do:
+      catch: '/\[QSTR\] function cannot be used after NESTED_EXPAND/'
+      esql.query:
+        body:
+          query: 'FROM ne_match | NESTED_EXPAND items | WHERE QSTR("items.note:hello") | KEEP id, items.note | LIMIT 10'
   - do:
       esql.query:
         body:

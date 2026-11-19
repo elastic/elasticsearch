@@ -32,7 +32,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequestTests;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.reader.AtomicMutableObjectStoreUploadTracker;
-import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommitTestUtils;
@@ -103,7 +103,7 @@ public class SearchEngineTests extends AbstractEngineTestCase {
             notifyCommits(indexEngine, searchEngine);
             searchTaskQueue.runAllRunnableTasks();
 
-            try (Searcher searcher = searchEngine.acquireSearcher("test")) {
+            try (Searcher searcher = searchEngine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
                 DirectoryReader reader = searcher.getDirectoryReader();
                 boolean sawCachingDir = false;
                 for (org.apache.lucene.index.LeafReaderContext leaf : reader.leaves()) {
@@ -213,19 +213,19 @@ public class SearchEngineTests extends AbstractEngineTestCase {
                 .build()
         );
         final var searchTaskQueue = new DeterministicTaskQueue();
-        Set<BlobFile> blobFilesReadCurrentCommit = ConcurrentCollections.newConcurrentSet();
-        Set<BlobFile> blobFilesReadPreviousCommits = ConcurrentCollections.newConcurrentSet();
+        Set<BccBlob> bccBlobsReadCurrentCommit = ConcurrentCollections.newConcurrentSet();
+        Set<BccBlob> bccBlobReadPreviousCommits = ConcurrentCollections.newConcurrentSet();
         try (
             var indexEngine = newIndexEngine(indexConfig);
             var searchEngine = newSearchEngineFromIndexEngine(indexEngine, searchTaskQueue, (searchDirectory, statelessCompoundCommit) -> {
                 for (var commitBlobLocation : statelessCompoundCommit.commitFiles().values()) {
-                    blobFilesReadCurrentCommit.add(commitBlobLocation.blobFile());
+                    bccBlobsReadCurrentCommit.add(commitBlobLocation.bccBlob());
                 }
             }, ((cacheBlobReaderService, blobFile) -> {
-                if (blobFilesReadCurrentCommit.isEmpty()) {
+                if (bccBlobsReadCurrentCommit.isEmpty()) {
                     assertFalse(
                         "Unexpected read for blobs from previous commits before updating commit",
-                        blobFilesReadPreviousCommits.contains(blobFile)
+                        bccBlobReadPreviousCommits.contains(blobFile)
                     );
                 }
             }))
@@ -244,8 +244,8 @@ public class SearchEngineTests extends AbstractEngineTestCase {
                 }
                 if (searchTaskQueue.hasRunnableTasks() && randomBoolean()) {
                     // a new commit update is going to be processed
-                    blobFilesReadPreviousCommits.addAll(blobFilesReadCurrentCommit);
-                    blobFilesReadCurrentCommit.clear();
+                    bccBlobReadPreviousCommits.addAll(bccBlobsReadCurrentCommit);
+                    bccBlobsReadCurrentCommit.clear();
                     searchTaskQueue.runRandomTask();
                 }
             }
@@ -373,7 +373,7 @@ public class SearchEngineTests extends AbstractEngineTestCase {
 
             {
                 // new searcher is recorded
-                var searcher = searchEngine.acquireSearcher("test");
+                var searcher = searchEngine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT);
                 assertThat(searchEngine.getAcquiredPrimaryTermAndGenerations(), contains(gen));
                 searcher.close();
             }
@@ -381,7 +381,7 @@ public class SearchEngineTests extends AbstractEngineTestCase {
             {
                 // record is removed when all searchers are closed
                 var searchers = IntStream.range(0, randomIntBetween(2, 50))
-                    .mapToObj(i -> searchEngine.acquireSearcher("searcher#" + i))
+                    .mapToObj(i -> searchEngine.acquireSearcher("searcher#" + i, SplitShardCountSummary.IRRELEVANT))
                     .collect(Collectors.toCollection(ArrayList::new));
                 searchers.forEach(searcher -> assertThat(searchEngine.getAcquiredPrimaryTermAndGenerations(), contains(gen)));
 
@@ -424,7 +424,7 @@ public class SearchEngineTests extends AbstractEngineTestCase {
 
                     if (randomBoolean()) {
                         var key = new PrimaryTermAndGeneration(primaryTerm.get(), indexEngine.getCurrentGeneration());
-                        searchers.put(key, searchEngine.acquireSearcher("searcher#" + i));
+                        searchers.put(key, searchEngine.acquireSearcher("searcher#" + i, SplitShardCountSummary.IRRELEVANT));
                     }
                 }
 
@@ -626,7 +626,10 @@ public class SearchEngineTests extends AbstractEngineTestCase {
                 assertThat(checkIndex.checkIndex().clean, is(true));
 
                 if (randomBoolean()) {
-                    searchers.put(segmentsNFileName(generation), searchEngine.acquireSearcher("searcher#" + i));
+                    searchers.put(
+                        segmentsNFileName(generation),
+                        searchEngine.acquireSearcher("searcher#" + i, SplitShardCountSummary.IRRELEVANT)
+                    );
                 }
                 if (randomBoolean() && searchers.isEmpty() == false) {
                     var file = randomFrom(searchers.keySet());
@@ -798,11 +801,16 @@ public class SearchEngineTests extends AbstractEngineTestCase {
             searchTaskQueue.runAllRunnableTasks();
             searchTaskQueue.advanceTime();
 
-            try (var ignored = searchEngine.acquireSearcher("test")) {
+            try (var ignored = searchEngine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
                 assertThat(searchEngine.getLastSearcherAcquiredTime(), is(0L));
             }
 
-            try (var ignored = searchEngine.acquireSearcher(randomFrom(Engine.CAN_MATCH_SEARCH_SOURCE, Engine.SEARCH_SOURCE))) {
+            try (
+                var ignored = searchEngine.acquireSearcher(
+                    randomFrom(Engine.CAN_MATCH_SEARCH_SOURCE, Engine.SEARCH_SOURCE),
+                    SplitShardCountSummary.IRRELEVANT
+                )
+            ) {
                 assertThat(searchEngine.getLastSearcherAcquiredTime(), is(searchTaskQueue.getCurrentTimeMillis()));
             }
         }

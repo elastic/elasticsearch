@@ -45,7 +45,7 @@ public abstract sealed class Selector extends UnaryPlan implements PromqlPlan pe
     private final List<Expression> labels;
     private final LabelMatchers labelMatchers;
     private final Evaluation evaluation;
-    protected List<Attribute> output;
+    protected volatile List<Attribute> output;
 
     Selector(Source source, Expression series, List<Expression> labels, LabelMatchers labelMatchers, Evaluation evaluation) {
         this(source, PlaceholderRelation.INSTANCE, series, labels, labelMatchers, evaluation);

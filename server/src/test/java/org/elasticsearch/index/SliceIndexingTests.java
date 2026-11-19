@@ -116,7 +116,7 @@ public class SliceIndexingTests extends ESTestCase {
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/my-index/tenant-a/_search")
             .withParams(Map.of("index", "my-index", "_slice", "tenant-a"))
             .build();
-        SliceIndexing.ParsedRouting parsed = SliceIndexing.parseSearchRoutingOrSliceWithProvenance(request);
+        SliceIndexing.ParsedRouting parsed = SliceIndexing.parseSearchRoutingOrSliceWithProvenance(request, true);
         assertThat(parsed.routing(), equalTo("tenant-a"));
         assertThat(parsed.fromSlice(), equalTo(true));
     }
@@ -126,7 +126,7 @@ public class SliceIndexingTests extends ESTestCase {
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/my-index/tenant-a,tenant-b/_search")
             .withParams(Map.of("index", "my-index", "_slice", "tenant-a,tenant-b"))
             .build();
-        SliceIndexing.ParsedRouting parsed = SliceIndexing.parseSearchRoutingOrSliceWithProvenance(request);
+        SliceIndexing.ParsedRouting parsed = SliceIndexing.parseSearchRoutingOrSliceWithProvenance(request, true);
         assertThat(parsed.routing(), equalTo("tenant-a,tenant-b"));
         assertThat(parsed.fromSlice(), equalTo(true));
     }
@@ -138,7 +138,7 @@ public class SliceIndexingTests extends ESTestCase {
             .build();
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> SliceIndexing.parseSearchRoutingOrSliceWithProvenance(request)
+            () -> SliceIndexing.parseSearchRoutingOrSliceWithProvenance(request, true)
         );
         assertThat(ex.getMessage(), containsString("invalid [_slice] value [_all]"));
     }
@@ -148,7 +148,7 @@ public class SliceIndexingTests extends ESTestCase {
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/index-a,index-b/tenant-a/_search")
             .withParams(Map.of("index", "index-a,index-b", "_slice", "tenant-a"))
             .build();
-        SliceIndexing.ParsedRouting parsed = SliceIndexing.parseSearchRoutingOrSliceWithProvenance(request);
+        SliceIndexing.ParsedRouting parsed = SliceIndexing.parseSearchRoutingOrSliceWithProvenance(request, true);
         assertThat(parsed.routing(), equalTo("tenant-a"));
         assertThat(parsed.fromSlice(), equalTo(true));
     }
@@ -160,28 +160,47 @@ public class SliceIndexingTests extends ESTestCase {
             .build();
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> SliceIndexing.parseSearchRoutingOrSliceWithProvenance(request)
+            () -> SliceIndexing.parseSearchRoutingOrSliceWithProvenance(request, true)
         );
         assertThat(ex.getMessage(), containsString("[routing] is not allowed together with [_slice]"));
     }
 
-    public void testIsPathBasedSliceSearch() {
-        assertTrue(SliceIndexing.isPathBasedSliceSearch(pathSliceRequest("/my-index/tenant-a/_search")));
-        assertTrue(SliceIndexing.isPathBasedSliceSearch(pathSliceRequest("/my-index/tenant-a/_count")));
-        assertTrue(SliceIndexing.isPathBasedSliceSearch(pathSliceRequest("/my-index/tenant-a/_delete_by_query")));
-        assertTrue(SliceIndexing.isPathBasedSliceSearch(pathSliceRequest("/my-index/tenant-a/_update_by_query")));
-        assertFalse(SliceIndexing.isPathBasedSliceSearch(pathSliceRequest("/my-index/_delete_by_query")));
-        assertFalse(SliceIndexing.isPathBasedSliceSearch(pathSliceRequest("/my-index/_update_by_query")));
-        assertTrue(SliceIndexing.isPathBasedSliceSearch(pathSliceRequest("/my-index/tenant-a/_search/template")));
-        assertTrue(SliceIndexing.isPathBasedSliceSearch(pathSliceRequest("/my-index/tenant-a/_fleet/_fleet_search")));
-        assertFalse(SliceIndexing.isPathBasedSliceSearch(pathSliceRequest("/my-index/_search")));
-        assertFalse(SliceIndexing.isPathBasedSliceSearch(pathSliceRequest("/_search")));
-        assertFalse(SliceIndexing.isPathBasedSliceSearch(pathSliceRequest("/my-index/_search/template")));
-        assertFalse(SliceIndexing.isPathBasedSliceSearch(pathSliceRequest("/my-index/_fleet/_fleet_search")));
+    public void testParseSearchRoutingFromSliceParam() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/my-index/_search")
+            .withParams(Map.of("index", "my-index", "_slice", "tenant-a"))
+            .build();
+        SliceIndexing.ParsedRouting parsed = SliceIndexing.parseSearchRoutingOrSliceWithProvenance(request, true);
+        assertThat(parsed.routing(), equalTo("tenant-a"));
+        assertThat(parsed.fromSlice(), equalTo(true));
     }
 
-    private RestRequest pathSliceRequest(String path) {
-        return new FakeRestRequest.Builder(xContentRegistry()).withPath(path).build();
+    public void testParseSearchRoutingOnNamespacedPluginRouteWithRouting() {
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_prefix/my-index/_search")
+            .withParams(Map.of("index", "my-index", "routing", "r1"))
+            .build();
+        SliceIndexing.ParsedRouting parsed = SliceIndexing.parseSearchRoutingOrSliceWithProvenance(request, randomBoolean());
+        assertThat(parsed.routing(), equalTo("r1"));
+        assertThat(parsed.fromSlice(), equalTo(false));
+    }
+
+    public void testParseSearchRoutingOnNamespacedPluginRouteWithoutRouting() {
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/prefix/my-index/_count")
+            .withParams(Map.of("index", "my-index"))
+            .build();
+        SliceIndexing.ParsedRouting parsed = SliceIndexing.parseSearchRoutingOrSliceWithProvenance(request, randomBoolean());
+        assertNull(parsed.routing());
+        assertThat(parsed.fromSlice(), equalTo(false));
+    }
+
+    public void testParseSearchRoutingIgnoresSliceWhenSliceNotSupported() {
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/prefix/my-index/_search")
+            .withParams(Map.of("index", "my-index", SliceIndexing.FIELD_NAME, "my-index"))
+            .build();
+        SliceIndexing.ParsedRouting parsed = SliceIndexing.parseSearchRoutingOrSliceWithProvenance(request, false);
+        assertNull(parsed.routing());
+        assertThat(parsed.fromSlice(), equalTo(false));
+        assertThat(request.params().get(SliceIndexing.FIELD_NAME), equalTo("my-index"));
     }
 
     private static void assertInvalid(String value) {

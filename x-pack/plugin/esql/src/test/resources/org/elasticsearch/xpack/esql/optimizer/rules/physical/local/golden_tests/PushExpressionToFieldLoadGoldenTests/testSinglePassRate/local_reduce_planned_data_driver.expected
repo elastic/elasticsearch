@@ -1,0 +1,6 @@
+ExchangeSinkExec[[time_bucket{r}#0, _$packed_dims{r}#1, $$m$max{r}#2, $$m$seen{r}#3],false]
+\_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+Aggregate[[time_bucket{r}#0, _$packed_dims{r}#1],[MAX(RATE_$1{r}#4,true[BOOLEAN],PT0S[TIME_DURATION]) AS m#5, time_bucket{r}#0 AS time_bucket#0, _$packed_dims{r}#1 AS _$packed_grouping_dims#6]]
+\_TimeSeriesAggregate[[_tsid{m}#7, time_bucket{r}#0],[RATE(network.total_bytes_in{f}#8,@timestamp{f}#9,true[BOOLEAN],PT0S[TIME_DURATION]) AS RATE_$1#4, PACKDIMSAGG(pod{f}#10,true[BOOLEAN],PT0S[TIME_DURATION]) AS _$packed_dims#1, time_bucket{r}#0],BUCKET(@timestamp{f}#9,PT5M[TIME_DURATION]),@timestamp{f}#9,TS_COMMAND,true]
+  \_Eval[[BUCKET(@timestamp{f}#9,PT5M[TIME_DURATION]) AS time_bucket#0]]
+    \_EsRelation[k8s][TIME_SERIES][@timestamp{f}#9, network.total_bytes_in{f}#8, pod{f}#10, _tsid{m}#7]<>]]

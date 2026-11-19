@@ -12,6 +12,7 @@ package org.elasticsearch.ingest.common;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
+import org.elasticsearch.ingest.FieldPath;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 
@@ -27,18 +28,18 @@ public final class JoinProcessor extends AbstractProcessor {
 
     public static final String TYPE = "join";
 
-    private final String field;
+    private final FieldPath field;
     private final String separator;
-    private final String targetField;
+    private final FieldPath targetField;
 
     JoinProcessor(String tag, String description, String field, String separator, String targetField) {
         super(tag, description);
-        this.field = field;
+        this.field = FieldPath.of(field);
         this.separator = separator;
-        this.targetField = targetField;
+        this.targetField = FieldPath.of(targetField);
     }
 
-    String getField() {
+    FieldPath getField() {
         return field;
     }
 
@@ -46,7 +47,7 @@ public final class JoinProcessor extends AbstractProcessor {
         return separator;
     }
 
-    String getTargetField() {
+    FieldPath getTargetField() {
         return targetField;
     }
 

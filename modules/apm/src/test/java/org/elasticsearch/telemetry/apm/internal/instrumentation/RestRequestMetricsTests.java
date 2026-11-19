@@ -42,7 +42,8 @@ public class RestRequestMetricsTests extends ESTestCase {
     private static final String PROMETHEUS_WRITE_DURATION_METRIC = "es.rest.prometheus_write.duration";
 
     private final RecordingMeterRegistry registry = new RecordingMeterRegistry();
-    private final RestRequestMetrics metrics = new RestRequestMetrics(registry);
+    private final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+    private final RestRequestMetrics metrics = new RestRequestMetrics(threadContext, registry);
 
     public void test_measuredRoutes_recordDuration() {
         record Case(RestRequest.Method method, String path, String route, String metric) {}
@@ -146,6 +147,30 @@ public class RestRequestMetricsTests extends ESTestCase {
                 "/_prometheus/{index}/api/v1/query",
                 PROMETHEUS_QUERY_DURATION_METRIC
             ),
+            new Case(
+                RestRequest.Method.GET,
+                "/_prometheus/api/v1/query_exemplars",
+                "/_prometheus/api/v1/query_exemplars",
+                PROMETHEUS_QUERY_DURATION_METRIC
+            ),
+            new Case(
+                RestRequest.Method.POST,
+                "/_prometheus/api/v1/query_exemplars",
+                "/_prometheus/api/v1/query_exemplars",
+                PROMETHEUS_QUERY_DURATION_METRIC
+            ),
+            new Case(
+                RestRequest.Method.GET,
+                "/_prometheus/my-index/api/v1/query_exemplars",
+                "/_prometheus/{index}/api/v1/query_exemplars",
+                PROMETHEUS_QUERY_DURATION_METRIC
+            ),
+            new Case(
+                RestRequest.Method.POST,
+                "/_prometheus/my-index/api/v1/query_exemplars",
+                "/_prometheus/{index}/api/v1/query_exemplars",
+                PROMETHEUS_QUERY_DURATION_METRIC
+            ),
             new Case(RestRequest.Method.GET, "/_prometheus/api/v1/labels", "/_prometheus/api/v1/labels", PROMETHEUS_QUERY_DURATION_METRIC),
             new Case(RestRequest.Method.POST, "/_prometheus/api/v1/labels", "/_prometheus/api/v1/labels", PROMETHEUS_QUERY_DURATION_METRIC),
             new Case(
@@ -202,10 +227,12 @@ public class RestRequestMetricsTests extends ESTestCase {
         );
 
         for (var c : cases) {
-            var ctx = threadContext();
-            var request = request(c.method, c.path);
-            metrics.start(ctx, request, c.route);
-            metrics.prepareEnd(ctx, request, response(RestStatus.OK)).close();
+            // the metrics state is kept in a transient header, which can only be set once per context
+            try (var ignored = threadContext.newEmptyContext()) {
+                var request = request(c.method, c.path);
+                metrics.start(request, c.route);
+                metrics.prepareEnd(request, response(RestStatus.OK)).close();
+            }
         }
 
         var expectedCountsByMetric = cases.stream().collect(Collectors.groupingBy(Case::metric, Collectors.counting()));
@@ -222,11 +249,10 @@ public class RestRequestMetricsTests extends ESTestCase {
     }
 
     public void test_leadingSlashStripped() {
-        var ctx = threadContext();
         var request = request(RestRequest.Method.GET, "/_search");
 
-        metrics.start(ctx, request, "/_search");
-        var end = metrics.prepareEnd(ctx, request, response(RestStatus.OK));
+        metrics.start(request, "/_search");
+        var end = metrics.prepareEnd(request, response(RestStatus.OK));
 
         assertThat(recordings(SEARCH_DURATION_METRIC), empty());
 
@@ -236,40 +262,36 @@ public class RestRequestMetricsTests extends ESTestCase {
     }
 
     public void test_nullRoute_noRecording() {
-        var ctx = threadContext();
         var request = request(RestRequest.Method.GET, "/_search");
 
-        metrics.start(ctx, request, null);
-        metrics.prepareEnd(ctx, request, response(RestStatus.OK)).close();
+        metrics.start(request, null);
+        metrics.prepareEnd(request, response(RestStatus.OK)).close();
 
         assertThat(recordings(SEARCH_DURATION_METRIC), empty());
     }
 
     public void test_unmeasuredRoute_noRecording() {
-        var ctx = threadContext();
         var request = request(RestRequest.Method.GET, "/_cluster/health");
 
-        metrics.start(ctx, request, "_cluster/health");
-        metrics.prepareEnd(ctx, request, response(RestStatus.OK)).close();
+        metrics.start(request, "_cluster/health");
+        metrics.prepareEnd(request, response(RestStatus.OK)).close();
 
         assertThat(registry.getRecorder().getAllMeasurements(), empty());
     }
 
     public void test_prepareEndWithoutStart_noRecording() {
-        var ctx = threadContext();
         var request = request(RestRequest.Method.GET, "/_search");
 
-        metrics.prepareEnd(ctx, request, response(RestStatus.OK)).close();
+        metrics.prepareEnd(request, response(RestStatus.OK)).close();
 
         assertThat(recordings(SEARCH_DURATION_METRIC), empty());
     }
 
     public void test_statusCodeAttribute() {
-        var ctx = threadContext();
         var request = request(RestRequest.Method.GET, "/_search");
 
-        metrics.start(ctx, request, "_search");
-        var end = metrics.prepareEnd(ctx, request, response(RestStatus.BAD_REQUEST));
+        metrics.start(request, "_search");
+        var end = metrics.prepareEnd(request, response(RestStatus.BAD_REQUEST));
 
         assertThat(recordings(SEARCH_DURATION_METRIC), empty());
 
@@ -278,10 +300,6 @@ public class RestRequestMetricsTests extends ESTestCase {
         var recorded = recordings(SEARCH_DURATION_METRIC);
         assertEquals(1, recorded.size());
         assertEquals(400, recorded.getFirst().attributes().get("http.response.status_code"));
-    }
-
-    private ThreadContext threadContext() {
-        return new ThreadContext(Settings.EMPTY);
     }
 
     private RestRequest request(RestRequest.Method method, String path) {

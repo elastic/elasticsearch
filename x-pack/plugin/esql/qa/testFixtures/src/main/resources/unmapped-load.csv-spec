@@ -948,12 +948,15 @@ FROM partial_mapping_sample_data
 fieldIsUnmappedSingleIndex
 required_capability: optional_fields_v5
 
+// tag::unmapped-load-named-field[]
 SET unmapped_fields="load"\;
 FROM partial_mapping_sample_data
 | KEEP @timestamp, message, unmapped_message
 | SORT @timestamp DESC
+// end::unmapped-load-named-field[]
 ;
 
+// tag::unmapped-load-named-field-result[]
 @timestamp:date          | message:keyword        | unmapped_message:keyword
 2024-10-23T13:55:01.543Z | Connected to 10.1.0.1! | Disconnected from 10.1.0.1
 2024-10-23T13:53:55.832Z | Connection error?      | Disconnection error
@@ -962,6 +965,7 @@ FROM partial_mapping_sample_data
 2024-10-23T13:33:34.937Z | 42                     | 43
 2024-10-23T12:27:28.948Z | Connected to 10.1.0.2! | Disconnected from 10.1.0.2
 2024-10-23T12:15:03.360Z | Connected to 10.1.0.3! | Disconnected from 10.1.0.3
+// end::unmapped-load-named-field-result[]
 ;
 
 // Reproducer for #141990: replacing an unmapped field from an empty mapping with an EVAL expression should not drop source loading.
@@ -1569,6 +1573,22 @@ Connected to 10.1.0.2!
 Connected to 10.1.0.2
 Connected to 10.1.0.1!
 Connected to 10.1.0.1
+42
+;
+
+// The sort must not be pushed down to Lucene on a field that is unmapped in some of the indices: those values live only in _source.
+fieldIsPartiallyUnmappedAndRenamedMultiIndexSortAscLimit
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data
+| KEEP message
+| RENAME message AS msg
+| SORT msg ASC
+| LIMIT 1
+;
+
+msg:keyword
 42
 ;
 
@@ -3584,7 +3604,6 @@ loadViewSingleEvalNonExistent
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM employees_all
@@ -3592,7 +3611,7 @@ FROM employees_all
 | WHERE extra IS NULL
 | STATS c = COUNT(*)
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [employees_all], so field [nonexistent_field] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
+warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[nonexistent_field\])(?=.*\[employees_all\])
 
 c:long
 100
@@ -3602,13 +3621,12 @@ loadViewSingleStatsByNonExistent
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM employees_all
 | STATS c = COUNT(*) BY nonexistent_field
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [employees_all], so field [nonexistent_field] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
+warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[nonexistent_field\])(?=.*\[employees_all\])
 
 c:long | nonexistent_field:keyword
 100    | null
@@ -3618,7 +3636,6 @@ loadViewSingleSortByNonExistent
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM employees_all
@@ -3626,7 +3643,7 @@ FROM employees_all
 | KEEP emp_no, nonexistent_field
 | LIMIT 3
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [employees_all], so field [nonexistent_field] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
+warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[nonexistent_field\])(?=.*\[employees_all\])
 
 emp_no:integer | nonexistent_field:keyword
 10001          | null
@@ -3638,14 +3655,13 @@ loadViewSingleRenameNonExistent
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM employees_all
 | RENAME nonexistent_field AS missing
 | STATS c = COUNT(*), m = COUNT(missing) BY missing
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [employees_all], so field [nonexistent_field] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
+warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[nonexistent_field\])(?=.*\[employees_all\])
 
 c:long | m:long | missing:keyword
 100    | 0      | null
@@ -3655,14 +3671,13 @@ loadViewSingleWhereNonExistentNotNull
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM employees_all
 | WHERE nonexistent_field IS NOT NULL
 | STATS c = COUNT(*)
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [employees_all], so field [nonexistent_field] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
+warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[nonexistent_field\])(?=.*\[employees_all\])
 
 c:long
 0
@@ -3672,7 +3687,6 @@ loadViewSingleKeepNonExistent
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM employees_all
@@ -3680,7 +3694,7 @@ FROM employees_all
 | KEEP emp_no, nonexistent_field
 | LIMIT 2
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [employees_all], so field [nonexistent_field] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
+warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[nonexistent_field\])(?=.*\[employees_all\])
 
 emp_no:integer | nonexistent_field:keyword
 10001          | null
@@ -3692,14 +3706,13 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM view_with_subquery
 | EVAL extra = nonexistent_field
 | STATS c = COUNT(emp_no), missing = COUNT(extra)
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [view_with_subquery], so field [nonexistent_field] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
+warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[nonexistent_field\])(?=.*\[view_with_subquery\])
 
 c:long | missing:long
 100    | 0
@@ -3710,14 +3723,13 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: views_deduplication_bugfix
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM employees_extra
 | EVAL extra = nonexistent_field
 | STATS c = COUNT(emp_no), missing = COUNT(extra)
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [employees_extra], so field [nonexistent_field] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
+warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[nonexistent_field\])(?=.*\[employees_extra\])
 
 c:long | missing:long
 200    | 0
@@ -3728,15 +3740,14 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: views_deduplication_bugfix
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM employees_all, employees_extra
 | EVAL extra = nonexistent_field
 | STATS c = COUNT(emp_no), missing = COUNT(extra)
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [employees_all], so field [nonexistent_field] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [employees_extra], so field [nonexistent_field] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
+warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[nonexistent_field\])(?=.*\[employees_all\])
+warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[nonexistent_field\])(?=.*\[employees_extra\])
 
 c:long | missing:long
 300    | 0
@@ -3747,14 +3758,13 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM (FROM employees_all | WHERE emp_no < 10005)
 | EVAL extra = nonexistent_field
 | STATS rows = COUNT(), missing = COUNT(extra)
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [employees_all], so field [nonexistent_field] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
+warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[nonexistent_field\])(?=.*\[employees_all\])
 
 rows:long | missing:long
 4         | 0
@@ -3819,13 +3829,12 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: views_deduplication_bugfix
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM employees, employees_all
 | STATS c = COUNT(emp_no), missing = COUNT(nonexistent_field)
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [employees_all], so field [nonexistent_field] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
+warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[nonexistent_field\])(?=.*\[employees_all\])
 
 c:long | missing:long
 200    | 0
@@ -3835,13 +3844,12 @@ loadViewDedupViewAndView_CountNonExistent
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM employees_all, employees_all
 | STATS c = COUNT(emp_no), missing = COUNT(nonexistent_field)
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [employees_all], so field [nonexistent_field] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
+warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[nonexistent_field\])(?=.*\[employees_all\])
 
 c:long | missing:long
 100    | 0
@@ -4014,14 +4022,13 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
 required_capability: settings_scoped_at_view_boundaries
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_view
 | WHERE message == "42"
 | KEEP @timestamp, message, unmapped_message
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
+warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[unmapped_message\])(?=.*\[partial_mapping_view\])
 
 @timestamp:datetime      | message:keyword | unmapped_message:keyword
 2024-10-23T13:33:34.937Z | 42              | null
@@ -4048,13 +4055,12 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
 required_capability: settings_scoped_at_view_boundaries
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_view
 | STATS loaded = COUNT(unmapped_message), rows = COUNT(*)
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
+warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[unmapped_message\])(?=.*\[partial_mapping_view\])
 
 loaded:long | rows:long
 0           | 7
@@ -4066,7 +4072,6 @@ required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: settings_scoped_at_view_boundaries
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_view | KEEP message, unmapped_message), (FROM employees | KEEP emp_no)
@@ -4074,7 +4079,7 @@ FROM (FROM partial_mapping_view | KEEP message, unmapped_message), (FROM employe
 | KEEP message, unmapped_message
 | SORT message
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
+warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[unmapped_message\])(?=.*\[partial_mapping_view\])
 
 message:keyword | unmapped_message:keyword
 ;
@@ -4085,14 +4090,13 @@ required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: settings_scoped_at_view_boundaries
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_view | WHERE message == "42"), (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.1!")
 | KEEP message, unmapped_message
 | SORT message
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
+warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[unmapped_message\])(?=.*\[partial_mapping_view\])
 
 message:keyword        | unmapped_message:keyword
 42                     | null
@@ -4104,14 +4108,13 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
 required_capability: settings_scoped_at_view_boundaries
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_mv_view
 | MV_EXPAND unmapped_mv
 | STATS c = COUNT(*)
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_mv_view], so field [unmapped_mv] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
+warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[unmapped_mv\])(?=.*\[partial_mapping_mv_view\])
 
 c:long
 7
@@ -4122,7 +4125,6 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
 required_capability: settings_scoped_at_view_boundaries
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_mv_view
@@ -4131,7 +4133,7 @@ FROM partial_mapping_mv_view
 | KEEP message, unmapped_mv
 | SORT unmapped_mv
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_mv_view], so field [unmapped_mv] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
+warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[unmapped_mv\])(?=.*\[partial_mapping_mv_view\])
 
 message:keyword   | unmapped_mv:keyword
 Connection error? | null
@@ -4144,7 +4146,6 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
 required_capability: settings_scoped_at_view_boundaries
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_mv_view
@@ -4152,7 +4153,7 @@ FROM partial_mapping_mv_view
 | EVAL n = MV_COUNT(unmapped_mv), lo = MV_MIN(unmapped_mv), hi = MV_MAX(unmapped_mv)
 | KEEP message, n, lo, hi
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_mv_view], so field [unmapped_mv] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
+warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[unmapped_mv\])(?=.*\[partial_mapping_mv_view\])
 
 message:keyword | n:integer | lo:keyword | hi:keyword
 42              | null      | null       | null
@@ -4163,7 +4164,6 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
 required_capability: settings_scoped_at_view_boundaries
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_mv_view
@@ -4171,7 +4171,7 @@ FROM partial_mapping_mv_view
 | DISSECT unmapped_message "%{action} from %{host}"
 | KEEP message, action, host
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_mv_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
+warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[unmapped_message\])(?=.*\[partial_mapping_mv_view\])
 
 message:keyword        | action:keyword | host:keyword
 Connected to 10.1.0.3! | null           | null
@@ -4183,13 +4183,12 @@ required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: settings_scoped_at_view_boundaries
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_mv_view | WHERE message == "42" | MV_EXPAND unmapped_mv | KEEP message, unmapped_mv), (FROM partial_mapping_mv_view | WHERE message == "Connected to 10.1.0.1!" | KEEP message, unmapped_mv)
 | SORT message, unmapped_mv
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_mv_view], so field [unmapped_mv] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
+warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[unmapped_mv\])(?=.*\[partial_mapping_mv_view\])
 
 message:keyword        | unmapped_mv:keyword
 42                     | null
@@ -4202,7 +4201,6 @@ required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: settings_scoped_at_view_boundaries
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_view | WHERE message == "42"),
@@ -4211,7 +4209,7 @@ FROM (FROM partial_mapping_view | WHERE message == "42"),
 | KEEP message, unmapped_message, upper
 | SORT message
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
+warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[unmapped_message\])(?=.*\[partial_mapping_view\])
 
 message:keyword        | unmapped_message:keyword | upper:keyword
 42                     | null                     | null
@@ -4224,7 +4222,6 @@ required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: settings_scoped_at_view_boundaries
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_view | WHERE message == "42"),
@@ -4232,7 +4229,7 @@ FROM (FROM partial_mapping_view | WHERE message == "42"),
 | STATS c = COUNT(*) BY unmapped_message
 | SORT unmapped_message
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
+warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[unmapped_message\])(?=.*\[partial_mapping_view\])
 
 c:long | unmapped_message:keyword
 2      | null
@@ -4244,7 +4241,6 @@ required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: settings_scoped_at_view_boundaries
-required_capability: warn_unmapped_fields_stopped_at_view
 
 // unmapped_message is null in every row (the views contribute null at their output), so the sort needs the
 // message tiebreaker to be deterministic.
@@ -4255,7 +4251,7 @@ FROM (FROM partial_mapping_view | WHERE message == "42"),
 | KEEP message, unmapped_message
 | SORT unmapped_message DESC, message ASC
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
+warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[unmapped_message\])(?=.*\[partial_mapping_view\])
 
 message:keyword        | unmapped_message:keyword
 42                     | null
@@ -4269,7 +4265,6 @@ required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: settings_scoped_at_view_boundaries
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_view | WHERE message == "42" | DROP unmapped_message),
@@ -4277,7 +4272,7 @@ FROM (FROM partial_mapping_view | WHERE message == "42" | DROP unmapped_message)
 | KEEP message, unmapped_message
 | SORT message
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
+warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[unmapped_message\])(?=.*\[partial_mapping_view\])
 
 message:keyword        | unmapped_message:keyword
 42                     | null
@@ -4290,7 +4285,6 @@ required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: settings_scoped_at_view_boundaries
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_view | WHERE message == "42" | RENAME unmapped_message AS renamed),
@@ -4298,7 +4292,7 @@ FROM (FROM partial_mapping_view | WHERE message == "42" | RENAME unmapped_messag
 | KEEP message, unmapped_message, renamed
 | SORT message
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
+warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[unmapped_message\])(?=.*\[partial_mapping_view\])
 
 message:keyword        | unmapped_message:keyword | renamed:keyword
 42                     | null                     | null
@@ -4311,7 +4305,6 @@ required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: settings_scoped_at_view_boundaries
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_view | WHERE unmapped_message == "43" | DROP unmapped_message),
@@ -4319,7 +4312,7 @@ FROM (FROM partial_mapping_view | WHERE unmapped_message == "43" | DROP unmapped
 | KEEP message, unmapped_message
 | SORT message
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
+warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[unmapped_message\])(?=.*\[partial_mapping_view\])
 
 message:keyword        | unmapped_message:keyword
 Connected to 10.1.0.1! | null
@@ -4331,7 +4324,6 @@ required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: settings_scoped_at_view_boundaries
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_view | WHERE message == "42" | EVAL tag = unmapped_message),
@@ -4339,7 +4331,7 @@ FROM (FROM partial_mapping_view | WHERE message == "42" | EVAL tag = unmapped_me
 | KEEP message, unmapped_message, tag
 | SORT message
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
+warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[unmapped_message\])(?=.*\[partial_mapping_view\])
 
 message:keyword        | unmapped_message:keyword | tag:keyword
 42                     | null                     | null
@@ -4352,7 +4344,6 @@ required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: settings_scoped_at_view_boundaries
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_view | WHERE message == "42" | KEEP message, unmapped_message),
@@ -4361,7 +4352,7 @@ FROM (FROM partial_mapping_view | WHERE message == "42" | KEEP message, unmapped
 | KEEP message, unmapped_message, has
 | SORT message
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
+warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[unmapped_message\])(?=.*\[partial_mapping_view\])
 
 message:keyword        | unmapped_message:keyword | has:boolean
 42                     | null                     | false
@@ -4374,7 +4365,6 @@ required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: settings_scoped_at_view_boundaries
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_view | WHERE message == "42" | RENAME unmapped_message AS renamed),
@@ -4382,7 +4372,7 @@ FROM (FROM partial_mapping_view | WHERE message == "42" | RENAME unmapped_messag
 | KEEP message, renamed
 | SORT message
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
+warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[unmapped_message\])(?=.*\[partial_mapping_view\])
 
 message:keyword        | renamed:keyword
 42                     | null
@@ -4395,7 +4385,6 @@ required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: settings_scoped_at_view_boundaries
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_view | WHERE message == "42"),
@@ -4403,7 +4392,7 @@ FROM (FROM partial_mapping_view | WHERE message == "42"),
 | KEEP message, unmapped_message
 | SORT message
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
+warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[unmapped_message\])(?=.*\[partial_mapping_view\])
 
 message:keyword        | unmapped_message:keyword
 42                     | null
@@ -4433,7 +4422,6 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
 required_capability: settings_scoped_at_view_boundaries
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_view
@@ -4441,7 +4429,7 @@ FROM partial_mapping_view
 | EVAL upper = TO_UPPER(unmapped_message), len = LENGTH(unmapped_message)
 | KEEP message, upper, len
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
+warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[unmapped_message\])(?=.*\[partial_mapping_view\])
 
 message:keyword        | upper:keyword | len:integer
 Connected to 10.1.0.3! | null          | null
@@ -4454,7 +4442,6 @@ required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: where_in_subquery_with_view
 required_capability: settings_scoped_at_view_boundaries
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_view | WHERE message == "42" | KEEP message, unmapped_message),
@@ -4463,7 +4450,7 @@ FROM (FROM partial_mapping_view | WHERE message == "42" | KEEP message, unmapped
 | KEEP message, unmapped_message
 | SORT message
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [partial_mapping_view], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
+warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[unmapped_message\])(?=.*\[partial_mapping_view\])
 
 message:keyword | unmapped_message:keyword
 ;

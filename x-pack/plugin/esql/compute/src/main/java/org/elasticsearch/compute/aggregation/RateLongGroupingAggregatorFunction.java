@@ -91,9 +91,6 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
     private final double dateFactor;
     private final Warnings warnings;
 
-    // track lastSliceIndex to allow flushing the raw buffer when the slice index changed
-    private int lastSliceIndex = -1;
-
     public RateLongGroupingAggregatorFunction(
         List<Integer> channels,
         DriverContext driverContext,
@@ -101,6 +98,7 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
         boolean isDateNanos,
         Warnings warnings
     ) {
+        super(channels.get(3));
         this.channels = channels;
         this.driverContext = driverContext;
         this.isRateOverTime = isRateOverTime;
@@ -131,17 +129,13 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
     }
 
     @Override
-    public boolean canEmitPartialResultsPeriodically() {
-        return false;
-    }
-
-    @Override
     public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
         // manage nulls via buffers/reducedStates arrays
     }
 
     @Override
     public AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds, Page page) {
+        maybeFlushOnNewSlice(page);
         LongBlock valuesBlock = page.getBlock(channels.get(0));
         if (valuesBlock.areAllValuesNull()) {
             return new AddInput() {
@@ -174,15 +168,8 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
         }
         BytesRefBlock temporalityBlock = page.getBlock(channels.get(2));
         TemporalityAccessor temporalityAccessor = TemporalityAccessor.create(temporalityBlock, Temporality.CUMULATIVE);
-        IntVector sliceIndices = ((IntBlock) page.getBlock(channels.get(3))).asVector();
-        assert sliceIndices != null : "expected slice indices vector in time-series aggregation";
         LongVector futureMaxTimestamps = ((LongBlock) page.getBlock(channels.get(4))).asVector();
         assert futureMaxTimestamps != null : "expected future max timestamps vector in time-series aggregation";
-        int sliceIndex = sliceIndices.getInt(0);
-        if (sliceIndex > lastSliceIndex) {
-            flushRawBuffers();
-            lastSliceIndex = sliceIndex;
-        }
         return new AddInput() {
             @Override
             public void add(int positionOffset, IntArrayBlock groupIds) {
@@ -739,6 +726,18 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
         GroupingAggregatorEvaluationContext ctx
     ) {
         flushRawBuffers();
+        for (int p = 0; p < selected.getPositionCount(); p++) {
+            int group = selected.getInt(p);
+            var state = group < reducedStates.size() ? reducedStates.get(group) : null;
+            if (state != null && state.samples > 1) {
+                state.combineIntervals();
+            }
+        }
+        if (ctx instanceof TimeSeriesGroupingAggregatorEvaluationContext tsContext) {
+            tsContext.computeAdjacentGroupIds();
+            // https://github.com/elastic/elasticsearch/issues/152758
+            assert assertTimestampsWithinBuckets(selected, tsContext);
+        }
         return (blocks, offset, selectedInPage) -> evaluateFinal(blocks, offset, selectedInPage, ctx);
     }
 
@@ -746,18 +745,6 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
         BlockFactory blockFactory = driverContext.blockFactory();
         int positionCount = selectedInPage.getPositionCount();
         try (var rates = blockFactory.newDoubleBlockBuilder(positionCount)) {
-            for (int p = 0; p < positionCount; p++) {
-                int group = selectedInPage.getInt(p);
-                var state = group < reducedStates.size() ? reducedStates.get(group) : null;
-                if (state != null && state.samples > 1) {
-                    state.combineIntervals();
-                }
-            }
-            if (ctx instanceof TimeSeriesGroupingAggregatorEvaluationContext tsContext) {
-                tsContext.computeAdjacentGroupIds();
-                // https://github.com/elastic/elasticsearch/issues/152758
-                assert assertTimestampsWithinBuckets(selectedInPage, tsContext);
-            }
             for (int p = 0; p < positionCount; p++) {
                 int group = selectedInPage.getInt(p);
                 var state = group < reducedStates.size() ? reducedStates.get(group) : null;

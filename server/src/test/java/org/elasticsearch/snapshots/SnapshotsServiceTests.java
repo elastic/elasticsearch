@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -785,7 +786,7 @@ public class SnapshotsServiceTests extends ESTestCase {
                                     RecoverySource.EmptyStoreRecoverySource.INSTANCE,
                                     new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "test"),
                                     ShardRouting.Role.DEFAULT,
-                                    ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
+                                    RecoveryPriority.UNASSIGNED_NEW_PRIMARY
                                 )
                             )
                     )
@@ -829,7 +830,7 @@ public class SnapshotsServiceTests extends ESTestCase {
             final SnapshotsInProgress existing = SnapshotsInProgress.get(batchExecutionContext.initialState());
             final var context = new SnapshotsService.SnapshotShardsUpdateContext(
                 batchExecutionContext,
-                /* on completion handler */ (shardSnapshotUpdateResult, newlyCompletedEntries, updatedRepositories) -> {}
+                /* on completion handler */ (snapshotsInProgress, repositoriesWithNewlyCompletedEntries, updatedRepositories) -> {}
             );
             final SnapshotsInProgress updated = context.computeUpdatedState();
             context.setupSuccessfulPublicationCallbacks(updated);

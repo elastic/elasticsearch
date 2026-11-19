@@ -469,7 +469,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
                 }
                 case 1 -> {
                     pattern = getRandomRegexPattern(values);
-                    int matchFlags = randomBoolean() ? 0 : RegExp.ASCII_CASE_INSENSITIVE;
+                    int matchFlags = randomBoolean() ? 0 : RegExp.CASE_INSENSITIVE;
                     wildcardFieldQuery = wildcardFieldType.fieldType()
                         .regexpQuery(pattern, RegExp.ALL, matchFlags, 20000, null, MOCK_CONTEXT);
                     keywordFieldQuery = keywordFieldType.fieldType()

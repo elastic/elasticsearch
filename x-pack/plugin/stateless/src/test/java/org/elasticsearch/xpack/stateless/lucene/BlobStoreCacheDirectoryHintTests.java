@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheFileReader;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheFileReaderTestUtils;
-import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 
 import java.io.IOException;
@@ -43,7 +43,7 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
 
     public void testExplicitHintIsPreserved() throws IOException {
         var capturedContext = new AtomicReference<IOContext>();
-        var dir = createCapturingDirectory(capturedContext, Map.of("_0.vec", createBlobFileRanges(1L, 0L, 0, 1024)), 1024L);
+        var dir = createCapturingDirectory(capturedContext, Map.of("_0.vec", createBlobFileRanges(1L, 1L, 0, 1024)), 1024L);
 
         dir.openInput("_0.vec", IOContext.DEFAULT.withHints(DataAccessHint.RANDOM));
 
@@ -137,7 +137,7 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
         var reader = new CacheFileReader(
             cacheFile,
             mock(CacheBlobReader.class),
-            createBlobFileRanges(1L, 0L, 0, 1024),
+            createBlobFileRanges(1L, 1L, 0, 1024),
             BlobCacheMetrics.NOOP,
             System::currentTimeMillis,
             REGION_SIZE,
@@ -159,7 +159,7 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
         var original = new CacheFileReader(
             cacheFile,
             mock(CacheBlobReader.class),
-            createBlobFileRanges(1L, 0L, 0, 1024),
+            createBlobFileRanges(1L, 1L, 0, 1024),
             BlobCacheMetrics.NOOP,
             System::currentTimeMillis,
             REGION_SIZE,
@@ -186,7 +186,7 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
         var original = new CacheFileReader(
             cacheFile,
             mock(CacheBlobReader.class),
-            createBlobFileRanges(1L, 0L, 0, 500 * 1024 * 1024),
+            createBlobFileRanges(1L, 1L, 0, 500 * 1024 * 1024),
             BlobCacheMetrics.NOOP,
             System::currentTimeMillis,
             REGION_SIZE,
@@ -222,7 +222,7 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
         var original = new CacheFileReader(
             cacheFile,
             mock(CacheBlobReader.class),
-            createBlobFileRanges(1L, 0L, 0, 100 * 1024 * 1024),
+            createBlobFileRanges(1L, 1L, 0, 100 * 1024 * 1024),
             BlobCacheMetrics.NOOP,
             System::currentTimeMillis,
             REGION_SIZE,
@@ -254,7 +254,7 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
         var original = new CacheFileReader(
             cacheFile,
             mock(CacheBlobReader.class),
-            createBlobFileRanges(1L, 0L, 0, 100 * 1024 * 1024),
+            createBlobFileRanges(1L, 1L, 0, 100 * 1024 * 1024),
             BlobCacheMetrics.NOOP,
             System::currentTimeMillis,
             REGION_SIZE,
@@ -284,7 +284,7 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
         var original = new CacheFileReader(
             cacheFile,
             mock(CacheBlobReader.class),
-            createBlobFileRanges(1L, 0L, 0, 500 * 1024 * 1024),
+            createBlobFileRanges(1L, 1L, 0, 500 * 1024 * 1024),
             BlobCacheMetrics.NOOP,
             System::currentTimeMillis,
             REGION_SIZE,
@@ -321,7 +321,7 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
         var reader = new CacheFileReader(
             cacheFile,
             mock(CacheBlobReader.class),
-            createBlobFileRanges(1L, 0L, 0, 500 * 1024 * 1024),
+            createBlobFileRanges(1L, 1L, 0, 500 * 1024 * 1024),
             BlobCacheMetrics.NOOP,
             System::currentTimeMillis,
             REGION_SIZE,
@@ -348,7 +348,7 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
         var original = new CacheFileReader(
             cacheFile,
             mock(CacheBlobReader.class),
-            createBlobFileRanges(1L, 0L, 0, 500 * 1024 * 1024),
+            createBlobFileRanges(1L, 1L, 0, 500 * 1024 * 1024),
             BlobCacheMetrics.NOOP,
             System::currentTimeMillis,
             REGION_SIZE,
@@ -386,7 +386,7 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
         var original = new CacheFileReader(
             cacheFile,
             mock(CacheBlobReader.class),
-            createBlobFileRanges(1L, 0L, 0, 500 * 1024 * 1024),
+            createBlobFileRanges(1L, 1L, 0, 500 * 1024 * 1024),
             BlobCacheMetrics.NOOP,
             System::currentTimeMillis,
             REGION_SIZE,
@@ -409,7 +409,7 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
         var reader = new CacheFileReader(
             cacheFile,
             mock(CacheBlobReader.class),
-            createBlobFileRanges(1L, 0L, 0, 500 * 1024 * 1024),
+            createBlobFileRanges(1L, 1L, 0, 500 * 1024 * 1024),
             BlobCacheMetrics.NOOP,
             System::currentTimeMillis,
             REGION_SIZE,
@@ -443,7 +443,7 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
         var reader = new CacheFileReader(
             cacheFile,
             mock(CacheBlobReader.class),
-            createBlobFileRanges(1L, 0L, 0, 2048),
+            createBlobFileRanges(1L, 1L, 0, 2048),
             BlobCacheMetrics.NOOP,
             System::currentTimeMillis,
             REGION_SIZE,
@@ -471,7 +471,7 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
         var reader = new CacheFileReader(
             cacheFile,
             mock(CacheBlobReader.class),
-            createBlobFileRanges(1L, 0L, 0, 1024),
+            createBlobFileRanges(1L, 1L, 0, 1024),
             BlobCacheMetrics.NOOP,
             System::currentTimeMillis,
             REGION_SIZE,
@@ -495,7 +495,7 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
         var reader = new CacheFileReader(
             cacheFile,
             mock(CacheBlobReader.class),
-            createBlobFileRanges(1L, 0L, 0, 1024),
+            createBlobFileRanges(1L, 1L, 0, 1024),
             BlobCacheMetrics.NOOP,
             System::currentTimeMillis,
             true
@@ -531,7 +531,7 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
         var reader = new CacheFileReader(
             cacheFile,
             mock(CacheBlobReader.class),
-            createBlobFileRanges(1L, 0L, 0, 1024),
+            createBlobFileRanges(1L, 1L, 0, 1024),
             BlobCacheMetrics.NOOP,
             System::currentTimeMillis,
             true
@@ -568,12 +568,12 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
             }
 
             @Override
-            protected CacheBlobReader getCacheBlobReader(String fileName, BlobFile blobFile) {
+            protected CacheBlobReader getCacheBlobReader(String fileName, BccBlob bccBlob) {
                 return mock(CacheBlobReader.class);
             }
 
             @Override
-            public CacheBlobReader getCacheBlobReaderForWarming(BlobFile blobFile) {
+            public CacheBlobReader getCacheBlobReaderForWarming(BccBlob bccBlob) {
                 return mock(CacheBlobReader.class);
             }
 

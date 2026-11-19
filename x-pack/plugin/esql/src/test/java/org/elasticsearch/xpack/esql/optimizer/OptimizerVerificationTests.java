@@ -19,6 +19,8 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.SingleFieldFullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
@@ -49,7 +51,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.logicalOptimizerContext
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.singleValue;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINE_STATS;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerExternalTests.S3_PATH;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerExternalTests.external;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerExternalTests.externalCommand;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.EMBEDDING_INFERENCE_ID;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -508,6 +510,85 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
         assertThat(knn.field(), instanceOf(FieldAttribute.class));
     }
 
+    // Older nodes don't support runtime MATCH options (see Match#writeTo)
+    public void testRuntimeMatchWithOptionsRejectedOnOlderTransportVersion() {
+        var e = expectThrows(VerificationException.class, () -> optimizeBelowSearchFunctionOptionsVersion(fullTextAnalyzer(), """
+            ROW t = TO_TEXT("the quick brown fox")
+            | WHERE MATCH(t, "quick fox", {"operator": "AND"})
+            """));
+        assertThat(e.getMessage(), containsString(RUNTIME_MATCH_OPTIONS_UNSUPPORTED));
+    }
+
+    public void testRuntimeKeywordMatchWithLenientRejectedOnOlderTransportVersion() {
+        var e = expectThrows(VerificationException.class, () -> optimizeBelowSearchFunctionOptionsVersion(fullTextAnalyzer(), """
+            ROW k = "fox"
+            | WHERE MATCH(k, "fox", {"lenient": true})
+            """));
+        assertThat(e.getMessage(), containsString(RUNTIME_MATCH_OPTIONS_UNSUPPORTED));
+    }
+
+    public void testRuntimeMatchWithoutOptionsAllowedOnOlderTransportVersion() {
+        var plan = optimizeBelowSearchFunctionOptionsVersion(fullTextAnalyzer(), """
+            ROW t = TO_TEXT("the quick brown fox")
+            | WHERE MATCH(t, "quick fox")
+            """);
+        assertThat(findMatch(plan).isRuntimeSearch(), is(true));
+    }
+
+    public void testRuntimeMatchWithOptionsAllowedOnSearchFunctionOptionsVersion() {
+        var plan = optimizeWithMinimumVersion(fullTextAnalyzer(), FullTextFunction.ESQL_OPTIONS_FOR_SEARCH_FUNCTIONS, """
+            ROW t = TO_TEXT("the quick brown fox")
+            | WHERE MATCH(t, "quick fox", {"operator": "AND"})
+            """);
+        assertThat(findMatch(plan).isRuntimeSearch(), is(true));
+    }
+
+    public void testIndexBackedMatchWithOptionsAllowedOnOlderTransportVersion() {
+        // the coordinator-built query builder carries the options to older nodes
+        var plan = optimizeBelowSearchFunctionOptionsVersion(fullTextAnalyzer(), """
+            FROM test
+            | WHERE MATCH(title, "quick fox", {"operator": "AND"})
+            """);
+        assertThat(findMatch(plan).isRuntimeSearch(), is(false));
+    }
+
+    public void testIndexBackedInUnionAllSubqueryMatchWithOptionsAllowedOnOlderTransportVersion() {
+        assumeTrue("requires subquery_in_from_command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        // title is a runtime search on the merged column at analysis time, and only becomes index-backed once the
+        // filter is pushed into the branches
+        var plan = optimizeBelowSearchFunctionOptionsVersion(fullTextAnalyzer(), """
+            FROM (FROM test | WHERE category == 1),
+                 (FROM test | WHERE category == 2)
+            | WHERE MATCH(title, "quick fox", {"operator": "AND"})
+            """);
+
+        List<Match> matches = new ArrayList<>();
+        plan.forEachDown(LogicalPlan.class, node -> node.forEachExpression(Match.class, matches::add));
+        assertThat(matches, hasSize(2));
+        for (Match match : matches) {
+            assertThat(match.isRuntimeSearch(), is(false));
+            assertThat(match.field(), instanceOf(FieldAttribute.class));
+        }
+    }
+
+    private static final String RUNTIME_MATCH_OPTIONS_UNSUPPORTED =
+        "[MATCH] options on a non-index-mapped field or expression are not supported on every participating node";
+
+    private static Match findMatch(LogicalPlan plan) {
+        List<Match> functions = new ArrayList<>();
+        plan.forEachDown(LogicalPlan.class, node -> node.forEachExpression(Match.class, functions::add));
+        assertThat(functions, hasSize(1));
+        return functions.getFirst();
+    }
+
+    private LogicalPlan optimizeBelowSearchFunctionOptionsVersion(TestAnalyzer analyzer, String query) {
+        return optimizeWithMinimumVersion(
+            analyzer,
+            TransportVersionUtils.getPreviousVersion(FullTextFunction.ESQL_OPTIONS_FOR_SEARCH_FUNCTIONS),
+            query
+        );
+    }
+
     private static void assumeKnnRuntimeEnabled() {
         assumeTrue("Knn on runtime expression requires corresponding capability", EsqlCapabilities.Cap.KNN_RUNTIME_FIELD.isEnabled());
     }
@@ -525,9 +606,12 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
      * support guard reads the optimizer's minimum version, so it must be set there and not only on the analyzer.
      */
     private LogicalPlan optimizeBelowKnnRuntimeVersion(TestAnalyzer analyzer, String query) {
-        TransportVersion beforeFeature = TransportVersionUtils.getPreviousVersion(Knn.ESQL_KNN_RUNTIME_FIELD);
-        LogicalPlan analyzed = analyzer.minimumTransportVersion(beforeFeature).query(query);
-        LogicalPlanOptimizer optimizer = new LogicalPlanOptimizer(logicalOptimizerContext(TEST_CFG, FoldContext.small(), beforeFeature));
+        return optimizeWithMinimumVersion(analyzer, TransportVersionUtils.getPreviousVersion(Knn.ESQL_KNN_RUNTIME_FIELD), query);
+    }
+
+    private LogicalPlan optimizeWithMinimumVersion(TestAnalyzer analyzer, TransportVersion minimumVersion, String query) {
+        LogicalPlan analyzed = analyzer.minimumTransportVersion(minimumVersion).query(query);
+        LogicalPlanOptimizer optimizer = new LogicalPlanOptimizer(logicalOptimizerContext(TEST_CFG, FoldContext.small(), minimumVersion));
         return optimizer.optimize(analyzed);
     }
 
@@ -1083,7 +1167,7 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
     public void testEnrichRemoteRejected() {
         assumeTrue("requires EXTERNAL command capability", EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
 
-        var testAnalyzer = external().addEnrichPolicy(
+        var testAnalyzer = externalCommand().addEnrichPolicy(
             Enrich.Mode.REMOTE,
             EnrichPolicy.MATCH_TYPE,
             "languages_policy",
@@ -1100,6 +1184,99 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
             err,
             containsString("federated data sources execute entirely on the coordinating node and are incompatible with remote ENRICH")
         );
+    }
+
+    public void testRemoteEnrichRejectedAfterEql() {
+        String err = error(eqlAnalyzer().query("""
+            EQL eql_test "process where true"
+            | EVAL language_code = TO_INT(pid / 100)
+            | ENRICH _remote:languages ON language_code
+            """));
+        assertThat(
+            err,
+            containsString(
+                "3:3: ENRICH with remote policy can't be executed after [EQL eql_test \"process where true\"]@1:1"
+                    + "; the EQL source command returns its events to the coordinating node and is incompatible with remote ENRICH"
+            )
+        );
+    }
+
+    public void testLookupJoinBeforeRemoteEnrichRejectedAfterEql() {
+        String err = error(eqlAnalyzer().query("""
+            EQL eql_test "process where true"
+            | EVAL language_code = TO_INT(pid / 100)
+            | LOOKUP JOIN languages_lookup ON language_code
+            | ENRICH _remote:languages ON language_code
+            """));
+        assertThat(
+            err,
+            containsString("3:3: LOOKUP JOIN with remote indices can't be executed after [EQL eql_test \"process where true\"]@1:1")
+        );
+    }
+
+    public void testRemoteEnrichAllowedAfterCoordinatorOnlyPlanInWhereInSubquery() {
+        assumeTrue("requires WHERE IN subqueries", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
+        var testAnalyzer = analyzer().addDefaultIndex()
+            .addEnrichPolicy(Enrich.Mode.REMOTE, MATCH_TYPE, "languages", "language_code", "languages_idx", "mapping-languages.json");
+        optimize(testAnalyzer.query("""
+            FROM test
+            | WHERE languages IN (FROM test | STATS c = COUNT(*) BY languages | KEEP languages)
+            | EVAL language_code = languages
+            | ENRICH _remote:languages ON language_code
+            """));
+    }
+
+    public void testRemoteEnrichRejectedAfterEqlFilteredByWhereInSubquery() {
+        assumeTrue("requires WHERE IN subqueries", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
+        String err = error(eqlAnalyzer().addDefaultIndex().query("""
+            EQL eql_test "process where true"
+            | EVAL languages = TO_INT(pid / 100)
+            | WHERE languages IN (FROM test | KEEP languages)
+            | EVAL language_code = languages
+            | ENRICH _remote:languages ON language_code
+            """));
+        assertThat(
+            err,
+            containsString(
+                "5:3: ENRICH with remote policy can't be executed after [EQL eql_test \"process where true\"]@1:1"
+                    + "; the EQL source command returns its events to the coordinating node and is incompatible with remote ENRICH"
+            )
+        );
+    }
+
+    public void testRemoteEnrichRejectedAfterCoordinatorOnlyPlanFilteredByWhereInSubquery() {
+        assumeTrue("requires WHERE IN subqueries", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
+        var testAnalyzer = analyzer().addDefaultIndex()
+            .addEnrichPolicy(Enrich.Mode.REMOTE, MATCH_TYPE, "languages", "language_code", "languages_idx", "mapping-languages.json");
+        String err = error(testAnalyzer.query("""
+            FROM test
+            | STATS c = COUNT(*) BY languages
+            | WHERE c IN (FROM test | EVAL c = TO_LONG(languages) | KEEP c)
+            | EVAL language_code = languages
+            | ENRICH _remote:languages ON language_code
+            """));
+        assertThat(err, containsString("5:3: ENRICH with remote policy can't be executed after [STATS c = COUNT(*) BY languages]@2:3"));
+    }
+
+    public void testLookupJoinAfterEqlIsRemoteWhenWhereInSubqueryReadsRemoteIndices() {
+        assumeTrue("requires WHERE IN subqueries", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
+        String err = error(eqlAnalyzer().addIndex("test,remote:test", "mapping-default.json").query("""
+            EQL eql_test "process where true"
+            | EVAL language_code = TO_INT(pid / 100)
+            | WHERE language_code IN (FROM test,remote:test | KEEP languages)
+            | LOOKUP JOIN languages_lookup ON language_code
+            """));
+        assertThat(
+            err,
+            containsString("4:3: LOOKUP JOIN with remote indices can't be executed after [EQL eql_test \"process where true\"]@1:1")
+        );
+    }
+
+    private TestAnalyzer eqlAnalyzer() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+        return analyzer().addIndex("eql_test", "mapping-eql_test.json")
+            .addLanguagesLookup()
+            .addEnrichPolicy(Enrich.Mode.REMOTE, MATCH_TYPE, "languages", "language_code", "languages_idx", "mapping-languages.json");
     }
 
     public void testEmbeddingLiteralValues() {

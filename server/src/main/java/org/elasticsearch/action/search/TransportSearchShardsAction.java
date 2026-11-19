@@ -215,7 +215,8 @@ public class TransportSearchShardsAction extends TransportAction<SearchShardsReq
                         searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis),
                         searchResponseMetrics,
                         searchRequestAttributes,
-                        searchShardsRequest.includeSkippedShardsInIterators()
+                        searchShardsRequest.includeSkippedShardsInIterators(),
+                        clusterState
                     )
                         .addListener(
                             delegate.map(

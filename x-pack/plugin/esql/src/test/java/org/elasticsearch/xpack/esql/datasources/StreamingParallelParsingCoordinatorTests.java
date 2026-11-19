@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import com.github.luben.zstd.ZstdOutputStream;
+
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -36,12 +38,14 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
 import org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonFormatReader;
+import org.elasticsearch.xpack.esql.datasource.zstd.ZstdDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.cache.CountingInputStream;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.cache.StatsCapturingIterator;
 import org.elasticsearch.xpack.esql.datasources.cache.StripeStatsHarvester;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
@@ -723,6 +727,314 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         } finally {
             executor.shutdownNow();
         }
+    }
+
+    /**
+     * Close while a zstd decoder is blocked on its raw GET. Aborting {@code DecompressedStream}
+     * from the closer would {@code Inflater}/{@code ZSTD_DStream} close on the wrong thread
+     * (use-after-free). Close must abort only the raw transport; the segmentator finally closes
+     * the decoder. tryAdvance after close is not a failure.
+     */
+    public void testCloseDuringZstdDecodeAbortsTransportNotDecoder() throws Exception {
+        byte[] original = "x\n".repeat(256).getBytes(StandardCharsets.UTF_8);
+        byte[] compressed = zstdBytes(original);
+        CountDownLatch parked = new CountDownLatch(1);
+        CountDownLatch resume = new CountDownLatch(1);
+        AtomicInteger rawAborts = new AtomicInteger();
+        StorageObject raw = new AbstractTestStorageObject() {
+            @Override
+            public InputStream newStream() {
+                return new FilterInputStream(new ByteArrayInputStream(compressed)) {
+                    @Override
+                    public int read(byte[] b, int off, int len) throws IOException {
+                        parked.countDown();
+                        try {
+                            if (resume.await(15, TimeUnit.SECONDS) == false) {
+                                throw new IOException("raw read was not unblocked by close");
+                            }
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            throw new IOException("interrupted", e);
+                        }
+                        throw new IOException("aborted");
+                    }
+
+                    @Override
+                    public void close() throws IOException {
+                        resume.countDown();
+                        super.close();
+                    }
+                };
+            }
+
+            @Override
+            public void abortStream(InputStream stream) throws IOException {
+                rawAborts.incrementAndGet();
+                stream.close();
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) {
+                return newStream();
+            }
+
+            @Override
+            public long length() {
+                return compressed.length;
+            }
+
+            @Override
+            public Instant lastModified() {
+                return Instant.EPOCH;
+            }
+
+            @Override
+            public boolean exists() {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return StoragePath.of("mem://zstd-close-during-decode");
+            }
+        };
+        ThreadSensitiveZstdCodec codec = new ThreadSensitiveZstdCodec();
+        DecompressingStorageObject decompressing = new DecompressingStorageObject(raw, codec);
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            CloseableIterator<Page> iter = StreamingParallelParsingCoordinator.parallelRead(
+                new LineFormatReader(512),
+                decompressing::newStream,
+                decompressing,
+                List.of("line"),
+                50,
+                2,
+                executor,
+                ErrorPolicy.STRICT,
+                null,
+                0L,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                null,
+                -1L,
+                StripeColumnScope.PROJECTED,
+                StreamingParallelParsingCoordinator.WarningSinks.NONE,
+                StreamingSegmentatorAdmission.unbounded(),
+                new NoopCircuitBreaker("streaming-parse-test"),
+                ExternalReadCounters.NOOP,
+                null
+            );
+            safeAwait(parked);
+            Thread closer = Thread.currentThread();
+            CountDownLatch closed = new CountDownLatch(1);
+            AtomicReference<Exception> closeFailure = new AtomicReference<>();
+            Thread closeThread = new Thread(() -> {
+                try {
+                    iter.close();
+                } catch (Exception e) {
+                    closeFailure.set(e);
+                } finally {
+                    closed.countDown();
+                }
+            }, "zstd-decode-closer");
+            closeThread.start();
+            try {
+                assertTrue("close() must return promptly after aborting the raw GET", closed.await(5, TimeUnit.SECONDS));
+            } finally {
+                closeThread.join(TimeUnit.SECONDS.toMillis(5));
+            }
+            assertFalse("closer must exit after aborting the raw GET", closeThread.isAlive());
+            assertNull(closeFailure.get());
+            assertThat("raw GET must be aborted from close", rawAborts.get(), Matchers.greaterThanOrEqualTo(1));
+            assertFalse("decoder must not be closed while the segmentator is in read()", codec.closedWhileRead.get());
+            assertNotNull("segmentator finally must close the decoder", codec.decoderCloseThread.get());
+            assertNotEquals("decoder must close on the segmentator thread, not the closer", closeThread, codec.decoderCloseThread.get());
+            assertNotEquals(closer, codec.decoderCloseThread.get());
+            assertNull("abort during zstd decode must not be recorded as a failure", iter.tryAdvance());
+        } finally {
+            resume.countDown();
+            executor.shutdownNow();
+        }
+    }
+
+    /**
+     * {@code abortStream} throwing a RuntimeException after the streamClosed CAS must not skip
+     * drain / breaker refund. ParallelParsingCoordinator already catches Exception around abort.
+     */
+    public void testCloseSurvivesAbortStreamRuntimeException() throws Exception {
+        CountDownLatch parked = new CountDownLatch(1);
+        CountDownLatch resume = new CountDownLatch(1);
+        StorageObject boom = new AbstractTestStorageObject() {
+            @Override
+            public void abortStream(InputStream stream) throws IOException {
+                stream.close();
+                throw new IllegalStateException("abort boom");
+            }
+
+            @Override
+            public InputStream newStream() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public long length() {
+                return 1L;
+            }
+
+            @Override
+            public Instant lastModified() {
+                return Instant.EPOCH;
+            }
+
+            @Override
+            public boolean exists() {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return StoragePath.of("mem://abort-boom");
+            }
+        };
+        InputStream stream = new InputStream() {
+            @Override
+            public int read() {
+                throw new AssertionError("segmentator reads in bulk");
+            }
+
+            @Override
+            public int read(byte[] b, int off, int len) throws IOException {
+                parked.countDown();
+                try {
+                    if (resume.await(15, TimeUnit.SECONDS) == false) {
+                        throw new IOException("read was not unblocked by close");
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IOException("interrupted", e);
+                }
+                throw new IOException("aborted");
+            }
+
+            @Override
+            public void close() {
+                resume.countDown();
+            }
+        };
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            CloseableIterator<Page> iter = StreamingParallelParsingCoordinator.parallelRead(
+                new LineFormatReader(512),
+                stream,
+                boom,
+                List.of("line"),
+                50,
+                2,
+                executor,
+                ErrorPolicy.STRICT,
+                null,
+                0L,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                null,
+                -1L,
+                StripeColumnScope.PROJECTED,
+                StreamingParallelParsingCoordinator.WarningSinks.NONE
+            );
+            safeAwait(parked);
+            CountDownLatch closed = new CountDownLatch(1);
+            AtomicReference<Exception> closeFailure = new AtomicReference<>();
+            Thread closer = new Thread(() -> {
+                try {
+                    iter.close();
+                } catch (Exception e) {
+                    closeFailure.set(e);
+                } finally {
+                    closed.countDown();
+                }
+            });
+            closer.start();
+            try {
+                assertTrue("close() must return even when abortStream throws", closed.await(5, TimeUnit.SECONDS));
+            } finally {
+                closer.join(TimeUnit.SECONDS.toMillis(5));
+            }
+            assertFalse(closer.isAlive());
+            assertNull("abortStream RuntimeException must not escape close()", closeFailure.get());
+            assertNull(iter.tryAdvance());
+        } finally {
+            resume.countDown();
+            executor.shutdownNow();
+        }
+    }
+
+    /**
+     * An abort that surfaces as {@code read() == -1} must not set {@code reachedEof}. Otherwise
+     * close() treats a cancelled prefix as a clean full-file scan and caches under-count stats.
+     */
+    public void testAbortThatLooksLikeEofDoesNotCacheStats() throws Exception {
+        CountDownLatch parked = new CountDownLatch(1);
+        CountDownLatch resume = new CountDownLatch(1);
+        InputStream stream = new InputStream() {
+            @Override
+            public int read() {
+                throw new AssertionError("segmentator reads in bulk");
+            }
+
+            @Override
+            public int read(byte[] b, int off, int len) throws IOException {
+                parked.countDown();
+                try {
+                    if (resume.await(15, TimeUnit.SECONDS) == false) {
+                        throw new IOException("read was not unblocked by close");
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IOException("interrupted", e);
+                }
+                return -1;
+            }
+
+            @Override
+            public void close() {
+                resume.countDown();
+            }
+        };
+        String path = "mem://eof-like-abort";
+        StorageObject file = new TestFileStorageObject(path, Instant.parse("2020-01-01T00:00:00Z"));
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            CloseableIterator<Page> outer = StreamingParallelParsingCoordinator.parallelRead(
+                new LineFormatReader(512),
+                stream,
+                file,
+                List.of("line"),
+                50,
+                2,
+                executor,
+                ErrorPolicy.STRICT,
+                null,
+                0L,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                sink,
+                -1L,
+                StripeColumnScope.PROJECTED,
+                StreamingParallelParsingCoordinator.WarningSinks.NONE
+            );
+            CloseableIterator<Page> iter = StatsCapturingIterator.wrap(outer, sink);
+            safeAwait(parked);
+            iter.close();
+        } finally {
+            resume.countDown();
+            executor.shutdownNow();
+        }
+        List<Map<String, Object>> contributions = sink.getOrDefault(path, List.of());
+        boolean poisoned = contributions.stream().anyMatch(m -> Boolean.TRUE.equals(m.get(ExternalStats.CHUNK_HAD_ERRORS_KEY)));
+        assertTrue("abort-as-EOF during close must poison stats, not cache an empty cover as complete", poisoned);
     }
 
     /**
@@ -4270,6 +4582,14 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         return baos.toByteArray();
     }
 
+    private static byte[] zstdBytes(byte[] input) throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try (ZstdOutputStream zstd = new ZstdOutputStream(baos)) {
+            zstd.write(input);
+        }
+        return baos.toByteArray();
+    }
+
     /**
      * A {@code external_max_record_size} cap-hit must honor the read {@link ErrorPolicy}: a strict policy keeps
      * hard-failing (as before), while a non-strict policy degrades gracefully — it truncates the read
@@ -5907,6 +6227,63 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         @Override
         public StoragePath path() {
             return path;
+        }
+    }
+
+    /**
+     * Wraps the production zstd decoder so a cross-thread {@code close()} during {@code read()}
+     * is visible without calling native close while the segmentator is still in decompress
+     * (that would be the use-after-free this fixture exists to catch).
+     */
+    private static final class ThreadSensitiveZstdCodec implements DecompressionCodec {
+        private final ZstdDecompressionCodec inner = new ZstdDecompressionCodec();
+        final AtomicReference<Thread> decoderCloseThread = new AtomicReference<>();
+        final AtomicBoolean closedWhileRead = new AtomicBoolean();
+
+        @Override
+        public String name() {
+            return inner.name();
+        }
+
+        @Override
+        public List<String> extensions() {
+            return inner.extensions();
+        }
+
+        @Override
+        public InputStream decompress(InputStream raw) throws IOException {
+            return wrap(inner.decompress(raw));
+        }
+
+        @Override
+        public InputStream decompress(InputStream raw, CircuitBreaker breaker) throws IOException {
+            return wrap(inner.decompress(raw, breaker));
+        }
+
+        private InputStream wrap(InputStream decompressed) {
+            return new FilterInputStream(decompressed) {
+                volatile boolean inRead;
+
+                @Override
+                public int read(byte[] b, int off, int len) throws IOException {
+                    inRead = true;
+                    try {
+                        return super.read(b, off, len);
+                    } finally {
+                        inRead = false;
+                    }
+                }
+
+                @Override
+                public void close() throws IOException {
+                    decoderCloseThread.set(Thread.currentThread());
+                    if (inRead) {
+                        closedWhileRead.set(true);
+                        return;
+                    }
+                    super.close();
+                }
+            };
         }
     }
 }

@@ -1042,12 +1042,16 @@ public final class StreamingParallelParsingCoordinator {
 
         /**
          * Releases {@link #decompressedStream} exactly once regardless of which path reaches it first
-         * ({@link #runSegmentator}'s finally, {@link #onSegmentatorLaunchRejected}, or {@link #close()}).
-         * Uses abort semantics via {@link StorageObject#abortStream} when a {@link #storageObject} is
-         * available, so providers such as S3 can discard the underlying HTTP connection without draining
-         * the remaining response body. A no-op when the opener never ran ({@code decompressedStream} is
-         * still null) — does not CAS {@link #streamClosed} in that case so a racing segmentator can still
-         * close the stream it is about to assign.
+         * ({@link #runSegmentator}'s finally, {@link #onSegmentatorLaunchRejected}, or {@link #close()}
+         * after tasks have exited). Uses abort semantics via {@link StorageObject#abortStream} when a
+         * {@link #storageObject} is available, so providers such as S3 can discard the underlying HTTP
+         * connection without draining the remaining response body. A no-op when the opener never ran
+         * ({@code decompressedStream} is still null) — does not CAS {@link #streamClosed} in that case
+         * so a racing segmentator can still close the stream it is about to assign.
+         * <p>
+         * Must run on the thread that owns the decoder (the segmentator) once a {@code DecompressedStream}
+         * exists. Parse {@link #close()} aborts only the raw GET via {@link #abortTransport()} and leaves
+         * this CAS unset so this method still closes gzip/zstd on the owner thread.
          */
         private void closeStream() {
             InputStream stream = decompressedStream;
@@ -1061,9 +1065,32 @@ public final class StreamingParallelParsingCoordinator {
                     } else {
                         stream.close();
                     }
-                } catch (IOException e) {
+                } catch (Exception e) {
                     logger.warn("Failed to release stream for [{}]", storageObject != null ? storageObject.path() : "<stream>", e);
                 }
+            }
+        }
+
+        /**
+         * Wakes a segmentator blocked in {@code stream.read()} without closing a gzip/zstd decoder
+         * from this thread and without claiming {@link #streamClosed}. For {@link DecompressingStorageObject}
+         * that is {@code rawOwner.abortStream(raw)}; otherwise {@link StorageObject#abortStream}.
+         */
+        private void abortTransport() {
+            InputStream stream = decompressedStream;
+            if (stream == null) {
+                return;
+            }
+            try {
+                if (storageObject instanceof DecompressingStorageObject decompressing) {
+                    decompressing.abortTransport(stream);
+                } else if (storageObject != null) {
+                    storageObject.abortStream(stream);
+                } else {
+                    stream.close();
+                }
+            } catch (Exception e) {
+                logger.warn("Failed to abort transport for [{}]", storageObject != null ? storageObject.path() : "<stream>", e);
             }
         }
 
@@ -1185,7 +1212,9 @@ public final class StreamingParallelParsingCoordinator {
                     int bytesRead = readFromStream(stream, buf, offset, buf.length - offset);
                     if (bytesRead <= 0 && offset == 0) {
                         pooled.release();
-                        reachedEof = true;
+                        if (closed.get() == false) {
+                            reachedEof = true;
+                        }
                         break;
                     }
 
@@ -1519,7 +1548,7 @@ public final class StreamingParallelParsingCoordinator {
                     recordFirstError(e);
                     return DispatchOutcome.QUEUED_FAILED;
                 }
-                if (last) {
+                if (last && closed.get() == false) {
                     reachedEof = true;
                 }
                 return DispatchOutcome.SUBMITTED;
@@ -2471,9 +2500,10 @@ public final class StreamingParallelParsingCoordinator {
          * <p>
          * Phase 1: CAS {@code closed} to {@code true} (causes any in-flight parser task to bail on
          * its {@code firstError || closed} check and the segmentator to skip its next iteration), wake
-         * any segmentator parked on {@link #dispatchPermits}, abort the upstream stream so a
-         * segmentator blocked in {@code stream.read()} (slow S3, retry) can exit, and drain whatever
-         * is already queued.
+         * any segmentator parked on {@link #dispatchPermits}, abort the raw GET so a segmentator
+         * blocked in {@code stream.read()} (slow S3, retry, zstd decode) can exit, and drain whatever
+         * is already queued. Abort is transport-only: a {@code DecompressedStream} decoder is closed
+         * later on the segmentator thread, not here.
          * <p>
          * Phase 2: poll {@link #tasksOutstanding} for up to {@link #CLOSE_TIMEOUT_SECONDS} so all
          * one-shot parser tasks (and the segmentator) have a chance to exit cleanly, then drain again
@@ -2505,12 +2535,13 @@ public final class StreamingParallelParsingCoordinator {
             // Wake the segmentator if parked on dispatchPermits.acquire(); after a successful acquire it
             // re-checks {@code closed} and exits {@link #dispatchChunk} without enqueueing.
             dispatchPermits.release();
-            // Abort before waiting. A segmentator blocked in stream.read() (slow S3, RetryableStorageObject
-            // retrying a GET) never observes {@code closed} until the read returns; waiting first held
-            // the closer for 60s and leaked pages published after the timeout. Skip-CAS-when-null lets a
-            // racing opener still close a stream it assigns after this read. Matches ParallelParsingCoordinator
+            // Abort the raw GET before waiting. A segmentator blocked in stream.read() (slow S3,
+            // RetryableStorageObject retrying a GET, zstd decode) never observes {@code closed} until
+            // the read returns; waiting first held the closer for 60s and leaked pages published after
+            // the timeout. Do not CAS streamClosed and do not close a DecompressedStream decoder here:
+            // the segmentator finally closeStream() owns that. Matches ParallelParsingCoordinator
             // aborting leftover GETs before allDone.await.
-            closeStream();
+            abortTransport();
             drainAllQueues();
             boolean neverStarted = admissionHandle.cancel();
             if (neverStarted) {
@@ -2545,10 +2576,11 @@ public final class StreamingParallelParsingCoordinator {
             if (stripeStaging != null) {
                 stripeStaging.flush();
             }
-            // Backstop for never-started (no-op while the stream is still null) and for any path that
-            // did not closeStream itself. Skip-CAS-when-null lets a racing segmentator still close
-            // a stream it assigns after this read.
-            closeStream();
+            // Backstop only after the segmentator has exited. Closing a DecompressedStream decoder
+            // while tasksOutstanding > 0 is a use-after-free; leaking the decoder is better.
+            if (tasksOutstanding.get() == 0) {
+                closeStream();
+            }
             // Now safe to evaluate: chunksDispatched is final (the drain loop waited for every spawned
             // parser, including any dispatched in the close race window) and the consumer's currentChunk
             // is fixed. Clean = no error, the segmentator reached EOF, and the consumer drained every

@@ -221,8 +221,8 @@ public class PaginatedHitSourceDropHitsTests extends ESTestCase {
     }
 
     /**
-     * A remote PIT response carries no explicit search-after values, they are the sort values of its last hit. A caller that reads
-     * them after the page was dropped still sees those values, because dropping the hits keeps the last hit's sort values rather than losing them with the hits.
+     * A remote PIT response carries no explicit search-after values, so they are the sort values of its last hit. After dropHits(),
+     * a later reader of the response must still see those values from getSearchAfterValues().
      */
     public void testSearchAfterValuesTakenFromTheLastHitSurviveDroppingHits() {
         int hitCount = between(1, 10);

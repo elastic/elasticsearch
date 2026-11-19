@@ -52,6 +52,12 @@ public final class SearchHitRamUsageEstimator {
 
     static final long RAM_BYTES_FLOOR = 512L;
 
+    /**
+     * The part of {@link #estimate} that every hit costs whatever it holds: the hit itself and the small objects it always has,
+     * like its id. {@code FetchPhase} charges the rest, so a caller that keeps the hits a fetch built charges this for each of them.
+     */
+    public static final long BASE_BYTES = SEARCH_HIT_SHALLOW_SIZE + RAM_BYTES_FLOOR;
+
     private SearchHitRamUsageEstimator() {}
 
     /**
@@ -73,7 +79,7 @@ public final class SearchHitRamUsageEstimator {
     }
 
     public static long estimate(SearchHit hit) {
-        long size = SEARCH_HIT_SHALLOW_SIZE + RAM_BYTES_FLOOR + hit.rawSourceLength();
+        long size = BASE_BYTES + hit.rawSourceLength();
         size += estimateSubPhaseOutput(hit);
         Map<String, SearchHits> innerHits = hit.getInnerHits();
         if (innerHits != null) {

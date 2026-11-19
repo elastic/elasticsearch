@@ -710,6 +710,7 @@ public final class CsvSpecReader {
          * Test variants that find the indices in the query text don't see that index.
          */
         public boolean promqlIndexIsParam() {
+            // Also true for that text inside a string literal: a rare case, where it only skips a test that could run.
             return params.isEmpty() == false && PROMQL_INDEX_PARAM.matcher(query).find();
         }
 

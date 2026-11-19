@@ -1878,10 +1878,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 0,
                 0,
                 List.of(),
-                SearchResponse.Clusters.EMPTY,
-                null,
-                null,
-                null
+                SearchResponse.Clusters.EMPTY
             );
         } finally {
             hitsOnly.decRef();

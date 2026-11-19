@@ -238,6 +238,26 @@ public class EscfColumnBuilderTests extends ESTestCase {
         }
     }
 
+    public void testBooleanWithTrailingFalsesPromotesToUnion() {
+        for (CollisionPolicy policy : CollisionPolicy.values()) {
+            EscfColumnBuilder b = new EscfColumnBuilder(policy);
+            b.addBoolean(true); // doc 0: the only row that grows the value bitset
+            for (int i = 1; i <= 100; i++) {
+                b.addBoolean(false); // docs 1..100: carry the column past the bitset's first word
+            }
+            b.addString(utf8("text")); // doc 101: promotes the column to a union
+            EscfColumnData data = b.finish(102);
+            assertEquals("policy " + policy, EscfColumnKind.UNION, data.kind());
+            EscfColumn col = EscfColumn.from(data);
+            assertEquals(SourceValueType.TRUE, col.getTypeByte(0));
+            assertTrue(col.getBooleanValue(0));
+            assertEquals(SourceValueType.FALSE, col.getTypeByte(100));
+            assertFalse(col.getBooleanValue(100));
+            assertEquals(SourceValueType.STRING, col.getTypeByte(101));
+            assertEquals("text", col.getStringValue(101).string());
+        }
+    }
+
     // ── MERGE policy: positional surface, scalar↔array promotion ──
 
     public void testMergeStringsDenseAllPresent() {

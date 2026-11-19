@@ -50,9 +50,10 @@ public final class ParsedContentReservation implements Releasable {
 
     /**
      * What a request that must not be rejected for its memory can charge before it is checked like any other. Far more than such
-     * requests need, such as logging in, while a request that parses into more is still bounded.
+     * requests need, such as logging in, while a request that parses into more is still bounded. Content larger than this is checked
+     * by the in-flight requests breaker, which also bounds values the parsers charge at a fixed size, such as binary values.
      */
-    static final long NON_TRIPPING_ALLOWANCE_BYTES = ByteSizeUnit.MB.toBytes(10);
+    public static final long NON_TRIPPING_ALLOWANCE_BYTES = ByteSizeUnit.MB.toBytes(10);
 
     /** Marks a released reservation. Charges only add to the count, so it never reaches this. */
     private static final long RELEASED = Long.MIN_VALUE;

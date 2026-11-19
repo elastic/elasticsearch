@@ -1043,28 +1043,32 @@ public final class StreamingParallelParsingCoordinator {
         /**
          * Releases {@link #decompressedStream} exactly once regardless of which path reaches it first
          * ({@link #runSegmentator}'s finally, {@link #onSegmentatorLaunchRejected}, or {@link #close()}
-         * after tasks have exited). Uses abort semantics via {@link StorageObject#abortStream} when a
-         * {@link #storageObject} is available, so providers such as S3 can discard the underlying HTTP
-         * connection without draining the remaining response body. A no-op when the opener never ran
+         * after tasks have exited). Always {@link StorageObject#close()} so a hung {@code newStream}
+         * GET is cancelled even when {@code decompressedStream} is still null. Then closes the
+         * assigned stream; the leaf decides drain vs drop. A no-op when the opener never ran
          * ({@code decompressedStream} is still null) — does not CAS {@link #streamClosed} in that case
          * so a racing segmentator can still close the stream it is about to assign.
          * <p>
          * Must run on the thread that owns the decoder (the segmentator) once a {@code DecompressedStream}
-         * exists. Parse {@link #close()} aborts only the raw GET via {@link #abortTransport()} and leaves
-         * this CAS unset so this method still closes gzip/zstd on the owner thread.
+         * exists. Parse {@link #close()} cancels hung opens via {@link StorageObject#close()} and aborts
+         * only the raw GET via {@link #abortTransport()}, leaving this CAS unset so this method still
+         * closes gzip/zstd on the owner thread.
          */
         private void closeStream() {
+            if (storageObject != null) {
+                try {
+                    storageObject.close();
+                } catch (IOException e) {
+                    logger.warn("Failed to close storage object for [{}]", storageObject.path(), e);
+                }
+            }
             InputStream stream = decompressedStream;
             if (stream == null) {
                 return;
             }
             if (streamClosed.compareAndSet(false, true)) {
                 try {
-                    if (storageObject != null) {
-                        storageObject.abortStream(stream);
-                    } else {
-                        stream.close();
-                    }
+                    stream.close();
                 } catch (Exception e) {
                     logger.warn("Failed to release stream for [{}]", storageObject != null ? storageObject.path() : "<stream>", e);
                 }
@@ -2536,12 +2540,17 @@ public final class StreamingParallelParsingCoordinator {
             // Wake the segmentator if parked on dispatchPermits.acquire(); after a successful acquire it
             // re-checks {@code closed} and exits {@link #dispatchChunk} without enqueueing.
             dispatchPermits.release();
-            // Abort the raw GET before waiting. A segmentator blocked in stream.read() (slow S3,
-            // RetryableStorageObject retrying a GET, zstd decode) never observes {@code closed} until
-            // the read returns; waiting first held the closer for 60s and leaked pages published after
-            // the timeout. Do not CAS streamClosed and do not close a DecompressedStream decoder here:
-            // the segmentator finally closeStream() owns that. Matches ParallelParsingCoordinator
-            // aborting leftover GETs before allDone.await.
+            // Cancel a hung {@code newStream} and abort an assigned body GET before waiting.
+            // A segmentator blocked in stream.read() never observes {@code closed} until the read
+            // returns. Do not CAS streamClosed and do not close a DecompressedStream decoder here:
+            // the segmentator finally closeStream() owns that.
+            if (storageObject != null) {
+                try {
+                    storageObject.close();
+                } catch (IOException e) {
+                    logger.warn("Failed to close storage object for [{}]", storageObject.path(), e);
+                }
+            }
             abortTransport();
             drainAllQueues();
             boolean neverStarted = admissionHandle.cancel();
@@ -2579,7 +2588,7 @@ public final class StreamingParallelParsingCoordinator {
             }
             // Backstop only after the segmentator has exited. Closing a DecompressedStream decoder
             // while tasksOutstanding > 0 is a use-after-free; leaking the decoder is better.
-            if (tasksOutstanding.get() == 0) {
+            if (neverStarted || tasksOutstanding.get() == 0) {
                 closeStream();
             }
             // Now safe to evaluate: chunksDispatched is final (the drain loop waited for every spawned

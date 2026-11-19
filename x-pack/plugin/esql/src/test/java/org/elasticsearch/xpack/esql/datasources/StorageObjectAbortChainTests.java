@@ -118,8 +118,8 @@ public class StorageObjectAbortChainTests extends ESTestCase {
             assertArrayEquals(original, stream.readAllBytes());
         }
 
-        assertEquals("abortStream must be invoked exactly once", 1, tracking.abortCalls.get());
-        assertTrue("a fully decoded body must reach end-of-body before the abort", tracking.endOfBodyReadBeforeAbort.get());
+        assertEquals("a fully decoded body must not drop the connection", 0, tracking.abortCalls.get());
+        assertTrue("a fully decoded body must reach end-of-body before close", tracking.endOfBodyReadBeforeAbort.get());
         assertEquals(compressed.length, tracking.bytesConsumed.get());
     }
 
@@ -391,6 +391,11 @@ public class StorageObjectAbortChainTests extends ESTestCase {
                     }
                     return n;
                 }
+
+                @Override
+                public void close() {
+                    abortCalls.incrementAndGet();
+                }
             };
         }
 
@@ -402,12 +407,6 @@ public class StorageObjectAbortChainTests extends ESTestCase {
             }
             opens.incrementAndGet();
             return InputStream.nullInputStream();
-        }
-
-        @Override
-        public void abortStream(InputStream stream) throws IOException {
-            abortCalls.incrementAndGet();
-            stream.close();
         }
 
         @Override
@@ -489,19 +488,18 @@ public class StorageObjectAbortChainTests extends ESTestCase {
                 public int available() {
                     return 0;
                 }
+
+                @Override
+                public void close() {
+                    endOfBodyBeforeAbort.set(endOfBodyReturned.get());
+                    abortCalls.incrementAndGet();
+                }
             };
         }
 
         @Override
         public InputStream newStream(long position, long length) {
             throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public void abortStream(InputStream stream) throws IOException {
-            endOfBodyBeforeAbort.set(endOfBodyReturned.get());
-            abortCalls.incrementAndGet();
-            stream.close();
         }
 
         @Override

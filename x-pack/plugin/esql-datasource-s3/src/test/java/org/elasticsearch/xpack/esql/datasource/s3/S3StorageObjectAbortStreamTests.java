@@ -65,12 +65,13 @@ public class S3StorageObjectAbortStreamTests extends ESTestCase {
             abortCalled,
             closeCalled
         );
+        TransientTypingInputStream typed = new TransientTypingInputStream(stream, PATH, 100_000);
 
         S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
-        obj.abortStream(stream);
+        obj.abortStream(typed);
 
-        assertTrue("abort() must be called on Abortable streams", abortCalled.get());
-        assertFalse("close() must not be called when abort() is available — close would drain", closeCalled.get());
+        assertTrue("close of a large leftover must abort the Abortable inner", abortCalled.get());
+        assertFalse("close() must not drain a large leftover", closeCalled.get());
     }
 
     /**
@@ -106,13 +107,14 @@ public class S3StorageObjectAbortStreamTests extends ESTestCase {
             abortCalled,
             closeCalled
         );
-        MeteredInputStream metered = new MeteredInputStream(inner, new StorageObjectMetricsCounters(), inner::abort);
+        TransientTypingInputStream typed = new TransientTypingInputStream(inner, PATH, 100_000);
+        MeteredInputStream metered = new MeteredInputStream(typed, new StorageObjectMetricsCounters());
 
         S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
         obj.abortStream(metered);
 
-        assertTrue("Metered abort must reach the inner Abortable", abortCalled.get());
-        assertFalse("close() must not drain after Metered abort", closeCalled.get());
+        assertTrue("Metered close of a large leftover must reach the inner Abortable", abortCalled.get());
+        assertFalse("close() must not drain a large leftover", closeCalled.get());
     }
 
     public void testAbortStreamOnNewStreamUsesTypedAbort() throws IOException {
@@ -140,7 +142,7 @@ public class S3StorageObjectAbortStreamTests extends ESTestCase {
             abortCalled,
             closeCalled
         );
-        TransientTypingInputStream wrapped = new TransientTypingInputStream(inner, PATH, 1000);
+        TransientTypingInputStream wrapped = new TransientTypingInputStream(inner, PATH, 100_000);
 
         S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
         obj.abortStream(wrapped);
@@ -163,7 +165,7 @@ public class S3StorageObjectAbortStreamTests extends ESTestCase {
             payload.length,
             leftoverBytes -> counters.publishDrainedBytes(leftoverBytes)
         );
-        MeteredInputStream metered = new MeteredInputStream(typed, counters, typed::abort);
+        MeteredInputStream metered = new MeteredInputStream(typed, counters);
         assertEquals(read, metered.read(new byte[read]));
         metered.close();
         assertEquals(payload.length, counters.snapshot().bytesRead());
@@ -187,7 +189,7 @@ public class S3StorageObjectAbortStreamTests extends ESTestCase {
             payload.length,
             leftoverBytes -> counters.publishDrainedBytes(leftoverBytes)
         );
-        MeteredInputStream metered = new MeteredInputStream(typed, counters, typed::abort);
+        MeteredInputStream metered = new MeteredInputStream(typed, counters);
         assertEquals(read, metered.read(new byte[read]));
         metered.close();
         assertEquals(read, counters.snapshot().bytesRead());

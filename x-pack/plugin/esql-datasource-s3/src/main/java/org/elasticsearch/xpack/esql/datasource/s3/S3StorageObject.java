@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.esql.datasource.s3;
 
 import io.netty.channel.ChannelException;
 import software.amazon.awssdk.core.ResponseInputStream;
+import software.amazon.awssdk.core.async.AsyncResponseTransformer;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.core.exception.SdkException;
-import software.amazon.awssdk.http.Abortable;
 import software.amazon.awssdk.retries.api.AcquireInitialTokenRequest;
 import software.amazon.awssdk.retries.api.RecordSuccessRequest;
 import software.amazon.awssdk.retries.api.RefreshRetryTokenRequest;
@@ -47,7 +47,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredEx
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalPlanningIo;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
-import org.elasticsearch.xpack.esql.datasources.spi.MeteredInputStream;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.utils.ContentRangeParser;
@@ -101,6 +100,10 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
     private volatile String probedEtag;
     /** Some S3-compatible stores do not implement If-Match on GET; validate each response ETag instead. */
     private volatile boolean ifMatchUnsupported;
+    /** Set by {@link #close()}; in-flight {@link #newStream} must not start or continue a GET. */
+    private final AtomicBoolean closed = new AtomicBoolean();
+    /** Cancellable async GET started by {@link #getObject} before the response stream exists. */
+    private final AtomicReference<CompletableFuture<?>> inFlightOpen = new AtomicReference<>();
 
     // Retries: the sync S3Client path relies on the SDK RetryStrategy (pinned to Standard in
     // S3StorageProvider#configureCommon). The async client is pinned to doNotRetry and readBytesAsync drives
@@ -253,7 +256,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                 expectedLength,
                 leftover -> counters.publishDrainedBytes(leftover)
             );
-            return metered(typed, typed::abort);
+            return metered(typed);
         } catch (Exception e) {
             throw throwReadFailure("Failed to read object from", e);
         } finally {
@@ -542,14 +545,52 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         boolean sentIfMatch = applyIfMatch(builder);
         GetObjectRequest request = builder.build();
         try {
-            return validateGeneration(s3Client.getObject(request));
+            return validateGeneration(awaitGetObject(request));
         } catch (S3Exception e) {
             if (sentIfMatch && isIfMatchUnsupported(e)) {
                 ifMatchUnsupported = true;
                 logger.debug("S3 If-Match not implemented for [{}]; validating response ETags instead", path);
-                return validateGeneration(s3Client.getObject(unpinned(request)));
+                return validateGeneration(awaitGetObject(unpinned(request)));
             }
             throw e;
+        }
+    }
+
+    /**
+     * Issues GET. With an async client the future is stored so {@link #close()} can cancel before
+     * headers arrive (Netty completes the future; this thread only parks). Sync-only tests keep
+     * {@code s3Client.getObject}.
+     */
+    private ResponseInputStream<GetObjectResponse> awaitGetObject(GetObjectRequest request) {
+        if (closed.get()) {
+            throw new CancellationException("read cancelled");
+        }
+        if (s3AsyncClient == null) {
+            return s3Client.getObject(request);
+        }
+        CompletableFuture<ResponseInputStream<GetObjectResponse>> future = s3AsyncClient.getObject(
+            request,
+            AsyncResponseTransformer.toBlockingInputStream()
+        );
+        inFlightOpen.set(future);
+        if (closed.get()) {
+            FutureUtils.cancel(future);
+            inFlightOpen.compareAndSet(future, null);
+            throw new CancellationException("read cancelled");
+        }
+        try {
+            return future.join();
+        } catch (CompletionException e) {
+            Throwable cause = e.getCause() != null ? e.getCause() : e;
+            if (cause instanceof CancellationException cancelled) {
+                throw cancelled;
+            }
+            if (cause instanceof RuntimeException runtime) {
+                throw runtime;
+            }
+            throw e;
+        } finally {
+            inFlightOpen.compareAndSet(future, null);
         }
     }
 
@@ -667,7 +708,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                 expectedLength,
                 leftover -> counters.publishDrainedBytes(leftover)
             );
-            return metered(typed, typed::abort);
+            return metered(typed);
         } catch (Exception e) {
             if (toEnd && e instanceof S3Exception s3e && s3e.statusCode() == 416) {
                 // Open-ended read at/after the end of an (empty or shorter) object: nothing to read. The SPI
@@ -711,20 +752,11 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
     }
 
     @Override
-    public void abortStream(InputStream stream) throws IOException {
-        if (stream instanceof MeteredInputStream metered) {
-            metered.abort();
-        } else if (stream instanceof Abortable abortable) {
-            abortable.abort();
-        } else {
-            logger.trace(
-                () -> Strings.format(
-                    "abortStream received non-Abortable stream [%s] for [%s]; falling back to close() which may drain the body",
-                    stream.getClass().getName(),
-                    path
-                )
-            );
-            stream.close();
+    public void close() {
+        closed.set(true);
+        CompletableFuture<?> future = inFlightOpen.getAndSet(null);
+        if (future != null) {
+            FutureUtils.cancel(future);
         }
     }
 

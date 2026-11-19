@@ -12,7 +12,6 @@ import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 /// Metrics describing the requests sent by search nodes to indexing nodes to read a chunk of a virtual batched compound commit
 /// (see [TransportGetVirtualBatchedCompoundCommitChunkAction]). Two views are provided, both tagged with the [#OUTCOME_ATTRIBUTE]:
@@ -35,7 +34,7 @@ public record GetVirtualBatchedCompoundCommitChunkMetrics(
         "es.stateless.search.vbcc_chunk.requests_including_retries.duration.histogram";
 
     /// Whether the request completed with a response or with a failure.
-    public static final String OUTCOME_ATTRIBUTE = "es_outcome";
+    public static final String OUTCOME_ATTRIBUTE = "es_vbcc_chunk_outcome";
     public static final String OUTCOME_SUCCESS = "success";
     public static final String OUTCOME_FAILURE = "failure";
 
@@ -76,10 +75,9 @@ public record GetVirtualBatchedCompoundCommitChunkMetrics(
     /// @param includeRetries `false` to record a single attempt, i.e. one request sent to the indexing node; `true` to record a whole
     /// action execution, including the retries
     /// @param success whether the request completed with a response
-    /// @param durationInNanos the duration of the request, converted to milliseconds before being recorded
-    public void record(boolean includeRetries, boolean success, long durationInNanos) {
+    /// @param durationInMillis the duration of the request in milliseconds
+    public void record(boolean includeRetries, boolean success, long durationInMillis) {
         final var attributes = Map.<String, Object>of(OUTCOME_ATTRIBUTE, success ? OUTCOME_SUCCESS : OUTCOME_FAILURE);
-        final long durationInMillis = TimeUnit.NANOSECONDS.toMillis(durationInNanos);
         if (includeRetries) {
             requestWithRetriesCounter.incrementBy(1L, attributes);
             requestWithRetriesDurationHistogram.record(durationInMillis, attributes);

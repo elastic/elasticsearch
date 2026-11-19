@@ -291,17 +291,17 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
         final boolean includeRetries
     ) {
         final ThreadPool threadPool = transportService.getThreadPool();
-        final long startTimeInNanos = threadPool.relativeTimeInNanos();
+        final long startTimeInMillis = threadPool.rawRelativeTimeInMillis();
         return new ActionListener<>() {
             @Override
             public void onResponse(GetVirtualBatchedCompoundCommitChunkResponse response) {
-                metrics.record(includeRetries, true, threadPool.relativeTimeInNanos() - startTimeInNanos);
+                metrics.record(includeRetries, true, threadPool.rawRelativeTimeInMillis() - startTimeInMillis);
                 listener.onResponse(response);
             }
 
             @Override
             public void onFailure(Exception e) {
-                metrics.record(includeRetries, false, threadPool.relativeTimeInNanos() - startTimeInNanos);
+                metrics.record(includeRetries, false, threadPool.rawRelativeTimeInMillis() - startTimeInMillis);
                 listener.onFailure(e);
             }
         };

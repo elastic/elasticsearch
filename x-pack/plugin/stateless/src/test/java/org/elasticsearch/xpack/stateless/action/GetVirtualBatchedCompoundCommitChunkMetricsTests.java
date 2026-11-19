@@ -12,7 +12,6 @@ import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.stateless.action.GetVirtualBatchedCompoundCommitChunkMetrics.OUTCOME_ATTRIBUTE;
 import static org.elasticsearch.xpack.stateless.action.GetVirtualBatchedCompoundCommitChunkMetrics.OUTCOME_FAILURE;
@@ -43,9 +42,7 @@ public class GetVirtualBatchedCompoundCommitChunkMetricsTests extends ESTestCase
 
         final boolean success = randomBoolean();
         final long millis = randomLongBetween(0, 10_000);
-        // add a sub-millisecond remainder to verify that the conversion happens on nanoseconds
-        final long nanos = TimeUnit.MILLISECONDS.toNanos(millis) + randomLongBetween(0, 999_999);
-        metrics.record(false, success, nanos);
+        metrics.record(false, success, millis);
 
         final var expectedAttributes = Map.<String, Object>of(OUTCOME_ATTRIBUTE, success ? OUTCOME_SUCCESS : OUTCOME_FAILURE);
 
@@ -72,8 +69,7 @@ public class GetVirtualBatchedCompoundCommitChunkMetricsTests extends ESTestCase
 
         final boolean success = randomBoolean();
         final long millis = randomLongBetween(0, 10_000);
-        final long nanos = TimeUnit.MILLISECONDS.toNanos(millis) + randomLongBetween(0, 999_999);
-        metrics.record(true, success, nanos);
+        metrics.record(true, success, millis);
 
         final var expectedAttributes = Map.<String, Object>of(OUTCOME_ATTRIBUTE, success ? OUTCOME_SUCCESS : OUTCOME_FAILURE);
 

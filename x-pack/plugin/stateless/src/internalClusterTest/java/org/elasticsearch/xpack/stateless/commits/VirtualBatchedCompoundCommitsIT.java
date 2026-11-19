@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
@@ -951,15 +952,22 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
         final IndexedDocs indexedDocs = indexDocsAndRefresh(indexName);
         final var metricsPlugin = findPlugin(searchNode, TestTelemetryPlugin.class);
 
-        // Fail the first requests with a retryable exception, they must be recorded as failed attempts but not as failed executions
+        // Fail the first requests with a retryable exception, they must be recorded as failed attempts but not as failed executions.
+        // Each failure is delayed by a known amount so that the recorded durations can be checked against it.
         final int failedAttempts = between(1, 3);
+        final long failureDelayInMillis = 50L;
         final AtomicInteger counter = new AtomicInteger(0);
         final var transportService = MockTransportService.getInstance(indexNode);
         transportService.addRequestHandlingBehavior(
             TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]",
             (handler, request, channel, task) -> {
                 if (counter.getAndIncrement() < failedAttempts) {
-                    channel.sendResponse(new ConnectTransportException(transportService.getLocalNode(), "simulated"));
+                    transportService.getThreadPool()
+                        .schedule(
+                            () -> channel.sendResponse(new ConnectTransportException(transportService.getLocalNode(), "simulated")),
+                            TimeValue.timeValueMillis(failureDelayInMillis),
+                            EsExecutors.DIRECT_EXECUTOR_SERVICE
+                        );
                 } else {
                     handler.messageReceived(request, channel, task);
                 }
@@ -1000,6 +1008,28 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
             // One duration sample per counter increment, for both views
             assertThat((long) attemptDurations.size(), equalTo(sumOfMeasurements(attempts)));
             assertThat((long) executionDurations.size(), equalTo(sumOfMeasurements(executions)));
+
+            // Each failed attempt lasted at least the delay applied by the indexing node
+            final var failedAttemptDurations = attemptDurations.stream()
+                .filter(
+                    m -> GetVirtualBatchedCompoundCommitChunkMetrics.OUTCOME_FAILURE.equals(
+                        m.attributes().get(GetVirtualBatchedCompoundCommitChunkMetrics.OUTCOME_ATTRIBUTE)
+                    )
+                )
+                .toList();
+            assertThat(failedAttemptDurations.size(), equalTo(failedAttempts));
+            // durations are measured with a millisecond clock, so allow 1ms of truncation error per measurement
+            failedAttemptDurations.forEach(m -> assertThat(m.getLong(), greaterThanOrEqualTo(failureDelayInMillis - 1)));
+
+            // The execution durations include the failed attempts (and the backoff between them), not just the last attempt: the failed
+            // attempts are sequential and part of one execution, and the retry backoff is only accounted for in the execution durations
+            final long totalAttemptDuration = sumOfMeasurements(attemptDurations);
+            final long totalExecutionDuration = sumOfMeasurements(executionDurations);
+            assertThat(totalExecutionDuration, greaterThanOrEqualTo(failedAttempts * (failureDelayInMillis - 1)));
+            assertThat(
+                totalExecutionDuration + attemptDurations.size() + executionDurations.size(),
+                greaterThanOrEqualTo(totalAttemptDuration)
+            );
         });
     }
 

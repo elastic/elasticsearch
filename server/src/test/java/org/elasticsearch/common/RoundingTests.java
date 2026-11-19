@@ -1538,4 +1538,13 @@ public class RoundingTests extends ESTestCase {
         };
     }
 
+    public void testFixedIntervalInLargestUnit() {
+        assertThat(Rounding.builder(TimeValue.timeValueHours(1)).build().getInterval(), equalTo(new Rounding.Interval(1, "hour")));
+        assertThat(Rounding.builder(TimeValue.timeValueMinutes(90)).build().getInterval(), equalTo(new Rounding.Interval(90, "minute")));
+        assertThat(Rounding.builder(TimeValue.timeValueHours(24)).build().getInterval(), equalTo(new Rounding.Interval(1, "day")));
+        assertThat(
+            Rounding.builder(TimeValue.timeValueMillis(1500)).build().getInterval(),
+            equalTo(new Rounding.Interval(1500, "millisecond"))
+        );
+    }
 }

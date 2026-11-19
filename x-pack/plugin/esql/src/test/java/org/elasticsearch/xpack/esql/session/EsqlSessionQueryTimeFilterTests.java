@@ -56,6 +56,7 @@ import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
@@ -103,6 +104,8 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.queryClusterSettings;
 import static org.elasticsearch.xpack.esql.action.EsqlExecutionInfoTests.createEsqlExecutionInfo;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLogTests.mockLogFieldProvider;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
@@ -319,6 +322,27 @@ public class EsqlSessionQueryTimeFilterTests extends ESTestCase {
         assertThat(indexFilters, contains(nullValue()));
     }
 
+    public void testEqlSourceIsResolvedWithoutTheTimeRangeOfAFromOnItsPattern() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+        List<String> columns = columns(analyze("FROM (FROM logs-*" + TIME_RANGE + "), (EQL logs-* \"any where true\")", null));
+        assertThat(indexFilters, containsInAnyOrder(TIME_FILTER, null));
+        assertThat(columns, hasItem("old_only"));
+    }
+
+    public void testTimeRangeAfterEqlSourceDoesNotFilterItsResolution() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+        List<String> columns = columns(analyze("EQL logs-* \"any where true\"" + TIME_RANGE, null));
+        assertThat(indexFilters, contains(nullValue()));
+        assertThat(columns, hasItem("old_only"));
+    }
+
+    public void testEqlSourceConflictsWithATimeSeriesSourceOnItsPatternUnderARequestFilterOrATimeRange() {
+        assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
+        assumeTrue("Requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+        assertTimeSeriesConflict("FROM (TS logs-*" + TIME_RANGE + "), (EQL logs-* \"any where true\")", null);
+        assertTimeSeriesConflict("FROM (TS logs-*), (EQL logs-* \"any where true\")", REQUEST_FILTER);
+    }
+
     /**
      * A PromQL query is analyzed with its unmapped fields nullified, so a pattern without indices does not fail its analysis.
      * The indices are resolved again without the time range all the same. Both requests carry the filter on the index mode
@@ -345,8 +369,9 @@ public class EsqlSessionQueryTimeFilterTests extends ESTestCase {
      */
     public void testTimeSeriesSources() {
         QueryBuilder timeSeries = QueryBuilders.termQuery("_index_mode", "time_series");
-        // The exemplars setting is only available in snapshot builds.
-        String[] allSettings = Build.current().isSnapshot() ? new String[] { "", "SET exemplars=true; " } : new String[] { "" };
+        // The exemplars setting is only available in snapshot builds. The exemplars query replaces the metrics query and its limit,
+        // so the setting carries a limit of its own, for the query not to warn about the default one that it would get.
+        String[] allSettings = Build.current().isSnapshot() ? new String[] { "", "SET exemplars={\"limit\": 10}; " } : new String[] { "" };
         for (String settings : allSettings) {
             indexFilters.clear();
             try {
@@ -376,6 +401,14 @@ public class EsqlSessionQueryTimeFilterTests extends ESTestCase {
             names.add(attribute.name());
         }
         return names;
+    }
+
+    private void assertTimeSeriesConflict(String query, QueryBuilder requestFilter) {
+        expectThrows(
+            IllegalStateException.class,
+            containsString("index pattern 'logs-*' found with different index mode"),
+            () -> analyze(query, requestFilter)
+        );
     }
 
     private void addView(String name, String query) {

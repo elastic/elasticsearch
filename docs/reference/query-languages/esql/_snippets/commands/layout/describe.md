@@ -13,7 +13,7 @@ DESCRIBE
 
 ## Description
 
-`DESCRIBE` takes no arguments. It describes the columns the query has at that point, after views, renames and computations are resolved, and reads no data. Its output is a table like any other, so the rest of the query can filter, sort or aggregate it.
+`DESCRIBE` takes no arguments. It describes the columns the query has at that point, after views, renames and computations are resolved, without running the query. Its output is a table like any other, so the rest of the query can filter, sort or aggregate it, and the default [`LIMIT`](/reference/query-languages/esql/commands/limit.md) applies to it, so add a larger `LIMIT` after `DESCRIBE` for an input with more columns.
 
 `DESCRIBE` returns the following columns. New columns, and new values in columns such as `role` and `origin`, can be added in future versions, and the classification of a column can be refined. Use [`KEEP`](/reference/query-languages/esql/commands/keep.md) to select the columns you need rather than relying on their position.
 
@@ -46,13 +46,13 @@ DESCRIBE
 :   The unit of the column, from the `unit` in the field's `meta`. A computed column has the unit that follows from the computation when there is one, for example `bytes/s` for the rate of a field in `bytes`. When the indices or the branches of a query disagree, the column lists every unit.
 
 `interval`
-:   The interval of a date bucket, such as `1 hour` or `1 month`, when the column is computed by `BUCKET`, `TBUCKET`, `TSTEP` or `DATE_TRUNC` with constant arguments. For a target number of buckets, it's the interval that was picked.
+:   The interval of a date bucket, such as `1 hour` or `1 month`, when the column is computed by `BUCKET`, `TBUCKET` or `DATE_TRUNC` with constant arguments. For a target number of buckets, it's the interval that was picked.
 
 `time_zone`
 :   The time zone the buckets of `interval` are aligned in.
 
 `description`
-:   The `description` in the field's `meta`. When the indices or the branches of a query disagree, the column lists every description. The listed units and descriptions are collected independently, so their positions don't match.
+:   The `description` in the field's `meta`. When the indices, or the branches of a query that read the same field, disagree, the column lists every description. The listed units and descriptions are collected independently, so their positions don't match.
 
 ## Examples
 

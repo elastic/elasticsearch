@@ -275,10 +275,10 @@ public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVe
                 yield widened;
             }
         };
-        // A widened byte query is a new array per segment, so there is nothing to share for it
-        SharedQueryTransforms sharedTransforms = queryTarget instanceof QueryTarget.FloatQuery fq
-            ? fq.sharedTransforms()
-            : SharedQueryTransforms.NONE;
+        // ASH does not build an IVF structure for byte vectors today, so byte queries are searched over the raw vectors
+        // and do not get here; should it, a widened byte query has the same values in every segment, so it can share
+        // projections as a float query does
+        SharedQueryTransforms sharedTransforms = queryTarget.sharedTransforms();
 
         var ashMatrix = getAshProjectionMatrix(fieldInfo);
         int dimension = fieldInfo.getVectorDimension();

@@ -59,22 +59,21 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
     public sealed interface QueryTarget {
         int dimension();
 
+        /**
+         * Transformations of the query vector shared with the other leaves of the same query, or
+         * {@link SharedQueryTransforms#NONE} if there are none to share.
+         */
+        SharedQueryTransforms sharedTransforms();
+
         /** A byte vector query target. */
-        record ByteQuery(byte[] vector) implements QueryTarget {
+        record ByteQuery(byte[] vector, SharedQueryTransforms sharedTransforms) implements QueryTarget {
             public int dimension() {
                 return vector.length;
             }
         }
 
-        /**
-         * A float vector query target.
-         *
-         * @param sharedTransforms transformations of {@code vector} shared with the other leaves of the same query, or
-         *                         {@link SharedQueryTransforms#NONE} if there are none to share. Byte queries have none: they are widened into
-         *                         a new float vector per segment.
-         */
+        /** A float vector query target. */
         record FloatQuery(float[] vector, SharedQueryTransforms sharedTransforms) implements QueryTarget {
-
             public int dimension() {
                 return vector.length;
             }
@@ -408,7 +407,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
     @Override
     public final void search(String field, byte[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
         if (hasIvfStructure(field)) {
-            doSearch(field, new QueryTarget.ByteQuery(target), knnCollector, acceptDocs);
+            doSearch(field, new QueryTarget.ByteQuery(target, SharedQueryTransforms.NONE), knnCollector, acceptDocs);
         } else {
             // No IVF structure — byte fields on legacy codecs (which skip byte IVF indexing) fall
             // through here. Inline brute-force matches main's behavior and is required for CheckIndex
@@ -482,9 +481,10 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
             sharedTransforms = ivfSearchStrategy.getSharedQueryTransforms();
         }
         // the query target, with the transformations of its vector shared across the leaves of the query, if any
-        final QueryTarget queryTarget = target instanceof QueryTarget.FloatQuery fq
-            ? new QueryTarget.FloatQuery(fq.vector(), sharedTransforms)
-            : target;
+        final QueryTarget queryTarget = switch (target) {
+            case QueryTarget.FloatQuery fq -> new QueryTarget.FloatQuery(fq.vector(), sharedTransforms);
+            case QueryTarget.ByteQuery bq -> new QueryTarget.ByteQuery(bq.vector(), sharedTransforms);
+        };
 
         if (visitRatio == dynamicVisitRatio) {
             visitRatio = Math.min(

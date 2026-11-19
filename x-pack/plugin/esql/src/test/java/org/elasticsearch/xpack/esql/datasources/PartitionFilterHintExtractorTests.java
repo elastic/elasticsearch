@@ -861,11 +861,11 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
     public void testResolvedNanosecondBoundOnFileModifiedEmitsNothing() {
         Literal nanos = new Literal(SRC, 1_700_000_000_123_456_789L, DataType.DATE_NANOS);
         Set<String> requested = Set.of(FileMetadataColumns.MODIFIED);
-        Expression modified = fileMeta(FileMetadataColumns.MODIFIED);
+        Expression modified = new ExternalMetadataAttribute(SRC, FileMetadataColumns.MODIFIED, DataType.DATETIME);
 
         Expression nanosBound = new GreaterThanOrEqual(SRC, modified, nanos);
         assertTrue(PartitionFilterHintExtractor.fromConjuncts(List.of(nanosBound), requested, Set.of()).isEmpty());
-        Expression nanosIn = new In(SRC, modified, List.of(datetimeLiteral(1L), nanos));
+        Expression nanosIn = new In(SRC, modified, List.of(nanos, new Literal(SRC, 1_700_000_001_000_000_000L, DataType.DATE_NANOS)));
         assertTrue(PartitionFilterHintExtractor.fromConjuncts(List.of(nanosIn), requested, Set.of()).isEmpty());
 
         // A bound in milliseconds beside it is still a hint.

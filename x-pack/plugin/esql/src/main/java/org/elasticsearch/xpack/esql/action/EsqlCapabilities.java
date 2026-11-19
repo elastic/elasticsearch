@@ -4325,6 +4325,12 @@ public class EsqlCapabilities {
         PROMQL_LABEL_FUNCTIONS_V2(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
+         * PromQL value transforms, range functions other than {@code first_over_time}/{@code last_over_time}, and arithmetic
+         * drop a {@code __name__} stored as a label, as Prometheus does.
+         */
+        FIX_PROMQL_DROP_STORED_METRIC_NAME(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
          * Support for the PromQL {@code sort} and {@code sort_desc} functions, which order an instant vector by sample value.
          */
         PROMQL_SORT(PROMQL_COMMAND_V0.isEnabled()),

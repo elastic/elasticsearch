@@ -860,6 +860,38 @@ r:double           | cluster:keyword | pod:keyword | step:datetime
 1.8742138364779874 | prod            | two         | 2024-05-10T00:10:00.000Z
 ;
 
+vector_match_matrix_opaque_scalar_comparison_keeps_metric_name
+required_capability: promql_command_v0
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_timeseries_metadata_functions
+required_capability: fix_promql_drop_stored_metric_name
+PROMQL index=prometheus-k8s step=10m r=(network.eth0.tx{cluster="prod"} > 0)
+| WHERE step == "2024-05-10T00:10:00.000Z"
+| KEEP r, _timeseries
+| SORT TO_STRING(_timeseries);
+
+r:double | _timeseries:keyword
+409.0    | "{""__name__"":""network.eth0.tx"",""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
+361.0    | "{""__name__"":""network.eth0.tx"",""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+298.0    | "{""__name__"":""network.eth0.tx"",""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
+;
+
+vector_match_matrix_opaque_scalar_comparison_bool_drops_metric_name
+required_capability: promql_command_v0
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_timeseries_metadata_functions
+required_capability: fix_promql_drop_stored_metric_name
+PROMQL index=prometheus-k8s step=10m r=(network.eth0.tx{cluster="prod"} > bool 0)
+| WHERE step == "2024-05-10T00:10:00.000Z"
+| KEEP r, _timeseries
+| SORT TO_STRING(_timeseries);
+
+r:double | _timeseries:keyword
+1.0      | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
+1.0      | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+1.0      | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
+;
+
 // Opaque/opaque: both keys are materialized from _timeseries, no regrouping.
 vector_match_matrix_opaque_opaque_on-Ignore
 required_capability: promql_command_v0

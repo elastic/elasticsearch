@@ -13,6 +13,8 @@ Each [function reference entry](/reference/query-languages/promql/functions.md) 
 
 The functions in the [{{promql}} functions](/reference/query-languages/promql/functions.md) reference, such as `rate`, `increase`, `histogram_quantile`, `label_replace`, and the `<aggregation>_over_time` functions.
 
+{applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` `sort` and `sort_desc` below the top level, such as `sum(sort(x))`, and `histogram_quantile` or `histogram_fraction` over `topk`, `bottomk`, `limitk`, `limit_ratio`, or `without(...)`, such as `histogram_quantile(0.9, topk(5, a))`.
+
 **Not supported yet**
 
 :::{table}
@@ -22,8 +24,8 @@ The functions in the [{{promql}} functions](/reference/query-languages/promql/fu
 |---|---|---|---|---|
 | 42 | Functions listed under [Not supported yet](/reference/query-languages/promql/functions.md#promql-not-supported) | `absent(x)`, `resets(x[1h])`, `info(x)` | - | [#164001]({{es-issue}}164001), [#164003]({{es-issue}}164003), [#164002]({{es-issue}}164002) |
 | 43 | Parameter that isn't a number literal | `clamp_min(a, scalar(b))`, `histogram_quantile(scalar(a), b)` | Use a number | [#164225]({{es-issue}}164225) |
-| 44 | `histogram_quantile` or `histogram_fraction` over `topk`, `bottomk`, `limitk`, or `limit_ratio` {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` | `histogram_quantile(0.9, topk(5, a))` | Aggregate with `by(...)` first: `histogram_quantile(0.9, topk(5, sum by (job, le) (a)))` | [#164226]({{es-issue}}164226) |
-| 45 | `histogram_quantile` or `histogram_fraction` over `without(...)` {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` | `histogram_quantile(0.9, sum without (instance) (rate(x[5m])))` | Use `by(...)` | [#157671]({{es-issue}}157671) |
+| 44 | `histogram_quantile` or `histogram_fraction` over `topk`, `bottomk`, `limitk`, or `limit_ratio` {applies_to}`stack: ga =9.6` | `histogram_quantile(0.9, topk(5, a))` | Aggregate with `by(...)` first: `histogram_quantile(0.9, topk(5, sum by (job, le) (a)))` | [#164226]({{es-issue}}164226) |
+| 45 | `histogram_quantile` or `histogram_fraction` over `without(...)` {applies_to}`stack: ga =9.6` | `histogram_quantile(0.9, sum without (instance) (rate(x[5m])))` | Use `by(...)` | [#157671]({{es-issue}}157671) |
 | 46 | `histogram_stddev`, `histogram_stdvar` {applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga` | `histogram_stddev(h)` | - | [#164152]({{es-issue}}164152) |
 | 47 | `irate`, `delta` on native histograms {applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga` | `irate(h[5m])` | - | [#152263]({{es-issue}}152263) |
 | 48 | `label_replace` or `label_join` outside `by(...)` | `label_replace(x, "dst", "$1", "instance", "(.*):.*")` | {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` Use it inside `by(...)`: `sum by (dst) (label_replace(...))` | [#157672]({{es-issue}}157672) |
@@ -32,7 +34,7 @@ The functions in the [{{promql}} functions](/reference/query-languages/promql/fu
 | 51 | `label_replace` or `label_join` that writes a label named `step` {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` | `label_replace(x, "step", ...)` | `step` is an output column of the `PROMQL` command | - |
 | 52 | `predict_linear` with a horizon computed by a function {applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` | `predict_linear(x[1h], time())`, `predict_linear(x[1h], scalar(y))` | Use a number, a duration literal, or arithmetic on literals | [#164225]({{es-issue}}164225) |
 | 53 | `rate` on native histograms {applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga` | `rate(h[5m])` | Use `increase`: `histogram_quantile(0.99, sum by (job) (increase(h[5m])))` | [#152263]({{es-issue}}152263) |
-| 54 | `sort` or `sort_desc` below the top level | `sum(sort(x))` | Remove it. Sorting has no effect there | [#164227]({{es-issue}}164227) |
+| 54 | `sort` or `sort_desc` below the top level {applies_to}`stack: ga =9.6` | `sum(sort(x))` | Remove it. Sorting has no effect there | [#164227]({{es-issue}}164227) |
 | 55 | `sort_by_label` or `sort_by_label_desc` below the top level ({{prom}}: `promql-experimental-functions` feature flag) {applies_to}`stack: preview 9.7+` {applies_to}`serverless: preview` | `sum(sort_by_label(x, "job"))` | Remove it. Sorting has no effect there | [#164227]({{es-issue}}164227) |
 | 56 | `step()`, `range()`, `start()`, `end()` ({{prom}}: `promql-experimental-functions` feature flag) | `time() - start()` | - | [#164228]({{es-issue}}164228) |
 :::

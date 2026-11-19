@@ -493,7 +493,10 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                     LogicalPlan buckets = histogram.child();
                     // Regrouping by every label but `le` needs the labels as named columns. A reduction or a WITHOUT over
                     // raw series keeps them packed in one `_timeseries` column instead.
-                    if (hasConcreteLabels(buckets) == false && (usesReduction(buckets) || usesWithoutGrouping(buckets))) {
+                    // With the label container functions the packing of every label but `le` derives from the series' one.
+                    if (containerFunctions == false
+                        && hasConcreteLabels(buckets) == false
+                        && (usesReduction(buckets) || usesWithoutGrouping(buckets))) {
                         failures.add(
                             fail(
                                 histogram,
@@ -506,7 +509,9 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                     }
                 }
                 case PromqlFunctionCall functionCall -> {
-                    if (functionCall instanceof ResultOrderingFunction && root.get() == false) {
+                    // sort and sort_desc below the top level pass their input through; AddPromqlResultOrder orders the result
+                    // where the order they give survives. sort_by_label and sort_by_label_desc stay at the top level.
+                    if (functionCall instanceof SortByLabelFunction && root.get() == false) {
                         failures.add(
                             fail(
                                 lp,

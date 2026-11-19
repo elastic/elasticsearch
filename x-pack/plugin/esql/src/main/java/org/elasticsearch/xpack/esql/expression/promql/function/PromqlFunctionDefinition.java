@@ -373,7 +373,7 @@ public final class PromqlFunctionDefinition {
      * ({@code histogram_quantile}, {@code histogram_fraction}).
      */
     public static final String HISTOGRAM_OVER_SELECTION_NOT_SUPPORTED_YET =
-        "{applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` An argument computed by `topk`, `bottomk`, `limitk`, "
+        "{applies_to}`stack: ga =9.6` An argument computed by `topk`, `bottomk`, `limitk`, "
             + "`limit_ratio`, or `without(...)`, such as `histogram_quantile(0.9, topk(5, a))`, isn't supported yet. Aggregate with "
             + "`by(...)` first, such as `histogram_quantile(0.9, topk(5, sum by (job, le) (a)))`.";
     /**

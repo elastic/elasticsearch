@@ -156,13 +156,21 @@ final class StoredResponseSizeCheck implements FetchedHitsCheck {
 
     /**
      * Adds to the projection the lower of what {@code spread} and {@code runs} project for {@code bytes} of hits on the heap. The lower
-     * one can be too low, which is safe, since the store still checks the real size. Adds nothing if either sample is empty.
+     * one can be too low, which is safe, since the store still checks the real size. If a sample took no hits, projects the hits it
+     * didn't skip with the other one. Adds nothing if neither took hits, or if either is {@code null} because a hit was released.
      *
      * @return the heap size of the two samples
      */
-    private long project(Sample spread, Sample runs, long bytes) {
+    private long project(@Nullable Sample spread, @Nullable Sample runs, long bytes) {
+        if (spread == null || runs == null) {
+            return (spread == null ? 0L : spread.hitsBytes()) + (runs == null ? 0L : runs.hitsBytes());
+        }
         if (spread.hitsBytes() > 0L && runs.hitsBytes() > 0L) {
             projectedBytes.addAndGet((long) (bytes * Math.min(spread.storedPerHeapByte(), runs.storedPerHeapByte())));
+        } else if (spread.hitsBytes() > 0L || runs.hitsBytes() > 0L) {
+            final Sample taken = spread.hitsBytes() > 0L ? spread : runs;
+            final Sample empty = taken == spread ? runs : spread;
+            projectedBytes.addAndGet((long) (Math.max(0L, bytes - empty.skippedBytes()) * taken.storedPerHeapByte()));
         }
         return spread.hitsBytes() + runs.hitsBytes();
     }
@@ -233,24 +241,30 @@ final class StoredResponseSizeCheck implements FetchedHitsCheck {
     }
 
     /**
-     * The heap size of the hits in a sample, and their stored size once compressed and base64-encoded as the store does. A sample is
-     * empty if it took no hits, or if any of its hits was released, including hits of other calls in a shared sample.
+     * The heap size of the hits in a sample, the heap size of the hits it skipped, and the stored size of the hits in it once compressed
+     * and base64-encoded as the store does. A sample is empty if it took no hits.
      */
-    record Sample(long hitsBytes, long storedBytes) {
+    record Sample(long hitsBytes, long skippedBytes, long storedBytes) {
 
         /**
          * Compresses all of {@code hits}.
+         *
+         * @return the sample, or {@code null} if a hit was released, including hits of other calls in a shared sample
          */
+        @Nullable
         static Sample of(List<SearchHit> hits) {
             return compress(hits, 1, Long.MAX_VALUE, 0, 1, Long.MAX_VALUE);
         }
 
         /**
          * Compresses every n-th hit of a call's {@code hits}, starting half a step in, to add up to about {@link #sampleBytes} of
-         * {@code callBytes} when its hits are about the same size. Skips hits that would take it past twice that. The runs start at the
-         * first hit, so a first hit that compresses much worse than the rest is in only one of the two samples. A call with fewer hits
-         * than half a step starts at its last hit, so it is still sampled.
+         * {@code callBytes} when its hits are about the same size. Stops before it would pass twice that, and skips hits larger than
+         * that. The runs start at the first hit, so a first hit that compresses much worse than the rest is in only one of the two
+         * samples. A call with fewer hits than half a step starts at its last hit, so it is still sampled.
+         *
+         * @return the sample, or {@code null} if a hit was released
          */
+        @Nullable
         static Sample spread(List<SearchHit> hits, long callBytes) {
             final long sampleBytes = sampleBytes(callBytes);
             final int step = Math.toIntExact(Math.max(1L, callBytes / sampleBytes));
@@ -260,8 +274,12 @@ final class StoredResponseSizeCheck implements FetchedHitsCheck {
 
         /**
          * Compresses runs of about {@link #MIN_SAMPLE_BYTES} of neighboring hits, at the start of equal parts of a call's {@code hits},
-         * to add up to about {@link #sampleBytes} of {@code callBytes}. Skips hits that would take it past twice that.
+         * to add up to about {@link #sampleBytes} of {@code callBytes}. Stops before it would pass twice that, and skips hits larger
+         * than that.
+         *
+         * @return the sample, or {@code null} if a hit was released
          */
+        @Nullable
         static Sample runs(List<SearchHit> hits, long callBytes) {
             final long sampleBytes = sampleBytes(callBytes);
             final int runs = Math.toIntExact(sampleBytes / MIN_SAMPLE_BYTES);
@@ -270,53 +288,65 @@ final class StoredResponseSizeCheck implements FetchedHitsCheck {
 
         /**
          * Splits {@code hits} into {@code runs} equal parts and compresses every {@code step}-th hit of each, from {@code offset} hits
-         * after its start, until they reach {@code runBytes}. Skips hits that would take the sample past {@code maxBytes}. If every hit
-         * is skipped, takes the first of them alone if it is at most twice {@link #MAX_SAMPLE_BYTES}, and returns an empty sample
-         * otherwise. Returns an empty sample at the first released hit.
+         * after its start, until they reach {@code runBytes}. Stops at the first hit that would take the sample past {@code maxBytes},
+         * and skips hits larger than {@code maxBytes}, which are left to the store. If it skips every hit, takes the first of them alone
+         * if it is at most twice {@link #MAX_SAMPLE_BYTES}, as if the others were like it, and returns an empty sample otherwise.
+         *
+         * @return the sample, or {@code null} at the first released hit
          */
+        @Nullable
         private static Sample compress(List<SearchHit> hits, int runs, long runBytes, int offset, int step, long maxBytes) {
             assert runs > 0 && step > 0 && offset >= 0 : runs + " " + offset + " " + step;
             long heapBytes = 0L;
+            long skippedBytes = 0L;
+            boolean full = false;
             SearchHit firstSkipped = null;
             long firstSkippedBytes = 0L;
             final CountingStreamOutput compressed = new CountingStreamOutput();
             try (StreamOutput out = CompressorFactory.COMPRESSOR.threadLocalStreamOutput(compressed)) {
                 out.setTransportVersion(TransportVersion.current());
-                for (int run = 0; run < runs && heapBytes < maxBytes; run++) {
+                for (int run = 0; run < runs && full == false; run++) {
                     final int end = Math.toIntExact((long) (run + 1) * hits.size() / runs);
                     long bytesInRun = 0L;
                     for (int i = Math.toIntExact((long) run * hits.size() / runs) + offset; i < end
                         && bytesInRun < runBytes
-                        && heapBytes < maxBytes; i += step) {
+                        && full == false; i += step) {
                         final SearchHit hit = hits.get(i);
                         if (hit.tryIncRef() == false) {
-                            return new Sample(0L, 0L);
+                            return null;
                         }
                         try {
                             final long hitBytes = hit.ramBytesUsed();
-                            if (hitBytes > maxBytes - heapBytes) {
-                                // Not counted in the run, so a run whose hits are all skipped reads the size of each hit in its part.
+                            if (hitBytes > maxBytes) {
+                                // Not counted in the run, but each is larger than the sample can be, so few sizes are read.
+                                skippedBytes += hitBytes;
                                 if (firstSkipped == null) {
                                     firstSkipped = hit;
                                     firstSkippedBytes = hitBytes;
                                 }
-                                continue;
+                            } else if (hitBytes > maxBytes - heapBytes) {
+                                full = true;
+                            } else {
+                                hit.writeTo(out);
+                                bytesInRun += hitBytes;
+                                heapBytes += hitBytes;
                             }
-                            hit.writeTo(out);
-                            bytesInRun += hitBytes;
-                            heapBytes += hitBytes;
                         } finally {
                             hit.decRef();
                         }
                     }
                 }
                 if (heapBytes == 0L && firstSkipped != null) {
-                    if (firstSkippedBytes > 2 * MAX_SAMPLE_BYTES || firstSkipped.tryIncRef() == false) {
-                        return new Sample(0L, 0L);
+                    if (firstSkippedBytes > 2 * MAX_SAMPLE_BYTES) {
+                        return new Sample(0L, skippedBytes, 0L);
+                    }
+                    if (firstSkipped.tryIncRef() == false) {
+                        return null;
                     }
                     try {
                         firstSkipped.writeTo(out);
                         heapBytes = firstSkippedBytes;
+                        skippedBytes = 0L;
                     } finally {
                         firstSkipped.decRef();
                     }
@@ -324,14 +354,15 @@ final class StoredResponseSizeCheck implements FetchedHitsCheck {
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
-            return new Sample(heapBytes, (compressed.position() + 2) / 3 * 4);
+            return new Sample(heapBytes, skippedBytes, (compressed.position() + 2) / 3 * 4);
         }
 
         /**
-         * The stored size per byte of the hits on the heap. NaN or infinite if the sample has no hits.
+         * The stored size per byte on the heap of the hits the sample took and skipped. The skipped ones count as storing nothing, so
+         * they are left to the store rather than projected like the others. Only meaningful if the sample took hits.
          */
         double storedPerHeapByte() {
-            return (double) storedBytes / hitsBytes;
+            return (double) storedBytes / (hitsBytes + skippedBytes);
         }
     }
 }

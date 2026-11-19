@@ -523,11 +523,11 @@ public class StoredResponseSizeCheckTests extends ESTestCase {
     }
 
     /**
-     * Each of four runs of a call of 300 KB hits is a single hit. The first fits, and every hit after it would take the sample past
-     * twice its aim of 256 KB, so the other runs take none.
+     * A call of four parts of ten hits, of 300 KB in the first two and 8 KB in the others. The first run is a single hit of 300 KB, and
+     * the next one would take the sample past twice its aim of 256 KB, so it stops there rather than going on to the smaller hits.
      */
-    public void testRunsSkipHitsThatWouldTakeThemPastTwiceTheirAim() {
-        assertThat(sampledPositions(40, i -> 300 * 1024, StoredResponseSizeCheck.Sample::runs), equalTo(List.of(0)));
+    public void testRunsStopAtAHitThatWouldTakeThemPastTwiceTheirAim() {
+        assertThat(sampledPositions(40, i -> i < 20 ? 300 * 1024 : 8 * 1024, StoredResponseSizeCheck.Sample::runs), equalTo(List.of(0)));
     }
 
     /**
@@ -549,6 +549,47 @@ public class StoredResponseSizeCheckTests extends ESTestCase {
         List<SearchHit> hits = hits(4, 600 * 1024, true);
         long limit = 1024 * 1024;
         assertThat((double) storedBytes(hits), greaterThan(limit * StoredResponseSizeCheck.MARGIN));
+        assertThat(heapBytes(hits), greaterThan(limit));
+        new StoredResponseSizeCheck(() -> limit, () -> true).onHits(hits, heapBytes(hits));
+    }
+
+    /**
+     * A call of ten 1 MB hits of zeros and 200 incompressible hits of 8 KB stores in less than the limit. The samples skip the large
+     * hits, which count as storing nothing, so the call isn't projected as if they were as incompressible as the small ones.
+     */
+    public void testSkippedHitsThatCompressBetterAreLeftToTheStore() {
+        List<SearchHit> hits = new ArrayList<>(hits(10, 1024 * 1024, false));
+        hits.addAll(hits(200, 8 * 1024, true));
+        long limit = 4 * 1024 * 1024;
+        assertThat(storedBytes(hits), lessThan(limit));
+        assertThat(heapBytes(hits), greaterThan((long) (limit * StoredResponseSizeCheck.MARGIN)));
+        new StoredResponseSizeCheck(() -> limit, () -> true).onHits(hits, heapBytes(hits));
+    }
+
+    /**
+     * A call of three incompressible hits of 100 KB and one of 600 KB. The spread sample takes only the last hit, which is over twice
+     * the largest aim, so it is empty, and the runs project the call over the limit.
+     */
+    public void testCallWhoseSpreadSampleIsEmptyIsProjectedWithTheRuns() {
+        List<SearchHit> hits = new ArrayList<>(hits(3, 100 * 1024, true));
+        hits.addAll(hits(1, 600 * 1024, true));
+        long limit = 200 * 1024;
+        StoredResponseSizeCheck.Sample spread = StoredResponseSizeCheck.Sample.spread(hits, heapBytes(hits));
+        assertNotNull(spread);
+        assertThat(spread.hitsBytes(), equalTo(0L));
+        StoredResponseSizeCheck check = new StoredResponseSizeCheck(() -> limit, () -> true);
+        expectThrows(IllegalArgumentException.class, () -> check.onHits(hits, heapBytes(hits)));
+    }
+
+    /**
+     * A call of three incompressible hits of 100 KB and one of 600 KB of zeros stores in less than the limit. The spread sample skips
+     * only the 600 KB hit, so the runs project the rest of the call, rather than all of it as if the zeros were incompressible too.
+     */
+    public void testHitsThatAnEmptySampleSkippedAreLeftToTheStore() {
+        List<SearchHit> hits = new ArrayList<>(hits(3, 100 * 1024, true));
+        hits.addAll(hits(1, 600 * 1024, false));
+        long limit = 450 * 1024;
+        assertThat(storedBytes(hits), lessThan(limit));
         assertThat(heapBytes(hits), greaterThan(limit));
         new StoredResponseSizeCheck(() -> limit, () -> true).onHits(hits, heapBytes(hits));
     }

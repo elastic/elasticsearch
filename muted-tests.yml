@@ -674,3 +674,49 @@ tests:
   - :x-pack:plugin:esql:internalClusterTest
   method: testSyncTaskCancelHardFailsWithNoRows
   issue: https://github.com/elastic/elasticsearch/issues/166559
+- class: org.elasticsearch.xpack.esql.plugin.EsqlQueryMetricsCollectorIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testFailedQueryMidScanIsMetered
+  issue: https://github.com/elastic/elasticsearch/issues/166565
+- class: org.elasticsearch.search.heappressure.ManyBitsetClausesHeapPressureIT
+  method: testIpTermsClauses
+  issue: https://github.com/elastic/elasticsearch/issues/166396
+- class: org.elasticsearch.search.heappressure.ManyBitsetClausesHeapPressureIT
+  method: testLongTermsClauses
+  issue: https://github.com/elastic/elasticsearch/issues/166396
+- class: org.elasticsearch.search.heappressure.ManyBitsetClausesHeapPressureIT
+  method: testGeoDistanceClauses
+  issue: https://github.com/elastic/elasticsearch/issues/166396
+- class: org.elasticsearch.search.heappressure.ManyBitsetClausesHeapPressureIT
+  method: testGeoShapeOnGeoPointClauses
+  issue: https://github.com/elastic/elasticsearch/issues/166396
+- class: org.elasticsearch.search.heappressure.ManyBitsetClausesHeapPressureIT
+  method: testLongRangeFieldClauses
+  issue: https://github.com/elastic/elasticsearch/issues/166396
+- class: org.elasticsearch.search.heappressure.AggregationBitsetHeapPressureIT
+  method: testSignificantTermsBackgroundFilters
+  issue: https://github.com/elastic/elasticsearch/issues/166396
+- class: org.elasticsearch.search.heappressure.AggregationBitsetHeapPressureIT
+  method: testTermsIncludeLists
+  issue: https://github.com/elastic/elasticsearch/issues/166396
+- class: org.elasticsearch.join.heappressure.HasChildHeapPressureIT
+  method: testHasChildClausesWithoutScores
+  issue: https://github.com/elastic/elasticsearch/issues/166396
+- class: org.elasticsearch.join.heappressure.HasChildHeapPressureIT
+  method: testHasChildClausesWithAvgScores
+  issue: https://github.com/elastic/elasticsearch/issues/166396
+- class: org.elasticsearch.index.query.bitmapterms.heappressure.BitmapTermsHeapPressureIT
+  method: testBitmapTermsClauses
+  issue: https://github.com/elastic/elasticsearch/issues/166396
+- class: org.elasticsearch.xpack.spatial.heappressure.GeoShapeHeapPressureIT
+  method: testIntersectsPolygonClauses
+  issue: https://github.com/elastic/elasticsearch/issues/166396
+- class: org.elasticsearch.xpack.spatial.heappressure.GeoShapeHeapPressureIT
+  method: testContainsPointClauses
+  issue: https://github.com/elastic/elasticsearch/issues/166396
+- class: org.elasticsearch.action.bulk.ShardBatchMapperParseTests
+  tasks:
+  - :server:test
+  method: testRequiredFieldWithoutValueCausesColumnarFallback
+  issue: https://github.com/elastic/elasticsearch/issues/166579

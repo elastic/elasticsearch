@@ -19,6 +19,7 @@ import org.apache.arrow.vector.UInt8Vector;
 import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
+import org.apache.arrow.vector.complex.ListVector;
 import org.apache.arrow.vector.complex.StructVector;
 import org.apache.arrow.vector.ipc.ArrowStreamReader;
 import org.apache.arrow.vector.types.Types;
@@ -374,6 +375,137 @@ public class ArrowFormatIT extends ESRestTestCase {
             assertEquals(-2.0, sum.get(2), 0.0);
             assertEquals(2, count.get(2));
         }
+    }
+
+    public void testTDigest() throws Exception {
+        Request request = new Request("PUT", "/arrow-tdigest-test");
+        request.setJsonEntity("""
+            {
+              "mappings": {
+                "properties": {
+                  "value": { "type": "integer" },
+                  "digest": { "type": "tdigest" }
+                }
+              }
+            }
+            """);
+        assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+
+        request = new Request("POST", "/_bulk?index=arrow-tdigest-test&refresh=true");
+        request.setJsonEntity("""
+            {"index": {"_id": "1"}}
+            {"value": 1, "digest": {"centroids": [1.0, 2.5, 9.0], "counts": [2, 4, 1]}}
+            {"index": {"_id": "2"}}
+            {"value": 2}
+            {"index": {"_id": "3"}}
+            {"value": 3, "digest": {"centroids": [], "counts": []}}
+            """);
+        assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+
+        try (VectorSchemaRoot root = esql("""
+            {
+                "query": "FROM arrow-tdigest-test | SORT value | LIMIT 100 | KEEP digest"
+            }""")) {
+            assertEquals(3, root.getRowCount());
+            assertEquals(1, root.getSchema().getFields().size());
+            StructVector digest = (StructVector) root.getVector("digest");
+            Field field = digest.getField();
+            assertEquals(Types.MinorType.STRUCT.getType(), field.getType());
+            assertTrue(field.isNullable());
+            assertEquals("tdigest", field.getMetadata().get("elastic:type"));
+            assertEquals(List.of("min", "max", "sum", "centroids", "counts"), field.getChildren().stream().map(Field::getName).toList());
+            // The struct and its scalars are nullable, the lists are not
+            for (Field child : field.getChildren()) {
+                assertEquals(child.getName(), List.of("min", "max", "sum").contains(child.getName()), child.isNullable());
+            }
+
+            Float8Vector min = (Float8Vector) digest.getChild("min");
+            Float8Vector max = (Float8Vector) digest.getChild("max");
+            Float8Vector sum = (Float8Vector) digest.getChild("sum");
+            ListVector centroids = (ListVector) digest.getChild("centroids");
+            ListVector counts = (ListVector) digest.getChild("counts");
+
+            // A regular digest. min, max and sum are inferred from the centroids.
+            assertFalse(digest.isNull(0));
+            assertEquals(1.0, min.get(0), 0.0);
+            assertEquals(9.0, max.get(0), 0.0);
+            assertEquals(1.0 * 2 + 2.5 * 4 + 9.0 * 1, sum.get(0), 0.0);
+            assertEquals(List.of(1.0, 2.5, 9.0), centroids.getObject(0));
+            assertEquals(List.of(2L, 4L, 1L), counts.getObject(0));
+
+            // A missing digest is a null struct, with empty lists and null scalars
+            assertTrue(digest.isNull(1));
+            assertTrue(min.isNull(1));
+            assertTrue(max.isNull(1));
+            assertTrue(sum.isNull(1));
+            assertEquals(List.of(), centroids.getObject(1));
+            assertEquals(List.of(), counts.getObject(1));
+
+            // An empty digest is a valid struct with empty lists and null scalars
+            assertFalse(digest.isNull(2));
+            assertTrue(min.isNull(2));
+            assertTrue(max.isNull(2));
+            assertTrue(sum.isNull(2));
+            assertEquals(List.of(), centroids.getObject(2));
+            assertEquals(List.of(), counts.getObject(2));
+        }
+    }
+
+    public void testMappedDenseVectors() throws IOException {
+        Request request = new Request("PUT", "/arrow-dense-vector-test");
+        request.setJsonEntity("""
+            {
+              "mappings": {
+                "properties": {
+                  "id": { "type": "integer" },
+                  "float_vector": { "type": "dense_vector", "dims": 3, "index": false },
+                  "byte_vector": { "type": "dense_vector", "dims": 3, "element_type": "byte", "index": false }
+                }
+              }
+            }
+            """);
+        assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+
+        request = new Request("POST", "/_bulk?index=arrow-dense-vector-test&refresh=true");
+        request.setJsonEntity("""
+            {"index": {"_id": "1"}}
+            {"id": 1, "float_vector": [1.25, -2.5, 3.75], "byte_vector": [-128, 0, 127]}
+            {"index": {"_id": "2"}}
+            {"id": 2, "float_vector": [-4.5, 0.0, 6.25]}
+            {"index": {"_id": "3"}}
+            {"id": 3, "byte_vector": [1, -2, 3]}
+            """);
+        assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+
+        try (VectorSchemaRoot root = esql("""
+            {
+                "query": "FROM arrow-dense-vector-test | SORT id | LIMIT 100 | KEEP float_vector, byte_vector"
+            }""")) {
+            assertEquals(3, root.getRowCount());
+
+            ListVector floatVector = (ListVector) root.getVector("float_vector");
+            assertDenseVectorSchema(floatVector);
+            assertEquals(List.of(1.25f, -2.5f, 3.75f), floatVector.getObject(0));
+            assertEquals(List.of(-4.5f, 0.0f, 6.25f), floatVector.getObject(1));
+            assertTrue(floatVector.isNull(2));
+
+            ListVector byteVector = (ListVector) root.getVector("byte_vector");
+            assertDenseVectorSchema(byteVector);
+            assertEquals(List.of(-128.0f, 0.0f, 127.0f), byteVector.getObject(0));
+            assertTrue(byteVector.isNull(1));
+            assertEquals(List.of(1.0f, -2.0f, 3.0f), byteVector.getObject(2));
+        }
+    }
+
+    private void assertDenseVectorSchema(ListVector vector) {
+        Field field = vector.getField();
+        assertEquals(Types.MinorType.LIST.getType(), field.getType());
+        assertEquals("dense_vector", field.getMetadata().get("elastic:type"));
+        assertEquals(1, field.getChildren().size());
+        Field values = field.getChildren().get(0);
+        assertEquals("$data$", values.getName());
+        assertEquals(Types.MinorType.FLOAT4.getType(), values.getType());
+        assertFalse(values.isNullable());
     }
 
     private VectorSchemaRoot readArrow(InputStream input) throws IOException {

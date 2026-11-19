@@ -41,6 +41,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.test.NodeRoles.onlyRoles;
 import static org.hamcrest.Matchers.equalTo;
@@ -116,10 +117,21 @@ public class EsqlDatafeedNodeChurnIT extends BaseMlIntegTestCase {
         MockTransportService victimTransport = MockTransportService.getInstance(victimNode);
         CountDownLatch requestReceived = new CountDownLatch(1);
         CountDownLatch releaseRequest = new CountDownLatch(1);
+        CountDownLatch resumedQueryReachedVictim = new CountDownLatch(1);
+        CountDownLatch resumeGate = new CountDownLatch(1);
+        AtomicBoolean firstRequest = new AtomicBoolean(true);
+        // One behavior for the whole test: a second addRequestHandlingBehavior would wrap this one instead of replacing it.
         victimTransport.addRequestHandlingBehavior(ESQL_DATA_ACTION_NAME, (handler, request, channel, task) -> {
-            requestReceived.countDown();
-            // Times out as a test failure without forwarding, so the request can never complete before the disruption starts.
-            safeAwait(releaseRequest, TimeValue.timeValueSeconds(60));
+            if (firstRequest.getAndSet(false)) {
+                requestReceived.countDown();
+                // Times out as a test failure without forwarding, so the request can never complete before the disruption starts.
+                safeAwait(releaseRequest, TimeValue.timeValueSeconds(60));
+            } else {
+                // A request after the heal is a later scheduled cycle. It is held until the failure expectation is installed,
+                // so no post-heal cycle can fail or finish before the expectation is watching.
+                resumedQueryReachedVictim.countDown();
+                safeAwait(resumeGate, TimeValue.timeValueSeconds(60));
+            }
             handler.messageReceived(request, channel, task);
         });
 
@@ -194,20 +206,14 @@ public class EsqlDatafeedNodeChurnIT extends BaseMlIntegTestCase {
                 if (networkDisruption != null) {
                     networkDisruption.removeAndEnsureHealthy(internalCluster());
                 }
-                victimTransport.clearAllRules();
             }
 
             // A single churned cycle must not wedge the datafeed: a later scheduled cycle has to run its query again,
             // which is visible as a new data-node request reaching the healed node, and has to succeed.
-            // Only failures logged from here on count against the resumed cycle.
+            // That request is held at the victim, so installing the expectation before opening the gate covers every post-heal cycle.
             mockLog.addExpectation(noFurtherExtractionFailure);
-            CountDownLatch resumedQueryReachedVictim = new CountDownLatch(1);
-            victimTransport.addRequestHandlingBehavior(ESQL_DATA_ACTION_NAME, (handler, request, channel, task) -> {
-                resumedQueryReachedVictim.countDown();
-                handler.messageReceived(request, channel, task);
-            });
+            resumeGate.countDown();
             safeAwait(resumedQueryReachedVictim, TimeValue.timeValueSeconds(60));
-            victimTransport.clearAllRules();
 
             // The failed cycle did not advance time, so records can only be processed by a successful post-heal cycle.
             assertBusy(() -> assertThat(getDataCounts(jobId).getProcessedRecordCount(), greaterThan(0L)), 30, TimeUnit.SECONDS);
@@ -217,6 +223,9 @@ public class EsqlDatafeedNodeChurnIT extends BaseMlIntegTestCase {
             // Only now -- after the retry, its resolution, and the datafeed settling back to STARTED --
             // assert that no ERROR was logged for this churn event anywhere across that whole window.
             mockLog.assertAllExpectationsMatched();
+        } finally {
+            resumeGate.countDown();
+            victimTransport.clearAllRules();
         }
     }
 

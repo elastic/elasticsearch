@@ -1446,6 +1446,28 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(failure.get().getMessage(), containsString("[my_view] is a view"));
     }
 
+    public void testViewShouldNotBeLookedUpLocallyWhenProjectRoutingIsSet() {
+        AtomicBoolean passed = new AtomicBoolean(false);
+        EsqlDatafeedQueryValidator validator = new EsqlDatafeedQueryValidator(
+            VIEW_REJECTING_PARSER,
+            (client, query, filter, headers, projectRouting, params, listener) -> {
+                @SuppressWarnings("unchecked")
+                ActionListener<RefCounted> refCountedListener = (ActionListener<RefCounted>) (ActionListener<?>) listener;
+                ActionListener.respondAndRelease(refCountedListener, buildResponse(List.of(mockColumn(TIME_FIELD, "date"))));
+            }
+        );
+        // A linked project may have answered the probe, so a view of the same name in the origin project proves nothing.
+        validator.validateAccessForMint(
+            null,
+            Collections.emptyMap(),
+            ESQL_QUERY,
+            "_alias:linked",
+            ActionListener.wrap(ok -> passed.set(true), e -> fail("expected no local view lookup")),
+            "datafeed-1"
+        );
+        assertThat(passed.get(), is(true));
+    }
+
     public void testViewShouldNotBeDisclosedBeforeMintWhenTheSourceIsUnreadableOrAbsent() {
         // ES|QL answers an unreadable and an absent source alike with an unknown-index error, which defers.
         for (Exception unknownIndex : List.of(new VerificationException("Unknown index [my_view]"), new IndexNotFoundException("logs"))) {

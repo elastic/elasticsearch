@@ -133,8 +133,7 @@ public class EsqlDatafeedQueryValidator {
         ActionListener<EsqlQueryResponse> responseListener = ActionListener.wrap(response -> {
             try {
                 checkRequiredColumns(response.response().columns(), timeField, summaryCountField, datafeedId);
-                // The caller can read the source, so naming a view in the error discloses nothing they could not see.
-                EsqlDatafeedQuery.parse(parser, esqlQuery);
+                rejectViewsAfterProbe(esqlQuery, projectRouting);
             } catch (Exception e) {
                 listener.onFailure(e);
                 return;
@@ -280,6 +279,17 @@ public class EsqlDatafeedQueryValidator {
     }
 
     /**
+     * Rejects a source that names a view, once the caller's probe has succeeded, so the error tells them nothing they could not read.
+     * With a {@code project_routing} the probe may have been answered by a linked project, so a same-named view in the origin project
+     * is not known to be the source and is not looked up here; start and preview still reject it (a Tech Preview limitation).
+     */
+    private void rejectViewsAfterProbe(String esqlQuery, @Nullable String projectRouting) {
+        if (projectRouting == null) {
+            EsqlDatafeedQuery.parse(parser, esqlQuery);
+        }
+    }
+
+    /**
      * {@code LIMIT 0} access probe before CPS credential mint. Defers when routing matched no project or the index is not
      * known yet; fails on explicit project resolution errors and all other probe failures. Once the probe succeeds, a source that
      * names a view is rejected.
@@ -296,8 +306,7 @@ public class EsqlDatafeedQueryValidator {
 
         ActionListener<EsqlQueryResponse> responseListener = ActionListener.wrap(response -> {
             try {
-                // The caller can read the source, so a view is rejected here, before a credential is minted for it.
-                EsqlDatafeedQuery.parse(parser, esqlQuery);
+                rejectViewsAfterProbe(esqlQuery, projectRouting);
             } catch (Exception e) {
                 listener.onFailure(e);
                 return;

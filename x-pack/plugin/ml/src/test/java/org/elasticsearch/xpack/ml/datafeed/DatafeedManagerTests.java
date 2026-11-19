@@ -85,7 +85,6 @@ import org.junit.After;
 import org.mockito.Mockito;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
@@ -771,8 +770,11 @@ public class DatafeedManagerTests extends ESTestCase {
         verifyNoInteractions(harness.datafeedConfigProvider(), harness.jobConfigProvider(), harness.client());
     }
 
-    public void testPutEsqlDatafeedShouldNotDiscloseViewBeforeTheAccessProbe() {
-        // The full parse names a view; the parse before the probe must not. The probe defers on an unreadable or absent source alike.
+    /**
+     * Only what the PUT flow does before the access probe: it must parse without the view lookup. The probe and the full parse after
+     * it are covered by {@code EsqlDatafeedQueryValidatorTests}, because the job config provider is mocked here.
+     */
+    public void testPutEsqlDatafeedShouldParseWithoutViewCheckBeforeTheAccessProbe() {
         esqlParser = new EsqlQueryParser() {
             @Override
             public ParsedEsqlQuery parse(String query) {
@@ -784,29 +786,26 @@ public class DatafeedManagerTests extends ESTestCase {
                 return EsqlParserTestSupport.parser().parse(query);
             }
         };
-        List<String> outcomes = new ArrayList<>();
-        for (String source : List.of("my_view", "absent")) {
-            SecurityEnabledPutHarness harness = newSecurityEnabledPutHarness(securityEnabledSettings());
-            when(harness.credentialManager().hasCloudManagedCredential(any())).thenReturn(false);
-            harness.stubSuccessfulPutPrerequisites();
-            harness.stubPutDatafeedConfigSuccess();
-            DatafeedConfig datafeed = new DatafeedConfig.Builder("test-datafeed", "test-job").setEsqlQuery("FROM " + source)
-                .setSourceTimeField("@timestamp")
-                .setGroupingInterval(TimeValue.timeValueHours(1))
-                .build();
-            AtomicReference<String> outcome = new AtomicReference<>();
-            harness.manager()
-                .putDatafeed(
-                    new PutDatafeedAction.Request(datafeed),
-                    mockClusterStateWithNoTasks(),
-                    mockSecurityContextWithUser("df-user"),
-                    harness.threadPool(),
-                    ActionListener.wrap(r -> outcome.set("created"), e -> outcome.set(e.getMessage()))
-                );
-            outcomes.add(outcome.get());
-        }
-        assertThat(outcomes.get(0), equalTo(outcomes.get(1)));
-        assertThat(outcomes.get(0), equalTo("created"));
+        SecurityEnabledPutHarness harness = newSecurityEnabledPutHarness(securityEnabledSettings());
+        when(harness.credentialManager().hasCloudManagedCredential(any())).thenReturn(false);
+        harness.stubSuccessfulPutPrerequisites();
+        harness.stubPutDatafeedConfigSuccess();
+        DatafeedConfig datafeed = new DatafeedConfig.Builder("test-datafeed", "test-job").setEsqlQuery("FROM my_view")
+            .setSourceTimeField("@timestamp")
+            .setGroupingInterval(TimeValue.timeValueHours(1))
+            .build();
+
+        AtomicReference<PutDatafeedAction.Response> response = new AtomicReference<>();
+        harness.manager()
+            .putDatafeed(
+                new PutDatafeedAction.Request(datafeed),
+                mockClusterStateWithNoTasks(),
+                mockSecurityContextWithUser("df-user"),
+                harness.threadPool(),
+                ActionTestUtils.assertNoFailureListener(response::set)
+            );
+
+        assertThat(response.get(), notNullValue());
     }
 
     public void testPutEsqlDatafeedWithNonUtcTimeZoneShouldRejectBeforeMintingCredential() {

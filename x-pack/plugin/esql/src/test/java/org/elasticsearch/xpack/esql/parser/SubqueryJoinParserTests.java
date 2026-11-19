@@ -118,6 +118,12 @@ public class SubqueryJoinParserTests extends AbstractStatementParserTests {
         as(plan, TimeSeriesAggregate.class);
     }
 
+    public void testSubqueryInfoCommandDoesNotHideTimeSeriesStats() {
+        assumeDevVersion();
+        LogicalPlan plan = query("TS metrics | LEFT OUTER JOIN (TS metrics | TS_INFO | KEEP key) ON key | STATS c = COUNT(*)");
+        as(plan, TimeSeriesAggregate.class);
+    }
+
     public void testRemoteEnrichDoesNotChangeSubqueryLookupJoin() {
         assumeDevVersion();
         LogicalPlan plan = query("""

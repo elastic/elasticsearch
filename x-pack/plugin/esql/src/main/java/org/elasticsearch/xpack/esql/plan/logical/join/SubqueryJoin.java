@@ -21,8 +21,9 @@ import java.util.List;
  * A {@code JOIN} whose right side is a subquery written by the user, as in {@code FROM a | LEFT OUTER JOIN (FROM b | ...) ON key}.
  * <p>
  * The subquery is an independent query: it runs before the main query and only its result reaches the join, so plan walks that
- * reason about the main query stop at its right side (see {@link IndependentSubqueryJoin}). The coordinator replaces the subquery
- * with its result before the plan is mapped, so this node is never serialized.
+ * reason about the main query stop at its right side (see {@link IndependentSubqueryJoin}). The coordinator will replace the
+ * subquery with its result before the plan is mapped, so this node is never serialized. Until that is implemented, the
+ * {@code Verifier} rejects it.
  */
 public class SubqueryJoin extends Join implements IndependentSubqueryJoin {
 

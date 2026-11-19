@@ -1367,9 +1367,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             return leftOuterSubqueryJoin(source, ctx.subqueryJoinTarget(), ctx.joinCondition());
         }
 
-        if (ctx.type != null && ctx.type.getType() != EsqlBaseParser.JOIN_LOOKUP) {
-            String joinType = ctx.type == null ? "(INNER)" : ctx.type.getText();
-            throw new ParsingException(source, "only LOOKUP JOIN available, {} JOIN unsupported at the moment", joinType);
+        if (ctx.type.getType() != EsqlBaseParser.JOIN_LOOKUP) {
+            throw new ParsingException(source, "only LOOKUP JOIN available, {} JOIN unsupported at the moment", ctx.type.getText());
         }
 
         var target = ctx.lookupJoinTarget();

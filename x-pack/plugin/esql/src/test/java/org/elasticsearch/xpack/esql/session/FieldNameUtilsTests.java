@@ -3898,6 +3898,15 @@ public class FieldNameUtilsTests extends ESTestCase {
         );
     }
 
+    public void testNestedInSubqueryKeepDoesNotNarrowEnclosingSubquery() {
+        // The KEEP narrows only the innermost subquery. The enclosing subquery has no KEEP of its own and returns every column, so
+        // field_caps must not be narrowed to the fields the queries reference.
+        assertFieldNames("""
+            FROM employees
+            | WHERE emp_no IN (FROM employees | WHERE emp_no IN (FROM employees | KEEP emp_no))
+            | KEEP emp_no""", ALL_FIELDS);
+    }
+
     public void testInSubqueryFieldShadowedByMainQueryStatsAlias() {
         assertFieldNames("""
             FROM employees

@@ -15,8 +15,8 @@ import java.util.function.Predicate;
 
 /**
  * A join whose right side is a separate query. That query runs on its own, before the main query, and only its result reaches the
- * join. None of its sources, aggregations, limits, sorts or fields feed the main query's rows, so plan walks that reason about the
- * main query must not descend into it. The right side is always child {@link #SUBQUERY_CHILD_INDEX}.
+ * join. Its sources, aggregations, limits and sorts do not apply to the main query, which sees only that result, so plan walks that
+ * reason about the main query must not descend into it. The right side is always child {@link #SUBQUERY_CHILD_INDEX}.
  */
 public interface IndependentSubqueryJoin {
 

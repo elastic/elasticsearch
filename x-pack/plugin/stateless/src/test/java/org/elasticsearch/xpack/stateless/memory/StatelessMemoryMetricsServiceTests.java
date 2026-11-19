@@ -25,8 +25,8 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
-import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RecoveryPriority;
@@ -44,15 +44,15 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.inference.IngestModelMemoryProvider;
 import org.elasticsearch.xpack.stateless.MetricQuality;
 import org.junit.After;
@@ -1171,10 +1171,7 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         final long operationSize = 1_000L;
         final long precomputedHeap = 1_000_000L;
         final StatelessMemoryMetricsService raw = new StatelessMemoryMetricsService(now::get, clusterService);
-        publish(
-            raw,
-            new TransportPublishIndexingOperationsHeapMemoryRequirements.Request(precomputedHeap, operationSize)
-        );
+        publish(raw, new TransportPublishIndexingOperationsHeapMemoryRequirements.Request(precomputedHeap, operationSize));
         assertThat(raw.minimumRequiredHeapForAcceptingLargeIndexingOps(), equalTo(operationSize * 10));
 
         final long legacyHeap = 777L;

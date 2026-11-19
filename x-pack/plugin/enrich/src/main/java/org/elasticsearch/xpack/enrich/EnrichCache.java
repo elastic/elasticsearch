@@ -206,6 +206,8 @@ public final class EnrichCache {
             );
             size += entries * RamUsageEstimates.HASH_MAP_NODE_SIZE;
             for (Object entryValue : map.values()) {
+                // Jackson interns field names, making them fairly cheap as they get shared across all entry maps (this was also confirmed
+                // on heap dumps). We can skip them in the estimate.
                 size += estimateHeapSize(entryValue);
             }
         }

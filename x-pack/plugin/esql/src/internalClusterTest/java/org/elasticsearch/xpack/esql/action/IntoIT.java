@@ -53,7 +53,10 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
 public class IntoIT extends AbstractEsqlIntegTestCase {
@@ -195,6 +198,41 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
         assertThat(e.getMessage(), containsString("unmapped_col"));
     }
 
+    public void testKeepGoingSkipsRefusedRows() {
+        String query = """
+            ROW k = ["ok1", "bad", "ok2"]
+            | MV_EXPAND k
+            | EVAL unmapped_col = CASE(k == "bad", "nope", null)
+            | INTO %s WITH {"keep_going": true}
+            """.formatted(DESTINATION);
+        try (EsqlQueryResponse response = run(query)) {
+            assertIntoColumns(response);
+            List<List<Object>> values = getValuesList(response);
+            assertThat(values, hasSize(1));
+            List<Object> summary = values.getFirst();
+            assertThat(summary.subList(0, 3), equalTo(List.of(3L, 2L, 1L)));
+            assertThat(summary.get(3), instanceOf(String.class));
+            assertThat((String) summary.get(3), startsWith("[400] "));
+            assertThat((String) summary.get(3), containsString("unmapped_col"));
+        }
+        assertReadBack("KEEP k | SORT k", List.of(List.of("ok1"), List.of("ok2")));
+    }
+
+    public void testKeepGoingFromSourceCountsEveryRefusal() {
+        createSource();
+        try (
+            EsqlQueryResponse response = run(
+                "FROM " + SOURCE + " | EVAL unmapped_col = k | INTO " + DESTINATION + " WITH {\"keep_going\": true}"
+            )
+        ) {
+            List<Object> summary = getValuesList(response).getFirst();
+            assertThat(summary.subList(0, 3), equalTo(List.of(3L, 0L, 3L)));
+            assertThat(summary.get(3), instanceOf(List.class));
+            assertThat((List<?>) summary.get(3), hasSize(3));
+        }
+        assertReadBack(List.of());
+    }
+
     public void testFromSource() {
         createSource();
         assertInto("FROM " + SOURCE, 3);
@@ -334,7 +372,7 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
         );
         request.acceptedPragmaRisks(true);
         try (EsqlQueryResponse response = run(request)) {
-            assertThat(getValuesList(response), equalTo(List.of(List.of(2000L, 2000L))));
+            assertThat(getValuesList(response), equalTo(List.of(Arrays.asList(2000L, 2000L, 0L, null))));
             long writers = response.profile()
                 .drivers()
                 .stream()
@@ -498,6 +536,20 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
         assertThat("the write index was refreshed", countDestinationDocuments(), equalTo(2L));
     }
 
+    public void testKeepGoingRefreshesTheCreatedRows() {
+        disableDestinationRefresh();
+        String query = """
+            ROW k = ["ok1", "bad", "ok2"]
+            | MV_EXPAND k
+            | EVAL unmapped_col = CASE(k == "bad", "nope", null)
+            | INTO %s WITH {"keep_going": true}
+            """.formatted(DESTINATION);
+        try (EsqlQueryResponse response = run(query)) {
+            assertThat(getValuesList(response).getFirst().subList(0, 3), equalTo(List.of(3L, 2L, 1L)));
+        }
+        assertThat(countDestinationDocuments(), equalTo(2L));
+    }
+
     public void testIntoRunsOnCoordinatorWithoutDataNodeRequests() {
         assertThat(countDataNodeRequests(() -> assertInto("ROW k = [\"r1\", \"r2\"] | MV_EXPAND k", 2)), equalTo(0));
         assertReadBack("KEEP k | SORT k", List.of(List.of("r1"), List.of("r2")));
@@ -509,7 +561,7 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
 
     private void assertRefreshFalseLeavesThreeRowsInvisibleUntilRefreshed(String producer) {
         try (EsqlQueryResponse response = run(producer + " | INTO " + DESTINATION + " WITH {\"refresh\": false}")) {
-            assertThat(getValuesList(response), equalTo(List.of(List.of(3L, 3L))));
+            assertThat(getValuesList(response), equalTo(List.of(Arrays.asList(3L, 3L, 0L, null))));
         }
         assertThat(countDestinationDocuments(), equalTo(0L));
         refresh(DESTINATION);
@@ -624,10 +676,14 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
 
     private void assertIntoTarget(String producer, String target, long rows) {
         try (EsqlQueryResponse response = run(producer + " | INTO " + target)) {
-            assertColumnNames(response.columns(), List.of("total", "created"));
-            assertColumnTypes(response.columns(), List.of("long", "long"));
-            assertThat(getValuesList(response), equalTo(List.of(List.of(rows, rows))));
+            assertIntoColumns(response);
+            assertThat(getValuesList(response), equalTo(List.of(Arrays.asList(rows, rows, 0L, null))));
         }
+    }
+
+    private static void assertIntoColumns(EsqlQueryResponse response) {
+        assertColumnNames(response.columns(), List.of("total", "created", "failures", "failure_details"));
+        assertColumnTypes(response.columns(), List.of("long", "long", "long", "keyword"));
     }
 
     private void assertReadBack(List<List<Object>> expected) {

@@ -78,7 +78,10 @@ public class IntoParserTests extends AbstractStatementParserTests {
     }
 
     public void testMultipleUnknownOptionsRejected() {
-        expectError("ROW a = 1 | INTO dst WITH {\"foo\": 1, \"bar\": 2}", "Invalid options [foo, bar] in INTO, expected one of [refresh]");
+        expectError(
+            "ROW a = 1 | INTO dst WITH {\"foo\": 1, \"bar\": 2}",
+            "Invalid options [foo, bar] in INTO, expected one of [refresh, keep_going]"
+        );
     }
 
     public void testRefresh() {
@@ -125,6 +128,49 @@ public class IntoParserTests extends AbstractStatementParserTests {
         String error = "Duplicate option [refresh] in INTO";
         expectError("ROW a = 1 | INTO dst WITH {\"refresh\": {}, \"refresh\": false}", error);
         expectError("ROW a = 1 | INTO dst WITH {\"refresh\": {\"x\": 1}, \"REFRESH\": true}", error);
+    }
+
+    public void testKeepGoingDefaultsToFalse() {
+        assertFalse(as(query("ROW a = 1 | INTO dst"), Into.class).options().keepGoing());
+        assertFalse(as(query("ROW a = 1 | INTO dst WITH {\"keep_going\": false}"), Into.class).options().keepGoing());
+    }
+
+    public void testKeepGoing() {
+        assertTrue(as(query("ROW a = 1 | INTO dst WITH {\"keep_going\": true}"), Into.class).options().keepGoing());
+    }
+
+    public void testKeepGoingNameIsCaseInsensitive() {
+        assertTrue(as(query("ROW a = 1 | INTO dst WITH {\"KEEP_Going\": true}"), Into.class).options().keepGoing());
+        expectError("ROW a = 1 | INTO dst WITH {\"keep_going\": true, \"KEEP_GOING\": false}", "Duplicate option [keep_going] in INTO");
+    }
+
+    public void testKeepGoingFromParameter() {
+        Into into = as(
+            query("ROW a = 1 | INTO dst WITH {\"keep_going\": ?kg}", new QueryParams(List.of(paramAsConstant("kg", true)))),
+            Into.class
+        );
+        assertTrue(into.options().keepGoing());
+    }
+
+    public void testKeepGoingMustBeBoolean() {
+        String error = "Option [keep_going] must be a boolean literal";
+        expectError("ROW a = 1 | INTO dst WITH {\"keep_going\": \"yes\"}", error);
+        expectError("ROW a = 1 | INTO dst WITH {\"keep_going\": 1}", error);
+        expectError("ROW a = 1 | INTO dst WITH {\"keep_going\": null}", error);
+        expectError("ROW a = 1 | INTO dst WITH {\"keep_going\": [true, false]}", error);
+        expectError("ROW a = 1 | INTO dst WITH {\"keep_going\": {\"x\": true}}", error);
+    }
+
+    public void testDuplicateOptionRejected() {
+        expectError(
+            "ROW a = 1 | INTO dst WITH {\"foo\": 1, \"foo\": 2}",
+            "Duplicated named parameters with the same name [foo] is not supported"
+        );
+    }
+
+    public void testRefreshAndKeepGoingTogether() {
+        Into into = as(query("ROW a = 1 | INTO dst WITH {\"refresh\": false, \"keep_going\": true}"), Into.class);
+        assertThat(into.options(), equalTo(new IntoOptions(false, true)));
     }
 
     public void testExplainInto() {

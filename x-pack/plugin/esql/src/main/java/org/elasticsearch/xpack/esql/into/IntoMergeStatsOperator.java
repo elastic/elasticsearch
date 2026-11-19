@@ -21,7 +21,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.IsBlockedResult;
@@ -35,9 +34,8 @@ import java.util.function.Supplier;
 
 /**
  * Operator for the {@link org.elasticsearch.xpack.esql.plan.physical.IntoExec.Mode#MERGE_STATS} phase of an {@code INTO} command.
- * Receives one {@code [total, created]} row from each upstream driver and sums
- * them into a single final row. Emits {@code [0, 0]} when no input pages arrive.
- * Where more features are added to {@code INTO} in the future, this operator will be extended to merge additional statistics.
+ * Receives one {@link IntoStats} row from each upstream driver and {@link IntoStats#merge merges}
+ * them into a single final row. Emits {@link IntoStats#EMPTY} when no input pages arrive.
  * <p>
  * It runs once per query on the coordinator, after every writer has reported, which makes it the one place that can
  * refresh the destination exactly once.
@@ -136,8 +134,7 @@ public final class IntoMergeStatsOperator implements Operator {
     @Nullable
     private final Refresher refresher;
 
-    private long totalSum;
-    private long createdSum;
+    private IntoStats merged = IntoStats.EMPTY;
     private boolean finished;
     private boolean outputEmitted;
     // Set once a refresh is sent; done when it settles. A failure is a warning of the driver context.
@@ -160,11 +157,8 @@ public final class IntoMergeStatsOperator implements Operator {
     @Override
     public void addInput(Page page) {
         try {
-            LongBlock totalBlock = page.getBlock(0);
-            LongBlock createdBlock = page.getBlock(1);
-            for (int i = 0; i < page.getPositionCount(); i++) {
-                totalSum += totalBlock.getLong(totalBlock.getFirstValueIndex(i));
-                createdSum += createdBlock.getLong(createdBlock.getFirstValueIndex(i));
+            for (int position = 0; position < page.getPositionCount(); position++) {
+                merged = merged.merge(IntoStats.fromPage(page, position));
             }
         } finally {
             page.releaseBlocks();
@@ -179,7 +173,7 @@ public final class IntoMergeStatsOperator implements Operator {
         finished = true;
         // TODO: this only counts creates. Once INTO can replace documents, refresh when any document was written (created + updated),
         // or a run that only replaces would skip the refresh.
-        if (refresher != null && createdSum > 0) {
+        if (refresher != null && merged.created() > 0) {
             startRefresh(refresher);
         }
     }
@@ -219,7 +213,7 @@ public final class IntoMergeStatsOperator implements Operator {
         refreshWarning = Strings.format(
             "index refresh for INTO [%s] failed after [%d] documents were written, so they may not be searchable yet: %s%s",
             refresher.destination(),
-            createdSum,
+            merged.created(),
             underlying.getMessage(),
             hint
         );
@@ -254,7 +248,7 @@ public final class IntoMergeStatsOperator implements Operator {
         if (warning != null) {
             driverContext.addWarning(warning);
         }
-        return new IntoStats(totalSum, createdSum).toPage(blockFactory);
+        return merged.toPage(blockFactory);
     }
 
     @Override

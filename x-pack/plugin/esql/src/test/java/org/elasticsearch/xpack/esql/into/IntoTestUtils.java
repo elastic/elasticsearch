@@ -27,7 +27,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
-import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.index.IndexingPressure;
@@ -147,11 +146,14 @@ class IntoTestUtils {
     static IntoStats stats(Page page) {
         try {
             assertThat(page.getPositionCount(), equalTo(1));
-            LongBlock total = page.getBlock(0);
-            LongBlock created = page.getBlock(1);
-            return new IntoStats(total.getLong(0), created.getLong(0));
+            return IntoStats.fromPage(page, 0);
         } finally {
             page.releaseBlocks();
         }
+    }
+
+    /** Stats of a run in which the destination refused nothing. */
+    static IntoStats noFailures(long total, long created) {
+        return new IntoStats(total, created, 0, List.of());
     }
 }

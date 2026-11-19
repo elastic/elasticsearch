@@ -631,25 +631,31 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             }
         }
 
-        boolean refresh = IntoOptions.DEFAULT.refresh();
-        Expression refreshExpr = optionExpressionsByName.remove("refresh");
-        if (refreshExpr != null) {
-            if (refreshExpr instanceof Literal lit && lit.value() instanceof Boolean value) {
-                refresh = value;
-            } else {
-                throw new ParsingException(refreshExpr.source(), "Option [refresh] must be a boolean literal");
-            }
-        }
+        boolean refresh = booleanOption(optionExpressionsByName, IntoOptions.REFRESH, IntoOptions.DEFAULT.refresh());
+        boolean keepGoing = booleanOption(optionExpressionsByName, IntoOptions.KEEP_GOING, IntoOptions.DEFAULT.keepGoing());
 
         if (optionExpressionsByName.isEmpty() == false) {
             throw new ParsingException(
                 source,
-                "Invalid option{} {} in INTO, expected one of [refresh]",
+                "Invalid option{} {} in INTO, expected one of {}",
                 optionExpressionsByName.size() > 1 ? "s" : "",
-                optionExpressionsByName.keySet()
+                optionExpressionsByName.keySet(),
+                IntoOptions.NAMES
             );
         }
-        return new IntoOptions(refresh);
+        return new IntoOptions(refresh, keepGoing);
+    }
+
+    /** Removes {@code name} from {@code optionExpressionsByName}, so that whatever remains afterwards is an unknown option. */
+    private static boolean booleanOption(Map<String, Expression> optionExpressionsByName, String name, boolean defaultValue) {
+        Expression expression = optionExpressionsByName.remove(name);
+        if (expression == null) {
+            return defaultValue;
+        }
+        if (expression instanceof Literal lit && lit.value() instanceof Boolean value) {
+            return value;
+        }
+        throw new ParsingException(expression.source(), "Option [{}] must be a boolean literal", name);
     }
 
     @Override

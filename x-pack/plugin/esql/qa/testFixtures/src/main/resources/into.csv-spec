@@ -6,6 +6,18 @@ ROW into_long = [1, 2, 3]
 | INTO into_destination
 ;
 
-total:long | created:long
-3          | 3
+total:long | created:long | failures:long | failure_details:keyword
+3          | 3            | 0             | null
+;
+
+rowIntoIndexKeepGoing
+required_capability: into_command
+
+ROW into_long = [1, 2, 3]
+| MV_EXPAND into_long
+| INTO into_destination_keep_going WITH {"keep_going": true}
+;
+
+total:long | created:long | failures:long | failure_details:keyword
+3          | 3            | 0             | null
 ;

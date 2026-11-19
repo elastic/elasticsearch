@@ -38,7 +38,7 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
 /**
  * Terminal command that writes the query's rows into {@link #destination()}.
  * It is a {@link PipelineBreaker} so the mapper ends the data-node fragment at the write and
- * wraps it in a coordinator-side MERGE_STATS node. {@link #output()} is the one-row {@code [total, created]}
+ * wraps it in a coordinator-side MERGE_STATS node. {@link #output()} is the one-row {@link IntoStats}
  * result returned to the caller.
  */
 public class Into extends UnaryPlan
@@ -71,7 +71,7 @@ public class Into extends UnaryPlan
     }
 
     /**
-     * Reads the output too, rather than minting new {@code [total, created]} attributes: the coordinator plan built around this
+     * Reads the output too, rather than minting new {@link IntoStats} attributes: the coordinator plan built around this
      * node refers to them by id.
      */
     private Into(StreamInput in) throws IOException {

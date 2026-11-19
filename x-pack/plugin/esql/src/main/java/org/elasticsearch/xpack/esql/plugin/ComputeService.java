@@ -2320,8 +2320,9 @@ public class ComputeService {
                 waitingLoad
             );
             // includes the task that prepared the compute, such as acquiring search contexts
-            if (TaskLoadAttribution.target() instanceof QueryLoad.Charging charging && charging.load() == queryLoad) {
-                TaskLoadAttribution.chargeSoFar(charging, System.nanoTime());
+            QueryLoad.Charging running = QueryLoad.Charging.running();
+            if (running != null && running.load() == queryLoad) {
+                TaskLoadAttribution.chargeSoFar(running, System.nanoTime());
             }
             driverRunner.executeDrivers(task, drivers, driverExecutor, ActionListener.releaseAfter(driverListener, () -> {
                 if (hookExecInfo != null) {

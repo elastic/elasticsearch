@@ -29,6 +29,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.codec.tsdb.PartitionedDocValues;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
+import org.elasticsearch.search.scheduling.QueryLoad;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -442,7 +443,10 @@ public final class LuceneSliceQueue {
                  * load attribution.
                  */
                 long now = System.nanoTime();
-                TaskLoadAttribution.charge(ctx.stats().searchLoadTarget(), now - startShard, now);
+                TaskLoadAttribution.Target shardLoad = ctx.stats().searchLoadTarget();
+                // the load of the task counts it too, as it would if its pool charged it
+                QueryLoad.Charging running = QueryLoad.Charging.running();
+                TaskLoadAttribution.charge(running == null ? shardLoad : running.load().charging(shardLoad), now - startShard, now);
             }
         }
         return new LuceneSliceQueue(contexts::get, slices, partitioningStrategies);

@@ -1355,17 +1355,19 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     private static void setDirectoryMetrics(SearchPhaseResult result, Supplier<DirectoryMetrics> metricsDelta, SearchContext context) {
-        result.setDirectoryMetrics(withSearchLoad(metricsDelta.get().merge(context.getWorkerThreadsMetrics()), context));
+        result.setDirectoryMetrics(chargeAndAddSearchLoad(metricsDelta.get().merge(context.getWorkerThreadsMetrics()), context));
     }
 
     private static void setFetchDirectoryMetrics(SearchPhaseResult result, SearchContext context) {
-        result.setDirectoryMetrics(withSearchLoad(context.getFetchThreadsMetrics().merge(context.getWorkerThreadsMetrics()), context));
+        result.setDirectoryMetrics(
+            chargeAndAddSearchLoad(context.getFetchThreadsMetrics().merge(context.getWorkerThreadsMetrics()), context)
+        );
     }
 
     /**
      * Adds the load of the phase to its result, after charging the running task so far.
      */
-    private static DirectoryMetrics withSearchLoad(DirectoryMetrics metrics, SearchContext context) {
+    private static DirectoryMetrics chargeAndAddSearchLoad(DirectoryMetrics metrics, SearchContext context) {
         QueryLoad.Charging searchLoad = context.searchLoad();
         if (searchLoad == null) {
             return metrics;
@@ -2161,7 +2163,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             throw e;
         }
         // slices are charged to the phase that creates the context
-        if (TaskLoadAttribution.target() instanceof QueryLoad.Charging searchLoad) {
+        QueryLoad.Charging searchLoad = QueryLoad.Charging.running();
+        if (searchLoad != null) {
             context.searchLoad(searchLoad);
         }
 

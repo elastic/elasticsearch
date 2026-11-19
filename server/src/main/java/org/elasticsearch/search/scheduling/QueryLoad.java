@@ -10,6 +10,7 @@
 package org.elasticsearch.search.scheduling;
 
 import org.elasticsearch.common.util.concurrent.TaskLoadAttribution;
+import org.elasticsearch.core.Nullable;
 
 import java.util.concurrent.atomic.LongAdder;
 
@@ -55,6 +56,14 @@ public final class QueryLoad {
      * Charges {@code target} and adds the charge to {@code load}.
      */
     public record Charging(QueryLoad load, TaskLoadAttribution.Target target) implements TaskLoadAttribution.Target {
+        /**
+         * The target of the task running on this thread, if it charges a load.
+         */
+        @Nullable
+        public static Charging running() {
+            return TaskLoadAttribution.target() instanceof Charging charging ? charging : null;
+        }
+
         @Override
         public void charge(long nanos, long cpuNanos, long finishNanos) {
             load.add(nanos, cpuNanos);

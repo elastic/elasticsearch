@@ -30,14 +30,23 @@ import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
+import org.elasticsearch.common.util.concurrent.TaskLoadAttribution;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromList;
 import org.elasticsearch.compute.lucene.PartialLeafReaderContext;
 import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.index.codec.tsdb.PartitionedDocValues;
 import org.elasticsearch.index.fielddata.AbstractSortedDocValues;
+import org.elasticsearch.search.scheduling.QueryLoad;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -55,6 +64,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public class LuceneSliceQueueTests extends ESTestCase {
@@ -603,6 +613,45 @@ public class LuceneSliceQueueTests extends ESTestCase {
                     assertThat(shardContext.stats().stats().getTotal().getSearchLoadRate(), greaterThan(0d));
                 }
             }
+        }
+    }
+
+    /**
+     * Rewriting the queries is charged to the shard and to the load of the task that creates the slices, before the pool
+     * charges the task.
+     */
+    public void testCreateSliceChargesTheLoadOfItsTask() throws Exception {
+        EsThreadPoolExecutor pool = EsExecutors.newFixed(
+            "test",
+            1,
+            -1,
+            EsExecutors.daemonThreadFactory("test", "load"),
+            new ThreadContext(Settings.EMPTY),
+            EsExecutors.TaskTrackingConfig.builder().trackExecutionTime(0.3).attributeTaskLoad().build()
+        );
+        try (var directory = newDirectory(); var reader = simpleReader(directory, 1, 1)) {
+            var shardContext = new LuceneSourceOperatorTests.MockShardContext(reader);
+            long rewriteNanos = TimeUnit.MILLISECONDS.toNanos(1);
+            QueryLoad queryLoad = new QueryLoad();
+            PlainActionFuture<Long> chargedInTask = new PlainActionFuture<>();
+            pool.execute(ActionRunnable.supply(chargedInTask, () -> {
+                TaskLoadAttribution.attribute(queryLoad.charging((nanos, cpuNanos, finishNanos) -> {}));
+                LuceneSliceQueue.create(new IndexedByShardIdFromList<>(List.of(shardContext)), context -> {
+                    spin(rewriteNanos);
+                    return List.of(new LuceneSliceQueue.QueryAndTags(Queries.ALL_DOCS_INSTANCE, List.of()));
+                },
+                    DataPartitioning.SEGMENT,
+                    (ctx, query) -> LuceneSliceQueue.PartitioningStrategy.SEGMENT,
+                    LuceneOperator.SMALL_INDEX_BOUNDARY,
+                    1,
+                    context -> ScoreMode.COMPLETE
+                );
+                return queryLoad.nanos();
+            }));
+            assertThat(chargedInTask.get(10, TimeUnit.SECONDS), greaterThanOrEqualTo(rewriteNanos));
+            assertThat(shardContext.stats().stats().getTotal().getSearchLoadRate(), greaterThan(0d));
+        } finally {
+            ThreadPool.terminate(pool, 10, TimeUnit.SECONDS);
         }
     }
 

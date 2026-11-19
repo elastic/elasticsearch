@@ -47,6 +47,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -57,6 +58,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.mapper.DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -73,6 +75,7 @@ import static org.hamcrest.Matchers.startsWith;
 
 @LuceneTestCase.SuppressCodecs("*") // require production codecs
 public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
+    private static final String PROMQL_QUERY_TIME = "2024-05-10T00:01:00Z";
 
     public void testEmpty() {
         Settings settings = Settings.builder().put("mode", "time_series").putList("routing_path", List.of("host")).build();
@@ -1575,6 +1578,103 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                     assertThat(rows, hasSize(metrics.length));
                 }
             }
+        }
+    }
+
+    /** A by() key no parent reads still decides the rows it aggregates. */
+    public void testPromqlUnusedByKeyStillDeterminesRows() {
+        String index = "promql-unused-by-key";
+        createOptionalLabelMetricsIndex(index);
+        indexPromqlSample(index, "cluster", "prod", "host", "a", "tx", 1.0);
+        indexPromqlSample(index, "cluster", "prod", "host", "b", "tx", 10.0);
+        refresh(index);
+        assertRowsAnyOrder(promqlQuery(index, "sum(max by(host)(tx))") + " | KEEP result", List.of(List.of(11.0)));
+    }
+
+    /** A label a closed by() left out reads as absent above it, a non-dimension field like a dimension. */
+    public void testPromqlMissingLabelCannotCrossClosedBy() {
+        String index = "promql-closed-by";
+        createOptionalLabelMetricsIndex(index);
+        indexPromqlSample(index, "cluster", "prod", "host", "a", "event", "e1", "tx", 1.0);
+        indexPromqlSample(index, "cluster", "prod", "host", "b", "event", "e2", "tx", 10.0);
+        refresh(index);
+        assertRowsAnyOrder(
+            promqlQuery(index, "sum by(host)(sum by(cluster)(tx))") + " | KEEP result, host",
+            List.of(Arrays.asList(11.0, null))
+        );
+        assertRowsAnyOrder(
+            promqlQuery(index, "sum by(event)(tx)") + " | KEEP result, event",
+            List.of(List.of(1.0, "e1"), List.of(10.0, "e2"))
+        );
+        assertRowsAnyOrder(
+            promqlQuery(index, "sum by(event)(sum by(cluster)(tx))") + " | KEEP result, event",
+            List.of(Arrays.asList(11.0, null))
+        );
+    }
+
+    private void createOptionalLabelMetricsIndex(String index) {
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.mode", "time_series")
+                        .putList("index.routing_path", "cluster", "host")
+                        .put("index.time_series.start_time", "2024-05-10T00:00:00Z")
+                        .put("index.time_series.end_time", "2024-05-10T01:00:00Z")
+                )
+                .setMapping(
+                    "@timestamp",
+                    "type=date",
+                    "cluster",
+                    "type=keyword,time_series_dimension=true",
+                    "host",
+                    "type=keyword,time_series_dimension=true",
+                    "optional",
+                    "type=keyword,time_series_dimension=true",
+                    "region",
+                    "type=keyword,time_series_dimension=true",
+                    "__name__",
+                    "type=keyword,time_series_dimension=true",
+                    "le",
+                    "type=keyword,time_series_dimension=true",
+                    "event",
+                    "type=keyword",
+                    "tx",
+                    "type=double,time_series_metric=gauge",
+                    "rx",
+                    "type=double,time_series_metric=gauge"
+                )
+        );
+        ensureGreen(index);
+    }
+
+    private void indexPromqlSample(String index, Object... fields) {
+        indexPromqlSampleAt(index, PROMQL_QUERY_TIME, fields);
+    }
+
+    private void indexPromqlSampleAt(String index, String timestamp, Object... fields) {
+        Object[] source = new Object[fields.length + 2];
+        source[0] = "@timestamp";
+        source[1] = timestamp;
+        System.arraycopy(fields, 0, source, 2, fields.length);
+        client().prepareIndex(index).setSource(source).get();
+    }
+
+    private static String promqlQuery(String index, String expression) {
+        return "PROMQL index="
+            + index
+            + " start=\""
+            + PROMQL_QUERY_TIME
+            + "\" end=\""
+            + PROMQL_QUERY_TIME
+            + "\" step=1m result=("
+            + expression
+            + ")";
+    }
+
+    private void assertRowsAnyOrder(String query, List<List<Object>> expected) {
+        try (EsqlQueryResponse response = run(query)) {
+            assertThat(EsqlTestUtils.getValuesList(response), containsInAnyOrder(expected.toArray()));
         }
     }
 

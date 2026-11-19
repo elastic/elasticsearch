@@ -147,6 +147,29 @@ public class ChunkedDataExtractorFactoryTests extends ESTestCase {
         assertThat(dataExtractor.getContext().end(), equalTo(7_200_000L));
     }
 
+    public void testEsqlRawQueryShouldKeepUnalignedStartSoAlreadyPostedRowsAreNotReread() {
+        ChunkedDataExtractorFactory factory = createEsqlFactory(TimeValue.timeValueHours(1), RAW_ESQL_QUERY);
+
+        // resume at latest_record_time + 1 (09:14:53.001): rows between 09:00 and 09:14:53 were already posted
+        long start = Duration.ofHours(9).plusMinutes(14).plusSeconds(53).plusMillis(1).toMillis();
+        ChunkedDataExtractor dataExtractor = (ChunkedDataExtractor) factory.newExtractor(start, Duration.ofHours(12).toMillis());
+
+        assertThat(dataExtractor.getContext().start(), equalTo(start));
+        assertThat(dataExtractor.getContext().end(), equalTo(Duration.ofHours(12).toMillis()));
+    }
+
+    public void testEsqlRawWindowInsideSingleBucketShouldBeEmptyRatherThanInverted() {
+        ChunkedDataExtractorFactory factory = createEsqlFactory(TimeValue.timeValueHours(1), RAW_ESQL_QUERY);
+
+        long windowStart = Duration.ofHours(9).plusMinutes(14).toMillis();
+        long windowEnd = Duration.ofHours(9).plusMinutes(29).toMillis();
+        ChunkedDataExtractor dataExtractor = (ChunkedDataExtractor) factory.newExtractor(windowStart, windowEnd);
+
+        assertThat(dataExtractor.getContext().start(), equalTo(windowStart));
+        assertThat(dataExtractor.getContext().end(), equalTo(windowStart));
+        assertThat(dataExtractor.hasNext(), is(false));
+    }
+
     public void testEsqlQueryWithoutOuterLimitShouldInjectRowLimit() {
         ChunkedDataExtractorFactory factory = createEsqlFactory(TimeValue.timeValueSeconds(1), "FROM logs");
 
@@ -172,8 +195,11 @@ public class ChunkedDataExtractorFactoryTests extends ESTestCase {
         assertThat(dataExtractor.getContext().injectsEsqlRowLimit(), is(false));
     }
 
+    private static final String RAW_ESQL_QUERY = "FROM logs";
+    private static final String AGGREGATING_ESQL_QUERY = "FROM logs | STATS c = COUNT(*) BY bucket = BUCKET(@timestamp, 1 hour)";
+
     private ChunkedDataExtractorFactory createEsqlFactory(TimeValue groupingInterval) {
-        return createEsqlFactory(groupingInterval, "FROM logs");
+        return createEsqlFactory(groupingInterval, AGGREGATING_ESQL_QUERY);
     }
 
     private ChunkedDataExtractorFactory createEsqlFactory(TimeValue groupingInterval, String esqlQuery) {

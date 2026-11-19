@@ -17,6 +17,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ParsedContentReservation;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.rest.SearchHeapPressureTestCase;
 import org.junit.Before;
 import org.junit.ClassRule;
 

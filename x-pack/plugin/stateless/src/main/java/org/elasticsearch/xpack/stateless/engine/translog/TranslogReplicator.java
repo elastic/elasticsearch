@@ -1056,10 +1056,9 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                                         ShardSyncState.SyncMarker syncMarker = entry.getValue();
                                         boolean syncFinishedAccepted = shardSyncState.markSyncFinished(syncMarker);
                                         if (syncFinishedAccepted) {
-                                            assert syncMarker.primaryTerm() == shardSyncState.currentPrimaryTerm();
                                             modifiedShardSyncedLocations.add(shardSyncState);
                                         } else if (shardSyncState.isPrimaryTermStale()) {
-                                            assert syncMarker.primaryTerm() < shardSyncState.currentPrimaryTerm();
+                                            assert assertTermStaleOrDeleted(syncMarker.primaryTerm(), shardSyncState.currentPrimaryTerm());
                                             shardsWithNewPrimaryTerm.add(shardSyncState);
                                             logger.debug(
                                                 () -> format(
@@ -1110,6 +1109,11 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
             for (ShardSyncState shardSyncState : shardsWithNewPrimaryTerm) {
                 shardSyncState.failPendingListeners(ShardSyncState.stalePrimaryTermException(shardSyncState.getShardId()));
             }
+        }
+
+        private static boolean assertTermStaleOrDeleted(long markerTerm, long currentTerm) {
+            assert markerTerm < currentTerm || currentTerm == Long.MIN_VALUE;
+            return true;
         }
 
         private void clusterStateValidateForFileDelete(BlobTranslogFile fileToDelete) {

@@ -617,6 +617,8 @@ public class IndexResolver {
         Map<Set<String>, Set<String>> indexDedupCache = useCompactInvalidMappedField(fieldsInfo.minTransportVersion())
             ? new HashMap<>()
             : null;
+        // Filled on first use: only fields that are unsupported in some indices and unmapped in others need it.
+        Map<String, FieldCapabilitiesIndexResponse> indexResponsesByName = new HashMap<>();
         for (String name : names) {
             if (fieldsInfo.isOnlyAParentPath(name, fieldsCaps.get(name).fieldCapabilities)) {
                 continue;
@@ -666,7 +668,14 @@ public class IndexResolver {
                     && mappedIndices.size() < numberOfIndices
                     && supportsLenientUnionCasts(fieldsInfo)
                     && hasSubFields(fieldsCaps.keySet(), fullName) == false) {
-                    field = potentiallyUnmappedUnsupported(name, fullName, fieldsInfo, indexDedupCache);
+                    field = potentiallyUnmappedUnsupported(
+                        name,
+                        fullName,
+                        mappedIndices,
+                        fieldsInfo,
+                        indexResponsesByName,
+                        indexDedupCache
+                    );
                 } else {
                     field = wrapIfPartiallyUnmapped(field, name, fullName, mappedIndices, numberOfIndices, indexDedupCache);
                 }
@@ -952,14 +961,21 @@ public class IndexResolver {
     private static EsField potentiallyUnmappedUnsupported(
         String name,
         String fullName,
+        Set<String> mappedIndices,
         FieldsInfo fieldsInfo,
+        Map<String, FieldCapabilitiesIndexResponse> indexResponsesByName,
         @Nullable Map<Set<String>, Set<String>> indexDedupCache
     ) {
+        if (indexResponsesByName.isEmpty()) {
+            for (FieldCapabilitiesIndexResponse ir : fieldsInfo.caps().getIndexResponses()) {
+                indexResponsesByName.put(ir.getIndexName(), ir);
+            }
+        }
         Map<String, Set<String>> unsupportedTypesToIndices = new TreeMap<>();
-        for (FieldCapabilitiesIndexResponse ir : fieldsInfo.caps().getIndexResponses()) {
-            IndexFieldCapabilities fc = ir.get().get(fullName);
+        for (String index : mappedIndices) {
+            IndexFieldCapabilities fc = indexResponsesByName.get(index).get().get(fullName);
             if (fc != null && isLeaf(fc, fieldsInfo)) {
-                unsupportedTypesToIndices.computeIfAbsent(originalType(fc), _key -> new TreeSet<>()).add(ir.getIndexName());
+                unsupportedTypesToIndices.computeIfAbsent(originalType(fc), _key -> new TreeSet<>()).add(index);
             }
         }
         return indexDedupCache == null

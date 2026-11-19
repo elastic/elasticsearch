@@ -16,6 +16,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
+import org.elasticsearch.xpack.esql.datasources.cache.StripeStatsStaging;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
@@ -548,91 +549,118 @@ public final class ParallelParsingCoordinator {
             }
         }
 
-        ErrorPolicy effectivePolicy = errorPolicy != null ? errorPolicy : ErrorPolicy.STRICT;
-        // Empty list would read as "0-column schema"; pass null through.
-        FormatReadContext baseCtx = FormatReadContext.builder()
-            .projectedColumns(projectedColumns)
-            .batchSize(batchSize)
-            .errorPolicy(effectivePolicy)
-            .firstSplit(splitIncludesFileLeader)
-            // lastSplit is deliberately left to the builder default (true) and not set from splitIsFileFinal.
-            // This context is used two ways: as the single-threaded fallback below, which reads the whole
-            // storage object and so genuinely owns its trailing bytes, and as the base for per-segment
-            // contexts, which each set lastSplit themselves from their segment index. Setting it here from
-            // splitIsFileFinal breaks the first use, because the convenience overloads that assume a
-            // whole-file read (splitIncludesFileLeader=true) do not make the matching claim about the
-            // file's end. Reconciling those defaults is worth doing on its own, not as a side effect.
-            .recordAligned(splitStartsAtRecordBoundary)
-            .readSchema(readSchema)
-            .fileHeaderColumns(fileHeaderColumns)
-            .splitStartByte(baseFileOffset)
-            .maxRecordBytes(maxRecordBytes)
-            // Single-segment fallback reads this whole storage object in one shot, so its trailing stripe is
-            // file-final exactly when this macro-split is the file's final split (splitIsFileFinal). A mid-file
-            // macro-split is never file-final — a later split supplies the terminal stripe.
-            .stats(baseFileOffset, statsStripeSize, splitIsFileFinal)
-            .statsColumnScope(statsColumnScope)
-            .informationalWarningSink(warningSink)
-            .readCounters(formatCounters)
-            .build();
-        if (parallelism <= 1 || fileLength < minSegment * 2) {
-            return parallelReader.read(storageObject, baseCtx);
-        }
-
-        List<long[]> segments = computeSegments(parallelReader, storageObject, fileLength, parallelism, minSegment, maxRecordBytes);
-
-        if (segments.size() <= 1) {
-            return parallelReader.read(storageObject, baseCtx);
-        }
-        // Segments 1..N cannot see the header line, and segment 0 reads it as it steps over it. With no pinned
-        // schema they bind against the schema inferred from that same header and need nothing.
-        List<String> segmentHeaderColumns = fileHeaderColumns;
-        // An empty pin infers from the file (the read context normalises it to none), so it needs nothing either.
-        if (splitIncludesFileLeader && readSchema != null && readSchema.isEmpty() == false && parallelReader.readsHeaderLine()) {
-            // The header sits at the front of the leader segment, so a ranged read of that segment finds it without an
-            // unranged GET from byte 0. Finding none there (a skip_rows or comment run longer than the segment), or a
-            // header the segment's end cut short, means the header does not end inside segment 0. Only segment 0 steps
-            // over the leading rows and the header, so a later segment would emit them as data: read single-shot. Columns
-            // handed in name the file but say nothing about where its header ends, so the probe runs for them too.
-            long[] leader = segments.get(0);
-            HeaderPrefixProbe leaderRange = new HeaderPrefixProbe(storageObject, leader[0], leader[1]);
-            List<String> leaderColumns = parallelReader.fileHeaderColumns(leaderRange);
-            if (leaderColumns != null && (leaderColumns.isEmpty() || leaderRange.reachedEnd())) {
-                return parallelReader.read(storageObject, baseCtx);
+        boolean transferred = false;
+        try {
+            ErrorPolicy effectivePolicy = errorPolicy != null ? errorPolicy : ErrorPolicy.STRICT;
+            // Empty list would read as "0-column schema"; pass null through.
+            FormatReadContext baseCtx = FormatReadContext.builder()
+                .projectedColumns(projectedColumns)
+                .batchSize(batchSize)
+                .errorPolicy(effectivePolicy)
+                .firstSplit(splitIncludesFileLeader)
+                // lastSplit is deliberately left to the builder default (true) and not set from splitIsFileFinal.
+                // This context is used two ways: as the single-threaded fallback below, which reads the whole
+                // storage object and so genuinely owns its trailing bytes, and as the base for per-segment
+                // contexts, which each set lastSplit themselves from their segment index. Setting it here from
+                // splitIsFileFinal breaks the first use, because the convenience overloads that assume a
+                // whole-file read (splitIncludesFileLeader=true) do not make the matching claim about the
+                // file's end. Reconciling those defaults is worth doing on its own, not as a side effect.
+                .recordAligned(splitStartsAtRecordBoundary)
+                .readSchema(readSchema)
+                .fileHeaderColumns(fileHeaderColumns)
+                .splitStartByte(baseFileOffset)
+                .maxRecordBytes(maxRecordBytes)
+                // Single-segment fallback reads this whole storage object in one shot, so its trailing stripe is
+                // file-final exactly when this macro-split is the file's final split (splitIsFileFinal). A mid-file
+                // macro-split is never file-final — a later split supplies the terminal stripe.
+                .stats(baseFileOffset, statsStripeSize, splitIsFileFinal)
+                .statsColumnScope(statsColumnScope)
+                .informationalWarningSink(warningSink)
+                .readCounters(formatCounters)
+                .build();
+            if (parallelism <= 1 || fileLength < minSegment * 2) {
+                CloseableIterator<Page> pages = FormatReaders.releasing(
+                    parallelReader.read(storageObject, baseCtx),
+                    reader,
+                    parallelReader
+                );
+                transferred = true;
+                return pages;
             }
-            if (segmentHeaderColumns == null) {
-                segmentHeaderColumns = leaderColumns;
+
+            List<long[]> segments = computeSegments(parallelReader, storageObject, fileLength, parallelism, minSegment, maxRecordBytes);
+
+            if (segments.size() <= 1) {
+                CloseableIterator<Page> pages = FormatReaders.releasing(
+                    parallelReader.read(storageObject, baseCtx),
+                    reader,
+                    parallelReader
+                );
+                transferred = true;
+                return pages;
+            }
+            // Segments 1..N cannot see the header line, and segment 0 reads it as it steps over it. With no pinned
+            // schema they bind against the schema inferred from that same header and need nothing.
+            List<String> segmentHeaderColumns = fileHeaderColumns;
+            // An empty pin infers from the file (the read context normalises it to none), so it needs nothing either.
+            if (splitIncludesFileLeader && readSchema != null && readSchema.isEmpty() == false && parallelReader.readsHeaderLine()) {
+                // The header sits at the front of the leader segment, so a ranged read of that segment finds it without an
+                // unranged GET from byte 0. Finding none there (a skip_rows or comment run longer than the segment), or a
+                // header the segment's end cut short, means the header does not end inside segment 0. Only segment 0 steps
+                // over the leading rows and the header, so a later segment would emit them as data: read single-shot. Columns
+                // handed in name the file but say nothing about where its header ends, so the probe runs for them too.
+                long[] leader = segments.get(0);
+                HeaderPrefixProbe leaderRange = new HeaderPrefixProbe(storageObject, leader[0], leader[1]);
+                List<String> leaderColumns = parallelReader.fileHeaderColumns(leaderRange);
+                if (leaderColumns != null && (leaderColumns.isEmpty() || leaderRange.reachedEnd())) {
+                    CloseableIterator<Page> pages = FormatReaders.releasing(
+                        parallelReader.read(storageObject, baseCtx),
+                        reader,
+                        parallelReader
+                    );
+                    transferred = true;
+                    return pages;
+                }
+                if (segmentHeaderColumns == null) {
+                    segmentHeaderColumns = leaderColumns;
+                }
+            }
+
+            AsReadyParallelIterator iterator = new AsReadyParallelIterator(
+                parallelReader,
+                storageObject,
+                projectedColumns,
+                batchSize,
+                segments,
+                executor,
+                parallelism,
+                maxConcurrentOpenSegments,
+                effectivePolicy,
+                splitIncludesFileLeader,
+                readSchema,
+                baseFileOffset,
+                captureSink,
+                maxRecordBytes,
+                statsStripeSize,
+                statsColumnScope,
+                splitIsFileFinal,
+                metrics,
+                warningSink,
+                readCounters,
+                formatCounters,
+                stop,
+                segmentHeaderColumns
+            );
+            // Fully constructed and published before any worker is dispatched — see AsReadyParallelIterator#start.
+            iterator.start();
+            CloseableIterator<Page> pages = FormatReaders.releasing(iterator, reader, parallelReader);
+            transferred = true;
+            return pages;
+        } finally {
+            if (transferred == false) {
+                FormatReaders.closeDistinctFrom(parallelReader, reader);
             }
         }
-
-        AsReadyParallelIterator iterator = new AsReadyParallelIterator(
-            parallelReader,
-            storageObject,
-            projectedColumns,
-            batchSize,
-            segments,
-            executor,
-            parallelism,
-            maxConcurrentOpenSegments,
-            effectivePolicy,
-            splitIncludesFileLeader,
-            readSchema,
-            baseFileOffset,
-            captureSink,
-            maxRecordBytes,
-            statsStripeSize,
-            statsColumnScope,
-            splitIsFileFinal,
-            metrics,
-            warningSink,
-            readCounters,
-            formatCounters,
-            stop,
-            segmentHeaderColumns
-        );
-        // Fully constructed and published before any worker is dispatched — see AsReadyParallelIterator#start.
-        iterator.start();
-        return iterator;
     }
 
     /**
@@ -827,6 +855,14 @@ public final class ParallelParsingCoordinator {
         /** How much per-stripe statistics each segment harvests (row count only / + projected / + all / nothing). */
         private final StripeColumnScope statsColumnScope;
         /**
+         * Where the segments of this read hand their pieces of a stripe, so a stripe several segments observed
+         * is staged once rather than once per segment. {@code null} when there is no sink to stage into or no
+         * stripe grid to address pieces on, and each segment then publishes its own pieces. Shared across
+         * segment worker threads.
+         */
+        @Nullable
+        private final StripeStatsStaging stripeStaging;
+        /**
          * Whether this storage object is the file's final split. Only then may the trailing segment mark its
          * last stripe file-final ({@code eof}); a mid-file macro-split's trailing segment ends at the range
          * boundary, and a later split supplies the terminal stripe — so it must never be marked file-final.
@@ -933,6 +969,7 @@ public final class ParallelParsingCoordinator {
             this.captureSink = captureSink;
             this.maxRecordBytes = maxRecordBytes;
             this.statsStripeSize = statsStripeSize;
+            this.stripeStaging = captureSink != null && statsStripeSize > 0 ? new StripeStatsStaging(captureSink) : null;
             this.statsColumnScope = statsColumnScope != null ? statsColumnScope : StripeColumnScope.PROJECTED;
             this.metrics = metrics == null ? ExternalSourceMetrics.NOOP : metrics;
             this.warningSink = warningSink;
@@ -1081,6 +1118,7 @@ public final class ParallelParsingCoordinator {
                 .maxRecordBytes(maxRecordBytes)
                 .stats(segmentFileOffset, statsStripeSize, statsFileFinal)
                 .statsColumnScope(statsColumnScope)
+                .statsStripeSink(stripeStaging)
                 .informationalWarningSink(warningSink)
                 .readCounters(formatCounters)
                 .build();
@@ -1325,6 +1363,14 @@ public final class ParallelParsingCoordinator {
                 Thread.currentThread().interrupt();
             }
             drainQueue();
+            // Stage whatever stripes this read left partly covered, for the coordinator's interval cover —
+            // the only place that can tell whether another read completes them. The wait above USUALLY means
+            // every segment has finished, but it can time out and leave one running, so a piece may arrive after
+            // this and never be staged. That costs coverage, not correctness, and only on a path that has
+            // already failed cleanCompletion and poisons the file anyway.
+            if (stripeStaging != null) {
+                stripeStaging.flush();
+            }
             // Coverage tiling at the reconciler establishes completeness for a clean scan; an early/error
             // close can leave a segment with a partial count under a full range, so discard the file's
             // contributions when the scan did not drain cleanly.

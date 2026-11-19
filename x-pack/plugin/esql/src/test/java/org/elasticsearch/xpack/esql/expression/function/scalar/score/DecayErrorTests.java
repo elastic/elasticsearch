@@ -116,7 +116,7 @@ public class DecayErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     private static boolean validOriginType(DataType valueDataType, DataType originDataType) {
         if (DataType.isSpatialPoint(valueDataType)) {
-            return DataType.isSpatialPoint(originDataType);
+            return originDataType == valueDataType;
         }
         if (DataType.isMillisOrNanos(valueDataType)) {
             return DataType.isMillisOrNanos(originDataType);
@@ -129,14 +129,14 @@ public class DecayErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
             return DataType.isGeoPoint(valueDataType) ? DataType.isString(scaleDataType) : scaleDataType.isNumeric();
         }
         if (DataType.isMillisOrNanos(valueDataType)) {
-            return DataType.isTimeDuration(scaleDataType);
+            return DataType.isTemporalAmount(scaleDataType);
         }
         return scaleDataType.isNumeric();
     }
 
     private static String originTypeDescription(DataType valueDataType) {
         if (DataType.isSpatialPoint(valueDataType)) {
-            return "spatial point";
+            return valueDataType.typeName();
         }
         if (DataType.isMillisOrNanos(valueDataType)) {
             return "datetime or date_nanos";
@@ -149,7 +149,7 @@ public class DecayErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
             return DataType.isGeoPoint(valueDataType) ? "keyword or text" : "numeric";
         }
         if (DataType.isMillisOrNanos(valueDataType)) {
-            return "time_duration";
+            return "time_duration or date_period";
         }
         return "numeric";
     }

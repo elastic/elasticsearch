@@ -16,6 +16,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.ResizeIndexTestUtils;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -31,6 +32,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockIndexEventListener;
 import org.elasticsearch.test.MockLog;
@@ -230,10 +232,15 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             armRandomFailures(failures);
 
             // Recover from snapshot
-            clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap").setWaitForCompletion(true).execute();
+            RestoreSnapshotResponse restore = safeGet(
+                clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap").setWaitForCompletion(true).execute()
+            );
 
             ensureGreen(indexName);
             assertLocalRetries(indexName, failures);
+            assertEquals(RestStatus.OK, restore.status());
+            assertNotNull(restore.getRestoreInfo());
+            assertEquals(1, restore.getRestoreInfo().successfulShards());
         } finally {
             transportService.clearAllRules();
         }

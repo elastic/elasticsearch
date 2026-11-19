@@ -583,11 +583,13 @@ public class EsqlDatafeedQueryParserTests extends ESTestCase {
     }
 
     public void testExplainShouldBeRejected() {
+        assumeTrue("requires EXPLAIN capability", EsqlCapabilities.Cap.EXPLAIN.isEnabled());
         ParsingException e = expectThrows(ParsingException.class, () -> parse("EXPLAIN (FROM a | LIMIT 1)"));
         assertThat(e.getMessage(), containsString("[EXPLAIN] is not supported in ES|QL datafeeds"));
     }
 
     public void testIntoShouldBeRejected() {
+        assumeTrue("requires INTO capability", EsqlCapabilities.Cap.INTO_COMMAND.isEnabled());
         ParsingException e = expectThrows(ParsingException.class, () -> parse("ROW a = 1 | INTO dest"));
         assertThat(e.getMessage(), containsString("[INTO] is not supported in ES|QL datafeeds"));
     }

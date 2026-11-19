@@ -746,6 +746,11 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
         private volatile InputStream current;
         /** Set by {@link #close()} before the inner close; {@link #reopenOrThrow} must not {@code newStream}. */
         private volatile boolean aborted;
+
+        private boolean isAborted() {
+            return aborted || RetryableStorageObject.this.aborted;
+        }
+
         private long delivered = 0;
         /**
          * The provider's generation pin ({@link StorageObject#contentGeneration()}) as of the first open.
@@ -806,7 +811,7 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
         @Override
         public int read(byte[] b, int off, int len) throws IOException {
             while (true) {
-                if (aborted) {
+                if (isAborted()) {
                     throw new IOException("read aborted");
                 }
                 final int n;
@@ -818,7 +823,7 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
                     reopenOrThrow(e);
                     continue;
                 }
-                if (aborted) {
+                if (isAborted()) {
                     throw new IOException("read aborted");
                 }
                 if (n > 0) {
@@ -1017,13 +1022,13 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
          */
         private InputStream openResumeOnce(long resumeFrom, long resumeLength, long deadlineNanos) throws IOException {
             while (true) {
-                if (aborted) {
+                if (isAborted()) {
                     throw new UncheckedIOException(new IOException("read aborted"));
                 }
                 try {
                     return StoragePermitBarge.call(() -> delegate.newStream(resumeFrom, resumeLength));
                 } catch (ConcurrencyLimiter.PermitMissException miss) {
-                    if (aborted) {
+                    if (isAborted()) {
                         throw new UncheckedIOException(new IOException("read aborted"));
                     }
                     if (System.nanoTime() >= deadlineNanos) {
@@ -1045,7 +1050,7 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
                             )
                         );
                     }
-                    if (aborted) {
+                    if (isAborted()) {
                         throw new UncheckedIOException(new IOException("read aborted"));
                     }
                 }
@@ -1054,14 +1059,14 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
 
         private void adoptResume(InputStream opened) throws IOException {
             current = opened;
-            if (aborted) {
+            if (isAborted()) {
                 current.close();
                 throw new IOException("read aborted");
             }
         }
 
         private void throwIfAborted(Exception cause) throws IOException {
-            if (aborted) {
+            if (isAborted()) {
                 throw rethrow(cause);
             }
         }

@@ -3465,6 +3465,15 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
                 public void close() throws IOException {
                     if (closed.compareAndSet(false, true)) {
                         open.decrementAndGet();
+                        if (probeStreams.contains(this) == false) {
+                            aborted.set(true);
+                            abortCalls.incrementAndGet();
+                            failLeaderNow.countDown();
+                        }
+                        CountDownLatch mine = parks.remove(this);
+                        if (mine != null) {
+                            mine.countDown();
+                        }
                     }
                     super.close();
                 }
@@ -3477,18 +3486,17 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
 
         @Override
         public void abortStream(InputStream stream) throws IOException {
-            if (probeStreams.contains(stream)) {
-                stream.close();
-                return;
-            }
+            stream.close();
+        }
+
+        @Override
+        public void close() {
             aborted.set(true);
-            abortCalls.incrementAndGet();
             failLeaderNow.countDown();
-            CountDownLatch mine = parks.remove(stream);
-            if (mine != null) {
+            for (CountDownLatch mine : parks.values()) {
                 mine.countDown();
             }
-            stream.close();
+            parks.clear();
         }
 
         @Override

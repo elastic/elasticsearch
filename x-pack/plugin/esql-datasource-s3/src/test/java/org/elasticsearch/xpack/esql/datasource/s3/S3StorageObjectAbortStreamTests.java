@@ -8,7 +8,10 @@
 package org.elasticsearch.xpack.esql.datasource.s3;
 
 import software.amazon.awssdk.core.ResponseInputStream;
+import software.amazon.awssdk.core.async.AsyncResponseTransformer;
 import software.amazon.awssdk.http.Abortable;
+import software.amazon.awssdk.retries.api.RetryStrategy;
+import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
@@ -27,7 +30,11 @@ import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -196,6 +203,45 @@ public class S3StorageObjectAbortStreamTests extends ESTestCase {
         assertEquals("abort skips leftover; APM is delivered-to-caller only", read, apmBytesReadTotal(registry));
         assertTrue(abortCalled.get());
         assertFalse(closeCalled.get());
+    }
+
+    /**
+     * Two in-flight async GETs must both be cancelled when the object is closed. A single
+     * {@code CompletableFuture} field would leak the second GET.
+     */
+    @SuppressWarnings("unchecked")
+    public void testCloseCancelsInFlightAsyncGets() throws Exception {
+        S3AsyncClient async = mock(S3AsyncClient.class);
+        RetryStrategy retries = mock(RetryStrategy.class);
+        CountDownLatch started = new CountDownLatch(2);
+        CompletableFuture<ResponseInputStream<GetObjectResponse>> first = new CompletableFuture<>();
+        CompletableFuture<ResponseInputStream<GetObjectResponse>> second = new CompletableFuture<>();
+        AtomicInteger calls = new AtomicInteger();
+        when(async.getObject(any(GetObjectRequest.class), any(AsyncResponseTransformer.class))).thenAnswer(inv -> {
+            started.countDown();
+            return calls.getAndIncrement() == 0 ? first : second;
+        });
+        S3StorageObject obj = new S3StorageObject(mockS3, async, retries, BUCKET, KEY, PATH);
+        Thread t1 = new Thread(() -> {
+            try {
+                obj.newStream();
+            } catch (Exception ignored) {}
+        });
+        Thread t2 = new Thread(() -> {
+            try {
+                obj.newStream();
+            } catch (Exception ignored) {}
+        });
+        t1.start();
+        t2.start();
+        assertTrue(started.await(5, TimeUnit.SECONDS));
+        obj.close();
+        assertTrue(first.isCancelled());
+        assertTrue(second.isCancelled());
+        t1.join(TimeUnit.SECONDS.toMillis(5));
+        t2.join(TimeUnit.SECONDS.toMillis(5));
+        assertFalse(t1.isAlive());
+        assertFalse(t2.isAlive());
     }
 
     private static long apmBytesReadTotal(RecordingMeterRegistry registry) {

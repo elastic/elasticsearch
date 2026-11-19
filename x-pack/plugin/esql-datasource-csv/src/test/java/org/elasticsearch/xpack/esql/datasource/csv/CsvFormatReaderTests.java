@@ -68,6 +68,7 @@ import org.junit.Before;
 import java.io.BufferedInputStream;
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringReader;
@@ -9059,18 +9060,24 @@ public class CsvFormatReaderTests extends ESTestCase {
         @Override
         public InputStream newStream() {
             opened++;
-            return new ByteArrayInputStream(bytes);
+            return new FilterInputStream(new ByteArrayInputStream(bytes)) {
+                @Override
+                public void close() throws IOException {
+                    aborted++;
+                    super.close();
+                }
+            };
         }
 
         @Override
         public InputStream newStream(long position, long length) {
-            return new ByteArrayInputStream(bytes, (int) position, (int) length);
-        }
-
-        @Override
-        public void abortStream(InputStream stream) throws IOException {
-            aborted++;
-            stream.close();
+            return new FilterInputStream(new ByteArrayInputStream(bytes, (int) position, (int) length)) {
+                @Override
+                public void close() throws IOException {
+                    aborted++;
+                    super.close();
+                }
+            };
         }
 
         @Override

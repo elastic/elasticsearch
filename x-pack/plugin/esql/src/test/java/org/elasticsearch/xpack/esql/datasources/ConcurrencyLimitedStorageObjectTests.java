@@ -345,13 +345,19 @@ public class ConcurrencyLimitedStorageObjectTests extends ESTestCase {
     public void testAbortStreamReleasesPermitEvenIfDelegateThrows() throws Exception {
         ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(3, false));
         StorageObject delegate = mock(StorageObject.class);
-        when(delegate.newStream()).thenReturn(new ByteArrayInputStream("hello".getBytes(StandardCharsets.UTF_8)));
+        when(delegate.newStream()).thenReturn(new ByteArrayInputStream("hello".getBytes(StandardCharsets.UTF_8)) {
+            @Override
+            public void close() throws IOException {
+                super.close();
+                throw new IOException("abort failed");
+            }
+        });
         when(delegate.path()).thenReturn(StoragePath.of("s3://bucket/key"));
         ConcurrencyLimitedStorageObject obj = new ConcurrencyLimitedStorageObject(delegate, limiter);
         InputStream wrapper = obj.newStream();
         assertEquals(2, limiter.availablePermits());
 
-        obj.abortStream(wrapper);
+        expectThrows(IOException.class, () -> obj.abortStream(wrapper));
         assertEquals("permit must be released on close", 3, limiter.availablePermits());
     }
 

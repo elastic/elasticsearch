@@ -12,6 +12,7 @@ import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.core.async.AsyncResponseTransformer;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.core.exception.SdkException;
+import software.amazon.awssdk.http.Abortable;
 import software.amazon.awssdk.retries.api.AcquireInitialTokenRequest;
 import software.amazon.awssdk.retries.api.RecordSuccessRequest;
 import software.amazon.awssdk.retries.api.RefreshRetryTokenRequest;
@@ -57,9 +58,11 @@ import java.net.UnknownHostException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Locale;
+import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
@@ -102,8 +105,8 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
     private volatile boolean ifMatchUnsupported;
     /** Set by {@link #close()}; in-flight {@link #newStream} must not start or continue a GET. */
     private final AtomicBoolean closed = new AtomicBoolean();
-    /** Cancellable async GET started by {@link #getObject} before the response stream exists. */
-    private final AtomicReference<CompletableFuture<?>> inFlightOpen = new AtomicReference<>();
+    /** Cancellable async GETs started by {@link #getObject} before a response stream exists. */
+    private final Set<CompletableFuture<ResponseInputStream<GetObjectResponse>>> inFlightOpens = ConcurrentHashMap.newKeySet();
 
     // Retries: the sync S3Client path relies on the SDK RetryStrategy (pinned to Standard in
     // S3StorageProvider#configureCommon). The async client is pinned to doNotRetry and readBytesAsync drives
@@ -572,10 +575,10 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             request,
             AsyncResponseTransformer.toBlockingInputStream()
         );
-        inFlightOpen.set(future);
+        inFlightOpens.add(future);
         if (closed.get()) {
-            FutureUtils.cancel(future);
-            inFlightOpen.compareAndSet(future, null);
+            inFlightOpens.remove(future);
+            discardGet(future);
             throw new CancellationException("read cancelled");
         }
         try {
@@ -590,7 +593,33 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             }
             throw e;
         } finally {
-            inFlightOpen.compareAndSet(future, null);
+            inFlightOpens.remove(future);
+        }
+    }
+
+    /**
+     * Cancels {@code future}. If the GET already completed, abort/close the response so the body is
+     * not leaked when {@link #close()} races the headers.
+     */
+    private static void discardGet(CompletableFuture<ResponseInputStream<GetObjectResponse>> future) {
+        FutureUtils.cancel(future);
+        ResponseInputStream<GetObjectResponse> in;
+        try {
+            in = future.getNow(null);
+        } catch (Exception e) {
+            return;
+        }
+        if (in == null) {
+            return;
+        }
+        try {
+            if (in instanceof Abortable abortable) {
+                abortable.abort();
+            } else {
+                in.close();
+            }
+        } catch (Exception e) {
+            // Best-effort discard of a GET that lost the close race.
         }
     }
 
@@ -754,10 +783,10 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
     @Override
     public void close() {
         closed.set(true);
-        CompletableFuture<?> future = inFlightOpen.getAndSet(null);
-        if (future != null) {
-            FutureUtils.cancel(future);
+        for (CompletableFuture<ResponseInputStream<GetObjectResponse>> future : inFlightOpens) {
+            discardGet(future);
         }
+        inFlightOpens.clear();
     }
 
     @Override

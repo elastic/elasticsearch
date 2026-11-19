@@ -284,13 +284,19 @@ public class QueryBudgetedStorageObjectTests extends ESTestCase {
     public void testAbortStreamReleasesBudgetEvenIfDelegateThrows() throws Exception {
         QueryConcurrencyBudget budget = new QueryConcurrencyBudget(3, 60_000L, null);
         StorageObject delegate = mock(StorageObject.class);
-        when(delegate.newStream()).thenReturn(new ByteArrayInputStream("hello".getBytes(StandardCharsets.UTF_8)));
+        when(delegate.newStream()).thenReturn(new ByteArrayInputStream("hello".getBytes(StandardCharsets.UTF_8)) {
+            @Override
+            public void close() throws IOException {
+                super.close();
+                throw new IOException("abort failed");
+            }
+        });
         when(delegate.path()).thenReturn(StoragePath.of("s3://bucket/key"));
         QueryBudgetedStorageObject obj = new QueryBudgetedStorageObject(delegate, budget);
         InputStream wrapper = obj.newStream();
         assertEquals(1, budget.inFlight());
 
-        obj.abortStream(wrapper);
+        expectThrows(IOException.class, () -> obj.abortStream(wrapper));
         assertEquals("permit must be released on close", 0, budget.inFlight());
     }
 

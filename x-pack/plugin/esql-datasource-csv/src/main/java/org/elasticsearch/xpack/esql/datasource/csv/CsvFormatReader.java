@@ -2544,7 +2544,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 leadingColumns = leadingColumns(leading);
                 leadingBytes = leading.bytesRead();
             } catch (Exception e) {
-                abortRead(object, rawStream, e);
+                abortRead(rawStream, e);
                 throw e;
             }
         }
@@ -2592,7 +2592,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             try {
                 skipLeadingContentRows(recordReader, options.skipRows(), options.commentPrefix());
             } catch (Exception e) {
-                abortRead(object, rawStream, e);
+                abortRead(rawStream, e);
                 throw e;
             }
         }
@@ -2628,7 +2628,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 // An inferred headerless schema binds positionally, as does an inferred headered one under
                 // headerBindingByProvenance: no binding, rows bounded by the schema's width.
             } catch (Exception e) {
-                abortRead(object, rawStream, e);
+                abortRead(rawStream, e);
                 throw e;
             }
             if (headeredByName && context.firstSplit() == false && context.fileHeaderColumns() != null) {
@@ -2679,7 +2679,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             try {
                 skipLeadingPartialRecord(recordReader, effective);
             } catch (Exception e) {
-                abortRead(object, rawStream, e);
+                abortRead(rawStream, e);
                 throw e;
             }
             effectiveSchema = resolvedSchema;
@@ -2882,11 +2882,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
     /**
      * Releases a read's stream after it failed before the returned iterator took ownership of it.
-     * The leaf decides drain vs drop on close.
+     * Does not close the file-level {@link StorageObject}: a split parse error must not cancel
+     * sibling GETs. The leaf decides drain vs drop on stream close.
      */
-    private static void abortRead(StorageObject object, InputStream rawStream, Exception cause) {
+    private static void abortRead(InputStream rawStream, Exception cause) {
         try {
-            object.close();
             rawStream.close();
         } catch (IOException suppressed) {
             cause.addSuppressed(suppressed);

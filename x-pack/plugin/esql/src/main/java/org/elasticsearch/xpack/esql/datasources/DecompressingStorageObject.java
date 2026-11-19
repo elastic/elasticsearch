@@ -29,6 +29,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Wraps a {@link StorageObject} and decompresses its stream via a {@link DecompressionCodec}.
@@ -61,6 +62,10 @@ final class DecompressingStorageObject implements StorageObject {
 
     private final StorageObject delegate;
     private final DecompressionCodec codec;
+    /** Raw GET opened by {@link #newStream} before the decompressed wrapper is returned. */
+    private final AtomicReference<InputStream> inFlightRaw = new AtomicReference<>();
+    /** Set by {@link #close()}; a racing {@link #newStream} must drop the raw GET. */
+    private final AtomicBoolean closed = new AtomicBoolean();
     @Nullable
     private final CircuitBreaker breaker;
     private final int maxDecompressionRatio;
@@ -93,6 +98,16 @@ final class DecompressingStorageObject implements StorageObject {
             return splittable.decompressRange(range.rawDelegate(), range.offset(), range.offset() + range.length());
         }
         InputStream raw = delegate.newStream();
+        inFlightRaw.set(raw);
+        if (closed.get()) {
+            inFlightRaw.compareAndSet(raw, null);
+            try {
+                raw.close();
+            } catch (IOException e) {
+                throw new IOException("read cancelled", e);
+            }
+            throw new IOException("read cancelled");
+        }
         try {
             // Wrap raw in an uncloseable filter before handing it to the codec. The decompressor
             // (e.g. GZIPInputStream) cascades close() to the underlying stream; on providers like
@@ -119,6 +134,8 @@ final class DecompressingStorageObject implements StorageObject {
                 e.addSuppressed(suppressed);
             }
             throw e;
+        } finally {
+            inFlightRaw.compareAndSet(raw, null);
         }
     }
 
@@ -209,7 +226,15 @@ final class DecompressingStorageObject implements StorageObject {
 
     @Override
     public void close() throws IOException {
-        delegate.close();
+        closed.set(true);
+        InputStream raw = inFlightRaw.getAndSet(null);
+        try {
+            if (raw != null) {
+                raw.close();
+            }
+        } finally {
+            delegate.close();
+        }
     }
 
     /**

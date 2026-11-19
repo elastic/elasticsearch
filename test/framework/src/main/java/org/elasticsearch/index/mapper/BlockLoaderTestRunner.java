@@ -236,9 +236,8 @@ public class BlockLoaderTestRunner {
         }
         try (Directory directory = newDirectory()) {
             // disable index checks on directory close, this is needed
-            // for time_series that requires pseudo-empty docs, docs that
-            // contains only the @timestamp and the dimensions and doesn't
-            // have any terms.
+            // for time_series which use synthetic ids. The synthetic ids doesn't
+            // have postings and CheckIndex would fail because docfreq is 0.
             if (mapperService.getIndexSettings().useTimeSeriesSyntheticId()) {
                 if (directory instanceof BaseDirectoryWrapper directoryWrapper) {
                     directoryWrapper.setCheckIndexOnClose(false);

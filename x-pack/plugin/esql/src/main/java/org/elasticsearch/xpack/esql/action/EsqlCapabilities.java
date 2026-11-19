@@ -4946,12 +4946,12 @@ public class EsqlCapabilities {
          * {@code DESCRIBE} reports {@code role: time} for the {@code @timestamp} column of a dataset and for a time column
          * that is rounded or converted to another date type.
          */
-        DESCRIBE_TIME_COLUMNS(Build.current().isSnapshot()),
+        DESCRIBE_TIME_COLUMNS,
 
         /**
          * {@code DESCRIBE} reports the {@code interval} and {@code time_zone} of the date buckets with a constant interval.
          */
-        DESCRIBE_INTERVAL(Build.current().isSnapshot()),
+        DESCRIBE_INTERVAL,
 
         /**
          * Fixes a bug in the planner where {@code TS} queries failed with an {@link IllegalStateException} when an aggregation

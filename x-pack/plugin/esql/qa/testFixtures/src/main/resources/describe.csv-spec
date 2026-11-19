@@ -194,6 +194,7 @@ describeIntervals
 required_capability: describe_command
 required_capability: describe_interval
 
+// tag::describeIntervals[]
 FROM k8s
 | EVAL day = DATE_TRUNC(1 day, @timestamp)
 | STATS c = COUNT(*) BY b = BUCKET(@timestamp, 1 hour), day
@@ -201,14 +202,17 @@ FROM k8s
 | EVAL month = DATE_TRUNC(1 month, hour), ninety = DATE_TRUNC(90 minutes, hour)
 | DESCRIBE
 | KEEP name, role, interval, time_zone
+// end::describeIntervals[]
 ;
 
+// tag::describeIntervals-result[]
 name:keyword      | role:keyword | interval:keyword | time_zone:keyword
 c                 | null         | null             | null
 hour              | time         | 1 hour           | UTC
 day               | time         | 1 day            | UTC
 month             | time         | 1 month          | UTC
 ninety            | time         | 90 minutes       | UTC
+// end::describeIntervals-result[]
 ;
 
 describeIntervalOfBucketCount

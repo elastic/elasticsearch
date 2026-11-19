@@ -24,6 +24,7 @@ import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -43,8 +44,9 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * A {@link NestedAny} lowered to one boolean per parent. It has no expression children: the predicate's fields are
- * loaded from the child documents, and the parent {@code _doc} stays on the page through
+ * A {@link NestedAny} lowered to one boolean per parent. The predicate body is an expression child so optimizer
+ * rewrites, including surrogate substitution, see it. {@link #references()} stays empty: those fields are loaded from
+ * the child documents, and the parent {@code _doc} stays on the page through
  * {@link org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LoadNestedFromIndex} rather than as a column the
  * query names.
  */
@@ -63,7 +65,7 @@ public final class NestedPredicate extends EsqlScalarFunction {
     private final List<String> relativePaths;
 
     public NestedPredicate(Source source, String path, Expression body, List<Attribute> inputs, List<String> relativePaths) {
-        super(source, List.of());
+        super(source, List.of(body));
         this.path = path;
         this.body = body;
         this.inputs = List.copyOf(inputs);
@@ -134,9 +136,18 @@ public final class NestedPredicate extends EsqlScalarFunction {
         return NodeInfo.create(this, NestedPredicate::new, path, body, inputs, relativePaths);
     }
 
+    /**
+     * Child fields are loaded from the nested documents. Reporting them would make field extraction look for those
+     * columns on the parent page.
+     */
+    @Override
+    public AttributeSet references() {
+        return AttributeSet.EMPTY;
+    }
+
     @Override
     public NestedPredicate replaceChildren(List<Expression> newChildren) {
-        return this;
+        return new NestedPredicate(source(), path, newChildren.getFirst(), inputs, relativePaths);
     }
 
     @Override

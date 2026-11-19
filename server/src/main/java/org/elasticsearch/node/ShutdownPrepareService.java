@@ -287,14 +287,14 @@ public class ShutdownPrepareService {
      * be waited for then.
      * <p>
      * The tasks of the awaited actions are waited for in any case, and after the plugin drains, since some of that work may still reach
-     * this node as new tasks. Which tasks depends on whether the node is drained, i.e. ready and with all its plugin drains completed.
-     * If so, the source of new tasks dries up, so the tasks that start during the wait are waited for too. If not, new tasks can keep
-     * arriving for as long as the node is up, so only those running when the wait starts are waited for, or the wait might never end.
+     * this node as new tasks while they run. Only the tasks running when the wait starts are waited for, even on a ready node: its
+     * peers in the cluster stop sending it work, but senders that do not see its shutdown, such as a remote cluster running a
+     * cross-cluster search through it, keep doing so until it closes, and waiting for their tasks as well might never end (the grace
+     * period is unbounded by default).
      */
     private void drain(TerminationHandler.Outcome handlerOutcome, Deadline deadline) {
         final boolean expired = deadline.isExpired();
         final boolean interrupted = Thread.currentThread().isInterrupted();
-        boolean drained = false;
         if (handlerOutcome == TerminationHandler.Outcome.READY && expired == false && interrupted == false) {
             logger.info(
                 "termination handler reported the node ready for shutdown, running [{}] plugin drains then waiting for the tasks of "
@@ -302,7 +302,7 @@ public class ShutdownPrepareService {
                 pluginDrains.size(),
                 awaitedActions
             );
-            drained = awaitPluginDrains(deadline);
+            awaitPluginDrains(deadline);
         } else {
             // the handler reports its own failures, so this is only worth a warning if it leaves drains unstarted
             logger.log(
@@ -320,7 +320,7 @@ public class ShutdownPrepareService {
             deadline.awaitTimeout(),
             sleeper,
             awaitedActions,
-            drained ? TaskScope.ALL : TaskScope.INITIAL,
+            TaskScope.INITIAL,
             transportService.getTaskManager(),
             null,
             null
@@ -330,10 +330,8 @@ public class ShutdownPrepareService {
 
     /**
      * Starts the plugin drains and waits for them within the deadline.
-     *
-     * @return whether all the drains completed; false if the wait timed out or was interrupted
      */
-    private boolean awaitPluginDrains(Deadline deadline) {
+    private void awaitPluginDrains(Deadline deadline) {
         record Drain(String name, SubscribableListener<Void> completion) {}
 
         final var drains = new ArrayList<Drain>();
@@ -368,7 +366,6 @@ public class ShutdownPrepareService {
             } else {
                 allDrainedFuture.get();
             }
-            return true;
         } catch (ExecutionException e) {
             assert false : e; // failures are logged and released as completions
             logger.warn("failed during plugin shutdown drains", e);
@@ -378,7 +375,6 @@ public class ShutdownPrepareService {
         } catch (TimeoutException e) {
             logger.warn("timed out while waiting for plugin shutdown drains: {}", incompleteDrainsDescriber.get());
         }
-        return false;
     }
 
     /**

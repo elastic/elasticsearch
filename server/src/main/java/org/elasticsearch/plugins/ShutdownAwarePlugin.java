@@ -52,9 +52,9 @@ public interface ShutdownAwarePlugin {
      * <p>
      * When to wait depends on whether the node has a termination handler. Without one (stateful), the wait covers the tasks running
      * when the shutdown starts. With one (stateless), the wait starts once the handler and the other shutdown hooks have finished and
-     * once the drains of {@link #startDrainOnShutdown()} have completed, and covers the tasks running at that point. If the handler
-     * confirmed that the node is safe to shut down and all the drains completed, it also covers the tasks that start while it lasts.
-     * The tasks that run while the handler moves the node's shards away are not observed until then.
+     * once the drains of {@link #startDrainOnShutdown()} have completed, and covers the tasks running at that point. The tasks that run
+     * while the handler moves the node's shards away are not observed until then, and those that start during the wait are not waited
+     * for.
      */
     default Collection<String> getActionsToAwaitOnShutdown() {
         return Collections.emptyList();

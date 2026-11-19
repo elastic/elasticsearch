@@ -12,9 +12,6 @@ products:
 
 An `s3` [data source](esql-data-federation-sources.md) reads files from Amazon S3. This page compares the authentication models, lists the AWS Identity and Access Management (IAM) permissions {{es}} needs to read your data, and explains how to troubleshoot access errors. For step-by-step setup, follow the guide for your authentication model.
 
-:::{include} _snippets/data-federation/experimental-warning.md
-:::
-
 ## Choose an authentication model [s3-auth-models]
 
 Each authentication model has its own setup guide:

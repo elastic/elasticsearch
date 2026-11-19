@@ -16,9 +16,6 @@ A dataset's schema defines the columns and data types that queries can use. A da
 - **Declare every column:** Only the columns you [declare](#declare-a-schema-explicitly) are available, and nothing is inferred.
 - **Declare some columns and infer the rest:** Declared columns override what's inferred for them, and every other column is still inferred.
 
-:::{include} _snippets/data-federation/experimental-warning.md
-:::
-
 ## Schema sources by file format
 
 The following table shows where each [supported file format](esql-data-federation-file-formats.md) gets its schema and how it names columns:

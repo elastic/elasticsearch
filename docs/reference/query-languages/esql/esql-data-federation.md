@@ -12,9 +12,6 @@ products:
 
 You can query data stored in compatible external data sources, using the same syntax you use for native indices and other index abstractions, without any ingestion into {{es}}. You query the files in place: nothing is copied into {{es}}, and there is no mapping to define up front: the schema is discovered from the files.
 
-:::{include} _snippets/data-federation/experimental-warning.md
-:::
-
 ## Requirements
 
 Before using {{esql}} Data Federation, review the following requirements and limitations:

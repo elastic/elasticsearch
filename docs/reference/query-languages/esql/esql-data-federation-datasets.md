@@ -14,9 +14,6 @@ A dataset makes a named collection of files in external storage available to {{e
 
 For the overall mental model, from connecting external storage to querying a dataset, refer to [how {{esql}} Data Federation works](esql-data-federation.md#how-it-works).
 
-:::{include} _snippets/data-federation/experimental-warning.md
-:::
-
 ## Define a dataset
 
 To define a dataset, work through the following decisions:

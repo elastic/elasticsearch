@@ -37,7 +37,9 @@ import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.datafeed.TransportStartDatafeedAction;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
+import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
+import org.elasticsearch.xpack.ml.datafeed.extractor.chunked.ChunkedDataExtractorFactory;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.RestartTimeInfo;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
@@ -55,9 +57,12 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class DatafeedJobBuilderTests extends ESTestCase {
@@ -299,13 +304,23 @@ public class DatafeedJobBuilderTests extends ESTestCase {
     public void testBuildGivenAggregatingEsqlDatafeedAndRevertedSnapshotShouldResumeFromRevertedLatestRecord() throws Exception {
         long hour = TimeValue.timeValueHours(1).millis();
         // A revert with delete_intervening_results lowers both the latest final bucket and the latest record time.
-        assertEsqlLastEndTimeOnBothBuildPaths(AGGREGATING_ESQL_QUERY, new RestartTimeInfo(5 * hour, 6 * hour, true), 7 * hour - 1);
+        assertEsqlLastEndTimeOnBothBuildPaths(
+            AGGREGATING_ESQL_QUERY,
+            new RestartTimeInfo(5 * hour, 6 * hour, true),
+            7 * hour - 1,
+            7 * hour
+        );
     }
 
     public void testBuildGivenRawEsqlDatafeedAndRevertedSnapshotShouldResumeAtRevertedLatestRecord() throws Exception {
         long hour = TimeValue.timeValueHours(1).millis();
         long revertedRecord = 6 * hour + 30 * 60_000L;
-        assertEsqlLastEndTimeOnBothBuildPaths("FROM logs", new RestartTimeInfo(5 * hour, revertedRecord, true), revertedRecord);
+        assertEsqlLastEndTimeOnBothBuildPaths(
+            "FROM logs",
+            new RestartTimeInfo(5 * hour, revertedRecord, true),
+            revertedRecord,
+            revertedRecord + 1
+        );
     }
 
     public void testBuildGivenAggregatingEsqlDatafeedAndEndStampedLatestRecordShouldAdvancePastGroupingInterval() throws Exception {
@@ -315,7 +330,8 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         assertEsqlLastEndTimeOnBothBuildPaths(
             AGGREGATING_ESQL_QUERY,
             new RestartTimeInfo(8 * hour, endStampedRecord, true),
-            endStampedRecord + hour - 1
+            endStampedRecord + hour - 1,
+            10 * hour
         );
     }
 
@@ -323,12 +339,37 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         long hour = TimeValue.timeValueHours(1).millis();
         // The job's bucket span is one hour. Same rule as the DSL datafeed: the later of the two end times wins.
         long finalBucketEnd = 21 * hour - 1;
-        assertEsqlLastEndTimeOnBothBuildPaths(AGGREGATING_ESQL_QUERY, new RestartTimeInfo(20 * hour, 9 * hour, true), finalBucketEnd);
-        assertEsqlLastEndTimeOnBothBuildPaths("FROM logs", new RestartTimeInfo(20 * hour, 9 * hour, true), finalBucketEnd);
+        assertEsqlLastEndTimeOnBothBuildPaths(
+            AGGREGATING_ESQL_QUERY,
+            new RestartTimeInfo(20 * hour, 9 * hour, true),
+            finalBucketEnd,
+            21 * hour
+        );
+        assertEsqlLastEndTimeOnBothBuildPaths("FROM logs", new RestartTimeInfo(20 * hour, 9 * hour, true), finalBucketEnd, 21 * hour);
     }
 
-    private void assertEsqlLastEndTimeOnBothBuildPaths(String esqlQuery, RestartTimeInfo restartTimeInfo, long expectedLastEndTimeMs)
-        throws Exception {
+    public void testBuildGivenRawEsqlDatafeedAndRestartInsideBucketShouldResumeRightAfterLatestRecord() throws Exception {
+        long hour = TimeValue.timeValueHours(1).millis();
+        long latestRecord = 9 * hour + 14 * 60_000L + 53_000L;
+        // The rows between the bucket start (09:00) and the latest record were already posted and must not be read again.
+        assertEsqlLastEndTimeOnBothBuildPaths(
+            "FROM logs",
+            new RestartTimeInfo(8 * hour, latestRecord, true),
+            latestRecord,
+            latestRecord + 1
+        );
+    }
+
+    /**
+     * Asserts the resume point the builder computes, then feeds it to a real {@link ChunkedDataExtractorFactory} the way
+     * {@link DatafeedJob} does ({@code lastEndTimeMs + 1}) and asserts the start of the first search the extractor issues.
+     */
+    private void assertEsqlLastEndTimeOnBothBuildPaths(
+        String esqlQuery,
+        RestartTimeInfo restartTimeInfo,
+        long expectedLastEndTimeMs,
+        long expectedFirstSearchStartMs
+    ) throws Exception {
         assumeTrue("Only relevant when the ES|QL datafeeds feature flag is on", MachineLearning.ESQL_DATAFEEDS_FEATURE_FLAG.isEnabled());
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setTimeField("time");
@@ -341,9 +382,11 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         datafeed.setGroupingInterval(TimeValue.timeValueHours(1));
         datafeed.setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig());
 
+        DatafeedConfig datafeedConfig = datafeed.build();
+        Job job = jobBuilder.build();
         DatafeedContext datafeedContext = new DatafeedContext(
-            datafeed.build(),
-            jobBuilder.build(),
+            datafeedConfig,
+            job,
             restartTimeInfo,
             new DatafeedTimingStats(jobBuilder.getId())
         );
@@ -361,6 +404,15 @@ public class DatafeedJobBuilderTests extends ESTestCase {
             }
             assertBusy(() -> assertTrue(wasHandlerCalled.get()));
         }
+
+        DataExtractorFactory delegate = mock(DataExtractorFactory.class);
+        DataExtractor emptySummaryExtractor = mock(DataExtractor.class);
+        when(emptySummaryExtractor.getSummary()).thenReturn(new DataExtractor.DataSummary(null, null, 0L));
+        when(delegate.newExtractor(anyLong(), anyLong())).thenReturn(emptySummaryExtractor);
+        long resumeStart = expectedLastEndTimeMs + 1;
+        long windowEnd = resumeStart + TimeValue.timeValueHours(5).millis();
+        new ChunkedDataExtractorFactory(datafeedConfig, job, xContentRegistry(), delegate).newExtractor(resumeStart, windowEnd).next();
+        verify(delegate).newExtractor(eq(expectedFirstSearchStartMs), anyLong());
     }
 
     public void testBuildGivenEsqlDatafeedShouldSucceed() throws Exception {

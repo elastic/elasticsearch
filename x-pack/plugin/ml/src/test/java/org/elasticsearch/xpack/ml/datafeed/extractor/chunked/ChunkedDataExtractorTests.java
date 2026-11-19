@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor.DataSummary;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDataExtractor;
 import org.junit.Before;
+import org.mockito.InOrder;
 import org.mockito.Mockito;
 
 import java.io.IOException;
@@ -642,6 +643,31 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         Mockito.verifyNoMoreInteractions(dataExtractorFactory);
     }
 
+    public void testEsqlRawQueryWithUnalignedStartShouldChunkContiguouslyFromStart() throws IOException {
+        chunkSpan = TimeValue.timeValueSeconds(2);
+        // A raw resume start (latest posted row + 1) is not on a grouping-interval boundary and must not be floored.
+        final long start = 1_234L;
+        final long end = 5_000L;
+        DataExtractor extractor = new ChunkedDataExtractor(dataExtractorFactory, createRawEsqlContext(start, end));
+
+        InputStream inputStream1 = mock(InputStream.class);
+        InputStream inputStream2 = mock(InputStream.class);
+        // The summary MIN is before the start: the first chunk must still begin at start.
+        stubSummary(start, end, new DataSummary(1_000L, 4_900L, 10L));
+        stubChunk(start, 3_234L, inputStream1);
+        stubChunk(3_234L, end, inputStream2);
+
+        assertNextStream(extractor, inputStream1);
+        assertNextStream(extractor, inputStream2);
+        assertNoMoreData(extractor);
+
+        InOrder inOrder = Mockito.inOrder(dataExtractorFactory);
+        inOrder.verify(dataExtractorFactory).newExtractor(start, end);
+        inOrder.verify(dataExtractorFactory).newExtractor(start, 3_234L);
+        inOrder.verify(dataExtractorFactory).newExtractor(3_234L, end);
+        Mockito.verifyNoMoreInteractions(dataExtractorFactory);
+    }
+
     public void testEsqlWindowShouldAlignToDeclaredGroupingInterval() throws IOException {
         final long groupingInterval = 60_000L;
         final long alignedStart = 120_000L;
@@ -783,6 +809,24 @@ public class ChunkedDataExtractorTests extends ESTestCase {
 
     private ChunkedDataExtractorContext createContext(long start, long end, boolean hasAggregations, Long histogramInterval) {
         return createContext(start, end, hasAggregations, histogramInterval, false);
+    }
+
+    private ChunkedDataExtractorContext createRawEsqlContext(long start, long end) {
+        ChunkedDataExtractorContext.TimeAligner timeAligner = ChunkedDataExtractorFactory.newIntervalTimeAligner(
+            ESQL_GROUPING_INTERVAL_MILLIS
+        );
+        return new ChunkedDataExtractorContext(
+            jobId,
+            scrollSize,
+            start,
+            timeAligner.alignToFloor(end),
+            chunkSpan,
+            timeAligner,
+            false,
+            null,
+            true,
+            true
+        );
     }
 
     private ChunkedDataExtractorContext createEsqlContext(long start, long end) {

@@ -86,7 +86,8 @@ public class ElasticsearchMappingsTests extends ESTestCase {
 
     private static final List<String> INTERNAL_FIELDS = List.of(GetResult._ID, GetResult._INDEX);
 
-    // Reserved but no longer in the results mapping: existing indices still map them with a type that would conflict.
+    // Reserved but no longer in the results mapping: existing version-3 indices still map "source_end_ms" as "long", so an input
+    // field of that name must not be copied into results as a string.
     private static final List<String> LEGACY_RESERVED_FIELDS = List.of("source_end_ms");
 
     public void testResultsMappingReservedFields() throws Exception {

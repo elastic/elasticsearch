@@ -217,7 +217,8 @@ public final class ReservedFieldNames {
         DatafeedTimingStats.EXPONENTIAL_AVG_CALCULATION_CONTEXT.getPreferredName(),
 
         // Left over from the removed ES|QL datafeed source checkpoint. Results indices created while the mapping was at version 3
-        // still map it as "long", and a mapping update cannot change that to the "keyword" a by/over/partition field would need.
+        // map it as "long", and a mapping update cannot change that. Reserving it keeps an input field of this name from being
+        // copied as a string into that "long" field.
         "source_end_ms",
 
         ExponentialAverageCalculationContext.INCREMENTAL_METRIC_VALUE_MS.getPreferredName(),

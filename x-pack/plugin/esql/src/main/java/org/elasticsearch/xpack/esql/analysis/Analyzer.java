@@ -222,6 +222,7 @@ import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
@@ -273,7 +274,6 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.GEO_MATCH_TYPE;
 import static org.elasticsearch.xpack.esql.capabilities.TranslationAware.translatable;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.keepExistingUnsupportedAttributes;
-import static org.elasticsearch.xpack.esql.core.expression.Expressions.toReferenceAttributesPreservingIds;
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
@@ -498,10 +498,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<IndexResolution> resolutions = new ArrayList<>(context.indexResolution().values());
             resolutions.addAll(context.lookupResolution().values());
             Map<NameId, FieldSemantics> semantics = ColumnSemantics.collect(describe.child(), resolutions);
+            Map<NameId, Attribute> datasetColumns = ColumnSemantics.datasetColumns(describe.child());
+            Set<NameId> timeColumns = ColumnSemantics.timeColumns(describe.child(), semantics, datasetColumns);
             return describe.describe(
                 semantics,
-                ColumnSemantics.datasetColumns(describe.child()),
-                ColumnUnits.collect(describe.child(), semantics)
+                datasetColumns,
+                ColumnUnits.collect(describe.child(), semantics),
+                timeColumns,
+                ColumnIntervals.collect(describe.child(), context.configuration().newFoldContext())
             );
         }
 
@@ -1167,7 +1171,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 plan.hasExplicitLimit(),
                 finalOutput,
                 null,
-                context.eqlFieldCaps().get(plan.indexPattern())
+                context.eqlFieldCaps().get(plan.indexPattern()),
+                null
             );
         }
 
@@ -1332,7 +1337,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     enrichFields
                 );
             } else {
-                String error = context.enrichResolution().getError(plan.source());
+                // A policy failure would hide that a remote ENRICH after an EQL source is rejected wherever the policy lives.
+                String error = plan.mode() == Enrich.Mode.REMOTE ? Enrich.remoteEnrichAfterEqlError(plan.child()) : null;
+                if (error == null) {
+                    error = context.enrichResolution().getError(plan.source());
+                }
                 var policyNameExp = new UnresolvedAttribute(plan.policyName().source(), policyName, error);
                 return new Enrich(plan.source(), plan.child(), plan.mode(), policyNameExp, plan.matchField(), null, Map.of(), List.of());
             }
@@ -2638,15 +2647,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             // The output has to be populated even when no branch changes: view resolution builds a BranchPlan with an empty
             // output and relies on this rule to fill it in.
-            return mergePlan.replaceSubPlansAndOutput(
-                changed ? newSubPlans : mergePlan.children(),
-                unmappedResolution.loadsAllUnmappedFields()
-                    ? keepExistingUnsupportedAttributes(
-                        toReferenceAttributesPreservingIds(outputUnion, mergePlan.output()),
-                        mergePlan.output()
-                    )
-                    : toReferenceAttributesPreservingIds(outputUnion, mergePlan.output())
-            );
+            newSubPlans = changed ? newSubPlans : mergePlan.children();
+            List<Attribute> newOutput = mergePlan.mergesScoreAsMetadata()
+                ? MergePlan.toReferenceAttributesPreservingIds(newSubPlans, outputUnion, mergePlan.output())
+                : Expressions.toReferenceAttributesPreservingIds(outputUnion, mergePlan.output());
+            if (unmappedResolution.loadsAllUnmappedFields()) {
+                newOutput = keepExistingUnsupportedAttributes(newOutput, mergePlan.output());
+            }
+            return mergePlan.replaceSubPlansAndOutput(newSubPlans, newOutput);
         }
 
         /**
@@ -4424,15 +4432,34 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         @Override
         public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
             // A convert inside a view must see that view's unmapped_fields. The caller's mode decides the same convert
-            // outside the view. Keyed by node identity because transformUp hands us the original node.
+            // outside the view. Keyed by the identity of the input plan's nodes. A node rebuilt because a child changed is a new
+            // instance, so the walk looks up the node it was rebuilt from.
             Map<LogicalPlan, AnalyzerContext> contextByPlan = new IdentityHashMap<>();
             assignScopedContext(plan, context, contextByPlan);
+            return resolveScope(plan, contextByPlan);
+        }
+
+        /**
+         * Resolves one query scope bottom-up. The state is shared by the whole scope, so the right side of an
+         * {@link IndependentSubqueryJoin} is resolved as a scope of its own: its relations and aggregations say nothing about the
+         * fields the main query can convert.
+         */
+        private static LogicalPlan resolveScope(LogicalPlan plan, Map<LogicalPlan, AnalyzerContext> contextByPlan) {
             UnionTypeResolutionState state = new UnionTypeResolutionState();
-            return plan.transformUp(LogicalPlan.class, p -> {
+            return plan.transformUpSkipBranchWithOriginal(IndependentSubqueryJoin::isSubqueryBranch, (original, p) -> {
+                AnalyzerContext planContext = contextByPlan.get(original);
+                assert planContext != null : "no analyzer context for [" + original.nodeName() + "]";
+                if (p instanceof IndependentSubqueryJoin join) {
+                    // The right side is skipped by the walk, so it is still the input plan's node.
+                    LogicalPlan right = resolveScope(join.right(), contextByPlan);
+                    if (right.equals(join.right()) == false) {
+                        p = p.replaceChildren(List.of(join.left(), right));
+                    }
+                }
                 if (p.childrenResolved() == false) {
                     return p;
                 }
-                return doRule(p, state, contextByPlan.getOrDefault(p, context));
+                return doRule(p, state, planContext);
             });
         }
 
@@ -4480,6 +4507,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             int alreadyAddedUnionFieldAttributes = state.unionFieldAttributes.size();
             // See if the eval function has an unresolved UnionTypeEsField field
             // Replace the entire convert function with a new FieldAttribute (containing type conversion knowledge)
+            LogicalPlan beforeConverts = plan;
             plan = plan.transformExpressionsOnly(e -> {
                 if (e instanceof ConvertFunction convert) {
                     return resolveConvertFunction(convert, state.unionFieldAttributes, context);
@@ -4488,6 +4516,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             });
 
             boolean generatedUnionFields = state.unionFieldAttributes.size() > alreadyAddedUnionFieldAttributes;
+            if (generatedUnionFields == false && plan.equals(beforeConverts) == false && referencesMissingFromInputs(plan)) {
+                // The cast reused a field an earlier cast created, so no field was generated to carry through the projects between
+                // the two. Bind it for this node within the scope. Only projects below this node are touched, so the scope's final
+                // projection is not widened.
+                List<LogicalPlan> children = plan.children()
+                    .stream()
+                    .map(c -> carryOverSyntheticAttributesThroughProjects(c, context.unmappedResolution().loadsAllUnmappedFields()))
+                    .toList();
+                if (children.equals(plan.children()) == false) {
+                    plan = plan.replaceChildren(children);
+                }
+            }
             if (generatedUnionFields == false && plan instanceof Aggregate == false) {
                 return plan;
             }
@@ -4509,6 +4549,21 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         /**
+         * Whether {@code plan} references a synthetic attribute that its children do not output, which is what a reused conversion
+         * leaves behind when a projection between the two casts dropped it. Checked first so that a chain of casts over the same field
+         * does not walk the subtree below every cast.
+         */
+        private static boolean referencesMissingFromInputs(LogicalPlan plan) {
+            AttributeSet inputs = plan.inputSet();
+            for (Attribute reference : plan.references()) {
+                if (reference.synthetic() && inputs.contains(reference) == false) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /**
          * Add generated fields to EsRelation, so these new attributes will appear in the OutputExec of the Fragment
          * and thereby get used in FieldExtractExec
          */
@@ -4521,19 +4576,22 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<FieldAttribute> unionFieldAttributes,
             boolean preserveResolvingProject
         ) {
-            var res = plan.transformDown(EsRelation.class, esr -> {
-                List<Attribute> missing = new ArrayList<>();
-                for (FieldAttribute fa : unionFieldAttributes) {
-                    // Using outputSet().contains looks by NameId, resp. uses semanticEquals.
-                    if (esr.outputSet().contains(fa) == false) {
-                        missing.add(fa);
+            // The right side of an IndependentSubqueryJoin is a separate query: the fields converted here are not its to load.
+            var res = plan.transformUpSkipBranch(IndependentSubqueryJoin::isSubqueryBranch, node -> {
+                if (node instanceof EsRelation esr) {
+                    List<Attribute> missing = new ArrayList<>();
+                    for (FieldAttribute fa : unionFieldAttributes) {
+                        // Using outputSet().contains looks by NameId, resp. uses semanticEquals.
+                        if (esr.outputSet().contains(fa) == false) {
+                            missing.add(fa);
+                        }
+                    }
+
+                    if (missing.isEmpty() == false) {
+                        return esr.withAttributes(CollectionUtils.combine(esr.output(), missing));
                     }
                 }
-
-                if (missing.isEmpty() == false) {
-                    return esr.withAttributes(CollectionUtils.combine(esr.output(), missing));
-                }
-                return esr;
+                return node;
             });
             if (res.equals(plan) == false) {
                 res = carryOverSyntheticAttributesThroughProjects(res, preserveResolvingProject);
@@ -6603,7 +6661,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * overload that also gates synthetics against the enclosing {@link MergePlan} output.
      */
     private static LogicalPlan carryOverSyntheticAttributesThroughProjects(LogicalPlan plan, boolean preserveResolvingProject) {
-        return plan.transformUp(Project.class, p -> {
+        // The right side of an IndependentSubqueryJoin is a separate query: synthetics of the main query are not its to carry.
+        return plan.transformUpSkipBranch(IndependentSubqueryJoin::isSubqueryBranch, node -> {
+            if (node instanceof Project == false) {
+                return node;
+            }
+            Project p = (Project) node;
             // Skip Projects whose projections are not yet resolved (e.g. an unexpanded KEEP wildcard sitting above a still-unresolved
             // union-typed field reference). Their output cannot be computed yet — calling p.output() would throw UnresolvedException.
             // Such Projects are revisited in a later analyzer iteration once they resolve.

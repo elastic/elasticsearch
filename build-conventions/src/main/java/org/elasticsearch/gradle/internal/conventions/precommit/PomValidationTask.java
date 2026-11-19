@@ -17,9 +17,9 @@ import org.gradle.api.GradleException;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.problems.Problem;
-import org.gradle.api.problems.ProblemId;
 import org.gradle.api.problems.ProblemReporter;
 import org.gradle.api.problems.Problems;
+import org.gradle.api.problems.ThirdLevelProblemGroup;
 import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
@@ -38,12 +38,14 @@ public class PomValidationTask extends PrecommitTask {
 
     private final RegularFileProperty pomFile;
     private final ProblemReporter problemReporter;
+    private final ThirdLevelProblemGroup problemGroup;
     private List<Problem> collectedProblems;
 
     @Inject
     public PomValidationTask(ObjectFactory objects, Problems problems) {
         pomFile = objects.fileProperty();
         this.problemReporter = problems.getReporter();
+        this.problemGroup = ElasticsearchBuildProblems.POM_VALIDATION.group(problems);
     }
 
     @InputFile
@@ -90,7 +92,7 @@ public class PomValidationTask extends PrecommitTask {
         String pomPath = pomFile.getAsFile().get().getAbsolutePath();
         collectedProblems.add(
             problemReporter.create(
-                ProblemId.create("invalid-" + element.replace(".", "-"), "Invalid POM element: " + element, ElasticsearchBuildProblems.POM_VALIDATION),
+                problemGroup.problemId("Invalid POM element"),
                 spec -> spec.contextualLabel(element + " " + message + " in " + pomPath)
                     .details("POM element '" + element + "' " + message)
                     .fileLocation(pomPath)

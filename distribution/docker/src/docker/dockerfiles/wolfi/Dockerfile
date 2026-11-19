@@ -22,8 +22,7 @@
 
 <% /*
   Paths in the Elasticsearch home that are copied to the final image in layers of their own, so that
-  the layers that do not change between builds can be reused. List them from the least to the most
-  frequently changing.
+  the layers that do not change between builds can be reused.
 
   Each entry is a command that prints the paths of the layer. A layer cannot be empty. The distribution only
   contains the machine learning libraries of the architecture being built, hence the wildcard.
@@ -35,7 +34,7 @@ def separateLayers = [
     'ls -d modules/x-pack-ml/platform/*/lib',
     // The third-party jars. Unlike the jars built from this repository, which carry the version in their file name,
     // they rarely change from one build to the next.
-    "find lib modules plugins -type f -name '*.jar' ! -name '*-${version}*'"
+    "find lib modules plugins -type f -name '*.jar' ! -name '*-${version}.jar'"
 ] %>
 
 ################################################################################

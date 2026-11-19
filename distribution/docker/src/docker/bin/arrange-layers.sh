@@ -64,7 +64,12 @@ check_no_jar_is_split() {
         jar_checksums lib modules plugins
     } | sort | uniq -d)
     if [ -n "$split_checksums" ]; then
-        echo >&2 "Jars with identical content would end up in different layers"
+        echo >&2 "Jars with identical content would end up in different layers, listed by checksum and path:"
+        find /layers lib modules plugins -type f -name '*.jar' -exec sha256sum {} + | sort | while read -r sum path; do
+            if echo "$split_checksums" | grep -qxF "$sum"; then
+                echo >&2 "  $sum $path"
+            fi
+        done
         exit 1
     fi
 }

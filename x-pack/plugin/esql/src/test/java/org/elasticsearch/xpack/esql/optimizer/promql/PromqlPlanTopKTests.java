@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.junit.Before;
@@ -287,20 +286,12 @@ public class PromqlPlanTopKTests extends AbstractPromqlPlanOptimizerTests {
         assertThat(Alias.unwrap(valueAgg), instanceOf(Sum.class));
     }
 
-    /** The labels {@code topNBy} partitions by: its groupings, the packed key of a {@link PackDims} below standing for its labels. */
+    /** The labels {@code topNBy} partitions by: those of each of its groupings, see {@link #keyLabels}. */
     private static List<String> partitionLabels(TopNBy topNBy) {
         var labels = new ArrayList<String>();
         for (var grouping : topNBy.groupings()) {
             if (grouping instanceof Attribute attribute) {
-                List<PackDims> packs = topNBy.collect(PackDims.class)
-                    .stream()
-                    .filter(pack -> pack.packed().id().equals(attribute.id()))
-                    .toList();
-                if (packs.isEmpty()) {
-                    labels.add(attribute.name());
-                } else {
-                    packs.forEach(pack -> pack.dims().forEach(dim -> labels.add(dim.name())));
-                }
+                labels.addAll(keyLabels(topNBy, attribute));
             }
         }
         return labels;

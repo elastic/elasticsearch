@@ -25,16 +25,19 @@ import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 public class PromqlPlanLimitRatioTests extends AbstractPromqlPlanOptimizerTests {
 
@@ -373,11 +376,21 @@ public class PromqlPlanLimitRatioTests extends AbstractPromqlPlanOptimizerTests 
         return comparisons.get(0);
     }
 
-    /** The sampling key names carried by the offset function. */
+    /**
+     * The labels the sampling keys hold: a key attribute names itself, and a typed label container written of labels, which a
+     * series samples by whole, names the labels written into it.
+     */
     private static List<String> samplingKeyNames(HashOffset offset) {
-        return offset.children().stream().map(c -> {
-            assertThat(c, instanceOf(Attribute.class));
-            return ((Attribute) c).name();
-        }).toList();
+        var names = new ArrayList<String>();
+        for (Expression key : offset.children()) {
+            if (key instanceof Attribute attribute) {
+                names.add(attribute.name());
+                continue;
+            }
+            List<String> written = writtenLabels(key);
+            assertThat(key.toString(), written, not(empty()));
+            names.addAll(written);
+        }
+        return names;
     }
 }

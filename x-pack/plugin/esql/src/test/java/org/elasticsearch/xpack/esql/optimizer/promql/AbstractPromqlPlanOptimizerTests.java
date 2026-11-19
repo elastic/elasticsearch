@@ -90,6 +90,40 @@ public abstract class AbstractPromqlPlanOptimizerTests extends AbstractLogicalPl
     }
 
     /**
+     * The labels {@code plan} keys by through {@code key}: the labels of what is packed into it, the labels written into it where
+     * it is a typed label container packed whole (in name order), none where it is a constant, or the key itself.
+     */
+    protected static List<String> keyLabels(LogicalPlan plan, Attribute key) {
+        for (PackDims pack : plan.collect(PackDims.class)) {
+            if (pack.packed().id().equals(key.id())) {
+                var labels = new ArrayList<String>();
+                pack.dims().forEach(dim -> labels.addAll(keyLabels(plan, dim)));
+                return labels;
+            }
+        }
+        for (Eval eval : plan.collect(Eval.class)) {
+            for (Alias field : eval.fields()) {
+                if (field.id().equals(key.id()) && field.child() instanceof TimeSeriesMetadataSet) {
+                    return writtenLabels(field.child());
+                }
+                if (field.id().equals(key.id()) && field.child() instanceof Literal) {
+                    return List.of();
+                }
+            }
+        }
+        return List.of(key.name());
+    }
+
+    /** The labels the {@link TimeSeriesMetadataSet} calls of {@code container} write into it, in the order they write them. */
+    protected static List<String> writtenLabels(Expression container) {
+        var labels = new ArrayList<String>();
+        for (Expression k = container; k instanceof TimeSeriesMetadataSet set; k = set.children().getFirst()) {
+            labels.addFirst(BytesRefs.toString(((Literal) set.label()).value()));
+        }
+        return labels;
+    }
+
+    /**
      * The labels each view of the source's series in {@code plan} leaves out, sorted: the typed label container's
      * {@link TimeSeriesWithout}, or the keyword {@code _timeseries} it is lowered to where a node before 9.7 takes part.
      */
@@ -151,39 +185,5 @@ public abstract class AbstractPromqlPlanOptimizerTests extends AbstractLogicalPl
         Alias bucketAlias = as(stepEval.fields().getFirst(), Alias.class);
         assertThat(bucketAlias.id(), equalTo(stepInTsAgg.id()));
         assertThat(bucketAlias.id(), equalTo(step.id()));
-    }
-
-    /**
-     * The labels {@code plan} keys by through {@code key}: the labels of what is packed into it, the labels written into it where
-     * it is a typed label container packed whole (in name order), none where it is a constant, or the key itself.
-     */
-    protected static List<String> keyLabels(LogicalPlan plan, Attribute key) {
-        for (PackDims pack : plan.collect(PackDims.class)) {
-            if (pack.packed().id().equals(key.id())) {
-                var labels = new ArrayList<String>();
-                pack.dims().forEach(dim -> labels.addAll(keyLabels(plan, dim)));
-                return labels;
-            }
-        }
-        for (Eval eval : plan.collect(Eval.class)) {
-            for (Alias field : eval.fields()) {
-                if (field.id().equals(key.id()) && field.child() instanceof TimeSeriesMetadataSet) {
-                    return writtenLabels(field.child());
-                }
-                if (field.id().equals(key.id()) && field.child() instanceof Literal) {
-                    return List.of();
-                }
-            }
-        }
-        return List.of(key.name());
-    }
-
-    /** The labels the {@link TimeSeriesMetadataSet} calls of {@code container} write into it, in the order they write them. */
-    protected static List<String> writtenLabels(Expression container) {
-        var labels = new ArrayList<String>();
-        for (Expression k = container; k instanceof TimeSeriesMetadataSet set; k = set.children().getFirst()) {
-            labels.addFirst(BytesRefs.toString(((Literal) set.label()).value()));
-        }
-        return labels;
     }
 }

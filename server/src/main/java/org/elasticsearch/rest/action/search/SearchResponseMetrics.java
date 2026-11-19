@@ -16,9 +16,12 @@ import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 /**
  * Container class for aggregated metrics about search responses.
@@ -42,6 +45,24 @@ public class SearchResponseMetrics {
     }
 
     public static final String RESPONSE_COUNT_TOTAL_STATUS_ATTRIBUTE_NAME = "response_status";
+
+    /**
+     * Upper-inclusive bucket boundaries for {@link #STORE_BYTES_READ_HISTOGRAM_NAME}: zero, then every power of two from 1 KiB to
+     * 4 TiB. The default boundaries stop at 128 KiB, well below what a search typically reads. Each bucket holds the values above
+     * the previous boundary, up to and including its own:
+     * <ul>
+     *     <li>0</li>
+     *     <li>1 KiB, 2 KiB, 4 KiB, 8 KiB, 16 KiB, 32 KiB, 64 KiB, 128 KiB, 256 KiB, 512 KiB</li>
+     *     <li>1 MiB, 2 MiB, 4 MiB, 8 MiB, 16 MiB, 32 MiB, 64 MiB, 128 MiB, 256 MiB, 512 MiB</li>
+     *     <li>1 GiB, 2 GiB, 4 GiB, 8 GiB, 16 GiB, 32 GiB, 64 GiB, 128 GiB, 256 GiB, 512 GiB</li>
+     *     <li>1 TiB, 2 TiB, 4 TiB</li>
+     * </ul>
+     * Anything above 4 TiB goes into a single overflow bucket.
+     */
+    public static final List<Long> STORE_BYTES_READ_BUCKETS = Stream.concat(
+        Stream.of(0L),
+        IntStream.rangeClosed(10, 42).mapToObj(exponent -> 1L << exponent)
+    ).toList();
 
     public static final String TOOK_DURATION_TOTAL_HISTOGRAM_NAME = "es.search_response.took_durations.histogram";
     public static final String RESPONSE_COUNT_TOTAL_COUNTER_NAME = "es.search_response.response_count.total";
@@ -101,7 +122,8 @@ public class SearchResponseMetrics {
         this.storeBytesReadHistogram = meterRegistry.registerLongHistogram(
             STORE_BYTES_READ_HISTOGRAM_NAME,
             "The number of bytes read from the store while serving a search request, expressed as a histogram",
-            "bytes"
+            "bytes",
+            STORE_BYTES_READ_BUCKETS
         );
         // A double histogram, so that waits of a millisecond or two keep their fractional part: the default long buckets are
         // whole numbers and the values are truncated, which understates them by up to a millisecond.

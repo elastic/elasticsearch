@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.core.expression.predicate.regex;
 
+import org.apache.lucene.internal.hppc.IntArrayList;
+import org.apache.lucene.internal.hppc.IntIntHashMap;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
@@ -17,13 +19,10 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.RE2;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.Regexp;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.Unicode;
 
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * A regular expression in RE2 syntax, compiled to a Lucene {@link Automaton} that accepts the strings it matches whole.
@@ -37,16 +36,12 @@ public final class Re2RegExp {
 
     private final Regexp regexp;
 
-    public Re2RegExp(String pattern) {
-        this(pattern, false);
-    }
-
     /**
-     * @param ignoreCase whether to match as if the expression started with {@code (?i)}
+     * @param flags the {@link RE2} parser flags, such as {@link RE2#PERL}, {@link RE2#DOT_NL} and {@link RE2#FOLD_CASE}
      * @throws IllegalArgumentException if the expression isn't valid RE2
      */
-    public Re2RegExp(String pattern, boolean ignoreCase) {
-        this.regexp = Parser.parse(pattern, RE2.PERL | RE2.DOT_NL | (ignoreCase ? RE2.FOLD_CASE : 0));
+    public Re2RegExp(String pattern, int flags) {
+        this.regexp = Parser.parse(pattern, flags);
     }
 
     /**
@@ -98,13 +93,13 @@ public final class Re2RegExp {
 
         /** {@code rune} and the code points it folds to. */
         private static int[] orbit(int rune) {
-            List<Integer> orbit = new ArrayList<>();
+            IntArrayList orbit = new IntArrayList();
             int r = rune;
             do {
                 orbit.add(r);
                 r = Unicode.simpleFold(r);
             } while (r != rune);
-            return orbit.stream().mapToInt(Integer::intValue).toArray();
+            return orbit.toArray();
         }
 
         /** Any one code point in {@code ranges}, {@code [lo, hi]} pairs. */
@@ -154,8 +149,11 @@ public final class Re2RegExp {
             return Character.MAX_CODE_POINT + 1 + KINDS.indexOf(kind);
         }
 
+        /** The conditions of all assertions, the same for every expression. */
+        private static final Automaton CONDITIONS = conditions();
+
         static Automaton resolve(Automaton automaton) {
-            return dropMarkers(Operations.intersection(automaton, conditions()));
+            return dropMarkers(Operations.intersection(automaton, CONDITIONS));
         }
 
         /**
@@ -164,11 +162,11 @@ public final class Re2RegExp {
          */
         private static Automaton conditions() {
             Automaton.Builder builder = new Automaton.Builder();
-            Map<Integer, Integer> states = new HashMap<>();
-            ArrayDeque<Integer> pending = new ArrayDeque<>();
+            IntIntHashMap states = new IntIntHashMap();
+            IntArrayList pending = new IntArrayList();
             state(builder, states, pending, EDGE, ALL);
-            while (pending.isEmpty() == false) {
-                int key = pending.poll();
+            for (int p = 0; p < pending.size(); p++) {
+                int key = pending.get(p);
                 int previous = key >> 4;
                 int next = key & ALL;
                 int from = states.get(key);
@@ -192,20 +190,15 @@ public final class Re2RegExp {
             return builder.finish();
         }
 
-        private static int state(
-            Automaton.Builder builder,
-            Map<Integer, Integer> states,
-            ArrayDeque<Integer> pending,
-            int previous,
-            int next
-        ) {
+        private static int state(Automaton.Builder builder, IntIntHashMap states, IntArrayList pending, int previous, int next) {
             int key = previous << 4 | next;
-            Integer state = states.get(key);
-            if (state == null) {
-                state = builder.createState();
-                states.put(key, state);
-                pending.add(key);
+            int slot = states.indexOf(key);
+            if (slot >= 0) {
+                return states.indexGet(slot);
             }
+            int state = builder.createState();
+            states.indexInsert(slot, key, state);
+            pending.add(key);
             return state;
         }
 
@@ -233,9 +226,10 @@ public final class Re2RegExp {
             for (int state = 0; state < automaton.getNumStates(); state++) {
                 // the states the markers from this one lead to, itself included
                 BitSet reached = new BitSet();
-                ArrayDeque<Integer> pending = new ArrayDeque<>(List.of(state));
+                IntArrayList pending = new IntArrayList();
+                pending.add(state);
                 while (pending.isEmpty() == false) {
-                    int from = pending.poll();
+                    int from = pending.removeLast();
                     if (reached.get(from)) {
                         continue;
                     }

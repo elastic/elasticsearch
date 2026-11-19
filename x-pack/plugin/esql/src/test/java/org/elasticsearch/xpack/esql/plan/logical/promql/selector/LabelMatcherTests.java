@@ -209,7 +209,7 @@ public class LabelMatcherTests extends ESTestCase {
 
     /** The filter gets the regex as written, in RE2 syntax like the automaton. */
     public void testRegexPattern() {
-        Re2Pattern pattern = LabelMatcher.regex("(?i)(a<1-3>|~b&c)");
+        Re2Pattern pattern = new Re2Pattern("(?i)(a<1-3>|~b&c)");
         assertThat(pattern.pattern(), equalTo("(?i)(a<1-3>|~b&c)"));
         Automaton expected = new LabelMatcher("label", "(?i)(a<1-3>|~b&c)", Matcher.REG).automaton();
         assertTrue(AutomatonTestUtil.sameLanguage(expected, pattern.createAutomaton(false)));

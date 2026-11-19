@@ -125,20 +125,18 @@ public class LabelMatcher implements NodeStringRenderable {
             return automaton;
         }
 
-        Automaton result;
-        if (isMultiValue() && matcher.isRegex() == false) {
-            // Multi-value exact match: union of all literal values
-            List<Automaton> automata = values.stream().map(Automata::makeString).toList();
-            result = Operations.union(automata);
-        } else if (isMultiValue()) {
-            // Multi-value regex: union of all regex patterns
-            List<Automaton> automata = values.stream().map(LabelMatcher::regexAutomaton).toList();
-            result = Operations.union(automata);
-        } else {
-            // Single value
-            String v = getFirstValue();
-            result = matcher.isRegex() ? regexAutomaton(v) : Automata.makeString(v);
-        }
+        // a multi-value matcher matches the union of its values
+        List<Automaton> automata = values.stream().map(v -> {
+            if (matcher.isRegex() == false) {
+                return Automata.makeString(v);
+            }
+            try {
+                return new Re2Pattern(v).createAutomaton(false);
+            } catch (IllegalArgumentException e) {
+                throw new InvalidArgumentException(e, "Invalid regular expression [{}]: {}", v, e.getMessage());
+            }
+        }).toList();
+        Automaton result = automata.size() == 1 ? automata.getFirst() : Operations.union(automata);
         result = MinimizationOperations.minimize(result, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
         // negate if needed
         if (matcher == NEQ || matcher == NREG) {
@@ -146,22 +144,6 @@ public class LabelMatcher implements NodeStringRenderable {
         }
         automaton = result;
         return automaton;
-    }
-
-    /**
-     * A PromQL regex, in RE2 syntax, used for both the matcher's automaton and the filter so the two agree on what it
-     * matches.
-     */
-    public static Re2Pattern regex(String regex) {
-        return new Re2Pattern(regex);
-    }
-
-    private static Automaton regexAutomaton(String regex) {
-        try {
-            return regex(regex).createAutomaton(false);
-        } catch (IllegalArgumentException e) {
-            throw new InvalidArgumentException(e, "Invalid regular expression [{}]: {}", regex, e.getMessage());
-        }
     }
 
     public boolean matchesAll() {

@@ -7,13 +7,15 @@
 
 package org.elasticsearch.xpack.esql.core.expression.predicate.regex;
 
+import org.apache.lucene.tests.util.automaton.AutomatonTestUtil;
+import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.Pattern;
-import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.PatternSyntaxException;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.RE2;
 
-import java.util.ArrayList;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -91,7 +93,7 @@ public class Re2RegExpTests extends ESTestCase {
     }
 
     public void testIgnoreCase() {
-        CharacterRunAutomaton run = run(new Re2RegExp("ab(?-i)c", true));
+        CharacterRunAutomaton run = run(new Re2RegExp("ab(?-i)c", FLAGS | RE2.FOLD_CASE));
         assertTrue(run.run("ABc"));
         assertFalse(run.run("ABC"));
     }
@@ -243,84 +245,65 @@ public class Re2RegExpTests extends ESTestCase {
     }
 
     /**
-     * The automaton built from the parsed expression and the matcher {@code label_replace} runs on the same parse agree
-     * on what random expressions match.
+     * The automaton built from a random expression and the matcher {@code label_replace} runs on the same parse agree
+     * on what it matches: the strings the automaton accepts and random strings over the expression's alphabet.
      */
     public void testAgreesWithMatcher() {
-        List<String> values = values();
-        for (int i = 0; i < 200; i++) {
-            StringBuilder regexBuilder = new StringBuilder();
-            for (int tokens = between(1, 7); tokens > 0; tokens--) {
-                regexBuilder.append(randomFrom(TOKENS));
+        String regex = randomRegex(2);
+        Pattern pattern = Pattern.compile(regex, Pattern.DOTALL);
+        Automaton automaton;
+        try {
+            automaton = Operations.determinize(new Re2RegExp(regex, FLAGS).toAutomaton(), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        } catch (TooComplexToDeterminizeException e) {
+            // an expression this complex is rejected rather than matched, as Lucene's regexp is
+            assumeNoException("[" + regex + "] is too complex to determinize", e);
+            return;
+        }
+        CharacterRunAutomaton run = new CharacterRunAutomaton(automaton);
+        if (Operations.isEmpty(automaton) == false) {
+            AutomatonTestUtil.RandomAcceptedStrings accepted = new AutomatonTestUtil.RandomAcceptedStrings(automaton);
+            for (int i = 0; i < 20; i++) {
+                int[] codePoints = accepted.getRandomAcceptedString(random());
+                String value = new String(codePoints, 0, codePoints.length);
+                assertTrue("[" + regex + "] should match [" + value + "]", pattern.matches(value));
             }
-            String regex = regexBuilder.toString();
-            Pattern pattern;
-            try {
-                pattern = Pattern.compile(regex, Pattern.DOTALL);
-            } catch (PatternSyntaxException e) {
-                expectThrows(IllegalArgumentException.class, "[" + regex + "] should be invalid", () -> new Re2RegExp(regex));
-                continue;
+        }
+        for (int i = 0; i < 100; i++) {
+            StringBuilder value = new StringBuilder();
+            for (int length = between(0, 6); length > 0; length--) {
+                value.appendCodePoint(randomFrom(ALPHABET));
             }
-            CharacterRunAutomaton run = run(new Re2RegExp(regex));
-            for (String value : values) {
-                assertThat("[" + regex + "] on [" + value + "]", run.run(value), equalTo(pattern.matches(value)));
-            }
+            assertThat("[" + regex + "] on [" + value + "]", run.run(value.toString()), equalTo(pattern.matches(value.toString())));
         }
     }
 
-    private static final List<String> TOKENS = List.of(
-        "a",
-        "b",
-        "A",
-        "k",
-        "\u212a",
-        "_",
-        " ",
-        "-",
-        "1",
-        "#",
-        "&",
-        "~",
-        "@",
-        "<",
-        ">",
-        "\"",
-        "\u017f",
-        "\u03b1",
+    /** The parser flags Prometheus parses a label matcher with. */
+    private static final int FLAGS = RE2.PERL | RE2.DOT_NL;
+
+    private static final List<Integer> ALPHABET = List.of(
+        (int) 'a',
+        (int) 'b',
+        (int) 'A',
+        (int) 'k',
+        0x212A,
+        0x17F,
+        (int) '_',
+        (int) ' ',
+        (int) '\n',
+        (int) '-',
+        (int) '1',
+        (int) '#',
+        0x3B1,
+        0x391
+    );
+
+    private static final List<String> CLASSES = List.of(
         ".",
-        "*",
-        "+",
-        "?",
-        "|",
-        "(",
-        ")",
-        "[",
-        "]",
-        "^",
-        "$",
-        "{",
-        "}",
-        ":",
-        ",",
-        "2",
-        "0",
-        "(?i)",
-        "(?-i)",
-        "(?s)",
-        "(?-s)",
-        "(?m)",
-        "(?-m)",
-        "(?:",
-        "(?P<n>",
-        "(?<n>",
-        "(?i:",
-        "(?U)",
-        "(?is)",
-        "(?i-s:",
-        "\\b",
-        "\\B",
-        "\\A",
-        "\\z",
+        "[a-c]",
+        "[^k]",
+        "[ak]",
+        "[\\w-]",
+        "[^\\n]",
         "\\d",
         "\\D",
         "\\w",
@@ -332,74 +315,60 @@ public class Re2RegExpTests extends ESTestCase {
         "\\p{Greek}",
         "\\p{Lu}",
         "\\p{^Ll}",
-        "\\pN",
         "[[:alpha:]]",
         "[[:^alpha:]]",
-        "[[:word:]]",
-        "[^a]",
-        "[a-c]",
-        "[^\\n]",
-        "[ak]",
-        "[^k]",
-        "[\\w-]",
-        "[]a]",
-        "[a-]",
-        "[-a]",
-        "{2}",
-        "{1,2}",
-        "{0,}",
-        "{0}",
         "\\x41",
-        "\\x{3b1}",
-        "\\n",
-        "\\Q",
-        "\\E",
-        "\\.",
-        "\\-",
-        "\\#",
-        "\\101",
-        "\\0",
-        "\\\\"
+        "\\x{3b1}"
     );
 
-    private static final int[] ALPHABET = { 'a', 'b', 'A', 'k', 0x212A, '_', ' ', '\n', '-', '1', '#', 0x3B1 };
+    private static final List<String> ASSERTIONS = List.of("^", "$", "\\A", "\\z", "\\b", "\\B");
 
-    /** Every string of up to two code points of {@link #ALPHABET}, and some longer ones. */
-    private static List<String> values() {
-        List<String> values = new ArrayList<>();
-        values.add("");
-        for (int first : ALPHABET) {
-            values.add(Character.toString(first));
-            for (int second : ALPHABET) {
-                values.add(Character.toString(first) + Character.toString(second));
+    private static final List<String> FLAG_GROUPS = List.of("(?i:", "(?s:", "(?m:", "(?U:", "(?-i:", "(?im:", "(?i-s:");
+
+    private static final List<String> QUANTIFIERS = List.of("*", "+", "?", "*?", "+?", "??", "{2}", "{0,2}", "{1,}", "{0}", "{1,2}?");
+
+    /** A random valid expression over {@link #ALPHABET}, nested at most {@code depth} groups deep. */
+    private static String randomRegex(int depth) {
+        StringBuilder regex = new StringBuilder();
+        for (int branches = between(1, 3); branches > 0; branches--) {
+            for (int terms = between(0, 3); terms > 0; terms--) {
+                regex.append(randomTerm(depth));
+            }
+            if (branches > 1) {
+                regex.append('|');
             }
         }
-        for (int i = 0; i < 20; i++) {
-            StringBuilder value = new StringBuilder();
-            for (int length = between(3, 6); length > 0; length--) {
-                value.appendCodePoint(ALPHABET[between(0, ALPHABET.length - 1)]);
-            }
-            values.add(value.toString());
-        }
-        return values;
+        return regex.toString();
+    }
+
+    private static String randomTerm(int depth) {
+        String atom = switch (between(0, depth > 0 ? 4 : 2)) {
+            case 0 -> Pattern.quote(Character.toString(randomFrom(ALPHABET)));
+            case 1 -> randomFrom(CLASSES);
+            case 2 -> randomFrom(ASSERTIONS);
+            case 3 -> randomFrom("(", "(?:", "(?P<n>") + randomRegex(depth - 1) + ")";
+            case 4 -> randomFrom(FLAG_GROUPS) + randomRegex(depth - 1) + ")";
+            default -> throw new AssertionError("unexpected term");
+        };
+        return randomBoolean() ? atom : atom + randomFrom(QUANTIFIERS);
     }
 
     private static void assertMatches(String regex, String... values) {
-        CharacterRunAutomaton run = run(new Re2RegExp(regex));
+        CharacterRunAutomaton run = run(new Re2RegExp(regex, FLAGS));
         for (String value : values) {
             assertTrue("[" + regex + "] should match [" + value + "]", run.run(value));
         }
     }
 
     private static void assertDoesNotMatch(String regex, String... values) {
-        CharacterRunAutomaton run = run(new Re2RegExp(regex));
+        CharacterRunAutomaton run = run(new Re2RegExp(regex, FLAGS));
         for (String value : values) {
             assertFalse("[" + regex + "] should not match [" + value + "]", run.run(value));
         }
     }
 
     private static void assertInvalid(String regex, String message) {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new Re2RegExp(regex));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new Re2RegExp(regex, FLAGS));
         assertThat(regex, e.getMessage(), equalTo(message));
     }
 

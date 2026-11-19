@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.core.expression.predicate.regex;
 
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.RE2;
 
 import java.util.Objects;
 
@@ -26,12 +27,20 @@ public class Re2Pattern extends AbstractStringPattern {
 
     @Override
     protected Automaton doCreateAutomaton(boolean ignoreCase) {
-        return Operations.determinize(new Re2RegExp(regex, ignoreCase).toAutomaton(), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        int flags = RE2.PERL | RE2.DOT_NL;
+        if (ignoreCase) {
+            flags |= RE2.FOLD_CASE;
+        }
+        return Operations.determinize(new Re2RegExp(regex, flags).toAutomaton(), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
     }
 
+    /**
+     * RE2 and Java differ in syntax and semantics, in {@code \p} names and case folding among others, so there is no
+     * Java regex to give; {@code Re2Like} matches with the automaton.
+     */
     @Override
     public String asJavaRegex() {
-        return regex;
+        throw new UnsupportedOperationException("an RE2 regular expression has no Java equivalent");
     }
 
     @Override

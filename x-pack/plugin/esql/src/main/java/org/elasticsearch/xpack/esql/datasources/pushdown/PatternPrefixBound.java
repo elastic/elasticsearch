@@ -33,12 +33,15 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvRege
  */
 public final class PatternPrefixBound {
 
+    private static final char REPLACEMENT_CHARACTER = '\uFFFD';
+
     private PatternPrefixBound() {}
 
     /**
      * The half-open {@code mv_in_range(field, prefix, next(prefix))} that {@code expr} implies, or {@code null} when
      * {@code expr} is not an {@code mv_like} / {@code mv_rlike} over a string attribute, its pattern has no literal
-     * prefix, or the prefix has no upper bound (every code point in it is the maximal one).
+     * prefix, the prefix holds a U+FFFD replacement character, or the prefix has no upper bound (every code point in it
+     * is the maximal one).
      */
     @Nullable
     public static MvInRange of(Expression expr) {
@@ -50,7 +53,9 @@ public final class PatternPrefixBound {
             return null;
         }
         String prefix = match.patternPrefix();
-        if (prefix == null) {
+        // A reader may decode malformed UTF-8 to U+FFFD, so a value matching a prefix holding one need not start with
+        // its bytes in the file, and statistics would be compared against bytes the pattern never sees.
+        if (prefix == null || prefix.indexOf(REPLACEMENT_CHARACTER) >= 0) {
             return null;
         }
         BytesRef lower = new BytesRef(prefix);

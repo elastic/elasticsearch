@@ -70,6 +70,15 @@ public class PatternPrefixBoundTests extends ESTestCase {
         assertNull(PatternPrefixBound.of(new MvRLike(SRC, F, keyword(""))));
     }
 
+    public void testReplacementCharacterInPrefixGivesNoBound() {
+        // A stored 0xFF decodes to U+FFFD and matches these patterns, yet its raw bytes lie outside [U+FFFD, U+FFFE).
+        assertNull(PatternPrefixBound.of(new MvLike(SRC, F, keyword("\uFFFD*"))));
+        assertNull(PatternPrefixBound.of(new MvLike(SRC, F, keyword("a\uFFFDb*"))));
+        assertNull(PatternPrefixBound.of(new MvRLike(SRC, F, keyword("a\uFFFD.*"))));
+        // Past the prefix it costs nothing: the bytes the prefix covers are copied verbatim on decode.
+        assertBound(PatternPrefixBound.of(new MvLike(SRC, F, keyword("ab*\uFFFD"))), "ab", "ac");
+    }
+
     public void testNonConstantOrInvalidPatternGivesNoBound() {
         ReferenceAttribute p = new ReferenceAttribute(SRC, "p", DataType.KEYWORD);
         assertNull(PatternPrefixBound.of(new MvLike(SRC, F, p)));

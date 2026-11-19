@@ -363,14 +363,19 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
      * A prefix-bearing mv_like / mv_rlike beside the range it implies -- the conjunct pair PushFiltersToSource hands the
      * reader. description is ordered by id within a row group, so the prefix prunes. Row 13 holds the derived upper
      * bound itself ("..._row_13" for the prefix "..._row_12"): the range is pushed inclusive, a superset, and the row
-     * must not survive the pattern.
+     * must not survive the pattern. The range is only handed to the reader; every path filters with the pattern alone,
+     * as FilterExec does, so a range narrower than the pattern shows up as missing rows.
      */
     public void testMvPatternWithImpliedPrefixRangeKeepsEveryMatch() throws IOException {
         String prefix = "padding_" + "p".repeat(50) + "_row_12";
-        runDifferential(withImpliedRange(mvLike(DESCRIPTION, prefix + "*")));
-        runDifferential(withImpliedRange(mvLike(DESCRIPTION, prefix + "*5")));
-        runDifferential(withImpliedRange(mvRLike(DESCRIPTION, prefix + ".*")));
-        runDifferential(withImpliedRange(mvLike(URL, "https://google*")));
+        for (Expression pattern : List.of(
+            mvLike(DESCRIPTION, prefix + "*"),
+            mvLike(DESCRIPTION, prefix + "*5"),
+            mvRLike(DESCRIPTION, prefix + ".*"),
+            mvLike(URL, "https://google*")
+        )) {
+            runDifferential(withImpliedRange(pattern), pattern);
+        }
     }
 
     /**
@@ -378,8 +383,9 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
      * range ever be handed over, under OR it is the AND's translatable arm, and the OR of supersets is still a superset.
      */
     public void testMvPatternWithImpliedPrefixRangeUnderOr() throws IOException {
-        String prefix = "padding_" + "p".repeat(50) + "_row_12";
-        runDifferential(or(withImpliedRange(mvLike(DESCRIPTION, prefix + "*")), lt(ID, 10L, DataType.LONG)));
+        Expression pattern = mvLike(DESCRIPTION, "padding_" + "p".repeat(50) + "_row_12*");
+        Expression other = lt(ID, 10L, DataType.LONG);
+        runDifferential(or(withImpliedRange(pattern), other), or(pattern, other));
     }
 
     /**
@@ -387,8 +393,8 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
      * build no statistics predicate, as it would become an under-match.
      */
     public void testNotOverMvPatternWithImpliedPrefixRangeKeepsEveryRow() throws IOException {
-        String prefix = "padding_" + "p".repeat(50) + "_row_12";
-        runDifferential(not(withImpliedRange(mvLike(DESCRIPTION, prefix + "*"))));
+        Expression pattern = mvLike(DESCRIPTION, "padding_" + "p".repeat(50) + "_row_12*");
+        runDifferential(not(withImpliedRange(pattern)), not(pattern));
     }
 
     public void testNotOverMvContainsDoesNotPush() throws IOException {
@@ -857,9 +863,18 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
      * having to enumerate them manually.
      */
     private void runDifferential(Expression filter) throws IOException {
+        runDifferential(filter, filter);
+    }
+
+    /**
+     * {@link #runDifferential(Expression)} where the reader is handed {@code pushed} -- {@code filter} plus pruning
+     * hints it implies -- while every path filters rows with {@code filter} alone, as the planner keeps only the
+     * original in FilterExec. A hint is thus checked rather than trusted: one that prunes a match loses rows.
+     */
+    private void runDifferential(Expression pushed, Expression filter) throws IOException {
         for (Layout layout : Layout.values()) {
             DatasetAndBytes dataset = buildDataset(layout);
-            assertOracleAgreement(dataset, filter, layout, "fixed case");
+            assertOracleAgreement(dataset, pushed, filter, layout, "fixed case");
         }
     }
 
@@ -890,8 +905,17 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
      * </ul>
      */
     private void assertOracleAgreement(DatasetAndBytes dataset, Expression filter, Layout layout, String iterationTag) throws IOException {
-        Set<Long> production = productionReaderEvaluate(dataset.parquetBytes, filter);
-        Set<Long> apacheMr = oracleA_apacheMr(dataset.parquetBytes, filter);
+        assertOracleAgreement(dataset, filter, filter, layout, iterationTag);
+    }
+
+    /**
+     * {@link #assertOracleAgreement(DatasetAndBytes, Expression, Layout, String)} with {@code pushed} handed only to the
+     * readers that prune -- production and apache-mr -- and {@code filter} the one every path evaluates per row.
+     */
+    private void assertOracleAgreement(DatasetAndBytes dataset, Expression pushed, Expression filter, Layout layout, String iterationTag)
+        throws IOException {
+        Set<Long> production = productionReaderEvaluate(dataset.parquetBytes, pushed, filter);
+        Set<Long> apacheMr = oracleA_apacheMr(dataset.parquetBytes, pushed, filter);
         Set<Long> noPushdown = oracleB_pushdownDisabled(dataset.parquetBytes, filter);
         Set<Long> pureJava = oracleC_pureJava(dataset.rows, filter);
 
@@ -1236,16 +1260,18 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
      * silently drops (the trivially-passes leak) has no FilterExec safety net here, so the
      * test catches it. A RECHECK conjunct that the reader over-includes is fine because the
      * post-filter cleans it up — and that mirrors production semantics exactly.
+     *
+     * <p>The reader is handed the conjuncts of {@code pushedFilter}, the remainder is drawn from those of
+     * {@code filter}: a pruning hint the planner adds beside a conjunct is never kept in {@code FilterExec}.
      */
-    private Set<Long> productionReaderEvaluate(byte[] parquetBytes, Expression filter) throws IOException {
-        List<Expression> conjuncts = splitTopLevelAnd(filter);
-        ParquetPushedExpressions pushed = new ParquetPushedExpressions(conjuncts);
+    private Set<Long> productionReaderEvaluate(byte[] parquetBytes, Expression pushedFilter, Expression filter) throws IOException {
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(splitTopLevelAnd(pushedFilter));
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
 
         // Determine the FilterExec remainder using the same classifier the planner uses.
         ParquetFilterPushdownSupport pushdownSupport = new ParquetFilterPushdownSupport();
         List<Expression> remainder = new ArrayList<>();
-        for (Expression conjunct : conjuncts) {
+        for (Expression conjunct : splitTopLevelAnd(filter)) {
             if (pushdownSupport.canPush(conjunct) != FilterPushdownSupport.Pushability.YES) {
                 remainder.add(conjunct);
             }
@@ -1332,9 +1358,12 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
      * row and the Java post-filter applies the original expression. This costs us the
      * cross-stack check on the apache-mr filter machinery for those cases — acceptable, the
      * point of this oracle is to catch bugs in our reader, not to validate apache-mr.
+     *
+     * <p>The predicate is translated from {@code pushedFilter}, which may carry pruning hints beside {@code filter};
+     * the post-filter applies {@code filter} alone, so a hint that drops a matching record loses it here too.
      */
-    private Set<Long> oracleA_apacheMr(byte[] parquetBytes, Expression filter) throws IOException {
-        FilterPredicate filterPredicate = safeTranslateForApacheMr(filter);
+    private Set<Long> oracleA_apacheMr(byte[] parquetBytes, Expression pushedFilter, Expression filter) throws IOException {
+        FilterPredicate filterPredicate = safeTranslateForApacheMr(pushedFilter);
         GroupReaderBuilder builder = new GroupReaderBuilder(
             new ParquetStorageObjectAdapter(inMemoryStorageObject(parquetBytes), footerByteCache, blockFactory.breaker())
         );

@@ -2988,6 +2988,25 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         }
     }
 
+    /**
+     * A {@code BINARY DECIMAL} infers as {@code double}; declared {@code keyword} it reads {@code "12.34"} while its
+     * statistics hold the unscaled integer bytes. No keyword bound compares against those, the implied range included.
+     */
+    public void testKeywordOverBinaryDecimalBuildsNoValueBound() {
+        MessageType schema = Types.buildMessage().required(BINARY).as(decimalType(2, 9)).named("amount").named("test");
+        Attribute amount = attr("amount", DataType.KEYWORD);
+        MvInRange bound = PatternPrefixBound.of(new MvLike(Source.EMPTY, amount, lit(new BytesRef("12*"), DataType.KEYWORD)));
+        assertNotNull(bound);
+        assertNull("implied range", predicateFor(schema, bound));
+        assertNull("equality", predicateFor(schema, eq("amount", DataType.KEYWORD, new BytesRef("12.34"))));
+        assertNull("IN", predicateFor(schema, new In(Source.EMPTY, amount, List.of(lit(new BytesRef("12.34"), DataType.KEYWORD)))));
+        assertNull("STARTS_WITH", predicateFor(schema, new StartsWith(Source.EMPTY, amount, lit(new BytesRef("12"), DataType.KEYWORD))));
+        assertNotNull("IS NULL reads only the null count", predicateFor(schema, new IsNull(Source.EMPTY, amount)));
+
+        MessageType stringSchema = Types.buildMessage().required(BINARY).as(stringType()).named("amount").named("test");
+        assertNotNull("a string leaf still pushes", predicateFor(stringSchema, bound));
+    }
+
     /** Statistics are only reachable at a non-repeated leaf, so over a list the implied range builds nothing. */
     public void testImpliedPatternPrefixRangeBuildsNothingOverAList() {
         MvInRange overList = PatternPrefixBound.of(

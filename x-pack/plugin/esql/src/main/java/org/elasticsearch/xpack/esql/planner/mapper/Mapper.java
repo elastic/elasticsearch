@@ -27,12 +27,14 @@ import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
+import org.elasticsearch.xpack.esql.plan.logical.Into;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
+import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
 import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
@@ -49,6 +51,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
+import org.elasticsearch.xpack.esql.plan.physical.IntoExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitByExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
@@ -96,29 +99,28 @@ public class Mapper {
     }
 
     public PhysicalPlan map(Versioned<LogicalPlan> versionedPlan) {
+        NestedExpand.rejectUntilSupported(versionedPlan.inner());
         // We ignore the version for now, but it's fine to use later for plans that work
         // differently from some version and up.
         return mapInner(versionedPlan.inner());
     }
 
     private PhysicalPlan mapInner(LogicalPlan p) {
+        PhysicalPlan mapped;
         if (p instanceof LeafPlan leaf) {
-            return mapLeaf(leaf);
+            mapped = mapLeaf(leaf);
+        } else if (p instanceof UnaryPlan unary) {
+            mapped = mapUnary(unary);
+        } else if (p instanceof BinaryPlan binary) {
+            mapped = mapBinary(binary);
+        } else if (p instanceof MergePlan merge) {
+            mapped = mapMergePlan(merge);
+        } else {
+            mapped = MapperUtils.unsupported(p);
         }
-
-        if (p instanceof UnaryPlan unary) {
-            return mapUnary(unary);
-        }
-
-        if (p instanceof BinaryPlan binary) {
-            return mapBinary(binary);
-        }
-
-        if (p instanceof MergePlan merge) {
-            return mapMergePlan(merge);
-        }
-
-        return MapperUtils.unsupported(p);
+        // Nodes built in this class (FragmentExec, LimitExec, joins, MergeExec) have no origin yet.
+        // MapperUtils translations stamp themselves; stampOrigin leaves those alone.
+        return MapperUtils.stampOrigin(mapped, p);
     }
 
     private PhysicalPlan mapLeaf(LeafPlan leaf) {
@@ -231,6 +233,14 @@ public class Mapper {
         if (unary instanceof TsInfo tsInfo) {
             mappedChild = addExchangeForFragment(tsInfo, mappedChild);
             return new TsInfoExec(tsInfo.source(), mappedChild, tsInfo.output(), tsInfo.output(), TsInfoExec.Mode.FINAL, tsInfo.limit());
+        }
+
+        // Into: two-phase WRITE (data nodes or coordinator) then MERGE_STATS (coordinator).
+        if (unary instanceof Into into) {
+            PhysicalPlan write = mappedChild instanceof FragmentExec
+                ? addExchangeForFragment(into, mappedChild)
+                : MapperUtils.mapIntoWrite(into, mappedChild);
+            return new IntoExec(into.source(), write, into.destination(), List.of(), into.output(), IntoExec.Mode.MERGE_STATS);
         }
 
         //

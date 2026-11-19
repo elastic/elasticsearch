@@ -133,6 +133,35 @@ public class SearchResponseTests extends ESTestCase {
         assertEquals(0L, breaker.getUsed());
     }
 
+    public void testAggregationChargeReleasesOnLastDecRef() {
+        CircuitBreaker breaker = FetchSearchPhaseTests.requestBreaker("1gb");
+        long bytes = 8192L;
+        breaker.addWithoutBreaking(bytes);
+        SearchResponse response = new SearchResponse(
+            emptySections(),
+            null,
+            1,
+            1,
+            0,
+            0,
+            List.of(),
+            SearchResponse.Clusters.EMPTY,
+            null,
+            null,
+            null
+        );
+        response.adoptAggregationCharge(() -> breaker.addWithoutBreaking(-bytes));
+        assertTrue(response.hasAggregationCharge());
+
+        // Such as the REST layer, which keeps the response until it is sent.
+        response.mustIncRef();
+        response.decRef();
+        assertEquals(bytes, breaker.getUsed());
+
+        response.decRef();
+        assertEquals(0L, breaker.getUsed());
+    }
+
     private static SearchResponseSections emptySections() {
         return new SearchResponseSections(
             SearchHits.empty(Lucene.TOTAL_HITS_EQUAL_TO_ZERO, Float.NaN),
@@ -422,8 +451,8 @@ public class SearchResponseTests extends ESTestCase {
         try (XContentParser parser = createParser(xcontentType.xContent(), originalBytes)) {
             SearchResponse parsed = SearchResponseUtils.parseSearchResponse(parser);
             try {
-                for (int i = 0; i < parsed.getShardFailures().length; i++) {
-                    ShardSearchFailure parsedFailure = parsed.getShardFailures()[i];
+                for (int i = 0; i < parsed.getShardFailures().size(); i++) {
+                    ShardSearchFailure parsedFailure = parsed.getShardFailures().get(i);
                     ShardSearchFailure originalFailure = failures[i];
                     assertEquals(originalFailure.index(), parsedFailure.index());
                     assertEquals(originalFailure.shard(), parsedFailure.shard());
@@ -466,7 +495,7 @@ public class SearchResponseTests extends ESTestCase {
                 0,
                 0,
                 0,
-                ShardSearchFailure.EMPTY_ARRAY,
+                List.of(),
                 SearchResponse.Clusters.EMPTY
             );
             try {
@@ -508,7 +537,7 @@ public class SearchResponseTests extends ESTestCase {
                 0,
                 0,
                 0,
-                ShardSearchFailure.EMPTY_ARRAY,
+                List.of(),
                 new SearchResponse.Clusters(5, 3, 2)
             );
             try {
@@ -558,7 +587,7 @@ public class SearchResponseTests extends ESTestCase {
                 9,
                 2,
                 0,
-                ShardSearchFailure.EMPTY_ARRAY,
+                List.of(),
                 createCCSClusterObject(4, 3, true, 1, 1, 1, 1, List.of(new ShardSearchFailure(new IllegalStateException("corrupt index"))))
             );
             try {

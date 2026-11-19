@@ -93,7 +93,6 @@ import static org.elasticsearch.action.search.AbstractSearchAsyncAction.ALL_SHAR
 import static org.elasticsearch.action.search.AbstractSearchAsyncAction.INTERNAL_PARTIAL_RESULTS_CANCEL_REASON;
 import static org.elasticsearch.rest.action.search.SearchResponseMetrics.CACHE_MISS_WAIT_HISTOGRAM_NAME;
 import static org.elasticsearch.rest.action.search.SearchResponseMetrics.STORE_BYTES_READ_HISTOGRAM_NAME;
-import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyArray;
@@ -365,7 +364,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         assertThat(exception.get(), instanceOf(SearchPhaseExecutionException.class));
         SearchPhaseExecutionException searchPhaseExecutionException = (SearchPhaseExecutionException) exception.get();
         assertEquals(0, searchPhaseExecutionException.getSuppressed().length);
-        assertEquals(numFailures, searchPhaseExecutionException.shardFailures().length);
+        assertEquals(numFailures, searchPhaseExecutionException.shardFailures().size());
         for (ShardSearchFailure shardSearchFailure : searchPhaseExecutionException.shardFailures()) {
             assertThat(shardSearchFailure.getCause(), instanceOf(IllegalArgumentException.class));
         }
@@ -386,7 +385,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         SearchPhaseExecutionException searchPhaseExecutionException = (SearchPhaseExecutionException) exception.get();
         assertEquals("message", searchPhaseExecutionException.getMessage());
         assertEquals("test", searchPhaseExecutionException.getPhaseName());
-        assertEquals(0, searchPhaseExecutionException.shardFailures().length);
+        assertEquals(0, searchPhaseExecutionException.shardFailures().size());
         assertEquals(0, searchPhaseExecutionException.getSuppressed().length);
         assertEquals(nodeLookups, resolvedNodes);
         assertEquals(requestIds, releasedContexts);
@@ -420,7 +419,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         SearchPhaseExecutionException searchPhaseExecutionException = (SearchPhaseExecutionException) exception.get();
         assertEquals("Partial shards failure (" + (numShards - 1) + " shards unavailable)", searchPhaseExecutionException.getMessage());
         assertEquals("query", searchPhaseExecutionException.getPhaseName());
-        assertEquals(0, searchPhaseExecutionException.shardFailures().length);
+        assertEquals(0, searchPhaseExecutionException.shardFailures().size());
         assertEquals(0, searchPhaseExecutionException.getSuppressed().length);
     }
 
@@ -951,8 +950,8 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         SearchPhaseExecutionException searchPhaseExecutionException = (SearchPhaseExecutionException) exception.get();
         assertThat(searchPhaseExecutionException.getSuppressed(), emptyArray());
         // Confirm that we include the non-TaskCancelledException and use the appropriate status code
-        assertThat(searchPhaseExecutionException.shardFailures(), arrayWithSize(1));
-        assertThat(searchPhaseExecutionException.shardFailures()[0].getCause(), equalTo(nonInternalException));
+        assertThat(searchPhaseExecutionException.shardFailures(), hasSize(1));
+        assertThat(searchPhaseExecutionException.shardFailures().getFirst().getCause(), equalTo(nonInternalException));
         assertThat(searchPhaseExecutionException.getMessage(), containsString("Partial shards failure"));
         assertThat(searchPhaseExecutionException.status(), equalTo(ExceptionsHelper.status(nonInternalException)));
         assertEquals(nodeLookups, resolvedNodes);
@@ -996,8 +995,8 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         SearchPhaseExecutionException searchPhaseExecutionException = (SearchPhaseExecutionException) exception.get();
         assertThat(searchPhaseExecutionException.getSuppressed(), emptyArray());
         // Confirm that we include only the first non-internal TaskCancelledException and use its status code
-        assertThat(searchPhaseExecutionException.shardFailures(), arrayWithSize(1));
-        assertThat(searchPhaseExecutionException.shardFailures()[0].getCause(), equalTo(nonInternalCancel.get()));
+        assertThat(searchPhaseExecutionException.shardFailures(), hasSize(1));
+        assertThat(searchPhaseExecutionException.shardFailures().getFirst().getCause(), equalTo(nonInternalCancel.get()));
         assertThat(searchPhaseExecutionException.getMessage(), containsString("Partial shards failure"));
         assertThat(searchPhaseExecutionException.status(), equalTo(nonInternalCancel.get().status()));
         assertEquals(nodeLookups, resolvedNodes);
@@ -1053,7 +1052,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         assertThat(exception.get(), instanceOf(SearchPhaseExecutionException.class));
         SearchPhaseExecutionException searchPhaseExecutionException = (SearchPhaseExecutionException) exception.get();
         assertThat(searchPhaseExecutionException.getSuppressed(), emptyArray());
-        assertThat(searchPhaseExecutionException.shardFailures(), emptyArray());
+        assertThat(searchPhaseExecutionException.shardFailures(), empty());
         // Confirm that the placeholder exception is used as the cause and that the status is INTERNAL_SERVER_ERROR
         assertThat(searchPhaseExecutionException.getCause().getMessage(), equalTo(ALL_SHARDS_FAILED_DUE_TO_INTERNAL_CANCEL));
         assertThat(searchPhaseExecutionException.getMessage(), containsString(ALL_SHARDS_FAILED_DUE_TO_INTERNAL_CANCEL));

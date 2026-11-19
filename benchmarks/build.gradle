@@ -87,6 +87,8 @@ dependencies {
   }
   api(project(':x-pack:plugin:analytics'))
   api(project(':x-pack:plugin:logsdb'))
+  // For DatafeedNodeSelectorBenchmark, which measures the ML datafeed assignment hot path.
+  api(project(':x-pack:plugin:ml'))
   implementation project(path: ':libs:native')
   implementation project(path: ':libs:simdvec')
   implementation project(path: ':libs:columnar')
@@ -187,4 +189,15 @@ spotless {
     // to exist, exclude it anyway in order to avoid spurious failures.
     targetExclude 'src/main/generated/**/*.java'
   }
+}
+
+// Counts the cold reads and rounds of doc-values prefetch per format; runs outside JMH, as nothing is timed.
+tasks.register("docValuesPrefetchReads", JavaExec) {
+  def run = tasks.named("run", JavaExec).get()
+  classpath = run.classpath
+  executable = run.executable
+  jvmArgs run.jvmArgs
+  systemProperties run.systemProperties
+  dependsOn run.dependsOn
+  mainClass = 'org.elasticsearch.benchmark.stateless.DocValuesPrefetchReadsReport'
 }

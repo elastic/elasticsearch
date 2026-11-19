@@ -74,7 +74,7 @@ class ReplicatedContent {
      * @param estimatedMaxHeaderSizeInBytes an estimation of the size of the header, which is {@code 0} to replicate the content of all the
      *                                      files, including those in the same region as the header
      */
-    static ReplicatedContent createForCacheRegions(
+    static ReplicatedContent create(
         SequencedCollection<InternalFile> internalFiles,
         long internalFilesSizeInBytes,
         Directory directory,

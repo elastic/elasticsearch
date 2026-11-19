@@ -666,7 +666,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         // Current position of the start of the commit (relative to the start of the region)
         int currentPositionInRegion = (int) (currentOffset % cacheRegionSizeInBytes);
 
-        final var replicatedContent = ReplicatedContent.createForCacheRegions(
+        final var replicatedContent = ReplicatedContent.create(
             internalFiles,
             internalFilesSize,
             directory,

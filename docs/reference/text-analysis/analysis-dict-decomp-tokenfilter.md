@@ -68,7 +68,7 @@ Either this parameter or `word_list` must be specified.
 :   (Optional, integer) Minimum word character length. Shorter word tokens are excluded from the output. Defaults to `5`.
 
 `only_longest_match`
-:   (Optional, Boolean) If `true`, only include the longest matching subword. Defaults to `false`.
+:   (Optional, Boolean) If `true`, only include the longest matching subword at each position, and skip subwords that start inside it. Defaults to `false`.
 
 
 ## Customize and add to an analyzer [analysis-dict-decomp-tokenfilter-customize]

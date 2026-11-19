@@ -137,6 +137,30 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         );
     }
 
+    /**
+     * {@code present_over_time} and {@code absent_over_time} hold Prometheus's float {@code 1}, so their result
+     * composes with numeric functions, aggregations and {@code scalar()} like any other sample (#164943). Planning
+     * these queries suffices: before the fix they fail analysis with a boolean-typed argument error.
+     */
+    public void testPresentOverTimeAsNumericFunctionArgument() {
+        planPromql("PROMQL index=k8s step=5m result=(abs(present_over_time(network.bytes_in[5m])))");
+        planPromql("PROMQL index=k8s step=5m result=(clamp_min(present_over_time(network.bytes_in[5m]), 0))");
+    }
+
+    public void testAbsentOverTimeAsAggregationArgument() {
+        planPromql("PROMQL index=k8s step=5m result=(sum(absent_over_time(network.bytes_in[5m])))");
+    }
+
+    public void testAbsentOverTimeAsScalarArgument() {
+        planPromql("PROMQL index=k8s step=5m result=(scalar(absent_over_time(network.bytes_in[5m])))");
+    }
+
+    /** Control: arithmetic on the result already worked, by widening the operands to double. */
+    public void testPresentOverTimeArithmeticWorks() {
+        planPromql("PROMQL index=k8s step=5m result=(present_over_time(network.bytes_in[5m]) + 0)");
+    }
+
+
     public void testRound() {
         assertConstantResult("round(vector(pi()))", equalTo(3.0)); // round down to nearest integer
         assertConstantResult("round(vector(pi()), 1)", equalTo(3.0)); // same as above but with explicit argument

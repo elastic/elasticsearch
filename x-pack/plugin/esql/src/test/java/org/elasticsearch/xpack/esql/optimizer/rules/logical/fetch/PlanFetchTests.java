@@ -16,6 +16,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
@@ -511,6 +512,43 @@ public class PlanFetchTests extends ESTestCase {
                 "fetch phase not planned: the cut reads every column, or the others cannot be fetched"
             )
         );
+    }
+
+    /** A build without the fetch phase never plans it, not even when a query asks for it. */
+    public void testABuildWithoutTheFetchPhasePlansNone() {
+        for (Boolean pragma : new Boolean[] { null, true, false }) {
+            assertThat(PlanFetch.mode(FetchPhaseMode.UNAVAILABLE, pragma, TransportVersion.current()), equalTo(FetchPhaseMode.DISABLED));
+        }
+    }
+
+    /** Without the pragma, the mode of the cluster decides. */
+    public void testTheClusterModeDecidesWithoutThePragma() {
+        for (FetchPhaseMode clusterMode : List.of(FetchPhaseMode.DISABLED, FetchPhaseMode.AUTO, FetchPhaseMode.ALWAYS)) {
+            assertThat(PlanFetch.mode(clusterMode, null, TransportVersion.current()), equalTo(clusterMode));
+        }
+    }
+
+    /** The pragma forces the fetch on every plan that can use it, or turns it off, whatever the mode of the cluster. */
+    public void testThePragmaOverridesTheClusterMode() {
+        for (FetchPhaseMode clusterMode : List.of(FetchPhaseMode.DISABLED, FetchPhaseMode.AUTO, FetchPhaseMode.ALWAYS)) {
+            assertThat(PlanFetch.mode(clusterMode, true, TransportVersion.current()), equalTo(FetchPhaseMode.ALWAYS));
+            assertThat(PlanFetch.mode(clusterMode, false, TransportVersion.current()), equalTo(FetchPhaseMode.DISABLED));
+        }
+    }
+
+    /** A cluster with a node that can't read the fetch requests loads every column eagerly instead of failing. */
+    public void testAClusterWithAnOldNodePlansNone() {
+        TransportVersion old = TransportVersionUtils.getPreviousVersion(PlanFetch.PLANNER_MINIMUM);
+        assertThat(PlanFetch.mode(FetchPhaseMode.AUTO, null, old), equalTo(FetchPhaseMode.DISABLED));
+        assertThat(PlanFetch.mode(FetchPhaseMode.DISABLED, true, old), equalTo(FetchPhaseMode.DISABLED));
+        assertThat(PlanFetch.mode(FetchPhaseMode.AUTO, null, PlanFetch.PLANNER_MINIMUM), equalTo(FetchPhaseMode.AUTO));
+    }
+
+    /** The rule reads the pragma from the configuration of the query, and the minimum version from its context. */
+    public void testReadsThePragmaAndTheMinimumVersionOfTheQuery() {
+        Configuration fetchPhase = configuration(Settings.builder().put(QueryPragmas.FETCH_PHASE.getKey(), true).build());
+        assertThat(plan(BASIC, DISABLED, fetchPhase, TransportVersion.current()).collect(FetchExec.class), hasSize(1));
+        assertEager(plan(BASIC, DISABLED, fetchPhase, TransportVersionUtils.getPreviousVersion(PlanFetch.PLANNER_MINIMUM)));
     }
 
     private static void assertEager(PhysicalPlan plan) {

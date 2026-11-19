@@ -187,7 +187,7 @@ public class FetchPhaseGoldenTests extends GoldenTestCase {
             .searchStats(searchStats)
             .flags(EsqlFlags.withFetchPhase(FetchPhaseMode.ALWAYS))
             // the coordinator plans the fetch only once every node can run it
-            .since(FetchPhasePolicy.PLANNER_MINIMUM)
+            .since(PlanFetch.PLANNER_MINIMUM)
             .nestedPath("fetch");
     }
 

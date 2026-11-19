@@ -333,7 +333,7 @@ public class ComputeService {
             computeExecutor
         );
         fetchService.registerHandlers();
-        this.fetchPhaseServices = FetchPhaseServices.create(fetchService, searchTransportService, clusterService);
+        this.fetchPhaseServices = new FetchPhaseServices(fetchService, searchTransportService, clusterService);
     }
 
     /** The minimum transport version of the nodes that may read the splits planned here. */

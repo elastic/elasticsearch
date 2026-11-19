@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical.fetch;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -34,6 +36,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags.FetchPhaseMode;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 
@@ -81,21 +84,29 @@ import static org.elasticsearch.transport.RemoteClusterAware.isRemoteIndexName;
  * Both are about correctness only. {@link #paysOff} then decides whether an accepted plan is likely faster with the
  * fetch phase. Every other plan keeps loading its columns eagerly, unchanged, and the rule logs why at debug level.
  * <p>
- * {@link FetchPhasePolicy} turns the rule on and picks its mode. {@link FetchPhaseMode#ALWAYS} skips {@link #paysOff}.
- * The rule runs in the last batch of the logical optimizer, so no other logical rule needs to know {@link Fetch}.
+ * {@link #mode} turns the rule on and picks its mode. {@link FetchPhaseMode#ALWAYS} skips {@link #paysOff}. The rule
+ * runs in the last batch of the logical optimizer, so no other logical rule needs to know {@link Fetch}.
  */
 public final class PlanFetch extends ParameterizedRule<LogicalPlan, LogicalPlan, LogicalOptimizerContext> {
     private static final Logger logger = LogManager.getLogger(PlanFetch.class);
 
+    /**
+     * The transport version every node needs before a coordinator plans a fetch phase. It names the newest wire format
+     * the fetch phase depends on: the fetch request. Every node that reads it also reads the detached {@code _doc} of the
+     * exchange and keeps the reader contexts a data node request asks for.
+     */
+    public static final TransportVersion PLANNER_MINIMUM = TransportVersion.fromName("esql_fetch_action");
+
     @Override
     public LogicalPlan apply(LogicalPlan plan, LogicalOptimizerContext context) {
-        FetchPhasePolicy policy = FetchPhasePolicy.from(context);
-        FetchPhasePolicy.Outcome gate = policy.decide();
-        if (gate != FetchPhasePolicy.Outcome.ENABLED) {
-            logger.debug("fetch phase not planned: [{}]", gate);
+        FetchPhaseMode mode = mode(
+            context.flags().fetchPhaseMode(),
+            context.configuration().pragmas().fetchPhase(),
+            context.minimumVersion()
+        );
+        if (mode == FetchPhaseMode.DISABLED) {
             return plan;
         }
-        FetchPhaseMode mode = policy.mode();
         Shape shape = shape(plan);
         if (mode == FetchPhaseMode.AUTO && shape instanceof Candidate candidate) {
             shape = paysOff(candidate);
@@ -104,6 +115,25 @@ public final class PlanFetch extends ParameterizedRule<LogicalPlan, LogicalPlan,
             case Declined declined -> declined(plan, declined.reason());
             case Candidate candidate -> rewrite(plan, candidate);
         };
+    }
+
+    /**
+     * The mode the rule plans a query with. A build without the fetch phase plans none, whatever the {@code fetch_phase}
+     * pragma says, and so does a cluster with a node that can't read the fetch requests: its queries load every column
+     * eagerly instead of failing. Otherwise the pragma decides when the query sets it: {@code true} plans the fetch for
+     * every plan that can use it, {@code false} for none. Without the pragma the mode of the cluster decides.
+     *
+     * @param clusterMode the mode the build and the cluster give, see {@link EsqlFlags#fetchPhaseMode()}
+     * @param pragma      the {@code fetch_phase} pragma, {@code null} when the query does not set it
+     */
+    static FetchPhaseMode mode(FetchPhaseMode clusterMode, @Nullable Boolean pragma, TransportVersion minimumVersion) {
+        if (clusterMode == FetchPhaseMode.UNAVAILABLE || minimumVersion.supports(PLANNER_MINIMUM) == false) {
+            return FetchPhaseMode.DISABLED;
+        }
+        if (pragma != null) {
+            return pragma ? FetchPhaseMode.ALWAYS : FetchPhaseMode.DISABLED;
+        }
+        return clusterMode;
     }
 
     private static LogicalPlan declined(LogicalPlan plan, String reason) {

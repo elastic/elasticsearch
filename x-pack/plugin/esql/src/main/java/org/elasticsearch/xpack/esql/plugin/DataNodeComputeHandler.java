@@ -89,6 +89,7 @@ import org.elasticsearch.xpack.esql.fetch.NodeFetchContexts;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.planner.FetchOperatorProvider;
 import org.elasticsearch.xpack.esql.planner.PlanConcurrencyCalculator;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -1300,7 +1301,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         () -> exchangeSink(pagesProduced::incrementAndGet),
                         singleNodeOptimizations,
                         sortBound,
-                        null
+                        null,
+                        FetchOperatorProvider.UNSUPPORTED
                     );
                     computeService.runCompute(
                         parentTask,
@@ -1512,7 +1514,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         () -> leavingTheNode(externalSink.createExchangeSink(() -> {}), searchContexts, fetchContexts),
                         request.singleNodeOptimizations(),
                         null,
-                        reduceLoad(request.shards(), searchContexts)
+                        reduceLoad(request.shards(), searchContexts),
+                        FetchOperatorProvider.UNSUPPORTED
                     ),
                     reductionPlan.nodeReducePlan(),
                     plannerSettings,

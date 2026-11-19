@@ -145,7 +145,7 @@ public class FetchContextsIT extends AbstractEsqlIntegTestCase {
         }
 
         assertThat("a registered context per shard", registered.get(), equalTo(shards));
-        // each data node keeps a context for its own search.default_keep_alive, which the test cluster randomizes
+        // each data node opens its contexts with its own search.default_keep_alive, which the test cluster randomizes
         Set<Long> searchKeepAlives = new HashSet<>();
         for (SearchService searchService : internalCluster().getDataNodeInstances(SearchService.class)) {
             searchKeepAlives.add(searchService.getDefaultKeepAliveInMillis());

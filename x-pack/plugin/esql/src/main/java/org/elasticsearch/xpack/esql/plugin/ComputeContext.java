@@ -43,42 +43,6 @@ record ComputeContext(
     FetchOperatorProvider fetchOperators
 ) {
     /**
-     * For computes whose plans never fetch.
-     */
-    ComputeContext(
-        String sessionId,
-        TaskId queryId,
-        String description,
-        String clusterAlias,
-        EsqlFlags flags,
-        IndexedByShardId<ComputeSearchContext> searchContexts,
-        Configuration configuration,
-        FoldContext foldCtx,
-        Supplier<ExchangeSource> exchangeSourceSupplier,
-        Supplier<ExchangeSink> exchangeSinkSupplier,
-        boolean singleNodeOptimizations,
-        @Nullable SharedSortBound sortBound,
-        @Nullable TaskLoadAttribution.Target load
-    ) {
-        this(
-            sessionId,
-            queryId,
-            description,
-            clusterAlias,
-            flags,
-            searchContexts,
-            configuration,
-            foldCtx,
-            exchangeSourceSupplier,
-            exchangeSinkSupplier,
-            singleNodeOptimizations,
-            sortBound,
-            load,
-            FetchOperatorProvider.UNSUPPORTED
-        );
-    }
-
-    /**
      * For computes whose plans never fetch and share no sort bound.
      */
     ComputeContext(

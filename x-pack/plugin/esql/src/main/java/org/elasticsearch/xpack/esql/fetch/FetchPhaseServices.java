@@ -16,64 +16,58 @@ import org.elasticsearch.xpack.esql.plan.physical.FetchExec;
 import org.elasticsearch.xpack.esql.planner.FetchOperatorProvider;
 
 /**
- * The entry point to the runtime of the fetch phase on a coordinator. ES|QL code outside this package gets the operators
- * and the context trackers of the fetch phase from it, so the runtime can change without touching that code.
+ * Builds what the coordinator of a query needs for the fetch phase: a tracker of the fetch contexts of each execution, and
+ * a {@link FetchOperator} for each {@link FetchExec}. The client of the operator lives in this package, so code outside it
+ * gets the operators from here.
  */
-public interface FetchPhaseServices {
+public final class FetchPhaseServices {
+    private final FetchService fetchService;
+    private final SearchTransportService searchTransportService;
+    private final ClusterService clusterService;
+
+    public FetchPhaseServices(FetchService fetchService, SearchTransportService searchTransportService, ClusterService clusterService) {
+        this.fetchService = fetchService;
+        this.searchTransportService = searchTransportService;
+        this.clusterService = clusterService;
+    }
+
     /**
-     * The fetch operators of the query that {@code scope} describes, on its coordinator.
+     * The fetch operators of the query that {@code scope} describes, on its coordinator. Each sends its requests through
+     * {@link FetchService} to the nodes of the local cluster, with the index expressions of its {@link FetchExec} and the
+     * indices options of the query's data node requests.
      */
-    FetchOperatorProvider operatorProvider(QueryFetchScope scope);
+    public FetchOperatorProvider operatorProvider(QueryFetchScope scope) {
+        return new FetchOperatorProvider() {
+            @Override
+            public Operator.OperatorFactory fetchOperator(FetchExec exec, int docChannel) {
+                OriginalIndices indices = new OriginalIndices(
+                    exec.originalIndices().toArray(String[]::new),
+                    SearchRequest.DEFAULT_INDICES_OPTIONS
+                );
+                return FetchOperator.Factory.forExec(
+                    exec,
+                    docChannel,
+                    new QueryFetchClient(
+                        fetchService::sendFetch,
+                        clusterService.threadPool().getThreadContext(),
+                        () -> clusterService.state().nodes(),
+                        scope,
+                        indices
+                    )
+                );
+            }
+
+            @Override
+            public boolean receivesDetachedDocuments() {
+                return true;
+            }
+        };
+    }
 
     /**
      * A new tracker of the fetch contexts of one execution, which frees them as the user who calls this.
      */
-    FetchContextTracker newContextTracker();
-
-    /**
-     * The runtime of this node: a {@link FetchOperator} for each {@link FetchExec} that sends its requests through
-     * {@code fetchService} to the nodes of the local cluster. Its requests carry the index expressions of the
-     * {@code FetchExec} with the indices options of the query's data node requests.
-     */
-    static FetchPhaseServices create(
-        FetchService fetchService,
-        SearchTransportService searchTransportService,
-        ClusterService clusterService
-    ) {
-        return new FetchPhaseServices() {
-            @Override
-            public FetchOperatorProvider operatorProvider(QueryFetchScope scope) {
-                return new FetchOperatorProvider() {
-                    @Override
-                    public Operator.OperatorFactory fetchOperator(FetchExec exec, int docChannel) {
-                        OriginalIndices indices = new OriginalIndices(
-                            exec.originalIndices().toArray(String[]::new),
-                            SearchRequest.DEFAULT_INDICES_OPTIONS
-                        );
-                        return FetchOperator.Factory.forExec(
-                            exec,
-                            docChannel,
-                            new QueryFetchClient(
-                                fetchService::sendFetch,
-                                clusterService.threadPool().getThreadContext(),
-                                () -> clusterService.state().nodes(),
-                                scope,
-                                indices
-                            )
-                        );
-                    }
-
-                    @Override
-                    public boolean receivesDetachedDocuments() {
-                        return true;
-                    }
-                };
-            }
-
-            @Override
-            public FetchContextTracker newContextTracker() {
-                return new FetchContextTracker(searchTransportService, clusterService);
-            }
-        };
+    public FetchContextTracker newContextTracker() {
+        return new FetchContextTracker(searchTransportService, clusterService);
     }
 }

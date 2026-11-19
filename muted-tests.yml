@@ -717,23 +717,23 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testClosingNodeShouldWaitForOngoingMerge
   issue: https://github.com/elastic/elasticsearch/issues/166623
-- class: org.elasticsearch.indices.recovery.RetryRecoveryIT
-  tasks:
-  - :server:internalClusterTest
-  method: testDontRetryAfterShardClosedDuringRecoveryFromEmptyStore
-  issue: https://github.com/elastic/elasticsearch/issues/166633
 - class: org.elasticsearch.xpack.search.AsyncSearchAggregationChargeIT
   tasks:
   - :x-pack:plugin:async-search:internalClusterTest
   method: testChargeIsReleasedOnceTheTaskStoredItsResponse
   issue: https://github.com/elastic/elasticsearch/issues/166638
-- class: org.elasticsearch.indices.recovery.RetryRecoveryIT
-  tasks:
-  - :server:internalClusterTest
-  method: testRetryOnFailureOnRecoveryFromEmptyStoreRaceWithIndexDeletion
-  issue: https://github.com/elastic/elasticsearch/issues/166644
 - class: org.elasticsearch.xpack.stateless.lucene.GenerationalDocValuesIT
   tasks:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testSearchShardGenerationFilesRetention
   issue: https://github.com/elastic/elasticsearch/issues/166692
+- class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testUnpromotableRegisterCommitForRecoveryTracksAllBlobsPessimisticallyAndWaitsUntilShardStarts
+  issue: https://github.com/elastic/elasticsearch/issues/166734
+- class: org.elasticsearch.xpack.esql.into.IntoPageWriterTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testCrankyBreakerReleasesAndStatsMatchWrittenRows
+  issue: https://github.com/elastic/elasticsearch/issues/166741

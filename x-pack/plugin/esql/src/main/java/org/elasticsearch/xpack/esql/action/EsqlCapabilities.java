@@ -4980,11 +4980,10 @@ public class EsqlCapabilities {
         INTO_COMMAND(Build.current().isSnapshot()),
 
         /**
-         * The usage information for ESQL counts queries by the Elastic product in {@code X-elastic-product-origin}: one
-         * {@code queries.<product>} per known product origin, {@code queries.other} for any other origin, and {@code queries.rest}
-         * for a request without the header. Before this, every query was counted as {@code rest}.
+         * {@code NESTED_EXPAND} turns one parent row into one row per object of a mapped nested field.
+         * Snapshot-only until the command is advertised.
          */
-        USAGE_QUERIES_BY_CLIENT,
+        NESTED_EXPAND(Build.current().isSnapshot()),
 
         /**
          * Streaming execution on {@code POST /_query/stream}: the response streams a columns line, one line

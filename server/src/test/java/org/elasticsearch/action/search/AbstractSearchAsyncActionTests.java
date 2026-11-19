@@ -35,6 +35,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -47,6 +48,7 @@ import org.elasticsearch.index.store.DirectoryMetricsTests;
 import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.search.SearchResponseMetrics;
+import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
@@ -856,6 +858,56 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
 
         assertEquals("retriable error with copies remaining should retry once", 1, retryCount.get());
         assertFalse("onShardGroupFailure must not fire when retrying", groupFailureFired.get());
+    }
+
+    public void testMissingContextIsRetriedOnlyForRetryableContextIds() {
+        var retryableContextId = new ShardSearchContextId(UUIDs.randomBase64UUID(), randomNonNegativeLong(), UUIDs.randomBase64UUID());
+        assertTrue("the context may exist on another copy", retriesAfterMissingContext(retryableContextId, false));
+        assertFalse("there is no other copy left", retriesAfterMissingContext(retryableContextId, true));
+        assertFalse("no context id", retriesAfterMissingContext(null, false));
+        var nonRetryableContextId = new ShardSearchContextId(UUIDs.randomBase64UUID(), randomNonNegativeLong());
+        assertFalse("the context cannot be rebuilt on another copy", retriesAfterMissingContext(nonRetryableContextId, false));
+    }
+
+    /**
+     * Fails the first (or, with {@code failOnLastCopy}, the second and last) of two copies of a shard with a
+     * {@link SearchContextMissingException} and returns whether the other copy is tried.
+     */
+    private boolean retriesAfterMissingContext(ShardSearchContextId contextId, boolean failOnLastCopy) {
+        SearchShardIterator shardIt = new SearchShardIterator(
+            null,
+            new ShardId("index", "_na_", 0),
+            List.of("node1", "node2"),
+            null,
+            contextId,
+            contextId == null ? null : TimeValue.timeValueMinutes(1),
+            false,
+            false,
+            SplitShardCountSummary.UNSET
+        );
+        SearchShardTarget target = shardIt.nextOrNull();
+        if (failOnLastCopy) {
+            target = shardIt.nextOrNull();
+        }
+        AtomicInteger retryCount = new AtomicInteger();
+        AtomicBoolean groupFailureFired = new AtomicBoolean();
+        try (ArraySearchPhaseResults<SearchPhaseResult> phaseResults = new ArraySearchPhaseResults<>(1)) {
+            AbstractSearchAsyncAction<SearchPhaseResult> action = createRetryTrackingAction(
+                new SearchRequest().allowPartialSearchResults(true),
+                phaseResults,
+                retryCount,
+                groupFailureFired
+            );
+            var missingContext = new SearchContextMissingException(
+                new ShardSearchContextId(UUIDs.randomBase64UUID(), randomNonNegativeLong())
+            );
+            action.onShardFailure(0, target, shardIt, missingContext);
+        } finally {
+            // createAction starts a new thread pool and transport service on every call, and only the last ones are closed after the test
+            cleanTransportService();
+        }
+        assertEquals("the shard fails exactly when it is not retried", retryCount.get() == 0, groupFailureFired.get());
+        return retryCount.get() > 0;
     }
 
     public void testOnShardFailure_IgnoresInternalTaskCancelledException() {

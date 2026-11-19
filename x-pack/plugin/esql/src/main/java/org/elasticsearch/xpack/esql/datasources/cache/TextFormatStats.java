@@ -29,6 +29,13 @@ import java.util.OptionalLong;
  */
 public final class TextFormatStats {
 
+    /**
+     * The widest text extremum a read publishes, in bytes. Every contribution a scan stages, and every record
+     * the statistics store keeps, carries a copy of both extrema of every harvested column, so without a limit
+     * one long value in each column sets the size of all of them.
+     */
+    static final int MAX_EXTREMUM_BYTES = 1024;
+
     private TextFormatStats() {}
 
     public static SourceStatistics build(
@@ -144,13 +151,6 @@ public final class TextFormatStats {
     }
 
     /**
-     * The widest text extremum a read publishes, in bytes. Every contribution a scan stages, and every record
-     * the statistics store keeps, carries a copy of both extrema of every harvested column, so without a limit
-     * one long value in each column sets the size of all of them.
-     */
-    static final int MAX_EXTREMUM_BYTES = 1024;
-
-    /**
      * {@code extremum}, or {@code null} when it is wider than {@link #MAX_EXTREMUM_BYTES}. The limit is on
      * the stored {@link BytesRef}, so it covers {@code KEYWORD}, {@code TEXT} and {@code IP} alike; an
      * address is 16 bytes and never reaches it. Counts are unaffected, and so is the other end of the same
@@ -163,6 +163,8 @@ public final class TextFormatStats {
      * already in the store is served until its entry turns over.
      */
     static Object publishable(Object extremum) {
+        assert extremum == null || extremum instanceof BytesRef || extremum instanceof Number
+            : "a text extremum reaches the cap as a BytesRef; [" + extremum.getClass().getName() + "] would pass uncapped";
         return extremum instanceof BytesRef bytes && bytes.length > MAX_EXTREMUM_BYTES ? null : extremum;
     }
 }

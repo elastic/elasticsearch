@@ -30,9 +30,10 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
- * End-to-end guard: after a MIN/MAX harvest over CSV files whose
- * text cells are a megabyte wide, the coordinator schema cache's retained weight must stay inside its
- * slice of {@code esql.external.cache.size}, and oversized extrema must not be retained.
+ * End-to-end guard over CSV files whose text cells are a megabyte wide. A read withholds an extremum that
+ * wide, so the rest of the file's measurements are small enough to cache: the retained weight stays inside
+ * its slice of {@code esql.external.cache.size}, every file keeps a record, a warm aggregate over the
+ * withheld column still answers correctly by scanning, and a narrow column in the same record still serves.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 public class ExternalCsvLongTextSchemaCacheWeightIT extends AbstractExternalDataSourceIT {
@@ -52,7 +53,7 @@ public class ExternalCsvLongTextSchemaCacheWeightIT extends AbstractExternalData
         return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings)).put("esql.external.cache.size", "2mb").build();
     }
 
-    public void testSchemaRetainedWeightStaysInsideBudgetAfterLongTextMinMax() throws Exception {
+    public void testWideExtremaAreWithheldSoTheFileStaysCachedAndWarmAnswersStayCorrect() throws Exception {
         Path dir = createTempDir();
         String pad = "x".repeat(VALUE_CHARS);
         // Distinct prefixes so MIN/MAX are well-defined (lexicographic) and the query result is checkable.
@@ -108,7 +109,6 @@ public class ExternalCsvLongTextSchemaCacheWeightIT extends AbstractExternalData
         // admitting and weighing it. Every file having a record at all is therefore the evidence that none
         // of them carries one.
         long retainedStatistics = ExternalSourceCacheTestAccess.retainedStatisticsWeightBytes(cacheService);
-        logger.info("retained statistics weight after the wide-text harvest: {} bytes", retainedStatistics);
         long statisticsBudget = (Long) stats.get("statistics_budget_bytes");
         assertThat("statistics retained weight must stay inside its own budget", retainedStatistics, lessThanOrEqualTo(statisticsBudget));
 

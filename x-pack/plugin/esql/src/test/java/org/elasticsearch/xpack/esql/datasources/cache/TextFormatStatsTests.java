@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.esql.datasources.cache;
 
+import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -41,7 +43,9 @@ public class TextFormatStatsTests extends ESTestCase {
         attribute("k", DataType.KEYWORD),
         attribute("t", DataType.TEXT),
         attribute("b", DataType.BOOLEAN),
-        attribute("d", DataType.DOUBLE)
+        attribute("d", DataType.DOUBLE),
+        attribute("i", DataType.INTEGER),
+        attribute("ip", DataType.IP)
     );
 
     public void testAKeywordExtremumWiderThanTheLimitIsWithheldAndItsCountsSurvive() {
@@ -86,28 +90,42 @@ public class TextFormatStatsTests extends ESTestCase {
     }
 
     /**
-     * The cap reads {@link BytesRef#length}, so a text value is the only kind that can reach it. The other
-     * carriers a harvest tracks are fixed width and publish untouched.
+     * Every carrier a harvest can produce, read off the {@code of(DataType)} table in
+     * {@code ColumnStatTypeSupport}: {@code INTEGER} holds an {@code Integer}, {@code LONG}/{@code DATETIME}/
+     * {@code DATE_NANOS} a {@code Long}, {@code DOUBLE} a {@code Double}, {@code BOOLEAN} a {@code Boolean},
+     * and {@code KEYWORD}/{@code TEXT}/{@code IP} a {@link BytesRef}. The cap reads {@link BytesRef#length},
+     * so only the last of those can reach it, and an encoded address is 16 bytes and never does.
      */
-    public void testAFixedWidthExtremumIsPublishedUntouched() {
+    public void testEveryHarvestedCarrierSurvivesTheCap() {
+        BytesRef address = new BytesRef(InetAddressPoint.encode(InetAddresses.forString("10.0.0.1")));
+        assertEquals("an encoded address is 16 bytes, well under the limit", 16, address.length);
+
         Map<String, Object> published = publish(
             1,
             Map.of(
                 "b",
                 new ExternalStats.ColumnStats(0, 1, Boolean.FALSE, Boolean.TRUE),
+                "i",
+                new ExternalStats.ColumnStats(0, 1, Integer.valueOf(1), Integer.valueOf(9)),
                 "n",
                 new ExternalStats.ColumnStats(0, 1, 1L, 9L),
                 "d",
-                new ExternalStats.ColumnStats(0, 1, -0.5d, 0.5d)
+                new ExternalStats.ColumnStats(0, 1, -0.5d, 0.5d),
+                "ip",
+                new ExternalStats.ColumnStats(0, 1, address, address)
             )
         );
 
         assertEquals("a boolean min is not text", Boolean.FALSE, SourceStatisticsSerializer.extractColumnMin(published, "b"));
         assertEquals("a boolean max is not text", Boolean.TRUE, SourceStatisticsSerializer.extractColumnMax(published, "b"));
+        assertEquals("an integer min is not text", Integer.valueOf(1), SourceStatisticsSerializer.extractColumnMin(published, "i"));
+        assertEquals("an integer max is not text", Integer.valueOf(9), SourceStatisticsSerializer.extractColumnMax(published, "i"));
         assertEquals("a long min is not text", Long.valueOf(1L), SourceStatisticsSerializer.extractColumnMin(published, "n"));
         assertEquals("a long max is not text", Long.valueOf(9L), SourceStatisticsSerializer.extractColumnMax(published, "n"));
         assertEquals("a double min is not text", Double.valueOf(-0.5d), SourceStatisticsSerializer.extractColumnMin(published, "d"));
         assertEquals("a double max is not text", Double.valueOf(0.5d), SourceStatisticsSerializer.extractColumnMax(published, "d"));
+        assertEquals("an encoded address is under the limit", address, SourceStatisticsSerializer.extractColumnMin(published, "ip"));
+        assertEquals("an encoded address is under the limit", address, SourceStatisticsSerializer.extractColumnMax(published, "ip"));
     }
 
     public void testAnExtremumAtTheWidthLimitIsPublished() {

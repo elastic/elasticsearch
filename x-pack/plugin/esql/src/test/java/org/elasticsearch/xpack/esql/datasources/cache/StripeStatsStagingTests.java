@@ -536,8 +536,6 @@ public class StripeStatsStagingTests extends ESTestCase {
         chunk(staging, 1024, true, 0, 1024, row(0, 1L, "a"));
         chunk(staging, 2048, true, MTIME, null, false, 0, 2048, row(0, 5L, "q"));
         chunk(staging, 4096, true, MTIME, "", true, 0, 4096, new Row(0, null, null));
-        // One bound narrow, the other over the width limit: the size is counted from the compact form while the
-        // entries are built by flattening it, so an uneven pair is where the two computations can disagree.
         chunk(staging, 8192, true, 0, 8192, row(0, 9L, "a"), row(16, 11L, "z".repeat(TextFormatStats.MAX_EXTREMUM_BYTES + 1)));
 
         List<Map<String, Object>> records = staged(sink);

@@ -194,6 +194,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     private final ParquetPushedExpressions pushedExpressions;
     private final boolean forceBaselinePath;
     private final boolean optimizedReader;
+    /** Prototype-only: see {@link #withCompositeAssemblyForTests(boolean)}. Never set in production. */
+    private final boolean compositeAssembly;
     private final DynamicThreshold dynamicThreshold;
     /** Declared per-column date parse patterns (physical name &rarr; pattern); see {@link #withDeclaredDateFormats}. */
     private final Map<String, String> declaredDateFormats;
@@ -438,6 +440,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             null,
             false,
             true,
+            false,
             null,
             Map.of(),
             Set.of(),
@@ -464,6 +467,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             null,
             false,
             optimizedReader,
+            false,
             null,
             Map.of(),
             Set.of(),
@@ -488,6 +492,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             null,
             false,
             true,
+            false,
             null,
             Map.of(),
             Set.of(),
@@ -511,6 +516,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         ParquetPushedExpressions pushedExpressions,
         boolean forceBaselinePath,
         boolean optimizedReader,
+        boolean compositeAssembly,
         DynamicThreshold dynamicThreshold,
         Map<String, String> declaredDateFormats,
         Set<String> declaredTypeColumns,
@@ -527,6 +533,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         this.pushedExpressions = pushedExpressions;
         this.forceBaselinePath = forceBaselinePath;
         this.optimizedReader = optimizedReader;
+        this.compositeAssembly = compositeAssembly;
         this.dynamicThreshold = dynamicThreshold;
         this.declaredDateFormats = declaredDateFormats;
         this.declaredTypeColumns = declaredTypeColumns;
@@ -581,6 +588,44 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         );
     }
 
+    /**
+     * Prototype-only switch: read a top-level {@code LIST<STRUCT>} or {@code MAP} column as one assembled
+     * JSON text value instead of typing it {@link DataType#UNSUPPORTED}. There is no config key and no
+     * setting, so nothing in production can turn this on; it exists so the composite-assembly tests can
+     * drive the real read path rather than a copy of it.
+     * <p>
+     * Package-private, and named for what it is: a type that reaches a query must be reachable by every
+     * operation defined on it, and this one is not yet (see {@code CompositeAssemblyTests}).
+     */
+    ParquetFormatReader withCompositeAssemblyForTests(boolean assemble) {
+        if (assemble == compositeAssembly) {
+            return this;
+        }
+        return new ParquetFormatReader(
+            blockFactory,
+            pushedFilter,
+            pushedExpressions,
+            forceBaselinePath,
+            optimizedReader,
+            assemble,
+            dynamicThreshold,
+            declaredDateFormats,
+            declaredTypeColumns,
+            footerBytes,
+            parsedFooters,
+            ioWatermark,
+            heapBufferPool,
+            maxFooterReadBytes,
+            schemaMaxFields,
+            externalIoThreads
+        );
+    }
+
+    /** Whether {@link #withCompositeAssemblyForTests} is on. Package-private for {@link ParquetColumnExtractor}. */
+    boolean compositeAssembly() {
+        return compositeAssembly;
+    }
+
     ParquetFormatReader withSchemaMaxFields(int maxFields) {
         if (maxFields == schemaMaxFields) {
             return this;
@@ -591,6 +636,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             pushedExpressions,
             forceBaselinePath,
             optimizedReader,
+            compositeAssembly,
             dynamicThreshold,
             declaredDateFormats,
             declaredTypeColumns,
@@ -621,6 +667,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             pushedExpressions,
             forceBaselinePath,
             optimizedReader,
+            compositeAssembly,
             dynamicThreshold,
             declaredDateFormats,
             declaredTypeColumns,
@@ -646,6 +693,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             pushedExpressions,
             true,
             optimizedReader,
+            compositeAssembly,
             dynamicThreshold,
             declaredDateFormats,
             declaredTypeColumns,
@@ -671,6 +719,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 null,
                 forceBaselinePath,
                 optimizedReader,
+                compositeAssembly,
                 dynamicThreshold,
                 declaredDateFormats,
                 declaredTypeColumns,
@@ -690,6 +739,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 null,
                 forceBaselinePath,
                 optimizedReader,
+                compositeAssembly,
                 dynamicThreshold,
                 declaredDateFormats,
                 declaredTypeColumns,
@@ -709,6 +759,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 exprs,
                 forceBaselinePath,
                 optimizedReader,
+                compositeAssembly,
                 dynamicThreshold,
                 declaredDateFormats,
                 declaredTypeColumns,
@@ -732,6 +783,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             pushedExpressions,
             forceBaselinePath,
             optimizedReader,
+            compositeAssembly,
             threshold,
             declaredDateFormats,
             declaredTypeColumns,
@@ -763,6 +815,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             pushedExpressions,
             forceBaselinePath,
             optimizedReader,
+            compositeAssembly,
             dynamicThreshold,
             Map.copyOf(physicalNameToPattern),
             declaredTypeColumns,
@@ -795,6 +848,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             pushedExpressions,
             forceBaselinePath,
             optimizedReader,
+            compositeAssembly,
             dynamicThreshold,
             declaredDateFormats,
             Set.copyOf(physicalDeclaredColumns),
@@ -820,6 +874,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             pushedExpressions,
             forceBaselinePath,
             optimizedReader,
+            compositeAssembly,
             dynamicThreshold,
             declaredDateFormats,
             declaredTypeColumns,
@@ -844,6 +899,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             pushedExpressions,
             forceBaselinePath,
             optimizedReader,
+            compositeAssembly,
             dynamicThreshold,
             declaredDateFormats,
             declaredTypeColumns,
@@ -872,6 +928,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             pushedExpressions,
             forceBaselinePath,
             optimizedReader,
+            compositeAssembly,
             dynamicThreshold,
             declaredDateFormats,
             declaredTypeColumns,
@@ -1885,7 +1942,16 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
      * Whether a repeated leaf is a <b>top-level</b> list — one addressable by the attribute name
      * {@code path[0]} (a 3-level {@code LIST} group or a legacy 2-level {@code repeated} field). A list
      * nested in a STRUCT is not: its attribute is the dotted {@code s.blist}, not {@code path[0] == "s"},
-    * so it is left to the struct-nested-list work rather than mis-keyed here.
+     * so it is left to the struct-nested-list work rather than mis-keyed here.
+     * <p>
+     * A top-level {@code MAP} is deliberately NOT here, and that is a gap the day a MAP becomes a real
+     * column rather than an {@link DataType#UNSUPPORTED} one. The map/variant skip below consumes its
+     * leaves, so such a column reaches neither statistics producer at all — and absent is not neutral: an
+     * absent per-column statistic reads as all-null under the footer implicit-nulls contract, so a
+     * {@code COUNT} over it folds to zero instead of declining the footer fast path, which is exactly what
+     * the size marker in this arm exists to prevent. Admitting a MAP here is a one-line change and is NOT
+     * made, because {@code ParquetFormatReaderTests#testHomogeneousMapPublishesNoFoldedSplitStat} pins the
+     * current behaviour; see {@code CompositeAssemblyTests#testAssembledCompositeStatisticsGap}.
      */
     private static boolean isTopLevelListLeaf(MessageType parquetSchema, String[] path) {
         Type top = parquetSchema.getType(path[0]);
@@ -2750,7 +2816,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 declaredTypeColumns,
                 errorPolicy,
                 warningSink,
-                sharedErrorBudget
+                sharedErrorBudget,
+                compositeAssembly
             );
         } catch (Throwable t) {
             reader.close();
@@ -2782,7 +2849,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             );
         }
         ParquetStorageObjectAdapter adapter = (ParquetStorageObjectAdapter) inputFile;
-        ColumnInfo[] columnInfos = buildColumnInfos(projectedSchema, projectedAttributes, declaredDateFormats);
+        ColumnInfo[] columnInfos = buildColumnInfos(projectedSchema, projectedAttributes, declaredDateFormats, compositeAssembly);
         String[] absentColumnWarnings = buildAbsentColumnWarnings(projectedAttributes, columnInfos);
         String fileLocation = safeObjectName(storageObject.path());
         String dropReason = validatePlannerTypesAgainstFile(
@@ -2793,7 +2860,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             columnInfos,
             declaredTypeColumns,
             errorPolicy,
-            warningSink
+            warningSink,
+            compositeAssembly
         );
         if (dropReason != null) {
             ColumnarRowDropHelper.dropWholeRead(sharedErrorBudget, errorPolicy, fileLocation, rowCount(reader), dropReason);
@@ -3392,7 +3460,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
 
     /** Formatter-free overload for callers with no declared date formats (tests, extractor paths). */
     static ColumnInfo[] buildColumnInfos(MessageType projectedSchema, List<Attribute> attributes) {
-        return buildColumnInfos(projectedSchema, attributes, Map.of());
+        return buildColumnInfos(projectedSchema, attributes, Map.of(), false);
     }
 
     /**
@@ -3406,7 +3474,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
      * Top-level fields are recognised via {@link MessageType#containsField}; leaf paths are
      * joined with {@code "."} (mirroring {@link ColumnChunkPrefetcher}'s prefetch key).
      */
-    static ColumnInfo[] buildColumnInfos(MessageType projectedSchema, List<Attribute> attributes, Map<String, String> dateFormats) {
+    static ColumnInfo[] buildColumnInfos(
+        MessageType projectedSchema,
+        List<Attribute> attributes,
+        Map<String, String> dateFormats,
+        boolean compositeAssembly
+    ) {
         ColumnInfo[] columnInfos = new ColumnInfo[attributes.size()];
         // Per-top-level-field descriptors handle LIST<primitive> and other cases where the
         // descriptor's first path segment is the user-visible field name. This map wins over
@@ -3443,6 +3516,29 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             ColumnDescriptor desc = descByTopLevel.get(attr.name());
             if (desc == null) {
                 desc = descByDottedPath.get(attr.name());
+            }
+            if (compositeAssembly && desc != null && projectedSchema.containsField(attr.name())) {
+                Type topLevel = projectedSchema.getType(attr.name());
+                if (topLevel.isPrimitive() == false && isAssembledComposite(topLevel.asGroupType())) {
+                    // descByTopLevel holds the FIRST leaf of the group (putIfAbsent over the descriptor
+                    // list), which is what keeps maxRepLevel() > 0 and so keeps the existing list rules
+                    // applying to this column. fileEsqlType is pinned to KEYWORD rather than derived from
+                    // that leaf: convertParquetTypeToEsql of a struct whose first field is a long would read
+                    // as a declared KEYWORD over a file LONG and enter the declared-coercion path, which
+                    // would coerce an already-rendered JSON text.
+                    columnInfos[i] = new ColumnInfo(
+                        desc,
+                        desc.getPrimitiveType().getPrimitiveTypeName(),
+                        DataType.KEYWORD,
+                        desc.getMaxDefinitionLevel(),
+                        desc.getMaxRepetitionLevel(),
+                        desc.getPrimitiveType().getLogicalTypeAnnotation(),
+                        null,
+                        DataType.KEYWORD,
+                        new MessageType(projectedSchema.getName(), topLevel)
+                    );
+                    continue;
+                }
             }
             if (desc != null) {
                 LogicalTypeAnnotation logicalType = desc.getPrimitiveType().getLogicalTypeAnnotation();
@@ -3874,7 +3970,13 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         if (logical instanceof LogicalTypeAnnotation.ListLogicalTypeAnnotation
             || logical instanceof LogicalTypeAnnotation.MapLogicalTypeAnnotation
             || logical instanceof LogicalTypeAnnotation.VariantLogicalTypeAnnotation) {
-            out.add(new ReferenceAttribute(Source.EMPTY, null, dottedPath, convertGroupTypeToEsql(group), leafNullability, null, false));
+            // Composite assembly is bound at top level only (depth 1). A composite nested inside a STRUCT
+            // folds its several leaves onto one dotted name in BOTH statistics producers, and only the
+            // top-level case is shielded there (isTopLevelListLeaf): a nested LIST<STRUCT> of a string
+            // and a long would publish min/max mixed across the two leaves under the group's name. Keeping
+            // the binding top-level means the prototype cannot reach that fold.
+            DataType groupEsqlType = convertGroupTypeToEsql(group, compositeAssembly && depth == 1);
+            out.add(new ReferenceAttribute(Source.EMPTY, null, dottedPath, groupEsqlType, leafNullability, null, false));
             return;
         }
         for (Type child : group.getFields()) {
@@ -3885,7 +3987,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
 
     private static DataType convertParquetTypeToEsql(Type parquetType) {
         if (parquetType.isPrimitive() == false) {
-            return convertGroupTypeToEsql(parquetType.asGroupType());
+            // The decode paths read physical leaves, so they never see an assembled composite.
+            return convertGroupTypeToEsql(parquetType.asGroupType(), false);
         }
         PrimitiveType primitive = parquetType.asPrimitiveType();
         LogicalTypeAnnotation logical = primitive.getLogicalTypeAnnotation();
@@ -3967,8 +4070,16 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     /**
      * Handles Parquet group types. Supports LIST of primitives by extracting the element type;
      * everything else (MAP, VARIANT, LIST&lt;STRUCT&gt;, UNION) is UNSUPPORTED.
+     * <p>
+     * {@code compositeAssembly} is the prototype switch of {@link #withCompositeAssemblyForTests}: with it
+     * set, a group {@link #isAssembledComposite} admits is typed {@link DataType#KEYWORD}, because the read
+     * path renders it as one assembled JSON text value per row. Every caller outside the schema flattener
+     * passes {@code false}, so the physical-type mapping used by the decode paths is unchanged.
      */
-    private static DataType convertGroupTypeToEsql(GroupType groupType) {
+    private static DataType convertGroupTypeToEsql(GroupType groupType, boolean compositeAssembly) {
+        if (compositeAssembly && isAssembledComposite(groupType)) {
+            return DataType.KEYWORD;
+        }
         LogicalTypeAnnotation logical = groupType.getLogicalTypeAnnotation();
         if (logical instanceof LogicalTypeAnnotation.ListLogicalTypeAnnotation && groupType.getFieldCount() == 1) {
             Type repeatedType = groupType.getType(0);
@@ -3981,6 +4092,99 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             }
         }
         return DataType.UNSUPPORTED;
+    }
+
+    /**
+     * Whether {@code group} is a composite this reader can assemble into JSON text without losing or
+     * reinterpreting a value &mdash; the admission list for {@link #withCompositeAssemblyForTests}. Two shapes
+     * qualify: a three-level {@code LIST} whose element is an un-annotated group of assemblable primitives,
+     * and a {@code MAP} whose repeated child pairs a {@code STRING} key with an assemblable primitive value.
+     * <p>
+     * The three-level check goes through {@link #isListElementType}, not through the field count alone:
+     * a two-level {@code repeated group array} holding exactly one field is the element itself, so counting
+     * fields would walk a one-field struct element as if it were the three-level wrapper and pair the wrong
+     * values. {@code JsonRecordMaterializer} rejects the two-level form it can see, but it cannot see this
+     * one, because by the time it has the group the name is all that distinguishes them.
+     * <p>
+     * Narrow on purpose: everything admitted here is rendered by {@code JsonRecordMaterializer}'s scalar
+     * converter, which writes a {@code BINARY} as UTF-8 text and an {@code INT32}/{@code INT64} as a bare
+     * number. An annotated primitive would be rendered at its physical value instead of its logical one
+     * &mdash; a {@code DECIMAL} without its scale, a {@code DATE} as a day count, a
+     * {@code FIXED_LEN_BYTE_ARRAY} as mojibake &mdash; so an annotation that is not {@code STRING} declines.
+     */
+    static boolean isAssembledComposite(GroupType group) {
+        LogicalTypeAnnotation logical = group.getLogicalTypeAnnotation();
+        if (group.getFieldCount() != 1) {
+            return false;
+        }
+        Type repeated = group.getType(0);
+        if (repeated.isRepetition(Type.Repetition.REPEATED) == false || repeated.isPrimitive()) {
+            return false;
+        }
+        GroupType repeatedGroup = repeated.asGroupType();
+        if (logical instanceof LogicalTypeAnnotation.ListLogicalTypeAnnotation) {
+            if (isListElementType(repeated, group.getName())) {
+                return false;
+            }
+            Type element = repeatedGroup.getType(0);
+            if (element.isPrimitive() || element.asGroupType().getLogicalTypeAnnotation() != null) {
+                return false;
+            }
+            GroupType struct = element.asGroupType();
+            if (struct.getFieldCount() == 0) {
+                return false;
+            }
+            for (Type field : struct.getFields()) {
+                if (isAssemblablePrimitive(field) == false) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        if (logical instanceof LogicalTypeAnnotation.MapLogicalTypeAnnotation
+            || logical instanceof LogicalTypeAnnotation.MapKeyValueTypeAnnotation) {
+            if (repeatedGroup.getFieldCount() != 2) {
+                return false;
+            }
+            Type key = repeatedGroup.getType(0);
+            Type value = repeatedGroup.getType(1);
+            return isAssemblablePrimitive(key)
+                && key.asPrimitiveType().getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.BINARY
+                && isAssemblablePrimitive(value);
+        }
+        return false;
+    }
+
+    /**
+     * Whether {@code columnName} names a top-level column this reader would assemble &mdash; the same
+     * question {@link #buildColumnInfos} asks, phrased for a caller that has only the name. Top-level only,
+     * because that is the whole of what the binding admits (see {@link #collectAttributes}).
+     * Package-private for {@link ParquetColumnExtractor}.
+     */
+    static boolean isAssembledCompositeColumn(MessageType schema, String columnName) {
+        if (schema.containsField(columnName) == false) {
+            return false;
+        }
+        Type field = schema.getType(columnName);
+        return field.isPrimitive() == false && isAssembledComposite(field.asGroupType());
+    }
+
+    /**
+     * Whether a primitive renders faithfully through {@code JsonRecordMaterializer}: an un-annotated
+     * {@code BOOLEAN}/{@code INT32}/{@code INT64}/{@code FLOAT}/{@code DOUBLE}, or a {@code BINARY}
+     * annotated {@code STRING}. See {@link #isAssembledComposite} for why the list is this short.
+     */
+    private static boolean isAssemblablePrimitive(Type type) {
+        if (type.isPrimitive() == false || type.isRepetition(Type.Repetition.REPEATED)) {
+            return false;
+        }
+        PrimitiveType primitive = type.asPrimitiveType();
+        LogicalTypeAnnotation logical = primitive.getLogicalTypeAnnotation();
+        return switch (primitive.getPrimitiveTypeName()) {
+            case BOOLEAN, INT32, INT64, FLOAT, DOUBLE -> logical == null;
+            case BINARY -> logical instanceof LogicalTypeAnnotation.StringLogicalTypeAnnotation;
+            case INT96, FIXED_LEN_BYTE_ARRAY -> false;
+        };
     }
 
     /**
@@ -4031,7 +4235,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         ColumnInfo[] columnInfos,
         Set<String> declaredTypeColumns,
         ErrorPolicy errorPolicy,
-        @Nullable Consumer<String> warningSink
+        @Nullable Consumer<String> warningSink,
+        boolean compositeAssembly
     ) {
         MessageType fullSchema = reader.getFileMetaData().getSchema();
         // Reported once the loop is done, and only if no declared column drops the file's rows: a column of rows
@@ -4051,7 +4256,19 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             if (resolved == null) {
                 continue;
             }
-            DataType actualInFile = convertParquetTypeToEsql(resolved);
+            // An INDEPENDENT re-derivation of the file's type, so it has to apply the same rule the
+            // binding applied or it contradicts it. Without the first arm an assembled composite reads
+            // [unsupported] in the file against [keyword] in the query and the column is nulled -- the
+            // binding's own work undone one call later, with a warning blaming the file.
+            //
+            // The second arm is why this reconciliation is worth keeping for a composite rather than
+            // skipping it: a glob whose other file types the same column as a shape this cannot render
+            // (an element field annotated DATE, say) binds that file's column to its FIRST leaf, whose
+            // own ESQL type may well be KEYWORD too. UNSUPPORTED here is what nulls it instead of reading
+            // one leaf of a struct under the whole column's name.
+            DataType actualInFile = compositeAssembly && isAssembledCompositeColumn(fullSchema, attr.name())
+                ? DataType.KEYWORD
+                : convertParquetTypeToEsql(resolved);
             // The lossy-narrowing coercion escape is reserved for DECLARED columns; an inferred target may only widen.
             boolean declared = declaredTypeColumns.contains(attr.name());
             boolean declaredCoercible = declared && DeclaredTypeCoercions.supports(actualInFile, attr.dataType());
@@ -4259,7 +4476,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             Set<String> declaredTypeColumns,
             ErrorPolicy errorPolicy,
             @Nullable Consumer<String> warningSink,
-            @Nullable SharedErrorBudget sharedErrorBudget
+            @Nullable SharedErrorBudget sharedErrorBudget,
+            boolean compositeAssembly
         ) {
             this.errorPolicy = errorPolicy;
             this.warningSink = warningSink;
@@ -4286,7 +4504,16 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
 
             reader.setRequestedSchema(projectedSchema);
 
-            this.columnInfos = buildColumnInfos(projectedSchema, attributes, declaredDateFormats);
+            this.columnInfos = buildColumnInfos(projectedSchema, attributes, declaredDateFormats, compositeAssembly);
+            for (ColumnInfo info : this.columnInfos) {
+                if (info != null && info.isComposite()) {
+                    // This iterator decodes one leaf per column. Handed a composite it would decode the
+                    // first leaf and emit, say, every sku in the row as the value of "items" -- values that
+                    // are in the file, under a column they do not belong to. Assembly lives only in the
+                    // optimized iterator, so refuse rather than answer.
+                    throw new IllegalStateException("composite assembly is only implemented in the optimized iterator");
+                }
+            }
             String[] absentWarnings = buildAbsentColumnWarnings(attributes, this.columnInfos);
             if (absentWarnings.length > 0 && warningSink != null) {
                 this.pendingAbsentWarnings = absentWarnings;
@@ -4346,7 +4573,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 columnInfos,
                 declaredTypeColumns,
                 errorPolicy,
-                warningSink
+                warningSink,
+                // Always false in effect: the guard above has already refused a composite on this route.
+                compositeAssembly
             );
             if (dropReason != null) {
                 // Charged once, here, so no row group of this file is decoded only to be dropped.

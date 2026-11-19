@@ -22,6 +22,8 @@ import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.ParquetMetadata;
 import org.apache.parquet.internal.column.columnindex.ColumnIndex;
 import org.apache.parquet.internal.column.columnindex.OffsetIndex;
+import org.apache.parquet.io.ColumnIOFactory;
+import org.apache.parquet.io.RecordReader;
 import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
@@ -37,6 +39,7 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.UninitializedArrays;
@@ -330,6 +333,13 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     private RowGroupIo[] rowGroupLeases;
 
     private PrefetchedPageReadStore rowGroup;
+    /**
+     * One parquet-mr record reader per assembled composite column, or {@code null} when the row group has
+     * none. A composite has no entry in {@link #columnReaders} or {@link #listColumnReaders}: it is read
+     * through record assembly rather than leaf by leaf, which is the whole point -- the pairing of its
+     * leaves is carried by the repetition levels and is not recoverable from the leaves read apart.
+     */
+    private RecordReader<BytesRef>[] compositeReaders;
     private ColumnReader[] columnReaders;
     private ParquetColumnDecoding.ListColumnReader[] listColumnReaders;
     private PageColumnReader[] pageColumnReaders;
@@ -1694,7 +1704,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             // sets feed the prefetcher and column-reader-store wiring, both of which only deal
             // with real on-disk columns. {@link #buildRowPositionBlock} fills its slot directly.
             if (info != null && info.isRowPosition() == false) {
-                paths.add(String.join(".", info.descriptor().getPath()));
+                addColumnPaths(paths, info);
             }
         }
         return paths;
@@ -1704,10 +1714,31 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         Set<String> paths = new HashSet<>();
         for (ColumnInfo info : columnInfos) {
             if (info != null && info.isRowPosition() == false && info.maxRepLevel() > 0) {
-                paths.add(String.join(".", info.descriptor().getPath()));
+                addColumnPaths(paths, info);
             }
         }
         return paths;
+    }
+
+    /**
+     * Adds the dotted path of every Parquet leaf one ES|QL column reads. For an ordinary column that is
+     * its one descriptor; for a composite it is every leaf of its sub-schema, because
+     * {@link ColumnInfo#descriptor()} is only the first of them.
+     * <p>
+     * Both callers need the full set for different reasons, and both are wrong with only the first leaf.
+     * The projected set drives the prefetcher, so a missing leaf is a page that is never fetched. The list
+     * set drives {@code canSynchronizeListRows}, which demands an offset index for every path in it before
+     * it will read a filtered row range — with only the first leaf it would accept a row group where a
+     * later leaf has no offset index, and then pair values across a boundary it cannot locate.
+     */
+    private static void addColumnPaths(Set<String> paths, ColumnInfo info) {
+        if (info.isComposite()) {
+            for (ColumnDescriptor leaf : info.compositeSchema().getColumns()) {
+                paths.add(String.join(".", leaf.getPath()));
+            }
+            return;
+        }
+        paths.add(String.join(".", info.descriptor().getPath()));
     }
 
     /**
@@ -1720,7 +1751,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         Set<String> paths = new HashSet<>();
         for (int i = 0; i < columnInfos.length; i++) {
             if (columnInfos[i] != null && columnInfos[i].isRowPosition() == false && isPredicateColumn[i] == wantPredicate) {
-                paths.add(String.join(".", columnInfos[i].descriptor().getPath()));
+                addColumnPaths(paths, columnInfos[i]);
             }
         }
         return paths;
@@ -3161,6 +3192,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         pageColumnReaders = new PageColumnReader[columnInfos.length];
         columnReaders = null;
         listColumnReaders = null;
+        // The two-phase builders handle no composite (shouldUseTwoPhase declines a row group with one),
+        // so clearing the array is what keeps a previous row group's readers from being read here.
+        compositeReaders = null;
         validateListExhaustion = false;
         for (int i = 0; i < columnInfos.length; i++) {
             if (columnInfos[i] != null
@@ -3190,6 +3224,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         pageColumnReaders = new PageColumnReader[columnInfos.length];
         columnReaders = null;
         listColumnReaders = null;
+        // The two-phase builders handle no composite (shouldUseTwoPhase declines a row group with one),
+        // so clearing the array is what keeps a previous row group's readers from being read here.
+        compositeReaders = null;
         validateListExhaustion = false;
         for (int i = 0; i < columnInfos.length; i++) {
             if (columnInfos[i] != null
@@ -3238,6 +3275,46 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         }
     }
 
+    /**
+     * Builds one parquet-mr record reader per assembled composite over this row group's pages, and clears
+     * the array when there is none so a previous row group's readers cannot be read from.
+     * <p>
+     * Each reader is built over a sub-schema holding only its own composite, so the readers and the
+     * {@code ColumnReadStoreImpl} built for ordinary list columns ask {@link #rowGroup} for disjoint sets
+     * of leaves. That matters because a {@code PageReader} is consumed once: two readers over the same
+     * leaf would mean the second one reading pages the first already drained.
+     * <p>
+     * A filtered row group hands its selected row indexes to {@code ColumnReadStoreImpl} through
+     * {@code PageReadStore#getRowIndexes()}, which is what makes parquet-mr
+     * build a synchronizing column reader rather than a plain one -- so correlation survives a row range
+     * without anything here arranging it.
+     */
+    @SuppressWarnings("unchecked")
+    private void initCompositeReaders() {
+        compositeReaders = null;
+        boolean any = false;
+        for (ColumnInfo info : columnInfos) {
+            if (info != null && info.isComposite()) {
+                any = true;
+                break;
+            }
+        }
+        if (any == false) {
+            return;
+        }
+        // A wildcard array rather than a raw one: every element is written by the loop below as a
+        // RecordReader<BytesRef>, so the cast is sound and the array is never handed out.
+        compositeReaders = (RecordReader<BytesRef>[]) new RecordReader<?>[columnInfos.length];
+        for (int i = 0; i < columnInfos.length; i++) {
+            ColumnInfo info = columnInfos[i];
+            if (info != null && info.isComposite()) {
+                MessageType sub = info.compositeSchema();
+                compositeReaders[i] = new ColumnIOFactory(createdBy).getColumnIO(sub)
+                    .getRecordReader(rowGroup, new JsonRecordMaterializer(sub));
+            }
+        }
+    }
+
     private void initColumnReaders(RowRanges currentRowRanges) {
         // Close any readers from the previous row group before discarding the array — each reader
         // holds a ref-counted BytesRefArray (the cached dictionary) that must be released here.
@@ -3262,11 +3339,15 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         applyDropHelperSinks(!lateMaterialization || currentRowGroupTriviallyPasses);
         boolean hasListColumns = false;
         for (int i = 0; i < columnInfos.length; i++) {
-            if (columnInfos[i] != null && columnInfos[i].isRowPosition() == false && columnInfos[i].maxRepLevel() > 0) {
+            if (columnInfos[i] != null
+                && columnInfos[i].isRowPosition() == false
+                && columnInfos[i].isComposite() == false
+                && columnInfos[i].maxRepLevel() > 0) {
                 hasListColumns = true;
                 break;
             }
         }
+        initCompositeReaders();
         if (hasListColumns) {
             ColumnReadStoreImpl store = new ColumnReadStoreImpl(
                 rowGroup,
@@ -3277,7 +3358,10 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             columnReaders = new ColumnReader[columnInfos.length];
             listColumnReaders = new ParquetColumnDecoding.ListColumnReader[columnInfos.length];
             for (int i = 0; i < columnInfos.length; i++) {
-                if (columnInfos[i] != null && columnInfos[i].isRowPosition() == false && columnInfos[i].maxRepLevel() > 0) {
+                if (columnInfos[i] != null
+                    && columnInfos[i].isRowPosition() == false
+                    && columnInfos[i].isComposite() == false
+                    && columnInfos[i].maxRepLevel() > 0) {
                     columnReaders[i] = store.getColumnReader(columnInfos[i].descriptor());
                     listColumnReaders[i] = ParquetColumnDecoding.ListColumnReader.bind(
                         columnReaders[i],
@@ -4294,6 +4378,11 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                     // Skip entirely
                     if (pageColumnReaders != null && pageColumnReaders[col] != null) {
                         pageColumnReaders[col].skipRows(rowsToRead);
+                    } else if (compositeReaders != null && compositeReaders[col] != null) {
+                        // Not optional. A composite that is not advanced here stays behind every other
+                        // column for the rest of the row group, and each later batch pairs its values
+                        // with the wrong rows -- silently, since nothing downstream can tell.
+                        advanceCompositeReader(col, rowsToRead);
                     } else if (columnReaders != null && columnReaders[col] != null) {
                         if (listColumnReaders != null && listColumnReaders[col] != null) {
                             ParquetColumnDecoding.skipListValues(listColumnReaders[col], rowsToRead);
@@ -4426,6 +4515,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             }
             return pageColumnReaders[colIndex].readBatch(rowsToRead, blockFactory);
         }
+        if (compositeReaders != null && compositeReaders[colIndex] != null) {
+            return readCompositeBlock(colIndex, rowsToRead);
+        }
         ColumnReader cr = columnReaders != null ? columnReaders[colIndex] : null;
         if (cr == null) {
             return blockFactory.newConstantNullBlock(rowsToRead);
@@ -4445,6 +4537,42 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         }
         ParquetColumnDecoding.skipValues(cr, rowsToRead);
         return blockFactory.newConstantNullBlock(rowsToRead);
+    }
+
+    /**
+     * Reads {@code rowsToRead} rows of one assembled composite. {@code read()} returns one value per row
+     * of the row group in order, or {@code null} when the whole top-level group is absent for that row,
+     * which is a null position rather than the text {@code null}.
+     */
+    private Block readCompositeBlock(int colIndex, int rowsToRead) {
+        RecordReader<BytesRef> reader = compositeReaders[colIndex];
+        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(rowsToRead)) {
+            for (int row = 0; row < rowsToRead; row++) {
+                BytesRef value = reader.read();
+                if (value == null) {
+                    builder.appendNull();
+                } else {
+                    builder.appendBytesRef(value);
+                }
+            }
+            return builder.build();
+        }
+    }
+
+    /**
+     * Advances one composite past {@code rows} rows without emitting them.
+     * <p>
+     * It reads and discards, because {@code RecordReader} exposes {@code read()} and nothing else --
+     * there is no skip, and no way to ask it to decode levels without materializing values. So a row
+     * dropped by a predicate still costs its full assembly on this route, which is the mirror image of
+     * correlation coming free: the same record walk that pairs the leaves for nothing is the reason a
+     * skip cannot be cheap. Measuring that is step 6's subject.
+     */
+    private void advanceCompositeReader(int colIndex, int rows) {
+        RecordReader<BytesRef> reader = compositeReaders[colIndex];
+        for (int row = 0; row < rows; row++) {
+            reader.read();
+        }
     }
 
     private void validateListColumnsExhausted() {

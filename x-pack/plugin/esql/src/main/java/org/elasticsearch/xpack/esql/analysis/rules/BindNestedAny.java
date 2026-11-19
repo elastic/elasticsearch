@@ -1,0 +1,292 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.analysis.rules;
+
+import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
+import org.elasticsearch.xpack.esql.common.Failure;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.NestedScopeField;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedAny;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedPredicate;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
+import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
+import org.elasticsearch.xpack.esql.session.Configuration;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * Binds {@code NESTED_ANY} to the private nested schema and lowers it to a {@link NestedPredicate}. Name resolution ignores
+ * that schema, so {@link #scope} runs while attributes are still unresolved and this rule runs after implicit casting.
+ */
+public final class BindNestedAny extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
+    /** Rewrites nested names inside {@code NESTED_ANY} onto the private schema. Leaves every other name unresolved. */
+    public static LogicalPlan scope(LogicalPlan plan, List<Attribute> childrenOutput) {
+        return plan.transformExpressionsOnlyUp(NestedAny.class, nested -> nested.transformUp(UnresolvedAttribute.class, attribute -> {
+            Attribute field = nestedField(attribute, childrenOutput);
+            return field == null ? attribute : field;
+        }));
+    }
+
+    @Override
+    public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
+        return plan.transformUp(p -> {
+            NestedAny nested = find(p);
+            if (nested == null) {
+                return p;
+            }
+            if (context.minimumVersion().supports(NestedPredicate.VERSION) == false) {
+                throw error(nested, "NESTED_ANY requires all nodes to support nested predicates");
+            }
+            if (p instanceof Filter == false && p instanceof Eval == false) {
+                throw error(nested, "NESTED_ANY is supported in EVAL and WHERE");
+            }
+            if (p.childrenResolved() == false) {
+                return p;
+            }
+            LogicalPlan input = p.children().getFirst();
+            return p.transformExpressionsOnlyUp(NestedAny.class, any -> bind(any, input, context.configuration()));
+        });
+    }
+
+    private static NestedAny find(LogicalPlan plan) {
+        NestedAny[] found = new NestedAny[1];
+        plan.forEachExpression(NestedAny.class, nested -> found[0] = nested);
+        return found[0];
+    }
+
+    private static Expression bind(NestedAny nested, LogicalPlan input, Configuration configuration) {
+        if (nested.children().size() > 2) {
+            throw error(nested, "NESTED_ANY takes a predicate, or a collection and a predicate");
+        }
+        Expression body = nested.body();
+        if (body.anyMatch(e -> e instanceof NestedAny || e instanceof NestedPredicate || e instanceof FullTextFunction)) {
+            throw error(nested, "NESTED_ANY does not allow inner scopes or full-text functions");
+        }
+        if (body.anyMatch(AggregateFunction.class::isInstance)) {
+            throw error(nested, "NESTED_ANY takes a predicate; use NESTED for a reduction such as SUM");
+        }
+        if (body.dataType() != DataType.BOOLEAN) {
+            throw error(nested, "NESTED_ANY requires a predicate, not [" + body.sourceText() + "]");
+        }
+        // An aggregate drops the nested documents before the fields can be bound, so report that first.
+        checkReadsIndexRows(input, nested);
+        String collection = collection(nested, input);
+        List<Attribute> output = input.output();
+        Map<NameId, Attribute> fields = new LinkedHashMap<>();
+        body.forEachDown(Attribute.class, attribute -> fields.putIfAbsent(attribute.id(), attribute));
+        String path = collection;
+        for (Attribute attribute : fields.values()) {
+            if (attribute instanceof FieldAttribute field && field.field() instanceof NestedScopeField scope) {
+                if (scope.conflict() != null) {
+                    throw error(nested, "NESTED_ANY cannot read [" + publicName(field) + "]: " + scope.conflict());
+                }
+                if (scope.kind() != NestedScopeField.Kind.VALUE || scope.path().equals(path == null ? scope.path() : path) == false) {
+                    if (path != null && path.equals(scope.path()) == false) {
+                        throw error(nested, "NESTED_ANY requires one nested path");
+                    }
+                }
+                if (collection != null && collection.equals(scope.path()) == false) {
+                    throw error(nested, "Field [" + publicName(field) + "] is outside the nested scope [" + collection + "]");
+                }
+                if (path != null && path.equals(scope.path()) == false) {
+                    throw error(nested, "NESTED_ANY requires one nested path");
+                }
+                path = scope.path();
+            } else {
+                throw error(nested, "Field [" + attribute.name() + "] is outside the nested scope");
+            }
+        }
+        if (path == null) {
+            throw error(nested, "NESTED_ANY requires a mapped nested field");
+        }
+        String scopePath = path;
+        for (Attribute attribute : output) {
+            if (attribute instanceof FieldAttribute field
+                && field.field() instanceof NestedScopeField scope
+                && scopePath.startsWith(scope.path() + ".")) {
+                throw error(nested, "NESTED_ANY supports one nesting level");
+            }
+        }
+        List<Attribute> channels = new ArrayList<>();
+        List<String> paths = new ArrayList<>();
+        Map<NameId, Attribute> replacement = new HashMap<>();
+        for (Attribute attribute : fields.values()) {
+            FieldAttribute field = (FieldAttribute) attribute;
+            NestedScopeField scope = (NestedScopeField) field.field();
+            if (scope.kind() != NestedScopeField.Kind.VALUE) {
+                throw error(nested, "NESTED_ANY requires a predicate over nested fields, not [" + publicName(field) + "]");
+            }
+            if (SUPPORTED.contains(attribute.dataType()) == false) {
+                throw error(
+                    nested,
+                    "NESTED_ANY does not support child type [" + attribute.dataType() + "] for [" + publicName(field) + "]"
+                );
+            }
+            if (lookupSourced(input, attribute.id())) {
+                throw error(
+                    nested,
+                    "NESTED_ANY cannot read ["
+                        + publicName(field)
+                        + "] from a LOOKUP JOIN index; that index's documents are not the rows being read"
+                );
+            }
+            ReferenceAttribute ref = new ReferenceAttribute(attribute.source(), attribute.name(), attribute.dataType());
+            channels.add(ref);
+            replacement.put(attribute.id(), ref);
+            paths.add(attribute.name().substring(NestedScopeField.PREFIX.length() + path.length() + 1));
+        }
+        Expression bound = body.transformUp(Attribute.class, attribute -> replacement.getOrDefault(attribute.id(), attribute));
+        return new NestedPredicate(nested.source(), path, bound, channels, paths, configuration);
+    }
+
+    private static final java.util.Set<DataType> SUPPORTED = java.util.Set.of(
+        DataType.BOOLEAN,
+        DataType.INTEGER,
+        DataType.LONG,
+        DataType.DOUBLE,
+        DataType.KEYWORD,
+        DataType.TEXT,
+        DataType.DATETIME,
+        DataType.IP
+    );
+
+    /** The named collection, or {@code null} when the predicate's fields name the path. */
+    private static String collection(NestedAny nested, LogicalPlan input) {
+        Expression named = nested.collection();
+        if (named == null) {
+            return null;
+        }
+        if (named instanceof FieldAttribute field
+            && field.field() instanceof NestedScopeField scope
+            && scope.kind() == NestedScopeField.Kind.COLLECTION) {
+            if (scope.conflict() != null) {
+                throw error(nested, "NESTED_ANY cannot read [" + publicName(field) + "]: " + scope.conflict());
+            }
+            if (input.output().stream().anyMatch(attribute -> attribute.synthetic() == false && attribute.name().equals(scope.path()))) {
+                throw error(nested, "NESTED_ANY cannot use [" + scope.path() + "]: a column of that name replaces it here");
+            }
+            return scope.path();
+        }
+        throw error(nested, "NESTED_ANY requires a nested collection first, not [" + named.sourceText() + "]");
+    }
+
+    private static Attribute nestedField(UnresolvedAttribute attribute, List<Attribute> output) {
+        String scopedName = NestedScopeField.PREFIX + attribute.name();
+        for (Attribute candidate : output) {
+            if (candidate instanceof FieldAttribute field && field.name().equals(scopedName) && field.field() instanceof NestedScopeField) {
+                return new FieldAttribute(
+                    attribute.source(),
+                    field.parentName(),
+                    null,
+                    field.name(),
+                    field.field(),
+                    field.nullable(),
+                    field.id(),
+                    true
+                );
+            }
+        }
+        String conflict = null;
+        boolean collection = false;
+        for (Attribute candidate : output) {
+            if (candidate instanceof FieldAttribute field
+                && field.field() instanceof NestedScopeField scope
+                && scope.path().equals(attribute.name())) {
+                collection = true;
+                if (scope.conflict() != null) {
+                    conflict = scope.conflict();
+                }
+            }
+        }
+        if (collection == false) {
+            return null;
+        }
+        NestedScopeField scope = new NestedScopeField(
+            attribute.name(),
+            DataType.SOURCE,
+            Map.of(),
+            attribute.name(),
+            NestedScopeField.Kind.COLLECTION,
+            conflict,
+            null
+        );
+        return new FieldAttribute(attribute.source(), NestedScopeField.NAMESPACE, null, scopedName, scope, true);
+    }
+
+    private static void checkReadsIndexRows(LogicalPlan input, Expression at) {
+        LogicalPlan plan = input;
+        while (plan instanceof EsRelation == false && plan.children().isEmpty() == false) {
+            if (plan instanceof Aggregate) {
+                throw error(at, "NESTED_ANY reads each row's nested documents, so it cannot follow [" + plan.sourceText() + "]");
+            }
+            plan = plan instanceof Join join ? join.left() : plan.children().getFirst();
+        }
+    }
+
+    /** The collection attribute comes from the right side of a LOOKUP JOIN, whose documents are not the input rows. */
+    private static boolean lookupSourced(LogicalPlan plan, NameId id) {
+        if (plan instanceof LookupJoin join) {
+            if (containsAttribute(join.right(), id)) {
+                return true;
+            }
+            return containsAttribute(join.left(), id) && lookupSourced(join.left(), id);
+        }
+        if (plan instanceof EsRelation) {
+            return false;
+        }
+        for (LogicalPlan child : plan.children()) {
+            if (containsAttribute(child, id)) {
+                return lookupSourced(child, id);
+            }
+        }
+        return false;
+    }
+
+    private static boolean containsAttribute(LogicalPlan plan, NameId id) {
+        if (plan instanceof EsRelation relation) {
+            for (Attribute attribute : relation.output()) {
+                if (attribute.id().equals(id)) {
+                    return true;
+                }
+            }
+        }
+        for (LogicalPlan child : plan.children()) {
+            if (containsAttribute(child, id)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static String publicName(FieldAttribute field) {
+        return field.name().substring(NestedScopeField.PREFIX.length());
+    }
+
+    private static VerificationException error(Expression expression, String message) {
+        return new VerificationException(List.of(Failure.fail(expression, message)));
+    }
+}

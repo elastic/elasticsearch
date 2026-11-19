@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.AnalyzerRule;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.ParameterizedAnalyzerRule;
+import org.elasticsearch.xpack.esql.analysis.rules.BindNestedAny;
 import org.elasticsearch.xpack.esql.analysis.rules.DetermineUnmappedFieldsToKeep;
 import org.elasticsearch.xpack.esql.analysis.rules.ResolveFunctions;
 import org.elasticsearch.xpack.esql.analysis.rules.ResolveHighlight;
@@ -147,6 +148,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToText;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToUnsignedLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedPredicate;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.expression.function.vector.VectorFunction;
@@ -368,6 +370,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new Batch<>(
                 "Finish Analysis",
                 Limiter.ONCE,
+                new BindNestedAny(),
                 new HideNestedScopeFields(),
                 // Before ResolveDescribe replaces a ROW producer with a LocalRelation.
                 new RejectUnsupportedIntoSource(),
@@ -993,7 +996,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     private static class HideNestedScopeFields extends Rule<LogicalPlan, LogicalPlan> {
         @Override
         public LogicalPlan apply(LogicalPlan plan) {
-            if (plan.anyMatch(NestedExpand.class::isInstance) == false) {
+            if (plan.anyMatch(NestedExpand.class::isInstance) == false && usesNestedPredicate(plan) == false) {
                 return plan;
             }
             return plan.transformUp(EsRelation.class, relation -> {
@@ -1004,6 +1007,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private static boolean isNestedScope(Attribute attribute) {
             return attribute instanceof FieldAttribute field && field.field() instanceof NestedScopeField;
+        }
+
+        private static boolean usesNestedPredicate(LogicalPlan plan) {
+            boolean[] found = { false };
+            plan.forEachExpressionDown(NestedPredicate.class, predicate -> found[0] = true);
+            return found[0];
         }
     }
 
@@ -1871,6 +1880,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 var output = child.output();
                 childrenOutput.addAll(output);
             }
+
+            // Nested fields are synthetic, so ordinary resolution cannot see them. Point NESTED_ANY at that schema first.
+            plan = BindNestedAny.scope(plan, childrenOutput);
 
             var resolved = switch (plan) {
                 case Aggregate a -> resolveAggregate(a, childrenOutput);

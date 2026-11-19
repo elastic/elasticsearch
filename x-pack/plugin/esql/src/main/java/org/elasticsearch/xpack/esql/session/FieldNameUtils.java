@@ -121,6 +121,17 @@ public class FieldNameUtils {
                 collections.add(expand.target().name());
             }
         });
+        // NESTED_ANY names child fields the same way. The marker keeps them in the private schema instead of dropping them.
+        parsed.forEachExpressionDown(UnresolvedFunction.class, function -> {
+            if (function.name().equalsIgnoreCase("nested_any") == false) {
+                return;
+            }
+            function.forEachDown(UnresolvedAttribute.class, attribute -> {
+                String name = attribute.name();
+                int dot = name.indexOf('.');
+                collections.add(dot < 0 ? name : name.substring(0, dot));
+            });
+        });
         if (collections.isEmpty()) {
             return result;
         }

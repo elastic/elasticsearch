@@ -669,13 +669,13 @@ tests:
   - :x-pack:plugin:async-search:internalClusterTest
   method: testUpdateStoreKeepAlive
   issue: https://github.com/elastic/elasticsearch/issues/166452
-- class: org.elasticsearch.xpack.esql.tree.PlanFieldSafePublicationTests
+- class: org.elasticsearch.xpack.esql.action.ExternalAsyncStopAndCancelIT
   tasks:
-  - :x-pack:plugin:esql:test
-  method: testLazyFieldsAreVolatileOrSafe
-  issue: https://github.com/elastic/elasticsearch/issues/166479
-- class: org.elasticsearch.xpack.esql.tree.PlanFieldSafePublicationTests
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testSyncTaskCancelHardFailsWithNoRows
+  issue: https://github.com/elastic/elasticsearch/issues/166559
+- class: org.elasticsearch.xpack.esql.plugin.EsqlQueryMetricsCollectorIT
   tasks:
-  - :x-pack:plugin:esql:test
-  method: testLazyFieldsArePublishedOnce
-  issue: https://github.com/elastic/elasticsearch/issues/166481
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testFailedQueryMidScanIsMetered
+  issue: https://github.com/elastic/elasticsearch/issues/166565

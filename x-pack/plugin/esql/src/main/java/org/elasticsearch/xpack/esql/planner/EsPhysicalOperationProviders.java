@@ -83,6 +83,7 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TemporalityAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.CompactMultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
@@ -393,13 +394,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 plannerSettings.blockLoaderSizeOrdinals(),
                 plannerSettings.blockLoaderSizeScript()
             );
-            ReferenceAttribute keyword = new ReferenceAttribute(attr.source(), fieldName, DataType.KEYWORD);
-            AbstractConvertFunction cast = unionTypes == null
-                ? EsqlDataTypeConverter.castFromKeyword(attr.dataType(), keyword, configuration)
-                : keywordConversion(unionTypes, keyword);
-            return cast == null
-                ? ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS
-                : ValuesSourceReaderOperator.loadAndConvert(keys, new TypeConverter((EsqlScalarFunction) cast));
+            return keyColumn(attr.source(), fieldName, attr.dataType(), unionTypes, keys, configuration);
         }
         if (unionTypes == null && attr.dataType() != DataType.KEYWORD && shardContext.readsFromSource(fieldName)) {
             // A field read from _source is read as a keyword: a column of another type reads it only through a conversion
@@ -537,6 +532,28 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
      * The cast that {@code unionTypes} applies to each mapped type, applied to {@code keyword}, or {@code null} if it takes no
      * keyword.
      */
+    /**
+     * Reads {@code name}, a key of a {@code flattened} field loaded as the keyword {@code keys}, as a column of {@code type}: through
+     * the cast from keyword to {@code type}, or through the one {@code unionTypes} holds where indices map the name with different
+     * types, and as nulls where there is none. A column outside a nested object and a child of one read a key the same way.
+     */
+    public static ValuesSourceReaderOperator.LoaderAndConverter keyColumn(
+        Source source,
+        String name,
+        DataType type,
+        @Nullable UnionTypeEsField unionTypes,
+        BlockLoader keys,
+        Configuration configuration
+    ) {
+        ReferenceAttribute keyword = new ReferenceAttribute(source, name, DataType.KEYWORD);
+        AbstractConvertFunction cast = unionTypes == null
+            ? EsqlDataTypeConverter.castFromKeyword(type, keyword, configuration)
+            : keywordConversion(unionTypes, keyword);
+        return cast == null
+            ? ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS
+            : ValuesSourceReaderOperator.loadAndConvert(keys, new TypeConverter((EsqlScalarFunction) cast));
+    }
+
     private static @Nullable AbstractConvertFunction keywordConversion(UnionTypeEsField unionTypes, Expression keyword) {
         for (Expression conversion : unionTypes.getConversionExpressions()) {
             if (conversion instanceof AbstractConvertFunction convert && convert.supportedTypes().contains(DataType.KEYWORD)) {
@@ -969,31 +986,6 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             return conversion == null
                 ? ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS
                 : ValuesSourceReaderOperator.loadAndConvert(loader, new TypeConverter((EsqlScalarFunction) conversion));
-        }
-
-        /**
-         * Reads the child field {@code name}, a key of a {@code flattened} field loaded as the keyword {@code keys}, as a top-level
-         * column reads a key: through the cast to {@code type}, or through the one {@code unionTypes} holds where indices map the
-         * name with different types, and as nulls where there is none.
-         */
-        public ValuesSourceReaderOperator.LoaderAndConverter convertedNestedKey(
-            @Nullable UnionTypeEsField unionTypes,
-            String name,
-            DataType type,
-            BlockLoader keys,
-            Configuration configuration
-        ) {
-            ReferenceAttribute keyword = new ReferenceAttribute(
-                org.elasticsearch.xpack.esql.core.tree.Source.EMPTY,
-                name,
-                DataType.KEYWORD
-            );
-            AbstractConvertFunction cast = unionTypes == null
-                ? EsqlDataTypeConverter.castFromKeyword(type, keyword, configuration)
-                : keywordConversion(unionTypes, keyword);
-            return cast == null
-                ? ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS
-                : ValuesSourceReaderOperator.loadAndConvert(keys, new TypeConverter((EsqlScalarFunction) cast));
         }
 
         /** Loads a field under a nested object from the hidden child documents, or gives nulls where this shard has no such field. */

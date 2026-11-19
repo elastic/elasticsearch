@@ -715,10 +715,7 @@ public class IndexResolver {
                     true
                 ),
                 fieldsInfo.keyNames(),
-                (name, fields) -> {
-                    IndexFieldCapabilities root = flattenedRoot(fields, name);
-                    return root != null && NestedScopeField.inNestedScope(root, fields) ? key(name, root) : null;
-                }
+                (name, fields) -> keyInScope(fields, name, true, true)
             )
             : null;
         if (nestedNamespace != null) {
@@ -808,16 +805,15 @@ public class IndexResolver {
                 }
             }
             for (String name : keyNames) {
-                IndexFieldCapabilities root = flattenedRoot(response.get(), name);
-                // A key of a field under a nested object is a child's, like the field, so it is not an ordinary column either
-                if (root == null || (nestedScope && NestedScopeField.inNestedScope(root, response.get()))) {
+                IndexFieldCapabilities key = keyInScope(response.get(), name, false, nestedScope);
+                if (key == null) {
                     continue;
                 }
                 if (isNew) {
                     fieldsCaps.computeIfAbsent(
                         name,
                         (_key) -> new IndexFieldCapabilitiesWithSourceHash(new ArrayList<>(), response.getIndexMappingHash())
-                    ).fieldCapabilities.add(key(name, root));
+                    ).fieldCapabilities.add(key);
                 }
                 if (trackUnmappedFieldIndices) {
                     fieldToMappedIndices.computeIfAbsent(name, k -> new HashSet<>()).add(indexName);
@@ -1138,6 +1134,28 @@ public class IndexResolver {
     }
 
     /** The key {@code name} of the {@code flattened} field {@code root}, a {@code keyword}. */
+    /**
+     * The key {@code name} of a {@code flattened} field of {@code fields}, or {@code null} if it is none there. A key is in the
+     * nested scope when its field is, like a child of a nested object: it is no ordinary column, and the nested scope is its own.
+     * Without a nested scope field caps leaves out the fields under nested objects, so every key is an ordinary one.
+     *
+     * @param inNestedScope whether the key asked for is the one in the nested scope or the ordinary one
+     * @param nestedScope whether field caps was asked for the nested fields
+     */
+    private static IndexFieldCapabilities keyInScope(
+        Map<String, IndexFieldCapabilities> fields,
+        String name,
+        boolean inNestedScope,
+        boolean nestedScope
+    ) {
+        IndexFieldCapabilities root = flattenedRoot(fields, name);
+        if (root == null) {
+            return null;
+        }
+        boolean rootInNestedScope = nestedScope && NestedScopeField.inNestedScope(root, fields);
+        return rootInNestedScope == inNestedScope ? key(name, root) : null;
+    }
+
     private static IndexFieldCapabilities key(String name, IndexFieldCapabilities root) {
         return new IndexFieldCapabilities(
             name,

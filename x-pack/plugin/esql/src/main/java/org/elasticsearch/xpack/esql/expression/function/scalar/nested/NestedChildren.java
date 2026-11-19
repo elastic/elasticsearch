@@ -206,7 +206,7 @@ public final class NestedChildren implements Releasable {
         if (union == null && DataType.isString(type)) {
             return ValuesSourceReaderOperator.load(keys);
         }
-        return context.convertedNestedKey(union, name, type, keys, configuration);
+        return EsPhysicalOperationProviders.keyColumn(Source.EMPTY, name, type, union, keys, configuration);
     }
 
     private final DriverContext context;

@@ -86,6 +86,8 @@ processingCommand
     | dedupCommand
     | {this.isDevVersion()}? fillNullCommand
     | {this.isDevVersion()}? describeCommand
+    | {this.isDevVersion()}? intoCommand
+    | {this.isDevVersion()}? nestedExpandCommand
     ;
 
 whereCommand
@@ -305,6 +307,10 @@ mvExpandCommand
     : MV_EXPAND qualifiedName
     ;
 
+nestedExpandCommand
+    : DEV_NESTED_EXPAND qualifiedName
+    ;
+
 explainCommand
     : DEV_EXPLAIN subqueryExpression
     ;
@@ -413,6 +419,10 @@ lookupCommand
 
 dedupCommand
     : DEDUP
+    ;
+
+intoCommand
+    : DEV_INTO indexPattern
     ;
 
 highlightCommand

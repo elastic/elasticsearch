@@ -169,11 +169,26 @@ public final class GeoTileUtils {
         return ((long) precision << ZOOM_SHIFT) | ((long) xTile << MAX_ZOOM) | yTile;
     }
 
+    /** Extract the zoom level from a geotile hash. */
+    public static int getZoom(long hash) {
+        return (int) (hash >>> ZOOM_SHIFT);
+    }
+
+    /** Extract the x tile coordinate from a geotile hash. */
+    public static int getXTile(long hash) {
+        return (int) ((hash >>> MAX_ZOOM) & X_Y_VALUE_MASK);
+    }
+
+    /** Extract the y tile coordinate from a geotile hash. */
+    public static int getYTile(long hash) {
+        return (int) (hash & X_Y_VALUE_MASK);
+    }
+
     /**
      * Parse geotile hash as zoom, x, y integers.
      */
-    private static int[] parseHash(long hash) {
-        return new int[] { (int) (hash >>> ZOOM_SHIFT), (int) ((hash >>> MAX_ZOOM) & X_Y_VALUE_MASK), (int) (hash & X_Y_VALUE_MASK) };
+    public static int[] parseHash(long hash) {
+        return new int[] { getZoom(hash), getXTile(hash), getYTile(hash) };
     }
 
     /**

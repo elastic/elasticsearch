@@ -10,8 +10,8 @@
 package org.elasticsearch.simdvec.internal;
 
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.lucene.store.ThreadConfinedArena;
 
-import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import java.util.function.IntFunction;
@@ -34,8 +34,6 @@ public class FixedSizeSegmentScratch implements IntFunction<MemorySegment> {
      * Returns a {@link MemorySegment} of exactly {@code len} bytes, aligned for any
      * primitive layout, allocated on first use.
      *
-     * <p>Segments are returned from an auto arena, so they are garbage-collected.
-     *
      * @throws IllegalArgumentException if {@code len} is not the size this instance was created with
      */
     @Override
@@ -46,7 +44,7 @@ public class FixedSizeSegmentScratch implements IntFunction<MemorySegment> {
             );
         }
         if (scratch == null) {
-            scratch = Arena.ofAuto().allocate(size, ValueLayout.JAVA_LONG.byteAlignment());
+            scratch = ThreadConfinedArena.allocate(size, ValueLayout.JAVA_LONG.byteAlignment());
         }
         return scratch;
     }

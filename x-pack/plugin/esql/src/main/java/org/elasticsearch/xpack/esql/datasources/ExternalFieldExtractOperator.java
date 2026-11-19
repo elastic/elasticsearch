@@ -141,6 +141,10 @@ public class ExternalFieldExtractOperator extends AsyncOperator<ExternalFieldExt
             this.executor = executor;
         }
 
+        public Executor executor() {
+            return executor;
+        }
+
         @Override
         public Operator get(DriverContext driverContext) {
             SourceExtractors registry = sourceExtractorsLookup.apply(driverContext);

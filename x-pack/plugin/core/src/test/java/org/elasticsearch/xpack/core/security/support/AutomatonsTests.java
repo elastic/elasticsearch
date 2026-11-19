@@ -17,6 +17,7 @@ import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.apache.lucene.util.automaton.Transition;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.lucene.util.automaton.MinimizationOperations;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -46,6 +47,7 @@ public class AutomatonsTests extends ESTestCase {
         assertMismatch(patterns("/fo.*/", "ba*"), "zipfoo");
     }
 
+<<<<<<< HEAD
     public void testLuceneRegexComplement() throws Exception {
         assertMatch(pattern("/~(notStr)/"), "other");
         assertMismatch(pattern("/~(notStr)/"), "notStr");
@@ -59,6 +61,29 @@ public class AutomatonsTests extends ESTestCase {
         );
         assertMatch(pattern("/@&~(\\.security.*)&~(\\.async-search.*)/"), "logs-1");
         assertMismatch(pattern("/@&~(\\.security.*)&~(\\.async-search.*)/"), ".security-7");
+=======
+    /** Callers that reuse a single patterns automaton rely on each builder path having already minimized it. */
+    public void testPatternsReturnMinimalDeterministicAutomata() {
+        final List<List<String>> inputs = List.of(
+            List.of(),
+            List.of(""),
+            List.of("read"),
+            List.of("read*"),
+            List.of("/read|write/"),
+            List.of("read*", "write*"),
+            List.of("read", "write", "manage"),
+            List.of("read", "write", "manage*"),
+            List.of("rea*d*", "wri*e*"),
+            List.of("*read", "*write"),
+            List.of("*read*", "*write*")
+        );
+        for (List<String> input : inputs) {
+            final Automaton automaton = patterns(input);
+            assertTrue("expected a deterministic automaton for " + input, automaton.isDeterministic());
+            final Automaton minimized = MinimizationOperations.minimize(automaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+            assertEquals("expected a minimal automaton for " + input, minimized.getNumStates(), automaton.getNumStates());
+        }
+>>>>>>> 9c5372d87e7fdecd230a274fc1190fe66dcd14f1
     }
 
     public void testPatternSingle() throws Exception {

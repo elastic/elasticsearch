@@ -10,6 +10,8 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.HdrHistogram.DoubleHistogram;
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
@@ -28,7 +30,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.zip.DataFormatException;
 
-abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggregation.MultiValue {
+abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggregation.MultiValue implements Accountable {
+
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(AbstractInternalHDRPercentiles.class);
 
     protected static final Iterator<Percentile> EMPTY_ITERATOR = Collections.emptyIterator();
     private static final DoubleHistogram EMPTY_HISTOGRAM_THREE_DIGITS = new DoubleHistogram(3);
@@ -50,6 +54,18 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
         this.keys = keys;
         this.state = state;
         this.keyed = keyed;
+    }
+
+    /**
+     * The heap of the histogram, whose counts are sized by the range of the values and the precision and not by the values added. See
+     * {@link org.elasticsearch.search.aggregations.InternalAggregations#estimateHeapBytes()}.
+     *
+     * <p>The first encoding, which writing this aggregation triggers, allocates a scratch buffer that the histogram then keeps. It is
+     * counted, since estimating the serialized size writes the aggregation.
+     */
+    @Override
+    public long ramBytesUsed() {
+        return SHALLOW_SIZE + (state == null ? 0 : (long) state.getEstimatedFootprintInBytes() + state.getNeededByteBufferCapacity());
     }
 
     /**

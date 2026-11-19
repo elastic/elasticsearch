@@ -47,6 +47,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 
 /**
  * Walks filter predicates into {@link PartitionFilterHint}s for partition pruning during glob
@@ -114,9 +115,10 @@ public final class PartitionFilterHintExtractor {
 
     public static Map<String, List<PartitionFilterHint>> extract(LogicalPlan unresolvedPlan) {
         Map<String, List<List<PartitionFilterHint>>> perOccurrence = new LinkedHashMap<>();
-        collectHints(unresolvedPlan, List.of(), perOccurrence);
+        collectHints(unresolvedPlan, perOccurrence);
 
-        // One listing serves every occurrence of a path, so a folder may be skipped only if EVERY occurrence excludes
+        // Hints are keyed by path while resolution is keyed by a spec, so one path's hints must hold for every
+        // spec over it: a folder may be skipped only if EVERY occurrence excludes
         // it. `FROM ds | FORK (WHERE year == 2025) (WHERE ...)` reaches the same relation twice; letting one branch's
         // hint narrow the shared listing would starve the other. An unguarded occurrence contributes no hints and so
         // vetoes the rewrite outright.
@@ -154,14 +156,21 @@ public final class PartitionFilterHintExtractor {
      * key and must not join the listing cache identity. Prefix predicates become a GTE/LT range.
      * {@code MV_IN_RANGE} is always a closed GTE+LTE (inclusivity is not read). {@code MV_GREATER}/{@code MV_LESS}
      * are GTE/LTE ({@code include_bound} is not read). {@code Range} keeps {@code includeLower}/{@code includeUpper}
-     * as written. {@code RLIKE}, {@code NOT}, and {@code OR} emit nothing. Bounds use {@link #LISTING}.
+     * as written. {@code RLIKE}, {@code NOT}, and {@code OR} emit nothing. Bounds use {@link #LISTING}, which keeps
+     * no units, so a conjunct with a {@code date_nanos} constant emits nothing either.
      */
     public static List<PartitionFilterHint> fromConjuncts(
         List<Expression> conjuncts,
         Set<String> requestedMetadata,
         Set<String> partitionKeys
     ) {
-        return fromConjuncts(conjuncts, requestedMetadata, partitionKeys, LISTING);
+        List<Expression> listable = new ArrayList<>(conjuncts.size());
+        for (Expression conjunct : conjuncts) {
+            if (conjunct.anyMatch(e -> e instanceof Literal literal && hasListingUnits(literal) == false) == false) {
+                listable.add(conjunct);
+            }
+        }
+        return fromConjuncts(listable, requestedMetadata, partitionKeys, LISTING);
     }
 
     /**
@@ -208,12 +217,9 @@ public final class PartitionFilterHintExtractor {
      * and in particular keeps the hint in {@code WHERE year == 2025 | EVAL year = 9}, where the filter reads the
      * partition column and the {@code EVAL} only affects what comes after it.
      */
-    private static void collectHints(
-        LogicalPlan node,
-        List<Expression> guardingConjuncts,
-        Map<String, List<List<PartitionFilterHint>>> result
-    ) {
-        if (node instanceof UnresolvedExternalRelation rel) {
+    private static void collectHints(LogicalPlan plan, Map<String, List<List<PartitionFilterHint>>> result) {
+        forEachGuardedRelation(plan, node -> node instanceof UnresolvedExternalRelation, (node, guardingConjuncts) -> {
+            UnresolvedExternalRelation rel = (UnresolvedExternalRelation) node;
             String path = extractPath(rel);
             if (path != null) {
                 Set<String> requestedMetadata = requestedMetadataNames(rel);
@@ -224,6 +230,31 @@ public final class PartitionFilterHintExtractor {
                 // Registered even when empty: an occurrence with no usable hint must veto the rewrite, not be ignored.
                 result.computeIfAbsent(path, k -> new ArrayList<>()).add(hints);
             }
+        });
+    }
+
+    /** Receives a relation of the plan together with the conjuncts that guard its rows. */
+    @FunctionalInterface
+    public interface GuardedRelationConsumer {
+        void accept(LogicalPlan relation, List<Expression> guardingConjuncts);
+    }
+
+    /**
+     * The walk of {@link #collectHints}, for any kind of relation: hands each node that {@code isRelation} accepts to
+     * {@code consumer} with the conjuncts that guard it, and does not look below it.
+     */
+    public static void forEachGuardedRelation(LogicalPlan plan, Predicate<LogicalPlan> isRelation, GuardedRelationConsumer consumer) {
+        walk(plan, List.of(), isRelation, consumer);
+    }
+
+    private static void walk(
+        LogicalPlan node,
+        List<Expression> guardingConjuncts,
+        Predicate<LogicalPlan> isRelation,
+        GuardedRelationConsumer consumer
+    ) {
+        if (isRelation.test(node)) {
+            consumer.accept(node, guardingConjuncts);
             return;
         }
 
@@ -241,7 +272,7 @@ public final class PartitionFilterHintExtractor {
         }
 
         for (LogicalPlan child : node.children()) {
-            collectHints(child, conjuncts, result);
+            walk(child, conjuncts, isRelation, consumer);
         }
     }
 
@@ -283,10 +314,10 @@ public final class PartitionFilterHintExtractor {
         Object literalValue = null;
         boolean reversed = false;
 
-        if (left instanceof UnresolvedAttribute attr && right instanceof Literal lit) {
+        if (left instanceof UnresolvedAttribute attr && right instanceof Literal lit && hasListingUnits(lit)) {
             columnName = attr.name();
             literalValue = lit.value();
-        } else if (left instanceof Literal lit && right instanceof UnresolvedAttribute attr) {
+        } else if (left instanceof Literal lit && right instanceof UnresolvedAttribute attr && hasListingUnits(lit)) {
             columnName = attr.name();
             literalValue = lit.value();
             reversed = true;
@@ -318,7 +349,7 @@ public final class PartitionFilterHintExtractor {
 
         List<Object> literalValues = new ArrayList<>();
         for (Expression listItem : in.list()) {
-            if (listItem instanceof Literal lit) {
+            if (listItem instanceof Literal lit && hasListingUnits(lit)) {
                 literalValues.add(normalizeValue(lit.value()));
             } else {
                 return;
@@ -593,6 +624,15 @@ public final class PartitionFilterHintExtractor {
      */
     private static boolean isUnrequestedFileMetadata(String columnName, Set<String> requestedMetadata) {
         return FileMetadataColumns.isFileMetadataColumn(columnName) && requestedMetadata.contains(columnName) == false;
+    }
+
+    /**
+     * Whether a literal can be a hint value of the listing. A hint carries the bare value and the listing reads
+     * a {@code Long} as milliseconds since the epoch, so a {@code date_nanos} constant would be taken for a time a
+     * million times later and prune files that match. Such a comparison is left to the query.
+     */
+    private static boolean hasListingUnits(Literal literal) {
+        return literal.dataType() != DataType.DATE_NANOS;
     }
 
     private static Object listingValue(Literal literal) {

@@ -170,7 +170,8 @@ public class StringColumnMergeOrdinalSkipTests extends ESTestCase {
             (field, type) -> NumericPipeline::defaultPipeline,
             field -> ColumnarFieldType.STRING,
             ColumNARDocValuesFormat.DEFAULT_BLOCK_SIZE,
-            StringColumnOptionsSelector.always(options)
+            StringColumnOptionsSelector.always(options),
+            FormatVersion.CURRENT
         );
         final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec(format))
             .setUseCompoundFile(false)

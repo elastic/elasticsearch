@@ -19,6 +19,8 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexReshardService;
 import org.elasticsearch.index.shard.ShardId;
@@ -67,6 +69,10 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
     static final TransportVersion ESQL_EXTERNAL_WORKER_READINESS = TransportVersion.fromName("esql_external_worker_readiness");
     static final TransportVersion ESQL_EXTERNAL_WORKER_GATING = TransportVersion.fromName("esql_external_worker_gating");
     private static final TransportVersion QUERY_ID_IN_DATA_NODE_REQUEST = TransportVersion.fromName("search_query_waiting");
+    /**
+     * Data nodes keep reader contexts for the fetch phase, see {@link #readerContextKeepAlive()}.
+     */
+    static final TransportVersion ESQL_FETCH_CONTEXTS = TransportVersion.fromName("esql_fetch_contexts");
 
     private static final Logger logger = LogManager.getLogger(DataNodeRequest.class);
 
@@ -89,9 +95,15 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
      * means unknown (old coordinator).
      */
     private final long requiredClusterStateVersion;
+    @Nullable
+    private final TimeValue readerContextKeepAlive;
 
     /**
-     * Constructor with all parameters, including the cluster state version the plan was made from.
+     * Constructor with all parameters.
+     *
+     * @param readerContextKeepAlive set when the data node opens a single-session reader context per shard and keeps the
+     *                               ones whose rows survive its node cut open for the fetch phase. Each one gets this
+     *                               keep-alive once the data node responded, capped at its {@code search.max_keep_alive}.
      */
     DataNodeRequest(
         String sessionId,
@@ -107,7 +119,8 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         boolean reductionLateMaterialization,
         boolean singleNodeOptimizations,
         List<ExternalSplit> externalSplits,
-        long requiredClusterStateVersion
+        long requiredClusterStateVersion,
+        @Nullable TimeValue readerContextKeepAlive
     ) {
         this.sessionId = sessionId;
         this.queryId = queryId;
@@ -123,10 +136,12 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         this.singleNodeOptimizations = singleNodeOptimizations;
         this.externalSplits = externalSplits != null ? List.copyOf(externalSplits) : List.of();
         this.requiredClusterStateVersion = requiredClusterStateVersion;
+        this.readerContextKeepAlive = readerContextKeepAlive;
     }
 
     /**
-     * Constructor with externalSplits and no cluster state version: the worker consults none.
+     * Constructor with externalSplits and no cluster state version: the worker consults none. The data node keeps no fetch
+     * contexts.
      */
     DataNodeRequest(
         String sessionId,
@@ -157,12 +172,13 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
             reductionLateMaterialization,
             singleNodeOptimizations,
             externalSplits,
-            0L
+            0L,
+            null
         );
     }
 
     /**
-     * Constructor without externalSplits (defaults to empty list).
+     * Constructor without external splits and without fetch contexts.
      */
     DataNodeRequest(
         String sessionId,
@@ -257,6 +273,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         } else {
             this.queryId = TaskId.EMPTY_TASK_ID;
         }
+        this.readerContextKeepAlive = in.getTransportVersion().supports(ESQL_FETCH_CONTEXTS) ? in.readOptionalTimeValue() : null;
     }
 
     @Override
@@ -295,6 +312,12 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         }
         if (out.getTransportVersion().supports(QUERY_ID_IN_DATA_NODE_REQUEST)) {
             queryId.writeTo(out);
+        }
+        if (out.getTransportVersion().supports(ESQL_FETCH_CONTEXTS)) {
+            out.writeOptionalTimeValue(readerContextKeepAlive);
+        } else if (readerContextKeepAlive != null) {
+            // the plan sends documents off the node, which only fetch contexts can serve
+            throw new IllegalStateException("can't ask a node on [" + out.getTransportVersion() + "] for fetch contexts");
         }
     }
 
@@ -400,6 +423,21 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         return requiredClusterStateVersion;
     }
 
+    /**
+     * Whether the data node keeps the reader contexts whose rows survive its node cut open for the fetch phase.
+     */
+    boolean keepFetchContexts() {
+        return readerContextKeepAlive != null;
+    }
+
+    /**
+     * The keep-alive of each fetch context once the data node responded. Set only when the data node keeps them.
+     */
+    @Nullable
+    TimeValue readerContextKeepAlive() {
+        return readerContextKeepAlive;
+    }
+
     @Override
     public String getDescription() {
         String desc = "shards=" + shards + " plan=" + plan;
@@ -409,6 +447,9 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         }
         if (singleNodeOptimizations) {
             desc += " singleNodeOptimizations=true";
+        }
+        if (readerContextKeepAlive != null) {
+            desc += " readerContextKeepAlive=" + readerContextKeepAlive;
         }
         return desc;
     }
@@ -437,7 +478,8 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
             && reductionLateMaterialization == request.reductionLateMaterialization
             && singleNodeOptimizations == request.singleNodeOptimizations
             && externalSplits.equals(request.externalSplits)
-            && requiredClusterStateVersion == request.requiredClusterStateVersion;
+            && requiredClusterStateVersion == request.requiredClusterStateVersion
+            && Objects.equals(readerContextKeepAlive, request.readerContextKeepAlive);
     }
 
     @Override
@@ -456,7 +498,8 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
             reductionLateMaterialization,
             singleNodeOptimizations,
             externalSplits,
-            requiredClusterStateVersion
+            requiredClusterStateVersion,
+            readerContextKeepAlive
         );
     }
 
@@ -475,7 +518,8 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
             reductionLateMaterialization,
             singleNodeOptimizations,
             externalSplits,
-            requiredClusterStateVersion
+            requiredClusterStateVersion,
+            readerContextKeepAlive
         );
     }
 

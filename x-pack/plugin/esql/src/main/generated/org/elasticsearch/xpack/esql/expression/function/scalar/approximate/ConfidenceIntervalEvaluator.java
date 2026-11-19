@@ -82,7 +82,7 @@ public final class ConfidenceIntervalEvaluator implements ExpressionEvaluator {
   public DoubleBlock eval(int positionCount, DoubleBlock bestEstimateBlockBlock,
       DoubleBlock estimatesBlockBlock, IntBlock trialCountBlockBlock,
       IntBlock bucketCountBlockBlock, DoubleBlock confidenceLevelBlockBlock) {
-    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         boolean allBlocksAreNulls = true;
         if (!bestEstimateBlockBlock.isNull(p)) {

@@ -16,8 +16,13 @@ import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.search.TaskExecutor;
+<<<<<<< HEAD
 import org.elasticsearch.index.codec.vectors.VectorReadHints;
 import org.elasticsearch.index.codec.vectors.VectorWriteHints;
+=======
+import org.elasticsearch.index.codec.vectors.DirectIOCapableFlatVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.AshConfigResolver;
+>>>>>>> 9c5372d87e7fdecd230a274fc1190fe66dcd14f1
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfMergeConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
@@ -85,7 +90,7 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
     public static final int MAX_CENTROIDS_PER_PARENT_CLUSTER = DEFAULT_VECTORS_PER_CLUSTER; // 384
     public static final int MAX_DIMENSIONS = 4096;
 
-    private final IvfSegmentConfig.AshConfig ashConfig;
+    private final AshConfigResolver ashConfigResolver;
     private final int vectorPerCluster;
     private final int centroidsPerParentCluster;
     private final FlatVectorsFormat rawVectorFormat;
@@ -97,14 +102,31 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
     private final IvfFlushConfigSource ivfFlushConfigSource;
     private final IvfMergeConfigResolver ivfMergeConfigResolver;
 
-    /** No-arg constructor for SPI. */
+    /**
+     * No-arg constructor for SPI. Segments describe their own configuration, so this only matters for writing, where it
+     * derives the configuration from the vector dimension as the mapping does by default.
+     */
     public ESNextDiskASHVectorsFormat() {
-        this(DEFAULT_VECTORS_PER_CLUSTER, DEFAULT_CENTROIDS_PER_PARENT_CLUSTER, null);
+        this(
+            AshConfigResolver.dimsDerived(null, IvfSegmentConfig.AshConfig.DEFAULT_QUERY_BITS_PER_DIM),
+            DEFAULT_VECTORS_PER_CLUSTER,
+            DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            false,
+            null,
+            1,
+            null,
+            defaultFlatThreshold(DEFAULT_VECTORS_PER_CLUSTER),
+            null,
+            IvfFlushConfigSource.empty(),
+            IvfMergeConfigResolver.useCodecDefault(),
+            false
+        );
     }
 
     public ESNextDiskASHVectorsFormat(int vectorPerCluster, int centroidsPerParentCluster, String sliceField) {
         this(
-            IvfSegmentConfig.AshConfig.defaults(),
+            AshConfigResolver.fixed(IvfSegmentConfig.AshConfig.defaults()),
             vectorPerCluster,
             centroidsPerParentCluster,
             DenseVectorFieldMapper.ElementType.FLOAT,
@@ -118,8 +140,15 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
         );
     }
 
+<<<<<<< HEAD
+=======
+    /**
+     * @param ashConfigResolver supplies the ASH configuration for each field from its vector dimension
+     * @param onDiskMerge whether merges use direct I/O for the raw vectors (the field's {@code on_disk_merge} option)
+     */
+>>>>>>> 9c5372d87e7fdecd230a274fc1190fe66dcd14f1
     public ESNextDiskASHVectorsFormat(
-        IvfSegmentConfig.AshConfig ashConfig,
+        AshConfigResolver ashConfigResolver,
         int vectorPerCluster,
         int centroidsPerParentCluster,
         DenseVectorFieldMapper.ElementType elementType,
@@ -157,7 +186,7 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
                 "flatVectorThreshold must be -1 (dynamic), 0 (disabled), or > 0, got: " + flatVectorThreshold
             );
         }
-        this.ashConfig = ashConfig;
+        this.ashConfigResolver = ashConfigResolver;
         this.vectorPerCluster = vectorPerCluster;
         this.centroidsPerParentCluster = centroidsPerParentCluster;
         this.rawVectorFormat = switch (elementType) {
@@ -190,7 +219,7 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
             sliceField,
             ivfFlushConfigSource,
             ivfMergeConfigResolver,
-            ashConfig
+            ashConfigResolver
         );
     }
 
@@ -200,8 +229,13 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
         return new ESNextDiskASHVectorsReader(state, f -> {
             var format = supportedFormats.get(f);
             if (format == null) return null;
+<<<<<<< HEAD
             return format.fieldsReader(VectorReadHints.readToRescore(state));
         }, ashConfig.queryBitsPerDim());
+=======
+            return format.fieldsReader(state, dio, odm);
+        }, ashConfigResolver.queryBitsPerDim());
+>>>>>>> 9c5372d87e7fdecd230a274fc1190fe66dcd14f1
     }
 
     @Override

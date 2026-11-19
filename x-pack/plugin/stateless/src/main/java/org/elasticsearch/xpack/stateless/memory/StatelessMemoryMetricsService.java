@@ -32,6 +32,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RatioValue;
@@ -39,8 +40,10 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.AutoscalingMissedIndicesUpdateException;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.xpack.core.ml.inference.IngestModelMemoryProvider;
 import org.elasticsearch.xpack.stateless.MetricQuality;
 import org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageAllocationDecider;
@@ -183,6 +186,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
     private volatile int totalIndices;
     private final AtomicReference<IndexingOperationsMemoryRequirements> indexingOperationsHeapMemoryRequirementsRef =
         new AtomicReference<>();
+    private final AtomicReference<LargestIndexingOperation> largestIndexingOperationRef = new AtomicReference<>();
 
     private final LongSupplier relativeTimeInNanosSupplier;
     private volatile boolean indexingOperationsMemoryMetricsEnabled;
@@ -361,13 +365,52 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         if (indexingOperationsMemoryMetricsEnabled == false) {
             return 0;
         }
+        final long now = relativeTimeInNanos();
+        final long legacyHeap = validLegacyIndexingHeap(now);
+        final Long operationSize = validLargestOperationSize(now);
+        if (operationSize == null) {
+            return legacyHeap;
+        }
+        return Math.max(legacyHeap, heapRequiredForOperation(clusterService.getSettings(), operationSize));
+    }
+
+    /**
+     * Heap required on this node to accept an indexing operation of {@code operationSizeInBytes}, using this node's
+     * {@link IndexingPressure#MAX_OPERATION_SIZE} and JVM heap maximum.
+     * <p>
+     * {@code ceil(operationSize / (limit / heapMax))}. A percentage limit cancels the local heap, so the default 10%
+     * limit is ten times the operation size. An absolute limit is interpreted against this node's heap.
+     */
+    static long heapRequiredForOperation(Settings nodeSettings, long operationSizeInBytes) {
+        final long limitBytes = IndexingPressure.MAX_OPERATION_SIZE.get(nodeSettings).getBytes();
+        final long heapMaxBytes = JvmInfo.jvmInfo().getMem().getHeapMax().getBytes();
+        if (limitBytes == 0L || heapMaxBytes == 0L) {
+            return 0L;
+        }
+        final double ratio = (double) limitBytes / (double) heapMaxBytes;
+        if (ratio == 0d) {
+            return 0L;
+        }
+        return (long) Math.ceil(operationSizeInBytes / ratio);
+    }
+
+    private long validLegacyIndexingHeap(long now) {
         var indexingHeapMemoryRequirements = indexingOperationsHeapMemoryRequirementsRef.get();
-        if (indexingHeapMemoryRequirements == null || indexingHeapMemoryRequirements.validUntil() < relativeTimeInNanos()) {
+        if (indexingHeapMemoryRequirements == null || indexingHeapMemoryRequirements.validUntil() < now) {
             // Try to clear the memory once the results are stale
             indexingOperationsHeapMemoryRequirementsRef.compareAndSet(indexingHeapMemoryRequirements, null);
-            return 0;
+            return 0L;
         }
         return indexingHeapMemoryRequirements.minimumRequiredHeapInBytes();
+    }
+
+    private Long validLargestOperationSize(long now) {
+        var largestOperation = largestIndexingOperationRef.get();
+        if (largestOperation == null || largestOperation.validUntil() < now) {
+            largestIndexingOperationRef.compareAndSet(largestOperation, null);
+            return null;
+        }
+        return largestOperation.operationSizeInBytes();
     }
 
     public long mergeMemoryEstimation() {
@@ -505,6 +548,25 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
     }
 
     /**
+     * Record the largest raw indexing operation size published by a data node. The maximum is kept until
+     * {@link #INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY_SETTING} elapses, matching
+     * {@link #updateIndexingOperationsHeapMemoryRequirements(long)}. Conversion to a heap requirement happens in
+     * {@link #minimumRequiredHeapForAcceptingLargeIndexingOps()} using this master's indexing-pressure limit.
+     */
+    public void updateLargestIndexingOperationSize(long operationSizeInBytes) {
+        long nowInNanos = relativeTimeInNanosSupplier.getAsLong();
+        largestIndexingOperationRef.accumulateAndGet(
+            new LargestIndexingOperation(operationSizeInBytes, nowInNanos + indexingOperationsMemoryMetricsValidityDuration.nanos()),
+            (existing, proposed) -> {
+                if (existing == null || existing.validUntil() < nowInNanos) {
+                    return proposed;
+                }
+                return existing.compareTo(proposed) >= 0 ? existing : proposed;
+            }
+        );
+    }
+
+    /**
      * Update our map of {@link ShardMemoryMetrics} to represent the new cluster state. This includes:
      *
      * <ul>
@@ -524,6 +586,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         if (event.localNodeMaster() == false || event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
             shardMemoryMetrics.clear();
             indexingOperationsHeapMemoryRequirementsRef.set(null);
+            largestIndexingOperationRef.set(null);
             maxShardMergeMemoryEstimatePerNode.clear();
             initialized = false;
             // Set the cluster state to unknown so we don't ignore valid updates that arrive during our next promotion
@@ -653,11 +716,32 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
      * or {@code null} if they are expired or not set.
      */
     public IndexingOperationsMemoryRequirements getValidIndexingOperationsHeapMemoryRequirements() {
-        var reqs = indexingOperationsHeapMemoryRequirementsRef.get();
-        if (reqs == null || reqs.validUntil() < relativeTimeInNanos()) {
+        final long now = relativeTimeInNanos();
+        final var legacy = indexingOperationsHeapMemoryRequirementsRef.get();
+        final boolean legacyValid = legacy != null && legacy.validUntil() >= now;
+        final var raw = largestIndexingOperationRef.get();
+        final boolean rawValid = raw != null && raw.validUntil() >= now;
+        if (legacyValid == false && rawValid == false) {
             return null;
         }
-        return reqs;
+        long heap = legacyValid ? legacy.minimumRequiredHeapInBytes() : 0L;
+        long validUntil = legacyValid ? legacy.validUntil() : Long.MIN_VALUE;
+        if (rawValid) {
+            heap = Math.max(heap, heapRequiredForOperation(clusterService.getSettings(), raw.operationSizeInBytes()));
+            validUntil = Math.max(validUntil, raw.validUntil());
+        }
+        return new IndexingOperationsMemoryRequirements(heap, validUntil);
+    }
+
+    private record LargestIndexingOperation(long operationSizeInBytes, long validUntil) implements Comparable<LargestIndexingOperation> {
+        private static final Comparator<LargestIndexingOperation> COMPARATOR = Comparator.comparingLong(
+            LargestIndexingOperation::operationSizeInBytes
+        ).thenComparingLong(LargestIndexingOperation::validUntil);
+
+        @Override
+        public int compareTo(LargestIndexingOperation o) {
+            return COMPARATOR.compare(this, o);
+        }
     }
 
     /**

@@ -438,9 +438,9 @@ public class ExternalSourceAggregatePushdownTests extends ESTestCase {
         metadata.put("_stats.columns.age.max", 99);
 
         var countStar = aggregateExec(AggregatorMode.SINGLE, externalSource(metadata), countStarAlias());
-        as(applyRule(countStar), LocalSourceExec.class);
+        as(applyRuleText(countStar), LocalSourceExec.class);
         var minAge = aggregateExec(AggregatorMode.SINGLE, externalSource(metadata), alias("mn", new Min(Source.EMPTY, AGE)));
-        as(applyRule(minAge), LocalSourceExec.class);
+        as(applyRuleText(minAge), LocalSourceExec.class);
 
         var mixed = aggregateExec(
             AggregatorMode.SINGLE,
@@ -449,7 +449,7 @@ public class ExternalSourceAggregatePushdownTests extends ESTestCase {
             alias("mn", new Min(Source.EMPTY, AGE)),
             alias("un", new Min(Source.EMPTY, SCORE))
         );
-        as(applyRule(mixed), AggregateExec.class);
+        as(applyRuleText(mixed), AggregateExec.class);
     }
 
     /**
@@ -467,7 +467,7 @@ public class ExternalSourceAggregatePushdownTests extends ESTestCase {
             countStarAlias(),
             alias("mn", new Min(Source.EMPTY, AGE))
         );
-        as(applyRule(published), LocalSourceExec.class);
+        as(applyRuleText(published), LocalSourceExec.class);
 
         var withheld = aggregateExec(
             AggregatorMode.SINGLE,
@@ -476,7 +476,7 @@ public class ExternalSourceAggregatePushdownTests extends ESTestCase {
             alias("mn", new Min(Source.EMPTY, AGE)),
             alias("mx", new Max(Source.EMPTY, AGE))
         );
-        as(applyRule(withheld), AggregateExec.class);
+        as(applyRuleText(withheld), AggregateExec.class);
     }
 
     /**

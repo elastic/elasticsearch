@@ -122,13 +122,11 @@ final class StagedStripeRecord extends AbstractMap<String, Object> {
         }
         for (int i = 0; i < stats.columnCount(); i++) {
             size += COUNT_KEYS_PER_COLUMN;
-            // The same predicate flatten() writes by, not merely the same values. A piece reaches staging
-            // already capped, so on every reachable path these agree either way; counting through it means
-            // they cannot disagree even if one ever did not.
-            if (TextFormatStats.publishable(stats.min(i)) != null) {
+            // A piece reaches staging already capped, so what is here is what flatten() writes.
+            if (stats.min(i) != null) {
                 size++;
             }
-            if (TextFormatStats.publishable(stats.max(i)) != null) {
+            if (stats.max(i) != null) {
                 size++;
             }
         }

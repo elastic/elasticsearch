@@ -60,11 +60,11 @@ public final class TextFormatStats {
     }
 
     /**
-     * The statistics of one already-filtered harvest, with no schema applied. The filter belongs at the
-     * harvest — {@link StripeStatsHarvester#emit} runs {@link #build} before a piece is handed on — so a
-     * consumer holding a filtered harvest has nothing left to filter and reads its columns from the harvest
-     * itself. Applying the schema a second time there would make the columns a record COUNTS and the columns
-     * it WRITES come from two different places.
+     * The statistics of one already-filtered harvest, with no schema applied. The schema filter belongs at
+     * the harvest — {@link StripeStatsHarvester#emit} runs {@link #build} before a piece is handed on — so a
+     * consumer holding a filtered harvest reads its columns from the harvest itself. Applying the schema a
+     * second time there would make the columns a record COUNTS and the columns it WRITES come from two
+     * different places.
      */
     static SourceStatistics harvested(long rowCount, Map<String, ExternalStats.ColumnStats> columns) {
         Map<String, SourceStatistics.ColumnStatistics> cols = new HashMap<>();

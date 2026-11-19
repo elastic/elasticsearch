@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 166427
-summary: Omit a bound from an external CSV, TSV or NDJSON column's cached statistics when that bound is wider than 1 KB
+summary: Omit an oversized minimum or maximum from external CSV, TSV and NDJSON column statistics
 type: bug

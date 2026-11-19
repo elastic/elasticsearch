@@ -66,7 +66,8 @@ check_no_jar_is_split() {
     if [ -n "$split_checksums" ]; then
         echo >&2 "Jars with identical content would end up in different layers, listed by checksum and path:"
         find /layers lib modules plugins -type f -name '*.jar' -exec sha256sum {} + | sort | while read -r sum path; do
-            if echo "$split_checksums" | grep -qxF "$sum"; then
+            # Not `grep -q`: it can exit on an early match while echo is still writing, and the SIGPIPE then fails the pipeline
+            if echo "$split_checksums" | grep -xF "$sum" >/dev/null; then
                 echo >&2 "  $sum $path"
             fi
         done

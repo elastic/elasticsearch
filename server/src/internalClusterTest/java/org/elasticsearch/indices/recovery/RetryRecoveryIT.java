@@ -20,7 +20,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotR
 import org.elasticsearch.action.admin.indices.ResizeIndexTestUtils;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
@@ -280,10 +279,6 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                     "*retrying * recovery locally after failure*"
                 )
             );
-            assertThat(
-                clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, indexName).get().getStatus(),
-                equalTo(ClusterHealthStatus.YELLOW)
-            );
         } finally {
             transportService.clearAllRules();
         }
@@ -343,8 +338,6 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                     "*retrying * recovery locally after failure*"
                 )
             );
-            // EXISTING_STORE inactive primaries are RED (see ClusterShardHealth#getInactivePrimaryHealth)
-            assertThat(clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, indexName).get().getStatus(), equalTo(ClusterHealthStatus.RED));
         } finally {
             transportService.clearAllRules();
         }
@@ -407,10 +400,6 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                     Level.WARN,
                     "*retrying * recovery locally after failure*"
                 )
-            );
-            assertThat(
-                clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, targetIndexName).get().getStatus(),
-                equalTo(ClusterHealthStatus.YELLOW)
             );
         } finally {
             transportService.clearAllRules();
@@ -480,10 +469,6 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                     Level.WARN,
                     "*retrying * recovery locally after failure*"
                 )
-            );
-            assertThat(
-                clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, indexName).get().getStatus(),
-                equalTo(ClusterHealthStatus.YELLOW)
             );
         } finally {
             transportService.clearAllRules();

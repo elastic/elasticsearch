@@ -1086,7 +1086,9 @@ public final class StreamingParallelParsingCoordinator {
                     decompressing.abortTransport(stream);
                 } else if (storageObject != null) {
                     storageObject.abortStream(stream);
-                } else {
+                } else if (DecompressingStorageObject.isDecompressedStream(stream) == false) {
+                    // Raw test streams. A DecompressedStream without a StorageObject is closed later
+                    // on the segmentator thread; closing it here is a native use-after-free.
                     stream.close();
                 }
             } catch (Exception e) {

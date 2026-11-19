@@ -239,6 +239,11 @@ final class DecompressingStorageObject implements StorageObject {
         abortStream(stream);
     }
 
+    /** True when {@code stream} is this class's decoder wrapper. Parse close must not {@code close()} it. */
+    static boolean isDecompressedStream(InputStream stream) {
+        return stream instanceof DecompressedStream;
+    }
+
     /**
      * Bundles the decompressed stream with the raw delegate stream it was built from so
      * {@link #abortStream(InputStream)} can route the abort to the raw stream — which is where

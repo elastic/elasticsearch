@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.logging.LogManager;
@@ -916,7 +915,7 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
             if (decision.retry() == false) {
                 throw rethrow(e);
             }
-            closeQuietly(current);
+            closeQuietly(current); // abort, not drain: a small unread S3 tail would otherwise block resume/cancel
             // abortStream sets aborted on another thread (parse close). Sleep and RetryPolicy.execute
             // only poll StorageRetryCancellation; they would ignore aborted and sit out a 30s throttle
             // hop. Nest abort into the ambient cancel signal so both sleeps see it. Compose with any
@@ -1126,9 +1125,15 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
         }
 
         private void closeQuietly(InputStream in) {
-            // Best-effort discard before re-opening a fresh range. Swallow both a checked IOException and an
-            // unchecked close failure (e.g. the AWS SDK's AbortedException) so a noisy close never masks the resume.
-            IOUtils.closeWhileHandlingException(in);
+            // Best-effort discard before re-opening a fresh range. abortStream, not close(): S3 close()
+            // drains a small unread tail and would park cancel before the abort-aware backoff. Swallow
+            // checked and unchecked failures (e.g. the AWS SDK's AbortedException) so a noisy abort
+            // never masks the resume.
+            try {
+                delegate.abortStream(in);
+            } catch (Exception e) {
+                // continue to resume
+            }
         }
 
         /**

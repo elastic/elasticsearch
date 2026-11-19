@@ -857,6 +857,126 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
+     * Interrupt the closer while the zstd segmentator is still in {@code read()}. Abort does not
+     * wake the GET, so {@code tasksOutstanding} stays above zero; close must skip the decoder backstop.
+     */
+    public void testCloseBackstopSkipsDecoderIfSegmentatorStillOutstanding() throws Exception {
+        byte[] original = "x\n".repeat(256).getBytes(StandardCharsets.UTF_8);
+        byte[] compressed = zstdBytes(original);
+        CountDownLatch parked = new CountDownLatch(1);
+        CountDownLatch resume = new CountDownLatch(1);
+        AtomicInteger rawAborts = new AtomicInteger();
+        StorageObject raw = new AbstractTestStorageObject() {
+            @Override
+            public InputStream newStream() {
+                return new FilterInputStream(new ByteArrayInputStream(compressed)) {
+                    @Override
+                    public int read(byte[] b, int off, int len) throws IOException {
+                        parked.countDown();
+                        try {
+                            if (resume.await(15, TimeUnit.SECONDS) == false) {
+                                throw new IOException("raw read was not unblocked");
+                            }
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            throw new IOException("interrupted", e);
+                        }
+                        throw new IOException("aborted");
+                    }
+                };
+            }
+
+            @Override
+            public void abortStream(InputStream stream) {
+                rawAborts.incrementAndGet();
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) {
+                return newStream();
+            }
+
+            @Override
+            public long length() {
+                return compressed.length;
+            }
+
+            @Override
+            public Instant lastModified() {
+                return Instant.EPOCH;
+            }
+
+            @Override
+            public boolean exists() {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return StoragePath.of("mem://zstd-skip-backstop");
+            }
+        };
+        ThreadSensitiveZstdCodec codec = new ThreadSensitiveZstdCodec();
+        DecompressingStorageObject decompressing = new DecompressingStorageObject(raw, codec);
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            CloseableIterator<Page> iter = StreamingParallelParsingCoordinator.parallelRead(
+                new LineFormatReader(512),
+                decompressing::newStream,
+                decompressing,
+                List.of("line"),
+                50,
+                2,
+                executor,
+                ErrorPolicy.STRICT,
+                null,
+                0L,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                null,
+                -1L,
+                StripeColumnScope.PROJECTED,
+                StreamingParallelParsingCoordinator.WarningSinks.NONE,
+                StreamingSegmentatorAdmission.unbounded(),
+                new NoopCircuitBreaker("streaming-parse-test"),
+                ExternalReadCounters.NOOP,
+                null
+            );
+            safeAwait(parked);
+            CountDownLatch closed = new CountDownLatch(1);
+            AtomicReference<Exception> closeFailure = new AtomicReference<>();
+            Thread closeThread = new Thread(() -> {
+                try {
+                    iter.close();
+                } catch (Exception e) {
+                    closeFailure.set(e);
+                } finally {
+                    closed.countDown();
+                }
+            }, "zstd-skip-backstop-closer");
+            closeThread.start();
+            assertBusy(() -> assertEquals(Thread.State.TIMED_WAITING, closeThread.getState()));
+            closeThread.interrupt();
+            try {
+                assertTrue("interrupted close() must return without waiting out the 60s poll", closed.await(5, TimeUnit.SECONDS));
+            } finally {
+                closeThread.join(TimeUnit.SECONDS.toMillis(5));
+            }
+            assertFalse(closeThread.isAlive());
+            assertNull(closeFailure.get());
+            assertThat(rawAborts.get(), Matchers.greaterThanOrEqualTo(1));
+            assertNull("backstop must not close the decoder while the segmentator is in read()", codec.decoderCloseThread.get());
+            assertFalse(codec.closedWhileRead.get());
+            resume.countDown();
+            assertBusy(() -> assertNotNull(codec.decoderCloseThread.get()));
+            assertNotEquals(closeThread, codec.decoderCloseThread.get());
+            assertNull(iter.tryAdvance());
+        } finally {
+            resume.countDown();
+            executor.shutdownNow();
+        }
+    }
+
+    /**
      * {@code abortStream} throwing a RuntimeException after the streamClosed CAS must not skip
      * drain / breaker refund. ParallelParsingCoordinator already catches Exception around abort.
      */
@@ -925,6 +1045,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 resume.countDown();
             }
         };
+        PeakTrackingBreaker breaker = new PeakTrackingBreaker();
         ExecutorService executor = Executors.newFixedThreadPool(4);
         try {
             CloseableIterator<Page> iter = StreamingParallelParsingCoordinator.parallelRead(
@@ -942,7 +1063,11 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 null,
                 -1L,
                 StripeColumnScope.PROJECTED,
-                StreamingParallelParsingCoordinator.WarningSinks.NONE
+                StreamingParallelParsingCoordinator.WarningSinks.NONE,
+                StreamingSegmentatorAdmission.unbounded(),
+                breaker,
+                ExternalReadCounters.NOOP,
+                null
             );
             safeAwait(parked);
             CountDownLatch closed = new CountDownLatch(1);
@@ -965,6 +1090,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             assertFalse(closer.isAlive());
             assertNull("abortStream RuntimeException must not escape close()", closeFailure.get());
             assertNull(iter.tryAdvance());
+            assertEquals(0L, breaker.getUsed());
         } finally {
             resume.countDown();
             executor.shutdownNow();

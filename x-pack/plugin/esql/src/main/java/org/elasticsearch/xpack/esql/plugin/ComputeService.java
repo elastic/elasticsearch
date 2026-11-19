@@ -11,6 +11,9 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.bulk.BatchIndexingEnabled;
+import org.elasticsearch.action.bulk.EscfBulkService;
+import org.elasticsearch.action.bulk.ShardBatchIndexer;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
@@ -111,6 +114,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
+import org.elasticsearch.xpack.esql.fetch.FetchService;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalVerifier;
@@ -244,6 +248,8 @@ public class ComputeService {
     private final AtomicReference<MatcherWatchdog> grokMatcherWatchdog = new AtomicReference<>();
     /** Which nodes of the cluster state may be given external splits right now; see {@link #externalWorkers()}. */
     private final ExternalWorkerReadiness externalWorkerReadiness;
+    private final BatchIndexingEnabled batchIndexingEnabled;
+    private final EscfBulkService escfBulkService;
 
     @SuppressWarnings("this-escape")
     public ComputeService(
@@ -257,9 +263,11 @@ public class ComputeService {
         OperatorFactoryRegistry operatorFactoryRegistry,
         FormatReaderRegistry formatReaderRegistry,
         Client client,
-        ExternalWorkerReadiness externalWorkerReadiness
+        ExternalWorkerReadiness externalWorkerReadiness,
+        EscfBulkService escfBulkService
     ) {
         this.externalWorkerReadiness = externalWorkerReadiness;
+        this.escfBulkService = escfBulkService;
         this.searchService = transportActionServices.searchService();
         this.transportService = transportActionServices.transportService();
         this.exchangeService = transportActionServices.exchangeService();
@@ -278,6 +286,7 @@ public class ComputeService {
         this.ipLocationService = transportActionServices.ipLocationService();
         this.clusterService = transportActionServices.clusterService();
         this.projectResolver = transportActionServices.projectResolver();
+        this.batchIndexingEnabled = new BatchIndexingEnabled(this.clusterService.getClusterSettings());
         this.clusterService.getClusterSettings()
             .initializeAndWatch(
                 GROK_WATCHDOG_MAX_EXECUTION_TIME,
@@ -303,6 +312,17 @@ public class ComputeService {
         this.plannerSettings = transportActionServices.plannerSettings();
         this.operatorFactoryRegistry = operatorFactoryRegistry;
         this.formatReaderRegistry = formatReaderRegistry;
+        new FetchService(
+            transportService,
+            clusterService,
+            projectResolver,
+            transportActionServices.indexNameExpressionResolver(),
+            searchService,
+            this.bigArrays,
+            blockFactory,
+            plannerSettings::get,
+            computeExecutor
+        ).registerHandlers();
     }
 
     /** The minimum transport version of the nodes that may read the splits planned here. */
@@ -2147,7 +2167,9 @@ public class ComputeService {
                 grokMatcherWatchdog.get(),
                 clusterService.state().getMinTransportVersion(),
                 taskClient,
-                externalCompute
+                externalCompute,
+                escfBulkService,
+                () -> ShardBatchIndexer.isBatchIndexingSupported(batchIndexingEnabled, clusterService)
             );
 
             LOGGER.debug("Received physical plan for {}:\n{}", context.description(), plan);

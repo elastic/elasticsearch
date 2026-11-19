@@ -226,9 +226,9 @@ public class ChangePointOperator implements Operator {
     private Warnings warnings(boolean onlyWarnings) {
         if (warnings == null) {
             if (onlyWarnings) {
-                this.warnings = Warnings.createOnlyWarnings(driverContext.warningsMode(), sourceLine, sourceColumn, sourceText);
+                this.warnings = driverContext.createOnlyWarnings(sourceLine, sourceColumn, sourceText);
             } else {
-                this.warnings = Warnings.createWarnings(driverContext.warningsMode(), sourceLine, sourceColumn, sourceText);
+                this.warnings = driverContext.createWarnings(sourceLine, sourceColumn, sourceText);
             }
         }
         return warnings;

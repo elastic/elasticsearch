@@ -15,6 +15,7 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
@@ -38,7 +39,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.EsqlConver
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.chronoToLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.chronoToLongNanos;
 
-public class DateExtract extends EsqlConfigurationFunction {
+public class DateExtract extends EsqlConfigurationFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "DateExtract",
@@ -154,17 +155,19 @@ public class DateExtract extends EsqlConfigurationFunction {
     private ChronoField chronoField(FoldContext ctx) {
         // chronoField's never checked (the return is). The foldability test is done twice and type is checked in resolveType() already.
         // TODO: move the slimmed down code here to toEvaluator?
-        if (chronoField == null) {
+        ChronoField chrono = chronoField;
+        if (chrono == null) {
             Expression field = children().get(0);
             try {
                 if (field.foldable() && DataType.isString(field.dataType())) {
-                    chronoField = (ChronoField) STRING_TO_CHRONO_FIELD.convert(field.fold(ctx));
+                    chrono = (ChronoField) STRING_TO_CHRONO_FIELD.convert(field.fold(ctx));
+                    chronoField = chrono;
                 }
             } catch (Exception e) {
                 return null;
             }
         }
-        return chronoField;
+        return chrono;
     }
 
     @Evaluator(extraName = "Millis", warnExceptions = { IllegalArgumentException.class })

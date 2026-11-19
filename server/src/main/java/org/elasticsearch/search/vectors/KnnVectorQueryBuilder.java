@@ -108,7 +108,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         );
         PARSER.declareFieldArray(
             KnnVectorQueryBuilder::addFilterQueries,
-            (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p),
+            (p, c) -> parseInnerQueryBuilder(p),
             FILTER_FIELD,
             ObjectParser.ValueType.OBJECT_ARRAY
         );

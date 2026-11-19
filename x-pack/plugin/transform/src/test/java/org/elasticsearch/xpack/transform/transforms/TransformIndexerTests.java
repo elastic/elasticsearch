@@ -747,7 +747,8 @@ public class TransformIndexerTests extends ESTestCase {
             mock(TransformCheckpointService.class),
             transformAuditor,
             new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY, TimeValue.ZERO),
-            mock(TransformNode.class)
+            mock(TransformNode.class),
+            Clock.systemUTC()
         );
 
         MockedTransformIndexer indexer = new MockedTransformIndexer(

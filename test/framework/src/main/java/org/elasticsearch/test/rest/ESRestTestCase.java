@@ -121,6 +121,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -259,7 +260,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         return nodesVersions;
     }
 
-    protected static Set<String> readVersionsFromNodesInfo(RestClient adminClient) throws IOException {
+    public static Set<String> readVersionsFromNodesInfo(RestClient adminClient) throws IOException {
         return getNodesInfo(adminClient).values().stream().map(nodeInfo -> nodeInfo.get("version").toString()).collect(Collectors.toSet());
     }
 
@@ -1891,6 +1892,33 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     /**
+     * Performs {@code request} once, translating a {@link ResponseException} whose HTTP status is one of
+     * {@code retryableStatuses} into an {@link AssertionError}. Wrap the call in {@link #assertBusy} at the
+     * call site so the enclosing loop retries transient failures (e.g. a 404 while an index relocates during
+     * a rolling upgrade); capture the result via an {@link AtomicReference} if the response is needed outside
+     * the loop. Non-retryable ResponseExceptions propagate unchanged.
+     */
+    protected Response performRequestRaisingAssertionOnTransientStatus(Request request, RestStatus... retryableStatuses)
+        throws IOException {
+        try {
+            return client().performRequest(request);
+        } catch (ResponseException e) {
+            int status = e.getResponse().getStatusLine().getStatusCode();
+            if (isRetryableStatus(status, retryableStatuses)) {
+                throw new AssertionError(
+                    "retryable status [" + status + "] from [" + request.getMethod() + " " + request.getEndpoint() + "]",
+                    e
+                );
+            }
+            throw e;
+        }
+    }
+
+    static boolean isRetryableStatus(int status, RestStatus... retryableStatuses) {
+        return Arrays.stream(retryableStatuses).anyMatch(s -> s.getStatus() == status);
+    }
+
+    /**
      * waits until all shard initialization is completed. This is a handy alternative to ensureGreen as it relates to all shards
      * in the cluster and doesn't require to know how many nodes/replica there are.
      */
@@ -2594,6 +2622,20 @@ public abstract class ESRestTestCase extends ESTestCase {
             return Optional.of(Version.fromString(semanticVersionMatcher.group(1)));
         }
         return Optional.empty();
+    }
+
+    /**
+     * Builds a {@link TestFeatureService} for executing client YAML against an arbitrary cluster before the
+     * usual per-test {@link ESRestTestCase} client initialization (for example seeding a CCS remote from {@code @BeforeClass}).
+     * Pass the version set from {@link #readVersionsFromNodesInfo} to avoid a redundant {@code /_nodes} call.
+     */
+    public static TestFeatureService newYamlTestFeatureServiceForCluster(RestClient adminClient, Set<String> versions) throws IOException {
+        Map<String, Set<String>> clusterStateFeatures = getClusterStateFeatures(adminClient);
+        return new ESRestTestFeatureService(List.of(), fromSemanticVersions(versions), clusterStateFeatures.values());
+    }
+
+    private static Set<Version> fromSemanticVersions(Set<String> nodesVersions) {
+        return nodesVersions.stream().map(ESRestTestCase::parseLegacyVersion).flatMap(Optional::stream).collect(Collectors.toSet());
     }
 
     /**

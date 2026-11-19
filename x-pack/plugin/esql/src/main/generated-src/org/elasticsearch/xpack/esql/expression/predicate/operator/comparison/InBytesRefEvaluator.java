@@ -179,12 +179,7 @@ public class InBytesRefEvaluator implements EvalOperator.ExpressionEvaluator {
 
     private Warnings warnings() {
         if (warnings == null) {
-            this.warnings = Warnings.createWarnings(
-                driverContext.warningsMode(),
-                source.source().getLineNumber(),
-                source.source().getColumnNumber(),
-                source.text()
-            );
+            this.warnings = driverContext.createWarnings(source.source().getLineNumber(), source.source().getColumnNumber(), source.text());
         }
         return warnings;
     }

@@ -46,7 +46,7 @@ public class MutedTestPlugin implements Plugin<Project> {
 
         project.getTasks().withType(Test.class).configureEach(test -> {
             test.filter(filter -> {
-                for (String exclude : mutedTestsProvider.get().getExcludePatterns()) {
+                for (String exclude : mutedTestsProvider.get().getExcludePatternsForTask(test.getPath())) {
                     filter.excludeTestsMatching(exclude);
                 }
 

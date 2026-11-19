@@ -23,6 +23,7 @@ public abstract class IlmESRestTestCase extends ESRestTestCase {
     public static TemporaryFolder repoDir = new TemporaryFolder();
 
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .name("ilm-cluster")
         .module("x-pack-ilm")
         .module("x-pack-slm")
         .module("x-pack-ccr")

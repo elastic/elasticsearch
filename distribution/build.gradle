@@ -15,6 +15,7 @@ import org.elasticsearch.gradle.internal.ConcatFilesTask
 import org.elasticsearch.gradle.internal.DependenciesInfoPlugin
 import org.elasticsearch.gradle.internal.NoticeTask
 import org.elasticsearch.gradle.internal.test.HistoricalFeaturesMetadataPlugin
+import org.elasticsearch.gradle.internal.distribution.BundledJdkPlatforms
 import org.elasticsearch.gradle.transform.FilteringJarTransform
 
 import java.nio.file.Files
@@ -256,6 +257,9 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
   apply plugin: 'elasticsearch.jdk-download'
   apply plugin: 'elasticsearch.repositories'
 
+  int bundledJdkMajor = BundledJdkPlatforms.bundledJdkMajor(buildParams)
+  def architecturesFor = { String platform -> BundledJdkPlatforms.architecturesFor(platform, bundledJdkMajor) }
+
   if (buildParams.runtimeJava.preRelease) {
     Integer buildNumber = Integer.getInteger("runtime.java.build")
     String preReleaseType = buildParams.runtimeJava.preReleaseType
@@ -267,7 +271,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
 
     project.jdks {
       ['darwin', 'windows', 'linux'].each { platform ->
-        (platform == 'linux' || platform == 'darwin' ? ['x64', 'aarch64'] : ['x64']).each { architecture ->
+        architecturesFor(platform).each { architecture ->
           "bundled_${platform}_${architecture}" {
             it.version = preReleaseVersionString;
             it.vendor = "openjdk"
@@ -282,7 +286,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     // Setup all required JDKs
     project.jdks {
       ['darwin', 'windows', 'linux'].each { platform ->
-        (platform == 'linux' || platform == 'darwin' ? ['x64', 'aarch64'] : ['x64']).each { architecture ->
+        architecturesFor(platform).each { architecture ->
           "bundled_${platform}_${architecture}" {
             it.platform = platform
             it.version = VersionProperties.bundledJdkVersion
@@ -517,7 +521,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
 
     jdkFiles = { Project project, String os, String architecture ->
       return copySpec {
-        from project.jdks."bundled_${os}_${architecture}"
+        from project.jdks.getByName(BundledJdkPlatforms.jdkName(os, architecture))
         exclude "demo/**"
         /*
          * The Contents/MacOS directory interferes with notarization, and is unused by our distribution, so we exclude

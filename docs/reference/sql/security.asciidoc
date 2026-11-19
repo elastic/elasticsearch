@@ -55,6 +55,6 @@ indices. Add the following to `roles.yml`:
 
 [source, yaml]
 --------------------------------------------------
-include-tagged::{sql-tests}server/security/roles.yml[cli_drivers]
+include-tagged::{sql-tests}server/security/src/test/resources/roles.yml[cli_drivers]
 --------------------------------------------------
 

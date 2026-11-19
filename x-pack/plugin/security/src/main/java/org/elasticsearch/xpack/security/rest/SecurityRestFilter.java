@@ -72,14 +72,15 @@ public class SecurityRestFilter implements RestInterceptor {
 
         final RestRequest wrappedRequest = maybeWrapRestRequest(request, targetHandler);
         auditTrailService.get().authenticationSuccess(wrappedRequest);
-        secondaryAuthenticator.authenticateAndAttachToContext(wrappedRequest, ActionListener.wrap(secondaryAuthentication -> {
-            if (secondaryAuthentication != null) {
-                logger.trace("Found secondary authentication {} in REST request [{}]", secondaryAuthentication, request.uri());
-            }
-            WorkflowService.resolveWorkflowAndStoreInThreadContext(targetHandler, threadContext);
+        try {
+            secondaryAuthenticator.completeAuthentication(wrappedRequest);
+        } catch (Exception e) {
+            handleException(request, e, listener);
+            return;
+        }
+        WorkflowService.resolveWorkflowAndStoreInThreadContext(targetHandler, threadContext);
 
-            doHandleRequest(request, channel, targetHandler, listener);
-        }, e -> handleException(request, e, listener)));
+        doHandleRequest(request, channel, targetHandler, listener);
     }
 
     private void doHandleRequest(RestRequest request, RestChannel channel, RestHandler targetHandler, ActionListener<Boolean> listener) {

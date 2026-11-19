@@ -20,6 +20,7 @@ import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.grok.Grok;
 import org.elasticsearch.grok.GrokBuiltinPatterns;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.evaluator.command.GrokEvaluatorExtracter;
 
 import java.util.Map;
@@ -125,6 +126,31 @@ public class GrokEvaluatorExtracterTests extends ESTestCase {
         checkDoubleBlock(targetBlocks[3], new int[] { 4 }, 12.3F, 14.3F, 34.3F, 84.3F);
         checkDoubleBlock(targetBlocks[4], new int[] { 4 }, 15.5D, 16.5D, 36.5D, 86.5D);
         checkBooleanBlock(targetBlocks[5], new int[] { 4 }, false, true, true, false);
+    }
+
+    /**
+     * A typed capture that matches text it cannot convert (here "1.5" captured as {@code :int}) must not
+     * throw: the row is treated like a failed match (all extracted fields are null, a warning is registered)
+     * and the surrounding rows are unaffected. Before this was fixed, the conversion failure escaped as an
+     * exception and failed the whole query.
+     */
+    public void testTypedConversionFailureIsTreatedAsFailedMatch() {
+        String pattern = "%{WORD:a} %{NUMBER:b:int} %{NUMBER:c:long} %{NUMBER:d:float} %{NUMBER:e:double} %{WORD:f:boolean}";
+
+        GrokEvaluatorExtracter extracter = buildExtracter(pattern, KEY_TO_BLOCK, TYPES);
+        String[] input = { "foo 10 100 12.3 15.5 false", "bad 1.5 100 12.3 15.5 false", "bar 20 200 14.3 16.5 true" };
+        BytesRefBlock inputBlock = buildInputBlock(new int[] { 1, 1, 1 }, input);
+        Block.Builder[] targetBlocks = buidDefaultTargetBlocks(3);
+        for (int i = 0; i < input.length; i++) {
+            extracter.computeRow(inputBlock, i, targetBlocks, new BytesRef());
+        }
+
+        checkStringBlock(targetBlocks[0], new int[] { 1, 0, 1 }, "foo", "bar");
+        checkIntBlock(targetBlocks[1], new int[] { 1, 0, 1 }, 10, 20);
+        checkLongBlock(targetBlocks[2], new int[] { 1, 0, 1 }, 100, 200);
+        checkDoubleBlock(targetBlocks[3], new int[] { 1, 0, 1 }, 12.3F, 14.3F);
+        checkDoubleBlock(targetBlocks[4], new int[] { 1, 0, 1 }, 15.5D, 16.5D);
+        checkBooleanBlock(targetBlocks[5], new int[] { 1, 0, 1 }, false, true);
     }
 
     private void checkStringBlock(Block.Builder builder, int[] itemsPerRow, String... expectedValues) {
@@ -237,8 +263,8 @@ public class GrokEvaluatorExtracterTests extends ESTestCase {
     private GrokEvaluatorExtracter buildExtracter(String pattern, Map<String, Integer> keyToBlock, Map<String, ElementType> types) {
         var builtinPatterns = GrokBuiltinPatterns.get(true);
         Grok grok = new Grok(builtinPatterns, pattern, logger::warn);
-        GrokEvaluatorExtracter extracter = new GrokEvaluatorExtracter(grok, pattern, keyToBlock, types);
-        return extracter;
+        GrokEvaluatorExtracter.Factory factory = new GrokEvaluatorExtracter.Factory(Source.EMPTY, grok, pattern, keyToBlock, types);
+        return factory.create(null);
     }
 
 }

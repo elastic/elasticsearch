@@ -20,8 +20,6 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
 
-import static org.junit.Assert.assertTrue;
-
 /**
  * A plugin that provides a script language "pause" that can be used to simulate slow running queries.
  * See also {@link AbstractPausableIntegTestCase}.
@@ -67,10 +65,20 @@ public abstract class AbstractPauseFieldPlugin extends Plugin implements ScriptP
                                 @Override
                                 public void execute() {
                                     onStartExecute();
+                                    // Fail with an Exception, never an Error: the driver runs this in an AbstractRunnable,
+                                    // which only routes Exceptions to onFailure. An Error escapes it, so the driver never
+                                    // completes and the query hangs holding its search contexts and breaker bytes.
+                                    boolean resumed;
                                     try {
-                                        assertTrue(onWait());
+                                        resumed = onWait();
                                     } catch (InterruptedException e) {
-                                        throw new AssertionError(e);
+                                        Thread.currentThread().interrupt();
+                                        throw new IllegalStateException("interrupted waiting in [" + scriptTypeName() + "] script", e);
+                                    } catch (AssertionError e) {
+                                        throw new IllegalStateException("assertion failed waiting in [" + scriptTypeName() + "] script", e);
+                                    }
+                                    if (resumed == false) {
+                                        throw new IllegalStateException("timed out waiting in [" + scriptTypeName() + "] script");
                                     }
                                     emit(1);
                                 }

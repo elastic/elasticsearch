@@ -19,7 +19,9 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -44,7 +46,14 @@ public class TransportSearchFailuresIT extends ESIntegTestCase {
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/95322")
     public void testFailedSearchWithWrongQuery() throws Exception {
         logger.info("Start Testing failed search with wrong query");
-        assertAcked(prepareCreate("test", 1).setMapping("foo", "type=geo_point"));
+        assertAcked(
+            prepareCreate(
+                "test",
+                1,
+                Settings.builder()
+                    .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
+            ).setMapping("foo", "type=geo_point")
+        );
 
         NumShards test = getNumShards("test");
 

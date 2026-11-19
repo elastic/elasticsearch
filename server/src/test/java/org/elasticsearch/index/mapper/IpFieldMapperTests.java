@@ -438,4 +438,9 @@ public class IpFieldMapperTests extends MapperTestCase {
     protected String randomSyntheticSourceKeep() {
         return "all";
     }
+
+    @Override
+    protected Object[] getThreeSampleValues() {
+        return new Object[] { "192.168.0.1", "192.168.0.2", "192.168.0.3" };
+    }
 }

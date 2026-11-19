@@ -717,8 +717,18 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 timeProvider,
                 aggReduceContextBuilder
             );
+            // The shared source is widened for outgoing subsearches, so snapshot mergers must reuse the requested page.
+            final int originalFrom = searchResponseMerger.from;
+            final int originalSize = searchResponseMerger.size;
+            final int originalTrackTotalHitsUpTo = searchResponseMerger.trackTotalHitsUpTo;
             task.setSearchResponseMergerSupplier(
-                () -> createSearchResponseMerger(searchRequest.source(), timeProvider, aggReduceContextBuilder)
+                () -> new SearchResponseMerger(
+                    originalFrom,
+                    originalSize,
+                    originalTrackTotalHitsUpTo,
+                    timeProvider,
+                    aggReduceContextBuilder
+                )
             );
             final AtomicReference<Exception> exceptions = new AtomicReference<>();
             int totalClusters = resolvedIndices.getRemoteClusterIndices().size() + (resolvedIndices.getLocalIndices() == null ? 0 : 1);

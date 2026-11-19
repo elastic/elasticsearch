@@ -102,7 +102,7 @@ public class MetadataAttribute extends TypedAttribute {
             in.readString(),
             DataType.readFrom(in),
             in.readOptionalString(),
-            in.readEnum(Nullability.class),
+            Nullability.readFrom(in),
             NameId.readFrom((StreamInput & PlanStreamInput) in),
             in.readBoolean(),
             in.readBoolean()
@@ -117,7 +117,7 @@ public class MetadataAttribute extends TypedAttribute {
             dataType().writeTo(out);
             // We used to write the qualifier here. We can still do if needed in the future.
             out.writeOptionalString(null);
-            out.writeEnum(nullable());
+            nullable().writeTo(out);
             id().writeTo(out);
             out.writeBoolean(synthetic());
             out.writeBoolean(searchable);

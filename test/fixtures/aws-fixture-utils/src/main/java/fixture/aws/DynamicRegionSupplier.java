@@ -11,6 +11,7 @@ package fixture.aws;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
@@ -29,7 +30,17 @@ public class DynamicRegionSupplier implements Supplier<String> {
     }
 
     private String generateAndGet() {
-        final var newRegion = ESTestCase.randomIdentifier("DynamicRegionSupplier-");
+        final var newRegion = ESTestCase.randomValueOtherThanMany(
+            this::isInvalidIdentifier,
+            () -> ESTestCase.randomIdentifier("DynamicRegionSupplier-")
+        );
         return Objects.requireNonNullElse(generatedRegion.compareAndExchange(null, newRegion), newRegion);
+    }
+
+    /**
+     * Region names containing "fips" make the AWS SDK select FIPS endpoints, which the test fixtures do not serve.
+     */
+    protected boolean isInvalidIdentifier(String value) {
+        return value.toLowerCase(Locale.ROOT).contains("fips");
     }
 }

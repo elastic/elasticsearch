@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
@@ -28,6 +29,7 @@ import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
+import org.elasticsearch.xpack.inference.chunking.RecursiveChunkingSettings;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModelBuilder;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerSchemas;
@@ -55,6 +57,7 @@ public class SageMakerService implements InferenceService {
     private final SageMakerClient client;
     private final SageMakerSchemas schemas;
     private final ThreadPool threadPool;
+    private final ClusterService clusterService;
     private final LazyInitializable<InferenceServiceConfiguration, RuntimeException> configuration;
 
     public SageMakerService(
@@ -62,12 +65,14 @@ public class SageMakerService implements InferenceService {
         SageMakerClient client,
         SageMakerSchemas schemas,
         ThreadPool threadPool,
+        ClusterService clusterService,
         CheckedSupplier<Map<String, SettingsConfiguration>, RuntimeException> configurationMap
     ) {
         this.modelBuilder = modelBuilder;
         this.client = client;
         this.schemas = schemas;
         this.threadPool = threadPool;
+        this.clusterService = clusterService;
         this.configuration = new LazyInitializable<>(
             () -> new InferenceServiceConfiguration.Builder().setService(NAME)
                 .setName(DISPLAY_NAME)
@@ -259,6 +264,7 @@ public class SageMakerService implements InferenceService {
             var batchedRequests = new EmbeddingRequestChunker<>(
                 input,
                 sageMakerModel.batchSize().orElse(DEFAULT_BATCH_SIZE),
+                clusterService.getClusterSettings().get(RecursiveChunkingSettings.REGEX_READ_LIMIT_FACTOR_SETTING),
                 sageMakerModel.getConfigurations().getChunkingSettings()
             ).batchRequestsWithListeners(listener);
 

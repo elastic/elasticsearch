@@ -77,6 +77,7 @@ final class SystemJvmOptions {
             maybeSetActiveProcessorCount(nodeSettings),
             maybeSetReplayFile(distroType, isHotspot),
             maybeWorkaroundG1Bug(),
+            maybeAddJitCompilerOptions(isHotspot),
             maybeAttachEntitlementAgent(esHome, useEntitlements)
         ).flatMap(s -> s).toList();
     }
@@ -158,6 +159,22 @@ final class SystemJvmOptions {
             return Stream.of("-XX:+UnlockDiagnosticVMOptions", "-XX:G1NumCollectionsKeepPinned=10000000");
         }
         return Stream.of();
+    }
+
+    /*
+     * Additional JIT compiler options. These are only applied when running on HotSpot.
+     */
+    static Stream<String> maybeAddJitCompilerOptions(boolean isHotspot) {
+        if (isHotspot == false) {
+            return Stream.empty();
+        }
+        return Stream.of(
+            // keep the JVM from echoing each compile command to stdout at startup
+            "-XX:CompileCommand=quiet",
+            "-XX:CompileCommand=dontinline,java.nio.*::putArray",
+            "-XX:CompileCommand=dontinline,java.nio.*::putBuffer",
+            "-XX:CompileCommand=dontinline,java.nio.*::getArray"
+        );
     }
 
     private static Stream<String> maybeAttachEntitlementAgent(Path esHome, boolean useEntitlements) {

@@ -128,7 +128,7 @@ public class SpatialIntersects extends SpatialRelatesFunction {
     }
 
     @Override
-    public Object fold(FoldContext ctx) {
+    public Object doFold(Source source, FoldContext ctx) {
         try {
             GeometryDocValueReader docValueReader = asGeometryDocValueReader(ctx, crsType(), left());
             Component2D component2D = asLuceneComponent2D(ctx, crsType(), right());

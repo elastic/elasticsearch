@@ -37,7 +37,11 @@ public abstract class AbstractPausableIntegTestCase extends AbstractEsqlIntegTes
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), PausableFieldPlugin.class);
+        return CollectionUtils.appendToCopy(super.nodePlugins(), pausableFieldPluginClass());
+    }
+
+    protected Class<? extends Plugin> pausableFieldPluginClass() {
+        return PausableFieldPlugin.class;
     }
 
     protected int pageSize() {

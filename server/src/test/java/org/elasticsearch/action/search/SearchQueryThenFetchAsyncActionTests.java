@@ -995,7 +995,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             null,
             new NoneCircuitBreakerService(),
             EmptySystemIndices.INSTANCE.getExecutorSelector(),
-            Tracer.NOOP
+            Tracer.NOOP,
+            transport.getTaskManager()
         ) {
             @Override
             public void executeQueryPhase(ShardSearchRequest req, CancellableTask task, ActionListener<SearchPhaseResult> listener) {

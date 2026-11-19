@@ -156,6 +156,12 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             this.debugPort = DefaultLocalClusterHandle.NEXT_DEBUG_PORT.getAndIncrement();
         }
 
+        /** stable, but sufficiently strong seed based on the node's working directory name */
+        private static long nodeIdSeed(String nodeDirName) {
+            UUID uuid = UUID.nameUUIDFromBytes(nodeDirName.getBytes(StandardCharsets.UTF_8));
+            return uuid.getMostSignificantBits() ^ uuid.getLeastSignificantBits();
+        }
+
         public synchronized void start(Version version) {
             LOGGER.info("Starting Elasticsearch node '{}'", name);
             if (version != null) {
@@ -419,6 +425,11 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
                 finalSettings.put("path.repo", repoDir.toString());
                 finalSettings.put("path.data", dataDir.toString());
                 finalSettings.put("path.logs", logsDir.toString());
+                // Guarantee a unique persistent node ID even when multiple ES child processes start concurrently.
+                // Without an explicit seed, NodeEnvironment falls back to ThreadLocalRandom inside the child JVM;
+                // on Windows, child processes started at the same nanosecond can end up with identical ThreadLocalRandom seeds
+                // and therefore identical node IDs, which prevents the cluster from forming.
+                finalSettings.put("node.id.seed", Long.toString(nodeIdSeed(workingDir.getFileName().toString())));
                 finalSettings.putAll(spec.resolveSettings());
 
                 Files.writeString(

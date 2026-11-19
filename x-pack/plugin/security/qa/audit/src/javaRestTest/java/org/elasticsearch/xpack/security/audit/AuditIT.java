@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.LogType;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
@@ -35,6 +36,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -44,14 +46,19 @@ import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class AuditIT extends ESRestTestCase {
 
     private static final String API_USER = "api_user";
+    private static final String SECONDARY_USER = "secondary_user";
+    private static final String SECONDARY_PASSWORD = "secondary-password";
+    private static final String STREAMED_BODY_NOT_RECEIVED = "Request body had not been received at the time of the audit event";
     private static final DateTimeFormatter TSTAMP_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss,SSSZ");
 
     @ClassRule
@@ -66,6 +73,7 @@ public class AuditIT extends ESRestTestCase {
         .setting("rest.incremental_bulk", "true")
         .user("admin_user", "admin-password")
         .user(API_USER, "api-password", "superuser", false)
+        .user(SECONDARY_USER, SECONDARY_PASSWORD, "superuser", false)
         .build();
 
     @Override
@@ -129,9 +137,120 @@ public class AuditIT extends ESRestTestCase {
         );
     }
 
+    public void testAuditSecondaryAuthenticationSuccess() throws Exception {
+        final Request request = new Request("POST", "/testindex/_bulk");
+        request.setEntity(new StringEntity("{\"index\":{}}\n{}\n", ContentType.create("application/x-ndjson", StandardCharsets.UTF_8)));
+        final String opaqueId = withSecondaryAuth(request, SECONDARY_PASSWORD);
+        final Instant start = auditTimestampNow();
+        assertThat(executeRequest(request).getStatusLine().getStatusCode(), equalTo(200));
+
+        assertBusy(() -> {
+            final Map<String, Object> primary = findRestEvent(AuditLevel.AUTHENTICATION_SUCCESS, API_USER, request, start);
+            final Map<String, Object> secondary = findRestEvent(AuditLevel.AUTHENTICATION_SUCCESS, SECONDARY_USER, request, start);
+            assertCorrelated(primary, secondary, opaqueId);
+            assertThat(primary, hasEntry(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME, STREAMED_BODY_NOT_RECEIVED));
+            assertThat(secondary, hasEntry(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME, STREAMED_BODY_NOT_RECEIVED));
+        }, 5, TimeUnit.SECONDS);
+    }
+
+    public void testAuditSecondaryAuthenticationFailure() throws Exception {
+        final Request request = new Request("GET", "/_security/_authenticate");
+        final String opaqueId = withSecondaryAuth(request, "wrong-" + SECONDARY_PASSWORD);
+        request.addParameter("ignore", "401");
+        final Instant start = auditTimestampNow();
+        assertThat(executeRequest(request).getStatusLine().getStatusCode(), equalTo(401));
+
+        assertBusy(() -> {
+            final Map<String, Object> primary = findRestEvent(AuditLevel.AUTHENTICATION_SUCCESS, API_USER, request, start);
+            final Map<String, Object> secondary = findRestEvent(AuditLevel.AUTHENTICATION_FAILED, SECONDARY_USER, request, start);
+            assertCorrelated(primary, secondary, opaqueId);
+        }, 5, TimeUnit.SECONDS);
+    }
+
+    /**
+     * The failure is audited, but must not turn the routing error into an authentication error.
+     */
+    public void testAuditSecondaryAuthenticationFailureWithoutHandler() throws Exception {
+        final Request request = new Request("DELETE", "/_security/_authenticate");
+        withSecondaryAuth(request, "wrong-" + SECONDARY_PASSWORD);
+        request.addParameter("ignore", "405");
+        final Instant start = auditTimestampNow();
+        assertThat(executeRequest(request).getStatusLine().getStatusCode(), equalTo(405));
+
+        assertBusy(() -> {
+            findRestEvent(AuditLevel.AUTHENTICATION_FAILED, SECONDARY_USER, request, start);
+            assertThat(findRestEvents(AuditLevel.AUTHENTICATION_SUCCESS, API_USER, request, start), hasSize(0));
+        }, 5, TimeUnit.SECONDS);
+    }
+
+    public void testNoSecondaryAuthenticationWhenPrimaryAuthenticationFails() throws Exception {
+        final Request request = new Request("GET", "/_security/_authenticate");
+        withSecondaryAuth(request, "wrong-" + SECONDARY_PASSWORD);
+        request.setOptions(
+            request.getOptions()
+                .toBuilder()
+                .addHeader("Authorization", basicAuthHeaderValue(API_USER, new SecureString("wrong-password".toCharArray())))
+        );
+        request.addParameter("ignore", "401");
+        final Instant start = auditTimestampNow();
+        assertThat(executeRequest(request).getStatusLine().getStatusCode(), equalTo(401));
+
+        assertBusy(() -> {
+            findRestEvent(AuditLevel.AUTHENTICATION_FAILED, API_USER, request, start);
+            assertThat(findRestEvents(AuditLevel.AUTHENTICATION_FAILED, SECONDARY_USER, request, start), hasSize(0));
+        }, 5, TimeUnit.SECONDS);
+    }
+
+    private static String withSecondaryAuth(Request request, String secondaryPassword) {
+        final String opaqueId = randomAlphaOfLength(12);
+        request.setOptions(
+            request.getOptions()
+                .toBuilder()
+                .addHeader(
+                    "es-secondary-authorization",
+                    basicAuthHeaderValue(SECONDARY_USER, new SecureString(secondaryPassword.toCharArray()))
+                )
+                .addHeader(Task.X_OPAQUE_ID_HTTP_HEADER, opaqueId)
+        );
+        return opaqueId;
+    }
+
+    /**
+     * Primary and secondary authentication have their own request ids, the opaque id links them.
+     */
+    private static void assertCorrelated(Map<String, Object> primary, Map<String, Object> secondary, String opaqueId) {
+        assertThat(primary, hasEntry(LoggingAuditTrail.OPAQUE_ID_FIELD_NAME, opaqueId));
+        assertThat(secondary, hasEntry(LoggingAuditTrail.OPAQUE_ID_FIELD_NAME, opaqueId));
+        assertThat(
+            secondary.get(LoggingAuditTrail.REQUEST_ID_FIELD_NAME),
+            allOf(notNullValue(), not(equalTo(primary.get(LoggingAuditTrail.REQUEST_ID_FIELD_NAME))))
+        );
+    }
+
+    private Map<String, Object> findRestEvent(AuditLevel level, String principal, Request request, Instant start) throws IOException {
+        final List<Map<String, Object>> events = findRestEvents(level, principal, request, start);
+        assertThat("[" + level + "] events for [" + principal + "]", events, hasSize(1));
+        return events.get(0);
+    }
+
+    private List<Map<String, Object>> findRestEvents(AuditLevel level, String principal, Request request, Instant start)
+        throws IOException {
+        try (var auditLog = cluster.getNodeLog(0, LogType.AUDIT)) {
+            return findEvents(Streams.readAllLines(auditLog), level, e -> {
+                if (principal.equals(e.get(LoggingAuditTrail.PRINCIPAL_FIELD_NAME)) == false
+                    || request.getEndpoint().equals(e.get(LoggingAuditTrail.URL_PATH_FIELD_NAME)) == false
+                    || request.getMethod().equals(e.get(LoggingAuditTrail.REQUEST_METHOD_FIELD_NAME)) == false) {
+                    return false;
+                }
+                Instant tstamp = ZonedDateTime.parse(String.valueOf(e.get(LoggingAuditTrail.TIMESTAMP)), TSTAMP_FORMATTER).toInstant();
+                return tstamp.isBefore(start) == false;
+            });
+        }
+    }
+
     private void executeAndVerifyAudit(Request request, AuditLevel eventType, CheckedConsumer<Map<String, Object>, Exception> assertions)
         throws Exception {
-        Instant start = Instant.now();
+        Instant start = auditTimestampNow();
         executeRequest(request);
         assertBusy(() -> {
             try (var auditLog = cluster.getNodeLog(0, LogType.AUDIT)) {
@@ -162,6 +281,13 @@ public class AuditIT extends ESRestTestCase {
 
             }
         }, 5, TimeUnit.SECONDS);
+    }
+
+    /**
+     * Audit timestamps have millisecond precision, so an event in the same millisecond would otherwise appear to precede the start.
+     */
+    private static Instant auditTimestampNow() {
+        return Instant.now().truncatedTo(ChronoUnit.MILLIS);
     }
 
     private static Response executeRequest(Request request) throws IOException {

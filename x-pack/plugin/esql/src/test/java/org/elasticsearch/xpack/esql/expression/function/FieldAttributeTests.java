@@ -26,7 +26,7 @@ public class FieldAttributeTests extends AbstractAttributeTestCase<FieldAttribut
             ? randomValueOtherThanMany(t -> false == DataType.isRepresentable(t), () -> randomFrom(DataType.types()))
             : randomFrom(DataType.types());
         EsField field = AbstractEsFieldTypeTests.randomAnyEsField(maxDepth);
-        Nullability nullability = randomFrom(Nullability.values());
+        Nullability nullability = randomFrom(Nullability.TRUE, Nullability.FALSE);
         boolean synthetic = randomBoolean();
         return newFieldAttributeWithType(source, parentName, name, type, field, nullability, new NameId(), synthetic);
     }
@@ -50,7 +50,7 @@ public class FieldAttributeTests extends AbstractAttributeTestCase<FieldAttribut
             case 1 -> name = randomAlphaOfLength(name.length() + 1);
             case 2 -> type = randomValueOtherThan(type, () -> randomFrom(DataType.types()));
             case 3 -> field = randomValueOtherThan(field, () -> AbstractEsFieldTypeTests.randomAnyEsField(3));
-            case 4 -> nullability = randomValueOtherThan(nullability, () -> randomFrom(Nullability.values()));
+            case 4 -> nullability = randomValueOtherThan(nullability, () -> randomFrom(Nullability.TRUE, Nullability.FALSE));
             case 5 -> synthetic = false == synthetic;
         }
         return newFieldAttributeWithType(source, parentName, name, type, field, nullability, new NameId(), synthetic);

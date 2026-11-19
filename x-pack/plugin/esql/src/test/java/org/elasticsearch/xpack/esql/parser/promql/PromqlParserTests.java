@@ -42,6 +42,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsPattern;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramsAsConstant;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -653,6 +654,10 @@ public class PromqlParserTests extends ESTestCase {
         // @ end()
         promql = parse("PROMQL index=test step=5m start=\"2026-01-01T00:00:00Z\" end=\"2026-01-01T01:00:00Z\" foo @ END()");
         assertThat(as(promql.promqlPlan(), InstantSelector.class).evaluation().at().value(), equalTo(promql.end().value()));
+
+        // like Prometheus, whitespace may separate the parentheses
+        promql = parse("PROMQL index=test step=5m start=\"2026-01-01T00:00:00Z\" end=\"2026-01-01T01:00:00Z\" foo @ start ( )");
+        assertThat(as(promql.promqlPlan(), InstantSelector.class).evaluation().at().value(), equalTo(promql.start().value()));
     }
 
     /**
@@ -763,6 +768,49 @@ public class PromqlParserTests extends ESTestCase {
 
         promql = parse("PROMQL index=test step=5m Inf");
         assertThat(as(promql.promqlPlan(), LiteralSelector.class).literal().value(), equalTo(Double.POSITIVE_INFINITY));
+    }
+
+    /** Like Prometheus, a single underscore may separate the digits of a number. */
+    public void testNumbersWithUnderscores() {
+        assertThat(as(parse("PROMQL index=test step=5m 1_000").promqlPlan(), LiteralSelector.class).literal().value(), equalTo(1000));
+        assertThat(as(parse("PROMQL index=test step=5m 0x_1F").promqlPlan(), LiteralSelector.class).literal().value(), equalTo(31));
+        assertThat(as(parse("PROMQL index=test step=5m 1_0.5").promqlPlan(), LiteralSelector.class).literal().value(), equalTo(10.5));
+    }
+
+    /** A selector reads NaN and Inf as label names and keeps their text, while an expression reads them as numbers. */
+    public void testInfAndNanAsLabelNames() {
+        var promql = parse("PROMQL index=test step=5m foo{Inf=\"x\", nan=\"y\"}");
+        List<LabelMatcher> matchers = as(promql.promqlPlan(), InstantSelector.class).labelMatchers().matchers();
+        assertThat(matchers.stream().map(LabelMatcher::name).toList(), equalTo(List.of("__name__", "Inf", "nan")));
+    }
+
+    /** Like Prometheus, a subquery step can be a number of seconds. */
+    public void testSubqueryStepInSeconds() {
+        Subquery subquery = parse("PROMQL index=test step=5m foo[5m:1.5]").promqlPlan().collect(Subquery.class).getFirst();
+        assertThat(subquery.resolution().value(), equalTo(Duration.ofMillis(1500)));
+    }
+
+    /** Like Prometheus, a colon starts a metric name outside brackets, even before a digit, and separates a step inside them. */
+    public void testColonStartsMetricNameOutsideBrackets() {
+        PromqlParser parser = new PromqlParser();
+        for (String name : List.of(":9", ":1foo", ":9:a")) {
+            InstantSelector selector = as(parser.createStatement(name + "{job=\"api\"}"), InstantSelector.class);
+            assertThat(selector.labelMatchers().matchers().getFirst().getFirstValue(), equalTo(name));
+        }
+        LogicalPlan plan = parser.createStatement("max_over_time(:9[5m:1])[10m:2m]");
+        List<Object> steps = plan.collect(Subquery.class).stream().map(subquery -> subquery.resolution().value()).toList();
+        assertThat(steps, containsInAnyOrder(Duration.ofSeconds(1), Duration.ofMinutes(2)));
+        assertThat(plan.collect(InstantSelector.class).getFirst().series().sourceText(), equalTo(":9"));
+    }
+
+    /** Like Prometheus, a quoted string ends at its line, while a raw string may span lines. */
+    public void testQuotedStringsEndAtTheirLine() {
+        PromqlParser parser = new PromqlParser();
+        for (String quote : List.of("\"", "'")) {
+            expectThrows(ParsingException.class, () -> parser.createStatement("foo{a=" + quote + "b\nc" + quote + "}"));
+        }
+        List<LabelMatcher> matchers = as(parser.createStatement("foo{a=`b\nc`}"), InstantSelector.class).labelMatchers().matchers();
+        assertThat(matchers.getLast().getFirstValue(), equalTo("b\nc"));
     }
 
     public void testMatchSameLabelMultipleTimesSuccess() {
@@ -981,6 +1029,35 @@ public class PromqlParserTests extends ESTestCase {
         assertThat(function.groupingKeys().stream().map(key -> key.name()).toList(), equalTo(List.of("pod")));
     }
 
+    /** An opening parenthesis after a grouping modifier belongs to its label list, even for scalar operands. */
+    public void testGroupLabelsCannotBeParsedAsOperand() {
+        PromqlParser parser = new PromqlParser();
+        for (String grouping : List.of("group_left", "group_right")) {
+            for (String matching : List.of("on(instance)", "ignoring(instance)")) {
+                for (String left : List.of("foo", "1")) {
+                    for (String right : List.of("(bar)", "(bar and baz)", "(2)")) {
+                        for (String operator : List.of("*", "== bool")) {
+                            String query = left + " " + operator + " " + matching + " " + grouping + " " + right;
+                            expectThrows(ParsingException.class, () -> parser.createStatement(query));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /** An unclosed or malformed label list after a grouping modifier reports the modifier, not the grammar rule that rejected it. */
+    public void testInvalidGroupLabelsReportModifier() {
+        PromqlParser parser = new PromqlParser();
+        for (String grouping : List.of("group_left", "group_right")) {
+            for (String labels : List.of("(", "(bar", "(job=\"api\") bar", "(job env) bar")) {
+                String query = "foo * on(instance) " + grouping + " " + labels;
+                ParsingException e = expectThrows(ParsingException.class, () -> parser.createStatement(query));
+                assertThat(query, e.getErrorMessage(), equalTo("Invalid label list after [" + grouping + "]"));
+            }
+        }
+    }
+
     /** Folding must not erase the ON/GROUP overlap, including when the group list is a subset of the matching list. */
     public void testOnAndGroupLabelsMustBeDisjointBeforeFolding() {
         PromqlParser parser = new PromqlParser();
@@ -990,6 +1067,21 @@ public class PromqlParserTests extends ESTestCase {
                     String query = String.format(Locale.ROOT, operands, matching + " " + grouping + "(instance)");
                     ParsingException e = expectThrows(ParsingException.class, () -> parser.createStatement(query));
                     assertThat(e.getErrorMessage(), containsString("must not occur in ON and GROUP clause at once"));
+                }
+            }
+        }
+    }
+
+    /** Explicit empty group labels allow a parenthesized operand; a sign after group labels starts a unary operand. */
+    public void testExplicitGroupLabelsPreserveParenthesizedAndUnaryOperands() {
+        PromqlParser parser = new PromqlParser();
+        for (String grouping : List.of("group_left", "group_right")) {
+            for (String matching : List.of("on(instance)", "ignoring(instance)")) {
+                for (String right : List.of("() (bar)", "(extra) (bar)", "(extra) +bar", "(extra) -bar")) {
+                    String query = "foo * " + matching + " " + grouping + right;
+                    VectorBinaryArithmetic binary = as(parser.createStatement(query), VectorBinaryArithmetic.class);
+                    assertThat(binary.match().filterLabels(), equalTo(Set.of("instance")));
+                    assertThat(binary.right().collect(InstantSelector.class).getFirst().series().sourceText(), equalTo("bar"));
                 }
             }
         }
@@ -1372,6 +1464,48 @@ public class PromqlParserTests extends ESTestCase {
         String inner = "m" + " + m".repeat(PromqlParser.MAX_BINARY_OPERATORS + 500);
         ParsingException e = assertThrows(ParsingException.class, () -> parse("PROMQL index=test step=5m (" + inner + ")"));
         assertThat(e.getMessage(), containsString("exceeded the maximum number of binary operators allowed"));
+    }
+
+    public void testBuilderErrorLocation() {
+        ParsingException e = assertThrows(ParsingException.class, () -> parse("PROMQL index=test step=5m foo and on(job) group_left bar"));
+        assertThat(e.getMessage(), containsString("line 1:35: No grouping [LEFT] allowed for [and] operator"));
+    }
+
+    public void testBuilderErrorLocationMultiline() {
+        ParsingException e = assertThrows(ParsingException.class, () -> parse("PROMQL index=test step=5m foo\nand on(job) group_left bar"));
+        assertThat(e.getMessage(), containsString("line 2:5: No grouping [LEFT] allowed for [and] operator"));
+    }
+
+    public void testBuilderErrorLocationStandalone() {
+        ParsingException e = assertThrows(
+            ParsingException.class,
+            () -> new PromqlParser().createStatement("foo and on(job) group_left bar")
+        );
+        assertThat(e.getMessage(), containsString("line 1:9: No grouping [LEFT] allowed for [and] operator"));
+    }
+
+    public void testBuilderErrorLocationStandaloneMultiline() {
+        ParsingException e = assertThrows(
+            ParsingException.class,
+            () -> new PromqlParser().createStatement("foo\nand on(job) group_left bar")
+        );
+        assertThat(e.getMessage(), containsString("line 2:5: No grouping [LEFT] allowed for [and] operator"));
+    }
+
+    public void testSyntaxErrorLocation() {
+        ParsingException e = assertThrows(ParsingException.class, () -> parse("PROMQL index=test step=5m foo{not valid}"));
+        assertThat(e.getMessage(), containsString("line 1:35: extraneous input 'valid' expecting '}'"));
+    }
+
+    public void testSyntaxErrorLocationMultiline() {
+        // the PromQL query starts at foo on line 2, so its second line is line 3
+        ParsingException e = assertThrows(ParsingException.class, () -> parse("PROMQL index=test step=5m (\nfoo +\nfoo{not valid})"));
+        assertThat(e.getMessage(), containsString("line 3:9: extraneous input 'valid' expecting '}'"));
+    }
+
+    public void testSyntaxErrorLocationStandaloneMultiline() {
+        ParsingException e = assertThrows(ParsingException.class, () -> new PromqlParser().createStatement("foo +\nfoo{not valid}"));
+        assertThat(e.getMessage(), containsString("line 2:9: extraneous input 'valid' expecting '}'"));
     }
 
     private static PromqlCommand parse(String query) {

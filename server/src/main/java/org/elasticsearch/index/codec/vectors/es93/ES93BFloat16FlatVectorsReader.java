@@ -322,7 +322,7 @@ public final class ES93BFloat16FlatVectorsReader extends FlatVectorsReader {
 
     @Override
     public Float16VectorValues getFloat16VectorValues(String field) throws IOException {
-        throw new IllegalStateException(field + " only supports float vectors");
+        throw new IllegalStateException(field + " does not support IEEE float16");
     }
 
     @Override
@@ -357,7 +357,7 @@ public final class ES93BFloat16FlatVectorsReader extends FlatVectorsReader {
 
     @Override
     public RandomVectorScorer getRandomVectorScorer(String field, short[] target) throws IOException {
-        throw new UnsupportedOperationException(field + " only supports float vectors");
+        throw new UnsupportedOperationException(field + " does not support IEEE float16");
     }
 
     @Override

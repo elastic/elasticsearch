@@ -36,7 +36,6 @@ import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.MergeState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.Sorter;
-import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.search.VectorScorer;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.ArrayUtil;
@@ -159,11 +158,8 @@ public final class ES93BFloat16FlatVectorsWriter extends FlatVectorsWriter {
         long vectorDataOffset = alignVectorData(vectorData, fieldData.dim);
         switch (fieldData.fieldInfo.getVectorEncoding()) {
             case FLOAT32 -> writeBFloat16Vectors(fieldData);
-            case BYTE -> throw new IllegalStateException(
-                "Incorrect encoding for field " + fieldData.fieldInfo.name + ": " + VectorEncoding.BYTE
-            );
-            case FLOAT16 -> throw new IllegalStateException(
-                "Incorrect encoding for field " + fieldData.fieldInfo.name + ": " + VectorEncoding.FLOAT16
+            case BYTE, FLOAT16 -> throw new IllegalStateException(
+                "Incorrect encoding for field " + fieldData.fieldInfo.name + ": " + fieldData.fieldInfo.getVectorEncoding()
             );
         }
         long vectorDataLength = vectorData.getFilePointer() - vectorDataOffset;
@@ -188,11 +184,8 @@ public final class ES93BFloat16FlatVectorsWriter extends FlatVectorsWriter {
         // write vector values
         long vectorDataOffset = switch (fieldData.fieldInfo.getVectorEncoding()) {
             case FLOAT32 -> writeSortedBFloat16Vectors(fieldData, ordMap);
-            case BYTE -> throw new IllegalStateException(
-                "Incorrect encoding for field " + fieldData.fieldInfo.name + ": " + VectorEncoding.BYTE
-            );
-            case FLOAT16 -> throw new IllegalStateException(
-                "Incorrect encoding for field " + fieldData.fieldInfo.name + ": " + VectorEncoding.FLOAT16
+            case BYTE, FLOAT16 -> throw new IllegalStateException(
+                "Incorrect encoding for field " + fieldData.fieldInfo.name + ": " + fieldData.fieldInfo.getVectorEncoding()
             );
         };
         long vectorDataLength = vectorData.getFilePointer() - vectorDataOffset;
@@ -219,9 +212,8 @@ public final class ES93BFloat16FlatVectorsWriter extends FlatVectorsWriter {
         // No need to use temporary file as we don't have to re-open for reading
         DocsWithFieldSet docsWithField = switch (fieldInfo.getVectorEncoding()) {
             case FLOAT32 -> writeVectorData(vectorData, mergeFloatVectorValues(fieldInfo, mergeState));
-            case BYTE -> throw new IllegalStateException("Incorrect encoding for field " + fieldInfo.name + ": " + VectorEncoding.BYTE);
-            case FLOAT16 -> throw new IllegalStateException(
-                "Incorrect encoding for field " + fieldInfo.name + ": " + VectorEncoding.FLOAT16
+            case BYTE, FLOAT16 -> throw new IllegalStateException(
+                "Incorrect encoding for field " + fieldInfo.name + ": " + fieldInfo.getVectorEncoding()
             );
         };
         long vectorDataLength = vectorData.getFilePointer() - vectorDataOffset;
@@ -460,9 +452,8 @@ public final class ES93BFloat16FlatVectorsWriter extends FlatVectorsWriter {
                         return ArrayUtil.copyOfSubArray(value, 0, dim);
                     }
                 };
-                case BYTE -> throw new IllegalStateException("Incorrect encoding for field " + fieldInfo.name + ": " + VectorEncoding.BYTE);
-                case FLOAT16 -> throw new IllegalStateException(
-                    "Incorrect encoding for field " + fieldInfo.name + ": " + VectorEncoding.FLOAT16
+                case BYTE, FLOAT16 -> throw new IllegalStateException(
+                    "Incorrect encoding for field " + fieldInfo.name + ": " + fieldInfo.getVectorEncoding()
                 );
             };
         }

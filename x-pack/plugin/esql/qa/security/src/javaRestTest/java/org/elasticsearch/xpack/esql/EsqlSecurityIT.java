@@ -135,6 +135,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         .user("fls_user4_1", "x-pack-test-password", "fls_user4_1", false)
         .user("fls_user4_1_alias", "x-pack-test-password", "fls_user4_1_alias", false)
         .user("dls_user", "x-pack-test-password", "dls_user", false)
+        .user("dls_min_max_user", "x-pack-test-password", "dls_min_max_user", false)
         .user("eql_dls_user", "x-pack-test-password", "eql_dls_user", false)
         .user("eql_fls_user", "x-pack-test-password", "eql_fls_user", false)
         .user("dls_partial_mapping_user", "x-pack-test-password", "dls_partial_mapping", false)
@@ -209,6 +210,12 @@ public class EsqlSecurityIT extends ESRestTestCase {
         builder.field("org", org);
         builder.field("partial", org + value);
         indexDoc.setJsonEntity(Strings.toString(builder.endObject()));
+        client().performRequest(indexDoc);
+    }
+
+    private void indexMinMaxDocument(int id, int n, String org) throws IOException {
+        Request indexDoc = new Request("PUT", "min-max-dls/_doc/" + id);
+        indexDoc.setJsonEntity("{\"n\":" + n + ",\"org\":\"" + org + "\"}");
         client().performRequest(indexDoc);
     }
 
@@ -334,6 +341,15 @@ public class EsqlSecurityIT extends ESRestTestCase {
         indexDocument("index", 1, 10.0, "sales");
         indexDocument("index", 2, 20.0, "engineering");
         refresh("index");
+
+        String minMaxMapping = """
+            "properties":{"n": {"type": "integer"}, "org": {"type": "keyword"}}
+            """;
+        createIndex("min-max-dls", indexSettings(), mappingPrefix() + minMaxMapping);
+        indexMinMaxDocument(1, 5, "engineering");
+        indexMinMaxDocument(2, 100, "sales");
+        indexMinMaxDocument(3, 1, "sales");
+        refresh("min-max-dls");
 
         createIndex("index-user1", indexSettings(), mappingPrefix() + mapping);
         indexDocument("index-user1", 1, 12.0, "engineering");
@@ -1392,6 +1408,27 @@ public class EsqlSecurityIT extends ESRestTestCase {
                     )
                 )
         );
+    }
+
+    /**
+     * An ungrouped {@code MIN}/{@code MAX} over an integer field can be answered from segment metadata, which spans every document
+     * of the segment. Document-level security hides documents without deleting them from the segment, so the answer must still
+     * come from the documents the role may see.
+     */
+    public void testDLS_MinMaxIgnoresFilteredDocuments() throws Exception {
+        String query = "FROM min-max-dls | STATS min_n = MIN(n), max_n = MAX(n)";
+        List<MapMatcher> expectedColumns = List.of(column("min_n", "integer"), column("max_n", "integer"));
+
+        Response adminResp = runESQLCommand("test-admin", query);
+        assertOK(adminResp);
+        assertMap(
+            entityAsMap(adminResp),
+            matchesMap().extraOk().entry("columns", expectedColumns).entry("values", List.of(List.of(1, 100)))
+        );
+
+        Response dlsResp = runESQLCommand("dls_min_max_user", query);
+        assertOK(dlsResp);
+        assertMap(entityAsMap(dlsResp), matchesMap().extraOk().entry("columns", expectedColumns).entry("values", List.of(List.of(5, 5))));
     }
 
     public void testDLS_DoesNotExposeFilteredDocuments_WithUnmappedFieldsLoadAll() throws Exception {

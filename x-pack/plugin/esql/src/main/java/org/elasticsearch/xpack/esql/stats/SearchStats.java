@@ -61,6 +61,19 @@ public interface SearchStats {
 
     boolean isSingleValue(FieldName field);
 
+    /**
+     * Whether any segment behind these stats holds deleted documents. Segment level metadata, such as the minimum and maximum
+     * of a field, still describes the deleted documents, so it cannot answer a question about the live ones. Unknown
+     * counts as {@code true}.
+     * <p>
+     * Callers may rely on this for security: document-level security hides documents through live docs, so its readers report
+     * deletions, which keeps metadata-only answers (such as {@code MIN}/{@code MAX} push-down) away from filtered documents.
+     * Implementations must therefore report {@code true} whenever any document is hidden from the searcher.
+     */
+    default boolean hasDeletions() {
+        return true;
+    }
+
     boolean canUseEqualityOnSyntheticSourceDelegate(FieldName name, String value);
 
     /**

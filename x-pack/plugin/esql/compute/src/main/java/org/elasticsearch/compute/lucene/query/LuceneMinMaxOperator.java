@@ -20,7 +20,6 @@ import org.apache.lucene.search.Scorable;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -73,9 +72,10 @@ final class LuceneMinMaxOperator extends LuceneOperator {
 
     private boolean seen = false;
     private int remainingDocs;
-    private long result;
+    /** One running result per function, in the same order as {@link #numberTypes}. */
+    private final long[] results;
 
-    private final NumberType numberType;
+    private final NumberType[] numberTypes;
 
     private final String fieldName;
 
@@ -90,11 +90,40 @@ final class LuceneMinMaxOperator extends LuceneOperator {
         java.util.function.LongSupplier directoryBytesRead,
         QueryWarnings singleValueQueryWarnings
     ) {
+        this(
+            shardRefCounters,
+            driverContext,
+            sliceQueue,
+            fieldName,
+            new NumberType[] { numberType },
+            limit,
+            new long[] { initialResult },
+            directoryBytesRead,
+            singleValueQueryWarnings
+        );
+    }
+
+    /**
+     * Computes several min/max functions over the same field in one pass. The output page holds, for each function in order,
+     * the value block followed by the {@code seen} block.
+     */
+    LuceneMinMaxOperator(
+        IndexedByShardId<? extends RefCounted> shardRefCounters,
+        DriverContext driverContext,
+        LuceneSliceQueue sliceQueue,
+        String fieldName,
+        NumberType[] numberTypes,
+        int limit,
+        long[] initialResults,
+        java.util.function.LongSupplier directoryBytesRead,
+        QueryWarnings singleValueQueryWarnings
+    ) {
         super(shardRefCounters, driverContext, PAGE_SIZE, sliceQueue, directoryBytesRead, singleValueQueryWarnings, false);
+        assert numberTypes.length > 0 && numberTypes.length == initialResults.length;
         this.remainingDocs = limit;
-        this.numberType = numberType;
+        this.numberTypes = numberTypes;
         this.fieldName = fieldName;
-        this.result = initialResult;
+        this.results = initialResults.clone();
     }
 
     @Override
@@ -120,11 +149,13 @@ final class LuceneMinMaxOperator extends LuceneOperator {
                 final LeafReader reader = scorer.leafReaderContext().reader();
                 final Query query = scorer.weight().getQuery();
                 final DocValuesSkipper skipper = reader.getDocValuesSkipper(fieldName);
-                if (query == null || query instanceof MatchAllDocsQuery) {
+                // The planner builds match-all as a boost(0) match_all, so look through the boost/constant-score wrappers.
+                if (query == null || LuceneSourceOperator.Factory.unwrapQuery(query) instanceof MatchAllDocsQuery) {
                     final PointValues pointValues = reader.getPointValues(fieldName);
-                    // only apply shortcut if we are visiting all documents, otherwise we need to trigger the search
-                    // on doc values as that's the order they are visited without push down.
-                    if (pointValues != null && pointValues.getDocCount() >= remainingDocs) {
+                    // Only apply the shortcut if we are visiting all documents: with a limit that is smaller than the number of
+                    // documents we need to trigger the search on doc values, as that's the order they are visited without push down.
+                    // Without a limit every document is visited, so the segment bounds always apply.
+                    if (pointValues != null && (remainingDocs == NO_LIMIT || pointValues.getDocCount() >= remainingDocs)) {
                         final Bits liveDocs = reader.getLiveDocs();
                         if (liveDocs == null) {
                             // In data partitioning, we might have got the same segment previous
@@ -134,7 +165,9 @@ final class LuceneMinMaxOperator extends LuceneOperator {
                             // we've already looked.
                             if (scorer.position() == 0) {
                                 seen = true;
-                                result = numberType.evaluate(result, numberType.fromPointValues(pointValues));
+                                for (int i = 0; i < numberTypes.length; i++) {
+                                    results[i] = numberTypes[i].evaluate(results[i], numberTypes[i].fromPointValues(pointValues));
+                                }
                                 if (remainingDocs != NO_LIMIT) {
                                     remainingDocs -= pointValues.getDocCount();
                                 }
@@ -147,7 +180,9 @@ final class LuceneMinMaxOperator extends LuceneOperator {
                     if (scorer.isDone() == false && skipper != null && skipper.docCount() > 0 && reader.getLiveDocs() == null) {
                         if (scorer.position() == 0) {
                             seen = true;
-                            result = numberType.evaluate(result, numberType.fromSkipper(skipper));
+                            for (int i = 0; i < numberTypes.length; i++) {
+                                results[i] = numberTypes[i].evaluate(results[i], numberTypes[i].fromSkipper(skipper));
+                            }
                             if (remainingDocs != NO_LIMIT) {
                                 remainingDocs -= skipper.docCount();
                             }
@@ -157,12 +192,16 @@ final class LuceneMinMaxOperator extends LuceneOperator {
                 }
                 // Leaf pruning: once we have a result, skip any segment whose skipper bound
                 // cannot improve it, regardless of the query.
-                if (scorer.isDone() == false && seen && skipper != null && numberType.canSkipLeaf(skipper, result)) {
+                if (scorer.isDone() == false && seen && skipper != null && canSkipLeaf(skipper)) {
                     scorer.markAsDone();
                 }
                 if (scorer.isDone() == false) {
                     // could not apply shortcut, trigger the search
-                    final LongValues values = numberType.multiValueMode(DocValues.getSortedNumeric(reader, fieldName));
+                    // one doc values iterator per function: the multi value mode wrappers are stateful and must not share one
+                    final LongValues[] values = new LongValues[numberTypes.length];
+                    for (int i = 0; i < numberTypes.length; i++) {
+                        values[i] = numberTypes[i].multiValueMode(DocValues.getSortedNumeric(reader, fieldName));
+                    }
                     final LeafCollector leafCollector = new LeafCollector() {
                         @Override
                         public void setScorer(Scorable scorer) {}
@@ -171,9 +210,11 @@ final class LuceneMinMaxOperator extends LuceneOperator {
                         public void collect(int doc) throws IOException {
                             assert remainingDocs > 0;
                             remainingDocs--;
-                            if (values.advanceExact(doc)) {
-                                seen = true;
-                                result = numberType.evaluate(result, values.longValue());
+                            for (int i = 0; i < values.length; i++) {
+                                if (values[i].advanceExact(doc)) {
+                                    seen = true;
+                                    results[i] = numberTypes[i].evaluate(results[i], values[i].longValue());
+                                }
                             }
                         }
                     };
@@ -184,17 +225,18 @@ final class LuceneMinMaxOperator extends LuceneOperator {
             Page page = null;
             // emit only one page
             if (isFinished() && pagesEmitted == 0) {
-                Block result = null;
-                BooleanBlock seen = null;
+                final Block[] blocks = new Block[numberTypes.length * 2];
                 try {
-                    result = this.seen
-                        ? numberType.buildResult(blockFactory, this.result, PAGE_SIZE)
-                        : numberType.buildEmptyResult(blockFactory, PAGE_SIZE);
-                    seen = blockFactory.newConstantBooleanBlockWith(this.seen, PAGE_SIZE);
-                    page = new Page(PAGE_SIZE, result, seen);
+                    for (int i = 0; i < numberTypes.length; i++) {
+                        blocks[2 * i] = this.seen
+                            ? numberTypes[i].buildResult(blockFactory, results[i], PAGE_SIZE)
+                            : numberTypes[i].buildEmptyResult(blockFactory, PAGE_SIZE);
+                        blocks[2 * i + 1] = blockFactory.newConstantBooleanBlockWith(this.seen, PAGE_SIZE);
+                    }
+                    page = new Page(PAGE_SIZE, blocks);
                 } finally {
                     if (page == null) {
-                        Releasables.closeExpectNoException(result, seen);
+                        Releasables.closeExpectNoException(blocks);
                     }
                 }
             }
@@ -202,6 +244,16 @@ final class LuceneMinMaxOperator extends LuceneOperator {
         } finally {
             processingNanos += System.nanoTime() - start;
         }
+    }
+
+    /** A leaf can be skipped only when no function can improve its current result. */
+    private boolean canSkipLeaf(DocValuesSkipper skipper) {
+        for (int i = 0; i < numberTypes.length; i++) {
+            if (numberTypes[i].canSkipLeaf(skipper, results[i]) == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @Override

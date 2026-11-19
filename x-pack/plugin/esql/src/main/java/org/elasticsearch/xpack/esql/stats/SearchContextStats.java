@@ -442,6 +442,18 @@ public class SearchContextStats implements SearchStats {
     }
 
     @Override
+    public boolean hasDeletions() {
+        for (SearchExecutionContext context : contexts) {
+            for (LeafReaderContext leafContext : context.searcher().getLeafContexts()) {
+                if (leafContext.reader().hasDeletions()) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    @Override
     public boolean isSingleValue(FieldName field) {
         String fieldName = field.string();
         var stat = cache.computeIfAbsent(fieldName, this::makeFieldStats);

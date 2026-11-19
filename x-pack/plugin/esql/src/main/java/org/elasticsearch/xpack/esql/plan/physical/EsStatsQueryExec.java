@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plan.physical;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.lucene.query.LuceneMinMaxFactory;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -43,6 +44,23 @@ public class EsStatsQueryExec extends LeafExec implements EstimatesRowSize, Data
     public record BasicStat(String name, StatsType type, QueryBuilder query) implements Stat {
         public QueryBuilder filter(QueryBuilder sourceQuery) {
             return query == null ? sourceQuery : Queries.combine(Queries.Clause.FILTER, asList(sourceQuery, query)).boost(0.0f);
+        }
+
+        @Override
+        public List<ElementType> tagTypes() {
+            return List.of();
+        }
+    }
+
+    /**
+     * {@code MIN}/{@code MAX} aggregates over a single numeric or date field, answered from index metadata where possible.
+     * The functions are listed in the order of the intermediate output attributes.
+     */
+    public record MinMaxStat(String name, ElementType elementType, List<LuceneMinMaxFactory.Function> functions) implements Stat {
+        public MinMaxStat {
+            if (functions.isEmpty()) {
+                throw new IllegalStateException("MinMaxStat must have at least one function");
+            }
         }
 
         @Override

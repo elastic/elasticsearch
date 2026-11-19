@@ -22,6 +22,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.PointValues;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
@@ -257,6 +258,48 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
                 .build()
                 .prepare(0L, 0L);
             assertNotNull(prepared);
+        } finally {
+            IOUtils.close(toClose);
+        }
+    }
+
+    /** Deleted documents are still described by segment metadata, so any segment with deletions must be reported. */
+    public void testHasDeletions() throws IOException {
+        final MapperServiceTestCase mapperHelper = new MapperServiceTestCase() {};
+        final List<Closeable> toClose = new ArrayList<>();
+        try {
+            final List<SearchExecutionContext> clean = new ArrayList<>();
+            final List<SearchExecutionContext> dirty = new ArrayList<>();
+            for (boolean withDeletion : new boolean[] { false, true }) {
+                final MapperService mapperService = mapperHelper.createMapperService("""
+                    { "doc": { "properties": { "id": { "type": "keyword" }, "date": { "type": "date" }}}}""");
+                final Directory dir = newDirectory();
+                final IndexReader reader;
+                try (
+                    RandomIndexWriter writer = new RandomIndexWriter(
+                        random(),
+                        dir,
+                        newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE)
+                    )
+                ) {
+                    writer.addDocument(List.of(new StringField("id", "1", Field.Store.NO)));
+                    writer.addDocument(List.of(new StringField("id", "2", Field.Store.NO)));
+                    writer.commit();
+                    if (withDeletion) {
+                        writer.deleteDocuments(new Term("id", "1"));
+                    }
+                    reader = writer.getReader();
+                }
+                toClose.add(reader);
+                toClose.add(mapperService);
+                toClose.add(dir);
+                (withDeletion ? dirty : clean).add(mapperHelper.createSearchExecutionContext(mapperService, newSearcher(reader)));
+            }
+            assertFalse(SearchContextStats.from(clean).hasDeletions());
+            assertTrue(SearchContextStats.from(dirty).hasDeletions());
+            final List<SearchExecutionContext> both = new ArrayList<>(clean);
+            both.addAll(dirty);
+            assertTrue(SearchContextStats.from(both).hasDeletions());
         } finally {
             IOUtils.close(toClose);
         }

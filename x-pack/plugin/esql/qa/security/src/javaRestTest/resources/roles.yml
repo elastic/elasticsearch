@@ -257,6 +257,15 @@ dls_user:
       privileges: [ 'read' ]
       query: '{"match": {"org": "marketing"}}'
 
+# Sees only the engineering documents of min-max-dls. Used to prove an ungrouped MIN/MAX is not answered from segment
+# metadata, which covers all documents, instead of from the documents the role may see.
+dls_min_max_user:
+  cluster: []
+  indices:
+    - names: [ 'min-max-dls' ]
+      privileges: [ 'read' ]
+      query: '{"match": {"org": "engineering"}}'
+
 # Reads eql-events, but document-level security exposes only its process events. Used to prove the EQL source command's
 # delegated search runs in the caller's security context (its DLS filter applies to the delegated EQL search).
 eql_dls_user:

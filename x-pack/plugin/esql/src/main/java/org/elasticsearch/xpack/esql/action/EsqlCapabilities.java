@@ -4980,13 +4980,6 @@ public class EsqlCapabilities {
         INTO_COMMAND(Build.current().isSnapshot()),
 
         /**
-         * The usage information for ESQL counts queries by the Elastic product in {@code X-elastic-product-origin}: one
-         * {@code queries.<product>} per known product origin, {@code queries.other} for any other origin, and {@code queries.rest}
-         * for a request without the header. Before this, every query was counted as {@code rest}.
-         */
-        USAGE_QUERIES_BY_CLIENT,
-
-        /**
          * Streaming execution on {@code POST /_query/stream}: the response streams a columns line, one line
          * per row and a last line (with {@code complete} and {@code next_offset}) as NDJSON as rows are produced.
          * Replaces {@link #STREAMING}: streaming no longer runs on {@code POST /_query}.

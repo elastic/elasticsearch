@@ -108,7 +108,10 @@ public class ExternalSourceSettingsTests extends ESTestCase {
         assertEquals(2, ExternalSourceSettings.sdkConnectionPoolSize(1, 8));
         assertEquals(5, ExternalSourceSettings.sdkConnectionPoolSize(4, 8));
         Settings unlimited = Settings.builder().put("esql.external.max_concurrent_requests", 0).build();
-        assertEquals(ExternalSourceSettings.defaultBlobStoreConcurrency(unlimited), ExternalSourceSettings.sdkConnectionPoolSize(unlimited));
+        assertEquals(
+            ExternalSourceSettings.defaultBlobStoreConcurrency(unlimited),
+            ExternalSourceSettings.sdkConnectionPoolSize(unlimited)
+        );
         Settings one = Settings.builder().put("esql.external.max_concurrent_requests", 1).build();
         assertEquals(2, ExternalSourceSettings.sdkConnectionPoolSize(one));
     }

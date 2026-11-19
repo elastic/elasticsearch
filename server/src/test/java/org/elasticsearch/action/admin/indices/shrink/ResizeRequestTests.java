@@ -207,8 +207,40 @@ public class ResizeRequestTests extends AbstractWireSerializingTestCase<ResizeRe
     }
 
     @Override
-    protected ResizeRequest mutateInstance(ResizeRequest instance) {
-        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    protected ResizeRequest mutateInstance(ResizeRequest instance) throws IOException {
+        CreateIndexRequest targetIndexRequest = copyWriteable(
+            instance.getTargetIndexRequest(),
+            getNamedWriteableRegistry(),
+            CreateIndexRequest::new
+        );
+        String sourceIndex = instance.getSourceIndex();
+        ResizeType resizeType = instance.getResizeType();
+        Boolean copySettings = instance.getCopySettings();
+        ByteSizeValue maxPrimaryShardSize = instance.getMaxPrimaryShardSize();
+        switch (randomInt(4)) {
+            case 0 -> sourceIndex = randomValueOtherThan(sourceIndex, () -> randomAlphaOfLengthBetween(3, 10));
+            case 1 -> targetIndexRequest.index(
+                randomValueOtherThan(targetIndexRequest.index(), () -> randomAlphaOfLengthBetween(3, 10))
+            );
+            case 2 -> resizeType = randomValueOtherThan(resizeType, () -> randomFrom(ResizeType.values()));
+            case 3 -> copySettings = copySettings == null ? Boolean.TRUE : null;
+            case 4 -> maxPrimaryShardSize = randomValueOtherThan(
+                maxPrimaryShardSize,
+                () -> randomBoolean() ? null : ByteSizeValue.ofBytes(randomIntBetween(1, 100))
+            );
+            default -> throw new AssertionError("unexpected mutation");
+        }
+        ResizeRequest mutated = new ResizeRequest(
+            instance.masterNodeTimeout(),
+            instance.ackTimeout(),
+            resizeType,
+            sourceIndex,
+            targetIndexRequest.index()
+        );
+        mutated.setTargetIndex(targetIndexRequest);
+        mutated.setCopySettings(copySettings);
+        mutated.setMaxPrimaryShardSize(maxPrimaryShardSize);
+        return mutated;
     }
 
     private static ToXContentObject resizeRequestToXContent(ResizeRequest resizeRequest) {

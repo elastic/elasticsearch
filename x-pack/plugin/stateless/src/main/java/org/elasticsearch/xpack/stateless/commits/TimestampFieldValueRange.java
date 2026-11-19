@@ -20,9 +20,7 @@ import java.io.IOException;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
- * The range of the values of the {@code @timestamp} field. It is not part of {@link StatelessCompoundCommit} because it is used by the
- * header of compound commits and by the headers of other blobs, and by the code that timestamps the cache regions and computes the range
- * from the segments of the engine. Its XContent encoding is persisted in those headers.
+ * The range of the values of the {@code @timestamp} field.
  */
 public record TimestampFieldValueRange(long minMillis, long maxMillis) implements Writeable, ToXContentObject {
 

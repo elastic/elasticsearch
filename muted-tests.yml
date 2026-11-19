@@ -435,11 +435,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: "test {yaml=search/397_match_only_text_doc_values_multiterm_search/*}"
   issue: https://github.com/elastic/elasticsearch/issues/159693
-- class: org.elasticsearch.xpack.stateless.recovery.IndexingShardRelocationIT
-  tasks:
-  - :x-pack:plugin:stateless:internalClusterTest
-  method: testPreferredNodeIdsAreUsedDuringRelocation
-  issue: https://github.com/elastic/elasticsearch/issues/159502
 - class: org.elasticsearch.xpack.esql.action.NestedSubqueriesIT
   tasks:
   - :x-pack:plugin:esql:internalClusterTest

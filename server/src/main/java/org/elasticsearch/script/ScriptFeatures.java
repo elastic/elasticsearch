@@ -15,8 +15,20 @@ import org.elasticsearch.features.NodeFeature;
 import java.util.Set;
 
 public final class ScriptFeatures implements FeatureSpecification {
+
+    /**
+     * Scripted updates accept documents whose source has top-level fields with the same names as update metadata keys,
+     * such as {@code _type}, {@code op} or {@code _now}.
+     */
+    public static final NodeFeature SOURCE_FIELDS_NAMED_LIKE_METADATA = new NodeFeature("script.source_fields_named_like_metadata");
+
     @Override
     public Set<NodeFeature> getFeatures() {
         return Set.of();
+    }
+
+    @Override
+    public Set<NodeFeature> getTestFeatures() {
+        return Set.of(SOURCE_FIELDS_NAMED_LIKE_METADATA);
     }
 }

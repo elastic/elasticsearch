@@ -2611,7 +2611,14 @@ public class LocalExecutionPlanner {
             request.preResolvedFieldCaps(preResolved);
         }
         return PhysicalOperation.fromSource(
-            new EqlSourceOperator.Factory(client, request, eqlSource.mode(), eqlSource.output(), eqlSource.source()),
+            new EqlSourceOperator.Factory(
+                client,
+                request,
+                eqlSource.mode(),
+                eqlSource.output(),
+                eqlSource.source(),
+                EqlRequests.usesDefaultSize(eqlSource.options(), eqlSource.pushedLimit())
+            ),
             layout.build()
         );
     }

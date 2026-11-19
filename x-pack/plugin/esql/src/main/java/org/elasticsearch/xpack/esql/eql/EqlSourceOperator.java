@@ -35,9 +35,14 @@ import java.util.List;
  */
 public class EqlSourceOperator extends SourceOperator {
 
-    public record Factory(Client client, EqlSearchRequest request, EqlRelation.Mode mode, List<Attribute> schema, Source source)
-        implements
-            SourceOperatorFactory {
+    public record Factory(
+        Client client,
+        EqlSearchRequest request,
+        EqlRelation.Mode mode,
+        List<Attribute> schema,
+        Source source,
+        boolean warnOnDefaultSize
+    ) implements SourceOperatorFactory {
         @Override
         public String describe() {
             return "EqlSourceOperator[mode=" + mode + ", indices=" + String.join(",", request.indices()) + "]";
@@ -45,7 +50,7 @@ public class EqlSourceOperator extends SourceOperator {
 
         @Override
         public SourceOperator get(DriverContext driverContext) {
-            return new EqlSourceOperator(driverContext, client, request, mode, schema, source);
+            return new EqlSourceOperator(driverContext, client, request, mode, schema, source, warnOnDefaultSize);
         }
     }
 
@@ -55,6 +60,7 @@ public class EqlSourceOperator extends SourceOperator {
     private final EqlRelation.Mode mode;
     private final List<Attribute> schema;
     private final Source source;
+    private final boolean warnOnDefaultSize;
 
     private boolean requested;
     private boolean emitted;
@@ -74,7 +80,8 @@ public class EqlSourceOperator extends SourceOperator {
         EqlSearchRequest request,
         EqlRelation.Mode mode,
         List<Attribute> schema,
-        Source source
+        Source source,
+        boolean warnOnDefaultSize
     ) {
         this.driverContext = driverContext;
         this.client = client;
@@ -82,6 +89,7 @@ public class EqlSourceOperator extends SourceOperator {
         this.mode = mode;
         this.schema = schema;
         this.source = source;
+        this.warnOnDefaultSize = warnOnDefaultSize;
     }
 
     private void ensureRequested() {
@@ -124,6 +132,7 @@ public class EqlSourceOperator extends SourceOperator {
             driverContext.removeAsyncAction();
             blocked.onResponse(null);
         }));
+        maybeWarnDefaultSize();
     }
 
     @Override
@@ -167,6 +176,15 @@ public class EqlSourceOperator extends SourceOperator {
         if (partial) {
             driverContext.createOnlyWarnings(source)
                 .registerWarning("EQL query returned partial results (one or more shards failed or timed out); some events may be missing");
+        }
+    }
+
+    private void maybeWarnDefaultSize() {
+        if (warnOnDefaultSize) {
+            driverContext.createOnlyWarnings(source)
+                .registerWarning(
+                    "EQL query used the default size of [" + request.size() + "] matches. Set WITH {\"size\": n} to return more."
+                );
         }
     }
 

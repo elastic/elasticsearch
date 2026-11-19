@@ -97,7 +97,8 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
             eqlRequest(1000),
             EqlRelation.Mode.EVENT,
             List.of(fieldAttribute("process.name", KEYWORD)),
-            Source.EMPTY
+            Source.EMPTY,
+            false
         );
     }
 
@@ -154,7 +155,8 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
             eqlRequest(1000),
             EqlRelation.Mode.EVENT,
             List.of(fieldAttribute("process.name", KEYWORD)),
-            Source.EMPTY
+            Source.EMPTY,
+            false
         );
         DriverContext driverContext = driverContext();
         try (SourceOperator operator = factory.get(driverContext)) {
@@ -574,6 +576,33 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
         assertThat(driverContext.breaker().getUsed(), equalTo(0L));
     }
 
+    public void testDefaultSizeWarningIsRegisteredWhenTheSearchIsIssued() {
+        CapturingEqlClient client = new CapturingEqlClient(threadPool);
+        DriverContext driverContext = driverContext();
+        EqlSearchResponse response = eventResponse(List.of(fieldEvent("a")));
+        SourceOperator operator = new EqlSourceOperator.Factory(
+            client,
+            eqlRequest(10),
+            EqlRelation.Mode.EVENT,
+            List.of(fieldAttribute("process.name", KEYWORD)),
+            new Source(1, 0, "eqlq"),
+            true
+        ).get(driverContext);
+        try {
+            assertBlocked(operator);
+            assertThat(
+                collectWarnings(driverContext),
+                equalTo(List.of("Line 1:1 [eqlq]: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more."))
+            );
+            operator.close();
+            client.capturedListener.onResponse(response);
+        } finally {
+            operator.close();
+            response.decRef();
+        }
+        assertThat(driverContext.breaker().getUsed(), equalTo(0L));
+    }
+
     // ---- helpers ----
 
     /** A driver context whose block factory charges a {@link LocalCircuitBreaker}, as the real {@code Driver} sets up. */
@@ -617,7 +646,7 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
         Source source,
         List<Attribute> schema
     ) {
-        return new EqlSourceOperator.Factory(client, request, mode, schema, source).get(driverContext);
+        return new EqlSourceOperator.Factory(client, request, mode, schema, source, false).get(driverContext);
     }
 
     private static void assertBlocked(SourceOperator operator) {

@@ -372,6 +372,13 @@ public class EqlCompositionIT extends AbstractEsqlIntegTestCase {
         assertProcessNames("FROM " + EQL_VIEW + " | KEEP process.name", beforeLastEvent, List.of());
     }
 
+    public void testHeadLimitOnEqlViewAppliesAfterTheRequestFilter() {
+        createView(EQL_VIEW, "EQL " + INDEX + " \"process where true\" WITH {\"result_position\": \"head\"}");
+        String query = "FROM " + EQL_VIEW + " | LIMIT 1 | KEEP process.name";
+        assertProcessNames(query, new MatchAllQueryBuilder(), List.of("cmd.exe"));
+        assertProcessNames(query, AFTER_FIRST_EVENT, List.of("powershell.exe"));
+    }
+
     public void testRequestFilterOnEqlSequenceViewKeepsPartialMatch() {
         createView(EQL_SEQUENCE_VIEW, "EQL " + INDEX + " \"sequence by process.pid [process where true] [network where true]\"");
         QueryBuilder withoutNetworkEvent = new RangeQueryBuilder("@timestamp").lte("2026-07-22T10:00:00Z");

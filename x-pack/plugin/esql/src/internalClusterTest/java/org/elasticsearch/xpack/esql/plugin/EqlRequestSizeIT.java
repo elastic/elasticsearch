@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.Matchers.equalTo;
 
 public class EqlRequestSizeIT extends AbstractEsqlIntegTestCase {
@@ -106,16 +107,84 @@ public class EqlRequestSizeIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testExplicitEqlPipeKeepsTheSize() {
-        EqlRequestCapturePlugin.SIZES.clear();
-        try (EsqlQueryResponse ignored = run("EQL " + INDEX + " \"process where true | head 1\"" + HEAD + " | LIMIT 3")) {
-            assertThat(EqlRequestCapturePlugin.SIZES, equalTo(List.of(10)));
+        assertRequestSizes("EQL " + INDEX + " \"process where true | head 1\"" + HEAD + " | LIMIT 3", List.of(10));
+    }
+
+    public void testHeadLimitOfASequenceKeepsTheSize() {
+        String sequence = "EQL " + INDEX + " \"sequence by pid [process where true] [process where true]\"";
+        assertRequestSizes(sequence + HEAD + " | LIMIT 3", List.of(10));
+        assertRequestSizes(sequence + " WITH {\"result_position\": \"head\", \"size\": 5000}", List.of(5000));
+    }
+
+    public void testLimitNeverLowersTheSizeOfASample() {
+        String sample = "EQL " + INDEX + " \"sample by pid [process where true] [process where true]\"";
+        assertRequestSizes(sample, List.of(10));
+        assertRequestSizes(sample + HEAD + " | LIMIT 3", List.of(10));
+        assertRequestSizes(sample + " WITH {\"size\": 50} | LIMIT 3", List.of(50));
+    }
+
+    public void testHeadLimitLowersTheSizeOnlyOfTheForkBranchItReaches() {
+        String fork = "EQL " + INDEX + " \"process where true\"" + HEAD + " | FORK (LIMIT 1) (WHERE pid > 1 | LIMIT 1)";
+        assertRequestSizes(fork, List.of(1, 10));
+    }
+
+    public void testHeadLimitLowersTheSizeInsideAnInSubquery() {
+        String subquery = "EQL " + INDEX + " \"process where true\"" + HEAD + " | LIMIT 1 | KEEP pid";
+        assertRequestSizes("FROM " + INDEX + " | WHERE pid IN (" + subquery + ")", List.of(1));
+    }
+
+    public void testHeadLimitKeepsTheFirstRowsOfSequencesCompletedByOneEvent() {
+        String index = "eql_multi_valued_keys";
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate(index)
+                .setSettings(Settings.builder().put("index.number_of_shards", 1))
+                .setMapping("@timestamp", "type=date", "event.category", "type=keyword", "host", "type=keyword", "user", "type=keyword")
+        );
+        client().prepareBulk()
+            .add(
+                new IndexRequest(index).id("p1")
+                    .source("@timestamp", "2026-07-22T10:00:00Z", "event.category", "process", "host", "a", "user", "y")
+            )
+            .add(
+                new IndexRequest(index).id("p2")
+                    .source("@timestamp", "2026-07-22T10:00:01Z", "event.category", "process", "host", "b", "user", "x")
+            )
+            .add(
+                new IndexRequest(index).id("n1")
+                    .source(
+                        "@timestamp",
+                        "2026-07-22T10:00:02Z",
+                        "event.category",
+                        "network",
+                        "host",
+                        List.of("a", "b"),
+                        "user",
+                        List.of("x", "y")
+                    )
+            )
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        String sequences = "EQL " + index + " \"sequence by host, user [process where true] [network where true]\" METADATA _id" + HEAD;
+        List<List<Object>> allRows = List.of(List.of("p1"), List.of("n1"), List.of("p2"), List.of("n1"));
+        try (EsqlQueryResponse resp = run(sequences + " | KEEP _id")) {
+            assertThat(getValuesList(resp), equalTo(allRows));
+        }
+        try (EsqlQueryResponse resp = run(sequences + " | LIMIT 1 | KEEP _id")) {
+            assertThat(getValuesList(resp), equalTo(allRows.subList(0, 1)));
         }
     }
 
     private void assertRequestSize(String suffix, int expectedSize) {
+        assertRequestSizes("EQL " + INDEX + " \"process where true\"" + suffix, List.of(expectedSize));
+    }
+
+    private void assertRequestSizes(String query, List<Integer> expectedSizes) {
         EqlRequestCapturePlugin.SIZES.clear();
-        try (EsqlQueryResponse ignored = run("EQL " + INDEX + " \"process where true\"" + suffix)) {
-            assertThat("request size for [" + suffix + "]", EqlRequestCapturePlugin.SIZES, equalTo(List.of(expectedSize)));
+        try (EsqlQueryResponse ignored = run(query)) {
+            List<Integer> sizes = EqlRequestCapturePlugin.SIZES.stream().sorted().toList();
+            assertThat("request sizes for [" + query + "]", sizes, equalTo(expectedSizes));
         }
     }
 

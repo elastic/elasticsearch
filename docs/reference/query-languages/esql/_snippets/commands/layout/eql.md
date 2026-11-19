@@ -87,18 +87,19 @@ CPU therefore bound the query, sized by the EQL result set. Keep that result set
 
 Tune `size`, `LIMIT`, or both, depending on what you need. Two consequences are worth knowing:
 
-* For event and sequence queries, the default `result_position: tail` makes `| LIMIT n` return the first `n` rows of the
-  last `size` matches, not the `n` most recent events. Use `result_position: head` to read from the oldest
-  matches, or lower `size` to fetch fewer matches.
+* For event and sequence queries, the default `result_position: tail` makes `| LIMIT n` return the first `n`
+  rows of the last `size` matches, not the `n` most recent events. Use `result_position: head` to read from the
+  oldest matches, or lower `size` to fetch fewer matches.
 * Downstream commands only see the fetched matches. `| STATS COUNT(*)` counts the rows of at most `size`
   matches, and a `WHERE` never considers a match beyond `size`, even if it would pass. Raise `size` to include
   more.
 
-As an optimization, a `LIMIT n` that reaches the command, including the default one {{esql}} adds, can lower the
-request size to `n` when that is below `size`. This only happens with `result_position: head` and an EQL query that
-has no `head` or `tail` pipe of its own, so `WITH { "size": 5000, "result_position": "head" }` fetches at most 1000
-matches under the default `LIMIT`. A `LIMIT` reaches the command when it sits directly after it, or when {{esql}} moves
-it down past commands that keep every row, such as `KEEP`, `DROP`, `RENAME`, `EVAL`, `DISSECT` and `GROK`.
+As an optimization that returns the same rows, a `LIMIT` directly after the command, or one {{esql}} moves down to
+it past commands such as `KEEP` and `EVAL`, can lower the request `size` of an event query that sets
+`result_position: head` and has no `head` or `tail` pipe of its own. This includes the default `LIMIT` {{esql}} adds.
+
+When the request size is set neither by `WITH { "size": … }` nor by a `LIMIT` of `10` or less that reaches the
+command as described above, the command uses the default size and the query returns a warning saying so.
 
 ### Partial results
 
@@ -258,10 +259,11 @@ EQL my_remote:logs-endpoint "process where process.name == \"regsvr32.exe\"" WIT
   still a column, `null` on every row. Each EQL search resolves relative dates such as `now-15m` itself, so the
   EQL searches of one query (one per `FORK` branch, for example) can resolve them slightly apart.
 * **A view applies the request `filter` to its output.** When the EQL command is in the body of a view,
-  {{esql}} does not pass the filter to the EQL search. The search then returns up to `size` matches (10 by default:
-  the most recent events or sequences, or the first samples) before the filter applies, so a time range that
-  excludes them can return fewer rows than expected, or none. Raise `size` in the view body to keep more. A `sequence` or `sample` view can return
-  partial matches, keeping the events that pass the filter and dropping the rest.
+  {{esql}} does not pass the filter to the EQL search. The search then returns up to `size` matches (10 by
+  default: the most recent events or sequences, or the first samples) before the filter applies, so a time range
+  that excludes them can return fewer rows than expected, or none. Raise `size` in the view body to keep more. A
+  `sequence` or `sample` view can return partial matches, keeping the events that pass the filter and dropping
+  the rest.
 * **With older nodes, the request `filter` goes to an EQL search inside a view.** During a rolling
   upgrade, or when a remote cluster in a cross-cluster search runs an earlier version, a node can be too old
   to filter a view's output. No view then applies the filter to its output: it is passed to the EQL search

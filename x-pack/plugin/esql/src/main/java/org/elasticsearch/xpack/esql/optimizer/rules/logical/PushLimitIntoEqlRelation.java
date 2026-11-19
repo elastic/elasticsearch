@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.xpack.esql.eql.EqlRequests;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -14,9 +15,9 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 /**
  * Lets a {@code LIMIT}, including the implicit one, directly above an {@link EqlRelation} lower the EQL request {@code size}, as a pure
- * optimization: only for {@code result_position: head} without an EQL {@code head}/{@code tail} pipe. Each match unnests to at least
- * one row and the {@link Limit} is kept, so a pushed size never under-fetches. A limit not directly above the relation (e.g.
- * {@code | WHERE … | LIMIT n}) is not pushed: the source must over-scan so the downstream filter still sees enough rows.
+ * optimization: only for an event query with {@code result_position: head} and no EQL {@code head}/{@code tail} pipe. Each match
+ * unnests to at least one row and the {@link Limit} is kept, so a pushed size never under-fetches. A limit not directly above the
+ * relation (e.g. {@code | WHERE … | LIMIT n}) is not pushed: the source must over-scan so the downstream filter still sees enough rows.
  */
 public class PushLimitIntoEqlRelation extends OptimizerRules.ParameterizedOptimizerRule<Limit, LogicalOptimizerContext> {
 
@@ -37,6 +38,12 @@ public class PushLimitIntoEqlRelation extends OptimizerRules.ParameterizedOptimi
     }
 
     private static boolean canPush(EqlRelation relation) {
-        return relation.hasExplicitLimit() == false && "head".equals(relation.options().get("result_position"));
+        return switch (relation.mode()) {
+            case EVENT -> relation.hasExplicitLimit() == false && EqlRequests.readsFromHead(relation.options());
+            // A smaller size can change which sequences come first: EQL stops at the first `size` completed ones, and an event with
+            // multi-valued join keys completes several sequences at once, in an order that differs from the order they are returned in.
+            case SEQUENCE -> false;
+            case SAMPLE -> false;
+        };
     }
 }

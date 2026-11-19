@@ -12,6 +12,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
+import org.elasticsearch.xpack.eql.action.RequestDefaults;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -60,12 +61,17 @@ public final class EqlRequests {
      */
     private record Option(Class<?> type, String typeName, int min, Set<String> allowedValues, BiConsumer<EqlSearchRequest, Object> apply) {}
 
+    private static final String SIZE_OPTION = "size";
+    private static final String RESULT_POSITION_OPTION = "result_position";
+    private static final String RESULT_POSITION_HEAD = "head";
+    private static final String RESULT_POSITION_TAIL = "tail";
+
     private static final Map<String, Option> OPTIONS = options();
 
     private static Map<String, Option> options() {
         Map<String, Option> options = new LinkedHashMap<>();
         // Minimums mirror EqlSearchRequest.validate() so a below-range value fails at parse, not mid-execution.
-        intOption(options, "size", 0, EqlSearchRequest::size);
+        intOption(options, SIZE_OPTION, 0, EqlSearchRequest::size);
         intOption(options, "fetch_size", 2, EqlSearchRequest::fetchSize);
         intOption(options, "max_samples_per_key", 1, EqlSearchRequest::maxSamplesPerKey);
         stringOption(options, "timestamp_field", EqlSearchRequest::timestampField);
@@ -73,7 +79,7 @@ public final class EqlRequests {
         stringOption(options, "event_category_field", EqlSearchRequest::eventCategoryField);
         // result_position is the one string option with a closed value set; validate it at parse time (the others are
         // free-form field names) so a miscased "TAIL" fails loud here rather than as a late engine-worded error.
-        stringOption(options, "result_position", Set.of("head", "tail"), EqlSearchRequest::resultPosition);
+        stringOption(options, RESULT_POSITION_OPTION, Set.of(RESULT_POSITION_HEAD, RESULT_POSITION_TAIL), EqlSearchRequest::resultPosition);
         // The one EQL knob ESQL has no equivalent for: whether a sequence that spanned a failed shard may be
         // returned. Defaulted false in build() (fail-safe) and opted into here.
         options.put(
@@ -160,6 +166,14 @@ public final class EqlRequests {
                 }
             }
         }
+    }
+
+    public static boolean readsFromHead(Map<String, Object> options) {
+        return RESULT_POSITION_HEAD.equals(options.get(RESULT_POSITION_OPTION));
+    }
+
+    public static boolean usesDefaultSize(Map<String, Object> options, @Nullable Integer pushedLimit) {
+        return options.containsKey(SIZE_OPTION) == false && (pushedLimit == null || pushedLimit > RequestDefaults.SIZE);
     }
 
     /**

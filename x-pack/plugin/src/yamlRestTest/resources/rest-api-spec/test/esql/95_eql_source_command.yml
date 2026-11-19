@@ -1,6 +1,6 @@
 setup:
   - requires:
-      test_runner_features: [capabilities, allowed_warnings]
+      test_runner_features: [capabilities, allowed_warnings, allowed_warnings_regex, warnings_regex]
       capabilities:
         - method: POST
           path: /_query
@@ -107,6 +107,8 @@ setup:
   - do:
       allowed_warnings:
         - "No limit defined, adding default limit of [1000]"
+      allowed_warnings_regex:
+        - '.*EQL query used the default size of \[10\] matches.*'
       esql.query:
         body:
           query: 'EQL eql_events "process where true" METADATA _id, _source | KEEP _id, _source | SORT _id'
@@ -129,6 +131,8 @@ setup:
   - do:
       allowed_warnings:
         - "No limit defined, adding default limit of [1000]"
+      allowed_warnings_regex:
+        - '.*EQL query used the default size of \[10\] matches.*'
       esql.query:
         body:
           query: 'EQL eql_events "sequence [process where message == \"start\"] [process where message == \"run\"]" | KEEP _sequence, _sequence_stage, join_keys'
@@ -156,6 +160,8 @@ setup:
   - do:
       allowed_warnings:
         - "No limit defined, adding default limit of [1000]"
+      warnings_regex:
+        - '.*EQL query used the default size of \[10\] matches.*'
       esql.query:
         body:
           query: 'EQL eql_pairs "sequence by pid [process where true] [network where true]" | STATS events = COUNT(*), sequences = COUNT_DISTINCT(_sequence)'
@@ -179,13 +185,49 @@ setup:
           capabilities: [eql_command_size_independent_of_limit]
       reason: "LIMIT only trims rows, so it keeps the first rows of the last 10 sequences"
   - do:
+      warnings_regex:
+        - '.*EQL query used the default size of \[10\] matches.*'
       esql.query:
         body:
           query: 'EQL eql_pairs "sequence by pid [process where true] [network where true]" | LIMIT 3 | KEEP _sequence, _sequence_stage, join_keys'
   - match: { values: [[0, 0, "3"], [0, 1, "3"], [1, 0, "4"]] }
 
   - do:
+      warnings_regex:
+        - '.*EQL query used the default size of \[10\] matches.*'
       esql.query:
         body:
           query: 'EQL eql_pairs "sequence by pid [process where true] [network where true]" WITH {"result_position": "head"} | LIMIT 3 | KEEP _sequence, _sequence_stage, join_keys'
   - match: { values: [[0, 0, "1"], [0, 1, "1"], [1, 0, "2"]] }
+
+---
+"An EQL view that uses the default size warns with the view name":
+  - requires:
+      capabilities:
+        - method: GET
+          path: /_query/view
+          capabilities: [view_index_abstraction]
+        - method: POST
+          path: /_query
+          parameters: [method, path, parameters, capabilities]
+          capabilities: [eql_command_size_independent_of_limit]
+      reason: "the default size warning of an EQL source inside a view names the view"
+  - do:
+      esql.put_view:
+        name: eql_process_view
+        body:
+          query: 'EQL eql_events "process where true"'
+
+  - do:
+      allowed_warnings:
+        - "No limit defined, adding default limit of [1000]"
+      warnings_regex:
+        - '.*\(in view \[eql_process_view\]\): EQL query used the default size of \[10\] matches.*'
+      esql.query:
+        body:
+          query: 'FROM eql_process_view | KEEP message | SORT message'
+  - match: { values: [["run"], ["start"]] }
+
+  - do:
+      esql.delete_view:
+        name: eql_process_view

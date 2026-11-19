@@ -26,7 +26,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
- * Tests for {@link PushLimitIntoEqlRelation}: only a {@code LIMIT} directly above an {@link EqlRelation} with
+ * Tests for {@link PushLimitIntoEqlRelation}: only a {@code LIMIT} directly above an event {@link EqlRelation} with
  * {@code result_position: head} and no EQL {@code head}/{@code tail} pipe is pushed; otherwise {@code pushedLimit} is {@code null}.
  */
 public class LogicalPlanOptimizerEqlTests extends ESTestCase {
@@ -50,12 +50,12 @@ public class LogicalPlanOptimizerEqlTests extends ESTestCase {
         assertPushedLimit("EQL eql_test \"process where true\"" + HEAD + " | EVAL next = pid + 1 | LIMIT 2", 2);
     }
 
-    public void testHeadSequenceLimitIsPushed() {
-        assertPushedLimit("EQL eql_test \"sequence [process where true] [network where true]\"" + HEAD + " | LIMIT 3", 3);
+    public void testHeadSequenceLimitIsNotPushed() {
+        assertPushedLimit("EQL eql_test \"sequence [process where true] [network where true]\"" + HEAD + " | LIMIT 3", null);
     }
 
-    public void testHeadSampleLimitIsPushed() {
-        assertPushedLimit("EQL eql_test \"sample by category [process where true] [network where true]\"" + HEAD + " | LIMIT 4", 4);
+    public void testHeadSampleLimitIsNotPushed() {
+        assertPushedLimit("EQL eql_test \"sample by category [process where true] [network where true]\"" + HEAD + " | LIMIT 4", null);
     }
 
     public void testSmallestLimitIsPushed() {
@@ -81,7 +81,6 @@ public class LogicalPlanOptimizerEqlTests extends ESTestCase {
     public void testImplicitLimitIsPushedLikeAnyOther() {
         assertPushedLimit("EQL eql_test \"process where true\"" + HEAD, 1000);
         assertPushedLimit("EQL eql_test \"process where true\"" + HEAD + " | KEEP pid", 1000);
-        assertPushedLimit("EQL eql_test \"sequence [process where true] [network where true]\"" + HEAD, 1000);
     }
 
     public void testLimitEqualToTheImplicitOneIsPushed() {

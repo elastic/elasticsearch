@@ -40,6 +40,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.OptionalLong;
 import java.util.TreeSet;
 
 /**
@@ -57,12 +58,15 @@ class ServerCli extends EnvironmentAwareCommand {
      * The inclusive range of values glibc accepts for one malloc environment variable.
      */
     record GlibcEnvLimits(long min, long max) {
-        boolean isInRange(String value) {
+        /**
+         * @return {@code value} parsed as a decimal number, or empty if it is not one or is out of range
+         */
+        OptionalLong parse(String value) {
             try {
                 long parsed = Long.parseLong(value);
-                return parsed >= min && parsed <= max;
+                return parsed >= min && parsed <= max ? OptionalLong.of(parsed) : OptionalLong.empty();
             } catch (NumberFormatException e) {
-                return false;
+                return OptionalLong.empty();
             }
         }
     }
@@ -358,8 +362,7 @@ class ServerCli extends EnvironmentAwareCommand {
                 continue;
             }
             String name = key.substring(GLIBC_ENV_SYSPROP_PREFIX.length());
-            String value = property.getValue();
-            validateGlibcEnvironmentVariable(key, name, value);
+            String value = parseGlibcEnvironmentValue(key, name, property.getValue());
             environment.put(name, value);
             thresholdSet |= name.equals(MALLOC_MMAP_THRESHOLD) || name.equals(MALLOC_TRIM_THRESHOLD);
             terminal.println("Setting environment variable [" + name + "=" + value + "] from system property [" + key + "]");
@@ -379,7 +382,13 @@ class ServerCli extends EnvironmentAwareCommand {
         }
     }
 
-    private static void validateGlibcEnvironmentVariable(String key, String name, String value) throws UserException {
+    /**
+     * Process one glibc environment variable, validates it and returns its value in canonical
+     * decimal form. The canonical form matters because glibc parses tunable values differently from
+     * Java, as C literals. Passing the original string could apply a different value from the
+     * one we validated.
+     */
+    private static String parseGlibcEnvironmentValue(String key, String name, String value) throws UserException {
         GlibcEnvLimits limits = GLIBC_MALLOC_ENV_VARS.get(name);
         if (limits == null) {
             throw new UserException(
@@ -393,12 +402,14 @@ class ServerCli extends EnvironmentAwareCommand {
             );
         }
 
-        if (limits.isInRange(value) == false) {
+        OptionalLong parsed = limits.parse(value);
+        if (parsed.isEmpty()) {
             throw new UserException(
                 ExitCodes.CONFIG,
                 "System property [" + key + "] must be a decimal number between [" + limits.min() + "] and [" + limits.max() + "]"
             );
         }
+        return Long.toString(parsed.getAsLong());
     }
 
     protected static byte[] serializeServerArgs(ServerArgs args) throws IOException {

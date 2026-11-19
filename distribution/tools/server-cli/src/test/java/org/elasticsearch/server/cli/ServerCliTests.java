@@ -374,6 +374,17 @@ public class ServerCliTests extends CommandTestCase {
         assertThat(terminal.getErrorOutput(), emptyString());
     }
 
+    public void testGlibcEnvironmentPassesCanonicalDecimal() throws Exception {
+        Map<String, String> environment = new HashMap<>();
+        // glibc would read "010" as octal 8; we validated 10, so 10 is what must reach glibc
+        ServerCli.addGlibcEnvironment(
+            terminal,
+            List.of("-Des.glibc.env.MALLOC_TRIM_THRESHOLD_=010", "-Des.glibc.env.MALLOC_MMAP_THRESHOLD_=+1048576"),
+            environment
+        );
+        assertThat(environment, equalTo(Map.of("MALLOC_TRIM_THRESHOLD_", "10", "MALLOC_MMAP_THRESHOLD_", "1048576")));
+    }
+
     public void testGlibcEnvironmentWarnsWhenOnlyOneThresholdIsSet() throws Exception {
         ServerCli.addGlibcEnvironment(terminal, List.of("-Des.glibc.env.MALLOC_TRIM_THRESHOLD_=4194304"), new HashMap<>());
         assertThat(terminal.getErrorOutput(), containsString("[MALLOC_MMAP_THRESHOLD_] stays at its glibc default"));

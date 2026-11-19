@@ -22,6 +22,7 @@ import org.hamcrest.Matchers;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.SocketException;
@@ -374,7 +375,7 @@ public class StorageObjectAbortChainTests extends ESTestCase {
         public InputStream newStream() {
             opens.incrementAndGet();
             ByteArrayInputStream body = new ByteArrayInputStream(bytes);
-            return new InputStream() {
+            return countingCloseStream(new InputStream() {
                 @Override
                 public int read() throws IOException {
                     byte[] one = new byte[1];
@@ -391,12 +392,7 @@ public class StorageObjectAbortChainTests extends ESTestCase {
                     }
                     return n;
                 }
-
-                @Override
-                public void close() {
-                    abortCalls.incrementAndGet();
-                }
-            };
+            });
         }
 
         @Override
@@ -406,7 +402,20 @@ public class StorageObjectAbortChainTests extends ESTestCase {
                 return newStream();
             }
             opens.incrementAndGet();
-            return InputStream.nullInputStream();
+            return countingCloseStream(InputStream.nullInputStream());
+        }
+
+        private InputStream countingCloseStream(InputStream inner) {
+            AtomicBoolean closed = new AtomicBoolean();
+            return new FilterInputStream(inner) {
+                @Override
+                public void close() throws IOException {
+                    if (closed.compareAndSet(false, true)) {
+                        abortCalls.incrementAndGet();
+                    }
+                    super.close();
+                }
+            };
         }
 
         @Override

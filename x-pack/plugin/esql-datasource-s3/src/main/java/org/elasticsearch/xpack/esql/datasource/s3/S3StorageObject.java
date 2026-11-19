@@ -87,6 +87,8 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
 
     /** Scope key for the async-read retry token bucket; one bucket per {@link RetryStrategy} instance. */
     private static final String ASYNC_READ_RETRY_SCOPE = "s3-async-read";
+    /** Separate token-bucket scope for blocking {@code newStream} GETs on the doNotRetry async client. */
+    private static final String STREAMING_GET_RETRY_SCOPE = "s3-streaming-get";
 
     private final S3Client s3Client;
     private final S3AsyncClient s3AsyncClient;
@@ -568,6 +570,79 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         if (s3AsyncClient == null) {
             return s3Client.getObject(request);
         }
+        // The async client is doNotRetry so readBytesAsync can own transformers. Blocking GETs
+        // issue a fresh toBlockingInputStream per attempt, so Standard (incl. InvalidAccessKeyId)
+        // is applied here without sharing a transformer across retries.
+        RetryToken token;
+        try {
+            token = asyncRetryStrategy.acquireInitialToken(AcquireInitialTokenRequest.create(STREAMING_GET_RETRY_SCOPE)).token();
+        } catch (Exception e) {
+            return joinTrackedGet(request);
+        }
+        for (;;) {
+            if (closed.get()) {
+                throw new CancellationException("read cancelled");
+            }
+            try {
+                return joinTrackedGet(request);
+            } catch (RuntimeException e) {
+                Throwable unwrapped = unwrapCompletionWrappers(e);
+                if (unwrapped instanceof CancellationException cancelled) {
+                    throw cancelled;
+                }
+                if (closed.get()) {
+                    throw new CancellationException("read cancelled");
+                }
+                RefreshRetryTokenResponse refresh;
+                try {
+                    refresh = asyncRetryStrategy.refreshRetryToken(
+                        RefreshRetryTokenRequest.builder()
+                            .token(token)
+                            .failure(asSdkException(e))
+                            .suggestedDelay(retryAfterDelay(e))
+                            .build()
+                    );
+                } catch (Exception giveUp) {
+                    if (unwrapped instanceof RuntimeException runtime) {
+                        throw runtime;
+                    }
+                    throw e;
+                }
+                token = refresh.token();
+                Duration delay = refresh.delay();
+                if (delay.isPositive()) {
+                    sleepUntilClosedOrDelay(delay);
+                }
+            }
+        }
+    }
+
+    /** Parks for {@code delay} but returns as soon as {@link #close()} so backoff cannot outlive cancel. */
+    private void sleepUntilClosedOrDelay(Duration delay) {
+        long deadlineNanos = System.nanoTime() + delay.toNanos();
+        while (closed.get() == false && System.nanoTime() < deadlineNanos) {
+            long remainingMs = TimeUnit.NANOSECONDS.toMillis(deadlineNanos - System.nanoTime());
+            if (remainingMs <= 0) {
+                return;
+            }
+            try {
+                Thread.sleep(Math.min(50L, remainingMs));
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                throw new CancellationException("read cancelled");
+            }
+        }
+        if (closed.get()) {
+            throw new CancellationException("read cancelled");
+        }
+    }
+
+    /**
+     * One async GET attempt. The CF stays in {@code inFlightOpens} until abort/close so a truncated
+     * body can drop the Netty connection instead of occupying the pool until
+     * {@code CONNECTION_ACQUISITION_TIMEOUT}.
+     */
+    private ResponseInputStream<GetObjectResponse> joinTrackedGet(GetObjectRequest request) {
         CompletableFuture<ResponseInputStream<GetObjectResponse>> future = s3AsyncClient.getObject(
             request,
             AsyncResponseTransformer.toBlockingInputStream()
@@ -580,24 +655,28 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         }
         try {
             ResponseInputStream<GetObjectResponse> in = future.join();
-            // Keep {@code future} in inFlightOpens until the stream is aborted/closed so object
-            // close() can cancel an assigned body GET, and so resume closeQuietly releases the
-            // Netty connection a truncated mid-body response would otherwise hold.
-            Abortable release = () -> {
+            AtomicBoolean dropped = new AtomicBoolean();
+            Abortable drop = () -> {
+                if (dropped.compareAndSet(false, true) == false) {
+                    return;
+                }
                 inFlightOpens.remove(future);
-                discardGet(future);
+                try {
+                    // Abort, do not close: Netty close of a truncated toBlockingInputStream can
+                    // wait for the rest of the body and pin the connection for 60s.
+                    in.abort();
+                } catch (RuntimeException ignored) {
+                    // Best-effort drop of a GET the reader already abandoned.
+                }
+                FutureUtils.cancel(future);
             };
             FilterInputStream tracking = new FilterInputStream(in) {
                 @Override
-                public void close() throws IOException {
-                    try {
-                        super.close();
-                    } finally {
-                        release.abort();
-                    }
+                public void close() {
+                    drop.abort();
                 }
             };
-            return new ResponseInputStream<>(in.response(), AbortableInputStream.create(tracking, release));
+            return new ResponseInputStream<>(in.response(), AbortableInputStream.create(tracking, drop));
         } catch (CompletionException e) {
             inFlightOpens.remove(future);
             Throwable cause = e.getCause() != null ? e.getCause() : e;

@@ -17,6 +17,14 @@ public enum FailureStrategy {
     RETRY(false),
     ABORT(false),
     FAIL_SILENT(false),
+
+    /**
+     * Like {@link #FAIL_SILENT}, the master is not notified straight away, but the allocation is also remembered so that later
+     * cluster states which still assign it do not recreate the shard (and so do not start a second recovery for it). If a later
+     * cluster state still assigns the allocation, the master has not acted on the failure, so it is sent then, as {@link #FAIL_SEND}
+     * would have done.
+     */
+    FAIL_SILENT_AND_BLOCK(false),
     FAIL_SEND(true);
 
     private final boolean notifyMaster;

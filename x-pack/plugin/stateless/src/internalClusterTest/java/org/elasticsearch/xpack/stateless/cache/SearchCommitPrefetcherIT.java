@@ -46,7 +46,7 @@ import org.elasticsearch.xpack.stateless.action.TransportGetVirtualBatchedCompou
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher.BCCPreFetchedOffset;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
-import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
@@ -861,7 +861,7 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
         var bccBlobs = IndexDirectory.unwrapDirectory(findIndexShard(indexName).store().directory())
             .getBlobStoreCacheDirectory()
             .getBlobContainer(primaryTerm)
-            .listBlobs(OperationPurpose.INDICES);
+            .listBlobsByPrefix(OperationPurpose.INDICES, BatchedCompoundCommit.PREFIX);
 
         var bccBlobsTotalSizeInBytes = bccBlobs.entrySet()
             .stream()
@@ -1113,7 +1113,7 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
                     StatelessCompoundCommit commit,
                     BlobStoreCacheDirectory directory,
                     WarmingRatioProvider warmingRatioProvider,
-                    @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
+                    @Nullable Map<BccBlob, WarmTarget> endTargetsToWarm,
                     boolean preWarmForIdLookup,
                     ActionListener<Void> listener
                 ) {

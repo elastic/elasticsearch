@@ -186,7 +186,7 @@ public class StatelessOnlinePrewarmingService implements OnlinePrewarmingService
                 // - if there is a single compound commit in the blob file we will just prewarm the first region of the blob file.
                 final int endRegion = siRange.fileOffset() + siRange.fileLength() > cacheService.getRegionSize() ? 1 : 0;
                 var cacheKey = new FileCacheKey(indexShard.shardId(), siRange.primaryTerm(), siRange.blobName());
-                var cacheBlobReader = searchDirectory.getCacheBlobReaderForSearchOnlineWarming(siRange.blobLocation().blobFile());
+                var cacheBlobReader = searchDirectory.getCacheBlobReaderForSearchOnlineWarming(siRange.blobLocation().bccBlob());
                 // We warm the first (and possibly second) region of the blob; both regions are stamped with the timestamp of the compound
                 // commit for the highestSegmentInfoRanges, which is acceptable since the warmed regions include it.
                 final long timestampMillis = searchDirectory.resolveRegionTimestampMillis(siRange.timestampRange());
@@ -303,6 +303,7 @@ public class StatelessOnlinePrewarmingService implements OnlinePrewarmingService
                 }
             }),
             timestampMillis,
+            false,
             listener
         );
     }

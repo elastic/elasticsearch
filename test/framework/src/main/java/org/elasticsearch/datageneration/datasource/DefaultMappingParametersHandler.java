@@ -413,7 +413,11 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
                 var parameters = new HashMap<String, Object>();
 
                 if (ESTestCase.randomBoolean()) {
-                    parameters.put("dynamic", randomFrom("true", "false", "strict"));
+                    // dynamic: false is rejected in strict-columnar mode
+                    parameters.put(
+                        "dynamic",
+                        indexMode.isStrictColumnar() ? randomFrom("true", "strict") : randomFrom("true", "false", "strict")
+                    );
                 }
                 // synthetic_source_keep is not allowed on objects in strict-columnar mode
                 if (indexMode.isStrictColumnar() == false && ESTestCase.randomBoolean()) {
@@ -444,9 +448,9 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
             }
 
             if (indexMode.isStrictColumnar()) {
-                // subobjects and synthetic_source_keep are not allowed on objects in strict-columnar mode
+                // subobjects, synthetic_source_keep and dynamic: false are not allowed on objects in strict-columnar mode
                 if (ESTestCase.randomBoolean()) {
-                    parameters.put("dynamic", randomFrom("true", "false", "strict"));
+                    parameters.put("dynamic", randomFrom("true", "strict"));
                 }
                 if (ESTestCase.randomBoolean()) {
                     parameters.put("enabled", request.isRoot() ? "true" : randomFrom("true", "false"));

@@ -123,7 +123,7 @@ public final class Shapes {
     private static String mapping(String[] names, String type, Map<String, Object> params) {
         try {
             XContentBuilder b = JsonXContent.contentBuilder();
-            b.startObject().startObject("_doc").field("dynamic", false).startObject("properties");
+            b.startObject().startObject("_doc").field("dynamic", "strict").startObject("properties");
             b.startObject(TIMESTAMP).field("type", "date").endObject();
             for (String name : names) {
                 b.startObject(name).field("type", type);

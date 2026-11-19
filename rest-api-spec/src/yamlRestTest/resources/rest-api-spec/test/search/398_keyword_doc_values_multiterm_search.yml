@@ -55,7 +55,7 @@ setup:
             index:
               mode: columnar
           mappings:
-            dynamic: false
+            dynamic: strict
             properties:
               keyword_field:
                 type: keyword

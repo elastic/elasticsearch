@@ -32,7 +32,7 @@ public class ColumnarLuceneSyntheticSourceChangesSnapshotTests extends LuceneSyn
     protected String defaultMapping() {
         return """
             {
-                "dynamic": false,
+                "dynamic": true,
                 "properties": {
                     "value": {
                         "type": "keyword"

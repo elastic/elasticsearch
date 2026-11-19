@@ -174,6 +174,7 @@ public class MapperFeatures implements FeatureSpecification {
         "mapper.columnar.ip_inline_array_order_binary_doc_values"
     );
     public static final NodeFeature COLUMNAR_DROPS_DYNAMIC_FALSE_FIELDS = new NodeFeature("mapper.columnar.drops_dynamic_false_fields");
+    public static final NodeFeature COLUMNAR_REJECTS_DYNAMIC_FALSE = new NodeFeature("mapper.columnar_rejects_dynamic_false");
     public static final NodeFeature COLUMNAR_SUPPORTS_SHAPE_FIELDS = new NodeFeature("mapper.columnar.supports_shape_fields");
     public static final NodeFeature COLUMNAR_IGNORE_ABOVE_NO_OP = new NodeFeature("mapper.columnar.ignore_above_no_op");
     public static final NodeFeature COLUMNAR_DOC_VALUES_NO_OP = new NodeFeature("mapper.columnar.doc_values_no_op");
@@ -310,6 +311,7 @@ public class MapperFeatures implements FeatureSpecification {
             COLUMNAR_INLINE_ARRAY_ORDER_BINARY_DOC_VALUES,
             COLUMNAR_IP_INLINE_ARRAY_ORDER_BINARY_DOC_VALUES,
             COLUMNAR_DROPS_DYNAMIC_FALSE_FIELDS,
+            COLUMNAR_REJECTS_DYNAMIC_FALSE,
             COLUMNAR_SUPPORTS_SHAPE_FIELDS,
             COLUMNAR_IGNORE_ABOVE_NO_OP,
             COLUMNAR_DOC_VALUES_NO_OP,

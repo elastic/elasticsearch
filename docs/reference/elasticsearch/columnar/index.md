@@ -185,14 +185,13 @@ In line with the columnar premise of storing each field once using doc values, d
 
 Dynamic mapping behavior is controlled by the [`dynamic`](/reference/elasticsearch/mapping-reference/dynamic.md) configuration parameter, which can be set to:
 - `true` (default): Turns on the dynamic mapping behavior as described in the preceding paragraphs.
-- `false`: Unmapped fields are not mapped or stored. Data in unmapped fields are lost.
 - `strict`: Documents containing unmapped fields don't get indexed, raising indexing errors instead.
 
-Note that the `runtime` option is not supported in columnar mode.
+Note that the `runtime` and `false` options are not supported in columnar mode.
 
 :::{warning}
 
-If you configure `"dynamic": false`, then only fields that are explicitly mapped in the mappings are stored.
+In indices created before 9.7, `"dynamic": false` is accepted, and only fields that are explicitly mapped in the mappings are stored.
 Fields that are not explicitly mapped in the mappings are not stored and therefore lost.
 :::
 
@@ -204,7 +203,7 @@ The same applies to dynamic mapping updates during indexing.
 During `object` flattening, the `enabled` and `dynamic` settings are preserved and separately tracked.
 Same applies to `passthrough` fields, along with their `priority` setting.
 
-For example, given a mapping with an `attributes` object (`dynamic: false`) and a `labels` passthrough field (`priority: 10`):
+For example, given a mapping with an `attributes` object (`dynamic: strict`) and a `labels` passthrough field (`priority: 10`):
 
 ```console
 PUT my-index
@@ -216,7 +215,7 @@ PUT my-index
     "properties": {
       "attributes": {
         "type": "object",
-        "dynamic": false,
+        "dynamic": "strict",
         "properties": {
           "host": { "type": "keyword" },
           "ip":   { "type": "ip" }
@@ -242,7 +241,7 @@ The processed mapping shows the object mappers removed and their settings captur
     "mappings": {
       "prefix_properties": {
         "attributes": {
-          "dynamic": "false"
+          "dynamic": "strict"
         },
         "labels": {
           "passthrough": 10
@@ -258,7 +257,7 @@ The processed mapping shows the object mappers removed and their settings captur
 }
 ```
 
-The `attributes` and `labels` object mappers are gone from `properties`; only the flat dotted-path leaf fields remain. The `dynamic: false` from `attributes` is preserved under `prefix_properties.attributes.dynamic`, preventing new fields under `attributes.*` from being auto-mapped at index time. The `priority: 10` from `labels` is preserved under `prefix_properties.labels.passthrough`.
+The `attributes` and `labels` object mappers are gone from `properties`; only the flat dotted-path leaf fields remain. The `dynamic: strict` from `attributes` is preserved under `prefix_properties.attributes.dynamic`, rejecting documents that introduce new fields under `attributes.*` at index time. The `priority: 10` from `labels` is preserved under `prefix_properties.labels.passthrough`.
 
 ## Columnar `_source` [columnar-source]
 
@@ -289,7 +288,7 @@ Columnar `_source` is reconstructed from the values of mapped fields, over an [a
 :   [`nested`](/reference/elasticsearch/mapping-reference/nested.md) fields are not auto-flattened, so an array of nested objects is returned as an array of objects, with each object's values intact. Columnar modes support only a single level of nesting.
 
 **Unmapped content is dropped**
-:   Anything in a document that doesn't reach a mapped field is lost: fields skipped because of `dynamic: false`, subtrees under `enabled: false`, and dynamic fields skipped because a field limit was reached. Values that a mapped field accepts but can't index normally are still returned in `_source`.
+:   Anything in a document that doesn't reach a mapped field is lost: subtrees under `enabled: false`, dynamic fields skipped because a field limit was reached, and, in indices created before 9.7, fields skipped because of `dynamic: false`. Values that a mapped field accepts but can't index normally are still returned in `_source`.
 
 ::::{note}
 There's no way to opt a single field or object into keeping its original source. The `synthetic_source_keep` mapping parameter, the `index.mapping.synthetic_source_keep` index setting, and `store: true` are all rejected in columnar modes.
@@ -365,7 +364,8 @@ The following features are not supported in columnar index modes:
 - **Incompatible field types**: Field types that don't support doc values are not supported in columnar mode (for example, `search_as_you_type`).
 - **Turning off `_source`**: Setting `"_source": {"enabled": false}` is not allowed.
 - **Stored source mode**: The traditional `stored` source mode is not supported; only synthetic columnar and columnar stored modes are available. See [Columnar `_source`](#columnar-source).
-- **`dynamic: false` and `enabled: false`** are lossy: Setting `dynamic: false` on an object prevents unmapped sub-fields from being stored; their data is permanently lost. Setting `enabled: false` ignores the entire object subtree; its data is permanently lost.
+- **`dynamic: false`**: {applies_to}`stack: preview 9.7` {applies_to}`serverless: preview` Rejected, on the root and on any object. In indices created before 9.7, setting `dynamic: false` on an object prevents unmapped sub-fields from being stored; their data is permanently lost.
+- **`enabled: false`** is lossy: Setting `enabled: false` ignores the entire object subtree; its data is permanently lost.
 - **Per-field source retention**: The `synthetic_source_keep` mapping parameter, the `index.mapping.synthetic_source_keep` index setting, and `store: true` are rejected. A field or object can't opt into keeping its original source, so the flattening described in [What columnar `_source` preserves](#columnar-source-fidelity) can't be avoided for individual fields.
 - **Default query fields**: The `index.query.default_field` index setting in columnar mode will by default only include fields that are indexed (by default text based fields are indexed).
 - **[`ignore_above`](/reference/elasticsearch/mapping-reference/ignore-above.md) has no effect**: {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview` Because `_source` is reconstructed from doc values, every value is stored regardless of length, whether or not the field is indexed. The parameter is accepted rather than rejected and is echoed back by `GET _mapping`, but nothing is dropped and nothing is added to `_ignored`. Consequently `ignore_above` no longer guards Lucene's term byte-length limit: a value longer than `32766` bytes fails the indexing request. Indices created before 9.6 keep the previous behavior.

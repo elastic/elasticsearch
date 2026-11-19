@@ -289,6 +289,14 @@ public class EsqlSecurityIT extends ESRestTestCase {
     }
 
     /**
+     * Settings for the indices whose mapping sets {@code dynamic: false}. Strict columnar modes reject it, so a strict columnar
+     * subclass creates these indices in a mode that accepts it.
+     */
+    protected Settings dynamicFalseIndexSettings() {
+        return indexSettings();
+    }
+
+    /**
      * Prefix prepended to every test index mapping. Empty in standard mode; the logsdb / logsdb_columnar subclasses override it to
      * disable the data-stream {@code @timestamp} metadata field those modes enable by default, so the shared documents index unchanged.
      */
@@ -304,23 +312,11 @@ public class EsqlSecurityIT extends ESRestTestCase {
         return "";
     }
 
-    /**
-     * Whether {@code dynamic:false} fields survive indexing and can therefore be discovered by {@code LOAD_ALL}
-     */
-    protected boolean unmappedDynamicFalseFieldsStored() {
-        return true;
-    }
-
     protected void assumeUnmappedFieldsLoadAll() throws IOException {
         assumeTrue(
             "Requires unmapped_fields=LOAD_ALL support with a single _unmapped_fields column",
             hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_SINGLE_SOURCE_COLUMN.capabilityName()))
         );
-    }
-
-    protected void assumeUnmappedFieldsLoadAllDiscoverable() throws IOException {
-        assumeUnmappedFieldsLoadAll();
-        assumeTrue("Requires dynamic:false fields to survive indexing", unmappedDynamicFalseFieldsStored());
     }
 
     @Before
@@ -360,7 +356,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         String mappingPartial = """
             "dynamic":"false","properties":{"value": {"type": "double"}}
             """;
-        createIndex(INDEX_PARTIAL_MAPPING, indexSettings(), mappingPrefix() + mappingPartial);
+        createIndex(INDEX_PARTIAL_MAPPING, dynamicFalseIndexSettings(), mappingPrefix() + mappingPartial);
         indexFlsTestDocument(INDEX_PARTIAL_MAPPING, 1, 10.0, "sales", 100000L, "2024-01-01", "10.0.0.1");
         indexFlsTestDocument(INDEX_PARTIAL_MAPPING, 2, 20.0, "engineering", 200000L, "2023-06-15", "10.0.0.2");
         refresh(INDEX_PARTIAL_MAPPING);
@@ -369,7 +365,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
          * LOAD_ALL-only fixture: like INDEX_PARTIAL_MAPPING it maps just `value`, but its documents add the shapes a flat scalar
          * fixture cannot express — an object flattened to dotted leaves, an array turned into a multivalue, and a key on one document.
          */
-        createIndex(INDEX_FOR_UNMAPPED_FIELDS_LOAD_ALL, indexSettings(), mappingPrefix() + mappingPartial);
+        createIndex(INDEX_FOR_UNMAPPED_FIELDS_LOAD_ALL, dynamicFalseIndexSettings(), mappingPrefix() + mappingPartial);
         indexUnmappedFieldsLoadAllDocument(1, 10.0, "sales", "p1", "111-11-1111", List.of("red", "blue"), null);
         indexUnmappedFieldsLoadAllDocument(2, 20.0, "engineering", "p2", "222-22-2222", List.of("green"), "quarterly-forecast");
         indexUnmappedFieldsLoadAllDottedProfileDocument(3, 15.0, "marketing", "p3", "333-33-3333");
@@ -1395,7 +1391,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
     }
 
     public void testDLS_DoesNotExposeFilteredDocuments_WithUnmappedFieldsLoadAll() throws Exception {
-        assumeUnmappedFieldsLoadAllDiscoverable();
+        assumeUnmappedFieldsLoadAll();
         String query = "SET unmapped_fields=\"LOAD_ALL\"; FROM "
             + INDEX_PARTIAL_MAPPING
             + " | SORT value | LIMIT 10"
@@ -1420,7 +1416,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
     }
 
     public void testDLS_DoesNotLeakFieldOfFilteredDocument_WithUnmappedFieldsLoadAll() throws Exception {
-        assumeUnmappedFieldsLoadAllDiscoverable();
+        assumeUnmappedFieldsLoadAll();
         String query = "SET unmapped_fields=\"LOAD_ALL\"; FROM "
             + INDEX_FOR_UNMAPPED_FIELDS_LOAD_ALL
             + " | SORT value | LIMIT 10"
@@ -1447,7 +1443,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
     }
 
     public void testDLS_LoadAllFilterOnUnmappedField() throws Exception {
-        assumeUnmappedFieldsLoadAllDiscoverable();
+        assumeUnmappedFieldsLoadAll();
         String query = "SET unmapped_fields=\"LOAD_ALL\"; FROM "
             + INDEX_PARTIAL_MAPPING
             + " | WHERE org == \"engineering\" | SORT value | LIMIT 10"
@@ -1471,7 +1467,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
     }
 
     public void testFLS_SourceDisabled_WithUnmappedFieldsLoadAll() throws Exception {
-        assumeUnmappedFieldsLoadAllDiscoverable();
+        assumeUnmappedFieldsLoadAll();
         String query = "SET unmapped_fields=\"LOAD_ALL\"; FROM "
             + INDEX_PARTIAL_MAPPING
             + " | SORT value | LIMIT 10"
@@ -1498,7 +1494,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
     }
 
     public void testFLS_GrantList_DoesNotReturnUngrantedFields_WithUnmappedFieldsLoadAll() throws Exception {
-        assumeUnmappedFieldsLoadAllDiscoverable();
+        assumeUnmappedFieldsLoadAll();
         String query = "SET unmapped_fields=\"LOAD_ALL\"; FROM "
             + INDEX_FOR_UNMAPPED_FIELDS_LOAD_ALL
             + " | SORT value | LIMIT 10"
@@ -1517,7 +1513,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
     }
 
     public void testFLS_GrantListReturnsGrantedField_WithUnmappedFieldsLoadAll() throws Exception {
-        assumeUnmappedFieldsLoadAllDiscoverable();
+        assumeUnmappedFieldsLoadAll();
         Response resp = runESQLCommand(
             "fls_unmapped_load_all_grant_value_org_user",
             "SET unmapped_fields=\"LOAD_ALL\"; FROM "
@@ -1542,7 +1538,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
     }
 
     public void testFLS_ExceptNestedLeaf_WithUnmappedFieldsLoadAll() throws Exception {
-        assumeUnmappedFieldsLoadAllDiscoverable();
+        assumeUnmappedFieldsLoadAll();
         Response resp = runESQLCommand(
             "fls_unmapped_load_all_except_ssn_user",
             "SET unmapped_fields=\"LOAD_ALL\"; FROM "
@@ -1570,7 +1566,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
     }
 
     public void testFLS_WildcardProjections_WithUnmappedFieldsLoadAll() throws Exception {
-        assumeUnmappedFieldsLoadAllDiscoverable();
+        assumeUnmappedFieldsLoadAll();
         String prefix = "SET unmapped_fields=\"LOAD_ALL\"; FROM " + INDEX_FOR_UNMAPPED_FIELDS_LOAD_ALL;
 
         // org* is inside the pattern, so the denied `org` has to be excluded by FLS rather than by the projection.
@@ -1604,7 +1600,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
     }
 
     public void testNetZeroProjection_OnUnmappedField_WithUnmappedFieldsLoadAll() throws Exception {
-        assumeUnmappedFieldsLoadAllDiscoverable();
+        assumeUnmappedFieldsLoadAll();
         Response resp = runESQLCommand(
             "fls_unmapped_load_all_except_org_user",
             // Wildcards keep the pattern non-NONE, so the synthetic column is still planned; every leaf is then filtered out,
@@ -1653,7 +1649,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
     }
 
     public void testFLS_And_DSL_WithUnmappedFieldsLoadAll() throws Exception {
-        assumeUnmappedFieldsLoadAllDiscoverable();
+        assumeUnmappedFieldsLoadAll();
         String query = "SET unmapped_fields=\"LOAD_ALL\"; FROM "
             + INDEX_PARTIAL_MAPPING
             + " | SORT value | LIMIT 10"
@@ -1669,7 +1665,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
     }
 
     public void testFLS_SourceDisabled_MultiIndex_WithUnmappedFieldsLoadAll() throws Exception {
-        assumeUnmappedFieldsLoadAllDiscoverable();
+        assumeUnmappedFieldsLoadAll();
         String query = "SET unmapped_fields=\"LOAD_ALL\"; FROM "
             + INDEX_FOR_UNMAPPED_FIELDS_LOAD_ALL
             + ", "
@@ -1711,7 +1707,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
     }
 
     public void testDLS_InlineStats_WithUnmappedFieldsLoadAll() throws Exception {
-        assumeUnmappedFieldsLoadAllDiscoverable();
+        assumeUnmappedFieldsLoadAll();
         assumeTrue(
             "Requires INLINE STATS under unmapped_fields=LOAD_ALL",
             hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_INLINE_STATS.capabilityName()))
@@ -1737,7 +1733,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
     }
 
     public void testLookupJoin_OnUnmappedKey_StillReturnsLeftSide_WithUnmappedFieldsLoadAll() throws Exception {
-        assumeUnmappedFieldsLoadAllDiscoverable();
+        assumeUnmappedFieldsLoadAll();
         Response resp = runESQLCommand(
             "fls_unmapped_load_all_lookup_join_user",
             "SET unmapped_fields=\"LOAD_ALL\"; FROM "
@@ -1880,7 +1876,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
     }
 
     public void testLookupJoin_UnmappedSourceField_NotReturned_WithUnmappedFieldsLoadAll() throws Exception {
-        assumeUnmappedFieldsLoadAllDiscoverable();
+        assumeUnmappedFieldsLoadAll();
         String query = "SET unmapped_fields=\"LOAD_ALL\"; FROM "
             + INDEX_FOR_UNMAPPED_FIELDS_LOAD_ALL
             + " | LOOKUP JOIN "

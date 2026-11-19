@@ -56,7 +56,7 @@ setup:
             index:
               mode: columnar
           mappings:
-            dynamic: false
+            dynamic: strict
             properties:
               text_field:
                 type: match_only_text

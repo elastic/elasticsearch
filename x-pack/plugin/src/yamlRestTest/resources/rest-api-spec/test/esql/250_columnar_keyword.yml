@@ -17,7 +17,7 @@ setup:
             index:
               mode: columnar
           mappings:
-            dynamic: false
+            dynamic: strict
             properties:
               keyword:
                 type: keyword

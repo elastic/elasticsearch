@@ -58,8 +58,9 @@ public class PromqlBuiltinFunctionDefinitions {
             + "instead.\n\n";
 
     private static final String SORT_DIVERGENCE =
-        "A call below the top level of the query, such as `abs(sort(x))`, isn't supported yet. {{prom}} applies the "
-            + "ordering there too. On a range query the ordering is discarded in both, but {{prom}} returns the series ordered by their "
+        "{applies_to}`stack: ga =9.6` A call below the top level of the query, such as `abs(sort(x))`, isn't supported yet. "
+            + "{{prom}} applies the ordering there too.\n\n"
+            + "On a range query the ordering is discarded in both, but {{prom}} returns the series ordered by their "
             + "labels, where {{es}} returns them in input order.";
 
     public static final PromqlFunctionDefinition TOPK = PromqlFunctionDefinition.def()

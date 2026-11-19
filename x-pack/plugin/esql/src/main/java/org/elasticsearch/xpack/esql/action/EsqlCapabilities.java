@@ -4397,6 +4397,12 @@ public class EsqlCapabilities {
         FIX_PROMQL_COUNT_VALUES_ABSENT_METRIC(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
+         * PromQL {@code sort} and {@code sort_desc} below the top level. They pass their input through, and the result keeps
+         * their order through steps that pass the values through unchanged.
+         */
+        PROMQL_SORT_BELOW_TOP_LEVEL(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
          * PromQL {@code topk}, {@code bottomk}, {@code limitk} and {@code limit_ratio} with {@code without(...)}: they partition
          * by every label of a series but the listed ones and the metric name. It takes the label container functions, so it is
          * on only where {@link #PROMQL_TIMESERIES_METADATA_FUNCTIONS} is.

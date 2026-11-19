@@ -174,6 +174,11 @@ tests:
   - :x-pack:plugin:ilm:qa:multi-node:javaRestTest
   method: testSearchableSnapshotAction
   issue: https://github.com/elastic/elasticsearch/issues/160700
+- class: org.elasticsearch.xpack.ml.integration.BasicDistributedJobsIT
+  tasks:
+  - :x-pack:plugin:ml:internalClusterTest
+  method: testFailOverBasics
+  issue: https://github.com/elastic/elasticsearch/issues/166576
 
 # Examples:
 #

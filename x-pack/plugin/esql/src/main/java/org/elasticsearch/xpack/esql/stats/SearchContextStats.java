@@ -448,7 +448,9 @@ public class SearchContextStats implements SearchStats {
         if (stat.singleValue == null) {
             // a missing field is trivially single-valued; otherwise every leaf must prove it
             stat.singleValue = stat.config.exists == false
-                || doWithFieldLeafReaders(fieldName, (fieldType, reader) -> isSingleValueLeaf(fieldType, reader, fieldName));
+                // Lucene only knows the concrete field, so read its metadata under the resolved name: an alias would find none and
+                // a missing skipper or points index is treated as "no values".
+                || doWithFieldLeafReaders(fieldName, (fieldType, reader) -> isSingleValueLeaf(fieldType, reader, fieldType.name()));
         }
         return stat.singleValue;
     }

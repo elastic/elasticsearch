@@ -236,6 +236,24 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
         assertThat(pushed, hasSize(1));
     }
 
+    /**
+     * The block loader rounds every value of a multivalued document, but {@code ROUND_TO} evaluates to {@code null} (and warns)
+     * for multivalued input. Pushing it down without proof that the field is single-valued would therefore change results, e.g.
+     * a {@code STATS ... BY BUCKET(mv_date, ...)} would put a single document into several buckets.
+     */
+    public void testRoundToNotPushedWhenFieldMayBeMultiValued() {
+        assumeTrue("ROUND_TO block loader must be enabled", EsqlCapabilities.Cap.ROUND_TO_BLOCK_LOADER.isEnabled());
+        PhysicalPlan plan = plannerOptimizer.plan("""
+            FROM test
+            | EVAL r = ROUND_TO(hire_date, "2023-01-01"::datetime, "2023-06-01"::datetime, "2024-01-01"::datetime)
+            | SORT emp_no
+            | LIMIT 10
+            | KEEP r
+            """, new EsqlTestUtils.TestSearchStats(true, true));
+
+        assertThat(findPushedFields(plan, "hire_date", BlockLoaderFunctionConfig.Function.ROUND_TO), hasSize(0));
+    }
+
     public void testRoundToInWhere() {
         assumeTrue("ROUND_TO block loader must be enabled", EsqlCapabilities.Cap.ROUND_TO_BLOCK_LOADER.isEnabled());
         PhysicalPlan plan = plannerOptimizer.plan("""

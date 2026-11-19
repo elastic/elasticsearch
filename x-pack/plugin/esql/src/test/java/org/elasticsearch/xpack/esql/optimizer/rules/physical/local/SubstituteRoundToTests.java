@@ -155,7 +155,9 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
     // The same date range, without the guarantee that the date is single valued.
     private static final SearchStats MULTI_VALUED_STATS = new EsqlTestUtils.TestSearchStatsWithMinMax(
         Map.of("date", 1697804103360L),
-        Map.of("date", 1698069301543L)
+        Map.of("date", 1698069301543L),
+        true,
+        true
     );
 
     // DateTrunc/Bucket is transformed to RoundTo first and then to QueryAndTags

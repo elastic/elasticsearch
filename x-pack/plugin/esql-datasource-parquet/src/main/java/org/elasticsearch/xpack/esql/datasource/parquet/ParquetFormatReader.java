@@ -4629,10 +4629,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             // response Warning, fail_fast fails the read (null sink from coercionWarnings()).
             DataType declared = info.esqlType();
             DataType fileType = info.fileEsqlType();
-            if (fileType != null
-                && declared != fileType
-                && DeclaredTypeCoercions.fusedInDecode(fileType, declared, info.dateFormatter() != null) == false
-                && DeclaredTypeCoercions.supports(fileType, declared)) {
+            if (DeclaredTypeCoercions.needsBlockCast(fileType, declared, info.dateFormatter() != null)) {
                 Block physical = readColumnBlock(cr, listReader, info.fileTyped(), rowsToRead, colIndex, null);
                 try {
                     return DeclaredTypeCoercions.castBlock(

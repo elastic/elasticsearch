@@ -679,7 +679,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             || ExceptionsHelper.unwrap(failure, NodeClosedException.class) != null;
     }
 
-    /** Whether the data nodes of this plan write the rows of an {@code INTO}, as opposed to only reading them. */
     static boolean writesInto(PhysicalPlan plan) {
         return plan.anyMatch(p -> p instanceof FragmentExec f && f.fragment().anyMatch(Into.class::isInstance));
     }
@@ -688,9 +687,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
      * Whether the walk should send this worker's splits to the next resolved worker. Pages already
      * fetched from this walk cannot be replayed, so a failure after the first page is terminal.
      */
-    static boolean shouldRerouteExternalWorker(Exception failure, long pagesFetched, boolean hasNextWorker) {
-        // TODO: INTO over FROM: do not reroute external workers whose writer has already sent a bulk
-        return hasNextWorker && pagesFetched == 0 && isRetryableExternalWorkerFailure(failure);
+    static boolean shouldRerouteExternalWorker(Exception failure, long pagesFetched, boolean hasNextWorker, boolean writesInto) {
+        return hasNextWorker && pagesFetched == 0 && writesInto == false && isRetryableExternalWorkerFailure(failure);
     }
 
     /**
@@ -937,7 +935,12 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             if (ended.get()) {
                 return false;
             }
-            if (shouldRerouteExternalWorker(e, pagesFetched.get(), nextWorker(workers, targetIndex, attempt + 1) != null) == false) {
+            if (shouldRerouteExternalWorker(
+                e,
+                pagesFetched.get(),
+                nextWorker(workers, targetIndex, attempt + 1) != null,
+                writesInto(dataNodePlan)
+            ) == false) {
                 return false;
             }
             if (claimedAttempt.get() != attempt) {

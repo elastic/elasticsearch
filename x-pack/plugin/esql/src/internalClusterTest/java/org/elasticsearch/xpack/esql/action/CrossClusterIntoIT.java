@@ -8,6 +8,10 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.plan.logical.Into;
+import org.junit.Before;
+
+import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
@@ -19,12 +23,25 @@ public class CrossClusterIntoIT extends AbstractCrossClusterTestCase {
         return false;
     }
 
-    /**
-     * A remote that is unavailable and can be skipped must still make INTO reject the query, rather than write only the
-     * local rows of a query that asked for more, and report success.
-     */
-    public void testUnavailableRemoteIsNotSilentlySkipped() throws Exception {
+    @Before
+    public void requiresSnapshot() {
         assumeTrue("INTO is only enabled in snapshot builds", EsqlCapabilities.Cap.INTO_COMMAND.isEnabled());
+    }
+
+    public void testRemoteSourceIsRejected() throws Exception {
+        setupClusters(2);
+        assertAcked(client(LOCAL_CLUSTER).admin().indices().prepareCreate("dest-into"));
+
+        for (String source : List.of("logs-*," + REMOTE_CLUSTER_1 + ":logs-*", REMOTE_CLUSTER_1 + ":logs-*")) {
+            VerificationException e = expectThrows(
+                VerificationException.class,
+                () -> runQuery("FROM " + source + " | KEEP v | INTO dest-into", null).close()
+            );
+            assertThat(e.getMessage(), containsString(Into.UNSUPPORTED_SOURCE));
+        }
+    }
+
+    public void testUnavailableRemoteIsNotSilentlySkipped() throws Exception {
         setupClusters(2);
         setSkipUnavailable(REMOTE_CLUSTER_1, true);
         assertAcked(client(LOCAL_CLUSTER).admin().indices().prepareCreate("dest-into"));
@@ -34,6 +51,6 @@ public class CrossClusterIntoIT extends AbstractCrossClusterTestCase {
             VerificationException.class,
             () -> runQuery("FROM logs-*," + REMOTE_CLUSTER_1 + ":logs-* | KEEP v | INTO dest-into", null).close()
         );
-        assertThat(e.getMessage(), containsString("INTO currently only supports ROW or local FROM as a source"));
+        assertThat(e.getMessage(), containsString(Into.UNSUPPORTED_SOURCE));
     }
 }

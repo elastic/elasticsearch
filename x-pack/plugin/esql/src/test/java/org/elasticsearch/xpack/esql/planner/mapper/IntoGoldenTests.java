@@ -15,7 +15,6 @@ import java.util.EnumSet;
 public class IntoGoldenTests extends GoldenTestCase {
     public void testFromInto() {
         assumeTrue("INTO is only enabled in snapshot builds", EsqlCapabilities.Cap.INTO_COMMAND.isEnabled());
-        // The node-reduce plan is where a second write would show up.
         builder("FROM employees | KEEP emp_no | INTO dst").stages(
             EnumSet.of(Stage.PHYSICAL_OPTIMIZATION, Stage.LOCAL_PHYSICAL_OPTIMIZATION, Stage.NODE_REDUCE)
         ).run();

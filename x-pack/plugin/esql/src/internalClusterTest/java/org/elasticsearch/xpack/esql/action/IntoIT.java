@@ -25,6 +25,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
@@ -154,12 +156,19 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
         assertReadBack("KEEP k, l | SORT k", List.of(List.of("false", 2L), List.of("true", 4L)));
     }
 
-    /**
-     * A shard failure must fail an INTO query even when partial results are allowed, since the rows of the other shards
-     * would otherwise be written while the query reports success. The failing shard has no {@code @timestamp}, so it
-     * is the first of the one batch at a time on its node, and no row of the other shard may be written after it.
-     */
+    public void testManyRowsFromManyShardsAreAllWritten() {
+        String wide = "x".repeat(4096);
+        assertAcked(indicesAdmin().prepareCreate(SOURCE).setSettings(indexSettings(5, 0)).setMapping(MAPPING));
+        indexRandom(
+            true,
+            IntStream.range(0, 2000).mapToObj(i -> client().prepareIndex(SOURCE).setSource("k", wide + i)).collect(Collectors.toList())
+        );
+        assertInto("FROM " + SOURCE + " | KEEP k", 2000);
+        assertReadBack("STATS c = COUNT(*), d = COUNT_DISTINCT(k)", List.of(List.of(2000L, 2000L)));
+    }
+
     public void testFromShardFailureFailsEvenWithPartialResults() {
+        // The failing index has no @timestamp, so it sorts first on its node and no row may be written after it
         String node = clusterService().state().nodes().getDataNodes().values().iterator().next().getName();
         Settings.Builder onNode = indexSettings(1, 0).put("index.routing.allocation.require._name", node);
         assertAcked(indicesAdmin().prepareCreate(FAILING_SOURCE).setSettings(onNode).setMapping("""
@@ -182,12 +191,8 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
         assertReadBack(List.of());
     }
 
-    /**
-     * A shard copy that fails after its writer has sent a bulk must fail the query. Retrying the shard on another copy
-     * would write the rows of the first attempt again. The destination's strict mapping refuses {@code extra}, so
-     * the bulk writes {@code a} and fails on {@code b}.
-     */
     public void testShardFailureAfterBulkIsNotRetried() {
+        // The destination's strict mapping refuses "extra", so the bulk writes "a" and fails on "b"
         assertAcked(indicesAdmin().prepareCreate(RETRY_SOURCE).setSettings(indexSettings(1, 1)).setMapping("""
             { "properties": { "k": { "type": "keyword" }, "extra": { "type": "keyword" } } }
             """));

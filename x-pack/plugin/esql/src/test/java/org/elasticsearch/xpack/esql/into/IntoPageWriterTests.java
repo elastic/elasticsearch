@@ -134,6 +134,31 @@ public class IntoPageWriterTests extends ComputeTestCase {
         assertThat(driverContext.breaker().getUsed(), equalTo(0L));
     }
 
+    public void testInFlightBudgetIsSharedAcrossWriters() {
+        IsBlockedResult blocked = fillTheSharedBudget().isBlocked();
+        assertFalse("a writer with nothing in flight waits for the others", blocked.listener().isDone());
+
+        client.answer(CREATED);
+        assertTrue(blocked.listener().isDone());
+    }
+
+    public void testFailedBulkReleasesTheSharedBudget() {
+        IntoPageWriter idle = fillTheSharedBudget();
+        IsBlockedResult blocked = idle.isBlocked();
+
+        client.fail(new EsRejectedExecutionException("rejected"));
+        assertTrue(blocked.listener().isDone());
+        assertThat(idle.isBlocked(), equalTo(Operator.NOT_BLOCKED));
+    }
+
+    public void testFinishedWriterIsNotBlockedByTheSharedBudget() {
+        IntoPageWriter idle = fillTheSharedBudget();
+
+        idle.finish();
+        assertThat(idle.isBlocked(), equalTo(Operator.NOT_BLOCKED));
+        assertTrue(idle.isFinished());
+    }
+
     public void testSourceBytesChargedUntilBulkSettles() {
         writer.consume(page("h1", "h2"));
         long sourceBytes = client.bulks.getFirst()
@@ -254,7 +279,6 @@ public class IntoPageWriterTests extends ComputeTestCase {
         assertFalse(driverContext.hasPendingAsyncActions());
     }
 
-    /** DataNodeRequestSender would take a missing destination for a missing source shard, and retry the source shard. */
     public void testDestinationNotFoundIsNotMistakenForMissingSourceShard() {
         writer.consume(page("h1"));
         client.fail(new IndexNotFoundException("dst"));
@@ -279,6 +303,23 @@ public class IntoPageWriterTests extends ComputeTestCase {
             }
             return new Page(host.build(), blockFactory.newConstantLongBlockWith(0L, hosts.length));
         }
+    }
+
+    /** Fills writers up to their own limit until the budget they share is full, and returns a writer with nothing in flight. */
+    private IntoPageWriter fillTheSharedBudget() {
+        IntoPageWriter next = newWriter();
+        for (int writers = 0; writers < 10 && next.isBlocked().listener().isDone(); writers++) {
+            for (int i = 0; i < 3; i++) {
+                next.consume(widePage());
+            }
+            next = newWriter();
+        }
+        assertFalse("the budget is shared, so a few writers fill it", next.isBlocked().listener().isDone());
+        return next;
+    }
+
+    private IntoPageWriter newWriter() {
+        return sink.create(new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blockFactory, null));
     }
 
     private Page widePage() {

@@ -44,18 +44,19 @@ import java.util.function.Supplier;
 
 /**
  * Streams an {@code INTO} query's pages to its destination as bulk {@code create} requests. At most
- * {@link #MAX_IN_FLIGHT_BYTES} of source bytes wait for an acknowledgement per driver, and each row's source is
- * reserved on the request circuit breaker until that bulk settles. The caller's {@link ThreadContext} is restored
+ * {@link #MAX_IN_FLIGHT_BYTES} of source bytes wait for an acknowledgement per driver, and {@link #MAX_SHARED_IN_FLIGHT_BYTES}
+ * across the drivers of one run on a node. Each row's source is reserved on the request circuit breaker until that bulk settles. The caller's {@link ThreadContext} is restored
  * around each request.
  */
 public final class IntoPageWriter {
     // visible for testing
-    // TODO: INTO over FROM: share a per-node or per-query in-flight byte budget across drivers
     static final long MAX_IN_FLIGHT_BYTES = 3L * Operator.TARGET_PAGE_SIZE;
+    // Enough for four drivers to run at their own limit; more drivers on a node wait for each other
+    static final long MAX_SHARED_IN_FLIGHT_BYTES = 4L * MAX_IN_FLIGHT_BYTES;
 
     private static final String BREAKER_LABEL = "into";
 
-    /** Holds the per-node configuration and failure state shared across drivers on one node for one {@code INTO} run. */
+    /** Holds the per-node configuration, failure state and in-flight budget shared across drivers on one node for one {@code INTO} run. */
     public static final class Factory {
         private final Client client;
         private final Supplier<ThreadContext.StoredContext> caller;
@@ -64,6 +65,7 @@ public final class IntoPageWriter {
         private final List<DataType> types;
         private final Indexing indexing;
         private final AtomicReference<Exception> failure = new AtomicReference<>();
+        private final InFlightBudget budget = new InFlightBudget(MAX_SHARED_IN_FLIGHT_BYTES);
 
         public enum Indexing {
             /** Sends incoming pages to the destination as bulk requests. */
@@ -182,6 +184,7 @@ public final class IntoPageWriter {
         synchronized (this) {
             inFlightBytes += bytes;
         }
+        sink.budget.add(bytes);
         driverContext.addAsyncAction();
         ActionListener<BulkResponse> listener = ActionListener.runAfter(
             ActionListener.wrap(this::onBulkResponse, e -> recordFailure(e, ExceptionsHelper.status(e))),
@@ -204,11 +207,8 @@ public final class IntoPageWriter {
         created.addAndGet(response.getItems().length);
     }
 
-    /**
-     * Wraps the failure so that a missing destination is not taken for a missing shard of the source, which
-     * {@code DataNodeRequestSender} would retry.
-     */
     private void recordFailure(Exception cause, RestStatus status) {
+        // Wrapped so DataNodeRequestSender does not mistake a destination error for a missing source shard
         sink.failure.compareAndSet(
             null,
             new ElasticsearchStatusException("INTO [{}] failed: {}", status, cause, sink.destination, cause.getMessage())
@@ -222,6 +222,7 @@ public final class IntoPageWriter {
         release(bytes);
         driverContext.removeAsyncAction();
         wake(() -> inFlightBytes -= bytes);
+        sink.budget.release(bytes);
     }
 
     private void release(long bytes) {
@@ -247,13 +248,15 @@ public final class IntoPageWriter {
     }
 
     public synchronized IsBlockedResult isBlocked() {
-        if (mayContinue()) {
-            return Operator.NOT_BLOCKED;
+        if (mayContinue() == false) {
+            if (waiting == null) {
+                waiting = new SubscribableListener<>();
+            }
+            return new IsBlockedResult(waiting, "INTO " + sink.destination);
         }
-        if (waiting == null) {
-            waiting = new SubscribableListener<>();
-        }
-        return new IsBlockedResult(waiting, "INTO " + sink.destination);
+        // A finished writer only waits for its own bulks, which are already counted in the budget
+        SubscribableListener<Void> room = finished ? null : sink.budget.awaitRoom();
+        return room == null ? Operator.NOT_BLOCKED : new IsBlockedResult(room, "INTO " + sink.destination);
     }
 
     // Blocking until inFlightBytes == 0 once finished to prevent a parked driver from spinning while bulks settle.

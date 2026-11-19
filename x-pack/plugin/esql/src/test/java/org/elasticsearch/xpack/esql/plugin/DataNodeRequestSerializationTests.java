@@ -287,9 +287,6 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
         assertThat(after, equalTo(before));
     }
 
-    /**
-     * The data-node plan of a FROM ... | INTO query is serialized to the data nodes, and must still plan locally there.
-     */
     public void testIntoDataNodePlanRoundTripsAndPlansLocally() throws IOException {
         assumeTrue("INTO is only enabled in snapshot builds", EsqlCapabilities.Cap.INTO_COMMAND.isEnabled());
 
@@ -312,9 +309,9 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
             dataNodePlan,
             new String[] { "test" },
             IndicesOptions.STRICT_EXPAND_OPEN,
-            /* runNodeLevelReduction */ true,
-            /* reductionLateMaterialization */ true,
-            /* singleNodeOptimizations */ false
+            true, // runNodeLevelReduction
+            true, // reductionLateMaterialization
+            false // singleNodeOptimizations
         );
         DataNodeRequest received = copyInstance(request, TransportVersion.current());
 
@@ -342,7 +339,6 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
         assertThat(intoExecs.getFirst().mode(), equalTo(IntoExec.Mode.WRITE));
     }
 
-    /** ROW ... | INTO never leaves the coordinator, so even the oldest node gets no data-node plan. */
     public void testRowIntoProducesNoDataNodePlanEvenAtOldestVersion() {
         assumeTrue("INTO is only enabled in snapshot builds", EsqlCapabilities.Cap.INTO_COMMAND.isEnabled());
 

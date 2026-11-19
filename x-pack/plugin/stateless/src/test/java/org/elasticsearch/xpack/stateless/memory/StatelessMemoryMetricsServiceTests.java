@@ -1274,6 +1274,34 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         assertThat(legacyDeadline, equalTo(validityNanos));
     }
 
+    public void testWinningDeadlineIsKeptWhenThatSourceIsPublishedSecond() {
+        final long validityNanos = StatelessMemoryMetricsService.DEFAULT_INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY.nanos();
+        final AtomicLong now = new AtomicLong(0L);
+        final StatelessMemoryMetricsService timed = new StatelessMemoryMetricsService(now::get, clusterService);
+        timed.updateIndexingOperationsHeapMemoryRequirements(1_000L);
+        final long earlierDeadline = timed.getValidIndexingOperationsHeapMemoryRequirements().validUntil();
+        now.set(1_000L);
+        timed.updateLargestIndexingOperationSize(10_000L);
+        final var winner = timed.getValidIndexingOperationsHeapMemoryRequirements();
+        assertNotNull(winner);
+        assertThat(winner.minimumRequiredHeapInBytes(), equalTo(100_000L));
+        assertThat(winner.validUntil(), equalTo(now.get() + validityNanos));
+        assertThat(winner.validUntil(), greaterThan(earlierDeadline));
+    }
+
+    public void testEqualHeapsKeepTheLaterDeadline() {
+        final long validityNanos = StatelessMemoryMetricsService.DEFAULT_INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY.nanos();
+        final AtomicLong now = new AtomicLong(0L);
+        final StatelessMemoryMetricsService timed = new StatelessMemoryMetricsService(now::get, clusterService);
+        timed.updateLargestIndexingOperationSize(1_000L);
+        now.set(5_000L);
+        timed.updateIndexingOperationsHeapMemoryRequirements(10_000L);
+        final var merged = timed.getValidIndexingOperationsHeapMemoryRequirements();
+        assertNotNull(merged);
+        assertThat(merged.minimumRequiredHeapInBytes(), equalTo(10_000L));
+        assertThat(merged.validUntil(), equalTo(now.get() + validityNanos));
+    }
+
     public void testRepublishingTheSameOperationExtendsItsExpiry() {
         final long validityNanos = StatelessMemoryMetricsService.DEFAULT_INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY.nanos();
         final AtomicLong now = new AtomicLong(0L);

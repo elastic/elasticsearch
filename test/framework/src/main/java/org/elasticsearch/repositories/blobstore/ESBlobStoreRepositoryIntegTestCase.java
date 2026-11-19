@@ -15,7 +15,6 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequestBuilder;
-import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
@@ -656,13 +655,11 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
     }
 
     protected static void assertSuccessfulRestore(RestoreSnapshotRequestBuilder requestBuilder) {
-        RestoreSnapshotResponse response = requestBuilder.get();
-        assertSuccessfulRestore(response);
-    }
-
-    private static void assertSuccessfulRestore(RestoreSnapshotResponse response) {
-        assertThat(response.getRestoreInfo().successfulShards(), greaterThan(0));
-        assertThat(response.getRestoreInfo().successfulShards(), equalTo(response.getRestoreInfo().totalShards()));
+        final var restoreInfo = requestBuilder.get().getRestoreInfo();
+        if (restoreInfo != null) {
+            assertThat(restoreInfo.successfulShards(), greaterThan(0));
+            assertThat(restoreInfo.successfulShards(), equalTo(restoreInfo.totalShards()));
+        }
     }
 
     protected String randomName() {

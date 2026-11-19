@@ -78,7 +78,18 @@ public class TransportRestoreSnapshotAction extends TransportMasterNodeAction<Re
         restoreService.restoreSnapshot(
             projectResolver.getProjectId(),
             request,
-            listener.map(restoreCompletionResponse -> new RestoreSnapshotResponse(restoreCompletionResponse.restoreInfo()))
+            listener.delegateFailure((delegatedListener, restoreCompletionResponse) -> {
+                if (restoreCompletionResponse.restoreInfo() == null && request.waitForCompletion()) {
+                    RestoreClusterStateListener.createAndRegisterListener(
+                        clusterService,
+                        restoreCompletionResponse,
+                        delegatedListener,
+                        threadPool.getThreadContext()
+                    );
+                } else {
+                    delegatedListener.onResponse(new RestoreSnapshotResponse(restoreCompletionResponse.restoreInfo()));
+                }
+            })
         );
     }
 }

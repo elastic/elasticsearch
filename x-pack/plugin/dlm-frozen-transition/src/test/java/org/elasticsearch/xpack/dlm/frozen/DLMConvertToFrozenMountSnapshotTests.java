@@ -176,7 +176,7 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
         assertThat(req.storage(), equalTo(MountSearchableSnapshotRequest.Storage.SHARED_CACHE));
     }
 
-    public void testThrowsWhenRestoreInfoIsNull() {
+    public void testAcceptsMountResponseWithoutRestoreInfo() throws InterruptedException {
         createProjectState();
         mockMountResponse.set(new RestoreSnapshotResponse((RestoreInfo) null));
 
@@ -189,11 +189,9 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
             Clock.systemUTC()
         );
 
-        ElasticsearchException exception = expectThrows(
-            ElasticsearchException.class,
-            () -> convert.maybeMountSearchableSnapshot(indexName)
-        );
-        assertThat(exception.getMessage(), containsString("restore info was missing"));
+        convert.maybeMountSearchableSnapshot(indexName);
+
+        assertNotNull(capturedMountRequest.get());
     }
 
     public void testThrowsWhenMountHasFailedShards() {

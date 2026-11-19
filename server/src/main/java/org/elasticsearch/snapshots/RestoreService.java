@@ -19,7 +19,6 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
-import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.RestoreInProgress;
@@ -67,7 +66,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
@@ -89,7 +87,6 @@ import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.recovery.RecoveryFeatures;
-import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.plugins.internal.RestoreLifecycleListener;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -304,20 +301,6 @@ public final class RestoreService implements ClusterStateApplier {
     }
 
     /**
-     * As {@link #restoreSnapshot(ProjectId, RestoreSnapshotRequest, ActionListener, BiConsumer)}, but also runs {@code onStarted} once
-     * the restore's cluster state update is processed. Lets a caller that waits for completion act when the restore starts.
-     */
-    public void restoreSnapshotAndNotifyStart(
-        final ProjectId projectId,
-        final RestoreSnapshotRequest request,
-        final Runnable onStarted,
-        final ActionListener<RestoreCompletionResponse> listener,
-        final BiConsumer<ClusterState, ProjectMetadata.Builder> updater
-    ) {
-        restoreSnapshot(projectId, request, UUIDs.randomBase64UUID(), false, onStarted, listener, updater);
-    }
-
-    /**
      * Restores a snapshot using a caller-supplied restore UUID so the caller can correlate the restore
      * with an external record (e.g. a persistent task). A UUID matching an existing
      * {@link RestoreInProgress} entry is treated as an idempotent retry and applies nothing.
@@ -357,18 +340,6 @@ public final class RestoreService implements ClusterStateApplier {
         final RestoreSnapshotRequest request,
         final String restoreUUID,
         final boolean reportShardRestoring,
-        final ActionListener<RestoreCompletionResponse> listener,
-        final BiConsumer<ClusterState, ProjectMetadata.Builder> updater
-    ) {
-        restoreSnapshot(projectId, request, restoreUUID, reportShardRestoring, () -> {}, listener, updater);
-    }
-
-    private void restoreSnapshot(
-        final ProjectId projectId,
-        final RestoreSnapshotRequest request,
-        final String restoreUUID,
-        final boolean reportShardRestoring,
-        final Runnable onStarted,
         final ActionListener<RestoreCompletionResponse> listener,
         final BiConsumer<ClusterState, ProjectMetadata.Builder> updater
     ) {
@@ -446,7 +417,6 @@ public final class RestoreService implements ClusterStateApplier {
                     restoreUUID,
                     updater,
                     reportShardRestoring,
-                    onStarted,
                     responseListener
                 )
             )
@@ -477,8 +447,7 @@ public final class RestoreService implements ClusterStateApplier {
      *                       as the restore operation
      * @param reportShardRestoring whether requests that hit a shard of this restore should fail with {@link ShardRestoringException};
      *                             see {@link RestoreInProgress.Entry#reportShardRestoring()}
-     * @param onStarted      runs once the restore's cluster state update is processed
-     * @param listener       listener to resolve once the restore has started, or has completed if the request waits for completion
+     * @param listener       listener to resolve once restore has been started
      * @throws IOException   on failure to load metadata from the repository
      */
     private void startRestore(
@@ -489,7 +458,6 @@ public final class RestoreService implements ClusterStateApplier {
         String restoreUUID,
         BiConsumer<ClusterState, ProjectMetadata.Builder> updater,
         boolean reportShardRestoring,
-        Runnable onStarted,
         ActionListener<RestoreCompletionResponse> listener
     ) throws IOException {
         assert Repository.assertSnapshotMetaThread();
@@ -728,7 +696,6 @@ public final class RestoreService implements ClusterStateApplier {
         submitUnbatchedTask(
             "restore_snapshot[" + snapshotId.getName() + ']',
             new RestoreSnapshotStateTask(
-                onStarted,
                 listener,
                 request,
                 snapshot,
@@ -860,7 +827,6 @@ public final class RestoreService implements ClusterStateApplier {
         submitUnbatchedTask(
             "restore_snapshot_over_open_index[" + restoreUUID + "]",
             new RestoreSnapshotStateTask(
-                () -> {},
                 listener,
                 request,
                 snapshot,
@@ -1042,7 +1008,6 @@ public final class RestoreService implements ClusterStateApplier {
         submitUnbatchedTask(
             "restore_snapshot_over_existing_data_stream[" + restoreUUID + "]",
             new RestoreSnapshotStateTask(
-                () -> {},
                 listener,
                 request,
                 snapshot,
@@ -1464,8 +1429,9 @@ public final class RestoreService implements ClusterStateApplier {
     }
 
     /**
-     * Result of {@link #restoreSnapshot}. {@code restoreInfo} is the final result if the request waits for completion, null if this node
-     * missed the completion after a master change, and otherwise non-null only when there was nothing to restore.
+     * Result of starting a restore.
+     *
+     * @param restoreInfo the outcome if all shard statuses were final at initialization, or {@code null} if shard results were pending
      */
     public record RestoreCompletionResponse(String uuid, Snapshot snapshot, @Nullable RestoreInfo restoreInfo) {}
 
@@ -2262,7 +2228,6 @@ public final class RestoreService implements ClusterStateApplier {
 
         private final BiConsumer<ClusterState, ProjectMetadata.Builder> updater;
 
-        private final Runnable onStarted;
         private final AllocationActionListener<RestoreCompletionResponse> listener;
         private final Settings settings;
 
@@ -2270,7 +2235,6 @@ public final class RestoreService implements ClusterStateApplier {
         private RestoreInfo restoreInfo;
 
         RestoreSnapshotStateTask(
-            Runnable onStarted,
             ActionListener<RestoreCompletionResponse> listener,
             RestoreSnapshotRequest request,
             Snapshot snapshot,
@@ -2296,7 +2260,6 @@ public final class RestoreService implements ClusterStateApplier {
             this.dataStreamsToRestore = dataStreamsToRestore;
             this.updater = updater;
             this.settings = settings;
-            this.onStarted = onStarted;
             this.listener = new AllocationActionListener<>(listener, threadPool.getThreadContext());
             this.restoreUUID = restoreUUID;
             this.reportShardRestoring = reportShardRestoring;
@@ -2807,76 +2770,7 @@ public final class RestoreService implements ClusterStateApplier {
                 snapshot,
                 snapshotInfo.indices()
             );
-            if (restoreInfo != null || request.waitForCompletion() == false) {
-                listener.clusterStateUpdate().onResponse(new RestoreCompletionResponse(restoreUUID, snapshot, restoreInfo));
-            } else {
-                // Start waiting while the entry is in the applied state, so the restore cannot complete and be removed unobserved.
-                ActionListener.run(
-                    listener.clusterStateUpdate().<RestoreInfo>map(info -> new RestoreCompletionResponse(restoreUUID, snapshot, info)),
-                    l -> waitForRestoreCompletion(restoreUUID, snapshot, l)
-                );
-            }
-            onStarted.run();
-        }
-    }
-
-    /**
-     * Completes {@code listener} with the restore's {@link RestoreInfo} once its entry has completed and been removed. Completes it with
-     * null if this node misses the completed entry, which can happen after a master change.
-     */
-    private void waitForRestoreCompletion(String restoreUUID, Snapshot snapshot, ActionListener<RestoreInfo> listener) {
-        final ThreadContext threadContext = threadPool.getThreadContext();
-        final DiscoveryNode localNode = clusterService.localNode();
-        ClusterStateObserver.waitForState(clusterService, threadContext, new RestoreCompletionObserver(listener, localNode) {
-            @Override
-            public void onNewClusterState(ClusterState state) {
-                final var restoreState = restoreInProgress(state, restoreUUID);
-                if (restoreState == null) {
-                    listener.onResponse(null);
-                    return;
-                }
-                final Map<ShardId, RestoreInProgress.ShardRestoreStatus> shards = restoreState.shards();
-                assert restoreState.state().completed() : "expected completed restore state but was " + restoreState.state();
-                assert completed(shards) : "expected all restore entries to be completed";
-                final var completedInfo = new RestoreInfo(
-                    restoreState.snapshot().getSnapshotId().getName(),
-                    restoreState.indices(),
-                    shards.size(),
-                    shards.size() - failedShards(shards)
-                );
-                ClusterStateObserver.waitForState(clusterService, threadContext, new RestoreCompletionObserver(listener, localNode) {
-                    @Override
-                    public void onNewClusterState(ClusterState state) {
-                        logger.debug("restore of [{}] completed", snapshot);
-                        listener.onResponse(completedInfo);
-                    }
-                }, clusterState -> restoreInProgress(clusterState, restoreUUID) == null, null, logger);
-            }
-        }, clusterState -> {
-            final var restoreState = restoreInProgress(clusterState, restoreUUID);
-            return restoreState == null || completed(restoreState.shards());
-        }, null, logger);
-    }
-
-    private abstract static class RestoreCompletionObserver implements ClusterStateObserver.Listener {
-
-        protected final ActionListener<RestoreInfo> listener;
-
-        private final DiscoveryNode localNode;
-
-        RestoreCompletionObserver(ActionListener<RestoreInfo> listener, DiscoveryNode localNode) {
-            this.listener = listener;
-            this.localNode = localNode;
-        }
-
-        @Override
-        public void onClusterServiceClose() {
-            listener.onFailure(new NodeClosedException(localNode));
-        }
-
-        @Override
-        public void onTimeout(TimeValue timeout) {
-            assert false : "impossible, no timeout set";
+            listener.clusterStateUpdate().onResponse(new RestoreCompletionResponse(restoreUUID, snapshot, restoreInfo));
         }
     }
 

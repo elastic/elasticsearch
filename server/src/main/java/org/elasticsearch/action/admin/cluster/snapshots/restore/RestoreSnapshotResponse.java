@@ -44,10 +44,10 @@ public class RestoreSnapshotResponse extends ActionResponse implements ToXConten
     }
 
     /**
-     * Returns restore information if snapshot was completed before this method returned, null otherwise
-     *
-     * @return restore information or null
+     * Returns the restore outcome when available. If the request waits for completion, {@code null} means
+     * the restore is no longer running and its outcome is unknown.
      */
+    @Nullable
     public RestoreInfo getRestoreInfo() {
         return restoreInfo;
     }

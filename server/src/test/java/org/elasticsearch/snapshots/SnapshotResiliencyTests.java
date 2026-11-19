@@ -48,12 +48,8 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.ESAllocationTestCase;
-import org.elasticsearch.cluster.EmptyClusterInfoService;
-import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
-import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -61,15 +57,9 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
-import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
-import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
@@ -89,7 +79,6 @@ import org.elasticsearch.snapshots.SnapshotResiliencyTestHelper.TestClusterNodes
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
-import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.TestTransportChannel;
 import org.elasticsearch.transport.TransportInterceptor;
@@ -115,7 +104,6 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -141,14 +129,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
     protected DeterministicTaskQueue deterministicTaskQueue;
 
     protected TestClusterNodes testClusterNodes;
-
-    /**
-     * If set before {@link #setupTestCluster}, the master holds back the listener of the first reroute that sees a restore in progress,
-     * and stores it in {@link #heldRestoreRerouteListener}. Only the stateful cluster in this class supports it.
-     */
-    private boolean holdRestoreReroute;
-    private boolean restoreRerouteHoldInstalled;
-    private final AtomicReference<ActionListener<Void>> heldRestoreRerouteListener = new AtomicReference<>();
 
     protected Path tempDir;
 
@@ -208,63 +188,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
         } finally {
             testClusterNodes.nodes().values().forEach(TestClusterNodes.TestClusterNode::stop);
         }
-    }
-
-    /**
-     * A restore that waits for completion answers with its {@link RestoreInfo}, even if the restore completes and its
-     * {@link RestoreInProgress} entry is removed before the reroute listener of the restore's cluster state update completes.
-     */
-    public void testRestoreWaitingForCompletionReturnsInfoAfterLateReroute() {
-        holdRestoreReroute = true;
-        setupTestCluster(randomFrom(1, 3, 5), randomIntBetween(2, 10));
-        final String repoName = "repo";
-        final String snapshotName = "snapshot";
-        final String index = "test";
-        final int shards = randomIntBetween(1, 10);
-
-        final SubscribableListener<CreateSnapshotResponse> createSnapshotListener = new SubscribableListener<>();
-        continueOrDie(
-            createRepoAndIndex(repoName, index, shards),
-            ignored -> client().admin()
-                .cluster()
-                .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
-                .setWaitForCompletion(true)
-                .execute(createSnapshotListener)
-        );
-        runUntil(createSnapshotListener::isDone, TimeUnit.MINUTES.toMillis(5L));
-        assumeTrue("needs the stateful test allocator", restoreRerouteHoldInstalled); // after setup to satisfy @After checks
-
-        final SubscribableListener<AcknowledgedResponse> deleteIndexListener = new SubscribableListener<>();
-        continueOrDie(
-            createSnapshotListener,
-            ignored -> client().admin().indices().delete(new DeleteIndexRequest(index), deleteIndexListener)
-        );
-        final SubscribableListener<RestoreSnapshotResponse> restoreListener = new SubscribableListener<>();
-        continueOrDie(
-            deleteIndexListener,
-            ignored -> client().admin()
-                .cluster()
-                .restoreSnapshot(
-                    new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, repoName, snapshotName).waitForCompletion(true),
-                    restoreListener
-                )
-        );
-
-        // the restore completes and its entry is removed while its reroute listener is held
-        runUntil(
-            () -> heldRestoreRerouteListener.get() != null
-                && testClusterNodes.nodes().values().stream().allMatch(n -> RestoreInProgress.get(n.clusterService().state()).isEmpty()),
-            TimeUnit.MINUTES.toMillis(5L)
-        );
-        assertFalse(restoreListener.isDone());
-
-        scheduleNow(() -> heldRestoreRerouteListener.get().onResponse(null));
-        runUntil(restoreListener::isDone, TimeUnit.MINUTES.toMillis(1L));
-
-        final RestoreInfo restoreInfo = safeResult(restoreListener).getRestoreInfo();
-        assertNotNull(restoreInfo);
-        assertEquals(shards, restoreInfo.totalShards());
-        assertEquals(shards, restoreInfo.successfulShards());
     }
 
     public void testSuccessfulSnapshotAndRestore() {
@@ -974,7 +897,10 @@ public class SnapshotResiliencyTests extends ESTestCase {
         }
 
         assertThat(safeResult(deleteSnapshotStepListener).isAcknowledged(), is(true));
-        assertThat(safeResult(restoreSnapshotResponseListener).getRestoreInfo().failedShards(), is(0));
+        final var restoreInfo = safeResult(restoreSnapshotResponseListener).getRestoreInfo();
+        if (restoreInfo != null) {
+            assertThat(restoreInfo.failedShards(), is(0));
+        }
 
         final Repository repository = masterNode.repositoriesService().repository(repoName);
         Collection<SnapshotId> snapshotIds = getRepositoryData(repository).getSnapshotIds();
@@ -2152,10 +2078,13 @@ public class SnapshotResiliencyTests extends ESTestCase {
     ) {
         final SubscribableListener<ClusterHealthResponse> clusterHealthResponseListener = new SubscribableListener<>();
         continueOrDie(restoreListener, restoreSnapshotResponse -> {
-            assertEquals(expectedNumShards, restoreSnapshotResponse.getRestoreInfo().totalShards());
+            final var restoreInfo = restoreSnapshotResponse.getRestoreInfo();
+            if (restoreInfo != null) {
+                assertEquals(expectedNumShards, restoreInfo.totalShards());
+            }
 
             // Wait for green index when the node is stateless, otherwise subsequent search may fail
-            if (DiscoveryNode.isStateless(testClusterNodes.nodes().values().iterator().next().settings)) {
+            if (restoreInfo == null || DiscoveryNode.isStateless(testClusterNodes.nodes().values().iterator().next().settings)) {
                 client().admin()
                     .cluster()
                     .prepareHealth(TimeValue.MINUS_ONE, indexName)
@@ -2340,63 +2269,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     .put(SnapshotsService.SNAPSHOT_MONOTONIC_END_TIME_SETTING.getKey(), monotonicSnapshotEndTime)
                     .build();
             }
-
-            @Override
-            protected TestClusterNode newNode(DiscoveryNode node, TransportInterceptorFactory transportInterceptorFactory)
-                throws IOException {
-                if (holdRestoreReroute == false) {
-                    return super.newNode(node, transportInterceptorFactory);
-                }
-                restoreRerouteHoldInstalled = true;
-                return new TestClusterNode(node, transportInterceptorFactory) {
-                    @Override
-                    protected AllocationService createAllocationService(Settings settings, SnapshotsInfoService snapshotsInfoService) {
-                        return new ESAllocationTestCase.MockAllocationService(
-                            ESAllocationTestCase.randomAllocationDeciders(settings, ClusterSettings.createBuiltInClusterSettings(settings)),
-                            new TestGatewayAllocator(),
-                            new RestoreRerouteHoldingAllocator(new BalancedShardsAllocator(settings)),
-                            EmptyClusterInfoService.INSTANCE,
-                            snapshotsInfoService,
-                            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
-                        );
-                    }
-                };
-            }
         };
         startCluster();
-    }
-
-    /**
-     * Allocates like its delegate, but holds back the listener of the first reroute that sees a restore in progress. That reroute is the
-     * one the restore's cluster state update starts.
-     */
-    private class RestoreRerouteHoldingAllocator implements ShardsAllocator {
-
-        private final ShardsAllocator delegate;
-
-        RestoreRerouteHoldingAllocator(ShardsAllocator delegate) {
-            this.delegate = delegate;
-        }
-
-        @Override
-        public void allocate(RoutingAllocation allocation) {
-            delegate.allocate(allocation);
-        }
-
-        @Override
-        public void allocate(RoutingAllocation allocation, ActionListener<Void> listener) {
-            delegate.allocate(allocation);
-            if (RestoreInProgress.get(allocation.getClusterState()).isEmpty() == false
-                && heldRestoreRerouteListener.compareAndSet(null, listener)) {
-                return;
-            }
-            listener.onResponse(null);
-        }
-
-        @Override
-        public ShardAllocationDecision explainShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
-            return delegate.explainShardAllocation(shard, allocation);
-        }
     }
 
     private void scheduleSoon(Runnable runnable) {

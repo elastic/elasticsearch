@@ -1,5 +1,5 @@
 area: Snapshot/Restore
 issues: []
 pr: 166418
-summary: Fix null `RestoreInfo` from restores that wait for completion
+summary: Continue data stream lifecycle transitions when a snapshot mount response omits shard counts
 type: bug

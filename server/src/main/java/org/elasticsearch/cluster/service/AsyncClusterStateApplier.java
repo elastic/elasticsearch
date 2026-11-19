@@ -106,6 +106,13 @@ public class AsyncClusterStateApplier implements ClusterStateApplier {
 
     private final AbstractRunnable applierRunnable = new AbstractRunnable() {
         @Override
+        public void onRejection(Exception e) {
+            // must not reject this work!
+            logger.error("unexpected rejection applying cluster state to indices", e);
+            assert false : e;
+        }
+
+        @Override
         public void onFailure(Exception e) {
             logger.error("unexpected exception applying cluster state to indices", e);
             assert false : e;

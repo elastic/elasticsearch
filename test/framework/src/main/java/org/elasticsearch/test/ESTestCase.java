@@ -3149,8 +3149,16 @@ public abstract class ESTestCase extends LuceneTestCase {
      * available, preserving the thread's interrupt status flag and asserting that an element was indeed available before the timeout.
      */
     public static <T> T safePoll(BlockingQueue<T> queue) {
+        return safePoll(queue, SAFE_AWAIT_TIMEOUT);
+    }
+
+    /**
+     * Retrieve and remove the head of the given {@link BlockingQueue}, waiting up to the given timeout for an element to become
+     * available, preserving the thread's interrupt status flag and asserting that an element was indeed available before the timeout.
+     */
+    public static <T> T safePoll(BlockingQueue<T> queue, TimeValue timeout) {
         try {
-            final var element = queue.poll(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+            final var element = queue.poll(timeout.millis(), TimeUnit.MILLISECONDS);
             assertNotNull("safePoll: no element available within the timeout", element);
             return element;
         } catch (InterruptedException e) {

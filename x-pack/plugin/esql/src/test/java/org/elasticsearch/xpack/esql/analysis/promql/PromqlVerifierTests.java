@@ -1063,11 +1063,10 @@ public class PromqlVerifierTests extends ESTestCase {
 
     public void testRelabelUnderByGroupingMayUseBuiltInColumnName() {
         // Under an enclosing `by(...)` that does not group on it, the derived label is dropped and never reaches the
-        // output, so a built-in column name as destination is harmless there.
-        assertTrue(
-            tsdb.query("PROMQL index=test step=5m sum by (host) (label_replace(network.bytes_in, \"step\", \"$1\", \"host\", \"(.+)\"))")
-                .resolved()
-        );
+        // output, so a built-in column name as destination is harmless there, with the label container functions or without.
+        String query = "PROMQL index=test step=5m sum by (host) (label_replace(network.bytes_in, \"step\", \"$1\", \"host\", \"(.+)\"))";
+        assertTrue(mixedTsdb.query(query).resolved());
+        assertTrue(tsdb.minimumTransportVersion(TransportVersion.current()).query(query).resolved());
     }
 
     public void testLabelReplaceDottedDestinationResolves() {

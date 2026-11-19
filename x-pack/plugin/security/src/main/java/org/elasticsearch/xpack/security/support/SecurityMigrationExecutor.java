@@ -155,7 +155,7 @@ public class SecurityMigrationExecutor extends PersistentTasksExecutor<SecurityM
         executeAsyncWithOrigin(client, SECURITY_ORIGIN, RefreshAction.INSTANCE, refreshRequest, ActionListener.wrap(response -> {
             if (response.getFailedShards() != 0) {
                 // Log a warning but do not stop migration, since this is not a critical operation
-                logger.warn("Failed to refresh security index during security migration {}", response.shardFailuresList());
+                logger.warn("Failed to refresh security index during security migration {}", response.getShardFailures());
             }
             listener.onResponse(null);
         }, exception -> {

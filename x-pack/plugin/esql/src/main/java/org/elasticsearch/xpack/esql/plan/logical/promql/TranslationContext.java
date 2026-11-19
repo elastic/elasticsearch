@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryCom
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryOperator;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinarySet;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorMatch;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -105,6 +106,18 @@ public record TranslationContext(
     /** The command exposes every label of the result series: the full open label space. */
     public TranslationContext(PromqlCommand cmd, AnalyzerContext analyzer) {
         this(cmd, analyzer, null, open(), null);
+    }
+
+    /**
+     * The translation of a child whose result drops the metric name, as most Prometheus functions and operators do: every
+     * packing the enclosing translation requires leaves {@code __name__} out, and a {@code __name__} it requires by name reads
+     * as absent. Only a source storing the metric name as a dimension holds one to drop.
+     */
+    public TranslationContext withoutMetricName() {
+        if (cmd.storesMetricName() == false) {
+            return this;
+        }
+        return withRequired(TranslationSchema.subtract(required, List.of(LabelMatcher.NAME)));
     }
 
     /** Translate an independent child without changing the enclosing branch's timing or aggregation state. */

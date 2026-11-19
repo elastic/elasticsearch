@@ -251,8 +251,7 @@ public final class StripeStatsHarvester {
                         Optional.of(new ExternalStats.Stats(rows, OptionalLong.empty(), cols)),
                         OptionalLong.empty(),
                         schema
-                    ),
-                    schema
+                    )
                 );
                 continue;
             }
@@ -279,6 +278,25 @@ public final class StripeStatsHarvester {
     ) {
         ExternalStats.Stats statsRecord = new ExternalStats.Stats(rows, OptionalLong.empty(), cols);
         SourceStatistics sourceStats = TextFormatStats.build(Optional.of(statsRecord), OptionalLong.empty(), schema);
+        return flatten(identity, ordinal, start, end, atStart, atEnd, eof, sourceStats);
+    }
+
+    /**
+     * The same flat map for a consumer that already holds the statistics to publish, so the schema filter is
+     * applied once where the harvest happens rather than again wherever the map is built. The addressing keys
+     * below are the ones {@code StagedStripeRecord} counts without building anything, so a key added here
+     * unconditionally has to be added to its always-present set in the same change.
+     */
+    static Map<String, Object> flatten(
+        StripeStatsSink.ReadIdentity identity,
+        long ordinal,
+        long start,
+        long end,
+        boolean atStart,
+        boolean atEnd,
+        boolean eof,
+        SourceStatistics sourceStats
+    ) {
         Map<String, Object> base = new HashMap<>();
         base.put(ExternalStats.MTIME_MILLIS_KEY, identity.mtimeMillis());
         base.put(ExternalStats.CONFIG_FINGERPRINT_KEY, identity.configFingerprint());

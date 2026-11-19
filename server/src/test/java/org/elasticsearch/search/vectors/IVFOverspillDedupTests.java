@@ -39,12 +39,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class IVFOverspillDedupTests extends ESTestCase {
 
     public void testPoolKeepsBestOverspillCopy() throws IOException {
-        IvfSegmentConfig config = IvfSegmentConfig.of(
-            CentroidIndexFormat.FLAT,
-            new IvfSegmentConfig.OsqConfig(QuantEncoding.ONE_BIT_4BIT_QUERY),
-            false,
-            3f
-        );
+        IvfSegmentConfig config = new IvfSegmentConfig(CentroidIndexFormat.FLAT, QuantEncoding.ONE_BIT_4BIT_QUERY, false, 3f);
         try (
             Directory dir = newDirectory();
             DirectoryReader reader = ESNextRescoreOversampleTestFixture.buildTwoCommitsTwoSegments(
@@ -64,7 +59,7 @@ public class IVFOverspillDedupTests extends ESTestCase {
 
             // Every collected copy's score, keyed by global doc id, keeping the best one.
             Map<Integer, Float> bestCopy = new ConcurrentHashMap<>();
-            // Post-filter delegate: rewrite returns the merged approximate pool without exact rescoring, which is what we want to inspect.
+            // autoCalibrate=false: rewrite returns the merged approximate pool without exact rescoring, which is what we want to inspect.
             var query = new IVFKnnFloatVectorQuery(
                 ESNextRescoreOversampleTestFixture.FIELD_NAME,
                 queryVector,
@@ -72,8 +67,7 @@ public class IVFOverspillDedupTests extends ESTestCase {
                 500,
                 null,
                 1f,
-                IvfQueryConfigResolver.from(true, false, 4, 3f, null),
-                true
+                IvfQueryConfigResolver.from(false, false, 4, 3f, null)
             ) {
                 @Override
                 protected IVFCollectorManager getKnnCollectorManager(int k, SharedMinCompetitiveScore sharedScore) {

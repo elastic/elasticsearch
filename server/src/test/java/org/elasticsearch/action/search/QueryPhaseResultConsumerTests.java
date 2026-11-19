@@ -28,6 +28,7 @@ import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
@@ -40,6 +41,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchPhaseResult;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
@@ -79,6 +81,7 @@ import static java.util.Collections.emptyList;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThan;
 import static org.mockito.Mockito.mock;
 
 public class QueryPhaseResultConsumerTests extends ESTestCase {
@@ -244,6 +247,192 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
         }
     }
 
+    /**
+     * Once handed over, the charge for the reduced aggregations, their estimated heap, outlives the consumer.
+     */
+    public void testReducedAggregationsChargeIsHandedOver() throws Exception {
+        SearchRequest searchRequest = new SearchRequest("index");
+        searchRequest.source(new SearchSourceBuilder().aggregation(new SumAggregationBuilder("test")));
+        CircuitBreaker circuitBreaker = newLimitedBreaker(ByteSizeValue.ofMb(64));
+        int numShards = randomIntBetween(1, 4);
+        SearchPhaseController controller = reducingController();
+
+        SearchResponse response = SearchResponseUtils.emptyWithTotalHits(null, 1, 1, 0, 0, List.of(), SearchResponse.Clusters.EMPTY);
+        long estimate;
+        try (
+            QueryPhaseResultConsumer consumer = new QueryPhaseResultConsumer(
+                searchRequest,
+                executor,
+                circuitBreaker,
+                controller,
+                () -> false,
+                SearchProgressListener.NOOP,
+                numShards,
+                e -> {
+                    throw new AssertionError("unexpected partial merge failure", e);
+                }
+            )
+        ) {
+            for (int i = 0; i < numShards; i++) {
+                QuerySearchResult result = queryResultWithAggs(i);
+                consumer.consumeResult(result, () -> {});
+                result.decRef();
+            }
+            SearchPhaseController.ReducedQueryPhase reduced = consumer.reduce();
+            estimate = reduced.aggregations().estimateHeapBytes();
+            assertThat(estimate, greaterThan(DelayableWriteable.getUncompressedSerializedSize(reduced.aggregations())));
+            assertEquals(estimate, circuitBreaker.getUsed());
+
+            consumer.transferAggregationChargeTo(response);
+            assertTrue(response.hasAggregationCharge());
+        }
+        assertEquals("closing the consumer must leave the handed over charge", estimate, circuitBreaker.getUsed());
+        assertTrue(response.decRef());
+        assertEquals(0L, circuitBreaker.getUsed());
+    }
+
+    /**
+     * Before the final reduce the breaker holds 1.5x the serialized size of the shard aggregations, and the heap of the reduced result
+     * can be well above that. The search whose result would take the breaker past its limit fails, rather than the next search.
+     */
+    public void testFinalReduceBreaksWhenTheHeapGoesOverTheLimit() throws Exception {
+        SearchRequest searchRequest = new SearchRequest("index");
+        searchRequest.source(new SearchSourceBuilder().aggregation(new SumAggregationBuilder("test")));
+        int numShards = randomIntBetween(1, 2);
+
+        // A search under a large limit measures the charge held before the final reduce and the estimate that replaces it.
+        CircuitBreaker largeBreaker = newLimitedBreaker(ByteSizeValue.ofMb(64));
+        long beforeFinalReduce;
+        long estimate;
+        try (QueryPhaseResultConsumer consumer = newReducingConsumer(searchRequest, largeBreaker, numShards)) {
+            consumeResultsWithAggs(consumer, numShards);
+            long serialized = largeBreaker.getUsed();
+            beforeFinalReduce = serialized + Math.round(0.5d * serialized);
+            estimate = consumer.reduce().aggregations().estimateHeapBytes();
+            assertEquals(estimate, largeBreaker.getUsed());
+        }
+        assertThat(estimate, greaterThan(beforeFinalReduce));
+
+        // Room for the charge before the final reduce, but not for the estimate.
+        CircuitBreaker circuitBreaker = newLimitedBreaker(ByteSizeValue.ofBytes((beforeFinalReduce + estimate) / 2));
+        try (QueryPhaseResultConsumer consumer = newReducingConsumer(searchRequest, circuitBreaker, numShards)) {
+            consumeResultsWithAggs(consumer, numShards);
+            CircuitBreakingException e = expectThrows(CircuitBreakingException.class, consumer::reduce);
+            assertEquals(estimate - beforeFinalReduce, e.getBytesWanted());
+            assertEquals("the rejected bytes must not stay charged", beforeFinalReduce, circuitBreaker.getUsed());
+        }
+        assertEquals(0L, circuitBreaker.getUsed());
+    }
+
+    /**
+     * With many shards the reduced result is often smaller than the charge held before the final reduce, so the final add gives bytes
+     * back. That add must not be checked, since a real breaker also checks the real memory limit of its parent on it, and under memory
+     * pressure the search would fail although it frees memory.
+     */
+    public void testFinalReduceThatShrinksTheChargeDoesNotBreak() throws Exception {
+        SearchRequest searchRequest = new SearchRequest("index");
+        searchRequest.source(new SearchSourceBuilder().aggregation(new SumAggregationBuilder("test")));
+        int numShards = randomIntBetween(20, 40);
+        // Rejects every checked add that doesn't grow the charge, like a real breaker whose parent is over its real memory limit.
+        LimitedBreaker circuitBreaker = new LimitedBreaker("test", ByteSizeValue.ofMb(64)) {
+            @Override
+            public void addEstimateBytesAndMaybeBreak(long bytes, String label) {
+                if (bytes <= 0) {
+                    throw new CircuitBreakingException("checked an add of [" + bytes + "] bytes", bytes, getLimit(), Durability.TRANSIENT);
+                }
+                super.addEstimateBytesAndMaybeBreak(bytes, label);
+            }
+        };
+        try (QueryPhaseResultConsumer consumer = newReducingConsumer(searchRequest, circuitBreaker, numShards)) {
+            consumeResultsWithAggs(consumer, numShards);
+            long serialized = circuitBreaker.getUsed();
+            long estimate = consumer.reduce().aggregations().estimateHeapBytes();
+            assertThat("the reduce must shrink the charge", estimate, lessThan(serialized + Math.round(0.5d * serialized)));
+            assertEquals(estimate, circuitBreaker.getUsed());
+        }
+        assertEquals(0L, circuitBreaker.getUsed());
+    }
+
+    private QueryPhaseResultConsumer newReducingConsumer(SearchRequest searchRequest, CircuitBreaker circuitBreaker, int numShards) {
+        return new QueryPhaseResultConsumer(
+            searchRequest,
+            executor,
+            circuitBreaker,
+            reducingController(),
+            () -> false,
+            SearchProgressListener.NOOP,
+            numShards,
+            e -> {
+                throw new AssertionError("unexpected partial merge failure", e);
+            }
+        );
+    }
+
+    private static void consumeResultsWithAggs(QueryPhaseResultConsumer consumer, int numShards) {
+        for (int i = 0; i < numShards; i++) {
+            QuerySearchResult result = queryResultWithAggs(i);
+            consumer.consumeResult(result, () -> {});
+            result.decRef();
+        }
+    }
+
+    /**
+     * A controller that reduces with the request's aggregation builders, unlike the one of the other tests, so the reduced aggregations
+     * are real.
+     */
+    private static SearchPhaseController reducingController() {
+        return new SearchPhaseController((t, agg) -> new AggregationReduceContext.Builder() {
+            @Override
+            public AggregationReduceContext forPartialReduction(@Nullable Collection<SearchHits> topHitsToRelease) {
+                return new AggregationReduceContext.ForPartial(BigArrays.NON_RECYCLING_INSTANCE, null, t, agg, b -> {}, topHitsToRelease);
+            }
+
+            @Override
+            public AggregationReduceContext forFinalReduction(@Nullable Collection<SearchHits> topHitsToRelease) {
+                return new AggregationReduceContext.ForFinal(BigArrays.NON_RECYCLING_INSTANCE, null, t, agg, b -> {}, topHitsToRelease);
+            }
+        });
+    }
+
+    /** Without aggregations nothing is charged, so there is no charge to hand over. */
+    public void testNoAggregationChargeToHandOverWithoutAggregations() throws Exception {
+        CircuitBreaker circuitBreaker = newLimitedBreaker(ByteSizeValue.ofMb(64));
+        try (
+            QueryPhaseResultConsumer consumer = new QueryPhaseResultConsumer(
+                new SearchRequest("index"),
+                executor,
+                circuitBreaker,
+                searchPhaseController,
+                () -> false,
+                SearchProgressListener.NOOP,
+                1,
+                e -> {
+                    throw new AssertionError("unexpected partial merge failure", e);
+                }
+            )
+        ) {
+            QuerySearchResult result = new QuerySearchResult(
+                new ShardSearchContextId("", 0),
+                new SearchShardTarget("node", new ShardId("index", "uuid", 0), null),
+                null
+            );
+            result.topDocs(
+                new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]), Float.NaN),
+                new DocValueFormat[0]
+            );
+            result.setShardIndex(0);
+            consumer.consumeResult(result, () -> {});
+            result.decRef();
+            consumer.reduce();
+
+            SearchResponse response = SearchResponseUtils.emptyWithTotalHits(null, 1, 1, 0, 0, List.of(), SearchResponse.Clusters.EMPTY);
+            consumer.transferAggregationChargeTo(response);
+            assertFalse(response.hasAggregationCharge());
+            assertEquals(0L, circuitBreaker.getUsed());
+            assertTrue(response.decRef());
+        }
+    }
+
     public void testConcurrentConsumeAndCloseDiscardsLateResults() {
         // repeated because a single round usually misses the window below
         for (int round = 0; round < 50; round++) {
@@ -318,6 +507,37 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
         // a node response for the batched path lands after the failed phase closed the consumer
         consumer.addBatchedPartialResult(new SearchPhaseController.TopDocsStats(0), countingMergeResult(released));
         assertEquals("a result arriving after close must be released too", 2, released.get());
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/165747")
+    public void testFinalReduceWithOnlyBatchedResultsWithoutAggregations() throws Exception {
+        SearchRequest searchRequest = new SearchRequest("index");
+        searchRequest.source(new SearchSourceBuilder().aggregation(new SumAggregationBuilder("test")));
+        int nodeResponses = randomIntBetween(1, 10);
+
+        try (
+            QueryPhaseResultConsumer consumer = new QueryPhaseResultConsumer(
+                searchRequest,
+                executor,
+                NoopCircuitBreaker.INSTANCE,
+                searchPhaseController,
+                () -> false,
+                SearchProgressListener.NOOP,
+                nodeResponses,
+                e -> {
+                    throw new AssertionError("unexpected partial merge failure", e);
+                }
+            )
+        ) {
+            for (int i = 0; i < nodeResponses; i++) {
+                consumer.addBatchedPartialResult(
+                    new SearchPhaseController.TopDocsStats(0),
+                    new QueryPhaseResultConsumer.MergeResult(List.of(), null, null, 0L)
+                );
+            }
+
+            assertNull(consumer.reduce().aggregations());
+        }
     }
 
     public void testBatchedTopHitsFromOldConnectionAreReleasedOnDiscard() throws IOException {

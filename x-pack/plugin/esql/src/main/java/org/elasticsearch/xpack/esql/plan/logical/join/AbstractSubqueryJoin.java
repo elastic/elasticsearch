@@ -78,7 +78,12 @@ import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
  * flips a couple of hooks for {@code NOT IN}, and {@link MarkJoin} returns Eval-based plans that preserve every left row and produce a
  * boolean mark attribute with three-valued logic.
  */
-public abstract class AbstractSubqueryJoin extends Join implements SortPreserving, ExecutesOn.Coordinator, DocPreserving {
+public abstract class AbstractSubqueryJoin extends Join
+    implements
+        IndependentSubqueryJoin,
+        SortPreserving,
+        ExecutesOn.Coordinator,
+        DocPreserving {
 
     protected AbstractSubqueryJoin(Source source, LogicalPlan left, LogicalPlan right, JoinConfig config) {
         super(source, left, right, config, ExecuteLocation.ANY);
@@ -786,6 +791,8 @@ public abstract class AbstractSubqueryJoin extends Join implements SortPreservin
         Attribute sentinelAttr = new ReferenceAttribute(source, null, "$$matched", DataType.BOOLEAN, Nullability.TRUE, null, false);
         List<Attribute> extendedSchema = new ArrayList<>(schema);
         extendedSchema.add(sentinelAttr);
+        // Concurrently planned branches on this node can share this page; see EsqlSession#resultToPlan.
+        dedupPage.allowPassingToDifferentDriver();
         LocalRelation deduplicatedData = new LocalRelation(source, extendedSchema, LocalSupplier.of(dedupPage));
 
         // SV guard: pipe the left key through {@link MvSingleValueOrNull} via an EVAL so multi-valued left positions become NULL
@@ -1017,6 +1024,8 @@ public abstract class AbstractSubqueryJoin extends Join implements SortPreservin
         Attribute sentinelAttr = new ReferenceAttribute(source, null, "$$matched", DataType.BOOLEAN, Nullability.TRUE, null, false);
         List<Attribute> extendedSchema = new ArrayList<>(schema);
         extendedSchema.add(sentinelAttr);
+        // Concurrently planned branches on this node can share this page; see EsqlSession#resultToPlan.
+        dedupPage.allowPassingToDifferentDriver();
         LocalRelation deduplicatedData = new LocalRelation(source, extendedSchema, LocalSupplier.of(dedupPage));
 
         List<Attribute> leftFields = subqueryJoin.config().leftFields();

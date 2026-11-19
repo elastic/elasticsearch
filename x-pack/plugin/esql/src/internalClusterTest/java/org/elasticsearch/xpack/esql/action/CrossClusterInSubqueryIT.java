@@ -1162,6 +1162,30 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase imple
         }
     }
 
+    public void testEnrichWithRemoteModePolicyAfterSubqueryWithStatsSucceeds() {
+        setupEnrichPolicy(client(REMOTE_CLUSTER_2), "values_enrich_b", 10);
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        setSkipUnavailable(REMOTE_CLUSTER_2, false);
+        try {
+            try (EsqlQueryResponse resp = runQuery("""
+                FROM remote-b:logs-*
+                | WHERE v IN (
+                    FROM cluster-a:logs-*
+                    | WHERE v > 1 AND v < 7
+                    | STATS c = COUNT(*) BY v
+                    | KEEP v
+                  )
+                | ENRICH _remote:values_enrich_b ON v WITH enrich_name
+                | KEEP v
+                """, false)) {
+                assertThat(getValuesList(resp), equalTo(List.of(List.of(4L))));
+            }
+        } finally {
+            deleteEnrichPolicy(client(REMOTE_CLUSTER_2), "values_enrich_b");
+            clearSkipUnavailable(3);
+        }
+    }
+
     /**
      * Two occurrences of the same ENRICH command - same policy name, same mode - sharing the exact same {@code Source}
      */

@@ -208,7 +208,7 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
             switch (operation) {
                 case REFRESH -> {
                     var refreshResult = client(coordinatorNode).admin().indices().prepareRefresh(indexName).get();
-                    assertEquals(Arrays.toString(refreshResult.getShardFailures()), 0, refreshResult.getFailedShards());
+                    assertEquals(refreshResult.getShardFailures().toString(), 0, refreshResult.getFailedShards());
                     indexed.values().forEach(IndexedDocument::refresh);
                 }
                 case SEARCH -> {

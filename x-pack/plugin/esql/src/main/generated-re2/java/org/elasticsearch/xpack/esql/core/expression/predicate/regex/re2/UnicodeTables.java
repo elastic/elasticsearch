@@ -456,6 +456,8 @@ public final class UnicodeTables {
 
   public static final Map<String, int[][]> FOLD_CATEGORIES = FoldCategory();
 
+  public static final Map<String, String> CATEGORY_ALIASES = CategoryAliases();
+
   static {
     CASE_ORBIT = new int[125252];
     CASE_ORBIT[0x41] = 0x61;
@@ -10142,5 +10144,52 @@ public final class UnicodeTables {
 
   private static Map<String, int[][]> FoldCategory() {
     Map<String, int[][]> map = new HashMap<String, int[][]>();map.put("Lu", foldLu);map.put("Ll", foldLl);map.put("Lt", foldLt);map.put("Mn", foldMn);map.put("L", foldL);map.put("M", foldM);return map;
+  }
+
+  private static Map<String, String> CategoryAliases() {
+    Map<String, String> map = new HashMap<String, String>();
+    map.put("Cased_Letter", "LC");
+    map.put("Close_Punctuation", "Pe");
+    map.put("Combining_Mark", "M");
+    map.put("Connector_Punctuation", "Pc");
+    map.put("Control", "Cc");
+    map.put("Currency_Symbol", "Sc");
+    map.put("Dash_Punctuation", "Pd");
+    map.put("Decimal_Number", "Nd");
+    map.put("Enclosing_Mark", "Me");
+    map.put("Final_Punctuation", "Pf");
+    map.put("Format", "Cf");
+    map.put("Initial_Punctuation", "Pi");
+    map.put("Letter", "L");
+    map.put("Letter_Number", "Nl");
+    map.put("Line_Separator", "Zl");
+    map.put("Lowercase_Letter", "Ll");
+    map.put("Mark", "M");
+    map.put("Math_Symbol", "Sm");
+    map.put("Modifier_Letter", "Lm");
+    map.put("Modifier_Symbol", "Sk");
+    map.put("Nonspacing_Mark", "Mn");
+    map.put("Number", "N");
+    map.put("Open_Punctuation", "Ps");
+    map.put("Other", "C");
+    map.put("Other_Letter", "Lo");
+    map.put("Other_Number", "No");
+    map.put("Other_Punctuation", "Po");
+    map.put("Other_Symbol", "So");
+    map.put("Paragraph_Separator", "Zp");
+    map.put("Private_Use", "Co");
+    map.put("Punctuation", "P");
+    map.put("Separator", "Z");
+    map.put("Space_Separator", "Zs");
+    map.put("Spacing_Mark", "Mc");
+    map.put("Surrogate", "Cs");
+    map.put("Symbol", "S");
+    map.put("Titlecase_Letter", "Lt");
+    map.put("Unassigned", "Cn");
+    map.put("Uppercase_Letter", "Lu");
+    map.put("cntrl", "Cc");
+    map.put("digit", "Nd");
+    map.put("punct", "P");
+    return Collections.unmodifiableMap(map);
   }
 }

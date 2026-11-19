@@ -10,8 +10,7 @@ package org.elasticsearch.xpack.esql.core.expression.predicate.regex;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.UnicodeTables;
 
 import java.util.Map;
-
-import static java.util.Map.entry;
+import java.util.stream.Collectors;
 
 /**
  * Looks Unicode classes up by the names {@code \p} takes, as Go 1.26 does, in the tables generated for the fork of
@@ -85,49 +84,8 @@ public final class Re2UnicodeNames {
         return canonical.toString();
     }
 
-    /** Go's long names of the categories, canonical. */
-    private static final Map<String, String> CATEGORY_ALIASES = Map.ofEntries(
-        entry("Casedletter", "LC"),
-        entry("Closepunctuation", "Pe"),
-        entry("Cntrl", "Cc"),
-        entry("Combiningmark", "M"),
-        entry("Connectorpunctuation", "Pc"),
-        entry("Control", "Cc"),
-        entry("Currencysymbol", "Sc"),
-        entry("Dashpunctuation", "Pd"),
-        entry("Decimalnumber", "Nd"),
-        entry("Digit", "Nd"),
-        entry("Enclosingmark", "Me"),
-        entry("Finalpunctuation", "Pf"),
-        entry("Format", "Cf"),
-        entry("Initialpunctuation", "Pi"),
-        entry("Letter", "L"),
-        entry("Letternumber", "Nl"),
-        entry("Lineseparator", "Zl"),
-        entry("Lowercaseletter", "Ll"),
-        entry("Mark", "M"),
-        entry("Mathsymbol", "Sm"),
-        entry("Modifierletter", "Lm"),
-        entry("Modifiersymbol", "Sk"),
-        entry("Nonspacingmark", "Mn"),
-        entry("Number", "N"),
-        entry("Openpunctuation", "Ps"),
-        entry("Other", "C"),
-        entry("Otherletter", "Lo"),
-        entry("Othernumber", "No"),
-        entry("Otherpunctuation", "Po"),
-        entry("Othersymbol", "So"),
-        entry("Paragraphseparator", "Zp"),
-        entry("Privateuse", "Co"),
-        entry("Punct", "P"),
-        entry("Punctuation", "P"),
-        entry("Separator", "Z"),
-        entry("Spaceseparator", "Zs"),
-        entry("Spacingmark", "Mc"),
-        entry("Surrogate", "Cs"),
-        entry("Symbol", "S"),
-        entry("Titlecaseletter", "Lt"),
-        entry("Unassigned", "Cn"),
-        entry("Uppercaseletter", "Lu")
-    );
+    /** The other names of the categories, Go's {@code CategoryAliases}, canonical. */
+    private static final Map<String, String> CATEGORY_ALIASES = UnicodeTables.CATEGORY_ALIASES.entrySet()
+        .stream()
+        .collect(Collectors.toUnmodifiableMap(alias -> canonicalName(alias.getKey()), Map.Entry::getValue));
 }

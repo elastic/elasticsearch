@@ -316,6 +316,48 @@ public class UnicodeTablesGenerator {
               .build());
     }
 
+    // ES: the other names of the categories, Go 1.26's CategoryAliases, as Unicode's PropertyValueAliases has them
+    {
+      TypeName aliasMapType = ParameterizedTypeName.get(Map.class, String.class, String.class);
+      MethodSpec.Builder aliasesSpec =
+          MethodSpec.methodBuilder("CategoryAliases")
+              .returns(aliasMapType)
+              .addModifiers(Modifier.PRIVATE, Modifier.STATIC)
+              .addStatement(
+                  "$T map = new $T()",
+                  aliasMapType,
+                  ParameterizedTypeName.get(HashMap.class, String.class, String.class));
+      SortedMap<String, String> categoryAliases = new TreeMap<>();
+      SortedSet<String> categories = new TreeSet<>(containers.keySet());
+      for (int category : ranges.keySet()) {
+        categories.add(getShortName(category));
+      }
+      for (String category : categories) {
+        int value = UCharacter.getPropertyValueEnum(UProperty.GENERAL_CATEGORY_MASK, category);
+        for (int choice = UProperty.NameChoice.LONG; ; choice++) {
+          String alias;
+          try {
+            alias = UCharacter.getPropertyValueName(UProperty.GENERAL_CATEGORY_MASK, value, choice);
+          } catch (IllegalArgumentException e) {
+            break;
+          }
+          if (alias == null) {
+            break;
+          }
+          categoryAliases.put(alias, category);
+        }
+      }
+      for (Map.Entry<String, String> alias : categoryAliases.entrySet()) {
+        aliasesSpec.addStatement("map.put($S, $S)", alias.getKey(), alias.getValue());
+      }
+      aliasesSpec.addStatement("return $T.unmodifiableMap(map)", Collections.class);
+      unicodeTables.addMethod(aliasesSpec.build());
+      unicodeTables.addField(
+          FieldSpec.builder(aliasMapType, "CATEGORY_ALIASES", Modifier.PUBLIC, Modifier.STATIC, Modifier.FINAL)
+              .initializer("CategoryAliases()")
+              .build());
+    }
+
     // No instantiating this class!
     unicodeTables.addMethod(MethodSpec.constructorBuilder().addModifiers(Modifier.PRIVATE).build());
 

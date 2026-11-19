@@ -115,6 +115,7 @@ public class DatafeedManager {
     private final AnomalyDetectionAuditor auditor;
     private final AnnotationPersister annotationPersister;
     private final JobResultsProvider jobResultsProvider;
+    private final EsqlDatafeedQueryValidator esqlQueryValidator;
     private volatile boolean requireRollbackSnapshotBeforeScopeChange;
 
     public DatafeedManager(
@@ -127,7 +128,8 @@ public class DatafeedManager {
         MachineLearningExtension mlExtension,
         AnomalyDetectionAuditor auditor,
         AnnotationPersister annotationPersister,
-        JobResultsProvider jobResultsProvider
+        JobResultsProvider jobResultsProvider,
+        EsqlDatafeedQueryValidator esqlQueryValidator
     ) {
         this.datafeedConfigProvider = datafeedConfigProvider;
         this.jobConfigProvider = jobConfigProvider;
@@ -139,6 +141,7 @@ public class DatafeedManager {
         this.auditor = Objects.requireNonNull(auditor);
         this.annotationPersister = Objects.requireNonNull(annotationPersister);
         this.jobResultsProvider = Objects.requireNonNull(jobResultsProvider);
+        this.esqlQueryValidator = Objects.requireNonNull(esqlQueryValidator);
         this.credentialManagerSupplier = extension::getCloudCredentialManager;
         this.credentialTransitions = new CredentialTransitions(
             this.auditor,
@@ -147,7 +150,8 @@ public class DatafeedManager {
             client,
             xContentRegistry,
             datafeedConfigProvider,
-            crossProjectModeDecider
+            crossProjectModeDecider,
+            esqlQueryValidator
         );
         requireRollbackSnapshotBeforeScopeChange = MachineLearning.REQUIRE_ROLLBACK_SNAPSHOT_BEFORE_SCOPE_CHANGE.get(settings);
         clusterService.getClusterSettings()
@@ -210,12 +214,6 @@ public class DatafeedManager {
         ThreadPool threadPool,
         ActionListener<PutDatafeedAction.Response> listener
     ) {
-        try {
-            EsqlDatafeedQueryValidator.rejectRemoteClusterSources(request.getDatafeed().getEsqlQuery(), crossProjectMlEnabled());
-        } catch (Exception e) {
-            listener.onFailure(e);
-            return;
-        }
         if (XPackSettings.SECURITY_ENABLED.get(settings)) {
             useSecondaryAuthIfAvailable(securityContext, () -> {
                 // TODO: Remove this filter once https://github.com/elastic/elasticsearch/issues/67798 is fixed.
@@ -275,7 +273,9 @@ public class DatafeedManager {
                 }
             });
         } else {
-            putDatafeed(request, threadPool.getThreadContext().getHeaders(), state, listener);
+            if (validateEsqlQueryStructure(request, listener)) {
+                putDatafeed(request, threadPool.getThreadContext().getHeaders(), state, listener);
+            }
         }
     }
 
@@ -668,6 +668,11 @@ public class DatafeedManager {
                 false,
                 false
             );
+            // Before the cloud credential is minted, so a query ML rejects does not mint a key only to revoke it. ES|QL feeds have no
+            // DSL indices, so no source access is checked here: this check skips the view lookup, which runs after the access probe.
+            if (validateEsqlQueryStructure(request, listener) == false) {
+                return;
+            }
             CredentialTransitions.Intent intent = CredentialTransitions.decideForCreate(ctx);
             credentialTransitions.executePut(intent, request, clusterState, threadPool, securityContext, this::putDatafeed, listener);
         } else {
@@ -749,6 +754,17 @@ public class DatafeedManager {
         };
 
         checkJobDoesNotHaveADatafeed(request.getDatafeed().getJobId(), ActionListener.wrap(jobOk, listener::onFailure));
+    }
+
+    /** Fails {@code listener} and returns {@code false} when the ES|QL query breaks a rule ML enforces on the query alone. */
+    private boolean validateEsqlQueryStructure(PutDatafeedAction.Request request, ActionListener<?> listener) {
+        try {
+            esqlQueryValidator.validateQueryStructure(request.getDatafeed().getEsqlQuery(), crossProjectMlEnabled());
+            return true;
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return false;
+        }
     }
 
     private void warnIfProjectRoutingIsInert(@Nullable String projectRouting) {

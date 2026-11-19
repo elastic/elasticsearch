@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.ml.datafeed.extractor.esql;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -35,6 +37,9 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.ml.datafeed.crossproject.NoMatchingProjectTestMessages;
+import org.elasticsearch.xpack.ml.datafeed.esql.EsqlParserTestSupport;
+import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryParser;
+import org.elasticsearch.xpack.ml.datafeed.esql.spi.ParsedEsqlQuery;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -61,6 +66,8 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
     private static final String ESQL_QUERY =
         "FROM logs | STATS avg_bytes = AVG(bytes), doc_count = COUNT(*) BY ts = BUCKET(@timestamp, 1 hour)";
     private static final String TIME_FIELD = "ts";
+    private static final EsqlQueryParser PARSER = EsqlParserTestSupport.parser();
+    private static final EsqlDatafeedQueryValidator STRUCTURE_VALIDATOR = new EsqlDatafeedQueryValidator(PARSER);
     private static final String SUMMARY_COUNT_FIELD = "doc_count";
 
     public void testRequiredColumnsPresentShouldPassValidation() {
@@ -213,7 +220,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
             })
         );
 
-        assertThat(harness.capturedQuery, equalTo(ESQL_QUERY + " | LIMIT 0"));
+        assertThat(harness.capturedQuery, equalTo(ESQL_QUERY + "\n| LIMIT 0"));
     }
 
     public void testTrailingLineCommentShouldAppendLimitZeroOnNewLineForValidation() {
@@ -231,7 +238,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
             })
         );
 
-        assertThat(harness.capturedQuery, equalTo("FROM logs | STATS c = COUNT(*) BY ts = BUCKET(@timestamp, 1h) // hourly\n | LIMIT 0"));
+        assertThat(harness.capturedQuery, equalTo("FROM logs | STATS c = COUNT(*) BY ts = BUCKET(@timestamp, 1h) // hourly\n| LIMIT 0"));
     }
 
     public void testProjectRoutingShouldReachValidationQuery() {
@@ -270,8 +277,26 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         );
 
         assertThat(succeeded.get(), is(true));
-        assertThat(harness.capturedQuery, equalTo(ESQL_QUERY + " | LIMIT 0"));
+        assertThat(harness.capturedQuery, equalTo(ESQL_QUERY + "\n| LIMIT 0"));
         assertThat(harness.capturedRouting, equalTo("_alias:_origin"));
+    }
+
+    public void testMintAccessWithQueryMlRejectsShouldFailBeforeTheProbe() {
+        ValidatorHarness harness = new ValidatorHarness(buildResponse(List.of(mockColumn(TIME_FIELD, "date"))));
+        AtomicReference<Exception> failure = new AtomicReference<>();
+
+        harness.validator.validateAccessForMint(
+            null,
+            Collections.emptyMap(),
+            "SET time_zone=\"Europe/Berlin\"; FROM logs",
+            null,
+            ActionListener.wrap(ignored -> fail("expected a rejection"), failure::set),
+            null
+        );
+
+        assertThat(failure.get(), instanceOf(ElasticsearchStatusException.class));
+        assertThat(((ElasticsearchStatusException) failure.get()).status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(harness.capturedQuery, nullValue());
     }
 
     public void testMintAccessWithTrailingLineCommentShouldAppendLimitZeroOnNewLine() {
@@ -288,7 +313,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
             null
         );
 
-        assertThat(harness.capturedQuery, equalTo("FROM logs | WHERE a > 1 // filter\n | LIMIT 0"));
+        assertThat(harness.capturedQuery, equalTo("FROM logs | WHERE a > 1 // filter\n| LIMIT 0"));
     }
 
     public void testNoProjectAfterRoutingMessageMatchesServerText() {
@@ -355,8 +380,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         List<String> queriesWithNonQualifierColons = List.of(
             "FROM project-a:logs-* | LIMIT 10",
             "FROM logs | WHERE message : \"error\"",
-            "FROM logs | MATCH(f, \"q\", {\"fuzziness\": 1})",
-            "FROM logs | LOOKUP JOIN idx ON k",
+            "FROM logs | WHERE MATCH(f, \"q\", {\"fuzziness\": 1})",
             "FROM (FROM logs) | LIMIT 10"
         );
         for (String query : queriesWithNonQualifierColons) {
@@ -367,7 +391,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
                 Collections.emptyMap(),
                 query,
                 "_alias:*",
-                ActionTestUtils.assertNoFailureListener(ignored -> deferred.set(true)),
+                ActionListener.wrap(ignored -> deferred.set(true), e -> fail("query [" + query + "]: " + e)),
                 null
             );
             assertThat("query [" + query + "]", deferred.get(), is(true));
@@ -461,13 +485,13 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         );
 
         assertThat(succeeded.get(), is(true));
-        assertThat(harness.capturedQuery, equalTo("FROM logs | KEEP ??sourceTimeField | LIMIT 0"));
+        assertThat(harness.capturedQuery, equalTo("FROM logs | KEEP ??timeField | LIMIT 0"));
         assertThat(
             harness.capturedParams,
             equalTo(
                 List.of(
                     new EsqlQueryRequestBuilder.EsqlQueryParam(
-                        "sourceTimeField",
+                        "timeField",
                         "@timestamp",
                         EsqlQueryRequestBuilder.EsqlQueryParam.ParamClassification.IDENTIFIER
                     )
@@ -655,7 +679,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
             null
         );
 
-        assertThat(harness.capturedQuery, equalTo("FROM logs | KEEP ??sourceTimeField | LIMIT 0"));
+        assertThat(harness.capturedQuery, equalTo("FROM logs | KEEP ??timeField | LIMIT 0"));
     }
 
     public void testLeadingCommandEndingInLineCommentShouldAppendKeepOnNewLineForSourceTimeField() {
@@ -673,26 +697,25 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
             null
         );
 
-        assertThat(harness.capturedQuery, equalTo("FROM logs // web tier\n | KEEP ??sourceTimeField | LIMIT 0"));
+        assertThat(harness.capturedQuery, equalTo("FROM logs | KEEP ??timeField | LIMIT 0"));
     }
 
-    public void testNonFromLeadingQueryShouldSkipSourceTimeFieldValidation() {
+    public void testQueryWithoutIndexSourceShouldFailSourceTimeFieldValidation() {
         ValidatorHarness harness = new ValidatorHarness(new RuntimeException("should not be invoked"));
+        AtomicReference<Exception> failure = new AtomicReference<>();
 
-        AtomicBoolean succeeded = new AtomicBoolean(false);
         harness.validator.validateSourceTimeField(
             null,
             Collections.emptyMap(),
             "ROW x = 1",
             null,
             "@timestamp",
-            ActionListener.wrap(ok -> succeeded.set(true), e -> {
-                throw new AssertionError("expected skip for a non-FROM-leading query", e);
-            }),
+            ActionListener.wrap(ok -> fail("expected a failure for a query without an index source"), failure::set),
             null
         );
 
-        assertThat(succeeded.get(), is(true));
+        assertThat(failure.get(), instanceOf(ElasticsearchStatusException.class));
+        assertThat(((ElasticsearchStatusException) failure.get()).status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(harness.capturedQuery, nullValue());
     }
 
@@ -718,7 +741,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         );
 
         assertThat(succeeded.get(), is(true));
-        assertThat(harness.capturedQuery, equalTo("// note\nFROM logs | KEEP ??sourceTimeField | LIMIT 0"));
+        assertThat(harness.capturedQuery, equalTo("FROM logs | KEEP ??timeField | LIMIT 0"));
     }
 
     // Same as above but for a leading block comment.
@@ -740,7 +763,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         );
 
         assertThat(succeeded.get(), is(true));
-        assertThat(harness.capturedQuery, equalTo("/* x */ FROM logs | KEEP ??sourceTimeField | LIMIT 0"));
+        assertThat(harness.capturedQuery, equalTo("FROM logs | KEEP ??timeField | LIMIT 0"));
     }
 
     // TS is a real ES|QL source command (time-series source);
@@ -765,7 +788,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         );
 
         assertThat(succeeded.get(), is(true));
-        assertThat(harness.capturedQuery, equalTo("TS metrics-* | KEEP ??sourceTimeField | LIMIT 0"));
+        assertThat(harness.capturedQuery, equalTo("TS metrics-* | STATS t = MAX(MAX_OVER_TIME(??timeField)) | LIMIT 0"));
     }
 
     public void testNullEmittedTimeInSourceWindowShouldUseMessages() {
@@ -884,14 +907,13 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(e.getMessage(), containsString(TIME_FIELD));
     }
 
-    public void testConflictingOuterClausesShouldAddActionableWarnings() {
+    public void testOuterLimitShouldAddActionableWarning() {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         HeaderWarning.setThreadContext(threadContext);
         try {
-            EsqlDatafeedQueryValidator.warnForConflictingOuterClauses(
+            EsqlDatafeedQueryValidator.warnForOuterLimit(
                 "datafeed-1",
-                "FROM logs | WHERE ts >= 0 | SORT ts DESC | LIMIT 20",
-                TIME_FIELD,
+                EsqlDatafeedQuery.parse(PARSER, "FROM logs | SORT ts DESC | LIMIT 20"),
                 false
             );
 
@@ -899,19 +921,27 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
                 false,
                 List.of(
                     allOf(
-                        containsString("ES|QL datafeed [datafeed-1] query contains an outer WHERE clause"),
-                        containsString("ML owns the request window")
-                    ),
-                    allOf(
-                        containsString("ES|QL datafeed [datafeed-1] query contains an outer SORT clause"),
-                        containsString("ML owns the request order")
-                    ),
-                    allOf(
-                        containsString("ES|QL datafeed [datafeed-1] query contains an outer LIMIT clause"),
-                        containsString("ML owns the safety ceiling")
+                        containsString("ES|QL datafeed [datafeed-1] query contains an outer LIMIT [20]"),
+                        containsString("ML cannot detect truncated results")
                     )
                 )
             );
+        } finally {
+            HeaderWarning.removeThreadContext(threadContext);
+        }
+    }
+
+    public void testOuterLimitAboveOneThousandShouldBeNamedWithoutGroupingSeparators() {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        HeaderWarning.setThreadContext(threadContext);
+        try {
+            EsqlDatafeedQueryValidator.warnForOuterLimit(
+                "datafeed-1",
+                EsqlDatafeedQuery.parse(PARSER, "FROM logs | SORT ts DESC | LIMIT 5000"),
+                false
+            );
+
+            assertWarnings(false, List.of(containsString("query contains an outer LIMIT [5000]")));
         } finally {
             HeaderWarning.removeThreadContext(threadContext);
         }
@@ -921,13 +951,13 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         HeaderWarning.setThreadContext(threadContext);
         try {
-            EsqlDatafeedQueryValidator.warnForConflictingOuterClauses("datafeed-1", "FROM logs | LIMIT 20", TIME_FIELD, true);
+            EsqlDatafeedQueryValidator.warnForOuterLimit("datafeed-1", EsqlDatafeedQuery.parse(PARSER, "FROM logs | LIMIT 20"), true);
 
             assertWarnings(
                 false,
                 List.of(
                     allOf(
-                        containsString("ES|QL datafeed [datafeed-1] query contains an outer LIMIT clause"),
+                        containsString("ES|QL datafeed [datafeed-1] query contains an outer LIMIT [20]"),
                         containsString("The delayed data check applies the LIMIT to the whole check window")
                     )
                 )
@@ -937,19 +967,18 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         }
     }
 
-    public void testRawKeepAndLexicalFalsePositivesShouldNotWarn() {
+    public void testRawKeepAndLexicalFalsePositivesShouldNotWarnOrReject() {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         HeaderWarning.setThreadContext(threadContext);
         try {
-            EsqlDatafeedQueryValidator.warnForConflictingOuterClauses(
-                "datafeed-1",
+            EsqlDatafeedQuery query = EsqlDatafeedQuery.parse(
+                PARSER,
                 "FROM logs | KEEP ts, value | EVAL note = \"WHERE ts | SORT ts | LIMIT 20\" "
                     + "| EVAL triple_note = \"\"\"WHERE ts | SORT ts | LIMIT 20\"\"\" "
                     + "| KEEP `WHERE ts`, value /* WHERE ts | SORT ts | LIMIT 20 /* WHERE ts */ */ "
-                    + "// WHERE ts | SORT ts | LIMIT 20\n | FORK (WHERE ts > 0 | SORT ts | LIMIT 20)",
-                TIME_FIELD,
-                true
+                    + "// WHERE ts | SORT ts | LIMIT 20\n"
             );
+            EsqlDatafeedQueryValidator.warnForOuterLimit("datafeed-1", query, true);
 
             assertWarnings();
         } finally {
@@ -1164,41 +1193,182 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
             "FROM \"<logs-{now{yyyy.MM.dd|+12:00}}>\"",
             "FROM logs-*,-logs-old"
         )) {
-            EsqlDatafeedQueryValidator.rejectRemoteClusterSources(query, false);
+            STRUCTURE_VALIDATOR.validateQueryStructure(query, false);
         }
     }
 
     public void testSelectorSyntaxShouldAcceptRemoteClusterSourceRejection() {
-        EsqlDatafeedQueryValidator.rejectRemoteClusterSources("FROM idx::failures", false);
-        EsqlDatafeedQueryValidator.rejectRemoteClusterSources("FROM idx::data, other::failures METADATA _id", false);
-        EsqlDatafeedQueryValidator.rejectRemoteClusterSources("FROM \"idx::failures\"", false);
+        STRUCTURE_VALIDATOR.validateQueryStructure("FROM idx::failures", false);
+        STRUCTURE_VALIDATOR.validateQueryStructure("FROM idx::data, other::failures METADATA _id", false);
+        STRUCTURE_VALIDATOR.validateQueryStructure("FROM \"idx::failures\"", false);
     }
 
     public void testColonOutsideSourceListShouldAcceptRemoteClusterSourceRejection() {
-        EsqlDatafeedQueryValidator.rejectRemoteClusterSources("// remote:logs\nFROM logs-*", false);
-        EsqlDatafeedQueryValidator.rejectRemoteClusterSources("FROM /* east:logs */ logs-*", false);
-        EsqlDatafeedQueryValidator.rejectRemoteClusterSources("FROM logs-* // remote:logs", false);
-        EsqlDatafeedQueryValidator.rejectRemoteClusterSources("FROM logs-* | WHERE host == \"a:b\" | EVAL x = \"remote:idx\"", false);
-        EsqlDatafeedQueryValidator.rejectRemoteClusterSources("FROM logs-* METADATA _id | LOOKUP JOIN remote:lookup ON k", false);
+        STRUCTURE_VALIDATOR.validateQueryStructure("// remote:logs\nFROM logs-*", false);
+        STRUCTURE_VALIDATOR.validateQueryStructure("FROM /* east:logs */ logs-*", false);
+        STRUCTURE_VALIDATOR.validateQueryStructure("FROM logs-* // remote:logs", false);
+        STRUCTURE_VALIDATOR.validateQueryStructure("FROM logs-* | WHERE host == \"a:b\" | EVAL x = \"remote:idx\"", false);
     }
 
     public void testOriginQualifierShouldAcceptRemoteClusterSourceRejection() {
-        EsqlDatafeedQueryValidator.rejectRemoteClusterSources("FROM _origin:logs-*", false);
-        EsqlDatafeedQueryValidator.rejectRemoteClusterSources("FROM logs-*,-_origin:logs-old", false);
+        STRUCTURE_VALIDATOR.validateQueryStructure("FROM _origin:logs-*", false);
+        STRUCTURE_VALIDATOR.validateQueryStructure("FROM logs-*,-_origin:logs-old", false);
     }
 
     public void testCrossProjectEnabledWithProjectQualifiedSourcesShouldAcceptRemoteClusterSourceRejection() {
-        EsqlDatafeedQueryValidator.rejectRemoteClusterSources("FROM linked-project-1:logs-*", true);
-        EsqlDatafeedQueryValidator.rejectRemoteClusterSources("FROM *:logs-*", true);
+        STRUCTURE_VALIDATOR.validateQueryStructure("FROM linked-project-1:logs-*", true);
+        STRUCTURE_VALIDATOR.validateQueryStructure("FROM *:logs-*", true);
     }
 
-    public void testNoQueryOrNonSourceQueryShouldAcceptRemoteClusterSourceRejection() {
-        EsqlDatafeedQueryValidator.rejectRemoteClusterSources(null, false);
-        EsqlDatafeedQueryValidator.rejectRemoteClusterSources("ROW a = \"remote:idx\"", false);
+    public void testNoQueryShouldPassStructureValidation() {
+        STRUCTURE_VALIDATOR.validateQueryStructure(null, false);
+    }
+
+    public void testQueryWithoutIndexSourceShouldBeRejected() {
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> STRUCTURE_VALIDATOR.validateQueryStructure("ROW a = \"remote:idx\"", false)
+        );
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(e.getMessage(), containsString("FROM or TS source command"));
+    }
+
+    public void testRemoteSourceInSubqueryShouldBeRejected() {
+        assertThat(expectRejected("FROM (FROM remote:logs | WHERE a > 1) | LIMIT 5").getMessage(), containsString("[remote:logs]"));
+    }
+
+    public void testMultipleSubqueriesShouldBeRejectedByTheParser() {
+        ElasticsearchException e = expectThrows(
+            ElasticsearchException.class,
+            () -> STRUCTURE_VALIDATOR.validateQueryStructure("FROM (FROM remote:logs | WHERE a > 1), local", false)
+        );
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(e.getMessage(), containsString("several subqueries"));
+    }
+
+    public void testRemoteSourceAfterSetStatementShouldBeRejected() {
+        assertThat(expectRejected("SET unmapped_fields=\"nullify\";\nFROM remote:logs").getMessage(), containsString("[remote:logs]"));
+    }
+
+    public void testRemoteLookupIndexShouldBeRejectedByTheParser() {
+        ElasticsearchException e = expectThrows(
+            ElasticsearchException.class,
+            () -> STRUCTURE_VALIDATOR.validateQueryStructure("FROM logs-* | LOOKUP JOIN remote:lookup ON k", false)
+        );
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(e.getMessage(), containsString("[remote:lookup]"));
+    }
+
+    public void testRemoteSourceBehindNestedCommentShouldBeRejected() {
+        assertThat(expectRejected("/* outer /* inner */ still outer */ FROM remote:logs").getMessage(), containsString("[remote:logs]"));
+    }
+
+    public void testProjectRoutingSettingShouldBeRejected() {
+        EsqlDatafeedQueryValidator crossProjectValidator = new EsqlDatafeedQueryValidator(
+            EsqlParserTestSupport.parser(Settings.builder().put("serverless.cross_project.enabled", true).build())
+        );
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> crossProjectValidator.validateQueryStructure("SET project_routing=\"_alias:*\"; FROM logs", true)
+        );
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(e.getMessage(), containsString("SET project_routing"));
+    }
+
+    public void testProjectRoutingSettingWithoutCrossProjectShouldBeRejectedByEsql() {
+        ElasticsearchException e = expectThrows(
+            ElasticsearchException.class,
+            () -> STRUCTURE_VALIDATOR.validateQueryStructure("SET project_routing=\"_alias:*\"; FROM logs", false)
+        );
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+    }
+
+    public void testNonUtcTimeZoneSettingShouldBeRejected() {
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> STRUCTURE_VALIDATOR.validateQueryStructure("SET time_zone=\"Europe/Berlin\"; FROM logs", false)
+        );
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(e.getMessage(), containsString("[Europe/Berlin]"));
+    }
+
+    public void testUtcTimeZoneSettingShouldPassStructureValidation() {
+        STRUCTURE_VALIDATOR.validateQueryStructure("SET time_zone=\"UTC\"; FROM logs", false);
+        STRUCTURE_VALIDATOR.validateQueryStructure("SET time_zone=\"Z\"; FROM logs", false);
+        STRUCTURE_VALIDATOR.validateQueryStructure("SET time_zone=\"Etc/UTC\"; FROM logs", false);
+    }
+
+    public void testNonUtcClusterDefaultTimeZoneShouldPassStructureValidation() {
+        // ML sends UTC with every run, so only a time zone the query sets itself is rejected.
+        EsqlDatafeedQueryValidator validator = new EsqlDatafeedQueryValidator(
+            EsqlParserTestSupport.parser(Settings.builder().put("esql.query.settings.time_zone", "Europe/Berlin").build())
+        );
+        validator.validateQueryStructure("FROM logs", false);
+    }
+
+    public void testInvalidQueryShouldFailStructureValidationWithBadRequest() {
+        ElasticsearchException e = expectThrows(
+            ElasticsearchException.class,
+            () -> STRUCTURE_VALIDATOR.validateQueryStructure("FROM logs | NOT_A_COMMAND x", false)
+        );
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+    }
+
+    public void testLimitBeforeStatsShouldFailParsingWithBadRequest() {
+        ElasticsearchException e = expectThrows(
+            ElasticsearchException.class,
+            () -> EsqlDatafeedQuery.parse(PARSER, "FROM logs | LIMIT 500 | STATS c = COUNT(*) BY b = BUCKET(ts, 1 hour)")
+        );
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(e.getMessage(), containsString("[LIMIT] before [STATS] is not supported"));
+    }
+
+    public void testLimitAfterStatsShouldWarnAboutOutputLimitWithDelayedDataNote() {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        HeaderWarning.setThreadContext(threadContext);
+        try {
+            EsqlDatafeedQueryValidator.warnForOuterLimit(
+                "datafeed-1",
+                EsqlDatafeedQuery.parse(PARSER, "FROM logs | STATS c = COUNT(*) BY b = BUCKET(ts, 1 hour) | LIMIT 10"),
+                true
+            );
+
+            assertWarnings(
+                false,
+                List.of(
+                    allOf(
+                        containsString("ES|QL datafeed [datafeed-1] query contains an outer LIMIT [10]"),
+                        containsString("The delayed data check applies the LIMIT to the whole check window")
+                    )
+                )
+            );
+        } finally {
+            HeaderWarning.removeThreadContext(threadContext);
+        }
+    }
+
+    public void testTimeFilterAndSortOnTimeFieldShouldPassValidationWithoutWarning() {
+        // As with DSL datafeeds, the query's own time filter is combined with the datafeed window.
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        HeaderWarning.setThreadContext(threadContext);
+        try {
+            List<ColumnInfo> columns = List.of(mockColumn(TIME_FIELD, "date"));
+            ValidatorHarness harness = new ValidatorHarness(buildResponse(columns));
+            assertValidationSucceeds(
+                harness.validator,
+                "FROM logs | WHERE ts > NOW() - 1 day | SORT ts DESC | KEEP ts",
+                null,
+                TIME_FIELD,
+                null
+            );
+            assertWarnings();
+        } finally {
+            HeaderWarning.removeThreadContext(threadContext);
+        }
     }
 
     private static ElasticsearchStatusException expectRejected(String query) {
-        return expectThrows(ElasticsearchStatusException.class, () -> EsqlDatafeedQueryValidator.rejectRemoteClusterSources(query, false));
+        return expectThrows(ElasticsearchStatusException.class, () -> STRUCTURE_VALIDATOR.validateQueryStructure(query, false));
     }
 
     private void assertValidationSucceeds(
@@ -1244,6 +1414,134 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         return failure.get();
     }
 
+    /** Rejects a view only in the full parse, as the ES|QL parser does. */
+    private static final EsqlQueryParser VIEW_REJECTING_PARSER = new EsqlQueryParser() {
+        @Override
+        public ParsedEsqlQuery parse(String query) {
+            throw new ElasticsearchStatusException("[my_view] is a view", RestStatus.BAD_REQUEST);
+        }
+
+        @Override
+        public ParsedEsqlQuery parseWithoutViewCheck(String query) {
+            return PARSER.parse(query);
+        }
+    };
+
+    public void testViewShouldNotBeDisclosedWhenTheProbeIsDenied() {
+        ElasticsearchSecurityException denied = new ElasticsearchSecurityException("action is unauthorized", RestStatus.FORBIDDEN);
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        new EsqlDatafeedQueryValidator(VIEW_REJECTING_PARSER, (client, query, filter, headers, projectRouting, params, listener) -> {
+            listener.onFailure(denied);
+        }).validateQuery(
+            null,
+            Collections.emptyMap(),
+            ESQL_QUERY,
+            null,
+            TIME_FIELD,
+            null,
+            ActionListener.wrap(ok -> fail("expected the denial"), failure::set)
+        );
+
+        assertThat(failure.get(), sameInstance(denied));
+    }
+
+    public void testViewShouldBeRejectedBeforeMintOnceTheProbeSucceeds() {
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        new EsqlDatafeedQueryValidator(VIEW_REJECTING_PARSER, (client, query, filter, headers, projectRouting, params, listener) -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<RefCounted> refCountedListener = (ActionListener<RefCounted>) (ActionListener<?>) listener;
+            ActionListener.respondAndRelease(refCountedListener, buildResponse(List.of(mockColumn(TIME_FIELD, "date"))));
+        }).validateAccessForMint(
+            null,
+            Collections.emptyMap(),
+            ESQL_QUERY,
+            null,
+            ActionListener.wrap(ok -> fail("expected the view rejection"), failure::set),
+            "datafeed-1"
+        );
+
+        assertThat(failure.get().getMessage(), containsString("[my_view] is a view"));
+    }
+
+    public void testViewShouldNotBeLookedUpLocallyWhenProjectRoutingIsSet() {
+        AtomicBoolean passed = new AtomicBoolean(false);
+        EsqlDatafeedQueryValidator validator = new EsqlDatafeedQueryValidator(
+            VIEW_REJECTING_PARSER,
+            (client, query, filter, headers, projectRouting, params, listener) -> {
+                @SuppressWarnings("unchecked")
+                ActionListener<RefCounted> refCountedListener = (ActionListener<RefCounted>) (ActionListener<?>) listener;
+                ActionListener.respondAndRelease(refCountedListener, buildResponse(List.of(mockColumn(TIME_FIELD, "date"))));
+            }
+        );
+        // A linked project may have answered the probe, so a view of the same name in the origin project proves nothing.
+        validator.validateAccessForMint(
+            null,
+            Collections.emptyMap(),
+            ESQL_QUERY,
+            "_alias:linked",
+            ActionListener.wrap(ok -> passed.set(true), e -> fail("expected no local view lookup")),
+            "datafeed-1"
+        );
+        assertThat(passed.get(), is(true));
+    }
+
+    public void testViewShouldBeRejectedBeforeMintWhenProjectRoutingIsOriginOnly() {
+        for (String routing : List.of("_origin", "_alias:_origin")) {
+            AtomicReference<Exception> failure = new AtomicReference<>();
+            new EsqlDatafeedQueryValidator(VIEW_REJECTING_PARSER, (client, query, filter, headers, projectRouting, params, listener) -> {
+                @SuppressWarnings("unchecked")
+                ActionListener<RefCounted> refCountedListener = (ActionListener<RefCounted>) (ActionListener<?>) listener;
+                ActionListener.respondAndRelease(refCountedListener, buildResponse(List.of(mockColumn(TIME_FIELD, "date"))));
+            }).validateAccessForMint(
+                null,
+                Collections.emptyMap(),
+                ESQL_QUERY,
+                routing,
+                ActionListener.wrap(ok -> fail("expected the view rejection for routing " + routing), failure::set),
+                "datafeed-1"
+            );
+            assertThat(failure.get().getMessage(), containsString("[my_view] is a view"));
+        }
+    }
+
+    public void testViewShouldNotBeDisclosedBeforeMintWhenTheSourceIsUnreadableOrAbsent() {
+        // ES|QL answers an unreadable and an absent source alike with an unknown-index error, which defers.
+        for (Exception unknownIndex : List.of(new VerificationException("Unknown index [my_view]"), new IndexNotFoundException("logs"))) {
+            AtomicBoolean deferred = new AtomicBoolean(false);
+            new EsqlDatafeedQueryValidator(VIEW_REJECTING_PARSER, (client, query, filter, headers, projectRouting, params, listener) -> {
+                listener.onFailure(unknownIndex);
+            }).validateAccessForMint(
+                null,
+                Collections.emptyMap(),
+                ESQL_QUERY,
+                null,
+                ActionListener.wrap(ok -> deferred.set(true), e -> fail("expected the same deferral for every unknown index")),
+                "datafeed-1"
+            );
+            assertThat(deferred.get(), is(true));
+        }
+    }
+
+    public void testViewShouldBeRejectedOnceTheProbeSucceeds() {
+        List<ColumnInfo> columns = List.of(mockColumn(TIME_FIELD, "date"));
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        new EsqlDatafeedQueryValidator(VIEW_REJECTING_PARSER, (client, query, filter, headers, projectRouting, params, listener) -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<RefCounted> refCountedListener = (ActionListener<RefCounted>) (ActionListener<?>) listener;
+            ActionListener.respondAndRelease(refCountedListener, buildResponse(columns));
+        }).validateQuery(
+            null,
+            Collections.emptyMap(),
+            ESQL_QUERY,
+            null,
+            TIME_FIELD,
+            null,
+            ActionListener.wrap(ok -> fail("expected the view rejection"), failure::set)
+        );
+
+        assertThat(failure.get().getMessage(), containsString("[my_view] is a view"));
+    }
+
     private static final class ValidatorHarness {
         final EsqlDatafeedQueryValidator validator;
         String capturedQuery;
@@ -1259,7 +1557,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         }
 
         private ValidatorHarness(EsqlQueryResponse response, Exception failure) {
-            validator = new EsqlDatafeedQueryValidator((client, query, filter, headers, projectRouting, params, listener) -> {
+            validator = new EsqlDatafeedQueryValidator(PARSER, (client, query, filter, headers, projectRouting, params, listener) -> {
                 capturedQuery = query;
                 capturedRouting = projectRouting;
                 capturedParams = params;

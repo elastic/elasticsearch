@@ -27,34 +27,38 @@ import org.elasticsearch.xpack.core.ml.datafeed.DelayedDataCheckConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryParser;
+import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryWithParams;
 
 import java.time.DateTimeException;
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-
-import static org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.EsqlQueryParam.ParamClassification.IDENTIFIER;
+import java.util.Objects;
+import java.util.OptionalInt;
+import java.util.Set;
 
 /**
  * Includes helper functions for validating the ESQL query provided to a datafeed.
  */
 public class EsqlDatafeedQueryValidator {
 
+    /** Routings answered by the origin project alone. */
+    private static final Set<String> ORIGIN_ONLY_ROUTINGS = Set.of("_origin", "_alias:_origin");
+
     private static final Logger logger = LogManager.getLogger(EsqlDatafeedQueryValidator.class);
 
+    private final EsqlQueryParser parser;
     private final EsqlQueryRunner queryRunner;
 
-    public EsqlDatafeedQueryValidator() {
-        this(EsqlQueryRunner.DEFAULT);
+    public EsqlDatafeedQueryValidator(EsqlQueryParser parser) {
+        this(parser, EsqlQueryRunner.DEFAULT);
     }
 
-    EsqlDatafeedQueryValidator(EsqlQueryRunner queryRunner) {
-        this.queryRunner = queryRunner;
+    EsqlDatafeedQueryValidator(EsqlQueryParser parser, EsqlQueryRunner queryRunner) {
+        this.parser = Objects.requireNonNull(parser);
+        this.queryRunner = Objects.requireNonNull(queryRunner);
     }
-
-    private static final String LIMIT_ZERO = " | LIMIT 0";
-    private static final String KEEP_SOURCE_TIME_FIELD_LIMIT_ZERO = " | KEEP ??sourceTimeField | LIMIT 0";
 
     // MUST FIX before production: matching the ES|QL error text is brittle and breaks if the message changes; ES|QL needs to
     // expose a typed missing-index signal. See https://github.com/elastic/elasticsearch/issues/161207
@@ -118,12 +122,21 @@ public class EsqlDatafeedQueryValidator {
         ActionListener<Boolean> listener,
         @Nullable String datafeedId
     ) {
-        warnForConflictingOuterClauses(datafeedId, esqlQuery, timeField, summaryCountField != null);
-        String limitZeroQuery = EsqlQueryClauseScanner.appendGeneratedPipeline(esqlQuery, LIMIT_ZERO);
+        EsqlDatafeedQuery query;
+        try {
+            // No view check yet: the probe below runs as the caller, and ES|QL answers a caller without access with the denial.
+            query = EsqlDatafeedQuery.parseWithoutViewCheck(parser, esqlQuery);
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
+        warnForOuterLimit(datafeedId, query, summaryCountField != null);
+        EsqlQueryWithParams limitZeroQuery = query.limitZeroQuery();
 
         ActionListener<EsqlQueryResponse> responseListener = ActionListener.wrap(response -> {
             try {
                 checkRequiredColumns(response.response().columns(), timeField, summaryCountField, datafeedId);
+                rejectViewsAfterProbe(esqlQuery, projectRouting);
             } catch (Exception e) {
                 listener.onFailure(e);
                 return;
@@ -139,12 +152,12 @@ public class EsqlDatafeedQueryValidator {
             }
         });
 
-        executeEsqlQueryAsync(client, limitZeroQuery, headers, projectRouting, List.of(), responseListener);
+        executeEsqlQueryAsync(client, limitZeroQuery.query(), headers, projectRouting, limitZeroQuery.params(), responseListener);
     }
 
     /**
-     * Probes {@code KEEP ??sourceTimeField | LIMIT 0} on the leading FROM/TS command so source_time_field
-     * resolves like {@link EsqlDataExtractor}; tolerates deferred existence like {@link #validateQuery}.
+     * Probes {@code KEEP ??sourceTimeField | LIMIT 0} on the source command so source_time_field resolves like
+     * {@link EsqlDataExtractor}; tolerates deferred existence like {@link #validateQuery}.
      */
     public void validateSourceTimeField(
         Client client,
@@ -155,14 +168,13 @@ public class EsqlDatafeedQueryValidator {
         ActionListener<Boolean> listener,
         @Nullable String datafeedId
     ) {
-        String sourceCommand = extractLeadingSourceCommand(esqlQuery);
-        if (sourceCommand == null) {
-            // Cannot build a source probe without a leading FROM/TS command.
-            listener.onResponse(Boolean.TRUE);
+        EsqlQueryWithParams probeQuery;
+        try {
+            probeQuery = EsqlDatafeedQuery.parseWithoutViewCheck(parser, esqlQuery).sourceTimeFieldProbeQuery(sourceTimeField);
+        } catch (Exception e) {
+            listener.onFailure(e);
             return;
         }
-        String probeQuery = EsqlQueryClauseScanner.appendGeneratedPipeline(sourceCommand, KEEP_SOURCE_TIME_FIELD_LIMIT_ZERO);
-        List<EsqlQueryParam> params = List.of(new EsqlQueryParam("sourceTimeField", sourceTimeField, IDENTIFIER));
 
         ActionListener<EsqlQueryResponse> responseListener = ActionListener.wrap(response -> {
             try {
@@ -184,29 +196,23 @@ public class EsqlDatafeedQueryValidator {
             }
         });
 
-        executeEsqlQueryAsync(client, probeQuery, headers, projectRouting, params, responseListener);
-    }
-
-    /** Leading FROM/TS segment for source probes; {@code null} if the query does not start with FROM or TS. */
-    static String extractLeadingSourceCommand(String esqlQuery) {
-        String leading = EsqlQueryClauseScanner.extractLeadingCommand(esqlQuery).strip();
-        int commandStart = EsqlQueryClauseScanner.skipLeadingWhitespaceAndComments(leading);
-        return isSourceCommand(leading, commandStart) ? leading : null;
+        executeEsqlQueryAsync(client, probeQuery.query(), headers, projectRouting, probeQuery.params(), responseListener);
     }
 
     /**
-     * Rejects remote-cluster sources in the leading FROM/TS command until ES|QL datafeed remote checks exist.
-     * No-op when {@code crossProjectEnabled} (CPS {@code project:index} is not a remote cluster).
+     * Rejects query shapes ES|QL datafeeds do not support: no FROM/TS source, {@code SET project_routing}, a non-UTC
+     * {@code SET time_zone}, and remote-cluster sources unless {@code crossProjectEnabled} ({@code project:index} is not remote).
      */
-    public static void rejectRemoteClusterSources(@Nullable String esqlQuery, boolean crossProjectEnabled) {
-        if (esqlQuery == null || crossProjectEnabled) {
+    public void validateQueryStructure(@Nullable String esqlQuery, boolean crossProjectEnabled) {
+        if (esqlQuery == null) {
             return;
         }
-        String sourceCommand = extractLeadingSourceCommand(esqlQuery);
-        if (sourceCommand == null) {
+        EsqlDatafeedQuery query = EsqlDatafeedQuery.parseWithoutViewCheck(parser, esqlQuery);
+        if (crossProjectEnabled) {
             return;
         }
-        for (String indexExpression : sourceIndexExpressions(sourceCommand)) {
+        // The parser already rejects a remote LOOKUP JOIN index.
+        for (String indexExpression : query.indexPatterns()) {
             String clusterAlias = remoteClusterAlias(indexExpression);
             if (clusterAlias != null) {
                 throw ExceptionsHelper.badRequestException(
@@ -227,73 +233,7 @@ public class EsqlDatafeedQueryValidator {
         return "_origin".equals(clusterAlias) ? null : clusterAlias;
     }
 
-    // MUST FIX before production: hand-written parsing of the source command (misses e.g. FROM (FROM remote:logs)); use EsqlParser.
-    // See https://github.com/elastic/elasticsearch/issues/161207
-    /** Index expressions of a leading {@code FROM}/{@code TS} command, in order. */
-    private static List<String> sourceIndexExpressions(String sourceCommand) {
-        int index = EsqlQueryClauseScanner.skipLeadingWhitespaceAndComments(sourceCommand);
-        index += matchesCommandKeyword(sourceCommand, index, "FROM") ? "FROM".length() : "TS".length();
-        List<String> expressions = new ArrayList<>();
-        while (true) {
-            index = EsqlQueryClauseScanner.skipWhitespaceAndComments(sourceCommand, index);
-            if (index >= sourceCommand.length()) {
-                break;
-            }
-            int tokenEnd;
-            String expression;
-            if (sourceCommand.charAt(index) == '"') {
-                tokenEnd = EsqlQueryClauseScanner.skipQuotedString(sourceCommand, index);
-                int quoteLength = sourceCommand.startsWith("\"\"\"", index) ? 3 : 1;
-                int contentEnd = Math.max(index + quoteLength, tokenEnd - quoteLength);
-                expression = sourceCommand.substring(index + quoteLength, contentEnd);
-                // ES|QL rejects a quoted cluster part ("east":logs), but a cluster prefix outside the quotes is still remote.
-                if (tokenEnd < sourceCommand.length()
-                    && sourceCommand.charAt(tokenEnd) == RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR
-                    && sourceCommand.startsWith("::", tokenEnd) == false) {
-                    expression = expression + RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR;
-                }
-            } else {
-                tokenEnd = index;
-                while (tokenEnd < sourceCommand.length() && isUnquotedSourceCharacter(sourceCommand, tokenEnd)) {
-                    tokenEnd++;
-                }
-                expression = sourceCommand.substring(index, tokenEnd);
-            }
-            if (tokenEnd == index) {
-                break;
-            }
-            expressions.add(expression);
-            index = EsqlQueryClauseScanner.skipWhitespaceAndComments(sourceCommand, tokenEnd);
-            if (index < sourceCommand.length() && sourceCommand.charAt(index) == ',') {
-                index++;
-            } else {
-                break;
-            }
-        }
-        return expressions;
-    }
-
-    private static boolean isUnquotedSourceCharacter(String text, int index) {
-        char character = text.charAt(index);
-        return Character.isWhitespace(character) == false
-            && character != ','
-            && text.startsWith("//", index) == false
-            && text.startsWith("/*", index) == false;
-    }
-
-    /** Whether {@code text} has a FROM or TS keyword at {@code index} (TS is probed like FROM at runtime). */
-    private static boolean isSourceCommand(String text, int index) {
-        return matchesCommandKeyword(text, index, "FROM") || matchesCommandKeyword(text, index, "TS");
-    }
-
-    private static boolean matchesCommandKeyword(String text, int index, String keyword) {
-        int end = index + keyword.length();
-        return end < text.length()
-            && text.regionMatches(true, index, keyword, 0, keyword.length())
-            && Character.isWhitespace(text.charAt(end));
-    }
-
-    private static void checkSourceTimeFieldType(List<? extends ColumnInfo> columns, String sourceTimeField, @Nullable String datafeedId) {
+    private void checkSourceTimeFieldType(List<? extends ColumnInfo> columns, String sourceTimeField, @Nullable String datafeedId) {
         // KEEP probe returns the one requested column or fails before a response (validateSourceTimeField onFailure).
         String outputType = columns.isEmpty() ? null : columns.get(0).outputType();
         if (EsqlDatafeedColumnValues.isDateColumnType(outputType) == false) {
@@ -323,34 +263,45 @@ public class EsqlDatafeedQueryValidator {
         return new IllegalArgumentException(message, cause);
     }
 
-    /**
-     * Warns about outer user pipeline clauses that conflict with the time range, order, and row cap owned by ML.
-     */
-    static void warnForConflictingOuterClauses(
-        @Nullable String datafeedId,
-        String esqlQuery,
-        String timeField,
-        boolean delayedDataCheckEnabled
-    ) {
-        EsqlQueryClauseScanner.ScanResult scan = EsqlQueryClauseScanner.scan(esqlQuery, timeField);
-        String queryContext = esqlDatafeedSubject(datafeedId);
-        if (scan.hasOuterTimeWhere()) {
-            HeaderWarning.addWarning(Messages.getMessage(Messages.DATAFEED_ESQL_OUTER_TIME_WHERE_WARNING, queryContext, timeField));
-        }
-        if (scan.hasOuterTimeSort()) {
-            HeaderWarning.addWarning(Messages.getMessage(Messages.DATAFEED_ESQL_OUTER_TIME_SORT_WARNING, queryContext, timeField));
-        }
-        if (scan.hasOuterLimit()) {
-            String limitWarning = Messages.getMessage(Messages.DATAFEED_ESQL_OUTER_LIMIT_WARNING, queryContext);
-            HeaderWarning.addWarning(
-                delayedDataCheckEnabled ? limitWarning + " " + Messages.DATAFEED_ESQL_OUTER_LIMIT_DELAYED_DATA_WARNING : limitWarning
+    /** ML sets the row cap itself, so an outer LIMIT after the last STATS is allowed but may truncate the output. */
+    static void warnForOuterLimit(@Nullable String datafeedId, EsqlDatafeedQuery query, boolean delayedDataCheckEnabled) {
+        OptionalInt outputLimit = query.outputLimit();
+        if (outputLimit.isPresent()) {
+            String warning = Messages.getMessage(
+                Messages.DATAFEED_ESQL_OUTER_LIMIT_WARNING,
+                esqlDatafeedSubject(datafeedId),
+                // A String, so MessageFormat does not group the digits: LIMIT 5000 is named as written.
+                String.valueOf(outputLimit.getAsInt())
             );
+            addLimitWarning(warning, delayedDataCheckEnabled);
         }
+    }
+
+    private static void addLimitWarning(String warning, boolean withDelayedDataNote) {
+        HeaderWarning.addWarning(withDelayedDataNote ? warning + " " + Messages.DATAFEED_ESQL_OUTER_LIMIT_DELAYED_DATA_WARNING : warning);
+    }
+
+    /**
+     * Rejects a source that names a view, once the caller's probe has succeeded, so the error tells them nothing they could not read.
+     * When {@code project_routing} can reach a linked project, that project may have answered the probe, so a same-named view in the
+     * origin project is not known to be the source and is not looked up here; start and preview still reject it (a Tech Preview
+     * limitation). A routing that names only the origin project is answered locally and is checked like no routing. Without CPS the
+     * callers pass no routing, because the datafeed config has cleared it.
+     */
+    private void rejectViewsAfterProbe(String esqlQuery, @Nullable String projectRouting) {
+        if (routingMayReachLinkedProject(projectRouting) == false) {
+            EsqlDatafeedQuery.parse(parser, esqlQuery);
+        }
+    }
+
+    private static boolean routingMayReachLinkedProject(@Nullable String projectRouting) {
+        return projectRouting != null && ORIGIN_ONLY_ROUTINGS.contains(projectRouting) == false;
     }
 
     /**
      * {@code LIMIT 0} access probe before CPS credential mint. Defers when routing matched no project or the index is not
-     * known yet; fails on explicit project resolution errors and all other probe failures.
+     * known yet; fails on explicit project resolution errors and all other probe failures. Once the probe succeeds, a source that
+     * names a view is rejected.
      */
     public void validateAccessForMint(
         Client client,
@@ -360,9 +311,24 @@ public class EsqlDatafeedQueryValidator {
         ActionListener<Void> listener,
         @Nullable String datafeedId
     ) {
-        String limitZeroQuery = EsqlQueryClauseScanner.appendGeneratedPipeline(esqlQuery, LIMIT_ZERO);
+        EsqlQueryWithParams limitZeroQuery;
+        try {
+            // No view check yet, for the reason given in validateQuery.
+            limitZeroQuery = EsqlDatafeedQuery.parseWithoutViewCheck(parser, esqlQuery).limitZeroQuery();
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
 
-        ActionListener<EsqlQueryResponse> responseListener = ActionListener.wrap(response -> listener.onResponse(null), e -> {
+        ActionListener<EsqlQueryResponse> responseListener = ActionListener.wrap(response -> {
+            try {
+                rejectViewsAfterProbe(esqlQuery, projectRouting);
+            } catch (Exception e) {
+                listener.onFailure(e);
+                return;
+            }
+            listener.onResponse(null);
+        }, e -> {
             Throwable cause = ExceptionsHelper.unwrapCause(e);
             if (cause instanceof NoMatchingProjectException) {
                 if (isNoProjectAfterRouting(cause)) {
@@ -384,7 +350,7 @@ public class EsqlDatafeedQueryValidator {
             }
         });
 
-        executeEsqlQueryAsync(client, limitZeroQuery, headers, projectRouting, List.of(), responseListener);
+        executeEsqlQueryAsync(client, limitZeroQuery.query(), headers, projectRouting, limitZeroQuery.params(), responseListener);
     }
 
     static void validateEmittedTimesInSourceWindow(

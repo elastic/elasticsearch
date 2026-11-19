@@ -74,6 +74,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
+import org.elasticsearch.xpack.ml.datafeed.esql.UnavailableEsqlQueryParser;
 import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDatafeedQueryValidator;
 import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlProbePlan;
 
@@ -122,7 +123,7 @@ public class JobConfigProvider {
             xContentRegistry,
             CloudCredentialManager.Noop::new,
             new CrossProjectModeDecider(Settings.EMPTY),
-            new EsqlDatafeedQueryValidator()
+            new EsqlDatafeedQueryValidator(new UnavailableEsqlQueryParser())
         );
     }
 

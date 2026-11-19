@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.QuerySetting;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
-import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
@@ -207,6 +206,14 @@ public class EsqlDatafeedQueryParser implements EsqlQueryParser {
     }
 
     /**
+     * For tests of the callers of the parser, which build the services without an {@link EsqlPlugin}. It is a factory and not a
+     * constructor because the extension loader needs the provider to have a single public constructor.
+     */
+    public static EsqlDatafeedQueryParser withServices(Supplier<Services> services) {
+        return new EsqlDatafeedQueryParser(services);
+    }
+
+    /**
      * Tech Preview only: it re-implements a subset of the analysis pipeline (plan walk).
      * It is to be replaced by the primitives behind {@code DESCRIBE}, or by a call to
      * {@code DESCRIBE} and handling of its response. Tracked in
@@ -214,6 +221,15 @@ public class EsqlDatafeedQueryParser implements EsqlQueryParser {
      */
     @Override
     public ParsedEsqlQuery parse(String query) {
+        return parse(query, true);
+    }
+
+    @Override
+    public ParsedEsqlQuery parseWithoutViewCheck(String query) {
+        return parse(query, false);
+    }
+
+    private ParsedEsqlQuery parse(String query, boolean rejectViews) {
         Services services = this.services.get();
         ClusterService clusterService = services.clusterService();
         ClusterState clusterState = clusterService.state();
@@ -226,8 +242,8 @@ public class EsqlDatafeedQueryParser implements EsqlQueryParser {
             services.inferenceService().inferenceSettings(),
             new EsqlFlags(clusterService.getClusterSettings())
         );
-        // The same call as EsqlSession#doExecute, so the datafeed resolves settings as a query does.
-        ResolvedSettings settings = QuerySettings.resolve(
+        // The same call as EsqlSession#doExecute, so a setting a query could not run with is rejected as it would be there.
+        QuerySettings.resolve(
             clusterService.state().metadata().settings(),
             clusterService.getSettings(),
             request.requestSettings(),
@@ -266,7 +282,9 @@ public class EsqlDatafeedQueryParser implements EsqlQueryParser {
             .indexes()
             .keySet()
             .forEach(pattern -> indexPatterns.addAll(List.of(Strings.splitStringByCommaToArray(pattern.indexPattern()))));
-        rejectViews(indexPatterns, services, clusterState);
+        if (rejectViews) {
+            rejectViews(indexPatterns, services, clusterState);
+        }
         return new Parsed(
             query,
             statement.settings().stream().map(setting -> setting.source().text()).collect(Collectors.joining("\n")),
@@ -276,7 +294,8 @@ public class EsqlDatafeedQueryParser implements EsqlQueryParser {
             pipeline.aggregates > 0,
             pipeline.outputLimit(),
             statement.settings().stream().map(QuerySetting::name).anyMatch(QuerySettings.PROJECT_ROUTING.name()::equals),
-            QuerySettings.TIME_ZONE.get(settings)
+            // ML runs every query in UTC whatever the cluster default is, so only the query's own SET is of interest.
+            QuerySettings.TIME_ZONE.get(QuerySettings.resolve(Map.of(), statement, validation))
         );
     }
 

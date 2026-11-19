@@ -20,4 +20,12 @@ public interface EsqlQueryParser {
      *                                                  construct ES|QL datafeeds do not support
      */
     ParsedEsqlQuery parse(String query);
+
+    /**
+     * Like {@link #parse} but does not reject a source that names a view. Looking up a view reads cluster metadata, so a caller
+     * whose access to the source is not yet established must use this and run {@link #parse} once the access check has passed.
+     */
+    default ParsedEsqlQuery parseWithoutViewCheck(String query) {
+        return parse(query);
+    }
 }

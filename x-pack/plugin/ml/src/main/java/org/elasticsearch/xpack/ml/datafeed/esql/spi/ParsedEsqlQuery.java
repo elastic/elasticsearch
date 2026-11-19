@@ -43,7 +43,10 @@ public interface ParsedEsqlQuery {
     /** Whether the query itself sets {@code project_routing}, as opposed to a cluster default. */
     boolean setsProjectRoutingInQuery();
 
-    /** The time zone the query runs in: its own {@code SET}, else the cluster default, else UTC. */
+    /**
+     * The time zone the query sets for itself with {@code SET time_zone}, else UTC. The cluster default is not read: ML runs every
+     * query in UTC.
+     */
     ZoneId timeZone();
 
     /** The query with no rows read: resolves the output columns. */

@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.datafeed.TransportStartDatafeedAction;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
+import org.elasticsearch.xpack.ml.datafeed.esql.EsqlParserTestSupport;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.RestartTimeInfo;
@@ -123,7 +124,8 @@ public class DatafeedJobBuilderTests extends ESTestCase {
             Settings.EMPTY,
             clusterService,
             CloudCredentialManager.Noop::new,
-            DatafeedSearchTelemetry.NOOP
+            DatafeedSearchTelemetry.NOOP,
+            EsqlParserTestSupport.parser()
         );
     }
 
@@ -365,7 +367,8 @@ public class DatafeedJobBuilderTests extends ESTestCase {
             nonRemoteClusterClientNode(),
             clusterService,
             CloudCredentialManager.Noop::new,
-            DatafeedSearchTelemetry.NOOP
+            DatafeedSearchTelemetry.NOOP,
+            EsqlParserTestSupport.parser()
         );
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setTimeField("time");
@@ -419,7 +422,8 @@ public class DatafeedJobBuilderTests extends ESTestCase {
             nonRemoteClusterClientNode(),
             clusterService,
             CloudCredentialManager.Noop::new,
-            DatafeedSearchTelemetry.NOOP
+            DatafeedSearchTelemetry.NOOP,
+            EsqlParserTestSupport.parser()
         );
         DatafeedConfig datafeed = new DatafeedConfig.Builder("datafeed1", "job1").setEsqlQuery("FROM logs")
             .setSourceTimeField("@timestamp")

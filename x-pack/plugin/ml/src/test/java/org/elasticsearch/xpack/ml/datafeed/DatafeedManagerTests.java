@@ -73,6 +73,10 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MachineLearningExtension;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.datafeed.CredentialTransitions.Change;
+import org.elasticsearch.xpack.ml.datafeed.esql.EsqlParserTestSupport;
+import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryParser;
+import org.elasticsearch.xpack.ml.datafeed.esql.spi.ParsedEsqlQuery;
+import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDatafeedQueryValidator;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
@@ -119,6 +123,9 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 public class DatafeedManagerTests extends ESTestCase {
+
+    /** The parser the manager under test uses; a test may replace it before building the manager. */
+    private EsqlQueryParser esqlParser = EsqlParserTestSupport.parser();
 
     private static final Date SCOPE_CHANGE_SIGNAL_DATA_ANCHOR = new Date(1_700_000_000_000L);
 
@@ -200,7 +207,8 @@ public class DatafeedManagerTests extends ESTestCase {
             mlExtension,
             auditor,
             annotationPersister,
-            jobResultsProvider
+            jobResultsProvider,
+            new EsqlDatafeedQueryValidator(esqlParser)
         );
     }
 
@@ -760,6 +768,69 @@ public class DatafeedManagerTests extends ESTestCase {
         assertThat(((ElasticsearchStatusException) failure.get()).status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(failure.get().getMessage(), containsString("do not support remote cluster sources"));
         verifyNoInteractions(harness.datafeedConfigProvider(), harness.jobConfigProvider(), harness.client());
+    }
+
+    /**
+     * Only what the PUT flow does before the access probe: it must parse without the view lookup. The probe and the full parse after
+     * it are covered by {@code EsqlDatafeedQueryValidatorTests}, because the job config provider is mocked here.
+     */
+    public void testPutEsqlDatafeedShouldParseWithoutViewCheckBeforeTheAccessProbe() {
+        esqlParser = new EsqlQueryParser() {
+            @Override
+            public ParsedEsqlQuery parse(String query) {
+                throw new ElasticsearchStatusException("[my_view] is a view", RestStatus.BAD_REQUEST);
+            }
+
+            @Override
+            public ParsedEsqlQuery parseWithoutViewCheck(String query) {
+                return EsqlParserTestSupport.parser().parse(query);
+            }
+        };
+        SecurityEnabledPutHarness harness = newSecurityEnabledPutHarness(securityEnabledSettings());
+        when(harness.credentialManager().hasCloudManagedCredential(any())).thenReturn(false);
+        harness.stubSuccessfulPutPrerequisites();
+        harness.stubPutDatafeedConfigSuccess();
+        DatafeedConfig datafeed = new DatafeedConfig.Builder("test-datafeed", "test-job").setEsqlQuery("FROM my_view")
+            .setSourceTimeField("@timestamp")
+            .setGroupingInterval(TimeValue.timeValueHours(1))
+            .build();
+
+        AtomicReference<PutDatafeedAction.Response> response = new AtomicReference<>();
+        harness.manager()
+            .putDatafeed(
+                new PutDatafeedAction.Request(datafeed),
+                mockClusterStateWithNoTasks(),
+                mockSecurityContextWithUser("df-user"),
+                harness.threadPool(),
+                ActionTestUtils.assertNoFailureListener(response::set)
+            );
+
+        assertThat(response.get(), notNullValue());
+    }
+
+    public void testPutEsqlDatafeedWithNonUtcTimeZoneShouldRejectBeforeMintingCredential() {
+        assumeTrue("feature under test must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
+        SecurityEnabledPutHarness harness = newSecurityEnabledPutHarness(cpsWithSecurityEnabledSettings());
+        when(harness.credentialManager().hasCloudManagedCredential(any())).thenReturn(true);
+        DatafeedConfig datafeed = new DatafeedConfig.Builder("test-datafeed", "test-job").setEsqlQuery(
+            "SET time_zone=\"Europe/Berlin\"; FROM logs-*"
+        ).setSourceTimeField("@timestamp").setGroupingInterval(TimeValue.timeValueHours(1)).build();
+
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        harness.manager()
+            .putDatafeed(
+                new PutDatafeedAction.Request(datafeed),
+                mockClusterStateWithNoTasks(),
+                mockSecurityContextWithUser("df-user"),
+                harness.threadPool(),
+                ActionListener.wrap(r -> fail("expected failure"), failure::set)
+            );
+
+        assertThat(failure.get(), instanceOf(ElasticsearchStatusException.class));
+        assertThat(((ElasticsearchStatusException) failure.get()).status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(failure.get().getMessage(), containsString("UTC"));
+        // A rule ML enforces on the query alone must fail before a key is minted that would have to be revoked.
+        verifyNoInteractions(harness.apiKeyService(), harness.datafeedConfigProvider(), harness.jobConfigProvider());
     }
 
     /**

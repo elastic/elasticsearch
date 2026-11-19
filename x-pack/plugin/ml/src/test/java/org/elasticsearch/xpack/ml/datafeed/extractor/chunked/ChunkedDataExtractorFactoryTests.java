@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.chunked;
 
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchModule;
@@ -18,7 +19,12 @@ import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
+import org.elasticsearch.xpack.ml.datafeed.esql.EsqlParserTestSupport;
+import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryParser;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
+import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDataExtractorFactory;
+import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDatafeedQuery;
 import org.junit.Before;
 
 import java.time.Duration;
@@ -159,6 +165,7 @@ public class ChunkedDataExtractorFactoryTests extends ESTestCase {
     }
 
     private ChunkedDataExtractorFactory createEsqlFactory(TimeValue groupingInterval, String esqlQuery) {
+        EsqlQueryParser parser = EsqlParserTestSupport.parser();
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setTimeField("time");
         Detector.Builder detectorBuilder = new Detector.Builder();
@@ -172,12 +179,17 @@ public class ChunkedDataExtractorFactoryTests extends ESTestCase {
         datafeedConfigBuilder.setEsqlQuery(esqlQuery);
         datafeedConfigBuilder.setSourceTimeField("@timestamp");
         datafeedConfigBuilder.setGroupingInterval(groupingInterval);
-        return new ChunkedDataExtractorFactory(
-            datafeedConfigBuilder.build(),
-            jobBuilder.build(new Date()),
-            xContentRegistry(),
-            dataExtractorFactory
+        DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
+        Job job = jobBuilder.build(new Date());
+        EsqlDatafeedQuery query = EsqlDatafeedQuery.parse(parser, esqlQuery);
+        EsqlDataExtractorFactory esqlFactory = new EsqlDataExtractorFactory(
+            mock(Client.class),
+            datafeedConfig,
+            job,
+            mock(DatafeedTimingStatsReporter.class),
+            query
         );
+        return new ChunkedDataExtractorFactory(datafeedConfig, job, xContentRegistry(), esqlFactory, query.injectsRowLimit());
     }
 
     private ChunkedDataExtractorFactory createFactory(long histogramInterval) {
@@ -204,7 +216,8 @@ public class ChunkedDataExtractorFactoryTests extends ESTestCase {
             datafeedConfigBuilder.build(),
             jobBuilder.build(new Date()),
             xContentRegistry(),
-            dataExtractorFactory
+            dataExtractorFactory,
+            false
         );
     }
 }

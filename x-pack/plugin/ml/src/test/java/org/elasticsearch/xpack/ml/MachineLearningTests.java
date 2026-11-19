@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ml;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -20,6 +21,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.PluginTestUtil;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -36,7 +38,6 @@ import org.elasticsearch.xpack.core.ml.action.SetUpgradeModeAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.ml.autoscaling.AbstractNodeAvailabilityZoneMapper;
 import org.elasticsearch.xpack.ml.autoscaling.NodeRealAvailabilityZoneMapper;
-import org.elasticsearch.xpack.ml.datafeed.esql.UnavailableEsqlQueryParser;
 import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryParser;
 import org.elasticsearch.xpack.ml.datafeed.esql.spi.ParsedEsqlQuery;
 import org.elasticsearch.xpack.ml.rest.RestMlInfoAction;
@@ -55,7 +56,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -346,16 +346,19 @@ public class MachineLearningTests extends ESTestCase {
     public void testNoEsqlQueryParserProviderShouldFallBackToUnavailableParser() throws IOException {
         try (MachineLearning machineLearning = new MachineLearning(Settings.EMPTY)) {
             machineLearning.loadExtensions(esqlParserLoader());
-            assertThat(machineLearning.esqlQueryParser(), instanceOf(UnavailableEsqlQueryParser.class));
+            EsqlQueryParser parser = machineLearning.esqlQueryParser();
+            ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> parser.parse("FROM a"));
+            assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
         }
     }
 
     public void testRealEsqlQueryParserLoadedAfterNullLoaderShouldBeUsed() throws IOException {
         try (MachineLearning machineLearning = new MachineLearning(Settings.EMPTY)) {
             machineLearning.loadExtensions(null);
-            FirstTestParser parser = new FirstTestParser();
-            machineLearning.loadExtensions(esqlParserLoader(parser));
-            assertThat(machineLearning.esqlQueryParser(), sameInstance(parser));
+            machineLearning.loadExtensions(esqlParserLoader(new FirstTestParser()));
+            // The loaded provider is used: its stub throws where the unavailable parser would answer 400.
+            EsqlQueryParser parser = machineLearning.esqlQueryParser();
+            expectThrows(UnsupportedOperationException.class, () -> parser.parse("FROM a"));
         }
     }
 
@@ -364,7 +367,8 @@ public class MachineLearningTests extends ESTestCase {
             ExtensiblePlugin.ExtensionLoader loader = esqlParserLoader(new FirstTestParser(), new FirstTestParser());
             machineLearning.loadExtensions(loader);
             machineLearning.loadExtensions(loader);
-            assertThat(machineLearning.esqlQueryParser(), instanceOf(FirstTestParser.class));
+            EsqlQueryParser parser = machineLearning.esqlQueryParser();
+            expectThrows(UnsupportedOperationException.class, () -> parser.parse("FROM a"));
         }
     }
 

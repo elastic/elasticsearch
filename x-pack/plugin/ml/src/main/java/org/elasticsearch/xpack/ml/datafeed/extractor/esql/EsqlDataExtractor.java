@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.core.esql.action.EsqlResponse;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
+import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryWithParams;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 
 import java.io.IOException;
@@ -43,24 +44,10 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction.TASKS_ORIGIN;
-import static org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.EsqlQueryParam.ParamClassification.IDENTIFIER;
 
 public class EsqlDataExtractor implements DataExtractor {
 
     private static final Logger LOGGER = LogManager.getLogger(EsqlDataExtractor.class);
-
-    /** Injected row cap when the user query has no outer LIMIT; see {@link EsqlDataExtractorQueryUtils#INJECTED_ROW_LIMIT}. */
-    public static final long INJECTED_ROW_LIMIT = EsqlDataExtractorQueryUtils.INJECTED_ROW_LIMIT;
-
-    /** Delegates to {@link EsqlDataExtractorQueryUtils#injectsRowLimit(String)}. */
-    public static boolean injectsRowLimit(String esqlQuery) {
-        return EsqlDataExtractorQueryUtils.injectsRowLimit(esqlQuery);
-    }
-
-    /** Whether the user's pipeline contains a depth-zero {@code STATS} command (aggregating query). */
-    public static boolean hasAggregation(String esqlQuery) {
-        return EsqlQueryClauseScanner.hasAggregation(esqlQuery);
-    }
 
     private final Client client;
     private final EsqlDataExtractorContext context;
@@ -122,7 +109,7 @@ public class EsqlDataExtractor implements DataExtractor {
     public DataSummary getSummary() {
         QueryBuilder timeFilter = buildTimeFilter();
         SourceRangeSummary sourceSummary = fetchSourceRangeSummary(timeFilter);
-        if (sourceSummary.hasData() == false || EsqlQueryClauseScanner.hasAggregation(context.esqlQuery()) == false) {
+        if (sourceSummary.hasData() == false || context.query().hasAggregation() == false) {
             return new DataSummary(sourceSummary.earliestTime(), sourceSummary.latestTime(), sourceSummary.totalHits());
         }
         if (sourceSummary.earliestTime() == null) {
@@ -133,11 +120,11 @@ public class EsqlDataExtractor implements DataExtractor {
         return new DataSummary(sourceSummary.earliestTime(), sourceSummary.latestTime(), estimatedOutputRows);
     }
 
-    /** Source-level MIN/MAX/COUNT probe on {@link EsqlQueryClauseScanner#extractLeadingCommand}, not the user pipeline. */
+    /** Source-level MIN/MAX/COUNT probe on the source command, not the user pipeline. */
     private SourceRangeSummary fetchSourceRangeSummary(QueryBuilder timeFilter) {
-        String sourceQuery = EsqlDataExtractorQueryUtils.sourceRangeSummaryQuery(context.esqlQuery());
+        EsqlQueryWithParams sourceQuery = context.query().sourceRangeSummaryQuery(context.sourceTimeField());
         long startMs = client.threadPool().relativeTimeInMillis();
-        try (EsqlQueryResponse response = runQueryWithSingleRetry(sourceQuery, timeFilter, sourceTimeFieldParam())) {
+        try (EsqlQueryResponse response = runQueryWithSingleRetry(sourceQuery, timeFilter)) {
             long durationMs = client.threadPool().relativeTimeInMillis() - startMs;
             timingStatsReporter.reportSearchDuration(TimeValue.timeValueMillis(durationMs));
             DataSummary summary = parseSummaryResponse(response.response());
@@ -173,10 +160,10 @@ public class EsqlDataExtractor implements DataExtractor {
      * STATS. Used only to measure output-row density over a small window, not over the full extraction range.
      */
     private long runBoundedAggregationProbe(long probeStart, long probeEnd) {
-        QueryBuilder probeFilter = EsqlDataExtractorQueryUtils.timeRangeFilter(context.sourceTimeField(), probeStart, probeEnd);
-        String probeQuery = EsqlDataExtractorQueryUtils.boundedProbeQuery(context.esqlQuery());
+        QueryBuilder probeFilter = EsqlQueryExecutor.timeRangeFilter(context.sourceTimeField(), probeStart, probeEnd);
+        EsqlQueryWithParams probeQuery = context.query().outputRowsProbeQuery();
         long startMs = client.threadPool().relativeTimeInMillis();
-        try (EsqlQueryResponse response = runQueryWithSingleRetry(probeQuery, probeFilter, List.of())) {
+        try (EsqlQueryResponse response = runQueryWithSingleRetry(probeQuery, probeFilter)) {
             long durationMs = client.threadPool().relativeTimeInMillis() - startMs;
             timingStatsReporter.reportSearchDuration(TimeValue.timeValueMillis(durationMs));
             for (Iterable<Object> row : response.response().rows()) {
@@ -195,10 +182,10 @@ public class EsqlDataExtractor implements DataExtractor {
     }
 
     private QueryBuilder buildTimeFilter() {
-        return EsqlDataExtractorQueryUtils.timeRangeFilter(context.sourceTimeField(), context.start(), context.end());
+        return EsqlQueryExecutor.timeRangeFilter(context.sourceTimeField(), context.start(), context.end());
     }
 
-    private static DataSummary parseSummaryResponse(EsqlResponse response) {
+    private DataSummary parseSummaryResponse(EsqlResponse response) {
         List<? extends ColumnInfo> columns = response.columns();
         boolean earliestIsDate = columns.isEmpty() == false && EsqlDatafeedColumnValues.isDateColumnType(columns.get(0).outputType());
         boolean latestIsDate = columns.size() > 1 && EsqlDatafeedColumnValues.isDateColumnType(columns.get(1).outputType());
@@ -231,10 +218,10 @@ public class EsqlDataExtractor implements DataExtractor {
 
         QueryBuilder timeFilter = buildTimeFilter();
 
-        String orderedQuery = EsqlDataExtractorQueryUtils.buildOrderedQuery(context.esqlQuery());
+        EsqlQueryWithParams orderedQuery = context.query().orderedQuery(context.emittedTimeField());
 
         long startMs = client.threadPool().relativeTimeInMillis();
-        try (EsqlQueryResponse response = runQueryWithSingleRetry(orderedQuery, timeFilter, timeFieldParam())) {
+        try (EsqlQueryResponse response = runQueryWithSingleRetry(orderedQuery, timeFilter)) {
             long durationMs = client.threadPool().relativeTimeInMillis() - startMs;
             timingStatsReporter.reportSearchDuration(TimeValue.timeValueMillis(durationMs));
             Optional<InputStream> data = Optional.empty();
@@ -273,21 +260,19 @@ public class EsqlDataExtractor implements DataExtractor {
         }
     }
 
-    private EsqlQueryResponse runQueryWithSingleRetry(String query, QueryBuilder timeFilter, List<EsqlQueryParam> params) {
-        return EsqlQueryRunner.runWithSingleRetry(syncQueryRunner, query, timeFilter, params, () -> isCancelled, context.jobId());
+    private EsqlQueryResponse runQueryWithSingleRetry(EsqlQueryWithParams query, QueryBuilder timeFilter) {
+        return EsqlQueryRunner.runWithSingleRetry(
+            syncQueryRunner,
+            query.query(),
+            timeFilter,
+            query.params(),
+            () -> isCancelled,
+            context.jobId()
+        );
     }
 
     private EsqlQueryResponse executeDefaultSyncQuery(String orderedQuery, QueryBuilder timeFilter, List<EsqlQueryParam> params) {
-        return execute(EsqlQueryExecutor.newRequest(client, orderedQuery, timeFilter, params, context.projectRouting()));
-    }
-
-    private List<EsqlQueryParam> timeFieldParam() {
-        return List.of(new EsqlQueryParam("timeField", context.emittedTimeField(), IDENTIFIER));
-    }
-
-    /** Binds {@code ??timeField} to {@link EsqlDataExtractorContext#sourceTimeField()} for pre-pipeline probes. */
-    private List<EsqlQueryParam> sourceTimeFieldParam() {
-        return List.of(new EsqlQueryParam("timeField", context.sourceTimeField(), IDENTIFIER));
+        return execute(EsqlQueryExecutor.newUtcRequest(client, orderedQuery, timeFilter, params, context.projectRouting()));
     }
 
     EsqlQueryResponse execute(EsqlQueryRequestBuilder<? extends EsqlQueryRequest, ? extends EsqlQueryResponse> request) {

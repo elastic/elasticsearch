@@ -141,6 +141,10 @@ public class EsqlDatafeedQueryParserTests extends ESTestCase {
         return parserFor(clusterService).parse(query);
     }
 
+    private ParsedEsqlQuery parseWithoutViewCheck(String query) {
+        return parserFor(clusterService).parseWithoutViewCheck(query);
+    }
+
     public void testServicesFileShouldRegisterParser() {
         SPIClassIterator<EsqlQueryParser> providers = SPIClassIterator.get(EsqlQueryParser.class, getClass().getClassLoader());
         List<Class<? extends EsqlQueryParser>> classes = new ArrayList<>();
@@ -160,11 +164,19 @@ public class EsqlDatafeedQueryParserTests extends ESTestCase {
         assertThat(query.setsProjectRoutingInQuery(), is(false));
     }
 
-    public void testTimeZoneSetInQueryShouldWinOverClusterDefault() {
+    public void testTimeZoneShouldBeTheOneSetInQueryAndNotTheClusterDefault() {
         try (ClusterService berlin = clusterService(Settings.builder().put("esql.query.settings.time_zone", "Europe/Berlin").build())) {
-            assertThat(parserFor(berlin).parse("FROM idx").timeZone(), equalTo(ZoneId.of("Europe/Berlin")));
+            // ML sends UTC with every request, so the cluster default is of no interest.
+            assertThat(parserFor(berlin).parse("FROM idx").timeZone(), equalTo(ZoneOffset.UTC));
             assertThat(parserFor(berlin).parse("SET time_zone=\"Asia/Tokyo\"; FROM idx").timeZone(), equalTo(ZoneId.of("Asia/Tokyo")));
         }
+    }
+
+    public void testTimeZoneSetAgainAfterUtcPrefixShouldParse() {
+        // ML puts SET time_zone="UTC" in front of every query it runs; the query may set the same setting itself.
+        ParsedEsqlQuery query = parse("SET time_zone=\"UTC\";\nSET time_zone=\"UTC\"; FROM idx");
+        assertThat(query.timeZone(), equalTo(ZoneOffset.UTC));
+        assertThat(query.indexPatterns(), contains("idx"));
     }
 
     public void testProjectRoutingSetInQueryShouldBeReportedWhenCrossProjectIsEnabled() {
@@ -533,6 +545,21 @@ public class EsqlDatafeedQueryParserTests extends ESTestCase {
         // The view is named exactly even when it is listed with other sources.
         expectThrows(ParsingException.class, () -> parse("FROM logs, my_view | STATS c = COUNT(*)"));
         assertThat(parse("FROM logs | STATS c = COUNT(*)").indexPatterns(), contains("logs"));
+    }
+
+    public void testViewShouldNotBeLookedUpWithoutViewCheck() {
+        ClusterServiceUtils.setState(
+            clusterService,
+            ClusterState.builder(clusterService.state())
+                .putProjectMetadata(
+                    ProjectMetadata.builder(clusterService.state().metadata().getProject(ProjectId.DEFAULT))
+                        .views(Map.of("my_view", new View("my_view", "FROM logs")))
+                )
+                .build()
+        );
+        // The check before a caller's access is known must not tell whether a view exists.
+        assertThat(parseWithoutViewCheck("FROM my_view | STATS c = COUNT(*)").indexPatterns(), contains("my_view"));
+        expectThrows(ParsingException.class, () -> parse("FROM my_view | STATS c = COUNT(*)"));
     }
 
     public void testLimitShouldBeRejectedBelowStats() {

@@ -98,14 +98,8 @@ public final class Messages {
     public static final String DATAFEED_ESQL_PROBE_UNKNOWN_ERROR = "unknown error";
     public static final String DATAFEED_ESQL_EXPECTED_DATE_VALUE = "expected date value";
     public static final String DATAFEED_ESQL_EXPECTED_NUMERIC_TIMESTAMP = "expected numeric timestamp";
-    public static final String DATAFEED_ESQL_OUTER_TIME_WHERE_WARNING =
-        "{0} query contains an outer WHERE clause on job time field [{1}]; remove the time-field WHERE clause because ML owns the request "
-            + "window.";
-    public static final String DATAFEED_ESQL_OUTER_TIME_SORT_WARNING =
-        "{0} query contains an outer SORT clause on job time field [{1}]; remove or change the time-field SORT clause because ML owns the "
-            + "request order.";
     public static final String DATAFEED_ESQL_OUTER_LIMIT_WARNING =
-        "{0} query contains an outer LIMIT clause; remove it because ML owns the safety ceiling.";
+        "{0} query contains an outer LIMIT [{1}]. ML cannot detect truncated results for this query. Remove the LIMIT.";
     public static final String DATAFEED_ESQL_OUTER_LIMIT_DELAYED_DATA_WARNING =
         "The delayed data check applies the LIMIT to the whole check window. It can miss delayed data or report data that is not delayed.";
     public static final String DATAFEED_ESQL_QUERY_CANCELLED = "ES|QL query was cancelled";
@@ -128,6 +122,11 @@ public final class Messages {
     public static final String DATAFEED_ESQL_REMOTE_CLUSTER_SOURCE_NOT_SUPPORTED =
         "ES|QL datafeeds currently do not support remote cluster sources, but the index expression [{0}] in the "
             + "esql_query source command refers to remote cluster [{1}]; remove the cluster prefix and query local indices only";
+    public static final String DATAFEED_ESQL_SOURCE_COMMAND_REQUIRED = "ES|QL datafeeds require a FROM or TS source command in esql_query.";
+    public static final String DATAFEED_ESQL_PROJECT_ROUTING_SETTING_NOT_SUPPORTED =
+        "ES|QL datafeeds do not support SET project_routing in esql_query. Set project_routing on the datafeed.";
+    public static final String DATAFEED_ESQL_TIME_ZONE_SETTING_NOT_UTC =
+        "ES|QL datafeeds require the UTC time zone. The esql_query sets time_zone to [{0}]. Remove the SET time_zone statement.";
     public static final String DATAFEED_ESQL_UPDATE_QUERY_SHAPE_IMMUTABLE =
         "Recreate ES|QL datafeed [{0}] to change esql_query, source_time_field, grouping_interval, indices, query, "
             + "aggregations, scroll_size, indices_options, or runtime_mappings. The update API only supports operational "

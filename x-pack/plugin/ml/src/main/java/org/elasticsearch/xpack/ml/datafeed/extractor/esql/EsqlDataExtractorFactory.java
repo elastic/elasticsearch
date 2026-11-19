@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.ml.datafeed.extractor.esql;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -15,26 +14,20 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 
-public record EsqlDataExtractorFactory(Client client, DatafeedConfig datafeed, Job job, DatafeedTimingStatsReporter timingStatsReporter)
-    implements
-        DataExtractorFactory {
-
-    public static void create(
-        Client client,
-        DatafeedConfig datafeed,
-        Job job,
-        DatafeedTimingStatsReporter timingStatsReporter,
-        ActionListener<DataExtractorFactory> factoryHandler
-    ) {
-        DataExtractorFactory factory = new EsqlDataExtractorFactory(client, datafeed, job, timingStatsReporter);
-        factoryHandler.onResponse(factory);
-    }
+/** Builds extractors for one ES|QL datafeed; the query is parsed once by the caller. */
+public record EsqlDataExtractorFactory(
+    Client client,
+    DatafeedConfig datafeed,
+    Job job,
+    DatafeedTimingStatsReporter timingStatsReporter,
+    EsqlDatafeedQuery query
+) implements DataExtractorFactory {
 
     @Override
     public DataExtractor newExtractor(long start, long end) {
         EsqlDataExtractorContext ctx = new EsqlDataExtractorContext(
             job.getId(),
-            datafeed.getEsqlQuery(),
+            query,
             datafeed.getSourceTimeField(),
             job.getDataDescription().getTimeField(),
             datafeed.getGroupingInterval().millis(),

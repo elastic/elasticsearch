@@ -73,6 +73,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -573,6 +574,52 @@ public class ExchangeServiceTests extends ESTestCase {
         }
         while ((p = pages.poll()) != null) {
             p.releaseBlocks();
+        }
+        assertTrue(exchangeSource.isFinished());
+        exchangeSource.finish();
+    }
+
+    /**
+     * The page callback of a remote sink sees every page that arrives, before the buffer takes it. That includes the pages
+     * that the buffer discards because the source already finished, which no driver reads.
+     */
+    public void testOnPageFetchedSeesEveryArrivingPage() {
+        ExchangeSourceHandler sourceHandler = new ExchangeSourceHandler(100, threadPool.generic());
+        ExchangeSource exchangeSource = sourceHandler.createExchangeSource();
+        BlockFactory blockFactory = blockFactory();
+        int pages = between(1, 20);
+        boolean sourceFinishes = randomBoolean();
+        AtomicInteger sent = new AtomicInteger();
+        List<Integer> seen = Collections.synchronizedList(new ArrayList<>());
+        PlainActionFuture<Void> sinkCompleted = new PlainActionFuture<>();
+        sourceHandler.addRemoteSink((allSourcesFinished, listener) -> {
+            if (allSourcesFinished) {
+                // like a real sink, which drops its pages once its source finished
+                listener.onResponse(new ExchangeResponse(null, true));
+                return;
+            }
+            int n = sent.getAndIncrement();
+            if (sourceFinishes && n == 0) {
+                // the source needs no more pages, so the buffer discards the page on its way
+                exchangeSource.finish();
+            }
+            Page page = new Page(blockFactory.newConstantIntBlockWith(n, 1));
+            listener.onResponse(new ExchangeResponse(page, n == pages - 1));
+        }, randomBoolean(), page -> seen.add(page.<IntBlock>getBlock(0).getInt(0)), 1, sinkCompleted);
+        sinkCompleted.actionGet(TimeValue.timeValueSeconds(10));
+
+        assertThat(seen, equalTo(IntStream.range(0, sent.get()).boxed().toList()));
+        List<Integer> read = new ArrayList<>();
+        Page page;
+        while ((page = exchangeSource.pollPage()) != null) {
+            read.add(page.<IntBlock>getBlock(0).getInt(0));
+            page.releaseBlocks();
+        }
+        if (sourceFinishes) {
+            assertThat(read, empty());
+        } else {
+            assertThat(sent.get(), equalTo(pages));
+            assertThat(read, equalTo(seen));
         }
         assertTrue(exchangeSource.isFinished());
         exchangeSource.finish();

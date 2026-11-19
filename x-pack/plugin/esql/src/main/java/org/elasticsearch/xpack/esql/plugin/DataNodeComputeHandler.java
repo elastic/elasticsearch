@@ -33,6 +33,7 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.util.concurrent.TaskLoadAttribution;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.query.SharedSortBound;
@@ -182,6 +183,10 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         Set<String> concreteIndices,
         OriginalIndices originalIndices,
         ExchangeSourceHandler exchangeSource,
+        // Non-null when documents leave the data nodes: each data node keeps the fetch contexts of the rows that left it
+        @Nullable TimeValue readerContextKeepAlive,
+        // gets each page of the data nodes before the exchange buffers it, so the coordinator learns of the kept contexts
+        Consumer<Page> onPageFetched,
         Runnable runOnTaskFailure,
         Consumer<DriverCompletionInfo> onFailureUsage,
         ActionListener<ComputeResponse> outListener
@@ -275,7 +280,10 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 // work as the final driver.
                                 queryPragmas.nodeLevelReduction() && sameNodeAsCoordinator == false,
                                 queryPragmas.nodeLevelReduction() && enableReduceNodeLateMaterialization,
-                                sameNodeAsCoordinator && queryPragmas.singleNodeOptimizations() && Strings.isEmpty(clusterAlias)
+                                sameNodeAsCoordinator && queryPragmas.singleNodeOptimizations() && Strings.isEmpty(clusterAlias),
+                                List.of(),
+                                0L,
+                                readerContextKeepAlive
                             );
                             ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
                             final var sinkPart = computeService.remoteSinkPart(computeService.queryId(parentTask), groupTask);
@@ -295,10 +303,10 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                     searchExecutor
                                 )
                             );
-                            exchangeSource.addRemoteSink(
-                                remoteSink,
-                                configuration.allowPartialResults() == false,
-                                pagesFetched::incrementAndGet,
+                            exchangeSource.addRemoteSink(remoteSink, configuration.allowPartialResults() == false, page -> {
+                                pagesFetched.incrementAndGet();
+                                onPageFetched.accept(page);
+                            },
                                 queryPragmas.concurrentExchangeClients(),
                                 ActionListener.releaseAfter(computeListener.acquireAvoid(), sinkPart)
                             );

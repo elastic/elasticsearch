@@ -34,7 +34,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
-import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags.FetchPhaseMode;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 
@@ -82,18 +81,21 @@ import static org.elasticsearch.transport.RemoteClusterAware.isRemoteIndexName;
  * Both are about correctness only. {@link #paysOff} then decides whether an accepted plan is likely faster with the
  * fetch phase. Every other plan keeps loading its columns eagerly, unchanged, and the rule logs why at debug level.
  * <p>
- * {@link EsqlFlags#fetchPhaseMode()} turns the rule on. {@link FetchPhaseMode#ALWAYS} skips {@link #paysOff}. The rule
- * runs in the last batch of the logical optimizer, so no other logical rule needs to know {@link Fetch}.
+ * {@link FetchPhasePolicy} turns the rule on and picks its mode. {@link FetchPhaseMode#ALWAYS} skips {@link #paysOff}.
+ * The rule runs in the last batch of the logical optimizer, so no other logical rule needs to know {@link Fetch}.
  */
 public final class PlanFetch extends ParameterizedRule<LogicalPlan, LogicalPlan, LogicalOptimizerContext> {
     private static final Logger logger = LogManager.getLogger(PlanFetch.class);
 
     @Override
     public LogicalPlan apply(LogicalPlan plan, LogicalOptimizerContext context) {
-        FetchPhaseMode mode = context.flags().fetchPhaseMode();
-        if (mode == FetchPhaseMode.DISABLED) {
+        FetchPhasePolicy policy = FetchPhasePolicy.from(context);
+        FetchPhasePolicy.Outcome gate = policy.decide();
+        if (gate != FetchPhasePolicy.Outcome.ENABLED) {
+            logger.debug("fetch phase not planned: [{}]", gate);
             return plan;
         }
+        FetchPhaseMode mode = policy.mode();
         Shape shape = shape(plan);
         if (mode == FetchPhaseMode.AUTO && shape instanceof Candidate candidate) {
             shape = paysOff(candidate);

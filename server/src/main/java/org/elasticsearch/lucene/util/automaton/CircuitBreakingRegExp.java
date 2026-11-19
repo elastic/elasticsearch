@@ -56,15 +56,18 @@ public final class CircuitBreakingRegExp {
      * costs {@link #WORK_PER_BUILT_STATE_OR_TRANSITION}, because Lucene sorts and trims what it builds, which takes far longer
      * per item than a scan; each optional copy of a bounded repeat costs {@link #WORK_PER_OPTIONAL_COPY} for Lucene's
      * bookkeeping around it. Ordinary patterns use at most a few million units, and patterns such as {@code .{0,10000}}
-     * about a hundred million. The weights make a unit take about the same time whichever of the three kinds of work it
-     * counts, between 0.5 and 2.3 ns on the shapes measured, so the limit is a fraction of a second for any mix of them.
+     * about a hundred million. A unit is not a fixed amount of time. It took between 0.5 and 2.3 ns on the shapes the weights
+     * were measured on, but a repeat of a character class with many ranges builds its transitions several times slower than
+     * the weights assume, so a pattern at the limit takes from a fraction of a second to a few seconds. The work is checked
+     * before each step, not during it, so a pattern refused just past the limit has spent about as long.
      */
     public static final int DEFAULT_WORK_LIMIT = 250_000_000;
 
     /**
      * Work units per state or transition an operation builds, against one unit per entry it scans. Measured on Lucene
      * 10.5.1, scanning an entry takes about 0.7 ns and building a state or transition 35 to 234 ns depending on the
-     * shape; this sits at the low end of that ratio.
+     * shape; this sits at the low end of that ratio. Repeats of a character class with many ranges fall outside it, at a
+     * few microseconds per transition.
      */
     static final long WORK_PER_BUILT_STATE_OR_TRANSITION = 64L;
 

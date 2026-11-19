@@ -8,7 +8,8 @@ breaking:
     pattern. Previously a pattern of any length was compiled, and its compilation was not accounted for against the request
     circuit breaker. The patterns are now compiled on the shard,
     with every step charged to the request circuit breaker and bounded by a fixed amount of work, so a pattern that is too
-    complex to build is rejected instead of occupying a search thread. Both constructors of the pattern now compile it with
+    complex to build is rejected instead of occupying a search thread. The `regexp` query and PromQL label matchers are
+    built the same way and are bounded by the same amount of work. Both constructors of the pattern now compile it with
     the same flags, so `~` is the complement operator on every shard; before, a shard that received the request from
     another node treated `~` as a literal character.
   impact: >-

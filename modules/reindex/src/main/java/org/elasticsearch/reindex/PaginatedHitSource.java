@@ -208,7 +208,7 @@ public abstract class PaginatedHitSource {
         private final long totalHits;
         private List<? extends Hit> hits;
         private final String scrollId;
-        private final Object[] searchAfterValues;
+        private Object[] searchAfterValues;
         private final BytesReference pitId;
 
         public Response(
@@ -323,6 +323,9 @@ public abstract class PaginatedHitSource {
          * search-after values and PIT id are kept because the next search still needs them.
          */
         public void dropHits() {
+            // When no explicit values were given the getter falls back to the last hit, so pin that answer down before the hits go.
+            // Only the sort values array is kept, not the hit itself.
+            searchAfterValues = getSearchAfterValues();
             hits = List.of();
         }
 

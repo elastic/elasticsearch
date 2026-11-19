@@ -18,9 +18,10 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import java.util.Objects;
 
 /**
- * A cast that can't convert its input, which is always {@code null}. The analyzer uses it instead of a {@code null} literal when the
- * input contains an aggregate function, as in {@code STATS x = COUNT(*)::ip}: a constant isn't valid there, while an expression over
- * the aggregation is, and the optimizer moves it after the aggregation before replacing it with a {@code null} literal.
+ * A cast that can't convert its input, which is always {@code null}. The analyzer uses it instead of a {@code null} literal in
+ * {@code STATS} when the input isn't a constant, as in {@code STATS x = COUNT(*)::ip} or {@code STATS x = f::ip BY f}: STATS
+ * verifies its expressions by what they reference, so a constant isn't valid there, while an expression over the aggregation or
+ * a grouping key is. The optimizer moves it out of the aggregation before replacing it with a {@code null} literal.
  */
 public class NullCast extends UnaryExpression {
     private final DataType dataType;

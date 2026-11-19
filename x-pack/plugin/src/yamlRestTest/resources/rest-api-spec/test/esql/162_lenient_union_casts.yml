@@ -755,6 +755,26 @@ setup:
         body:
           query: 'FROM lenient_long | INLINE STATS x = COUNT(*)::ip, c = COUNT(*) BY id | KEEP id, x, c'
   - match: { values.0: [4, null, 1] }
+  - do:
+      warnings:
+        - "[f] of type [long] cannot be converted to [IP] and will be null."
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM lenient_long | STATS x = f::ip BY f'
+  - match: { columns.0.type: "ip" }
+  - match: { values.0: [null, 42] }
+  - do:
+      warnings:
+        - "[f] of type [long] cannot be converted to [IP] and will be null."
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM lenient_long | STATS c = COUNT(*) BY g = f::ip'
+  - match: { columns.1.type: "ip" }
+  - match: { values.0: [1, null] }
 
 ---
 "invalid option on a union cast still errors":

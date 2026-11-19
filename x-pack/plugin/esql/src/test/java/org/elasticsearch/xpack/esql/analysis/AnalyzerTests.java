@@ -6630,7 +6630,23 @@ public class AnalyzerTests extends AnalyzerTestCase {
      */
     public void testImpossibleCastWithoutAggregateInStatsFails() {
         defaultMapping().minimumTransportVersion(TransportVersion.current())
-            .error("FROM test | STATS x = salary::ip", containsString("expected an aggregate function but found [salary::ip]"));
+            .error(
+                "FROM test | STATS x = salary::ip",
+                containsString("column [salary] must appear in the STATS BY clause or be used in an aggregate function")
+            );
+        defaultMapping().minimumTransportVersion(TransportVersion.current())
+            .error("FROM test | STATS x = 1::ip BY languages", containsString("expected an aggregate function but found [1::ip]"));
+    }
+
+    public void testImpossibleCastOfGroupingKeyIsANullCast() {
+        LogicalPlan plan = defaultMapping().minimumTransportVersion(TransportVersion.current())
+            .query("FROM test | STATS x = languages::ip BY languages");
+        assertWarnings("[languages] of type [integer] cannot be converted to [IP] and will be null.");
+        Aggregate aggregate = as(as(plan, Limit.class).child(), Aggregate.class);
+        assertThat(Expressions.names(aggregate.aggregates()), equalTo(List.of("x", "languages")));
+        NullCast nullCast = as(as(aggregate.aggregates().get(0), Alias.class).child(), NullCast.class);
+        assertThat(nullCast.dataType(), equalTo(IP));
+        assertThat(as(nullCast.child(), FieldAttribute.class).name(), equalTo("languages"));
     }
 
     private static void assertNullLiteral(Expression expression, DataType type) {

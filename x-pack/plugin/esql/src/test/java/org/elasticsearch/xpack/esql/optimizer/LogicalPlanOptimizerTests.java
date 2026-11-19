@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.expression.NullCast;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.expression.function.WindowFilter;
@@ -216,6 +217,7 @@ import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.expression.function.vector.Knn.ALLOWED_OPTIONS;
@@ -3266,6 +3268,16 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertWarnings("[COUNT(*)] of type [long] cannot be converted to [IP] and will be null.");
         assertFalse(plan.anyMatch(p -> p instanceof Aggregate || p instanceof EsRelation));
         assertThat(Expressions.names(plan.output()), equalTo(List.of("x")));
+    }
+
+    public void testImpossibleCastOfGroupingKeyIsNullPerGroup() {
+        assumeTrue("Impossible casts are null on current nodes", versionMode == VersionMode.CURRENT);
+        var plan = optimizedPlan("FROM test | STATS x = languages::ip BY languages");
+        assertWarnings("[languages] of type [integer] cannot be converted to [IP] and will be null.");
+        assertThat(Expressions.names(plan.output()), equalTo(List.of("x", "languages")));
+        assertThat(plan.output().getFirst().dataType(), equalTo(IP));
+        assertTrue(plan.anyMatch(p -> p instanceof Aggregate));
+        assertFalse(plan.anyMatch(p -> p.expressions().stream().anyMatch(e -> e.anyMatch(NullCast.class::isInstance))));
     }
 
     public void testFoldInEval() {

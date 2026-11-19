@@ -5613,14 +5613,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             return plan.transformUp(
                 LogicalPlan.class,
-                p -> p.transformExpressionsOnly(Expression.class, e -> replaceImpossibleCast(e, context))
+                p -> p.transformExpressionsOnly(Expression.class, e -> replaceImpossibleCast(e, p instanceof Aggregate, context))
             );
         }
 
         /**
          * The typed {@code null} for an impossible cast, adding its warning, or the expression itself.
          */
-        private static Expression replaceImpossibleCast(Expression e, AnalyzerContext context) {
+        private static Expression replaceImpossibleCast(Expression e, boolean inAggregate, AnalyzerContext context) {
             if (e instanceof ConvertFunction convert && e instanceof FoldablesConvertFunction == false) {
                 String inputType = impossibleInputType(convert);
                 if (inputType != null) {
@@ -5639,8 +5639,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                                 e.dataType().nameUpper()
                             )
                         );
-                    // Over an aggregate function, a constant isn't valid in STATS: keep an expression over the aggregation.
-                    return input.anyMatch(AggregateFunction.class::isInstance)
+                    // STATS verifies its expressions by what they reference, like aggregates and grouping keys, so keep the input.
+                    return inAggregate && input.foldable() == false
                         ? new NullCast(e.source(), input, e.dataType())
                         : new Literal(e.source(), null, e.dataType());
                 }

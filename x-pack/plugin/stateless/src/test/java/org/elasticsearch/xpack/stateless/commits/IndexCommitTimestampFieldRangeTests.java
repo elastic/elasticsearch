@@ -379,6 +379,8 @@ public class IndexCommitTimestampFieldRangeTests extends MapperServiceTestCase {
         try (Directory directory = newDirectory()) {
             long minTimestamp = Long.MAX_VALUE;
             long maxTimestamp = Long.MIN_VALUE;
+            IndexEngine.SegmentTimestampFieldValues values;
+            Set<String> segmentNames;
             try (IndexWriter indexWriter = new IndexWriter(directory, getIndexWriterConfig(useCFS, false))) {
                 // a segment with the timestamp field
                 final int numDocs = between(1, 10);
@@ -394,33 +396,32 @@ public class IndexCommitTimestampFieldRangeTests extends MapperServiceTestCase {
                 Document withoutTimestamp = new Document();
                 withoutTimestamp.add(new StringField("keepalive", "1", Field.Store.NO));
                 indexWriter.addDocument(withoutTimestamp);
+
+                // the segments are read before any commit references them
+                try (var reader = DirectoryReader.open(indexWriter)) {
+                    assertThat(reader.leaves().size(), equalTo(2));
+                    var withTimestamp = Lucene.segmentReader(reader.leaves().get(0).reader()).getSegmentInfo();
+                    var withoutTimestampSegment = Lucene.segmentReader(reader.leaves().get(1).reader()).getSegmentInfo();
+                    assertThat(withTimestamp.info.getUseCompoundFile(), equalTo(useCFS));
+                    assertThat(withoutTimestampSegment.info.getUseCompoundFile(), equalTo(useCFS));
+
+                    values = IndexEngine.readTimestampFieldValuesOfSegment(directory, withTimestamp, timestampFieldType);
+                    assertNotNull(values);
+                    assertThat(
+                        IndexEngine.toTimestampFieldValueRange(values.minValue(), values.maxValue(), timestampFieldType),
+                        equalTo(new TimestampFieldValueRange(minTimestamp, maxTimestamp))
+                    );
+                    // the segment without the field does not contribute any value
+                    assertNull(IndexEngine.readTimestampFieldValuesOfSegment(directory, withoutTimestampSegment, timestampFieldType));
+                    segmentNames = Set.of(withTimestamp.info.name, withoutTimestampSegment.info.name);
+                }
                 indexWriter.commit();
             }
-
-            var segmentInfos = SegmentInfos.readLatestCommit(directory);
-            assertThat(segmentInfos.size(), equalTo(2));
-            var withTimestamp = segmentInfos.info(0);
-            var withoutTimestampSegment = segmentInfos.info(1);
-            assertThat(withTimestamp.info.getUseCompoundFile(), equalTo(useCFS));
-            assertThat(withoutTimestampSegment.info.getUseCompoundFile(), equalTo(useCFS));
-
-            var values = IndexEngine.readTimestampFieldValuesOfSegment(directory, withTimestamp, timestampFieldType);
-            assertNotNull(values);
-            assertThat(
-                IndexEngine.toTimestampFieldValueRange(values.minValue(), values.maxValue(), timestampFieldType),
-                equalTo(new TimestampFieldValueRange(minTimestamp, maxTimestamp))
-            );
-            // the segment without the field does not contribute any value
-            assertNull(IndexEngine.readTimestampFieldValuesOfSegment(directory, withoutTimestampSegment, timestampFieldType));
 
             // the per segment values are what the commit based function combines
             var commit = DirectoryReader.listCommits(directory).getFirst();
             assertThat(
-                IndexEngine.readTimestampFieldValueRangeAcrossSegments(
-                    commit,
-                    Set.of(withTimestamp.info.name, withoutTimestampSegment.info.name),
-                    timestampFieldType
-                ),
+                IndexEngine.readTimestampFieldValueRangeAcrossSegments(commit, segmentNames, timestampFieldType),
                 equalTo(IndexEngine.toTimestampFieldValueRange(values.minValue(), values.maxValue(), timestampFieldType))
             );
         }

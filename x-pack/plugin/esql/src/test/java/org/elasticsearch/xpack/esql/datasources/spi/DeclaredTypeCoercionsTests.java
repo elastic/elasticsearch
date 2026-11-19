@@ -1268,6 +1268,23 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
         }
     }
 
+    public void testIsPlainNumberText() {
+        for (String plain : List.of("1", "-1", "+1.5", ".5", "5.", "1e5", "-4.5E-2", "NaN", "Infinity", "-Infinity", " 7 ")) {
+            assertTrue(plain, DeclaredTypeCoercions.isPlainNumberText(plain));
+        }
+        for (String other : List.of("", " ", "10D", "10d", "1.5f", "3F ", "0x1p3", "0X1P3", "0x10", "١٢٣", "１２３", "1٢")) {
+            assertFalse(other, DeclaredTypeCoercions.isPlainNumberText(other));
+        }
+    }
+
+    public void testParseDoubleTextRefusesJavaOnlySpellings() {
+        assertEquals(10.5, DeclaredTypeCoercions.parseDoubleText("10.5"), 0.0);
+        assertTrue(Double.isNaN(DeclaredTypeCoercions.parseDoubleText("NaN")));
+        for (String text : List.of("10D", "14f", "0x1p3", "١٢٣")) {
+            expectThrows(NumberFormatException.class, () -> DeclaredTypeCoercions.parseDoubleText(text));
+        }
+    }
+
     /**
      * The reported incident: a column of empty strings declared {@code double} failed with a bare
      * {@code NumberFormatException: empty String} naming neither the column nor the type. The retained

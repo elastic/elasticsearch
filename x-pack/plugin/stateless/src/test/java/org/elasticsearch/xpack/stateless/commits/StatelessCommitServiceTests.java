@@ -790,11 +790,11 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 .primaryTermAndGeneration()
                 .generation();
 
-            Set<BlobFile> trackedUploadedBlobFiles = testHarness.commitService.getTrackedUploadedBlobFilesUpTo(
+            Set<BccBlob> trackedUploadedBccBlobs = testHarness.commitService.getTrackedUploadedBccBlobsUpTo(
                 testHarness.shardId,
                 maxUploadedGeneration
             );
-            Set<Long> trackedUploadedGenerations = trackedUploadedBlobFiles.stream()
+            Set<Long> trackedUploadedGenerations = trackedUploadedBccBlobs.stream()
                 .map(bf -> bf.termAndGeneration().generation())
                 .collect(Collectors.toSet());
 
@@ -807,7 +807,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             );
 
             // Verify the blob names returned match the actually uploaded BCC blobs
-            Set<String> uploadedBlobNames = trackedUploadedBlobFiles.stream().map(BlobFile::blobName).collect(Collectors.toSet());
+            Set<String> uploadedBlobNames = trackedUploadedBccBlobs.stream().map(BccBlob::blobName).collect(Collectors.toSet());
             Set<String> capturedBccBlobs = actuallyUploadedBccBlobs.stream()
                 .filter(BatchedCompoundCommit::startsWithBlobPrefix)
                 .collect(Collectors.toSet());
@@ -1829,7 +1829,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 Map.of(
                     "segments_2",
                     new BlobLocation(
-                        new BlobFile(BatchedCompoundCommit.blobNameFromGeneration(1), new PrimaryTermAndGeneration(2, 1)),
+                        new BccBlob(BatchedCompoundCommit.blobNameFromGeneration(1), new PrimaryTermAndGeneration(2, 1)),
                         12,
                         12
                     )
@@ -1843,7 +1843,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             );
             int count = rarely() ? 50000 : 10000;
             var unreferencedFiles = IntStream.range(1, count)
-                .mapToObj(i -> new BlobFile(BatchedCompoundCommit.blobNameFromGeneration(i), new PrimaryTermAndGeneration(1, i)))
+                .mapToObj(i -> new BccBlob(BatchedCompoundCommit.blobNameFromGeneration(i), new PrimaryTermAndGeneration(1, i)))
                 .collect(Collectors.toSet());
             testHarness.commitService.markRecoveredBcc(
                 testHarness.shardId,

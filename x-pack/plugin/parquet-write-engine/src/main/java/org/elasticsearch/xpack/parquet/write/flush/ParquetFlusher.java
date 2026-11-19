@@ -44,7 +44,7 @@ import java.util.function.Supplier;
  *       attempt, so that it is new: it never replaces a file of an earlier history or of an earlier try;</li>
  *   <li>append it to the table, which is the moment its rows become visible and count as uploaded;</li>
  *   <li>write the high-water mark and the row count in the commit data and remove {@code pending_upload};</li>
- *   <li>delete the local files of the run and the merged file.</li>
+ *   <li>delete the local files of the run and the merged file, and (with staged durability) the staged copies of the run.</li>
  * </ol>
  *
  * <p>The table, not the commit data, is the source of truth for what is uploaded, so recovery asks the table whether the pending file
@@ -65,7 +65,7 @@ public final class ParquetFlusher {
     }
 
     /** The settings that a flush reads when it starts, so that a dynamic update applies to the next flush. */
-    public record Settings(long maxFileBytes, long rowGroupBytes, CompressionCodecName codec) {}
+    public record Settings(long maxFileBytes, long rowGroupBytes, CompressionCodecName codec, boolean staged) {}
 
     /** What a flush did. */
     public record Result(int files, long rows, long bytes) {}
@@ -107,6 +107,9 @@ public final class ParquetFlusher {
         recoverPending();
 
         final long through = ShardCommitData.uploadedThroughSeqNo(commits.userData());
+        // the staged copies of rows that the table lists are redundant: a leftover of a crash, or of a staging upload that finished
+        // after the flush that had picked its local file up
+        deleteStagedUpTo(through);
         final List<LocalFile> todo = new ArrayList<>();
         for (LocalFile file : LocalParquetFiles.list(directory)) {
             if (file.toSeqNo() <= through) {
@@ -134,7 +137,7 @@ public final class ParquetFlusher {
      * maximum, which is the usual case when the flush threshold is close to the maximum file size (a measurement with a threshold of
      * 1 GB and a maximum of 1 GB uploaded a file of 5,000 rows after every large one).
      */
-    static List<List<LocalFile>> runs(List<LocalFile> files, long maxBytes) {
+    public static List<List<LocalFile>> runs(List<LocalFile> files, long maxBytes) {
         long total = 0;
         for (LocalFile file : files) {
             total += file.length();
@@ -237,6 +240,29 @@ public final class ParquetFlusher {
         }
         delete(pending.name());
         hooks.reached("cleaned");
+        deleteStagedUpTo(pending.to());
+        hooks.reached("unstaged");
+    }
+
+    /**
+     * Deletes the staged copies of the rows up to {@code through}, which the table lists. A failure is only logged: a staged blob that
+     * stays is deleted by the next flush, and it is never read as long as its rows are in the table.
+     */
+    private void deleteStagedUpTo(long through) {
+        if (settings.get().staged() == false || through < 0) {
+            return;
+        }
+        try {
+            final List<String> redundant = new ArrayList<>();
+            for (ShardTable.StagedFile file : table.listStaged()) {
+                if (file.toSeqNo() <= through) {
+                    redundant.add(file.name());
+                }
+            }
+            table.deleteStaged(redundant);
+        } catch (IOException | RuntimeException e) {
+            logger.warn("could not delete the staged files up to sequence number [{}]; the next flush tries again", through, e);
+        }
     }
 
     /** Finishes the flush that a crash cut off, if there is one. */

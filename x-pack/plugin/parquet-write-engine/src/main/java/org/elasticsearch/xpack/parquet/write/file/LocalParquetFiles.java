@@ -45,6 +45,13 @@ public final class LocalParquetFiles {
         return String.format(Locale.ROOT, "pqmerged_%019d_%019d.parquet", fromSeqNo, toSeqNo);
     }
 
+    public static final String ADOPTED_PREFIX = "pqadopted_";
+
+    /** The name of the file that the adoption of staged files merges them into, before it uploads it. */
+    public static String adoptedName(long fromSeqNo, long toSeqNo) {
+        return String.format(Locale.ROOT, ADOPTED_PREFIX + "%019d_%019d.parquet", fromSeqNo, toSeqNo);
+    }
+
     public static final String COMPACTED_PREFIX = "pqcompacted_";
 
     /** The name of the file that a compaction merges uploaded files into, before it uploads it. It is never a part of a flush. */
@@ -86,7 +93,7 @@ public final class LocalParquetFiles {
     public static void deleteTemporaryFiles(Directory directory) throws IOException {
         for (String name : directory.listAll()) {
             // a compaction can be cut off at any step, and its output is only a copy of rows that the table still lists in the old files
-            if (name.startsWith(TEMP_PREFIX + "_") || name.startsWith(COMPACTED_PREFIX)) {
+            if (name.startsWith(TEMP_PREFIX + "_") || name.startsWith(COMPACTED_PREFIX) || name.startsWith(ADOPTED_PREFIX)) {
                 directory.deleteFile(name);
             }
         }

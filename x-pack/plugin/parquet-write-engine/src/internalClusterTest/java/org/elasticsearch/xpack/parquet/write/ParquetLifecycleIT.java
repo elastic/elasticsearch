@@ -132,6 +132,7 @@ public class ParquetLifecycleIT extends ESIntegTestCase {
                         .put("index.mode", "columnar")
                         .put("index.number_of_shards", shards)
                         .put("index.parquet.repository", REPOSITORY)
+                        .put("index.parquet.durability", randomFrom("local", "staged"))
                         .put(extra.build())
                 )
                 .setMapping(mapping)

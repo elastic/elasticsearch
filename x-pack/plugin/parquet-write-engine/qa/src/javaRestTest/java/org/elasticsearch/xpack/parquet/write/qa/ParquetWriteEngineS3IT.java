@@ -194,6 +194,12 @@ public class ParquetWriteEngineS3IT extends ESRestTestCase {
         return entityAsMap(response);
     }
 
+    /** The keys of the staged files of the index in the bucket of the fixture. */
+    private List<String> stagedKeys(String uuid) {
+        final String prefix = "/" + S3FixtureUtils.BUCKET + "/" + BASE_PATH + "/" + INDEX + "/" + uuid + "/staging/";
+        return s3Fixture.getHandler().blobs().keySet().stream().filter(key -> key.startsWith(prefix) && key.endsWith(".parquet")).toList();
+    }
+
     /**
      * The commits of the two shards, which flush at the same moment, must all be in the table: consecutive versions (a lost conditional
      * write would overwrite a version), both snapshots in the current metadata, and one data file for each shard in its manifest list.
@@ -284,10 +290,13 @@ public class ParquetWriteEngineS3IT extends ESRestTestCase {
         ensureGreen(INDEX);
         bulk(0, 3_000);
         bulk(3_000, 5_000);
+        // staged durability is the default: a bulk was acknowledged after a copy of its file was in the bucket, below staging/
+        assertThat("every acknowledged bulk is staged", stagedKeys(indexUuid()).size() >= 2, equalTo(true));
         final Map<String, Object> flush = entityAsMap(client().performRequest(new Request("POST", "/" + INDEX + "/_flush")));
         @SuppressWarnings("unchecked")
         final Map<String, Object> shards = (Map<String, Object>) flush.get("_shards");
         assertThat(shards.get("failed"), equalTo(0));
+        assertThat("the flush deleted the staged copies", stagedKeys(indexUuid()), org.hamcrest.Matchers.empty());
 
         assertTheTableMetadata(indexUuid());
         assertTheCatalogEntry(indexUuid());

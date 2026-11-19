@@ -72,6 +72,7 @@ public class ParquetLinkageFailureIT extends ESIntegTestCase {
                         .put("index.mode", "columnar")
                         .put("index.number_of_shards", 1)
                         .put("index.parquet.repository", "not-used")
+                        .put("index.parquet.durability", "local")
                 )
                 .setMapping("count", "type=long")
         );

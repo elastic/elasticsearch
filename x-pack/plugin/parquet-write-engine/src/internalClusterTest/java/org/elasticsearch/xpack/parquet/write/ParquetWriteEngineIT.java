@@ -84,6 +84,7 @@ public class ParquetWriteEngineIT extends ESIntegTestCase {
             .put("index.mode", "columnar")
             .put("index.number_of_shards", 1)
             .put("index.parquet.repository", "not-used-before-the-upload-step")
+            .put("index.parquet.durability", "local")
             .put("index.parquet.local_compression", randomFrom("uncompressed", "snappy", "zstd"));
     }
 
@@ -282,6 +283,7 @@ public class ParquetWriteEngineIT extends ESIntegTestCase {
                     Settings.builder()
                         .put("index.storage_format", "parquet")
                         .put("index.parquet.repository", "r")
+                        .put("index.parquet.durability", "local")
                         .put("index.number_of_shards", 1)
                 )
                 .get()

@@ -85,7 +85,7 @@ public class ParquetFlusherTests extends ESTestCase {
         store = new FsBlobStore(4096, createTempDir(), false);
         directory = new ByteBuffersDirectory();
         commits = new InMemoryCommitData();
-        settings = new ParquetFlusher.Settings(1L << 30, 1 << 16, CompressionCodecName.SNAPPY);
+        settings = new ParquetFlusher.Settings(1L << 30, 1 << 16, CompressionCodecName.SNAPPY, false);
     }
 
     @After
@@ -179,7 +179,7 @@ public class ParquetFlusherTests extends ESTestCase {
         final var b = TestLocalFiles.write(directory, 500, 999, false);
         TestLocalFiles.write(directory, 1000, 1499, false);
         // room for two of the three local files
-        settings = new ParquetFlusher.Settings(a.length() + b.length() + 1, 1 << 16, CompressionCodecName.SNAPPY);
+        settings = new ParquetFlusher.Settings(a.length() + b.length() + 1, 1 << 16, CompressionCodecName.SNAPPY, false);
 
         final ParquetFlusher.Result result = newFlusher(ParquetFlusher.Hooks.NONE).flush();
 
@@ -326,7 +326,7 @@ public class ParquetFlusherTests extends ESTestCase {
             CompressionCodecName.SNAPPY,
             CompressionCodecName.ZSTD
         );
-        settings = new ParquetFlusher.Settings(1L << 30, 1 << 16, codec);
+        settings = new ParquetFlusher.Settings(1L << 30, 1 << 16, codec, false);
         TestLocalFiles.write(directory, 0, 999, false);
 
         newFlusher(ParquetFlusher.Hooks.NONE).flush();
@@ -440,5 +440,97 @@ public class ParquetFlusherTests extends ESTestCase {
 
         other.flusher(ParquetFlusher.Hooks.NONE).flush();
         assertThat(other.table().uploadedFiles(), hasSize(1));
+    }
+
+    // ---- staged durability: the flush deletes the staged copies of the rows that it has put in the table ----
+
+    private void stage(ShardTable table, LocalParquetFiles.LocalFile local) throws IOException {
+        try (var in = directory.openInput(local.name(), org.apache.lucene.store.IOContext.DEFAULT)) {
+            table.stageFile(
+                local.fromSeqNo(),
+                local.toSeqNo(),
+                ShardTable.newAttempt(),
+                new java.io.BufferedInputStream(new org.elasticsearch.common.lucene.store.InputStreamIndexInput(in, local.length())),
+                local.length()
+            );
+        }
+    }
+
+    private void useStagedDurability() {
+        settings = new ParquetFlusher.Settings(settings.maxFileBytes(), settings.rowGroupBytes(), settings.codec(), true);
+    }
+
+    public void testAFlushDeletesTheStagedCopiesOfTheRowsThatItUploaded() throws Exception {
+        useStagedDurability();
+        final ShardTable table = TestTables.open(store, LOCATION, 0);
+        stage(table, TestLocalFiles.write(directory, 0, 99, false));
+        stage(table, TestLocalFiles.write(directory, 100, 249, false));
+        assertThat(table.listStaged(), hasSize(2));
+
+        newFlusher(ParquetFlusher.Hooks.NONE).flush();
+
+        assertFlushed(250);
+        assertThat(table.listStaged(), hasSize(0));
+    }
+
+    public void testAFlushLeavesTheStagedCopiesOfBulksThatCameAfterItsFiles() throws Exception {
+        useStagedDurability();
+        final ShardTable table = TestTables.open(store, LOCATION, 0);
+        stage(table, TestLocalFiles.write(directory, 0, 99, false));
+        newFlusher(ParquetFlusher.Hooks.NONE).flush();
+        // a bulk whose copy is in staging and whose local file the next flush has not seen
+        stage(table, TestLocalFiles.write(directory, 100, 149, false));
+
+        // a flush that has nothing new still looks only at the range below the high-water mark
+        final ParquetFlusher.Result result = newFlusher(ParquetFlusher.Hooks.NONE).flush();
+
+        assertThat(result.files(), equalTo(1));
+        assertThat(table.listStaged(), hasSize(0));
+    }
+
+    public void testACrashBeforeTheStagedCopiesAreDeletedLeavesThemForTheNextFlush() throws Exception {
+        useStagedDurability();
+        final ShardTable table = TestTables.open(store, LOCATION, 0);
+        stage(table, TestLocalFiles.write(directory, 0, 99, false));
+        expectThrows(IOException.class, () -> newFlusher(crashAt("cleaned")).flush());
+        // the crash is after the cleanup of the local files: the staged copy of the rows that the table lists stays
+        assertThat(table.listStaged(), hasSize(1));
+        assertThat(table.uploadedFiles(), hasSize(1));
+
+        // a flush with no local file at all still deletes it
+        final ParquetFlusher.Result result = newFlusher(ParquetFlusher.Hooks.NONE).flush();
+
+        assertThat(result.files(), equalTo(0));
+        assertThat(table.listStaged(), hasSize(0));
+        assertFlushed(100);
+    }
+
+    public void testALeftoverStagedCopyBelowTheMarkIsDeletedButOneAboveItIsNot() throws Exception {
+        useStagedDurability();
+        final ShardTable table = TestTables.open(store, LOCATION, 0);
+        stage(table, TestLocalFiles.write(directory, 0, 99, false));
+        newFlusher(ParquetFlusher.Hooks.NONE).flush();
+        // a staging upload that finished after the flush: below the mark, redundant
+        final byte[] bytes = new byte[] { 1 };
+        table.stageFile(0, 99, "late", new java.io.ByteArrayInputStream(bytes), bytes.length);
+        // the copy of a bulk above the mark whose local file is not in this directory: it must stay (it is adopted, or it is not ours)
+        table.stageFile(100, 149, "above", new java.io.ByteArrayInputStream(bytes), bytes.length);
+
+        newFlusher(ParquetFlusher.Hooks.NONE).flush();
+
+        final List<ShardTable.StagedFile> left = table.listStaged();
+        assertThat(left, hasSize(1));
+        assertThat(left.get(0).fromSeqNo(), equalTo(100L));
+    }
+
+    public void testWithLocalDurabilityTheFlushDoesNotTouchStaging() throws Exception {
+        final ShardTable table = TestTables.open(store, LOCATION, 0);
+        final byte[] bytes = new byte[] { 1 };
+        table.stageFile(0, 99, "a", new java.io.ByteArrayInputStream(bytes), bytes.length);
+        TestLocalFiles.write(directory, 0, 99, false);
+
+        newFlusher(ParquetFlusher.Hooks.NONE).flush();
+
+        assertThat(table.listStaged(), hasSize(1));
     }
 }

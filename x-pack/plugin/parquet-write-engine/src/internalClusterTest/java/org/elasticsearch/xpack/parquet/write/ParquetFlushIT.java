@@ -141,6 +141,7 @@ public class ParquetFlushIT extends ESIntegTestCase {
                         .put("index.mode", "columnar")
                         .put("index.number_of_shards", shards)
                         .put("index.parquet.repository", REPOSITORY)
+                        .put("index.parquet.durability", randomFrom("local", "staged"))
                         .put("index.parquet.local_compression", randomFrom("uncompressed", "snappy", "zstd"))
                         .put(extra.build())
                 )
@@ -342,8 +343,8 @@ public class ParquetFlushIT extends ESIntegTestCase {
     }
 
     public void testAFlushThatFailsKeepsTheRowsLocallyAndAFlushLaterSucceeds() throws Exception {
-        // no repository yet: the flush cannot open the table
-        createIndex(1, Settings.builder());
+        // no repository yet: the flush cannot open the table (with staged durability the bulk would already fail)
+        createIndex(1, Settings.builder().put("index.parquet.durability", "local"));
         assertFalse(bulk(0, 1_000).hasFailures());
 
         final BroadcastResponse failed = indicesAdmin().prepareFlush(INDEX).get();
@@ -444,7 +445,9 @@ public class ParquetFlushIT extends ESIntegTestCase {
 
     public void testAnIndexThatUsesTheBasePathOfAnotherIndexIsRefusedAndKeepsItsRowsLocally() throws Exception {
         registerRepository();
-        createIndex(1, Settings.builder().put("index.parquet.base_path", "shared/table").put("index.parquet.compaction.enabled", false));
+        // the repository directory is shared by the tests of this class, and a table belongs to one index: the path is new for every run
+        final String sharedPath = "shared/table-" + randomAlphaOfLength(8).toLowerCase(java.util.Locale.ROOT);
+        createIndex(1, Settings.builder().put("index.parquet.base_path", sharedPath).put("index.parquet.compaction.enabled", false));
         assertFalse(bulk(0, 500).hasFailures());
         assertThat(indicesAdmin().prepareFlush(INDEX).get().getFailedShards(), equalTo(0));
 
@@ -458,7 +461,8 @@ public class ParquetFlushIT extends ESIntegTestCase {
                         .put("index.mode", "columnar")
                         .put("index.number_of_shards", 1)
                         .put("index.parquet.repository", REPOSITORY)
-                        .put("index.parquet.base_path", "shared/table")
+                        .put("index.parquet.durability", "local")
+                        .put("index.parquet.base_path", sharedPath)
                 )
                 .setMapping("count", "type=long")
         );
@@ -475,7 +479,7 @@ public class ParquetFlushIT extends ESIntegTestCase {
         assertThat(indicesAdmin().prepareStats(other).get().getTotal().getDocs().getCount(), equalTo(1L));
         assertThat(localFilesOf(other), greaterThan(0L));
         // the table at the shared path holds the one data file of the first index, below the history of its shard
-        final Path data = repoRoot.resolve(REPOSITORY).resolve("shared").resolve("table").resolve("data").resolve("shard-0");
+        final Path data = repoRoot.resolve(REPOSITORY).resolve(sharedPath).resolve("data").resolve("shard-0");
         try (var files = java.nio.file.Files.walk(data)) {
             assertThat(files.filter(f -> f.toString().endsWith(".parquet")).count(), equalTo(1L));
         }

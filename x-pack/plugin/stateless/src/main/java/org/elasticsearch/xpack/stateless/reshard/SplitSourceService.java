@@ -255,8 +255,9 @@ public class SplitSourceService {
             );
             logger.info(message);
 
-            // TODO fix
-            throw new StaleSplitRequestException(message);
+            // This is retryable - the target shard can resolve the new primary term and retry.
+            // As such we return a retryable error (as determined by `TransportActions#isShardNotAvailableException`).
+            throw new NoShardAvailableActionException(sourceShardId, message);
         }
 
         // We keep the invariant that targetPrimaryTerm >= sourcePrimaryTerm because this is required for data copying to work.
@@ -315,7 +316,7 @@ public class SplitSourceService {
             logger.error(message);
 
             // This is retryable so we need an exception that would be retried by the target.
-            // We don't want to introduce a new exception time just for this case, this is fairly generic.
+            // We don't want to introduce a new exception type just for this case and `NoShardAvailableActionException` is fairly generic.
             throw new NoShardAvailableActionException(sourceShardId, message);
         }
 
@@ -360,12 +361,9 @@ public class SplitSourceService {
                     shardsPreparingForHandoff.remove(sourceShard.shardId());
                     activeTargetRequests.remove(sourceShard);
 
-                    Exception exception = e;
-
-                    // If this split was cancelled during preparation (before `currentSplit.setUncancellable()`)
-                    // it can be retried by the target shard.
-
-                    // All of this happens before the handoff so it has to be retryable ???;
+                    // If this split was cancelled during preparation and before acquiring permits
+                    // (before `currentSplit.setUncancellable()`) it can be retried by the target shard,
+                    // and we return a retryable exception.
                     if (e instanceof TaskCancelledException) {
                         String message = String.format(
                             Locale.ROOT,
@@ -373,9 +371,10 @@ public class SplitSourceService {
                             sourceShardId,
                             targetShardId
                         );
-                        exception = new NoShardAvailableActionException(sourceShardId, message);
+                        l.onFailure(new NoShardAvailableActionException(sourceShardId, message));
+                    } else {
+                        l.onFailure(e);
                     }
-                    l.onFailure(exception);
                 })
             );
     }

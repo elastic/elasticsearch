@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.cache;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 
@@ -132,13 +133,34 @@ public final class TextFormatStats {
 
             @Override
             public Optional<Object> minValue() {
-                return Optional.ofNullable(cs.min());
+                return Optional.ofNullable(publishable(cs.min()));
             }
 
             @Override
             public Optional<Object> maxValue() {
-                return Optional.ofNullable(cs.max());
+                return Optional.ofNullable(publishable(cs.max()));
             }
         };
+    }
+
+    /**
+     * The widest text extremum a read publishes, in bytes. Every contribution a scan stages, and every record
+     * the statistics store keeps, carries a copy of both extrema of every harvested column, so without a limit
+     * one long value in each column sets the size of all of them.
+     */
+    static final int MAX_EXTREMUM_BYTES = 1024;
+
+    /**
+     * {@code extremum}, or {@code null} when it is wider than {@link #MAX_EXTREMUM_BYTES}. The limit is on
+     * the stored {@link BytesRef}, so it covers {@code KEYWORD}, {@code TEXT} and {@code IP} alike; an
+     * address is 16 bytes and never reaches it. Counts are unaffected, and so is the other end of the same
+     * column — a withheld end is answered by a scan, and a fold marks that end unservable rather than
+     * answer it from the reads that did publish one.
+     * <p>
+     * Shared by {@link #harvested} and {@link #build}, so it filters a stored entry on read-back too: a
+     * wide extremum already in the store stops being served, though nothing here rewrites it.
+     */
+    static Object publishable(Object extremum) {
+        return extremum instanceof BytesRef bytes && bytes.length > MAX_EXTREMUM_BYTES ? null : extremum;
     }
 }

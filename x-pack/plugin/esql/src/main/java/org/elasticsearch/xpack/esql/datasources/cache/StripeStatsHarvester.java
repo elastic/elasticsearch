@@ -237,7 +237,8 @@ public final class StripeStatsHarvester {
                 // The staging area holds this piece in compact form and stages the stripe once its grid cell is
                 // covered, so the flat map below is built once per stripe read rather than once per chunk that
                 // touched it. TextFormatStats.build is applied here, not there, so what the staging area retains
-                // is already filtered to the schema the published record is serialized against.
+                // is already filtered to the schema the published record is serialized against, and capped to
+                // the publishable extremum width -- it never holds a value a record would withhold.
                 staging.contribute(
                     sourceLocation,
                     identity,

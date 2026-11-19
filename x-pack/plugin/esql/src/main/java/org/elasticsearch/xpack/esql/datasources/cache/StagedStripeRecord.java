@@ -122,10 +122,13 @@ final class StagedStripeRecord extends AbstractMap<String, Object> {
         }
         for (int i = 0; i < stats.columnCount(); i++) {
             size += COUNT_KEYS_PER_COLUMN;
-            if (stats.min(i) != null) {
+            // The same predicate flatten() writes by, not merely the same values. A piece reaches staging
+            // already capped, so on every reachable path these agree either way; counting through it means
+            // they cannot disagree even if one ever did not.
+            if (TextFormatStats.publishable(stats.min(i)) != null) {
                 size++;
             }
-            if (stats.max(i) != null) {
+            if (TextFormatStats.publishable(stats.max(i)) != null) {
                 size++;
             }
         }
@@ -190,7 +193,9 @@ final class StagedStripeRecord extends AbstractMap<String, Object> {
      * <p>
      * A column whose extremum a fold found unservable is written with its counts and no extremum, which is the
      * only encoding a staged contribution has had: the reconciler reads a column that is present, carries
-     * non-null rows and offers no extremum as one it cannot answer, and poisons it as the marker would.
+     * non-null rows and offers no extremum as one it cannot answer, and poisons it as the marker would. A
+     * column whose extremum was too wide to publish arrives the same way, so a piece need not have published
+     * the value it held -- what the encoding rests on is that a value was there, not that it was written down.
      */
     private Map<String, Object> flatten() {
         builds++;

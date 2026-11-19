@@ -33,12 +33,12 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
+import org.elasticsearch.xpack.esql.datasources.spi.RowLocation;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
-import org.elasticsearch.xpack.esql.datasources.spi.RowLocation;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.WidenedColumn;
 import org.elasticsearch.xpack.esql.datasources.spi.WithinFileWideningWarnings;
@@ -608,8 +608,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         String objectName = RowLocation.displayObjectName(object.path().objectName());
         Check.clientError(
             sampleRows > 0 || bytesRead < schemaSampleBytes,
-            "NDJSON schema inference{} reached the decoded-byte sample limit [{}] before reading a complete "
-                + "record; declare a schema",
+            "NDJSON schema inference{} reached the decoded-byte sample limit [{}] before reading a complete " + "record; declare a schema",
             objectName.isEmpty() ? "" : " of [" + objectName + "]",
             ByteSizeValue.ofBytes(schemaSampleBytes)
         );

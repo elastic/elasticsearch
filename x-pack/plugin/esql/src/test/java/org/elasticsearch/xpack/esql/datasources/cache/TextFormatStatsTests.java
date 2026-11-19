@@ -170,21 +170,10 @@ public class TextFormatStatsTests extends ESTestCase {
         Map<String, Object> folded = SourceStatisticsSerializer.mergeStatistics(List.of(oneSided, bothEnds), false);
 
         assertNotNull("the fold must produce statistics", folded);
-        assertEquals(
-            "the minimum still serves, folded across both reads",
-            lower,
-            SourceStatisticsSerializer.extractColumnMin(folded, "k")
-        );
+        assertEquals("the minimum still serves, folded across both reads", lower, SourceStatisticsSerializer.extractColumnMin(folded, "k"));
         assertNull("the withheld end does not", SourceStatisticsSerializer.extractColumnMax(folded, "k"));
-        assertNull(
-            "and the end that served is not marked unservable",
-            folded.get(SourceStatisticsSerializer.columnMinUnservableKey("k"))
-        );
-        assertEquals(
-            "while the withheld end is",
-            Boolean.TRUE,
-            folded.get(SourceStatisticsSerializer.columnMaxUnservableKey("k"))
-        );
+        assertNull("and the end that served is not marked unservable", folded.get(SourceStatisticsSerializer.columnMinUnservableKey("k")));
+        assertEquals("while the withheld end is", Boolean.TRUE, folded.get(SourceStatisticsSerializer.columnMaxUnservableKey("k")));
         assertEquals("the counts still fold", (Long) 2L, SourceStatisticsSerializer.extractColumnValueCount(folded, "k"));
     }
 

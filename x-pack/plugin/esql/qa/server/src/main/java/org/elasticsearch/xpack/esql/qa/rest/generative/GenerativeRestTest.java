@@ -196,6 +196,9 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         // see https://github.com/elastic/elasticsearch/issues/145694
         "Found a single entry with .* entries",
         "All SPARKLINE functions in a single STATS command must share the same timestamp, buckets, from, and to value",
+        // FILLNULL with a wildcard over a wide schema, repeated per FORK branch, can exceed esql.query.max_fillnull_fields;
+        // the generator cannot predict how many columns a pattern matches.
+        "FILLNULL would fill \\d+ columns in this query, .* exceeding the limit of \\d+",
 
         // Awaiting fixes for query failure
         "Unknown column \\[<all-fields-projected>\\]", // https://github.com/elastic/elasticsearch/issues/121741,

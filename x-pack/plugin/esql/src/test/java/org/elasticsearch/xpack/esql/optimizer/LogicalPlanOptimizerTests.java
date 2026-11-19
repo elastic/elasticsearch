@@ -8059,6 +8059,69 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     /**
+     * Filtered and unfiltered aggregates, each inside a scalar expression, in one {@code STATS}. Only the per-time-series aggregates
+     * of the filtered expressions keep the filter. See https://github.com/elastic/elasticsearch/issues/166160.
+     */
+    public void testTranslateWithMixedInlineFiltersOnWrappedAggregates() {
+        var plan = planMetrics("""
+            TS k8s
+            | STATS a = MAX(MAX_OVER_TIME(network.bytes_in)) * 8 WHERE event == "foo",
+                    b = MAX(MAX_OVER_TIME(network.cost)) * 8,
+                    c = MAX(MAX_OVER_TIME(network.eth0.rx)) * 8,
+                    d = MAX(MAX_OVER_TIME(network.eth0.tx)) * 8 WHERE event == "foo"
+              BY TBUCKET(1 minute)
+            """);
+
+        List<AggregateFunction> secondPassAggs = new ArrayList<>();
+        Map<String, Expression> firstPassFilters = new HashMap<>();
+        plan.forEachDown(Aggregate.class, agg -> {
+            if (agg instanceof TimeSeriesAggregate tsAgg) {
+                // The optimizer replaces MAX_OVER_TIME with MAX in the first pass
+                tsAgg.forEachExpression(Max.class, m -> firstPassFilters.put(Expressions.name(m.fields().getFirst()), m.filter()));
+            } else {
+                agg.forEachExpression(AggregateFunction.class, secondPassAggs::add);
+            }
+        });
+        assertThat(secondPassAggs, hasSize(4));
+        for (AggregateFunction secondPassAgg : secondPassAggs) {
+            assertFalse("second pass aggregate must not keep the filter: " + secondPassAgg, secondPassAgg.hasFilter());
+        }
+        assertThat(firstPassFilters.keySet(), containsInAnyOrder("network.bytes_in", "network.cost", "network.eth0.rx", "network.eth0.tx"));
+        assertThat(firstPassFilters.get("network.bytes_in"), instanceOf(Equals.class));
+        assertThat(firstPassFilters.get("network.cost"), equalTo(Literal.TRUE));
+        assertThat(firstPassFilters.get("network.eth0.rx"), equalTo(Literal.TRUE));
+        assertThat(firstPassFilters.get("network.eth0.tx"), instanceOf(Equals.class));
+    }
+
+    /**
+     * {@code LATEST} and {@code EARLIEST} read the implicit {@code @timestamp}, which the second pass cannot see. The first pass must
+     * aggregate it per time series with the same functions as {@code LAST} and {@code FIRST}. See
+     * https://github.com/elastic/elasticsearch/issues/154299 and https://github.com/elastic/elasticsearch/issues/157757.
+     */
+    public void testTranslateLatestAndEarliest() {
+        var plan = planMetrics("""
+            TS k8s
+            | WHERE cluster IS NOT NULL AND cluster != "" AND network.eth0.tx IS NOT NULL
+            | STATS l = LATEST(network.eth0.tx), e = EARLIEST(network.eth0.tx) BY pod
+            """);
+
+        List<TimeSeriesAggregate> firstPass = plan.collect(TimeSeriesAggregate.class);
+        assertThat(firstPass, hasSize(1));
+        List<String> firstPassAggs = new ArrayList<>();
+        for (NamedExpression agg : firstPass.get(0).aggregates()) {
+            if (Alias.unwrap(agg) instanceof AggregateFunction af) {
+                firstPassAggs.add(af.getClass().getSimpleName() + "(" + Expressions.name(af.fields().getFirst()) + ")");
+            }
+        }
+        // The optimizer replaces MAX_OVER_TIME and MIN_OVER_TIME with MAX and MIN in the first pass
+        assertThat(
+            firstPassAggs,
+            hasItems("LastOverTime(network.eth0.tx)", "Max(@timestamp)", "FirstOverTime(network.eth0.tx)", "Min(@timestamp)")
+        );
+        assertThat(firstPassAggs, not(hasItem("LastOverTime(@timestamp)")));
+    }
+
+    /**
      * Grouping by {@code _tsid} matches the per-time-series grouping of the first pass, so the second pass must regroup on the
      * first-pass {@code _tsid} rather than on a {@code VALUES(_tsid)} that reuses its id.
      */

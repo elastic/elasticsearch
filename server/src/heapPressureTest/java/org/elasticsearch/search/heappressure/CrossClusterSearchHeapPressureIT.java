@@ -15,6 +15,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.rest.SearchHeapPressureTestCase;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;

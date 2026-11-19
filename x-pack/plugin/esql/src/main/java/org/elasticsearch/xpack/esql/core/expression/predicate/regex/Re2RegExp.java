@@ -8,246 +8,301 @@
 package org.elasticsearch.xpack.esql.core.expression.predicate.regex;
 
 import org.apache.lucene.internal.hppc.IntArrayList;
-import org.apache.lucene.internal.hppc.IntIntHashMap;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
-import org.apache.lucene.util.automaton.Transition;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.Compiler;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.Inst;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.Parser;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.Prog;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.RE2;
-import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.Regexp;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.Simplify;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.Unicode;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.Utils;
 
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.BitSet;
-import java.util.List;
 
 /**
  * A regular expression in RE2 syntax, compiled to a Lucene {@link Automaton} that accepts the strings it matches whole.
  * <p>
  * RE2 is the syntax of Go's {@code regexp} package, and so of PromQL label matchers. Lucene's {@link RegExp} has a
- * grammar of its own, so the expression is parsed by the fork of RE2/J's parser in the {@code re2} package, with the
- * {@code Perl} and {@code DotNL} flags Prometheus parses label matchers with, and its tree is built into an automaton
- * with Lucene's {@link Operations}.
+ * grammar of its own, so the expression is parsed and compiled by the fork of RE2/J in the {@code re2} package into the
+ * program its matcher runs, and the automaton is read off that program in one pass.
+ * <p>
+ * The program is a nondeterministic machine whose empty moves are its {@code Alt}, {@code Nop}, {@code Capture} and
+ * {@code EmptyWidth} instructions. A state of the automaton is the program counter after a rune and, when the expression
+ * has zero-width assertions ({@code ^ $ \A \z \b \B}), the class of that rune. An assertion is a condition on the runes
+ * either side of a position, which Lucene has no notion of: the class of the rune before is the state's, and the class
+ * of the rune after restricts the transitions out of it.
  */
 public final class Re2RegExp {
 
-    private final Regexp regexp;
+    private final Prog prog;
 
     /**
      * @param flags the {@link RE2} parser flags, such as {@link RE2#PERL}, {@link RE2#DOT_NL} and {@link RE2#FOLD_CASE}
      * @throws IllegalArgumentException if the expression isn't valid RE2
      */
     public Re2RegExp(String pattern, int flags) {
-        this.regexp = Parser.parse(pattern, flags);
+        this.prog = Compiler.compileRegexp(Simplify.simplify(Parser.parse(pattern, flags)));
     }
 
     /**
      * The automaton accepting the strings the expression matches whole; it is not determinized.
      */
     public Automaton toAutomaton() {
-        Builder builder = new Builder();
-        Automaton automaton = builder.build(regexp);
-        if (builder.hasAssertions) {
-            automaton = Assertions.resolve(automaton);
+        Builder builder = new Builder(prog);
+        Automaton automaton = builder.build();
+        if (builder.mayHaveDeadStates == false) {
+            return automaton;
         }
-        // as Lucene's RegExp does, so that a run automaton can be built from the determinized one
-        return Operations.isEmpty(automaton) ? Automata.makeEmpty() : automaton;
+        // the states past a rune that no match follows are dead, as Lucene's operations leave none
+        automaton = Operations.removeDeadStates(automaton);
+        // none is live if the expression matches nothing: then the empty automaton, as Lucene's RegExp has it, so
+        // that a run automaton can be built from the determinized one
+        return automaton.getNumStates() == 0 ? Automata.makeEmpty() : automaton;
     }
 
-    private static final class Builder {
-        private boolean hasAssertions;
+    // the classes of the rune on either side of a position; EDGE is before the first or after the last
+    private static final int EDGE = 0;
+    private static final int NEWLINE = 1;
+    private static final int WORD = 2;
+    private static final int OTHER = 3;
+    private static final int CLASSES = 4;
+    private static final int ALL = (1 << CLASSES) - 1;
 
-        private Automaton build(Regexp re) {
-            return switch (re.op) {
-                case NO_MATCH -> Automata.makeEmpty();
-                case EMPTY_MATCH -> Automata.makeEmptyString();
-                case LITERAL -> {
-                    List<Automaton> runes = new ArrayList<>(re.runes.length);
-                    for (int rune : re.runes) {
-                        runes.add((re.flags & RE2.FOLD_CASE) != 0 ? Automata.makeCharSet(orbit(rune)) : Automata.makeChar(rune));
+    /** The runes of each class but {@link #EDGE}, as sorted {@code [lo, hi]} pairs. */
+    private static final int[][] CLASS_RANGES = {
+        {},
+        { '\n', '\n' },
+        { '0', '9', 'A', 'Z', '_', '_', 'a', 'z' },
+        { 0, '\n' - 1, '\n' + 1, '0' - 1, '9' + 1, 'A' - 1, 'Z' + 1, '_' - 1, '_' + 1, 'a' - 1, 'z' + 1, Character.MAX_CODE_POINT } };
+
+    private static final int[] ANY = { 0, Character.MAX_CODE_POINT };
+    private static final int[] ANY_NOT_NL = { 0, '\n' - 1, '\n' + 1, Character.MAX_CODE_POINT };
+
+    private static final class Builder {
+        private final Prog prog;
+        /** Whether the program has assertions, and so a state needs the class of the rune before it. */
+        private final boolean contextual;
+        private final Automaton.Builder automaton = new Automaton.Builder();
+        /** The state of each program counter and class of the rune before, at {@code pc * CLASSES + class}, or -1. */
+        private final int[] states;
+        private final IntArrayList pending = new IntArrayList();
+        /**
+         * The closure being built, which every array below is of, is the {@code closure}-th: an entry of an earlier one
+         * is stale, so that they need no clearing.
+         */
+        private int closure;
+        /** The closure each program counter was last reached in, with the classes of the next rune in {@code next}. */
+        private final int[] reachedIn;
+        /** The classes the next rune may have, as {@code 1 << class} bits, at each rune instruction the closure reaches. */
+        private final int[] next;
+        /** The rune instructions the closure reaches, in the order it does. */
+        private final IntArrayList reached = new IntArrayList();
+        /** The closure each program counter and classes of the next rune, at {@code pc << 4 | bits}, was visited in. */
+        private final int[] visitedIn;
+        private final IntArrayList stack = new IntArrayList();
+        /**
+         * Whether a state may be dead, no match following it. Every instruction of a program is on a way to its match
+         * but {@code Fail}, which an expression that matches nothing compiles to, so only reaching it or an assertion
+         * that cuts a way off can leave one.
+         */
+        private boolean mayHaveDeadStates;
+
+        Builder(Prog prog) {
+            this.prog = prog;
+            boolean contextual = false;
+            for (int pc = 0; pc < prog.numInst(); pc++) {
+                contextual |= prog.getInst(pc).op == Inst.EMPTY_WIDTH;
+            }
+            this.contextual = contextual;
+            this.mayHaveDeadStates = contextual;
+            this.states = new int[prog.numInst() * CLASSES];
+            Arrays.fill(states, -1);
+            this.reachedIn = new int[prog.numInst()];
+            this.next = new int[prog.numInst()];
+            this.visitedIn = new int[prog.numInst() << 4];
+        }
+
+        Automaton build() {
+            state(prog.start, EDGE);
+            for (int p = 0; p < pending.size(); p++) {
+                int key = pending.get(p);
+                closure(states[key], key / CLASSES, key % CLASSES);
+            }
+            return automaton.finish();
+        }
+
+        private int state(int pc, int previous) {
+            int key = pc * CLASSES + (contextual ? previous : EDGE);
+            int state = states[key];
+            if (state < 0) {
+                state = automaton.createState();
+                states[key] = state;
+                pending.add(key);
+            }
+            return state;
+        }
+
+        /**
+         * Adds the transitions out of {@code state}, whose next instruction is {@code pc} and whose rune before is of
+         * class {@code previous}: on the runes of the rune instructions the empty moves from {@code pc} reach, of the
+         * classes the assertions on the way allow the next rune to have.
+         */
+        private void closure(int state, int pc, int previous) {
+            closure++;
+            reached.clear();
+            stack.add(pc << 4 | ALL);
+            while (stack.isEmpty() == false) {
+                int item = stack.removeLast();
+                if (visitedIn[item] == closure) {
+                    continue;
+                }
+                visitedIn[item] = closure;
+                Inst inst = prog.getInst(item >>> 4);
+                int next = item & ALL;
+                switch (inst.op) {
+                    case Inst.ALT, Inst.ALT_MATCH -> {
+                        stack.add(inst.arg << 4 | next);
+                        stack.add(inst.out << 4 | next);
                     }
-                    yield Operations.concatenate(runes);
+                    case Inst.NOP, Inst.CAPTURE -> stack.add(inst.out << 4 | next);
+                    case Inst.EMPTY_WIDTH -> {
+                        int allowed = next & allowedNext(inst.arg, previous);
+                        if (allowed != 0) {
+                            stack.add(inst.out << 4 | allowed);
+                        }
+                    }
+                    case Inst.MATCH -> {
+                        if ((next & 1 << EDGE) != 0) {
+                            automaton.setAccept(state, true);
+                        }
+                    }
+                    case Inst.RUNE, Inst.RUNE1, Inst.RUNE_ANY, Inst.RUNE_ANY_NOT_NL -> {
+                        int runePc = item >>> 4;
+                        if (reachedIn[runePc] == closure) {
+                            this.next[runePc] |= next;
+                        } else {
+                            reachedIn[runePc] = closure;
+                            this.next[runePc] = next;
+                            reached.add(runePc);
+                        }
+                    }
+                    case Inst.FAIL -> mayHaveDeadStates = true;
+                    default -> throw new IllegalStateException("unknown instruction [" + inst.op + "]");
                 }
-                case CHAR_CLASS -> chars(re.runes);
-                case ANY_CHAR_NOT_NL -> chars(new int[] { 0, '\n' - 1, '\n' + 1, Character.MAX_CODE_POINT });
-                case ANY_CHAR -> Automata.makeAnyChar();
-                case BEGIN_LINE, END_LINE, BEGIN_TEXT, END_TEXT, WORD_BOUNDARY, NO_WORD_BOUNDARY -> {
-                    hasAssertions = true;
-                    yield Automata.makeChar(Assertions.marker(re.op));
+            }
+            for (int i = 0; i < reached.size(); i++) {
+                int runePc = reached.get(i);
+                transitions(state, prog.getInst(runePc), next[runePc]);
+            }
+        }
+
+        private void transitions(int from, Inst inst, int next) {
+            if (contextual == false && inst.op == Inst.RUNE1) {
+                automaton.addTransition(from, state(inst.out, EDGE), inst.runes[0]);
+                return;
+            }
+            int[] runes = runes(inst);
+            if (contextual == false) {
+                int to = state(inst.out, EDGE);
+                for (int i = 0; i < runes.length; i += 2) {
+                    automaton.addTransition(from, to, runes[i], runes[i + 1]);
                 }
-                case CAPTURE -> build(re.subs[0]);
-                case STAR -> Operations.repeat(build(re.subs[0]));
-                case PLUS -> Operations.repeat(build(re.subs[0]), 1);
-                case QUEST -> Operations.optional(build(re.subs[0]));
-                case REPEAT -> re.max < 0
-                    ? Operations.repeat(build(re.subs[0]), re.min)
-                    : Operations.repeat(build(re.subs[0]), re.min, re.max);
-                case CONCAT -> Operations.concatenate(Arrays.stream(re.subs).map(this::build).toList());
-                case ALTERNATE -> Operations.union(Arrays.stream(re.subs).map(this::build).toList());
-                case LEFT_PAREN, VERTICAL_BAR -> throw new IllegalStateException("[" + re.op + "] is only used while parsing");
+                return;
+            }
+            for (int cls = NEWLINE; cls <= OTHER; cls++) {
+                if ((next & 1 << cls) != 0) {
+                    addIntersection(from, inst.out, cls, runes);
+                }
+            }
+        }
+
+        /**
+         * Transitions from {@code from} to the state after {@code pc} and a rune of class {@code cls}, on the runes
+         * of {@code runes}, sorted pairs, of that class. The state is only made if there is one, so that every state
+         * is reachable.
+         */
+        private void addIntersection(int from, int pc, int cls, int[] runes) {
+            int[] a = runes;
+            int[] b = CLASS_RANGES[cls];
+            int to = -1;
+            int i = 0;
+            int j = 0;
+            while (i < a.length && j < b.length) {
+                int lo = Math.max(a[i], b[j]);
+                int hi = Math.min(a[i + 1], b[j + 1]);
+                if (lo <= hi) {
+                    if (to < 0) {
+                        to = state(pc, cls);
+                    }
+                    automaton.addTransition(from, to, lo, hi);
+                }
+                if (a[i + 1] < b[j + 1]) {
+                    i += 2;
+                } else {
+                    j += 2;
+                }
+            }
+        }
+
+        /** The runes a rune instruction matches, as sorted {@code [lo, hi]} pairs. */
+        private static int[] runes(Inst inst) {
+            return switch (inst.op) {
+                case Inst.RUNE_ANY -> ANY;
+                case Inst.RUNE_ANY_NOT_NL -> ANY_NOT_NL;
+                case Inst.RUNE1 -> new int[] { inst.runes[0], inst.runes[0] };
+                case Inst.RUNE -> inst.runes.length == 1 ? literal(inst.runes[0], (inst.arg & RE2.FOLD_CASE) != 0) : inst.runes;
+                default -> throw new IllegalStateException("[" + inst.op + "] is no rune instruction");
             };
         }
 
-        /** {@code rune} and the code points it folds to. */
-        private static int[] orbit(int rune) {
+        /** A literal rune and, if it folds case, the runes it folds to, as the matcher's {@code Inst.matchRune} has them. */
+        private static int[] literal(int rune, boolean fold) {
+            if (fold == false) {
+                return new int[] { rune, rune };
+            }
             IntArrayList orbit = new IntArrayList();
             int r = rune;
             do {
                 orbit.add(r);
                 r = Unicode.simpleFold(r);
             } while (r != rune);
-            return orbit.toArray();
-        }
-
-        /** Any one code point in {@code ranges}, {@code [lo, hi]} pairs. */
-        private static Automaton chars(int[] ranges) {
-            Automaton automaton = new Automaton();
-            int start = automaton.createState();
-            int end = automaton.createState();
-            automaton.setAccept(end, true);
-            for (int i = 0; i < ranges.length; i += 2) {
-                automaton.addTransition(start, end, ranges[i], ranges[i + 1]);
+            int[] sorted = orbit.toArray();
+            Arrays.sort(sorted);
+            int[] ranges = new int[sorted.length * 2];
+            for (int i = 0; i < sorted.length; i++) {
+                ranges[2 * i] = sorted[i];
+                ranges[2 * i + 1] = sorted[i];
             }
-            automaton.finishState();
-            return automaton;
-        }
-    }
-
-    /**
-     * Lucene has nothing for RE2's zero-width assertions, conditions on the code points either side of a position. So
-     * each is built as a marker, a label past the last code point, the markers that the code points around them don't
-     * satisfy are cut off by intersecting with an automaton of the conditions, and the rest are dropped.
-     */
-    private static final class Assertions {
-        private static final List<Regexp.Op> KINDS = List.of(
-            Regexp.Op.BEGIN_LINE,
-            Regexp.Op.END_LINE,
-            Regexp.Op.BEGIN_TEXT,
-            Regexp.Op.END_TEXT,
-            Regexp.Op.WORD_BOUNDARY,
-            Regexp.Op.NO_WORD_BOUNDARY
-        );
-
-        // the classes of the code point on either side of a position; EDGE is before the first or after the last
-        private static final int EDGE = 0;
-        private static final int NEWLINE = 1;
-        private static final int WORD = 2;
-        private static final int OTHER = 3;
-        private static final int ALL = 0b1111;
-
-        /** The code points of each class but {@link #EDGE}, as {@code [lo, hi]} pairs. */
-        private static final int[][] CLASS_RANGES = {
-            {},
-            { '\n', '\n' },
-            { '0', '9', 'A', 'Z', '_', '_', 'a', 'z' },
-            { 0, '\n' - 1, '\n' + 1, '0' - 1, '9' + 1, 'A' - 1, 'Z' + 1, '_' - 1, '_' + 1, 'a' - 1, 'z' + 1, Character.MAX_CODE_POINT } };
-
-        static int marker(Regexp.Op kind) {
-            return Character.MAX_CODE_POINT + 1 + KINDS.indexOf(kind);
+            return ranges;
         }
 
-        /** The conditions of all assertions, the same for every expression. */
-        private static final Automaton CONDITIONS = conditions();
-
-        static Automaton resolve(Automaton automaton) {
-            return dropMarkers(Operations.intersection(automaton, CONDITIONS));
-        }
-
-        /**
-         * The strings of code points and markers where every marker holds: its states pair the class of the code point
-         * before with the classes the markers since allow the next one to have.
-         */
-        private static Automaton conditions() {
-            Automaton.Builder builder = new Automaton.Builder();
-            IntIntHashMap states = new IntIntHashMap();
-            IntArrayList pending = new IntArrayList();
-            state(builder, states, pending, EDGE, ALL);
-            for (int p = 0; p < pending.size(); p++) {
-                int key = pending.get(p);
-                int previous = key >> 4;
-                int next = key & ALL;
-                int from = states.get(key);
-                builder.setAccept(from, (next & 1 << EDGE) != 0);
-                for (int cls = NEWLINE; cls <= OTHER; cls++) {
-                    if ((next & 1 << cls) != 0) {
-                        int to = state(builder, states, pending, cls, ALL);
-                        int[] ranges = CLASS_RANGES[cls];
-                        for (int i = 0; i < ranges.length; i += 2) {
-                            builder.addTransition(from, to, ranges[i], ranges[i + 1]);
-                        }
-                    }
-                }
-                for (Regexp.Op kind : KINDS) {
-                    int allowed = next & allowedNext(kind, previous);
-                    if (allowed != 0) {
-                        builder.addTransition(from, state(builder, states, pending, previous, allowed), marker(kind));
-                    }
-                }
-            }
-            return builder.finish();
-        }
-
-        private static int state(Automaton.Builder builder, IntIntHashMap states, IntArrayList pending, int previous, int next) {
-            int key = previous << 4 | next;
-            int slot = states.indexOf(key);
-            if (slot >= 0) {
-                return states.indexGet(slot);
-            }
-            int state = builder.createState();
-            states.indexInsert(slot, key, state);
-            pending.add(key);
-            return state;
-        }
-
-        /** The classes an assertion allows the next code point to have, given the previous one's; none if it fails. */
-        private static int allowedNext(Regexp.Op kind, int previous) {
+        /** The classes the assertions of {@code empty}, {@code EMPTY_*} flags, allow the next rune to have. */
+        private static int allowedNext(int empty, int previous) {
+            int allowed = ALL;
             int word = 1 << WORD;
-            return switch (kind) {
-                case BEGIN_TEXT -> previous == EDGE ? ALL : 0;
-                case END_TEXT -> 1 << EDGE;
-                case BEGIN_LINE -> previous == EDGE || previous == NEWLINE ? ALL : 0;
-                case END_LINE -> 1 << EDGE | 1 << NEWLINE;
-                case WORD_BOUNDARY -> previous == WORD ? ALL & ~word : word;
-                case NO_WORD_BOUNDARY -> previous == WORD ? word : ALL & ~word;
-                default -> throw new IllegalArgumentException("[" + kind + "] is no assertion");
-            };
-        }
-
-        /** The same automaton with its marker transitions taken as empty ones. */
-        private static Automaton dropMarkers(Automaton automaton) {
-            Automaton.Builder builder = new Automaton.Builder();
-            for (int state = 0; state < automaton.getNumStates(); state++) {
-                builder.createState();
+            if ((empty & Utils.EMPTY_BEGIN_TEXT) != 0 && previous != EDGE) {
+                allowed = 0;
             }
-            Transition t = new Transition();
-            for (int state = 0; state < automaton.getNumStates(); state++) {
-                // the states the markers from this one lead to, itself included
-                BitSet reached = new BitSet();
-                IntArrayList pending = new IntArrayList();
-                pending.add(state);
-                while (pending.isEmpty() == false) {
-                    int from = pending.removeLast();
-                    if (reached.get(from)) {
-                        continue;
-                    }
-                    reached.set(from);
-                    if (automaton.isAccept(from)) {
-                        builder.setAccept(state, true);
-                    }
-                    for (int i = automaton.initTransition(from, t); i > 0; i--) {
-                        automaton.getNextTransition(t);
-                        if (t.min > Character.MAX_CODE_POINT) {
-                            pending.add(t.dest);
-                        } else {
-                            builder.addTransition(state, t.dest, t.min, t.max);
-                        }
-                    }
-                }
+            if ((empty & Utils.EMPTY_BEGIN_LINE) != 0 && previous != EDGE && previous != NEWLINE) {
+                allowed = 0;
             }
-            return builder.finish();
+            if ((empty & Utils.EMPTY_END_TEXT) != 0) {
+                allowed &= 1 << EDGE;
+            }
+            if ((empty & Utils.EMPTY_END_LINE) != 0) {
+                allowed &= 1 << EDGE | 1 << NEWLINE;
+            }
+            if ((empty & Utils.EMPTY_WORD_BOUNDARY) != 0) {
+                allowed &= previous == WORD ? ALL & ~word : word;
+            }
+            if ((empty & Utils.EMPTY_NO_WORD_BOUNDARY) != 0) {
+                allowed &= previous == WORD ? word : ALL & ~word;
+            }
+            return allowed;
         }
     }
 }

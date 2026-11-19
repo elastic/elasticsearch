@@ -21,7 +21,8 @@ package org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2;
  *
  * The only entry point is {@link #compileRegexp}.
  */
-class Compiler {
+// ES: public for Re2RegExp, which builds Lucene automata from the compiled program
+public class Compiler {
 
   /**
    * A fragment of a compiled regular expression program.
@@ -58,7 +59,8 @@ class Compiler {
     newInst(Inst.FAIL); // always the first instruction
   }
 
-  static Prog compileRegexp(Regexp re) {
+  // ES: public for Re2RegExp, which builds Lucene automata from the compiled program
+  public static Prog compileRegexp(Regexp re) {
     Compiler c = new Compiler();
     Frag f = c.compile(re);
     c.prog.patch(f.out, c.newInst(Inst.MATCH).i);

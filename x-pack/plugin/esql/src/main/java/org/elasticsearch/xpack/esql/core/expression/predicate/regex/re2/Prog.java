@@ -21,11 +21,13 @@ import java.util.Arrays;
 /**
  * A Prog is a compiled regular expression program.
  */
-final class Prog {
+// ES: public for Re2RegExp, which builds Lucene automata from the compiled program
+public final class Prog {
 
   Inst[] inst = new Inst[10];
   int instSize = 0;
-  int start; // index of start instruction
+  // ES: public for Re2RegExp, which builds Lucene automata from the compiled program
+  public int start; // index of start instruction
   int numCap = 2; // number of CAPTURE insts in re
   // 2 => implicit ( and ) for whole match $0
 
@@ -34,12 +36,14 @@ final class Prog {
 
   // Returns the instruction at the specified pc.
   // Precondition: pc > 0 && pc < numInst().
-  Inst getInst(int pc) {
+  // ES: public for Re2RegExp, which builds Lucene automata from the compiled program
+  public Inst getInst(int pc) {
     return inst[pc];
   }
 
   // Returns the number of instructions in this program.
-  int numInst() {
+  // ES: public for Re2RegExp, which builds Lucene automata from the compiled program
+  public int numInst() {
     return instSize;
   }
 

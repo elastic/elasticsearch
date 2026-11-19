@@ -18,7 +18,8 @@ package org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2;
 
 import java.util.ArrayList;
 
-class Simplify {
+// ES: public for Re2RegExp, which builds Lucene automata from the compiled program
+public class Simplify {
 
   // Simplify returns a regexp equivalent to re but without counted
   // repetitions and with various other simplifications, such as
@@ -28,7 +29,8 @@ class Simplify {
   // or removed.  For example, the simplified form for /(x){1,2}/ is
   // /(x)(x)?/ but both parentheses capture as $1.  The returned regexp
   // may share structure with or be the original.
-  static Regexp simplify(Regexp re) {
+  // ES: public for Re2RegExp, which builds Lucene automata from the compiled program
+  public static Regexp simplify(Regexp re) {
     if (re == null) {
       return null;
     }

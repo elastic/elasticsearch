@@ -16,7 +16,8 @@ package org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2;
 /**
  * Various constants and helper utilities.
  */
-abstract class Utils {
+// ES: public for Re2RegExp, which builds Lucene automata from the compiled program
+public abstract class Utils {
 
   static final int[] EMPTY_INTS = {};
 
@@ -172,12 +173,13 @@ abstract class Utils {
 
   //// EMPTY_* flags
 
-  static final int EMPTY_BEGIN_LINE = 0x01;
-  static final int EMPTY_END_LINE = 0x02;
-  static final int EMPTY_BEGIN_TEXT = 0x04;
-  static final int EMPTY_END_TEXT = 0x08;
-  static final int EMPTY_WORD_BOUNDARY = 0x10;
-  static final int EMPTY_NO_WORD_BOUNDARY = 0x20;
+  // ES: public for Re2RegExp, which builds Lucene automata from the compiled program
+  public static final int EMPTY_BEGIN_LINE = 0x01;
+  public static final int EMPTY_END_LINE = 0x02;
+  public static final int EMPTY_BEGIN_TEXT = 0x04;
+  public static final int EMPTY_END_TEXT = 0x08;
+  public static final int EMPTY_WORD_BOUNDARY = 0x10;
+  public static final int EMPTY_NO_WORD_BOUNDARY = 0x20;
   static final int EMPTY_ALL = -1; // (impossible)
 
   // emptyOpContext returns the zero-width assertions satisfied at the position

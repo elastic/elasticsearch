@@ -21,7 +21,8 @@ package org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2;
  *
  * @see <a href="http://swtch.com/~rsc/regexp/regexp2.html">http://swtch.com/~rsc/regexp/regexp2.html</a> (ES: a link, as javadoc wants)
  */
-final class Inst {
+// ES: public for Re2RegExp, which builds Lucene automata from the compiled program
+public final class Inst {
 
   public static final int ALT = 1;
   public static final int ALT_MATCH = 2;
@@ -35,10 +36,11 @@ final class Inst {
   public static final int RUNE_ANY = 10;
   public static final int RUNE_ANY_NOT_NL = 11;
 
-  int op;
-  int out; // all but MATCH, FAIL
-  int arg; // ALT, ALT_MATCH, CAPTURE, EMPTY_WIDTH
-  int[] runes; // length==1 => exact match
+  // ES: public for Re2RegExp, which builds Lucene automata from the compiled program
+  public int op;
+  public int out; // all but MATCH, FAIL
+  public int arg; // ALT, ALT_MATCH, CAPTURE, EMPTY_WIDTH
+  public int[] runes; // length==1 => exact match
   // otherwise a list of [lo,hi] pairs.  hi is *inclusive*.
   // REVIEWERS: why not half-open intervals?
 

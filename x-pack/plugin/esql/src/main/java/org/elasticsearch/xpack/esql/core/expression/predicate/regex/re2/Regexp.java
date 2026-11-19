@@ -28,8 +28,7 @@ import java.util.Map;
 // ES: public for Re2RegExp, which builds Lucene automata from the parse
 public class Regexp {
 
-  // ES: public for Re2RegExp, which builds Lucene automata from the parse
-  public enum Op {
+  enum Op {
     NO_MATCH, // Matches no strings.
     EMPTY_MATCH, // Matches empty string.
     LITERAL, // Matches runes[] sequence
@@ -61,13 +60,12 @@ public class Regexp {
 
   static final Regexp[] EMPTY_SUBS = {};
 
-  // ES: public for Re2RegExp, which builds Lucene automata from the parse
-  public Op op; // operator
-  public int flags; // bitmap of parse flags
-  public Regexp[] subs; // subexpressions, if any.  Never null.
+  Op op; // operator
+  int flags; // bitmap of parse flags
+  Regexp[] subs; // subexpressions, if any.  Never null.
   // subs[0] is used as the freelist.
-  public int[] runes; // matched runes, for LITERAL, CHAR_CLASS
-  public int min, max; // min, max for REPEAT
+  int[] runes; // matched runes, for LITERAL, CHAR_CLASS
+  int min, max; // min, max for REPEAT
   int cap; // capturing index, for CAPTURE
   String name; // capturing name, for CAPTURE
   Map<String, Integer> namedGroups = Collections.emptyMap(); // map of group name -> capturing index

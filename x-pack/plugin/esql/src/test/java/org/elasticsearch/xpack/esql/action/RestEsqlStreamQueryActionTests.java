@@ -13,6 +13,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
@@ -164,24 +165,32 @@ public class RestEsqlStreamQueryActionTests extends ESTestCase {
             "{\"query\": \"FROM idx\", \"max_rows\": 10, \"max_bytes\": \"1kb\", \"store\": \"none\"}"
         );
         assertThat(parsed.request().query(), equalTo("FROM idx"));
-        assertThat(parsed.options(), equalTo(new StreamOptions(10, 1024)));
+        assertThat(parsed.options(), equalTo(new StreamOptions(StreamOptions.Store.NONE, 10, 1024)));
+    }
+
+    public void testStoreIsKeptInTheOptions() throws IOException {
+        assertThat(
+            parseStream("{\"query\": \"FROM idx\", \"store\": \"none\", \"max_rows\": 10}").options().store(),
+            equalTo(StreamOptions.Store.NONE)
+        );
+        assertThat(parseStream("{\"query\": \"FROM idx\", \"max_rows\": 10}").options().store(), equalTo(StreamOptions.Store.NONE));
     }
 
     public void testEachLimitCanBeSetOnItsOwn() throws IOException {
         assertThat(
             parseStream("{\"query\": \"FROM idx\", \"max_rows\": 0}").options(),
-            equalTo(new StreamOptions(0, StreamOptions.NO_LIMIT))
+            equalTo(new StreamOptions(StreamOptions.Store.NONE, 0, StreamOptions.NO_LIMIT))
         );
         assertThat(
             parseStream("{\"query\": \"FROM idx\", \"max_bytes\": \"1mb\"}").options(),
-            equalTo(new StreamOptions(StreamOptions.NO_LIMIT, 1024 * 1024))
+            equalTo(new StreamOptions(StreamOptions.Store.NONE, StreamOptions.NO_LIMIT, 1024 * 1024))
         );
     }
 
     public void testMaxBytesAsANumberIsABytesCount() throws IOException {
         assertThat(
             parseStream("{\"query\": \"FROM idx\", \"max_bytes\": 2048}").options(),
-            equalTo(new StreamOptions(StreamOptions.NO_LIMIT, 2048))
+            equalTo(new StreamOptions(StreamOptions.Store.NONE, StreamOptions.NO_LIMIT, 2048))
         );
     }
 
@@ -211,16 +220,56 @@ public class RestEsqlStreamQueryActionTests extends ESTestCase {
         }
     }
 
+    public void testFractionalLimitsAreRejected() {
+        for (String field : new String[] { "max_rows", "max_bytes" }) {
+            double fraction = field.equals("max_rows") ? 2.9 : 1.5;
+            XContentParseException e = expectThrows(
+                XContentParseException.class,
+                () -> parseStream("{\"query\": \"FROM idx\", \"" + field + "\": " + fraction + "}")
+            );
+            assertThat(e.getMessage(), containsString("failed to parse field [" + field + "]"));
+            assertThat(e.getCause().getMessage(), containsString("cannot be converted to Long without data loss"));
+        }
+    }
+
+    public void testWholeNumberWrittenAsDecimalIsAccepted() throws IOException {
+        assertThat(
+            parseStream("{\"query\": \"FROM idx\", \"max_rows\": 2.0}").options(),
+            equalTo(new StreamOptions(StreamOptions.Store.NONE, 2, StreamOptions.NO_LIMIT))
+        );
+    }
+
+    public void testMaxRowsAsAStringIsRejected() {
+        XContentParseException e = expectThrows(
+            XContentParseException.class,
+            () -> parseStream("{\"query\": \"FROM idx\", \"max_rows\": \"10\"}")
+        );
+        assertThat(e.getMessage(), containsString("failed to parse field [max_rows]"));
+        assertThat(e.getCause().getMessage(), containsString("Long value passed as String"));
+    }
+
+    public void testMaxBytesStringWithoutUnitIsRejected() {
+        XContentParseException e = expectThrows(
+            XContentParseException.class,
+            () -> parseStream("{\"query\": \"FROM idx\", \"max_bytes\": \"1024\"}")
+        );
+        assertThat(e.getMessage(), containsString("failed to parse field [max_bytes]"));
+        assertThat(e.getCause().getMessage(), containsString("unit is missing or unrecognized"));
+    }
+
     public void testRowLimitIsReachedAtTheLimit() {
-        StreamOptions options = new StreamOptions(3, StreamOptions.NO_LIMIT);
+        StreamOptions options = new StreamOptions(StreamOptions.Store.NONE, 3, StreamOptions.NO_LIMIT);
         assertFalse(options.reached(2, 1_000_000));
         assertTrue(options.reached(3, 0));
         assertTrue(options.reached(4, 0));
-        assertTrue("max_rows 0 is reached before any row", new StreamOptions(0, StreamOptions.NO_LIMIT).reached(0, 0));
+        assertTrue(
+            "max_rows 0 is reached before any row",
+            new StreamOptions(StreamOptions.Store.NONE, 0, StreamOptions.NO_LIMIT).reached(0, 0)
+        );
     }
 
     public void testByteLimitIsReachedAtTheLimitButNeverBeforeTheFirstRow() {
-        StreamOptions options = new StreamOptions(StreamOptions.NO_LIMIT, 100);
+        StreamOptions options = new StreamOptions(StreamOptions.Store.NONE, StreamOptions.NO_LIMIT, 100);
         assertFalse("the first row is always written, even when the columns line already fills the limit", options.reached(0, 1_000));
         assertFalse(options.reached(1, 99));
         assertTrue(options.reached(1, 100));

@@ -80,6 +80,7 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.esql.plugin.TransportEsqlQueryAction.getOrCreateSessionID;
@@ -308,7 +309,8 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                             streamStarted,
                             columns,
                             nullColumns,
-                            QuerySettings.TIME_ZONE.get(configuration.resolvedSettings())
+                            QuerySettings.TIME_ZONE.get(configuration.resolvedSettings()),
+                            executionInfo::isPartial
                         );
                         if (startFailure != null) {
                             resultListener.onFailure(startFailure);
@@ -402,7 +404,8 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                         streamStarted,
                         columns,
                         request.dropNullColumns() ? new boolean[columns.size()] : null,
-                        QuerySettings.TIME_ZONE.get(result.configuration().resolvedSettings())
+                        QuerySettings.TIME_ZONE.get(result.configuration().resolvedSettings()),
+                        executionInfo::isPartial
                     );
                     if (startFailure != null) {
                         listener.onFailure(startFailure);
@@ -471,9 +474,11 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
         AtomicBoolean streamStarted,
         List<ColumnInfoImpl> columns,
         boolean[] nullColumns,
-        ZoneId zoneId
+        ZoneId zoneId,
+        BooleanSupplier isPartial
     ) {
-        request.resultStreamListener().onResponse(new EsqlStreamQueryAction.ResultStream(columns, publisher, nullColumns, zoneId));
+        request.resultStreamListener()
+            .onResponse(new EsqlStreamQueryAction.ResultStream(columns, publisher, nullColumns, zoneId, isPartial));
         Exception startFailure = publisher.failure();
         if (startFailure != null) {
             return startFailure;

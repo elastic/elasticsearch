@@ -34,7 +34,8 @@ import static org.elasticsearch.xpack.esql.formatter.TextFormat.URL_PARAM_HEADER
  *
  * <p>The body is the same as for {@code POST /_query}, except that {@code columnar} is not supported, plus three fields
  * that only this API has: {@code max_rows} and {@code max_bytes}, which end the response early, and {@code store}, where
- * only {@code none} is supported. The query runs only for as long as the response is open: a disconnect cancels it, and
+ * only {@code none} is supported. {@code max_rows} must be a whole JSON number. {@code max_bytes} is either a whole JSON
+ * number, which is a count of bytes, or a size string with a unit such as {@code "1mb"}. The query runs only for as long as the response is open: a disconnect cancels it, and
  * so does a response that ends at a limit.</p>
  */
 @ServerlessScope(Scope.PUBLIC)

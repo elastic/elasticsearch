@@ -237,15 +237,18 @@ final class RequestXContent {
         );
         objectParserCommon(parser);
         parser.declareField((p, request, options) -> options.store(p.text()), STORE_FIELD, ObjectParser.ValueType.STRING);
-        parser.declareField((p, request, options) -> options.maxRows(p.longValue()), MAX_ROWS_FIELD, ObjectParser.ValueType.LONG);
+        parser.declareField((p, request, options) -> options.maxRows(p.longValue(false)), MAX_ROWS_FIELD, ObjectParser.ValueType.LONG);
         parser.declareField((p, request, options) -> options.maxBytes(parseMaxBytes(p)), MAX_BYTES_FIELD, ObjectParser.ValueType.VALUE);
         return parser;
     }
 
-    /** A number is a count of bytes; a string is a size such as {@code 1mb}. */
+    /**
+     * A JSON number is a whole count of bytes; a fraction is rejected rather than rounded down. A string is a size that must
+     * have a unit, such as {@code 1kb} or {@code 1mb}, so {@code "1024"} is rejected: use the number {@code 1024} instead.
+     */
     private static long parseMaxBytes(XContentParser p) throws IOException {
         if (p.currentToken() == XContentParser.Token.VALUE_NUMBER) {
-            return p.longValue();
+            return p.longValue(false);
         }
         return ByteSizeValue.parseBytesSizeValue(p.text(), MAX_BYTES_FIELD.getPreferredName()).getBytes();
     }

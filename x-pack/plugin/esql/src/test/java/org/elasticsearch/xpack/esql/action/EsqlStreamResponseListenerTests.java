@@ -55,7 +55,9 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -173,13 +175,69 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
     }
 
     public void testMaxRowsInsideAPage() throws IOException {
-        Drained drained = sendOnePageEndingAtLimit(new StreamOptions(3, StreamOptions.NO_LIMIT), 5);
+        Drained drained = sendOnePageEndingAtLimit(new StreamOptions(StreamOptions.Store.NONE, 3, StreamOptions.NO_LIMIT), 5);
         assertThat(drained.rows(), equalTo(List.of(List.of(0, "x"), List.of(1, "x"), List.of(2, "x"))));
         assertLimitFooter(drained.footer(), 3);
     }
 
+    /** The last line of a response that ended at a limit reports the failures the query recorded, not a fixed false. */
+    public void testLimitFooterReportsIsPartial() throws IOException {
+        Subscribed s = subscribe(new StreamOptions(StreamOptions.Store.NONE, 3, StreamOptions.NO_LIMIT), () -> true);
+        ChunkedRestResponseBodyPart pagePart = sendFirstPage(s, buildLargePage(5, 1));
+        decodeRows(pagePart);
+        ChunkedRestResponseBodyPart footerPart = nextPart(pagePart, () -> {});
+        Map<String, Object> footer = decodeLine(footerPart);
+        assertThat(footer.get("is_partial"), equalTo(true));
+        assertThat(footer.get("complete"), equalTo(false));
+        s.response().close();
+    }
+
+    /** The flag is read when the last line is built, so a failure recorded after the stream started still shows. */
+    public void testLimitFooterReadsIsPartialAtFooterTime() throws IOException {
+        AtomicBoolean partial = new AtomicBoolean(false);
+        Subscribed s = subscribe(new StreamOptions(StreamOptions.Store.NONE, 3, StreamOptions.NO_LIMIT), partial::get);
+        ChunkedRestResponseBodyPart pagePart = sendFirstPage(s, buildLargePage(5, 1));
+        partial.set(true);
+        decodeRows(pagePart);
+        ChunkedRestResponseBodyPart footerPart = nextPart(pagePart, () -> {});
+        assertThat(decodeLine(footerPart).get("is_partial"), equalTo(true));
+        s.response().close();
+    }
+
+    /**
+     * The last line carries the query's warnings even when it is built on a thread whose context has none of them, as the
+     * HTTP thread's context is. That is the case when the limit falls inside a page, and when it falls on a page boundary.
+     */
+    public void testLimitFooterKeepsQueryWarningsOnAnotherThreadContext() throws IOException {
+        // Limit inside a page: the last line is built while the page's rows are encoded.
+        ThreadContext insideContext = new ThreadContext(Settings.EMPTY);
+        insideContext.addResponseHeader("Warning", HeaderWarning.formatWarning("limit added"));
+        Subscribed inside = subscribe(new StreamOptions(StreamOptions.Store.NONE, 3, StreamOptions.NO_LIMIT), insideContext);
+        try (ThreadContext.StoredContext ignored = insideContext.stashContext()) {
+            ChunkedRestResponseBodyPart pagePart = sendFirstPage(inside, buildLargePage(5, 1));
+            assertThat(decodeRows(pagePart).size(), equalTo(3));
+            Map<String, Object> footer = decodeLine(nextPart(pagePart, () -> {}));
+            assertLimitFooter(footer, 3);
+            assertThat(footer.get("warnings"), equalTo(List.of("limit added")));
+        }
+        inside.response().close();
+
+        // Limit on a page boundary: the last line is built when the next page arrives.
+        ThreadContext boundaryContext = new ThreadContext(Settings.EMPTY);
+        boundaryContext.addResponseHeader("Warning", HeaderWarning.formatWarning("limit added"));
+        Subscribed boundary = subscribe(new StreamOptions(StreamOptions.Store.NONE, 2, StreamOptions.NO_LIMIT), boundaryContext);
+        try (ThreadContext.StoredContext ignored = boundaryContext.stashContext()) {
+            ChunkedRestResponseBodyPart pagePart = sendFirstPage(boundary, buildLargePage(2, 1));
+            assertThat(decodeRows(pagePart).size(), equalTo(2));
+            Map<String, Object> footer = decodeLine(nextPart(pagePart, () -> boundary.producer().addPage(buildLargePage(2, 1))));
+            assertLimitFooter(footer, 2);
+            assertThat(footer.get("warnings"), equalTo(List.of("limit added")));
+        }
+        boundary.response().close();
+    }
+
     public void testMaxRowsOnAPageBoundaryFollowedByAnotherPage() throws IOException {
-        Subscribed s = subscribe(new StreamOptions(2, StreamOptions.NO_LIMIT));
+        Subscribed s = subscribe(new StreamOptions(StreamOptions.Store.NONE, 2, StreamOptions.NO_LIMIT));
         ChunkedRestResponseBodyPart pagePart = sendFirstPage(s, buildLargePage(2, 1));
         assertThat(decodeRows(pagePart).size(), equalTo(2));
         // The limit is filled exactly, so whether the result goes on is only known when the next signal arrives.
@@ -192,7 +250,7 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
 
     /** A result exactly as large as {@code max_rows} is complete: nothing was left unsent. */
     public void testMaxRowsEqualToTheResultSizeIsComplete() throws IOException {
-        Subscribed s = subscribe(new StreamOptions(3, StreamOptions.NO_LIMIT));
+        Subscribed s = subscribe(new StreamOptions(StreamOptions.Store.NONE, 3, StreamOptions.NO_LIMIT));
         Drained drained = drainStream(s, List.of(buildLargePage(3, 1)), 5L, List.of());
 
         assertThat(drained.rows().size(), equalTo(3));
@@ -201,7 +259,7 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
     }
 
     public void testMaxRowsLargerThanTheResultIsComplete() throws IOException {
-        Subscribed s = subscribe(new StreamOptions(100, StreamOptions.NO_LIMIT));
+        Subscribed s = subscribe(new StreamOptions(StreamOptions.Store.NONE, 100, StreamOptions.NO_LIMIT));
         Drained drained = drainStream(s, List.of(buildLargePage(3, 1), buildLargePage(2, 1)), 5L, List.of());
 
         assertThat(drained.rows().size(), equalTo(5));
@@ -211,7 +269,7 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
 
     /** With {@code max_rows: 0} the response is the columns line and the last line, and no row is written. */
     public void testMaxRowsZeroWritesNoRows() throws IOException {
-        Subscribed s = subscribe(new StreamOptions(0, StreamOptions.NO_LIMIT));
+        Subscribed s = subscribe(new StreamOptions(StreamOptions.Store.NONE, 0, StreamOptions.NO_LIMIT));
         s.producer().addPage(buildLargePage(2, 1));
 
         RestResponse response = s.response();
@@ -228,7 +286,7 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
 
     /** An empty result is complete whatever {@code max_rows} is, because no page ever shows that more rows exist. */
     public void testMaxRowsZeroOnAnEmptyResultIsComplete() throws IOException {
-        Subscribed s = subscribe(new StreamOptions(0, StreamOptions.NO_LIMIT));
+        Subscribed s = subscribe(new StreamOptions(StreamOptions.Store.NONE, 0, StreamOptions.NO_LIMIT));
         Drained drained = drainStream(s, List.of(), 5L, List.of());
 
         assertThat(drained.rows(), equalTo(List.of()));
@@ -238,7 +296,11 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
 
     public void testMaxBytesStopsBetweenRows() throws IOException {
         // The columns line and exactly two row lines fill the limit, so a third row is not written.
-        StreamOptions options = new StreamOptions(StreamOptions.NO_LIMIT, columnsLineBytes() + 2 * ROW_LINE_BYTES);
+        StreamOptions options = new StreamOptions(
+            StreamOptions.Store.NONE,
+            StreamOptions.NO_LIMIT,
+            columnsLineBytes() + 2 * ROW_LINE_BYTES
+        );
         Drained drained = sendOnePageEndingAtLimit(options, 5);
 
         assertThat(drained.rows(), equalTo(List.of(List.of(0, "x"), List.of(1, "x"))));
@@ -247,14 +309,18 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
 
     public void testMaxBytesAlwaysWritesTheFirstRow() throws IOException {
         // The columns line alone is larger than the limit, but a response with a limit still makes progress.
-        Drained drained = sendOnePageEndingAtLimit(new StreamOptions(StreamOptions.NO_LIMIT, 1), 5);
+        Drained drained = sendOnePageEndingAtLimit(new StreamOptions(StreamOptions.Store.NONE, StreamOptions.NO_LIMIT, 1), 5);
 
         assertThat(drained.rows(), equalTo(List.of(List.of(0, "x"))));
         assertLimitFooter(drained.footer(), 1);
     }
 
     public void testMaxBytesAcrossPages() throws IOException {
-        StreamOptions options = new StreamOptions(StreamOptions.NO_LIMIT, columnsLineBytes() + 3 * ROW_LINE_BYTES);
+        StreamOptions options = new StreamOptions(
+            StreamOptions.Store.NONE,
+            StreamOptions.NO_LIMIT,
+            columnsLineBytes() + 3 * ROW_LINE_BYTES
+        );
         Subscribed s = subscribe(options);
         ChunkedRestResponseBodyPart pagePart = sendFirstPage(s, buildLargePage(2, 1));
         assertThat(decodeRows(pagePart).size(), equalTo(2));
@@ -268,18 +334,21 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
     }
 
     public void testTheFirstLimitReachedWins() throws IOException {
-        Drained byRows = sendOnePageEndingAtLimit(new StreamOptions(1, ByteSizeValue.ofGb(1).getBytes()), 5);
+        Drained byRows = sendOnePageEndingAtLimit(new StreamOptions(StreamOptions.Store.NONE, 1, ByteSizeValue.ofGb(1).getBytes()), 5);
         assertThat(byRows.rows().size(), equalTo(1));
         assertLimitFooter(byRows.footer(), 1);
 
-        Drained byBytes = sendOnePageEndingAtLimit(new StreamOptions(4, columnsLineBytes() + 2 * ROW_LINE_BYTES), 5);
+        Drained byBytes = sendOnePageEndingAtLimit(
+            new StreamOptions(StreamOptions.Store.NONE, 4, columnsLineBytes() + 2 * ROW_LINE_BYTES),
+            5
+        );
         assertThat(byBytes.rows().size(), equalTo(2));
         assertLimitFooter(byBytes.footer(), 2);
     }
 
     /** Only one last line is ever written: a failure that arrives after the response ended at a limit is dropped. */
     public void testFailureAfterTheLimitWasReachedIsIgnored() throws IOException {
-        Subscribed s = subscribe(new StreamOptions(2, StreamOptions.NO_LIMIT));
+        Subscribed s = subscribe(new StreamOptions(StreamOptions.Store.NONE, 2, StreamOptions.NO_LIMIT));
         ChunkedRestResponseBodyPart pagePart = sendFirstPage(s, buildLargePage(5, 1));
         assertThat(decodeRows(pagePart).size(), equalTo(2));
         s.publisher().failStream(new RuntimeException("late failure"));
@@ -660,7 +729,7 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
         EsqlStreamResponseListener listener = new EsqlStreamResponseListener(channel, new ThreadContext(Settings.EMPTY));
 
         listener.resultStreamListener()
-            .onResponse(new EsqlStreamQueryAction.ResultStream(simpleColumns(), publisher, null, ZoneOffset.UTC));
+            .onResponse(new EsqlStreamQueryAction.ResultStream(simpleColumns(), publisher, null, ZoneOffset.UTC, () -> false));
         assertThat("no response before the first page", channel.okResponses, equalTo(0));
         assertThat(channel.errorResponses, equalTo(0));
         assertTrue("publisher should be unblocked after early demand", publisher.waitForWriting().listener().isDone());
@@ -682,7 +751,7 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
         EsqlStreamResponseListener listener = new EsqlStreamResponseListener(channel, new ThreadContext(Settings.EMPTY));
 
         listener.resultStreamListener()
-            .onResponse(new EsqlStreamQueryAction.ResultStream(simpleColumns(), publisher, null, ZoneOffset.UTC));
+            .onResponse(new EsqlStreamQueryAction.ResultStream(simpleColumns(), publisher, null, ZoneOffset.UTC, () -> false));
         assertThat("no 200 OK before the first page", channel.okAttempts, equalTo(0));
 
         producer.addPage(buildSimplePage(1, "first"));
@@ -764,12 +833,42 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
         return subscribe(simpleColumns(), null, ZoneOffset.UTC, options);
     }
 
+    private Subscribed subscribe(StreamOptions options, BooleanSupplier isPartial) {
+        return subscribe(simpleColumns(), null, ZoneOffset.UTC, options, isPartial);
+    }
+
     private Subscribed subscribe(List<ColumnInfoImpl> columns, boolean[] nullColumns, ZoneId zoneId, StreamOptions options) {
+        return subscribe(columns, nullColumns, zoneId, options, () -> false);
+    }
+
+    private Subscribed subscribe(
+        List<ColumnInfoImpl> columns,
+        boolean[] nullColumns,
+        ZoneId zoneId,
+        StreamOptions options,
+        BooleanSupplier isPartial
+    ) {
+        return subscribe(columns, nullColumns, zoneId, options, isPartial, new ThreadContext(Settings.EMPTY));
+    }
+
+    private Subscribed subscribe(StreamOptions options, ThreadContext threadContext) {
+        return subscribe(simpleColumns(), null, ZoneOffset.UTC, options, () -> false, threadContext);
+    }
+
+    private Subscribed subscribe(
+        List<ColumnInfoImpl> columns,
+        boolean[] nullColumns,
+        ZoneId zoneId,
+        StreamOptions options,
+        BooleanSupplier isPartial,
+        ThreadContext threadContext
+    ) {
         PageStreamPublisher publisher = new PageStreamPublisher();
         PageStreamPublisher.Producer producer = publisher.registerProducer();
         FakeRestChannel channel = new FakeRestChannel(new FakeRestRequest(), true);
-        EsqlStreamResponseListener listener = new EsqlStreamResponseListener(channel, new ThreadContext(Settings.EMPTY), options);
-        listener.resultStreamListener().onResponse(new EsqlStreamQueryAction.ResultStream(columns, publisher, nullColumns, zoneId));
+        EsqlStreamResponseListener listener = new EsqlStreamResponseListener(channel, threadContext, options);
+        listener.resultStreamListener()
+            .onResponse(new EsqlStreamQueryAction.ResultStream(columns, publisher, nullColumns, zoneId, isPartial));
         return new Subscribed(publisher, producer, channel, listener);
     }
 

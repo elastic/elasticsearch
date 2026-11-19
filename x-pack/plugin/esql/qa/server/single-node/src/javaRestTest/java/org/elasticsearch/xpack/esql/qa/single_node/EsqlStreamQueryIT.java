@@ -524,6 +524,31 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
         }
     }
 
+    /**
+     * The last line of a response that ended inside a page is built while the page is written to the HTTP channel, so it must
+     * still carry the warnings the query raised when it was planned. The query has no LIMIT, which raises the default-limit warning.
+     */
+    @SuppressWarnings("unchecked")
+    public void testLimitFooterKeepsWarningsWhenTheLimitIsInsideAPage() throws Exception {
+        Request bulk = new Request("POST", "/_bulk?index=stream-many&refresh=true");
+        StringBuilder docs = new StringBuilder();
+        for (int i = 0; i < 100; i++) {
+            docs.append("{\"index\": {}}\n{\"v\": ").append(i).append("}\n");
+        }
+        bulk.setJsonEntity(docs.toString());
+        assertOK(client().performRequest(bulk));
+
+        Streamed streamed = stream(
+            "{\"query\": \"FROM stream-many | KEEP v\", \"max_rows\": 5, \"pragma\": {\"page_size\": 10}, \"accept_pragma_risks\": true}"
+        );
+
+        assertThat(streamed.rows(), hasSize(5));
+        assertThat(streamed.footer().get("complete"), equalTo(false));
+        assertThat(streamed.footer().get("next_offset"), equalTo(5));
+        assertThat((List<String>) streamed.footer().get("warnings"), hasItem(EsqlStreamTestUtils.DEFAULT_LIMIT_WARNING));
+        assertBusy(() -> assertThat("the streaming query must have been cancelled", runningStreamTasks(), equalTo(0)));
+    }
+
     @SuppressWarnings("unchecked")
     private int runningStreamTasks() throws IOException {
         Request listTasks = new Request("GET", "/_tasks?actions=indices:data/read/esql/stream");

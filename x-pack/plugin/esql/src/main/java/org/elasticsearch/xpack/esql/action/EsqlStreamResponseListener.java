@@ -45,6 +45,7 @@ import java.util.concurrent.Flow;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE;
@@ -61,13 +62,15 @@ import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK
  *       {@code include_execution_metadata: true} (local-only queries included), on cross-cluster queries with
  *       {@code include_ccs_metadata: true}, or when a partial result carries cluster failures), optionally
  *       followed by a {@code "profile"} object when {@code profile: true} was set.</li>
- *   <li>Last line (failure after the first row line): {@code {"status":N,"took":N,"is_partial":false,"warnings":[...],
+ *   <li>Last line (failure after the first row line): {@code {"status":N,"took":N,"is_partial":<bool>,"warnings":[...],
  *       "complete":false,"next_offset":N,"error":{<standard ES error shape with root_cause, type, reason, caused_by>}}}</li>
  *   <li>Failure before the first row line: the terminal record is the only line, and the response carries
  *       the error HTTP status code.</li>
- *   <li>Last line (a limit was reached): {@code {"status":200,"took":N,"is_partial":false,"warnings":[...],
+ *   <li>Last line (a limit was reached): {@code {"status":200,"took":N,"is_partial":<bool>,"warnings":[...],
  *       "complete":false,"next_offset":N}}. The query did not finish, so there are no statistics, {@code _clusters}
- *       or profile. The query is cancelled when the response is released.</li>
+ *       or profile. {@code is_partial} reflects the failures recorded up to the point the response ended (for example a
+ *       skipped remote cluster); {@code complete: false} is what signals the truncation. The query is cancelled when the
+ *       response is released.</li>
  * </ul>
  *
  * <p>{@code complete} is true only when the stream ended with a normal completion signal; any error, including
@@ -115,6 +118,8 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
     private volatile List<ColumnInfoImpl> columns;
     private volatile boolean[] nullColumns;
     private volatile ZoneId zoneId;
+    /** Whether the query has recorded failures so far; read when this listener builds its own last line. */
+    private volatile BooleanSupplier isPartial = () -> false;
     private final AtomicReference<Page> inFlightPage = new AtomicReference<>();
     private final AtomicLong rowsWritten = new AtomicLong();
     private final AtomicLong bytesWritten = new AtomicLong();
@@ -141,15 +146,16 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
 
     /**
      * The last line of a response that ended at {@code max_rows} or {@code max_bytes}. The query did not finish, so there is
-     * no completion info, {@code _clusters} or profile, and {@code complete} is false.
+     * no completion info, {@code _clusters} or profile, and {@code complete} is false. The warnings come from the query's
+     * captured context, so the line is the same whichever thread ends the response.
      */
     private ChunkedRestResponseBodyPart limitFooterPart() {
         long elapsedMillis = (System.nanoTime() - startNanos) / 1_000_000L;
         PageStreamPublisher.StreamFooter footer = new PageStreamPublisher.StreamFooter(
             RestStatus.OK.getStatus(),
             elapsedMillis,
-            false,
-            TransportEsqlStreamQueryAction.footerWarnings(threadContext, DriverCompletionInfo.EMPTY),
+            isPartial.getAsBoolean(),
+            queryWarnings(),
             null,
             null,
             null,
@@ -205,13 +211,28 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
         return new PageStreamPublisher.StreamFooter(
             ExceptionsHelper.status(e).getStatus(),
             elapsedMillis,
-            false,
-            TransportEsqlStreamQueryAction.footerWarnings(threadContext, DriverCompletionInfo.EMPTY),
+            isPartial.getAsBoolean(),
+            queryWarnings(),
             null,
             null,
             e,
             null
         );
+    }
+
+    /**
+     * The query's warnings, read from the context captured when the stream started rather than from the calling thread,
+     * which may be a Netty thread whose context holds none of the query's response headers.
+     */
+    private List<String> queryWarnings() {
+        Supplier<ThreadContext.StoredContext> restorer = contextRestorer;
+        if (restorer == null) {
+            // Before the stream started: the caller is still on the query's own thread.
+            return TransportEsqlStreamQueryAction.footerWarnings(threadContext, DriverCompletionInfo.EMPTY);
+        }
+        try (ThreadContext.StoredContext ignored = restorer.get()) {
+            return TransportEsqlStreamQueryAction.footerWarnings(threadContext, DriverCompletionInfo.EMPTY);
+        }
     }
 
     /**
@@ -246,6 +267,7 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
         this.columns = resultStream.columns();
         this.nullColumns = resultStream.nullColumns();
         this.zoneId = resultStream.zoneId();
+        this.isPartial = resultStream.isPartial();
         assert zoneId != null : "ResultStream must carry the resolved query time zone";
         this.contextRestorer = threadContext.newRestorableContext(false);
         resultStream.publisher().subscribe(subscriber);

@@ -7,23 +7,42 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.elasticsearch.core.Nullable;
+import java.util.Locale;
 
 /**
- * How a {@code POST /_query/stream} response is bounded: the body fields {@code max_rows} and {@code max_bytes}.
- * A value of {@code -1} means no limit. The {@code store} field is validated here but is not kept: only
- * {@code store: none} is supported, which is the behaviour of a response that has no storage behind it.
+ * How a {@code POST /_query/stream} response is bounded and stored: the body fields {@code store}, {@code max_rows}
+ * and {@code max_bytes}. A limit of {@code -1} means no limit.
  *
+ * @param store    where the response is kept; only {@link Store#NONE} is supported for now
  * @param maxRows  end the response after this many rows, or {@code -1}
  * @param maxBytes end the response after about this many bytes, checked between rows, or {@code -1}
  */
-record StreamOptions(long maxRows, long maxBytes) {
+record StreamOptions(Store store, long maxRows, long maxBytes) {
+
+    /** The values of the {@code store} body field. */
+    enum Store {
+        /** The response has no storage behind it. */
+        NONE;
+
+        static Store fromString(String value) {
+            for (Store store : values()) {
+                if (store.toString().equals(value)) {
+                    return store;
+                }
+            }
+            throw new IllegalArgumentException("[store] only supports [" + NONE + "] for now, got [" + value + "]");
+        }
+
+        @Override
+        public String toString() {
+            return name().toLowerCase(Locale.ROOT);
+        }
+    }
 
     static final long NO_LIMIT = -1;
-    static final String STORE_NONE = "none";
 
     /** No limits: the whole result is sent. */
-    static final StreamOptions NONE = new StreamOptions(NO_LIMIT, NO_LIMIT);
+    static final StreamOptions NONE = new StreamOptions(Store.NONE, NO_LIMIT, NO_LIMIT);
 
     boolean hasRowLimit() {
         return maxRows != NO_LIMIT;
@@ -51,7 +70,7 @@ record StreamOptions(long maxRows, long maxBytes) {
         private Long maxRows;
         private Long maxBytes;
 
-        void store(@Nullable String store) {
+        void store(String store) {
             this.store = store;
         }
 
@@ -64,19 +83,17 @@ record StreamOptions(long maxRows, long maxBytes) {
         }
 
         StreamOptions build() {
-            if (store != null && STORE_NONE.equals(store) == false) {
-                throw new IllegalArgumentException("[store] only supports [" + STORE_NONE + "] for now, got [" + store + "]");
-            }
+            Store parsedStore = store == null ? Store.NONE : Store.fromString(store);
             if (maxRows != null && maxRows < 0) {
                 throw new IllegalArgumentException("[max_rows] must be greater than or equal to 0, got [" + maxRows + "]");
             }
             if (maxBytes != null && maxBytes <= 0) {
                 throw new IllegalArgumentException("[max_bytes] must be greater than 0, got [" + maxBytes + "]");
             }
-            if (maxRows == null && maxBytes == null) {
+            if (parsedStore == Store.NONE && maxRows == null && maxBytes == null) {
                 return NONE;
             }
-            return new StreamOptions(maxRows == null ? NO_LIMIT : maxRows, maxBytes == null ? NO_LIMIT : maxBytes);
+            return new StreamOptions(parsedStore, maxRows == null ? NO_LIMIT : maxRows, maxBytes == null ? NO_LIMIT : maxBytes);
         }
     }
 }

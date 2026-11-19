@@ -97,6 +97,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
     public static final String STATUS_CODE_KEY = "es_rest_status_code";
     public static final String HANDLER_NAME_KEY = "es_rest_handler_name";
     public static final String REQUEST_METHOD_KEY = "es_rest_request_method";
+    public static final String ERROR_TRACE_PARAM = "error_trace";
     public static final boolean ERROR_TRACE_DEFAULT = false;
 
     static {
@@ -486,11 +487,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
             }
 
             if (handler != null) {
-                var supportedParams = handler.supportedQueryParameters();
-                assert supportedParams == handler.supportedQueryParameters()
-                    : handler.getName() + ": did not return same instance from supportedQueryParameters()";
-                return (supportedParams == null || supportedParams.containsAll(parameters))
-                    && handler.supportedCapabilities().containsAll(capabilities);
+                return handler.supportsQueryParameters(parameters) && handler.supportedCapabilities().containsAll(capabilities);
             }
         }
         return false;
@@ -764,7 +761,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
     private static void validateErrorTrace(RestRequest request, RestChannel channel) {
         // error_trace cannot be used when we disable detailed errors
         // we consume the error_trace parameter first to ensure that it is always consumed
-        if (request.paramAsBoolean("error_trace", ERROR_TRACE_DEFAULT) && channel.detailedErrorsEnabled() == false) {
+        if (request.paramAsBoolean(ERROR_TRACE_PARAM, ERROR_TRACE_DEFAULT) && channel.detailedErrorsEnabled() == false) {
             throw new IllegalArgumentException("error traces in responses are disabled.");
         }
     }

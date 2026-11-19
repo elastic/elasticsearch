@@ -158,7 +158,7 @@ public class S3StorageObjectAbortStreamTests extends ESTestCase {
         assertFalse("close() must not be called when abort() is available — close would drain", closeCalled.get());
     }
 
-    public void testCloseDrainCountsRemainderAtOrBelow64KiB() throws IOException {
+    public void testCloseDoesNotCountCancelledRemainderAtOrBelow64KiB() throws IOException {
         int leftover = TransientTypingInputStream.MAX_TRAILING_DRAIN_BYTES;
         int read = 8;
         byte[] payload = new byte[read + leftover];
@@ -166,17 +166,12 @@ public class S3StorageObjectAbortStreamTests extends ESTestCase {
         ExternalSourceMetrics metrics = new ExternalSourceMetrics(registry);
         StorageObjectMetricsCounters counters = new StorageObjectMetricsCounters();
         counters.attach(metrics, "s3");
-        TransientTypingInputStream typed = new TransientTypingInputStream(
-            new ByteArrayInputStream(payload),
-            PATH,
-            payload.length,
-            leftoverBytes -> counters.publishDrainedBytes(leftoverBytes)
-        );
+        TransientTypingInputStream typed = new TransientTypingInputStream(new ByteArrayInputStream(payload), PATH, payload.length);
         MeteredInputStream metered = new MeteredInputStream(typed, counters);
         assertEquals(read, metered.read(new byte[read]));
         metered.close();
-        assertEquals(payload.length, counters.snapshot().bytesRead());
-        assertEquals("profile and APM must both include leftover drain", payload.length, apmBytesReadTotal(registry));
+        assertEquals(read, counters.snapshot().bytesRead());
+        assertEquals("async close cancels leftover; APM is delivered-to-caller only", read, apmBytesReadTotal(registry));
     }
 
     public void testCloseAbortsRemainderAbove64KiB() throws IOException {
@@ -190,12 +185,7 @@ public class S3StorageObjectAbortStreamTests extends ESTestCase {
         StorageObjectMetricsCounters counters = new StorageObjectMetricsCounters();
         counters.attach(metrics, "s3");
         AbortableInputStream inner = new AbortableInputStream(new ByteArrayInputStream(payload), abortCalled, closeCalled);
-        TransientTypingInputStream typed = new TransientTypingInputStream(
-            inner,
-            PATH,
-            payload.length,
-            leftoverBytes -> counters.publishDrainedBytes(leftoverBytes)
-        );
+        TransientTypingInputStream typed = new TransientTypingInputStream(inner, PATH, payload.length);
         MeteredInputStream metered = new MeteredInputStream(typed, counters);
         assertEquals(read, metered.read(new byte[read]));
         metered.close();
@@ -236,12 +226,12 @@ public class S3StorageObjectAbortStreamTests extends ESTestCase {
         t2.start();
         assertTrue(started.await(5, TimeUnit.SECONDS));
         obj.close();
-        assertTrue(first.isCancelled());
-        assertTrue(second.isCancelled());
         t1.join(TimeUnit.SECONDS.toMillis(5));
         t2.join(TimeUnit.SECONDS.toMillis(5));
         assertFalse(t1.isAlive());
         assertFalse(t2.isAlive());
+        assertTrue(first.isCancelled());
+        assertTrue(second.isCancelled());
     }
 
     private static long apmBytesReadTotal(RecordingMeterRegistry registry) {

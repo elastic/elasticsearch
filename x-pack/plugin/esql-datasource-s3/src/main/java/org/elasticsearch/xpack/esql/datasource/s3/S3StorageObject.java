@@ -249,16 +249,11 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             observeResponse(metadata, 0L, false);
             // Wrap so a transient fault DURING the read surfaces as a typed ExternalUnavailableException the
             // resume loop can act on; the SDK throws a raw (unchecked) S3Exception/SdkException mid-body.
-            // contentLength of this response body (or -1 if unknown) so close() can abort a large leftover
-            // and count a small drain. Metered publishes delivered-to-caller; drain leftover is a second
-            // APM bytes event via publishDrainedBytes. Abort skips leftover.
+            // contentLength of this response body (or -1 if unknown) so close() can abort a large leftover.
+            // Metered publishes delivered-to-caller. Async close cancels a small leftover, so it is not
+            // a second APM bytes event. Abort skips leftover.
             long expectedLength = contentLengthOrUnknown(metadata);
-            TransientTypingInputStream typed = new TransientTypingInputStream(
-                response,
-                path,
-                expectedLength,
-                leftover -> counters.publishDrainedBytes(leftover)
-            );
+            TransientTypingInputStream typed = new TransientTypingInputStream(response, path, expectedLength);
             return metered(typed);
         } catch (Exception e) {
             throw throwReadFailure("Failed to read object from", e);
@@ -729,14 +724,9 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             GetObjectResponse metadata = response.response();
             observeResponse(metadata, position, toEnd == false);
             // contentLength of this response body (the range size), or -1 if unknown.
-            // Metered publishes delivered-to-caller; drain leftover is a second APM bytes event.
+            // Metered publishes delivered-to-caller. Async close cancels leftover; no drain APM.
             long expectedLength = contentLengthOrUnknown(metadata);
-            TransientTypingInputStream typed = new TransientTypingInputStream(
-                response,
-                path,
-                expectedLength,
-                leftover -> counters.publishDrainedBytes(leftover)
-            );
+            TransientTypingInputStream typed = new TransientTypingInputStream(response, path, expectedLength);
             return metered(typed);
         } catch (Exception e) {
             if (toEnd && e instanceof S3Exception s3e && s3e.statusCode() == 416) {

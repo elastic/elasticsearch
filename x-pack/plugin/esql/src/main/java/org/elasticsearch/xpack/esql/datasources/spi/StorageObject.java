@@ -28,9 +28,9 @@ import java.util.concurrent.RejectedExecutionException;
  * Uses standard Java InputStream for compatibility with existing Elasticsearch code.
  * Random access is handled via range-based reads (like BlobContainer pattern).
  * <p>
- * StorageObject instances themselves do not hold open resources and do not need closing.
- * The {@link java.io.InputStream} instances returned by {@link #newStream()} and
- * {@link #newStream(long, long)} are the resources that callers must close.
+ * {@link #close()} cancels an in-flight {@link #newStream} GET. Decorators must forward it.
+ * Streams returned by {@link #newStream()} and {@link #newStream(long, long)} are still
+ * closed by callers; {@link #close()} is the hung-open path when no stream exists yet.
  */
 public interface StorageObject {
 

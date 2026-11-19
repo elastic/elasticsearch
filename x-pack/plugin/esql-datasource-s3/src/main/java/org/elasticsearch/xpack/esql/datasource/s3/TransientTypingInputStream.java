@@ -20,7 +20,6 @@ import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.LongConsumer;
 
 /**
  * Wraps an S3 object-read stream so that a failure <em>while reading raw bytes</em> is typed for the
@@ -35,14 +34,16 @@ import java.util.function.LongConsumer;
  * Remains {@link Abortable} so a caller's abort fast-path still reaches the underlying S3 stream rather than
  * falling back to a draining {@code close()}. {@link #close()} itself aborts when the unread remainder is
  * larger than {@link #MAX_TRAILING_DRAIN_BYTES} (or the body length is unknown) so uncompressed
- * {@code LIMIT} teardown does not drain a 64 MiB GET. A small leftover is drained by the inner close
- * and reported to {@code onDrained} so received-byte counters include those bytes.
+ * {@code LIMIT} teardown does not drain a 64 MiB GET. A small leftover is closed, not aborted.
+ * Async {@code toBlockingInputStream} close cancels leftover rather than draining it, so unread
+ * bytes are not counted as received.
  */
 final class TransientTypingInputStream extends FilterInputStream implements Abortable {
 
     /**
-     * Leftover GET bytes at or below this still drain on {@code close()} so Apache can return the
-     * connection to the pool. Larger leftover (or unknown length) aborts the connection instead.
+     * Leftover GET bytes at or below this {@code close()} the inner stream instead of aborting.
+     * Async close cancels unread leftover; it does not drain it. Larger leftover (or unknown
+     * length) aborts the connection instead.
      * Keep in sync with {@code DecompressingStorageObject.MAX_TRAILING_DRAIN_BYTES} (64 KiB) and
      * Hadoop S3A readahead. Different package; do not import that package-private field.
      */
@@ -58,21 +59,15 @@ final class TransientTypingInputStream extends FilterInputStream implements Abor
      */
     private volatile long bytesRead;
     private final AtomicBoolean terminal = new AtomicBoolean();
-    private final LongConsumer onDrained;
 
     TransientTypingInputStream(InputStream delegate, StoragePath path) {
-        this(delegate, path, -1L, leftover -> {});
+        this(delegate, path, -1L);
     }
 
     TransientTypingInputStream(InputStream delegate, StoragePath path, long expectedLength) {
-        this(delegate, path, expectedLength, leftover -> {});
-    }
-
-    TransientTypingInputStream(InputStream delegate, StoragePath path, long expectedLength, LongConsumer onDrained) {
         super(delegate);
         this.path = path;
         this.expectedLength = expectedLength;
-        this.onDrained = onDrained == null ? leftover -> {} : onDrained;
     }
 
     @Override
@@ -160,9 +155,8 @@ final class TransientTypingInputStream extends FilterInputStream implements Abor
         if (terminal.getAndSet(true)) {
             return;
         }
-        if (leftover > 0) {
-            onDrained.accept(leftover);
-        }
+        // Do not credit expected leftover: async toBlockingInputStream close cancels unread
+        // bytes instead of draining them. APM stays at bytes delivered to the caller.
         super.close();
     }
 

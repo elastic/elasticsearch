@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
@@ -35,8 +36,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -1194,6 +1197,96 @@ public class ViewSettingsIT extends AbstractEsqlIntegTestCase {
             throw new AssertionError("query failed: " + query, failure.get());
         }
         return warnings;
+    }
+
+    /**
+     * A time series index {@code ts_source} with one gauge {@code cpu} per host, and the view {@code promql_view} whose
+     * PROMQL selects on {@code no_such_label}, which is not mapped. PROMQL treats a missing label as absent, so
+     * {@code !="x"} matches every series.
+     */
+    private void setupPromqlView() {
+        assumeTrue("Requires PROMQL", EsqlCapabilities.Cap.PROMQL_COMMAND_V0.isEnabled());
+        assertAcked(
+            indicesAdmin().prepareCreate("ts_source")
+                .setSettings(Settings.builder().put("index.mode", "time_series").putList("index.routing_path", List.of("host")))
+                .setMapping(
+                    "@timestamp",
+                    "type=date",
+                    "host",
+                    "type=keyword,time_series_dimension=true",
+                    "cpu",
+                    "type=long,time_series_metric=gauge"
+                )
+        );
+        String now = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(System.currentTimeMillis());
+        assertNoFailures(
+            client().prepareBulk()
+                .add(prepareIndex("ts_source").setSource("@timestamp", now, "host", "a", "cpu", 10))
+                .add(prepareIndex("ts_source").setSource("@timestamp", now, "host", "b", "cpu", 20))
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .get()
+        );
+        assertAcked(createView("promql_view", "PROMQL index=ts_source step=1h total=(sum(cpu{no_such_label!=\"x\"}))"));
+    }
+
+    /**
+     * The view's PROMQL nullifies the missing label in the view's own scope, whatever the caller {@code SET}s. A caller
+     * {@code SET} keeps the view boundary, which used to leave the body without that nullification.
+     */
+    public void testPromqlViewNullifiesMissingLabelWhateverTheCallerSets() {
+        setupPromqlView();
+        for (String query : List.of("FROM promql_view", """
+            SET unmapped_fields="nullify";
+            FROM promql_view
+            """, """
+            SET unmapped_fields="load";
+            FROM promql_view
+            """)) {
+            try (var resp = run(query + " | STATS total = SUM(total)")) {
+                assertThat(query, getValuesList(resp), equalTo(List.of(List.of(30.0))));
+            }
+        }
+    }
+
+    /**
+     * A PROMQL view does not make the caller's query nullify: a missing column the caller references still fails, as it
+     * does without the PROMQL view. The session used to nullify the whole query when PROMQL appeared anywhere in it,
+     * view bodies included, so this returned {@code x = null}.
+     */
+    public void testPromqlViewDoesNotNullifyCallerQuery() {
+        setupPromqlView();
+        setupUnmappedIndices();
+        assertAcked(createView("plain_promql_view", "PROMQL index=ts_source step=1h total=(sum(cpu))"));
+        expectThrows(
+            VerificationException.class,
+            containsString("Unknown column [does_not_exist]"),
+            () -> run("FROM plain_promql_view, caller_idx | EVAL x = does_not_exist").close()
+        );
+    }
+
+    /** A PROMQL view does not make a sibling view's body nullify either: that body still fails on its own missing column. */
+    public void testPromqlViewDoesNotNullifySiblingViewBody() {
+        setupPromqlView();
+        setupUnmappedIndices();
+        assertAcked(createView("plain_promql_view", "PROMQL index=ts_source step=1h total=(sum(cpu))"));
+        assertAcked(createView("bad_view", "FROM caller_idx | EVAL y = does_not_exist"));
+        expectThrows(
+            VerificationException.class,
+            allOf(containsString("in view [bad_view]"), containsString("Unknown column [does_not_exist]")),
+            () -> run("FROM plain_promql_view, bad_view").close()
+        );
+    }
+
+    /**
+     * The view's PROMQL text is longer than the caller's query. Every node parsed from it must carry the view's name, so a
+     * data node reads its source text from the view's query; otherwise the source position overruns the caller's query.
+     */
+    public void testPromqlViewSourcesReadFromTheViewQuery() {
+        setupPromqlView();
+        assertAcked(createView("long_promql_view", "PROMQL index=ts_source step=1h total_of_all_cpus=(sum(avg_over_time(cpu[1h])))"));
+        try (var resp = run("FROM long_promql_view | STATS t = SUM(total_of_all_cpus)")) {
+            assertThat(getValuesList(resp), equalTo(List.of(List.of(30.0))));
+        }
     }
 
     private AcknowledgedResponse createView(String viewName, String query) {

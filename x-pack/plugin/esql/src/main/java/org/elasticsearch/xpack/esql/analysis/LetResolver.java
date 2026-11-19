@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LetBinding;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 
@@ -48,6 +49,11 @@ import java.util.stream.Collectors;
  *   <li>A {@code LET} name never reaches field-caps — it is gone before
  *       {@link org.elasticsearch.xpack.esql.analysis.PreAnalyzer} runs.</li>
  * </ul>
+ *
+ * <h2>Named wrapper</h2>
+ * <p>Each substituted binding is wrapped in a {@link NamedSubquery} carrying the binding name: a binding is a subquery
+ * the user named, and the name is known only here. The analyzer answers {@code METADATA _class}/{@code _name} from the
+ * wrapper ({@code subquery} and the binding name) and then removes it, so it never survives analysis.</p>
  *
  * <h2>Scoping</h2>
  * <p>Bindings are evaluated left to right (sequential scoping): binding <em>N</em> sees
@@ -123,7 +129,7 @@ public final class LetResolver {
         // subtree is not descended into. This enforces sequential scoping — a binding body that was
         // already evaluated against its own (partial) resolved map is not re-expanded with later
         // bindings when it appears as a replacement in the main query or an outer binding body.
-        return plan.transformDownSkipBranch((p, skipBranch) -> {
+        LogicalPlan substituted = plan.transformDownSkipBranch((p, skipBranch) -> {
             if (p instanceof UnresolvedRelation ur) {
                 String indexPattern = ur.indexPattern().indexPattern();
                 // Handle comma-joined patterns that contain one or more binding names as individual
@@ -151,8 +157,10 @@ public final class LetResolver {
                             throw new ParsingException(ur.source(), "Subqueries are not supported in LOOKUP JOIN");
                         }
                         anyMatch = true;
-                        addedNodes += sizes.get(current);
-                        result.add(bindingPlan);
+                        // A binding is a subquery the user named. The name is known only here, so carry it to the analyzer,
+                        // where METADATA _name answers it and the wrapper is then removed. The wrapper is one more node.
+                        result.add(new NamedSubquery(ur.source(), bindingPlan, current));
+                        addedNodes += sizes.get(current) + 1;
                     } else {
                         // the query contained a reference to a binding that has not been resolved yet
                         if (allBindings.contains(current)) {
@@ -201,5 +209,38 @@ public final class LetResolver {
                 return newSubquery != mcsub.subquery() ? new MultiColumnInSubquery(mcsub.source(), mcsub.values(), newSubquery) : mcsub;
             });
         });
+        return substituted == plan ? plan : flattenNestedUnions(substituted);
+    }
+
+    /**
+     * Inlines a plain {@link UnionAll} that is a direct child of another plain {@link UnionAll} into its parent.
+     * <p>
+     * A binding named in a comma-joined {@code FROM} list is a sibling branch of everything else in that {@code FROM}, but
+     * substitution unions the replaced pattern's parts on their own. Next to a literal subquery
+     * ({@code FROM idx, binding, (FROM ...)}) that union lands inside the parser's union for the {@code FROM}, a nesting the
+     * user never wrote. Flattening gives the shape the parser builds when the parts are written out, so every branch is a
+     * branch of the {@code FROM} itself: in particular the analyzer's {@code METADATA _class}/{@code _name} freeze, which
+     * answers each branch of the {@code FROM}, sees the binding's {@link NamedSubquery} rather than an opaque nested union.
+     * Only plain unions are merged; a {@code BranchPlan} or a union under a {@code Subquery} keeps its boundary.
+     */
+    private static LogicalPlan flattenNestedUnions(LogicalPlan plan) {
+        return plan.transformUp(UnionAll.class, union -> {
+            if (isPlainUnion(union) == false || union.children().stream().noneMatch(LetResolver::isPlainUnion)) {
+                return union;
+            }
+            List<LogicalPlan> flattened = new ArrayList<>();
+            for (LogicalPlan child : union.children()) {
+                if (isPlainUnion(child)) {
+                    flattened.addAll(child.children());
+                } else {
+                    flattened.add(child);
+                }
+            }
+            return union.replaceSubPlans(flattened);
+        });
+    }
+
+    private static boolean isPlainUnion(LogicalPlan plan) {
+        return plan.getClass() == UnionAll.class;
     }
 }

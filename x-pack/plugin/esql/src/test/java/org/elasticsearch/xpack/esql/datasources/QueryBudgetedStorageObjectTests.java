@@ -11,10 +11,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.AdmissionTracker;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
@@ -296,6 +298,16 @@ public class QueryBudgetedStorageObjectTests extends ESTestCase {
         expectThrows(IOException.class, () -> obj.abortStream(wrapper));
         assertEquals("permit must be released even if delegate.abortStream throws", 0, budget.inFlight());
         verify(delegate, times(1)).abortStream(any(InputStream.class));
+    }
+
+    public void testBindRowGroupStampsQueryIdWhenBudgetIsUnlimited() {
+        TaskId queryId = new TaskId("coord", 11);
+        QueryConcurrencyBudget budget = new QueryConcurrencyBudget(0, 60_000L, null, AdmissionTracker.NOOP, queryId);
+        QueryBudgetedStorageObject obj = new QueryBudgetedStorageObject(mock(StorageObject.class), budget);
+        RowGroupIo lease = new RowGroupIo();
+        obj.bindRowGroup(lease);
+        assertEquals(queryId, lease.queryId());
+        assertFalse(budget.isEnabled());
     }
 
     public void testAdmissionTimeoutFollowsBudgetConstructor() {

@@ -1218,6 +1218,27 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         assertThat(StatelessMemoryMetricsService.heapRequiredForOperation(absolute, operationSize), equalTo(0L));
     }
 
+    public void testValidRequirementsReportConvertedRawSizeThenLargerLegacyHeap() {
+        final AtomicLong now = new AtomicLong(0L);
+        final StatelessMemoryMetricsService timed = new StatelessMemoryMetricsService(now::get, clusterService);
+        final long operationSize = 1_000L;
+        timed.updateLargestIndexingOperationSize(operationSize);
+
+        final var raw = timed.getValidIndexingOperationsHeapMemoryRequirements();
+        assertNotNull(raw);
+        assertThat(raw.minimumRequiredHeapInBytes(), equalTo(operationSize * 10));
+        assertThat(
+            raw.validUntil(),
+            equalTo(now.get() + StatelessMemoryMetricsService.DEFAULT_INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY.nanos())
+        );
+
+        final long legacyHeap = operationSize * 10 + 5_000L;
+        timed.updateIndexingOperationsHeapMemoryRequirements(legacyHeap);
+        final var merged = timed.getValidIndexingOperationsHeapMemoryRequirements();
+        assertNotNull(merged);
+        assertThat(merged.minimumRequiredHeapInBytes(), equalTo(legacyHeap));
+    }
+
     public void testLegacyIndexingHeapRequirementIsReturnedAsIs() {
         final long heap = randomLongBetween(1L, 50_000_000L);
         service.updateIndexingOperationsHeapMemoryRequirements(heap);

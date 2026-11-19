@@ -210,6 +210,9 @@ public class MapperFeatures implements FeatureSpecification {
     public static final NodeFeature OVERSIZED_ARRAY_OFFSETS_IGNORED_SOURCE_FALLBACK = new NodeFeature(
         "mapper.oversized_array_offsets_ignored_source_fallback"
     );
+    public static final NodeFeature DENSE_VECTOR_ENCODED_VECTOR_REQUIRES_DIMS = new NodeFeature(
+        "mapper.dense_vector.encoded_vector_requires_dims"
+    );
 
     @Override
     public Set<NodeFeature> getFeatures() {
@@ -334,7 +337,8 @@ public class MapperFeatures implements FeatureSpecification {
             MULTI_VALUED_BINARY_INDEX_SORT_SPARSE_FIX,
             RANGE_DOCVALUE_FIELDS_FIX,
             TEXT_FIELD_DOC_VALUES_WITHOUT_FEATURE_FLAG,
-            OVERSIZED_ARRAY_OFFSETS_IGNORED_SOURCE_FALLBACK
+            OVERSIZED_ARRAY_OFFSETS_IGNORED_SOURCE_FALLBACK,
+            DENSE_VECTOR_ENCODED_VECTOR_REQUIRES_DIMS
         );
     }
 }

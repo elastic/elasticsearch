@@ -4345,6 +4345,19 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return ParseResult.INDEXED;
         }
         if (fieldType().dims == null) {
+            // The byte length of an encoded vector doesn't determine its dimensions, e.g. float vectors accept both float32 and
+            // bfloat16 encodings, so only arrays of numbers can be used to infer them.
+            if (Token.VALUE_STRING == context.parser().currentToken()
+                && indexCreatedVersion.onOrAfter(IndexVersions.DENSE_VECTOR_ENCODED_VECTOR_REQUIRES_DIMS)) {
+                throw new IllegalArgumentException(
+                    "Field ["
+                        + fullPath()
+                        + "] of type ["
+                        + typeName()
+                        + "] cannot infer [dims] from an encoded vector for an empty field; set [dims] in the mapping or index the first vector as an "
+                        + "array of numbers"
+                );
+            }
             int dims = fieldType().element.parseDimensionCount(context);
             context.updateMapping(fullPath(), builder -> ((Builder) builder).dimensionsFromDocument(dims));
             return ParseResult.INDEXED;

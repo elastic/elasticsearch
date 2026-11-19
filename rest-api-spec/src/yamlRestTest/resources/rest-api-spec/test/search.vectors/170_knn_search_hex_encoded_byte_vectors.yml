@@ -173,6 +173,9 @@ setup:
   - requires:
       cluster_features: "gte_v8.14.1"
       reason: 'hex encoding for byte vectors fixed in 8.14.1'
+  - skip:
+      cluster_features: "mapper.dense_vector.encoded_vector_requires_dims"
+      reason: "hex encoded vectors no longer infer dims on new indices"
 
   - do:
       indices.create:
@@ -214,3 +217,50 @@ setup:
 
   - match: { knn_hex_vector_index_dyn_dims.mappings.properties.my_vector_byte.dims: 3 }
   - match: { knn_hex_vector_index_dyn_dims.mappings.properties.my_vector_byte_indexed.dims: 3 }
+---
+"Hex-encoded vectors without dims are rejected":
+  - requires:
+      cluster_features: "mapper.dense_vector.encoded_vector_requires_dims"
+      reason: "hex encoded vectors require dims to be set on new indices"
+
+  - do:
+      indices.create:
+        index: knn_hex_vector_index_no_dims
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              my_vector_byte:
+                type: dense_vector
+                index : false
+                element_type: byte
+              my_vector_byte_indexed:
+                type: dense_vector
+                index: true
+                element_type: byte
+                similarity : l2_norm
+
+  # [-128, 127, 10] - is encoded as '807f0a'
+  - do:
+      catch: /Field \[my_vector_byte\] of type \[dense_vector\] cannot infer \[dims\] from an encoded vector/
+      index:
+        index: knn_hex_vector_index_no_dims
+        id: "1"
+        body:
+          my_vector_byte: "807f0a"
+
+  - do:
+      catch: /Field \[my_vector_byte_indexed\] of type \[dense_vector\] cannot infer \[dims\] from an encoded vector/
+      index:
+        index: knn_hex_vector_index_no_dims
+        id: "1"
+        body:
+          my_vector_byte_indexed: "807f0a"
+
+  - do:
+      indices.get_mapping:
+        index: knn_hex_vector_index_no_dims
+
+  - is_false: knn_hex_vector_index_no_dims.mappings.properties.my_vector_byte.dims
+  - is_false: knn_hex_vector_index_no_dims.mappings.properties.my_vector_byte_indexed.dims

@@ -1666,6 +1666,98 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     }
 
     /**
+     * The byte length of a base64 encoded vector doesn't determine its dimensions, e.g. a float field accepts both float32 and
+     * bfloat16 encodings, so a field without dimensions rejects an encoded vector rather than guessing them.
+     */
+    public void testBase64EncodedVectorWithoutDimensionsIsRejected() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(this::dimensionlessMapping));
+        Object encoded = getSampleValueForDocument(true);
+
+        Exception e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapperService.documentMapper().parse(source(b -> b.field("field", encoded)))
+        );
+        assertThat(e.getMessage(), containsString("Field [field] of type [dense_vector] cannot infer [dims] from an encoded vector for an empty field"));
+    }
+
+    public void testHexEncodedVectorWithoutDimensionsIsRejected() throws IOException {
+        ElementType hexElementType = randomFrom(ElementType.BYTE, ElementType.BIT);
+        MapperService mapperService = createMapperService(
+            fieldMapping(b -> new DenseVectorMappingBuilder().elementType(hexElementType).index(indexed).build(b))
+        );
+
+        Exception e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapperService.documentMapper().parse(source(b -> b.field("field", "807f0a")))
+        );
+        assertThat(e.getMessage(), containsString("Field [field] of type [dense_vector] cannot infer [dims] from an encoded vector"));
+    }
+
+    public void testEncodedVectorWithoutDimensionsFromADynamicTemplateIsRejected() throws IOException {
+        MapperService mapperService = createMapperService(topMapping(b -> {
+            b.startArray("dynamic_templates");
+            b.startObject().startObject("vectors");
+            b.field("match", "vec*");
+            b.startObject("mapping");
+            dimensionlessMapping(b);
+            b.endObject();
+            b.endObject().endObject();
+            b.endArray();
+        }));
+        Object encoded = getSampleValueForDocument(true);
+
+        Exception e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapperService.documentMapper().parse(source(b -> b.field("vec", encoded)))
+        );
+        assertThat(e.getMessage(), containsString("Field [vec] of type [dense_vector] cannot infer [dims] from an encoded vector"));
+    }
+
+    /**
+     * Indices created before encoded vectors required dimensions keep inferring them from the decoded byte length.
+     */
+    public void testEncodedVectorInfersDimensionsOnOlderIndices() throws IOException {
+        IndexVersion version = IndexVersionUtils.getPreviousVersion(IndexVersions.DENSE_VECTOR_ENCODED_VECTOR_REQUIRES_DIMS);
+        MapperService mapperService = createMapperService(version, fieldMapping(this::dimensionlessMapping));
+        Object encoded;
+        if (elementType == ElementType.BFLOAT16) {
+            // dimensions are inferred as if each component took four bytes, which only holds for a float32 encoding
+            ByteBuffer buffer = ByteBuffer.allocate(Float.BYTES * dims);
+            buffer.asFloatBuffer().put(randomNormalizedVector(dims));
+            encoded = Base64.getEncoder().encodeToString(buffer.array());
+        } else {
+            encoded = getSampleValueForDocument(true);
+        }
+
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("field", encoded)));
+        assertNotNull(doc.dynamicMappingsUpdate());
+        merge(mapperService, MapperService.MergeReason.MAPPING_AUTO_UPDATE, doc.dynamicMappingsUpdate().string());
+
+        assertThat(mapperService.documentMapper().mappingSource().string(), containsString("\"dims\":" + dims));
+    }
+
+    public void testEncodedVectorIsAcceptedOnceDimensionsAreInferredFromAnArray() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(this::dimensionlessMapping));
+
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("field", getSampleValueForDocument(false))));
+        assertNotNull(doc.dynamicMappingsUpdate());
+        merge(mapperService, MapperService.MergeReason.MAPPING_AUTO_UPDATE, doc.dynamicMappingsUpdate().string());
+        assertThat(mapperService.documentMapper().mappingSource().string(), containsString("\"dims\":" + dims));
+
+        doc = mapperService.documentMapper().parse(source(b -> b.field("field", getSampleValueForDocument(true))));
+        assertNull(doc.dynamicMappingsUpdate());
+        assertThat(doc.rootDoc().getFields("field"), hasSize(1));
+    }
+
+    private void dimensionlessMapping(XContentBuilder b) throws IOException {
+        var mapping = new DenseVectorMappingBuilder().index(indexed);
+        if (elementType != ElementType.FLOAT) {
+            mapping.elementType(elementType);
+        }
+        mapping.build(b);
+    }
+
+    /**
      * Peer recovery may load a leaf's vectors on a different thread than the one that opened the leaf (#166191).
      */
     public void testSyntheticVectorsLoaderLeafUsedOnAnotherThread() throws Exception {

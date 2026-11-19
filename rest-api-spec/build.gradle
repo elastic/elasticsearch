@@ -170,6 +170,10 @@ tasks.named("yamlRestCompatTestTransform").configure ({ task ->
     "the error message for base64 vectors of the wrong length has changed"
   )
   task.skipTest(
+    "search.vectors/170_knn_search_hex_encoded_byte_vectors/Dynamic dimensions for hex-encoded string",
+    "encoded vectors no longer infer dims on new indices"
+  )
+  task.skipTest(
     "search.vectors/131_knn_query_nested_inner_hits_score/nested kNN inner_hits are scored like the query phase on a quantized field",
     "confidence_interval handling differs between old/new versions during compat runs"
   )

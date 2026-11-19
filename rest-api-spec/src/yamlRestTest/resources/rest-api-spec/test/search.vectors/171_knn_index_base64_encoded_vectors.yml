@@ -144,6 +144,10 @@ setup:
   - match: { _source.my_vector_byte: [-128, 127, 10] }
 ---
 "Base64 bytes infers the dimensions correctly":
+  - skip:
+      cluster_features: "mapper.dense_vector.encoded_vector_requires_dims"
+      reason: "base64 encoded vectors no longer infer dims on new indices"
+
   - do:
       indices.create:
         index: knn_base64_vector_index_infer_dims
@@ -181,6 +185,10 @@ setup:
   - match: { knn_base64_vector_index_infer_dims.mappings.properties.my_vector_byte.dims: 4 }
 ---
 "Base64 floats infers the dimensions correctly":
+  - skip:
+      cluster_features: "mapper.dense_vector.encoded_vector_requires_dims"
+      reason: "base64 encoded vectors no longer infer dims on new indices"
+
   - do:
       indices.create:
         index: knn_base64_vector_index_infer_dims
@@ -215,3 +223,137 @@ setup:
   - match: { knn_base64_vector_index_infer_dims.mappings.properties.my_vector_byte.type: dense_vector }
   - match: { knn_base64_vector_index_infer_dims.mappings.properties.my_vector_byte.index: true }
   - match: { knn_base64_vector_index_infer_dims.mappings.properties.my_vector_byte.dims: 4 }
+---
+"Base64 encoded vectors without dims are rejected":
+  - requires:
+      cluster_features: "mapper.dense_vector.encoded_vector_requires_dims"
+      reason: "base64 encoded vectors require dims to be set on new indices"
+
+  - do:
+      indices.create:
+        index: knn_base64_vector_index_no_dims
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            dynamic: false
+            properties:
+              my_vector_float:
+                type: dense_vector
+                element_type: float
+              my_vector_bfloat16:
+                type: dense_vector
+                element_type: bfloat16
+              my_vector_byte:
+                type: dense_vector
+                element_type: byte
+              my_vector_bit:
+                type: dense_vector
+                element_type: bit
+
+  # [0.8837743, 0.6310808, 0.7800066, 0.0] - is encoded as 'P2I/CD8hjoM/R66DAAAAAA=='
+  - do:
+      catch: /Field \[my_vector_float\] of type \[dense_vector\] cannot infer \[dims\] from an encoded vector/
+      index:
+        index: knn_base64_vector_index_no_dims
+        id: "1"
+        body:
+          my_vector_float: "P2I/CD8hjoM/R66DAAAAAA=="
+
+  # [1.5, 2.0, -3.25, 4.0] as bfloat16 - is encoded as 'P8BAAMBQQIA='
+  - do:
+      catch: /Field \[my_vector_bfloat16\] of type \[dense_vector\] cannot infer \[dims\] from an encoded vector/
+      index:
+        index: knn_base64_vector_index_no_dims
+        id: "1"
+        body:
+          my_vector_bfloat16: "P8BAAMBQQIA="
+
+  # [-128, 127, 10, 0] - is encoded as 'gH8KAA=='
+  - do:
+      catch: /Field \[my_vector_byte\] of type \[dense_vector\] cannot infer \[dims\] from an encoded vector/
+      index:
+        index: knn_base64_vector_index_no_dims
+        id: "1"
+        body:
+          my_vector_byte: "gH8KAA=="
+
+  - do:
+      catch: /Field \[my_vector_bit\] of type \[dense_vector\] cannot infer \[dims\] from an encoded vector/
+      index:
+        index: knn_base64_vector_index_no_dims
+        id: "1"
+        body:
+          my_vector_bit: "gH8KAA=="
+
+  - do:
+      indices.get_mapping:
+        index: knn_base64_vector_index_no_dims
+
+  - is_false: knn_base64_vector_index_no_dims.mappings.properties.my_vector_float.dims
+  - is_false: knn_base64_vector_index_no_dims.mappings.properties.my_vector_bfloat16.dims
+  - is_false: knn_base64_vector_index_no_dims.mappings.properties.my_vector_byte.dims
+  - is_false: knn_base64_vector_index_no_dims.mappings.properties.my_vector_bit.dims
+---
+"Base64 encoded vectors are accepted once dims are inferred from an array":
+  - requires:
+      cluster_features: "mapper.dense_vector.encoded_vector_requires_dims"
+      reason: "base64 encoded vectors require dims to be set on new indices"
+
+  - do:
+      indices.create:
+        index: knn_base64_vector_index_array_dims
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            dynamic: false
+            properties:
+              my_vector_byte:
+                type: dense_vector
+                index: true
+                similarity: l2_norm
+                element_type: byte
+              my_vector_float:
+                type: dense_vector
+                index: true
+                similarity: l2_norm
+                element_type: float
+
+  - do:
+      index:
+        index: knn_base64_vector_index_array_dims
+        id: "1"
+        body:
+          my_vector_float: [0.2509804, -0.039215684, -0.11764706]
+          my_vector_byte: [64, -10, -30]
+
+  - do:
+      cluster.health:
+        wait_for_events: languid
+
+  # [0.8837743, 0.6310808, 0.7800066] - is encoded as 'P2I/CD8hjoM/R66D'
+  # [-128, 127, 10] - is encoded as 'gH8K'
+  - do:
+      index:
+        index: knn_base64_vector_index_array_dims
+        id: "2"
+        body:
+          my_vector_float: "P2I/CD8hjoM/R66D"
+          my_vector_byte: "gH8K"
+
+  - do:
+      indices.get_mapping:
+        index: knn_base64_vector_index_array_dims
+
+  - match: { knn_base64_vector_index_array_dims.mappings.properties.my_vector_float.dims: 3 }
+  - match: { knn_base64_vector_index_array_dims.mappings.properties.my_vector_byte.dims: 3 }
+
+  - do:
+      get:
+        index: knn_base64_vector_index_array_dims
+        id: "2"
+        _source_exclude_vectors: false
+
+  - match: { _source.my_vector_float: [0.8837743, 0.6310808, 0.7800066] }
+  - match: { _source.my_vector_byte: [-128, 127, 10] }

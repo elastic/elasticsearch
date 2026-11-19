@@ -509,6 +509,8 @@ $$$dense-vector-element-type$$$
 `dims`
 :   (Optional, integer) Number of vector dimensions. Can’t exceed `4096`. If `dims` is not specified, it will be set to the length of the first vector added to the field.
 
+    {applies_to}`stack: ga 9.7` {applies_to}`serverless: ga` For indices created in this version or later, `dims` can only be inferred from a vector provided as an array of numbers. If `dims` is not specified, indexing a Base64 or hexadecimal encoded vector fails, because the length of an encoded vector doesn't determine its number of dimensions. For example, a `float` field accepts both 4-byte and 2-byte encoded values. To index encoded vectors, set `dims` in the mapping.
+
 `index`
 :   (Optional, Boolean) If `true`, you can search this field using the [knn query](/reference/query-languages/query-dsl/query-dsl-knn-query.md) or [knn in _search](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search) . Defaults to `true`.
 

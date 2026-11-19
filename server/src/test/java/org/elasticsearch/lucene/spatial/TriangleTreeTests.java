@@ -16,12 +16,14 @@ import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.GeometryCollection;
 import org.elasticsearch.geometry.Line;
 import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.MultiLine;
 import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
+import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.test.ESTestCase;
 
@@ -188,6 +190,62 @@ public class TriangleTreeTests extends ESTestCase {
         Geometry reconstructed = reader.getGeometry(CoordinateEncoder.GEO);
         assertNotNull(reconstructed);
         assertThat(reconstructed.type(), equalTo(normalized.type()));
+    }
+
+    public void testDegenerateLineUsesV2NotLegacy() throws IOException {
+        // Zero-length lines have DimensionalShapeType.POINT, but must still use V2 so reconstruction
+        // preserves the Line type instead of collapsing to a Point.
+        Line line = new Line(new double[] { 1, 1 }, new double[] { 1, 1 });
+        GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, "test");
+        Geometry normalized = indexer.normalize(line);
+        List<IndexableField> fieldList = indexer.getIndexableFields(normalized);
+        CentroidCalculator centroidCalculator = new CentroidCalculator();
+        centroidCalculator.add(line);
+        assertThat(centroidCalculator.getDimensionalShapeType(), equalTo(DimensionalShapeType.POINT));
+
+        BytesRef bytesRef = GeometryDocValueWriter.write(fieldList, CoordinateEncoder.GEO, centroidCalculator, List.of(line));
+        GeometryDocValueReader reader = new GeometryDocValueReader();
+        reader.reset(bytesRef);
+        assertTrue(reader.isV2Format());
+        Geometry reconstructed = reader.getGeometry(CoordinateEncoder.GEO);
+        assertThat(reconstructed.type(), equalTo(ShapeType.LINESTRING));
+    }
+
+    public void testPointOnlyGeometryCollectionUsesV2() throws IOException {
+        GeometryCollection<Geometry> collection = new GeometryCollection<>(List.of(new Point(1, 2), new Point(3, 4)));
+        GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, "test");
+        Geometry normalized = indexer.normalize(collection);
+        List<IndexableField> fieldList = indexer.getIndexableFields(normalized);
+        CentroidCalculator centroidCalculator = new CentroidCalculator();
+        centroidCalculator.add(collection);
+        assertThat(centroidCalculator.getDimensionalShapeType(), equalTo(DimensionalShapeType.POINT));
+
+        BytesRef bytesRef = GeometryDocValueWriter.write(fieldList, CoordinateEncoder.GEO, centroidCalculator, List.of(collection));
+        GeometryDocValueReader reader = new GeometryDocValueReader();
+        reader.reset(bytesRef);
+        assertTrue("Point-only geometry collections need the V2 bit even though DST is POINT", reader.isV2Format());
+        Geometry reconstructed = reader.getGeometry(CoordinateEncoder.GEO);
+        assertThat(reconstructed.type(), equalTo(ShapeType.GEOMETRYCOLLECTION));
+    }
+
+    public void testEmptyNestedGeometryCollectionReconstruction() throws IOException {
+        GeometryCollection<Geometry> collection = new GeometryCollection<>(
+            List.of(new Line(new double[] { 0, 1 }, new double[] { 0, 1 }), GeometryCollection.EMPTY)
+        );
+        GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, "test");
+        Geometry normalized = indexer.normalize(collection);
+        List<IndexableField> fieldList = indexer.getIndexableFields(normalized);
+        CentroidCalculator centroidCalculator = new CentroidCalculator();
+        centroidCalculator.add(collection);
+
+        BytesRef bytesRef = GeometryDocValueWriter.write(fieldList, CoordinateEncoder.GEO, centroidCalculator, List.of(collection));
+        GeometryDocValueReader reader = new GeometryDocValueReader();
+        reader.reset(bytesRef);
+        Geometry reconstructed = reader.getGeometry(CoordinateEncoder.GEO);
+        assertThat(reconstructed.type(), equalTo(ShapeType.GEOMETRYCOLLECTION));
+        GeometryCollection<?> reconstructedCollection = (GeometryCollection<?>) reconstructed;
+        assertThat(reconstructedCollection.size(), equalTo(2));
+        assertThat(reconstructedCollection.get(1), equalTo(GeometryCollection.EMPTY));
     }
 
     public void testFullDocValueRoundTrip() throws IOException {

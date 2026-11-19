@@ -13,6 +13,8 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.MultiPoint;
+import org.elasticsearch.geometry.Point;
 
 import java.io.IOException;
 import java.util.List;
@@ -70,10 +72,14 @@ import java.util.List;
  * processed. The reader uses the tree length and connectivity length to skip to the vertex table.
  * Reading just the centroid and/or extent (common for analytics) does not require loading the vertex table.
  *
- * <p>The {@link #write} method automatically selects the optimal format: point-only
- * geometries (Point, MultiPoint) use the legacy format since vertex ordering is irrelevant
- * and the legacy format is more compact. All other geometries use V2 format. The reader
- * can reconstruct point geometries from the legacy tree without connectivity data.
+ * <p>The {@link #write} method automatically selects the optimal format: values whose
+ * geometries are only {@link Point} or {@link MultiPoint} use the legacy format since
+ * vertex ordering is irrelevant and the legacy format is more compact. All other geometries
+ * use V2 format, including collections that happen to contain only points and degenerate
+ * lines/polygons whose centroid type is still {@link DimensionalShapeType#POINT}. The
+ * per-document V2 bit in {@link DimensionalShapeType} is what lets a single V2-capable index
+ * mix these layouts; index version alone is not enough. The reader can reconstruct point
+ * geometries from the legacy tree without connectivity data.
  */
 public class GeometryDocValueWriter {
 
@@ -81,9 +87,12 @@ public class GeometryDocValueWriter {
 
     /**
      * Serialize the geometry, automatically selecting the optimal format.
-     * Point-only geometries (Point, MultiPoint) use the legacy format since vertex ordering
-     * is irrelevant and the legacy format is more compact. All other geometries use V2 format
-     * with vertex table and connectivity for geometry reconstruction.
+     * Values whose geometries are only {@link Point} or {@link MultiPoint} use the legacy
+     * format since vertex ordering is irrelevant and the legacy format is more compact.
+     * All other geometries use V2 format with vertex table and connectivity for geometry
+     * reconstruction. Selection is based on the actual geometry types, not on
+     * {@link CentroidCalculator#getDimensionalShapeType()}, so degenerate lines/polygons and
+     * point-only geometry collections still get connectivity.
      *
      * @param fields             the tessellated triangle fields from the indexer
      * @param coordinateEncoder  encoder for quantizing coordinates to the integer grid
@@ -96,10 +105,27 @@ public class GeometryDocValueWriter {
         CentroidCalculator centroidCalculator,
         List<Geometry> geometries
     ) throws IOException {
-        if (centroidCalculator.getDimensionalShapeType() == DimensionalShapeType.POINT) {
+        if (isPointsOnly(geometries)) {
             return writeLegacy(fields, coordinateEncoder, centroidCalculator);
         }
         return writeV2(fields, coordinateEncoder, centroidCalculator, geometries);
+    }
+
+    /**
+     * True when every geometry is a {@link Point} or {@link MultiPoint}. Those values keep the
+     * legacy layout even in a V2-capable index. Geometry collections are never points-only here,
+     * even if every child is a point, so their type and ordering are preserved in V2.
+     */
+    static boolean isPointsOnly(List<Geometry> geometries) {
+        if (geometries.isEmpty()) {
+            return false;
+        }
+        for (Geometry geometry : geometries) {
+            if (geometry instanceof Point == false && geometry instanceof MultiPoint == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**

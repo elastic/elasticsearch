@@ -158,6 +158,9 @@ public class GeometryConnectivityReader {
 
     private MultiPoint readMultiPoint() throws IOException {
         int count = input.readVInt();
+        if (count == 0) {
+            return MultiPoint.EMPTY;
+        }
         List<Point> points = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
             points.add(readPoint());
@@ -167,6 +170,9 @@ public class GeometryConnectivityReader {
 
     private MultiLine readMultiLine() throws IOException {
         int count = input.readVInt();
+        if (count == 0) {
+            return MultiLine.EMPTY;
+        }
         List<Line> lines = new ArrayList<>(count);
         Line previous = null;
         for (int i = 0; i < count; i++) {
@@ -189,6 +195,9 @@ public class GeometryConnectivityReader {
 
     private MultiPolygon readMultiPolygon() throws IOException {
         int count = input.readVInt();
+        if (count == 0) {
+            return MultiPolygon.EMPTY;
+        }
         List<Polygon> polygons = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
             polygons.add(readPolygon());
@@ -198,6 +207,9 @@ public class GeometryConnectivityReader {
 
     private GeometryCollection<Geometry> readGeometryCollection() throws IOException {
         int count = input.readVInt();
+        if (count == 0) {
+            return GeometryCollection.EMPTY;
+        }
         List<Geometry> geometries = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
             geometries.add(readSingleGeometry());

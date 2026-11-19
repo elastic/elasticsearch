@@ -281,6 +281,25 @@ public class GeometryDocValueTests extends ESTestCase {
         assertThat(reader.getVertexTable().size(), greaterThan(4));
     }
 
+    /**
+     * Geographic connectivity must normalize lon/lat jointly so latitude wrapping also shifts longitude.
+     */
+    public void testReconstructionNormalizesLatAndLonTogether() throws IOException {
+        Line line = new Line(new double[] { 10, 20 }, new double[] { 100, 100 });
+        Line expected = new Line(new double[] { -170, -160 }, new double[] { 80, 80 });
+        GeometryDocValueReader reader = GeoTestUtils.geometryDocValueReader(line, CoordinateEncoder.GEO);
+        assertTrue(reader.isV2Format());
+        assertThat(reader.getGeometry(CoordinateEncoder.GEO), equivalentTo(expected));
+    }
+
+    public void testEmptyNestedGeometryCollectionReconstruction() throws IOException {
+        GeometryCollection<Geometry> collection = new GeometryCollection<>(
+            List.of(new Line(new double[] { 0, 1 }, new double[] { 0, 1 }), GeometryCollection.EMPTY)
+        );
+        GeometryDocValueReader reader = GeoTestUtils.geometryDocValueReader(collection, CoordinateEncoder.GEO);
+        assertThat(reader.getGeometry(CoordinateEncoder.GEO), equivalentTo(collection));
+    }
+
     private Geometry loadResourceAsGeometry(String filename) throws IOException, ParseException {
         GZIPInputStream is = new GZIPInputStream(getClass().getResourceAsStream(filename));
         final BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));

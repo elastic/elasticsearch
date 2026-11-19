@@ -20,10 +20,12 @@ import org.elasticsearch.geometry.ShapeType;
  * more information about what the highest-dimensional sub-shape
  * is.
  *
- * <p>The high bit (0x80) of the serialized byte is used as a format version marker in
- * geometry doc-values. When set, it indicates the new format (V2) with a vertex lookup
- * table and connectivity information for geometry reconstruction. When clear, it indicates
- * the legacy format with inline coordinate deltas.
+ * <p>The high bit (0x80) of the serialized byte is a per-document layout marker in geometry
+ * doc-values, not an index version. When set, the bytes use the V2 layout (vertex lookup
+ * table + connectivity). When clear, they use the legacy triangle-tree layout. V2-capable
+ * indices still write the legacy layout for point/multipoint values, so readers must detect
+ * the layout from this bit rather than from {@link org.elasticsearch.index.IndexVersions}
+ * alone.
  */
 public enum DimensionalShapeType {
     POINT,

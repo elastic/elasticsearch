@@ -33,10 +33,12 @@ import java.util.List;
  * treeLength(VInt) | tree(vertex ordinals) | connectivityLength(VInt) | connectivity | vertexTable
  * </pre>
  *
- * <p>The format is detected automatically on first access after {@link #reset(BytesRef)}.
- * Reading the centroid or extent never loads the vertex table, keeping analytics-only
- * access paths fast. The tree and connectivity length prefixes allow the reader to skip
- * to the vertex table at the end (loaded lazily on first tree visit or geometry reconstruction).
+ * <p>The layout is detected from the {@link DimensionalShapeType} high bit after
+ * {@link #reset(BytesRef)}. That bit is required even inside a V2-capable index, because
+ * point/multipoint values keep the legacy layout while other shapes use V2. Reading the
+ * centroid or extent never loads the vertex table, keeping analytics-only access paths fast.
+ * The tree and connectivity length prefixes allow the reader to skip to the vertex table at
+ * the end (loaded lazily on first tree visit or geometry reconstruction).
  */
 public class GeometryDocValueReader {
     private final ByteArrayStreamInput input;

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.lucene.spatial;
 
+import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
@@ -91,6 +92,8 @@ public class GeometryConnectivityWriter {
         private final StreamOutput out;
         private final CoordinateEncoder encoder;
         private final VertexLookupTable.Builder vertexTableBuilder;
+        private final double[] geoPoint = new double[2];
+        private final int[] encodedPoint = new int[2];
 
         ConnectivityVisitor(StreamOutput out, CoordinateEncoder encoder, VertexLookupTable.Builder vertexTableBuilder) {
             this.out = out;
@@ -99,20 +102,31 @@ public class GeometryConnectivityWriter {
         }
 
         /**
-         * Appends a geometry coordinate to the vertex table. Coordinates are normalized before encoding,
-         * so original geometry coordinates (e.g. longitude &gt; 180 for dateline-crossing shapes) are
-         * shared with the tessellated triangles where possible.
+         * Appends a geometry coordinate to the vertex table. Geographic points use
+         * {@link GeoUtils#normalizePoint(double[])} so latitude wrapping also applies the
+         * required longitude shift; cartesian coordinates keep the encoder's no-op normalize.
+         * Normalized coordinates are shared with the tessellated triangles where possible.
          */
         private void appendVertex(double x, double y) {
-            vertexTableBuilder.appendVertex(encodeX(x), encodeY(y));
+            encodePoint(x, y, encodedPoint);
+            vertexTableBuilder.appendVertex(encodedPoint[0], encodedPoint[1]);
         }
 
-        private int encodeX(double x) {
-            return encoder.encodeX(encoder.normalizeX(x));
-        }
-
-        private int encodeY(double y) {
-            return encoder.encodeY(encoder.normalizeY(y));
+        /**
+         * Encodes a point into {@code encoded} as {@code [x, y]}. Geographic normalization is
+         * joint in lon/lat so latitude wrapping also shifts longitude when needed.
+         */
+        private void encodePoint(double x, double y, int[] encoded) {
+            if (encoder == CoordinateEncoder.GEO) {
+                geoPoint[0] = x;
+                geoPoint[1] = y;
+                GeoUtils.normalizePoint(geoPoint);
+                encoded[0] = encoder.encodeX(geoPoint[0]);
+                encoded[1] = encoder.encodeY(geoPoint[1]);
+            } else {
+                encoded[0] = encoder.encodeX(encoder.normalizeX(x));
+                encoded[1] = encoder.encodeY(encoder.normalizeY(y));
+            }
         }
 
         @Override
@@ -175,14 +189,18 @@ public class GeometryConnectivityWriter {
             out.writeByte(TYPE_MULTILINE);
             out.writeVInt(multiLine.size());
             Line previous = null;
+            int prevEndX = 0;
+            int prevEndY = 0;
             for (Line line : multiLine) {
-                boolean joined = previous != null
-                    && encodeX(line.getX(0)) == encodeX(previous.getX(previous.length() - 1))
-                    && encodeY(line.getY(0)) == encodeY(previous.getY(previous.length() - 1));
+                encodePoint(line.getX(0), line.getY(0), encodedPoint);
+                boolean joined = previous != null && encodedPoint[0] == prevEndX && encodedPoint[1] == prevEndY;
                 out.writeVInt(line.length() << 1 | (joined ? 1 : 0));
                 for (int i = joined ? 1 : 0; i < line.length(); i++) {
                     appendVertex(line.getX(i), line.getY(i));
                 }
+                encodePoint(line.getX(line.length() - 1), line.getY(line.length() - 1), encodedPoint);
+                prevEndX = encodedPoint[0];
+                prevEndY = encodedPoint[1];
                 previous = line;
             }
             return null;

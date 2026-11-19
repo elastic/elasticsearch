@@ -1549,6 +1549,7 @@ emp_no:integer | gender:keyword | _fork:keyword | c:long
 ;
 
 fillNullAllColumnsLeavesMetadataIndexAloneAfterUnionOfSubqueries
+skip_flattened_rewrite: fillnull_cannot_fill_flattened_keyword
 required_capability: fillnull
 required_capability: fillnull_all_columns_skips_metadata_after_union
 required_capability: subquery_in_from_command
@@ -1568,6 +1569,7 @@ emp_no:integer | first_name:keyword | last_name:keyword | _index:keyword
 ;
 
 fillNullDefaultOnAllColumnsLeavesMetadataIndexAloneAfterUnionOfSubqueries
+skip_flattened_rewrite: fillnull_cannot_fill_flattened_keyword
 required_capability: fillnull
 required_capability: fillnull_all_columns_skips_metadata_after_union
 required_capability: subquery_in_from_command
@@ -1585,6 +1587,7 @@ emp_no:integer | first_name:keyword | last_name:keyword | _index:keyword
 ;
 
 fillNullNamedMetadataIndexIsFilledAfterUnionOfSubqueries
+skip_flattened_rewrite: fillnull_cannot_fill_flattened_keyword
 required_capability: fillnull
 required_capability: fillnull_all_columns_skips_metadata_after_union
 required_capability: subquery_in_from_command

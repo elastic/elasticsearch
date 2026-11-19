@@ -17,6 +17,12 @@
 #   review-bug-analysis     — grade a prior bug analysis on close (needs ISSUE_URL)
 #   pull-request-fix        — self-heal a failing pull request    (needs PR_URL)
 #   pull-request-creation   — implement a task and open a PR      (needs ISSUE_URL)
+#   lucene-merge-conflicts  — merge main → lucene_snapshot_*      (needs TARGET_BRANCH)
+#                             Daily lucene-snapshot/update-branch.yml (on main,
+#                             TARGET_BRANCH=lucene_snapshot_11) triggers this.
+#                             The lucene_snapshot schedule still uses the old merge.
+#                             Clean + compile-green: push to the snapshot branch.
+#                             Agent edits: open a PR.
 #   lucene-snapshot-update  — bump lucene_snapshot_* to a new Lucene snapshot
 #                             (needs TARGET_BRANCH + LUCENE_SNAPSHOT_VERSION).
 #                             Daily lucene-snapshot/build-snapshot.yml (on main,
@@ -44,23 +50,28 @@
 # The CI agent configuration the archimedes step runs on is overridable via the
 # ARCHIMEDES_AGENT_* trigger vars (image/machine type/disk type), defaulting to
 # the standard elasticsearch-ubuntu-2404 / n4-standard-4 orchestrator shape.
+# lucene-merge-conflicts compiles in-process, so it defaults to n4-standard-16
+# via ARCHIMEDES_LUCENE_MERGE_MACHINE_TYPE (not the analysis-shaped 4).
+# lucene-snapshot-update also compiles in-process; its trigger sets
+# ARCHIMEDES_AGENT_MACHINE_TYPE to n4-standard-16.
 env:
-  WORKFLOW:                      "${WORKFLOW:-}"
-  ISSUE_URL:                     "${ISSUE_URL:-}"
-  PR_URL:                        "${PR_URL:-}"
-  TARGET_BRANCH:                 "${TARGET_BRANCH:-}"
-  LUCENE_SNAPSHOT_VERSION:       "${LUCENE_SNAPSHOT_VERSION:-}"
-  LUCENE_SHA:                    "${LUCENE_SHA:-}"
-  ARCHIMEDES_TRIAGE_MODE:        "${ARCHIMEDES_TRIAGE_MODE:-}"
-  ARCHIMEDES_AGENT_IMAGE:        "${ARCHIMEDES_AGENT_IMAGE:-family/elasticsearch-ubuntu-2404}"
-  ARCHIMEDES_AGENT_MACHINE_TYPE: "${ARCHIMEDES_AGENT_MACHINE_TYPE:-n4-standard-4}"
-  ARCHIMEDES_AGENT_DISK_TYPE:    "${ARCHIMEDES_AGENT_DISK_TYPE:-hyperdisk-balanced}"
+  WORKFLOW:                              "${WORKFLOW:-}"
+  ISSUE_URL:                             "${ISSUE_URL:-}"
+  PR_URL:                                "${PR_URL:-}"
+  TARGET_BRANCH:                         "${TARGET_BRANCH:-}"
+  LUCENE_SNAPSHOT_VERSION:               "${LUCENE_SNAPSHOT_VERSION:-}"
+  LUCENE_SHA:                            "${LUCENE_SHA:-}"
+  ARCHIMEDES_TRIAGE_MODE:                "${ARCHIMEDES_TRIAGE_MODE:-}"
+  ARCHIMEDES_AGENT_IMAGE:                "${ARCHIMEDES_AGENT_IMAGE:-family/elasticsearch-ubuntu-2404}"
+  ARCHIMEDES_AGENT_MACHINE_TYPE:         "${ARCHIMEDES_AGENT_MACHINE_TYPE:-n4-standard-4}"
+  ARCHIMEDES_LUCENE_MERGE_MACHINE_TYPE:  "${ARCHIMEDES_LUCENE_MERGE_MACHINE_TYPE:-n4-standard-16}"
+  ARCHIMEDES_AGENT_DISK_TYPE:            "${ARCHIMEDES_AGENT_DISK_TYPE:-hyperdisk-balanced}"
 
 steps:
   # ── Run archimedes ───────────────────────────────────────────────────────────
   - label: ":robot_face: Archimedes — :workflow:"
     key: archimedes-run
-    if: build.env("WORKFLOW") != "lucene-snapshot-update"
+    if: build.env("WORKFLOW") != "lucene-merge-conflicts" && build.env("WORKFLOW") != "lucene-snapshot-update"
     timeout_in_minutes: 60
     env:
       USE_ARCHIMEDES: "true"
@@ -89,8 +100,40 @@ steps:
     # archimedes runtime.
     command: archimedes ci
 
+  # lucene-merge-conflicts compiles in-process (unlike analysis, which fans out
+  # reproduction). Worst case is resolve 20 + compile 50 + compile-fix 50 plus
+  # prepare/finish/checkout; 150 covers that. Machine type defaults to
+  # n4-standard-16 so a manual New Build does not land on the analysis-shaped 4.
+  # concurrency_group serializes daily + manual runs for the same snapshot branch
+  # (two in-flight jobs can both push before either opens a PR). Retry is agent
+  # loss only — a 150-minute compile should not re-run a real failure.
+  - label: ":robot_face: Archimedes — lucene-merge-conflicts"
+    key: archimedes-lucene-merge
+    if: build.env("WORKFLOW") == "lucene-merge-conflicts"
+    timeout_in_minutes: 150
+    concurrency: 1
+    concurrency_group: "archimedes-lucene-merge/${TARGET_BRANCH}"
+    env:
+      USE_ARCHIMEDES: "true"
+      ARCHIMEDES_SESSION_DIR: "/tmp/archimedes-sessions"
+    agents:
+      provider:       gcp
+      image:          "${ARCHIMEDES_AGENT_IMAGE}"
+      machineType:    "${ARCHIMEDES_LUCENE_MERGE_MACHINE_TYPE}"
+      diskType:       "${ARCHIMEDES_AGENT_DISK_TYPE}"
+      buildDirectory: /dev/shm/bk
+    retry:
+      automatic:
+        - exit_status: "-1"
+          signal_reason: none
+          limit: 1
+        - signal_reason: agent_stop
+          limit: 1
+    command: archimedes ci
+
   # lucene-snapshot-update compiles in-process. Worst case is prepare (incl.
   # verification-metadata gradle) + compile 50 + compile-fix 50; 150 covers that.
+  # The build-snapshot trigger sets ARCHIMEDES_AGENT_MACHINE_TYPE to n4-standard-16.
   - label: ":robot_face: Archimedes — lucene-snapshot-update"
     key: archimedes-lucene-snapshot-update
     if: build.env("WORKFLOW") == "lucene-snapshot-update"

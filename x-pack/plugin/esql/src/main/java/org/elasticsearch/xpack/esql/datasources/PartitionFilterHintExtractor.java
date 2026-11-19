@@ -117,7 +117,8 @@ public final class PartitionFilterHintExtractor {
         Map<String, List<List<PartitionFilterHint>>> perOccurrence = new LinkedHashMap<>();
         collectHints(unresolvedPlan, perOccurrence);
 
-        // One listing serves every occurrence of a path, so a folder may be skipped only if EVERY occurrence excludes
+        // Hints are keyed by path while resolution is keyed by a spec, so one path's hints must hold for every
+        // spec over it: a folder may be skipped only if EVERY occurrence excludes
         // it. `FROM ds | FORK (WHERE year == 2025) (WHERE ...)` reaches the same relation twice; letting one branch's
         // hint narrow the shared listing would starve the other. An unguarded occurrence contributes no hints and so
         // vetoes the rewrite outright.
@@ -155,14 +156,21 @@ public final class PartitionFilterHintExtractor {
      * key and must not join the listing cache identity. Prefix predicates become a GTE/LT range.
      * {@code MV_IN_RANGE} is always a closed GTE+LTE (inclusivity is not read). {@code MV_GREATER}/{@code MV_LESS}
      * are GTE/LTE ({@code include_bound} is not read). {@code Range} keeps {@code includeLower}/{@code includeUpper}
-     * as written. {@code RLIKE}, {@code NOT}, and {@code OR} emit nothing. Bounds use {@link #LISTING}.
+     * as written. {@code RLIKE}, {@code NOT}, and {@code OR} emit nothing. Bounds use {@link #LISTING}, which keeps
+     * no units, so a conjunct with a {@code date_nanos} constant emits nothing either.
      */
     public static List<PartitionFilterHint> fromConjuncts(
         List<Expression> conjuncts,
         Set<String> requestedMetadata,
         Set<String> partitionKeys
     ) {
-        return fromConjuncts(conjuncts, requestedMetadata, partitionKeys, LISTING);
+        List<Expression> listable = new ArrayList<>(conjuncts.size());
+        for (Expression conjunct : conjuncts) {
+            if (conjunct.anyMatch(e -> e instanceof Literal literal && hasListingUnits(literal) == false) == false) {
+                listable.add(conjunct);
+            }
+        }
+        return fromConjuncts(listable, requestedMetadata, partitionKeys, LISTING);
     }
 
     /**
@@ -306,10 +314,10 @@ public final class PartitionFilterHintExtractor {
         Object literalValue = null;
         boolean reversed = false;
 
-        if (left instanceof UnresolvedAttribute attr && right instanceof Literal lit) {
+        if (left instanceof UnresolvedAttribute attr && right instanceof Literal lit && hasListingUnits(lit)) {
             columnName = attr.name();
             literalValue = lit.value();
-        } else if (left instanceof Literal lit && right instanceof UnresolvedAttribute attr) {
+        } else if (left instanceof Literal lit && right instanceof UnresolvedAttribute attr && hasListingUnits(lit)) {
             columnName = attr.name();
             literalValue = lit.value();
             reversed = true;
@@ -341,7 +349,7 @@ public final class PartitionFilterHintExtractor {
 
         List<Object> literalValues = new ArrayList<>();
         for (Expression listItem : in.list()) {
-            if (listItem instanceof Literal lit) {
+            if (listItem instanceof Literal lit && hasListingUnits(lit)) {
                 literalValues.add(normalizeValue(lit.value()));
             } else {
                 return;
@@ -616,6 +624,15 @@ public final class PartitionFilterHintExtractor {
      */
     private static boolean isUnrequestedFileMetadata(String columnName, Set<String> requestedMetadata) {
         return FileMetadataColumns.isFileMetadataColumn(columnName) && requestedMetadata.contains(columnName) == false;
+    }
+
+    /**
+     * Whether a literal can be a hint value of the listing. A hint carries the bare value and the listing reads
+     * a {@code Long} as milliseconds since the epoch, so a {@code date_nanos} constant would be taken for a time a
+     * million times later and prune files that match. Such a comparison is left to the query.
+     */
+    private static boolean hasListingUnits(Literal literal) {
+        return literal.dataType() != DataType.DATE_NANOS;
     }
 
     private static Object listingValue(Literal literal) {

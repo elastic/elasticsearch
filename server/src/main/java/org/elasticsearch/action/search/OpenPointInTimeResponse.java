@@ -17,6 +17,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Base64;
+import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.rest.action.RestActions.buildBroadcastShardsHeader;
@@ -67,7 +68,7 @@ public final class OpenPointInTimeResponse extends ActionResponse implements ToX
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field("id", Base64.getUrlEncoder().encodeToString(BytesReference.toBytes(pointInTimeId)));
-        buildBroadcastShardsHeader(builder, params, totalShards, successfulShards, skippedShards, failedShards, null);
+        buildBroadcastShardsHeader(builder, params, totalShards, successfulShards, skippedShards, failedShards, List.of());
         if (clusters.hasRemoteClusters()) {
             clusters.toXContent(builder, params);
         }

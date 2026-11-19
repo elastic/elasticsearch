@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.routing.allocation.NodeAllocationStats;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestUtils;
@@ -34,6 +35,7 @@ import org.elasticsearch.rest.action.RestResponseListener;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
@@ -43,6 +45,13 @@ public class RestAllocationAction extends AbstractCatAction {
 
     private static final String UNASSIGNED = "UNASSIGNED";
 
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Sets.addToCopy(
+        COMMON_QUERY_PARAMETERS,
+        RestUtils.REST_MASTER_TIMEOUT_PARAM,
+        "local"
+    );
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Sets.addToCopy(SUPPORTED_QUERY_PARAMETERS, "nodes");
+
     @Override
     public List<Route> routes() {
         return List.of(new Route(GET, "/_cat/allocation"), new Route(GET, "/_cat/allocation/{nodes}"));
@@ -51,6 +60,16 @@ public class RestAllocationAction extends AbstractCatAction {
     @Override
     public String getName() {
         return "cat_allocation_action";
+    }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return SUPPORTED_QUERY_PARAMETERS;
+    }
+
+    @Override
+    public Set<String> allSupportedParameters() {
+        return ALL_SUPPORTED_PARAMETERS;
     }
 
     @Override

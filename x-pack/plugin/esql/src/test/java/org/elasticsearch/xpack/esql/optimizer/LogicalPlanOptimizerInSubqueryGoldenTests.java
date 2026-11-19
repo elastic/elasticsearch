@@ -1781,7 +1781,7 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
             """, STAGES);
     }
 
-    // -- views and LET bindings that contain a FORK, read from or around an IN subquery --
+    // -- views and LET named subqueries that contain a FORK, read from or around an IN subquery --
 
     public void testForkAfterViewWithInSubqueryContainingFork() {
         runGoldenTest(

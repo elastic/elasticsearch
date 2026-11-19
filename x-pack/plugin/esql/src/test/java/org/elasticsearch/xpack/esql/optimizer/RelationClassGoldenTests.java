@@ -118,7 +118,7 @@ public class RelationClassGoldenTests extends GoldenTestCase {
     }
 
     /**
-     * A {@code LET} binding is a subquery the user named: it answers "subquery" for _class and the binding name for _name.
+     * A {@code LET} named subquery is a subquery the user named: it answers "subquery" for _class and the subquery name for _name.
      */
     public void testBothColumnsOnASingleLetBinding() {
         runSubqueryGoldenTest("""
@@ -128,7 +128,7 @@ public class RelationClassGoldenTests extends GoldenTestCase {
     }
 
     /**
-     * Two {@code LET} bindings in one FROM each answer their own binding name.
+     * Two {@code LET} named subqueries in one FROM each answer their own subquery name.
      */
     public void testBothColumnsAcrossLetBindings() {
         runSubqueryGoldenTest("""
@@ -139,7 +139,7 @@ public class RelationClassGoldenTests extends GoldenTestCase {
     }
 
     /**
-     * A {@code LET} binding beside an index: the index branch answers "index" and its concrete index name.
+     * A {@code LET} named subquery beside an index: the index branch answers "index" and its concrete index name.
      */
     public void testBothColumnsOnLetBindingBesideIndex() {
         runSubqueryGoldenTest("""
@@ -149,7 +149,7 @@ public class RelationClassGoldenTests extends GoldenTestCase {
     }
 
     /**
-     * A {@code LET} binding, a literal subquery and an index in one FROM: each is its own branch of the FROM, so the binding
+     * A {@code LET} named subquery, a literal subquery and an index in one FROM: each is its own branch of the FROM, so the named subquery
      * answers its name while the unnamed subquery beside it answers null.
      */
     public void testBothColumnsOnLetBindingBesideSubqueryAndIndex() {
@@ -160,7 +160,7 @@ public class RelationClassGoldenTests extends GoldenTestCase {
     }
 
     /**
-     * The same binding twice in one FROM: two branches keyed by the binding name (the second uniquified), both answering it.
+     * The same named subquery twice in one FROM: two branches keyed by the subquery name (the second uniquified), both answering it.
      */
     public void testBothColumnsOnRepeatedLetBinding() {
         runSubqueryGoldenTest("""

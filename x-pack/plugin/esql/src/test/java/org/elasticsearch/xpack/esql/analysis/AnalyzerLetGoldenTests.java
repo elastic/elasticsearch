@@ -24,7 +24,7 @@ import static org.hamcrest.Matchers.containsString;
 
 /**
  * Golden (characterization) tests for the analyzed plans produced by LET-prefix named-subquery scenarios.
- * LET bindings are resolved by {@link LetResolver} before view and IN-subquery expansion, mirroring
+ * LET named subqueries are resolved by {@link LetResolver} before view and IN-subquery expansion, mirroring
  * the ordering in {@code EsqlSession#execute}.
  */
 public class AnalyzerLetGoldenTests extends GoldenTestCase {
@@ -40,7 +40,7 @@ public class AnalyzerLetGoldenTests extends GoldenTestCase {
 
     private static final EnumSet<Stage> STAGES = EnumSet.of(Stage.ANALYSIS);
 
-    // -- basic LET: single binding used as FROM source --
+    // -- basic LET: single named subquery used as FROM source --
 
     public void testLetSingleBindingAsFromSource() {
         runGoldenTest("""
@@ -51,7 +51,7 @@ public class AnalyzerLetGoldenTests extends GoldenTestCase {
             """, STAGES);
     }
 
-    // -- multiple LET bindings, second references first --
+    // -- multiple LET named subqueries, second references first --
 
     public void testLetMultipleBindingsSecondUsed() {
         runGoldenTest("""
@@ -62,7 +62,7 @@ public class AnalyzerLetGoldenTests extends GoldenTestCase {
             """, STAGES);
     }
 
-    // -- chained LET: later binding references earlier one --
+    // -- chained LET: later named subquery references earlier one --
 
     public void testLetChainedBindings() {
         runGoldenTest("""
@@ -73,10 +73,10 @@ public class AnalyzerLetGoldenTests extends GoldenTestCase {
             """, STAGES);
     }
 
-    // -- LET binding beside an index in one FROM, without METADATA --
+    // -- LET named subquery beside an index in one FROM, without METADATA --
 
     /**
-     * A binding is a branch of the FROM in its own right: it carries the SUBQUERY identity of a subquery, while the index
+     * A named subquery is a branch of the FROM in its own right: it carries the SUBQUERY identity of a subquery, while the index
      * beside it is the bare INDEX branch.
      */
     public void testLetBindingBesideIndex() {
@@ -130,10 +130,10 @@ public class AnalyzerLetGoldenTests extends GoldenTestCase {
             """, STAGES, Map.of("view_langs", "FROM languages | WHERE language_code > 0"));
     }
 
-    // -- LET binding name referenced inside a view body is NOT visible to the view --
+    // -- LET subquery name referenced inside a view body is NOT visible to the view --
     // LetResolver runs on statement.plan() before ViewResolver expands view bodies.
-    // A view body that references a LET binding name treats it as an ES index, not
-    // as the binding, and fails with an index-not-found error.
+    // A view body that references a LET subquery name treats it as an ES index, not
+    // as the named subquery, and fails with an index-not-found error.
     public void testViewCannotReferenceLetBindingOutsideItsScope() {
         var query = """
             LET subquery = (FROM languages | WHERE language_code > 1 | KEEP language_code, language_name);
@@ -150,7 +150,7 @@ public class AnalyzerLetGoldenTests extends GoldenTestCase {
         expectThrows(VerificationException.class, containsString("Unknown index [subquery]"), () -> ta.buildAnalyzer().analyze(parsedPlan));
     }
 
-    // -- a LET binding cannot be used as a TS source, like an inline subquery --
+    // -- a LET named subquery cannot be used as a TS source, like an inline subquery --
 
     public void testLetBindingAsTsSourceRejected() {
         var statement = EsqlTestUtils.TEST_PARSER.createStatement("LET b = (FROM idx | LIMIT 3); TS b | STATS c = COUNT(*)");

@@ -62,7 +62,7 @@ public class LetParserTests extends AbstractStatementParserTests {
     }
 
     public void testLimitsAreResetBetweenBindings() {
-        // Each binding is within the limits of the operators and of the left parentheses, only their sum is not
+        // Each named subquery is within the limits of the operators and of the left parentheses, only their sum is not
         String conditions = " and a > 0".repeat(EsqlParser.MAX_BINARY_OPERATORS / 4);
         String calls = IntStream.range(0, EsqlParser.MAX_LEFT_PARENTHESES / 2).mapToObj(i -> "abs(1)").collect(Collectors.joining(", "));
         for (String body : List.of("FROM idx | WHERE a > 0" + conditions, "FROM idx | EVAL a = coalesce(" + calls + ")")) {
@@ -82,7 +82,7 @@ public class LetParserTests extends AbstractStatementParserTests {
         assertThat(stmt.letBindings().get(1).name(), is("b"));
     }
 
-    /** A LET statement declares exactly one binding: several bindings need several LET statements. */
+    /** A LET statement declares exactly one named subquery: several named subqueries need several LET statements. */
     public void testCommaSeparatedBindingsRejected() {
         expectValidationError("LET a = (FROM idx1 | LIMIT 3), b = (FROM idx2 | LIMIT 5); ROW x = 1", "token recognition error");
     }
@@ -181,7 +181,7 @@ public class LetParserTests extends AbstractStatementParserTests {
     }
 
     // -----------------------------------------------------------------------
-    // FORK scope: a LET binding body is a FORK scope of its own, like the main query
+    // FORK scope: a LET subquery body is a FORK scope of its own, like the main query
     // -----------------------------------------------------------------------
 
     public void testMultipleForksInLetBindingRejected() {
@@ -230,7 +230,7 @@ public class LetParserTests extends AbstractStatementParserTests {
     }
 
     /**
-     * A FORK in a binding and a FORK in the main query that reads it are different FORK scopes.
+     * A FORK in a named subquery and a FORK in the main query that reads it are different FORK scopes.
      *
      * LET q = Fork[[]]                              main query: Fork[[]]
      *         |_Eval[[fork1[KEYWORD] AS _fork#3]]               |_Eval[[fork1[KEYWORD] AS _fork#8]]
@@ -251,7 +251,7 @@ public class LetParserTests extends AbstractStatementParserTests {
         assertForkOverRelation(as(stmt.plan(), Fork.class), "q");
     }
 
-    /** Each binding body is a FORK scope, so a binding with a FORK can read a binding with a FORK. */
+    /** Each subquery body is a FORK scope, so a named subquery with a FORK can read a named subquery with a FORK. */
     public void testForkInChainedLetBindings() {
         EsqlStatement stmt = statement("""
             LET q = (FROM a | FORK (WHERE x > 0) (WHERE x < 0));
@@ -268,7 +268,7 @@ public class LetParserTests extends AbstractStatementParserTests {
         assertThat(ur.indexPattern().indexPattern(), is("r"));
     }
 
-    /** A binding read together with an index is one relation in the parsed plan; the FORK after it is still a separate scope. */
+    /** A named subquery read together with an index is one relation in the parsed plan; the FORK after it is still a separate scope. */
     public void testForkInLetBindingAndInQueryReadingItWithAnIndex() {
         EsqlStatement stmt = statement("""
             LET q = (FROM a | FORK (WHERE x > 0) (WHERE x < 0));
@@ -282,7 +282,7 @@ public class LetParserTests extends AbstractStatementParserTests {
     }
 
     /**
-     * A FORK in a binding, and a FORK in an IN subquery that reads the binding. The IN subquery is a FORK scope of its own.
+     * A FORK in a named subquery, and a FORK in an IN subquery that reads the named subquery. The IN subquery is a FORK scope of its own.
      *
      * Filter[InSubquery[?x, Fork[[]]]]
      * |                    |_Eval[[fork1[KEYWORD] AS _fork#8]]
@@ -325,7 +325,7 @@ public class LetParserTests extends AbstractStatementParserTests {
     // -----------------------------------------------------------------------
     // IN operand forms — a LET name is referenced through an explicit FROM subquery,
     // so it parses to an InSubquery / MultiColumnInSubquery over an UnresolvedRelation
-    // carrying the binding name.
+    // carrying the subquery name.
     // -----------------------------------------------------------------------
 
     /** {@code x IN (FROM name)} — single-column form */
@@ -361,7 +361,7 @@ public class LetParserTests extends AbstractStatementParserTests {
         expectValidationError("LET tbl = (FROM idx | LIMIT 3); FROM src | WHERE (ext, geo) IN tbl", "mismatched input 'tbl' expecting '('");
     }
 
-    /** {@code x IN (name)} stays a plain single-element value list (folded to equality), even when name is a LET binding. */
+    /** {@code x IN (name)} stays a plain single-element value list (folded to equality), even when name is a LET named subquery. */
     public void testInParenthesisedNameIsValueList() {
         EsqlStatement stmt = statement("LET top3 = (FROM idx | LIMIT 3); FROM src | WHERE ext IN (top3)");
         Filter filter = as(stmt.plan(), Filter.class);
@@ -373,11 +373,11 @@ public class LetParserTests extends AbstractStatementParserTests {
     // -----------------------------------------------------------------------
 
     public void testDuplicateBindingName() {
-        expectValidationError("LET a = (FROM idx1 | LIMIT 1); LET a = (FROM idx2 | LIMIT 1); ROW x = 1", "duplicate LET binding name [a]");
+        expectValidationError("LET a = (FROM idx1 | LIMIT 1); LET a = (FROM idx2 | LIMIT 1); ROW x = 1", "duplicate LET subquery name [a]");
     }
 
     public void testBindingNameMustBeLowercase() {
-        expectValidationError("LET MyBinding = (FROM idx | LIMIT 1); ROW x = 1", "LET binding name [MyBinding] must be lowercase");
+        expectValidationError("LET MyBinding = (FROM idx | LIMIT 1); ROW x = 1", "LET subquery name [MyBinding] must be lowercase");
     }
 
     public void testBindingNameWithStar() {
@@ -396,13 +396,16 @@ public class LetParserTests extends AbstractStatementParserTests {
         expectValidationError("LET `a.b` = (FROM idx | LIMIT 1); ROW x = 1", "mismatched input");
     }
 
-    // Binding names are referenced through FROM, so names FROM cannot read are rejected at the declaration
+    // Subquery names are referenced through FROM, so names FROM cannot read are rejected at the declaration
 
     public void testBindingNameStartingWithUnderscore() {
-        expectValidationError("LET _tmp = (FROM idx | LIMIT 1); ROW x = 1", "LET binding name [_tmp] must not start with '_', '-', or '+'");
+        expectValidationError(
+            "LET _tmp = (FROM idx | LIMIT 1); ROW x = 1",
+            "LET subquery name [_tmp] must not start with '_', '-', or '+'"
+        );
         expectValidationError(
             "LET __tmp = (FROM idx | LIMIT 1); FROM __tmp",
-            "LET binding name [__tmp] must not start with '_', '-', or '+'"
+            "LET subquery name [__tmp] must not start with '_', '-', or '+'"
         );
     }
 
@@ -410,7 +413,7 @@ public class LetParserTests extends AbstractStatementParserTests {
         for (String keyword : List.of("metadata", "with")) {
             expectValidationError(
                 "LET " + keyword + " = (ROW x = 1); ROW y = 1",
-                "LET binding name [" + keyword + "] is a reserved keyword in FROM"
+                "LET subquery name [" + keyword + "] is a reserved keyword in FROM"
             );
         }
     }
@@ -425,7 +428,7 @@ public class LetParserTests extends AbstractStatementParserTests {
 
     public void testLetInsideViewBodyParsed() {
         // parseView is called by EsqlParser, not the test parser. Verify that LET is accepted
-        // in a view body and that the parsed statement carries the bindings.
+        // in a view body and that the parsed statement carries the named subqueries.
         var parser = new EsqlParser(new EsqlConfig(org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY));
         var stmt = parser.parseView(
             "LET x = (FROM a | LIMIT 1); FROM x",
@@ -463,10 +466,10 @@ public class LetParserTests extends AbstractStatementParserTests {
     }
 
     // -----------------------------------------------------------------------
-    // Query parameters inside LET binding bodies
+    // Query parameters inside LET subquery bodies
     // -----------------------------------------------------------------------
 
-    /** Named query parameters inside a LET binding body are substituted at parse time. */
+    /** Named query parameters inside a LET subquery body are substituted at parse time. */
     public void testLetBindingWithQueryParam() {
         var params = new QueryParams(List.of(paramAsConstant("threshold", 10020)));
         EsqlStatement stmt = statement("LET top = (FROM employees | WHERE emp_no > ?threshold | LIMIT 3);\nFROM top | SORT emp_no", params);

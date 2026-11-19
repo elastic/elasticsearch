@@ -167,7 +167,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public static final int MAX_QUERY_DEPTH = 500;
 
     /**
-     * Words lexed as keywords in {@code FROM} mode (see {@code lexer/From.g4}). A binding with one of these names
+     * Words lexed as keywords in {@code FROM} mode (see {@code lexer/From.g4}). A named subquery with one of these names
      * could be declared but never referenced, because {@code FROM <name>} would not parse.
      */
     private static final Set<String> FROM_MODE_KEYWORDS = Set.of("metadata", "with");
@@ -221,7 +221,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         for (EsqlBaseParser.LetCommandContext letCommandContext : ctx.letCommand()) {
             LetBinding binding = visitLetCommand(letCommandContext);
             if (seenNames.add(binding.name()) == false) {
-                throw new ParsingException(source(letCommandContext), "duplicate LET binding name [{}]", binding.name());
+                throw new ParsingException(source(letCommandContext), "duplicate LET subquery name [{}]", binding.name());
             }
             letBindings.add(binding);
         }
@@ -240,15 +240,15 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Source source = source(ctx);
         String name = ctx.UNQUOTED_IDENTIFIER().getText();
         if (name.equals(name.toLowerCase(Locale.ROOT)) == false) {
-            throw new ParsingException(source, "LET binding name [{}] must be lowercase", name);
+            throw new ParsingException(source, "LET subquery name [{}] must be lowercase", name);
         }
-        // Bindings are referenced through FROM, so the name must also be usable there as an index name
+        // Named subqueries are referenced through FROM, so the name must also be usable there as an index name
         MetadataCreateIndexService.validateIndexOrAliasName(
             name,
-            (n, reason) -> new ParsingException(source, "LET binding name [{}] {}", n, reason)
+            (n, reason) -> new ParsingException(source, "LET subquery name [{}] {}", n, reason)
         );
         if (FROM_MODE_KEYWORDS.contains(name)) {
-            throw new ParsingException(source, "LET binding name [{}] is a reserved keyword in FROM", name);
+            throw new ParsingException(source, "LET subquery name [{}] is a reserved keyword in FROM", name);
         }
         LogicalPlan plan = visitSubquery(ctx.subquery());
         return new LetBinding(source, name, plan);

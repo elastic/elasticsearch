@@ -2555,9 +2555,9 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     }
 
     /**
-     * A {@code LET} binding keys its branch by its name, but a view of the same name can sit at the same level: the binding
+     * A {@code LET} named subquery keys its branch by its name, but a view of the same name can sit at the same level: the named subquery
      * shadows the view only where the name is written, so a wildcard still reaches the view. A view's key is recorded
-     * verbatim and asserted unique, and the binding comes first, so the binding's key must step aside for the view's.
+     * verbatim and asserted unique, and the named subquery comes first, so the named subquery's key must step aside for the view's.
      */
     public void testLetBindingKeyStepsAsideForSameNamedView() {
         assumeTrue("Requires views with branching support", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());

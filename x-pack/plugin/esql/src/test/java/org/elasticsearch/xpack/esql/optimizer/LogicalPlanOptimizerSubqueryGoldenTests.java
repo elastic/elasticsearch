@@ -1276,7 +1276,8 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
             """, STAGES);
     }
 
-    // FORK after a subquery, view or LET binding that contains a FORK. They are different FORK scopes, so they are not consecutive FORKs.
+    // FORK after a subquery, view or LET named subquery that contains a FORK. They are different FORK scopes, so they are not consecutive
+    // FORKs.
 
     public void testForkAfterSingleSubqueryWithFork() {
         runGoldenTest("""

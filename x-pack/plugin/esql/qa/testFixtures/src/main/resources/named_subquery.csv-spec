@@ -1,7 +1,7 @@
 // CSV spec for LET-prefix named subquery tests
 
 // -------------------------------------------------------------------
-// Basic LET: single binding used as FROM source
+// Basic LET: single named subquery used as FROM source
 // -------------------------------------------------------------------
 
 letSingleBinding
@@ -39,7 +39,7 @@ cnt:long
 ;
 
 // -------------------------------------------------------------------
-// Chained LET bindings: later binding references earlier one
+// Chained LET named subqueries: later named subquery references earlier one
 // -------------------------------------------------------------------
 
 letChainedBindings
@@ -62,7 +62,7 @@ language_code:integer | language_name:keyword
 ;
 
 // -------------------------------------------------------------------
-// LET binding referenced in WHERE ... IN position
+// LET named subquery referenced in WHERE ... IN position
 // -------------------------------------------------------------------
 
 letBindingInInSubquery
@@ -86,7 +86,7 @@ language_code:integer | language_name:keyword
 ;
 
 // -------------------------------------------------------------------
-// Same LET binding used as FROM source and inside IN (FROM binding)
+// Same LET named subquery used as FROM source and inside IN (FROM name)
 // -------------------------------------------------------------------
 
 letBindingInFromAndInSubquery
@@ -106,7 +106,7 @@ language_code:integer
 ;
 
 // -------------------------------------------------------------------
-// Multiple LET bindings: one used as FROM source, another in IN position
+// Multiple LET named subqueries: one used as FROM source, another in IN position
 // -------------------------------------------------------------------
 
 letMultipleBindingsFromAndIn
@@ -127,7 +127,7 @@ language_code:integer | language_name:keyword
 ;
 
 // -------------------------------------------------------------------
-// LET + views: binding body references a stored view
+// LET + views: subquery body references a stored view
 // -------------------------------------------------------------------
 
 letBodyReferencingView
@@ -166,8 +166,8 @@ language_code:integer | language_name:keyword
 4                     | German
 ;
 
-// The main query and the view body both declare a binding named `base`.
-// Each scope resolves its own binding: the main one yields code 1, the view's one yields codes 2-4.
+// The main query and the view body both declare a named subquery called `base`.
+// Each scope resolves its own named subquery: the main one yields code 1, the view's one yields codes 2-4.
 letMainAndViewBindingsWithSameName
 required_capability: named_subquery_let
 required_capability: views_with_no_branching
@@ -186,7 +186,7 @@ language_code:integer | language_name:keyword
 4                     | German
 ;
 
-// The main binding shadows the `languages` index only in the main query.
+// The main named subquery shadows the `languages` index only in the main query.
 // view_languages (FROM languages) still reads the real index because view bodies never see the caller's LET scope.
 letMainBindingDoesNotLeakIntoViewBody
 required_capability: named_subquery_let
@@ -297,7 +297,7 @@ AVG(network.bytes_in):double | cluster:keyword | pod:keyword
 ;
 
 // -------------------------------------------------------------------
-// Mixed FROM: LET binding alongside a real index
+// Mixed FROM: LET named subquery alongside a real index
 // -------------------------------------------------------------------
 
 letMixedFromBindingAndRealIndex
@@ -444,7 +444,7 @@ emp_no:integer
 ;
 
 // -------------------------------------------------------------------
-// METADATA _class, _name on LET bindings
+// METADATA _class, _name on LET named subqueries
 // -------------------------------------------------------------------
 
 letBindingsClassAndName
@@ -537,7 +537,7 @@ count:long | _class:keyword | _name:keyword
 2          | subquery       | null
 ;
 
-// The cast after the IN must still see the union-typed client_ip of the main query when the binding runs STATS
+// The cast after the IN must still see the union-typed client_ip of the main query when the named subquery runs STATS
 letBindingInSubqueryWithStatsThenUnionTypeCast
 required_capability: named_subquery_let
 required_capability: where_in_subquery_without_view
@@ -556,7 +556,7 @@ c:long | ip:ip
 6      | 172.21.3.15
 ;
 
-// The same union-typed binding is the source of both the main query and the IN subquery
+// The same union-typed named subquery is the source of both the main query and the IN subquery
 letBindingOnBothSidesOfInThenUnionTypeCast
 required_capability: named_subquery_let
 required_capability: where_in_subquery_without_view
@@ -575,7 +575,7 @@ c:long | ip:ip
 6      | 172.21.3.15
 ;
 
-// The IN subquery redefines the binding's EVAL alias x; the main query keeps its own x, so nothing matches
+// The IN subquery redefines the named subquery's EVAL alias x; the main query keeps its own x, so nothing matches
 letBindingEvalAliasShadowedInSubquery
 required_capability: named_subquery_let
 required_capability: where_in_subquery_without_view
@@ -589,7 +589,7 @@ FROM a
 language_code:integer
 ;
 
-// A filter on the binding's EVAL alias inside the IN subquery applies to the subquery side only
+// A filter on the named subquery's EVAL alias inside the IN subquery applies to the subquery side only
 letBindingEvalAliasFilteredInSubquery
 required_capability: named_subquery_let
 required_capability: where_in_subquery_without_view

@@ -28,7 +28,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * Substitutes {@link LetBinding} names into the main query plan (and earlier binding bodies)
+ * Substitutes {@link LetBinding} names into the main query plan (and earlier subquery bodies)
  * before view resolution begins.
  *
  * <h2>When to call</h2>
@@ -51,20 +51,20 @@ import java.util.stream.Collectors;
  * </ul>
  *
  * <h2>Named wrapper</h2>
- * <p>Each substituted binding is wrapped in a {@link NamedSubquery} carrying the binding name: a binding is a subquery
- * the user named, and the name is known only here. The analyzer answers {@code METADATA _class}/{@code _name} from the
- * wrapper ({@code subquery} and the binding name) and then removes it, so it never survives analysis.</p>
+ * <p>Each substituted named subquery is wrapped in a {@link NamedSubquery} carrying the subquery name, which is known
+ * only here. The analyzer answers {@code METADATA _class}/{@code _name} from the
+ * wrapper ({@code subquery} and the subquery name) and then removes it, so it never survives analysis.</p>
  *
  * <h2>Scoping</h2>
- * <p>Bindings are evaluated left to right (sequential scoping): binding <em>N</em> sees
- * bindings <em>1..N-1</em> only. This makes true circular references structurally impossible
+ * <p>Named subqueries are evaluated left to right (sequential scoping): named subquery <em>N</em> sees
+ * named subqueries <em>1..N-1</em> only. This makes true circular references structurally impossible
  * within a single pass — no cycle guard is needed.</p>
  *
  * <h2>One-pass substitution</h2>
  * <p>{@link #substitute} uses {@code transformDownSkipBranch}: when a replacement is made the
- * replacement subtree is not descended into. This enforces sequential scoping — a binding body
- * that was evaluated against the partial map (bindings declared before it) is not re-expanded
- * with later bindings when it appears as a replacement. It also prevents infinite re-substitution
+ * replacement subtree is not descended into. This enforces sequential scoping — a subquery body
+ * that was evaluated against the partial map (named subqueries declared before it) is not re-expanded
+ * with later named subqueries when it appears as a replacement. It also prevents infinite re-substitution
  * for self-referential names: {@code LET a = (FROM a | LIMIT 1)} (where {@code FROM a} refers
  * to the ES index {@code a}) would otherwise loop indefinitely.
  *
@@ -74,12 +74,12 @@ public final class LetResolver {
     private LetResolver() {}
 
     /**
-     * Substitutes {@code letBindings} names into {@code plan}, evaluating bindings in
+     * Substitutes {@code letBindings} names into {@code plan}, evaluating named subqueries in
      * declaration order so that later bodies can reference earlier names.
      *
      * @param plan        the parsed main query plan
-     * @param letBindings the ordered list of {@code LET} bindings (may be empty)
-     * @param maxPlanNodesCount the maximum number of plan nodes the substituted plan, and each substituted binding, may reach
+     * @param letBindings the ordered list of {@code LET} named subqueries (may be empty)
+     * @param maxPlanNodesCount the maximum number of plan nodes the substituted plan, and each substituted named subquery, may reach
      * @param maxPlanNodesSource the pragma or cluster setting that supplied {@code maxPlanNodesCount}, named in the error
      * @return the plan with all resolvable {@code LET} name references substituted
      */
@@ -88,14 +88,14 @@ public final class LetResolver {
             return plan;
         }
 
-        // Left fold: build the resolved map incrementally so binding N sees bindings 1..N-1.
+        // Left fold: build the resolved map incrementally so named subquery N sees named subqueries 1..N-1.
         Map<String, LogicalPlan> resolved = new LinkedHashMap<>(letBindings.size());
-        // Expanded node count of each resolved binding. Bound plans are inserted by reference, so counting them again on every
-        // reference would be exponential for chained bindings; the sizes are tracked arithmetically instead.
+        // Expanded node count of each resolved named subquery. Bound plans are inserted by reference, so counting them again on every
+        // reference would be exponential for chained named subqueries; the sizes are tracked arithmetically instead.
         Map<String, Integer> sizes = new HashMap<>(letBindings.size());
         var allBindings = letBindings.stream().map(LetBinding::name).collect(Collectors.toSet());
         for (LetBinding binding : letBindings) {
-            // Substitute earlier bindings into this binding's body (sequential scoping).
+            // Substitute earlier named subqueries into this named subquery's body (sequential scoping).
             PlanSize bindingSize = new PlanSize(binding.plan(), maxPlanNodesCount, maxPlanNodesSource);
             var current = substitute(binding.plan(), resolved, sizes, allBindings, bindingSize);
             resolved.put(binding.name(), current);
@@ -126,15 +126,15 @@ public final class LetResolver {
         PlanSize planSize
     ) {
         // transformDownSkipBranch: when a replacement is made, set skipBranch so the replacement
-        // subtree is not descended into. This enforces sequential scoping — a binding body that was
+        // subtree is not descended into. This enforces sequential scoping — a subquery body that was
         // already evaluated against its own (partial) resolved map is not re-expanded with later
-        // bindings when it appears as a replacement in the main query or an outer binding body.
+        // named subqueries when it appears as a replacement in the main query or an outer subquery body.
         LogicalPlan substituted = plan.transformDownSkipBranch((p, skipBranch) -> {
             if (p instanceof UnresolvedRelation ur) {
                 String indexPattern = ur.indexPattern().indexPattern();
-                // Handle comma-joined patterns that contain one or more binding names as individual
-                // tokens, e.g. "FROM top3, real_index" where top3 is a binding.
-                // Split the indexPattern, substitute each token that matches a binding, and union the parts.
+                // Handle comma-joined patterns that contain one or more subquery names as individual
+                // tokens, e.g. "FROM top3, real_index" where top3 is a named subquery.
+                // Split the indexPattern, substitute each token that matches a named subquery, and union the parts.
                 String[] patterns = indexPattern.split(",", -1);
                 boolean anyMatch = false;
                 int addedNodes = 0;
@@ -146,26 +146,26 @@ public final class LetResolver {
 
                     if (bindingPlan != null) {
                         if (ur.indexMode().isTsdb()) {
-                            // A binding is an ordinary subquery plan, so it cannot stand in for a time-series source: the
+                            // A named subquery is an ordinary subquery plan, so it cannot stand in for a time-series source: the
                             // parser already chose TS-specific planning for the surrounding commands. Mirrors the parser's
                             // rejection of inline subqueries in TS.
                             throw new ParsingException(ur.source(), "Subqueries are not supported in TS command");
                         }
                         if (ur.indexMode() == IndexMode.LOOKUP) {
                             // The right-hand side of a LOOKUP JOIN must be a lookup index, not an arbitrary plan; substituting a
-                            // binding there would reach the physical planner as an unsupported join and fail with a 500.
+                            // named subquery there would reach the physical planner as an unsupported join and fail with a 500.
                             throw new ParsingException(ur.source(), "Subqueries are not supported in LOOKUP JOIN");
                         }
                         anyMatch = true;
-                        // A binding is a subquery the user named. The name is known only here, so carry it to the analyzer,
+                        // The subquery name is known only here, so carry it to the analyzer,
                         // where METADATA _name answers it and the wrapper is then removed. The wrapper is one more node.
                         result.add(new NamedSubquery(ur.source(), bindingPlan, current));
                         addedNodes += sizes.get(current) + 1;
                     } else {
-                        // the query contained a reference to a binding that has not been resolved yet
+                        // the query contained a reference to a named subquery that has not been resolved yet
                         if (allBindings.contains(current)) {
                             throw new VerificationException(
-                                "Forward reference in LET bindings: [{}] cannot be referenced before its declaration",
+                                "Forward reference in LET subqueries: [{}] cannot be referenced before its declaration",
                                 current
                             );
                         }
@@ -215,12 +215,12 @@ public final class LetResolver {
     /**
      * Inlines a plain {@link UnionAll} that is a direct child of another plain {@link UnionAll} into its parent.
      * <p>
-     * A binding named in a comma-joined {@code FROM} list is a sibling branch of everything else in that {@code FROM}, but
+     * A named subquery referenced in a comma-joined {@code FROM} list is a sibling branch of everything else in that {@code FROM}, but
      * substitution unions the replaced pattern's parts on their own. Next to a literal subquery
-     * ({@code FROM idx, binding, (FROM ...)}) that union lands inside the parser's union for the {@code FROM}, a nesting the
+     * ({@code FROM idx, name, (FROM ...)}) that union lands inside the parser's union for the {@code FROM}, a nesting the
      * user never wrote. Flattening gives the shape the parser builds when the parts are written out, so every branch is a
      * branch of the {@code FROM} itself: in particular the analyzer's {@code METADATA _class}/{@code _name} freeze, which
-     * answers each branch of the {@code FROM}, sees the binding's {@link NamedSubquery} rather than an opaque nested union.
+     * answers each branch of the {@code FROM}, sees the named subquery's {@link NamedSubquery} rather than an opaque nested union.
      * Only plain unions are merged; a {@code BranchPlan} or a union under a {@code Subquery} keeps its boundary.
      */
     private static LogicalPlan flattenNestedUnions(LogicalPlan plan) {

@@ -29,6 +29,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_HOT_NODE_ROLE;
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.INDEX_ROLE;
+import static org.elasticsearch.cluster.node.DiscoveryNodeRole.MASTER_ROLE;
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.SEARCH_ROLE;
 
 /**
@@ -78,6 +79,7 @@ public class ExternalWorkerSelectionPolicyTests extends ESTestCase {
             .add(node("index-1", INDEX_ROLE))
             .add(node("search-1", SEARCH_ROLE))
             .add(node("data-1", DATA_HOT_NODE_ROLE))
+            .add(node("master-1", MASTER_ROLE))
             .build();
 
         Set<String> eligible = eligibleIds(mixed);

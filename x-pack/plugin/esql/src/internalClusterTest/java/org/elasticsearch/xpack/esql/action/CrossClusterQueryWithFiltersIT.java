@@ -159,7 +159,7 @@ public class CrossClusterQueryWithFiltersIT extends AbstractCrossClusterTestCase
             assertClusterMetadataSuccess(localCluster, localShards, overallTookMillis, "logs-1");
 
             EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
-            assertClusterMetadataSkippedShards(remoteCluster, remoteShards, overallTookMillis, "logs-2");
+            assertClusterMetadataSuccess(remoteCluster, remoteShards, overallTookMillis, "logs-2");
         }
 
         // Only remote is included
@@ -178,7 +178,7 @@ public class CrossClusterQueryWithFiltersIT extends AbstractCrossClusterTestCase
             assertThat(executionInfo.clusterAliases(), equalTo(Set.of(REMOTE_CLUSTER_1, LOCAL_CLUSTER)));
 
             EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
-            assertClusterMetadataSkippedShards(localCluster, localShards, overallTookMillis, "logs-1");
+            assertClusterMetadataSuccess(localCluster, localShards, overallTookMillis, "logs-1");
 
             EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
             assertClusterMetadataSuccess(remoteCluster, remoteShards, overallTookMillis, "logs-2");
@@ -224,12 +224,11 @@ public class CrossClusterQueryWithFiltersIT extends AbstractCrossClusterTestCase
             assertThat(executionInfo.clusterAliases(), equalTo(Set.of(REMOTE_CLUSTER_1, LOCAL_CLUSTER)));
 
             EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
-            // Remote has no shards due to filter
-            assertClusterMetadataSkippedShards(remoteCluster, remoteShards, overallTookMillis, "logs-2");
+            assertClusterMetadataSuccess(remoteCluster, remoteShards, overallTookMillis, "logs-2");
 
             EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
             // Local cluster can not be filtered out for now
-            assertClusterMetadataSkippedShards(localCluster, localShards, overallTookMillis, "logs-1");
+            assertClusterMetadataSuccess(localCluster, localShards, overallTookMillis, "logs-1");
         }
 
         // Both indices are filtered out - wildcards

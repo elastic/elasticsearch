@@ -120,7 +120,7 @@ public class NvidiaServiceParameterizedTestConfiguration {
             @Override
             protected TaskSettings getEmptyTaskSettings(TaskType taskType) {
                 return switch (taskType) {
-                    case TEXT_EMBEDDING -> NvidiaEmbeddingsTaskSettings.fromMap(null);
+                    case TEXT_EMBEDDING -> NvidiaEmbeddingsTaskSettings.fromMap(null, ConfigurationParseContext.REQUEST);
                     case COMPLETION, CHAT_COMPLETION, RERANK -> EmptyTaskSettings.INSTANCE;
                     default -> throw new IllegalStateException("Unexpected value: " + taskType);
                 };

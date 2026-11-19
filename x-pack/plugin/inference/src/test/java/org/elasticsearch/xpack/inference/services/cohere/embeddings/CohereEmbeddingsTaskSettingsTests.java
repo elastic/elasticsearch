@@ -17,12 +17,14 @@ import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.inference.common.model.Truncation;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.cohere.CohereService;
 import org.elasticsearch.xpack.inference.services.cohere.CohereServiceFields;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.InputTypeTests.randomRequestType;
 import static org.elasticsearch.xpack.inference.InputTypeTests.randomWithoutUnspecified;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -46,7 +48,10 @@ public class CohereEmbeddingsTaskSettingsTests extends AbstractBWCSerializationT
 
     public void testUpdatedTaskSettings() {
         var initialSettings = createRandom();
-        var newSettings = createRandom();
+        var newSettings = new CohereEmbeddingsTaskSettings(
+            randomBoolean() ? randomRequestType() : null,
+            randomBoolean() ? randomFrom(Truncation.values()) : null
+        );
         Map<String, Object> newSettingsMap = new HashMap<>();
         if (newSettings.getInputType() != null) {
             newSettingsMap.put(CohereEmbeddingsTaskSettings.INPUT_TYPE, newSettings.getInputType().toString());
@@ -166,7 +171,9 @@ public class CohereEmbeddingsTaskSettingsTests extends AbstractBWCSerializationT
 
     @Override
     protected CohereEmbeddingsTaskSettings doParseInstance(XContentParser parser) throws IOException {
-        return CohereEmbeddingsTaskSettings.createParser(supportsUnknownFields).apply(parser, null);
+        // Random instances may contain internal input types, which are only valid in persisted configurations,
+        // so parse with the full set of input types supported by the service
+        return CohereEmbeddingsTaskSettings.createParser(supportsUnknownFields, CohereService.VALID_INPUT_TYPE_VALUES).apply(parser, null);
     }
 
     @Override
@@ -195,5 +202,41 @@ public class CohereEmbeddingsTaskSettingsTests extends AbstractBWCSerializationT
     @Override
     protected CohereEmbeddingsTaskSettings mutateInstanceForVersion(CohereEmbeddingsTaskSettings instance, TransportVersion version) {
         return instance;
+    }
+
+    public void testFromMap_ReturnsFailure_WhenInputTypeIsInternal_InRequestContext() {
+        var inputType = randomFrom(InputType.INTERNAL_INGEST, InputType.INTERNAL_SEARCH);
+        var exception = expectThrows(
+            XContentParseException.class,
+            () -> CohereEmbeddingsTaskSettings.fromMap(
+                new HashMap<>(Map.of(CohereEmbeddingsTaskSettings.INPUT_TYPE, inputType.toString())),
+                ConfigurationParseContext.REQUEST
+            )
+        );
+
+        assertThat(
+            exception.getCause().getMessage(),
+            equalTo(Strings.format("Invalid value [%s]; expected one of [ingest, search, classification, clustering]", inputType))
+        );
+    }
+
+    public void testFromMap_CreatesSettings_WhenInputTypeIsInternal_InPersistentContext() {
+        var inputType = randomFrom(InputType.INTERNAL_INGEST, InputType.INTERNAL_SEARCH);
+        var settings = CohereEmbeddingsTaskSettings.fromMap(
+            new HashMap<>(Map.of(CohereEmbeddingsTaskSettings.INPUT_TYPE, inputType.toString())),
+            ConfigurationParseContext.PERSISTENT
+        );
+
+        assertThat(settings.getInputType(), is(inputType));
+    }
+
+    public void testUpdatedTaskSettings_ReturnsFailure_WhenInputTypeIsInternal() {
+        var inputType = randomFrom(InputType.INTERNAL_INGEST, InputType.INTERNAL_SEARCH);
+        expectThrows(
+            XContentParseException.class,
+            () -> CohereEmbeddingsTaskSettings.EMPTY_SETTINGS.updatedTaskSettings(
+                new HashMap<>(Map.of(CohereEmbeddingsTaskSettings.INPUT_TYPE, inputType.toString()))
+            )
+        );
     }
 }

@@ -17,6 +17,7 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.common.model.Truncation;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.nvidia.NvidiaUtils;
 
 import java.io.IOException;
@@ -25,6 +26,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.inference.InputType.invalidInputTypeMessage;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.getValidTaskSettingsInputTypes;
 import static org.elasticsearch.xpack.inference.services.SettingsScope.TASK_SETTINGS;
 import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaService.VALID_INPUT_TYPE_VALUES;
 import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaServiceFields.INPUT_TYPE_FIELD_NAME;
@@ -45,9 +47,10 @@ public class NvidiaEmbeddingsTaskSettings implements TaskSettings {
      * Creates a new instance of {@link NvidiaEmbeddingsTaskSettings} from a map of settings.
      *
      * @param map the map of settings
+     * @param context the context in which the settings are being parsed
      * @return a constructed {@link NvidiaEmbeddingsTaskSettings}
      */
-    public static NvidiaEmbeddingsTaskSettings fromMap(Map<String, Object> map) {
+    public static NvidiaEmbeddingsTaskSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         if (map == null || map.isEmpty()) {
             return EMPTY_SETTINGS;
         }
@@ -59,7 +62,7 @@ public class NvidiaEmbeddingsTaskSettings implements TaskSettings {
             INPUT_TYPE_FIELD_NAME,
             TASK_SETTINGS,
             InputType::fromString,
-            VALID_INPUT_TYPE_VALUES,
+            getValidTaskSettingsInputTypes(VALID_INPUT_TYPE_VALUES, context),
             validationException
         );
         Truncation truncation = extractOptionalEnum(
@@ -197,7 +200,7 @@ public class NvidiaEmbeddingsTaskSettings implements TaskSettings {
 
     @Override
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
-        NvidiaEmbeddingsTaskSettings updatedSettings = NvidiaEmbeddingsTaskSettings.fromMap(newSettings);
+        NvidiaEmbeddingsTaskSettings updatedSettings = NvidiaEmbeddingsTaskSettings.fromMap(newSettings, ConfigurationParseContext.REQUEST);
         return of(this, updatedSettings);
     }
 

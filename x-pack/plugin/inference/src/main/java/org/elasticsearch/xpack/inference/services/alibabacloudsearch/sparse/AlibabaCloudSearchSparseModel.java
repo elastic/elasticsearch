@@ -22,7 +22,7 @@ import java.util.Map;
 
 public class AlibabaCloudSearchSparseModel extends AlibabaCloudSearchModel {
     public static AlibabaCloudSearchSparseModel of(AlibabaCloudSearchSparseModel model, Map<String, Object> taskSettings) {
-        var requestTaskSettings = AlibabaCloudSearchSparseTaskSettings.fromMap(taskSettings);
+        var requestTaskSettings = AlibabaCloudSearchSparseTaskSettings.fromMap(taskSettings, ConfigurationParseContext.REQUEST);
         return new AlibabaCloudSearchSparseModel(
             model,
             AlibabaCloudSearchSparseTaskSettings.of(model.getTaskSettings(), requestTaskSettings)
@@ -44,7 +44,7 @@ public class AlibabaCloudSearchSparseModel extends AlibabaCloudSearchModel {
             taskType,
             service,
             AlibabaCloudSearchSparseServiceSettings.fromMap(serviceSettings, context),
-            AlibabaCloudSearchSparseTaskSettings.fromMap(taskSettings),
+            AlibabaCloudSearchSparseTaskSettings.fromMap(taskSettings, context),
             chunkingSettings,
             DefaultSecretSettings.fromMap(secrets, context)
         );

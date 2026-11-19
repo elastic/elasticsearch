@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIServiceFields;
 import org.hamcrest.MatcherAssert;
 
@@ -24,10 +25,16 @@ import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.InputTypeTests.randomWithIngestAndSearch;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.getValidTaskSettingsInputTypes;
 import static org.elasticsearch.xpack.inference.services.voyageai.VoyageAIService.VALID_INPUT_TYPE_VALUES;
 import static org.hamcrest.Matchers.is;
 
 public class VoyageAIEmbeddingsTaskSettingsTests extends AbstractWireSerializingTestCase<VoyageAIEmbeddingsTaskSettings> {
+
+    private static final EnumSet<InputType> VALID_REQUEST_INPUT_TYPE_VALUES = getValidTaskSettingsInputTypes(
+        VALID_INPUT_TYPE_VALUES,
+        ConfigurationParseContext.REQUEST
+    );
 
     public static VoyageAIEmbeddingsTaskSettings createRandom() {
         var inputType = randomBoolean() ? randomWithIngestAndSearch() : null;
@@ -53,7 +60,7 @@ public class VoyageAIEmbeddingsTaskSettingsTests extends AbstractWireSerializing
 
     public void testUpdatedTaskSettings_Updated_UseNewSettings() {
         var initialSettings = createRandom();
-        var newSettings = new VoyageAIEmbeddingsTaskSettings(randomWithIngestAndSearch(), randomBoolean());
+        var newSettings = new VoyageAIEmbeddingsTaskSettings(randomFrom(InputType.INGEST, InputType.SEARCH), randomBoolean());
         Map<String, Object> newSettingsMap = new HashMap<>();
         newSettingsMap.put(VoyageAIEmbeddingsTaskSettings.INPUT_TYPE_FIELD, newSettings.inputType().toString());
         VoyageAIEmbeddingsTaskSettings updatedSettings = (VoyageAIEmbeddingsTaskSettings) initialSettings.updatedTaskSettings(
@@ -64,14 +71,14 @@ public class VoyageAIEmbeddingsTaskSettingsTests extends AbstractWireSerializing
 
     public void testFromMap_CreatesEmptySettings_WhenAllFieldsAreNull() {
         MatcherAssert.assertThat(
-            VoyageAIEmbeddingsTaskSettings.fromMap(new HashMap<>()),
+            VoyageAIEmbeddingsTaskSettings.fromMap(new HashMap<>(), ConfigurationParseContext.REQUEST),
             is(new VoyageAIEmbeddingsTaskSettings((InputType) null, null))
         );
     }
 
     public void testFromMap_CreatesEmptySettings_WhenMapIsNull() {
         MatcherAssert.assertThat(
-            VoyageAIEmbeddingsTaskSettings.fromMap(null),
+            VoyageAIEmbeddingsTaskSettings.fromMap(null, ConfigurationParseContext.REQUEST),
             is(new VoyageAIEmbeddingsTaskSettings((InputType) null, null))
         );
     }
@@ -86,7 +93,8 @@ public class VoyageAIEmbeddingsTaskSettingsTests extends AbstractWireSerializing
                         VoyageAIServiceFields.TRUNCATION,
                         false
                     )
-                )
+                ),
+                ConfigurationParseContext.REQUEST
             ),
             is(new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, false))
         );
@@ -96,7 +104,8 @@ public class VoyageAIEmbeddingsTaskSettingsTests extends AbstractWireSerializing
         var exception = expectThrows(
             ValidationException.class,
             () -> VoyageAIEmbeddingsTaskSettings.fromMap(
-                new HashMap<>(Map.of(VoyageAIEmbeddingsTaskSettings.INPUT_TYPE_FIELD, "abc", VoyageAIServiceFields.TRUNCATION, false))
+                new HashMap<>(Map.of(VoyageAIEmbeddingsTaskSettings.INPUT_TYPE_FIELD, "abc", VoyageAIServiceFields.TRUNCATION, false)),
+                ConfigurationParseContext.REQUEST
             )
         );
 
@@ -105,7 +114,7 @@ public class VoyageAIEmbeddingsTaskSettingsTests extends AbstractWireSerializing
             is(
                 Strings.format(
                     "Validation Failed: 1: [task_settings] Invalid value [abc] received. [input_type] must be one of [%s];",
-                    getValidValuesSortedAndCombined(VALID_INPUT_TYPE_VALUES)
+                    getValidValuesSortedAndCombined(VALID_REQUEST_INPUT_TYPE_VALUES)
                 )
             )
         );
@@ -122,7 +131,8 @@ public class VoyageAIEmbeddingsTaskSettingsTests extends AbstractWireSerializing
                         VoyageAIServiceFields.TRUNCATION,
                         "abc"
                     )
-                )
+                ),
+                ConfigurationParseContext.REQUEST
             )
         );
 
@@ -136,7 +146,8 @@ public class VoyageAIEmbeddingsTaskSettingsTests extends AbstractWireSerializing
         var exception = expectThrows(
             ValidationException.class,
             () -> VoyageAIEmbeddingsTaskSettings.fromMap(
-                new HashMap<>(Map.of(VoyageAIEmbeddingsTaskSettings.INPUT_TYPE_FIELD, InputType.UNSPECIFIED.toString()))
+                new HashMap<>(Map.of(VoyageAIEmbeddingsTaskSettings.INPUT_TYPE_FIELD, InputType.UNSPECIFIED.toString())),
+                ConfigurationParseContext.REQUEST
             )
         );
 
@@ -145,7 +156,7 @@ public class VoyageAIEmbeddingsTaskSettingsTests extends AbstractWireSerializing
             is(
                 Strings.format(
                     "Validation Failed: 1: [task_settings] Invalid value [unspecified] received. [input_type] must be one of [%s];",
-                    getValidValuesSortedAndCombined(VALID_INPUT_TYPE_VALUES)
+                    getValidValuesSortedAndCombined(VALID_REQUEST_INPUT_TYPE_VALUES)
                 )
             )
         );
@@ -212,5 +223,46 @@ public class VoyageAIEmbeddingsTaskSettingsTests extends AbstractWireSerializing
         }
 
         return map;
+    }
+
+    public void testFromMap_ReturnsFailure_WhenInputTypeIsInternal_InRequestContext() {
+        var inputType = randomFrom(InputType.INTERNAL_INGEST, InputType.INTERNAL_SEARCH);
+        var exception = expectThrows(
+            ValidationException.class,
+            () -> VoyageAIEmbeddingsTaskSettings.fromMap(
+                new HashMap<>(Map.of(VoyageAIEmbeddingsTaskSettings.INPUT_TYPE_FIELD, inputType.toString())),
+                ConfigurationParseContext.REQUEST
+            )
+        );
+
+        assertThat(
+            exception.getMessage(),
+            is(
+                Strings.format(
+                    "Validation Failed: 1: [task_settings] Invalid value [%s] received. [input_type] must be one of [ingest, search];",
+                    inputType
+                )
+            )
+        );
+    }
+
+    public void testFromMap_CreatesSettings_WhenInputTypeIsInternal_InPersistentContext() {
+        var inputType = randomFrom(InputType.INTERNAL_INGEST, InputType.INTERNAL_SEARCH);
+        var settings = VoyageAIEmbeddingsTaskSettings.fromMap(
+            new HashMap<>(Map.of(VoyageAIEmbeddingsTaskSettings.INPUT_TYPE_FIELD, inputType.toString())),
+            ConfigurationParseContext.PERSISTENT
+        );
+
+        assertThat(settings.inputType(), is(inputType));
+    }
+
+    public void testUpdatedTaskSettings_ReturnsFailure_WhenInputTypeIsInternal() {
+        var inputType = randomFrom(InputType.INTERNAL_INGEST, InputType.INTERNAL_SEARCH);
+        expectThrows(
+            ValidationException.class,
+            () -> VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS.updatedTaskSettings(
+                new HashMap<>(Map.of(VoyageAIEmbeddingsTaskSettings.INPUT_TYPE_FIELD, inputType.toString()))
+            )
+        );
     }
 }

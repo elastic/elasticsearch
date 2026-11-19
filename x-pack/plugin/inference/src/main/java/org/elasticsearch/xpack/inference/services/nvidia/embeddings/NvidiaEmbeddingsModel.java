@@ -34,7 +34,7 @@ public class NvidiaEmbeddingsModel extends NvidiaModel {
      * @return a new {@link NvidiaEmbeddingsModel} with updated task settings, or the original model if settings are unchanged
      */
     public static NvidiaEmbeddingsModel of(NvidiaEmbeddingsModel model, Map<String, Object> taskSettings) {
-        var requestTaskSettings = NvidiaEmbeddingsTaskSettings.fromMap(taskSettings);
+        var requestTaskSettings = NvidiaEmbeddingsTaskSettings.fromMap(taskSettings, ConfigurationParseContext.REQUEST);
         if (requestTaskSettings.isEmpty() || requestTaskSettings.equals(model.getTaskSettings())) {
             return model;
         }
@@ -68,7 +68,7 @@ public class NvidiaEmbeddingsModel extends NvidiaModel {
             taskType,
             service,
             NvidiaEmbeddingsServiceSettings.fromMap(serviceSettings, context),
-            NvidiaEmbeddingsTaskSettings.fromMap(taskSettings),
+            NvidiaEmbeddingsTaskSettings.fromMap(taskSettings, context),
             chunkingSettings,
             DefaultSecretSettings.fromMap(secrets, context)
         );

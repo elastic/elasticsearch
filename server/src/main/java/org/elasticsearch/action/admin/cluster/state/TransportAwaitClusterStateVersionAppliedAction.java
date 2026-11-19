@@ -128,6 +128,8 @@ public class TransportAwaitClusterStateVersionAppliedAction extends TransportNod
     protected void nodeOperationAsync(NodeRequest request, Task task, ActionListener<NodeResponse> listener) {
         final var onceListener = new SubscribableListener<Void>();
         onceListener.addListener(listener.map(ignored -> new NodeResponse(clusterService.localNode())));
+        // `onceListener` releases the reference to `listener` when first completed, and becomes a lightweight no-op listener which is ok to
+        // leave subscribed to the cluster service or the async appliers.
 
         if (request.timeout.millis() >= 0) {
             onceListener.addTimeout(request.timeout, threadPool, EsExecutors.DIRECT_EXECUTOR_SERVICE);

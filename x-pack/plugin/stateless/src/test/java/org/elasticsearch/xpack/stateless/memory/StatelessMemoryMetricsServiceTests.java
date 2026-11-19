@@ -1265,6 +1265,50 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         assertThat(legacyDeadline, equalTo(validityNanos));
     }
 
+    public void testRepublishingTheSameOperationExtendsItsExpiry() {
+        final long validityNanos = StatelessMemoryMetricsService.DEFAULT_INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY.nanos();
+        final AtomicLong now = new AtomicLong(0L);
+        final StatelessMemoryMetricsService timed = new StatelessMemoryMetricsService(now::get, clusterService);
+        final long operationSize = 2_000L;
+        timed.updateLargestIndexingOperationSize(operationSize);
+        final long firstDeadline = timed.getValidIndexingOperationsHeapMemoryRequirements().validUntil();
+
+        now.set(validityNanos / 2);
+        timed.updateLargestIndexingOperationSize(operationSize);
+        final var republished = timed.getValidIndexingOperationsHeapMemoryRequirements();
+        assertNotNull(republished);
+        assertThat(republished.validUntil(), equalTo(now.get() + validityNanos));
+        assertThat(republished.validUntil(), greaterThan(firstDeadline));
+
+        now.set(firstDeadline + 1);
+        assertThat(timed.minimumRequiredHeapForAcceptingLargeIndexingOps(), equalTo(operationSize * 10));
+    }
+
+    public void testExpiredOperationIsReplacedWithoutAPriorRead() {
+        final AtomicLong now = new AtomicLong(0L);
+        final StatelessMemoryMetricsService timed = new StatelessMemoryMetricsService(now::get, clusterService);
+        timed.updateLargestIndexingOperationSize(1_000L);
+        now.set(StatelessMemoryMetricsService.DEFAULT_INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY.nanos() + 1);
+        final long replacement = 2_500L;
+        timed.updateLargestIndexingOperationSize(replacement);
+        assertThat(timed.minimumRequiredHeapForAcceptingLargeIndexingOps(), equalTo(replacement * 10));
+    }
+
+    public void testNonMasterClusterStateClearsLargestOperation() {
+        final AtomicLong now = new AtomicLong(0L);
+        final StatelessMemoryMetricsService timed = new StatelessMemoryMetricsService(now::get, clusterService);
+        final long operationSize = 1_500L;
+        timed.updateLargestIndexingOperationSize(operationSize);
+        assertThat(timed.minimumRequiredHeapForAcceptingLargeIndexingOps(), equalTo(operationSize * 10));
+
+        final ClusterState clusterState = randomInitialSingleNodeClusterState(1);
+        final ClusterState nonMaster = ClusterState.builder(clusterState)
+            .nodes(DiscoveryNodes.builder(clusterState.nodes()).add(DiscoveryNodeUtils.create("node_1")).masterNodeId("node_1"))
+            .build();
+        timed.clusterChanged(new ClusterChangedEvent("demote", nonMaster, ClusterState.EMPTY_STATE));
+        assertThat(timed.minimumRequiredHeapForAcceptingLargeIndexingOps(), equalTo(0L));
+    }
+
     public void testLegacyIndexingHeapRequirementIsReturnedAsIs() {
         final long heap = randomLongBetween(1L, 50_000_000L);
         service.updateIndexingOperationsHeapMemoryRequirements(heap);

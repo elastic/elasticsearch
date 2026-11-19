@@ -48,7 +48,6 @@ import static org.elasticsearch.node.ShutdownPrepareService.AWAIT_TASKS_POLL_INT
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
@@ -499,11 +498,13 @@ public class ShutdownPrepareServiceTests extends ESTestCase {
 
         assertThat(drain.starts.get(), is(1));
         assertThat(service.awaitTimeouts, contains(TimeValue.ZERO));
+        assertThat(service.awaitScopes, contains(TaskScope.ALL));
         assertThat(service.awaitResults, contains(true));
     }
 
     /**
-     * A handler that does not report the node ready, or that throws, skips the plugin drains, but the tasks are still waited for.
+     * A handler that does not report the node ready, or that throws, skips the plugin drains. The tasks are still waited for, but
+     * only those running when the wait starts, since new ones can keep arriving on a node that is not ready.
      */
     public void testPrepareForShutdown_handlerNotReadySkipsPluginDrains() throws Exception {
         final TerminationHandler handler = randomBoolean() ? () -> TerminationHandler.Outcome.NOT_READY : () -> {
@@ -512,14 +513,40 @@ public class ShutdownPrepareServiceTests extends ESTestCase {
         final var drain = new TestDrain(SubscribableListener.nullSuccess());
         final var service = newService(TimeValue.ZERO, handler, List.of(drain.pluginDrain()));
 
-        final Task task = registerTask();
+        final Task task1 = registerTask();
         final Thread shutdown = startShutdown(service);
         assertBusy(() -> assertThat(fakeTime.sleeps(), greaterThanOrEqualTo(1)));
         assertTrue(shutdown.isAlive());
-        taskManager.unregister(task);
+        final Task task2 = registerTask();
+        taskManager.unregister(task1);
         safeJoin(shutdown);
+        taskManager.unregister(task2);
 
         assertThat(drain.starts.get(), is(0));
+        assertThat(service.awaitScopes, contains(TaskScope.INITIAL));
+        assertThat(service.awaitResults, contains(true));
+    }
+
+    /**
+     * On a drained node, i.e. ready and with its plugin drains completed, the source of new tasks dries up, so a task that starts
+     * during the wait is waited for too.
+     */
+    public void testPrepareForShutdown_drainedNodeWaitsForTrailingTasks() throws Exception {
+        final List<PluginDrain> drains = randomBoolean()
+            ? List.of()
+            : List.of(new TestDrain(SubscribableListener.nullSuccess()).pluginDrain());
+        final var service = newService(TimeValue.ZERO, () -> TerminationHandler.Outcome.READY, drains);
+
+        final Task task1 = registerTask();
+        final Thread shutdown = startShutdown(service);
+        assertBusy(() -> assertThat(fakeTime.sleeps(), greaterThanOrEqualTo(1)));
+        final Task task2 = registerTask();
+        taskManager.unregister(task1);
+        assertStillWaiting(shutdown);
+        taskManager.unregister(task2);
+        safeJoin(shutdown);
+
+        assertThat(service.awaitScopes, contains(TaskScope.ALL));
         assertThat(service.awaitResults, contains(true));
     }
 
@@ -606,6 +633,7 @@ public class ShutdownPrepareServiceTests extends ESTestCase {
 
         assertThat(drain.starts.get(), is(0));
         assertThat(service.awaitTimeouts, contains(TimeValue.ZERO));
+        assertThat(service.awaitScopes, contains(TaskScope.INITIAL));
     }
 
     /**
@@ -666,6 +694,7 @@ public class ShutdownPrepareServiceTests extends ESTestCase {
 
         assertThat(drain.starts.get(), is(0));
         assertThat(service.awaitTimeouts, contains(TimeValue.timeValueNanos(1)));
+        assertThat(service.awaitScopes, contains(TaskScope.INITIAL));
         assertThat(service.awaitResults, contains(false));
         assertThat(fakeTime.sleeps(), is(0));
     }
@@ -687,6 +716,7 @@ public class ShutdownPrepareServiceTests extends ESTestCase {
         assertThat(drain.starts.get(), is(1));
         assertFalse(drain.completion.isDone());
         assertThat(service.awaitTimeouts, contains(TimeValue.timeValueNanos(1)));
+        assertThat(service.awaitScopes, contains(TaskScope.INITIAL));
         assertThat(service.awaitResults, contains(false));
         assertThat(fakeTime.sleeps(), is(0));
     }
@@ -713,15 +743,16 @@ public class ShutdownPrepareServiceTests extends ESTestCase {
         assertTrue(interruptedAtEnd.get());
         assertFalse(drain.completion.isDone());
         assertThat(service.awaitTimeouts, contains(TimeValue.ZERO));
+        assertThat(service.awaitScopes, contains(TaskScope.INITIAL));
         assertThat(service.awaitResults, contains(false));
         assertThat(fakeTime.sleeps(), is(0));
     }
 
     /**
-     * An interrupt while another hook still runs does not keep the plugin drains from starting once the handler reported the node
-     * ready, and is preserved.
+     * An interrupt while another hook still runs skips the plugin drains, even though the handler reported the node ready: they could
+     * not be waited for. The interrupt is preserved.
      */
-    public void testPrepareForShutdown_interruptedDuringHooksStillStartsPluginDrains() throws Exception {
+    public void testPrepareForShutdown_interruptedDuringHooksSkipsPluginDrains() throws Exception {
         final var handler = new HeldHandler(() -> TerminationHandler.Outcome.READY);
         handler.release.countDown();
         final var drain = new TestDrain(SubscribableListener.nullSuccess());
@@ -750,7 +781,8 @@ public class ShutdownPrepareServiceTests extends ESTestCase {
         taskManager.unregister(task);
 
         assertTrue(interruptedAtEnd.get());
-        assertThat(drain.starts.get(), is(1));
+        assertThat(drain.starts.get(), is(0));
+        assertThat(service.awaitScopes, contains(TaskScope.INITIAL));
         assertThat(service.awaitResults, contains(false));
     }
 
@@ -802,10 +834,11 @@ public class ShutdownPrepareServiceTests extends ESTestCase {
     }
 
     /**
-     * Records the timeouts and the results of the waits for the tasks of {@link #AWAITED_ACTION}.
+     * Records the timeouts, the scopes and the results of the waits for the tasks of {@link #AWAITED_ACTION}.
      */
     private class RecordingShutdownPrepareService extends ShutdownPrepareService {
         final List<TimeValue> awaitTimeouts = new CopyOnWriteArrayList<>();
+        final List<TaskScope> awaitScopes = new CopyOnWriteArrayList<>();
         final List<Boolean> awaitResults = new CopyOnWriteArrayList<>();
 
         RecordingShutdownPrepareService(Settings settings, @Nullable TerminationHandler terminationHandler, List<PluginDrain> drains) {
@@ -833,8 +866,8 @@ public class ShutdownPrepareServiceTests extends ESTestCase {
         ) {
             final boolean awaited = actionNames.contains(AWAITED_ACTION);
             if (awaited) {
-                assertThat(scope, equalTo(TaskScope.INITIAL));
                 awaitTimeouts.add(timeout);
+                awaitScopes.add(scope);
             }
             final boolean result = super.awaitTasksComplete(timeout, sleeper, actionNames, scope, taskManager, taskNotifier, onTimeout);
             if (awaited) {

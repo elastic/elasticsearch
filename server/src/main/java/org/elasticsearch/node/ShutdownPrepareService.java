@@ -9,6 +9,7 @@
 
 package org.elasticsearch.node;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
@@ -58,7 +59,8 @@ import java.util.stream.Collectors;
  * The hooks run in parallel. On a node with a {@link TerminationHandler} (stateless), they are followed by a drain: once the handler
  * reports the node {@link TerminationHandler.Outcome#READY ready}, i.e. its shards are safe to serve elsewhere, the plugins drain the
  * work they accepted (see {@link ShutdownAwarePlugin#startDrainOnShutdown()}), then the node waits for the tasks of the awaited
- * actions. Everything is bounded by a single deadline, {@code node.maximum_shutdown_grace_period} after the shutdown starts.
+ * actions. Everything is bounded by a single deadline, {@code node.maximum_shutdown_grace_period} after the shutdown starts, or by
+ * nothing if that setting is zero.
  * <p>
  * Note that this class is part of infrastructure to react to signals from the operating system - most graceful shutdown
  * logic should use Node Shutdown, see {@link org.elasticsearch.cluster.metadata.NodesShutdownMetadata}.
@@ -280,24 +282,37 @@ public class ShutdownPrepareService {
 
     /**
      * Drains the work this node accepted, once the hooks are done, on a node with a termination handler. The plugin drains run only if
-     * the handler reported the node ready, since only then can the work they turn away be served elsewhere, and only if some of the
-     * grace period is left. They run even if another hook did not finish: turning new work away is safe once the node is ready, and
-     * better than accepting work that the closing node then abandons. The tasks of the awaited actions are waited for in any case, and
-     * after the plugin drains, since some of that work may still reach this node as new tasks.
+     * the handler reported the node ready, since only then can the work they turn away be served elsewhere, and only if the wait for
+     * the hooks ended normally: neither did the grace period run out, nor was the shutdown thread interrupted, as the drains could not
+     * be waited for then.
+     * <p>
+     * The tasks of the awaited actions are waited for in any case, and after the plugin drains, since some of that work may still reach
+     * this node as new tasks. Which tasks depends on whether the node is drained, i.e. ready and with all its plugin drains completed.
+     * If so, the source of new tasks dries up, so the tasks that start during the wait are waited for too. If not, new tasks can keep
+     * arriving for as long as the node is up, so only those running when the wait starts are waited for, or the wait might never end.
      */
     private void drain(TerminationHandler.Outcome handlerOutcome, Deadline deadline) {
         final boolean expired = deadline.isExpired();
-        if (handlerOutcome == TerminationHandler.Outcome.READY && expired == false) {
+        final boolean interrupted = Thread.currentThread().isInterrupted();
+        boolean drained = false;
+        if (handlerOutcome == TerminationHandler.Outcome.READY && expired == false && interrupted == false) {
             logger.info(
-                "termination handler reported the node ready for shutdown, draining plugins then tasks of actions {}",
+                "termination handler reported the node ready for shutdown, running [{}] plugin drains then waiting for the tasks of "
+                    + "actions {}",
+                pluginDrains.size(),
                 awaitedActions
             );
-            awaitPluginDrains(deadline);
+            drained = awaitPluginDrains(deadline);
         } else {
-            logger.warn(
-                "skipping plugin drains, termination handler outcome [{}], grace period expired [{}]; waiting for the tasks of actions {}",
+            // the handler reports its own failures, so this is only worth a warning if it leaves drains unstarted
+            logger.log(
+                pluginDrains.isEmpty() ? Level.DEBUG : Level.WARN,
+                "skipping [{}] plugin drains, termination handler outcome [{}], grace period expired [{}], interrupted [{}]; "
+                    + "waiting for the tasks of actions {}",
+                pluginDrains.size(),
                 handlerOutcome,
                 expired,
+                interrupted,
                 awaitedActions
             );
         }
@@ -305,7 +320,7 @@ public class ShutdownPrepareService {
             deadline.awaitTimeout(),
             sleeper,
             awaitedActions,
-            TaskScope.INITIAL,
+            drained ? TaskScope.ALL : TaskScope.INITIAL,
             transportService.getTaskManager(),
             null,
             null
@@ -313,7 +328,12 @@ public class ShutdownPrepareService {
         logger.debug("graceful shutdown drain finished, tasks completed [{}]", tasksCompleted);
     }
 
-    private void awaitPluginDrains(Deadline deadline) {
+    /**
+     * Starts the plugin drains and waits for them within the deadline.
+     *
+     * @return whether all the drains completed; false if the wait timed out or was interrupted
+     */
+    private boolean awaitPluginDrains(Deadline deadline) {
         record Drain(String name, SubscribableListener<Void> completion) {}
 
         final var drains = new ArrayList<Drain>();
@@ -348,6 +368,7 @@ public class ShutdownPrepareService {
             } else {
                 allDrainedFuture.get();
             }
+            return true;
         } catch (ExecutionException e) {
             assert false : e; // failures are logged and released as completions
             logger.warn("failed during plugin shutdown drains", e);
@@ -357,14 +378,25 @@ public class ShutdownPrepareService {
         } catch (TimeoutException e) {
             logger.warn("timed out while waiting for plugin shutdown drains: {}", incompleteDrainsDescriber.get());
         }
+        return false;
     }
 
     /**
      * The point in time by which graceful shutdown must be done, measured on {@code clock} from {@code startNanos}, or no such point if
      * {@code node.maximum_shutdown_grace_period} is zero.
      */
-    private record Deadline(LongSupplier clock, long startNanos, long budgetNanos) {
+    private static final class Deadline {
         private static final long UNBOUNDED = -1L;
+
+        private final LongSupplier clock;
+        private final long startNanos;
+        private final long budgetNanos;
+
+        private Deadline(LongSupplier clock, long startNanos, long budgetNanos) {
+            this.clock = clock;
+            this.startNanos = startNanos;
+            this.budgetNanos = budgetNanos;
+        }
 
         static Deadline start(TimeValue maxTimeout, LongSupplier clock) {
             return new Deadline(clock, clock.getAsLong(), TimeValue.ZERO.equals(maxTimeout) ? UNBOUNDED : maxTimeout.nanos());
@@ -466,6 +498,7 @@ public class ShutdownPrepareService {
     ) {
         final long startNanos = sleeper.relativeTimeNanos();
         boolean firstPoll = true;
+        boolean slept = false;
         Set<Long> tasksTracked = new HashSet<>(); // the ids of the tasks waited for, each notified once when first seen
         while (true) {
             List<Task> tasksRemaining = new ArrayList<>();
@@ -500,13 +533,23 @@ public class ShutdownPrepareService {
                     nextSleep = TimeValue.timeValueMillis(Math.min(AWAIT_TASKS_POLL_INTERVAL.millis(), Math.max(0L, remainingMillis)));
                 }
                 if (nextSleep.millis() == 0) {
-                    logger.warn(
-                        "timed out after waiting [{}] for [{}] tasks to {}: {}",
-                        timeout,
-                        tasksRemaining.size(),
-                        waitFor,
-                        countPerAction(tasksRemaining)
-                    );
+                    if (slept) {
+                        logger.warn(
+                            "timed out after waiting [{}] for [{}] tasks to {}: {}",
+                            timeout,
+                            tasksRemaining.size(),
+                            waitFor,
+                            countPerAction(tasksRemaining)
+                        );
+                    } else {
+                        // e.g. the shutdown grace period ran out before this wait started; the timeout would only mislead
+                        logger.warn(
+                            "no time left to wait for [{}] tasks to {}: {}",
+                            tasksRemaining.size(),
+                            waitFor,
+                            countPerAction(tasksRemaining)
+                        );
+                    }
                     if (onTimeout != null) {
                         onTimeout.accept(tasksRemaining);
                     }
@@ -522,6 +565,7 @@ public class ShutdownPrepareService {
                     );
                 }
                 try {
+                    slept = true;
                     sleeper.sleep(nextSleep);
                 } catch (InterruptedException ex) {
                     Thread.currentThread().interrupt();

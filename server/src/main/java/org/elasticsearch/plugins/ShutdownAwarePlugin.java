@@ -52,8 +52,9 @@ public interface ShutdownAwarePlugin {
      * <p>
      * When to wait depends on whether the node has a termination handler. Without one (stateful), the wait covers the tasks running
      * when the shutdown starts. With one (stateless), the wait starts once the handler and the other shutdown hooks have finished and
-     * once the drains of {@link #startDrainOnShutdown()} have completed, and covers the tasks running at that point. The tasks that run
-     * while the handler moves the node's shards away are not observed until then.
+     * once the drains of {@link #startDrainOnShutdown()} have completed, and covers the tasks running at that point. If the handler
+     * confirmed that the node is safe to shut down and all the drains completed, it also covers the tasks that start while it lasts.
+     * The tasks that run while the handler moves the node's shards away are not observed until then.
      */
     default Collection<String> getActionsToAwaitOnShutdown() {
         return Collections.emptyList();
@@ -63,13 +64,17 @@ public interface ShutdownAwarePlugin {
      * Starts draining the work this plugin accepted on this node and returns a listener that completes once that work has finished.
      * Called at most once, during a graceful shutdown in response to a signal from the operating system, and only on a node whose
      * termination handler confirmed that the node is safe to shut down, i.e. its shards can be served elsewhere. It is not called if the
-     * handler did not confirm, or if {@code node.maximum_shutdown_grace_period} ran out before the handler and the other shutdown hooks
-     * finished. Once called, the plugin may turn away new work that its peers can retry on another node.
+     * handler did not confirm, or if {@code node.maximum_shutdown_grace_period} ran out, or the shutdown was interrupted, before the
+     * handler and the other shutdown hooks finished. Once called, the plugin may turn away new work that its peers can retry on another
+     * node.
      * <p>
      * Use it for work that {@link #getActionsToAwaitOnShutdown()} cannot see, such as state a peer set up on this node in a request
      * whose task has finished, and that a later request will use. The node waits for the returned listener within
      * {@code node.maximum_shutdown_grace_period}, then waits for the tasks of {@link #getActionsToAwaitOnShutdown()}. A listener that
      * completes exceptionally counts as completed.
+     * <p>
+     * The returned listener must complete eventually, whatever happens to the work: {@code node.maximum_shutdown_grace_period}
+     * defaults to zero, which means no limit, and the node then waits for the listener for as long as it takes.
      * <p>
      * The call must return promptly: it must not wait or do network I/O.
      */

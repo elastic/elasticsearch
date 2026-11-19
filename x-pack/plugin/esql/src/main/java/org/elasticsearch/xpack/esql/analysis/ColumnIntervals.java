@@ -47,9 +47,10 @@ public final class ColumnIntervals {
 
     /**
      * Returns the interval of every column of {@code plan} that buckets dates with a constant interval, keyed by
-     * attribute id. Renames keep it, and so do merges whose branches bucket the same way.
+     * attribute id. Renames keep it, and so do merges whose branches bucket the same way. Bucket arguments are
+     * folded with {@code foldContext}.
      */
-    public static Map<NameId, Interval> collect(LogicalPlan plan) {
+    public static Map<NameId, Interval> collect(LogicalPlan plan, FoldContext foldContext) {
         Map<NameId, Expression> constants = new HashMap<>();
         Map<NameId, Bucketing> buckets = new HashMap<>();
         plan.forEachUp(node -> {
@@ -65,7 +66,7 @@ public final class ColumnIntervals {
                 if (child.foldable()) {
                     constants.put(alias.id(), child);
                 }
-                Bucketing bucketing = of(child);
+                Bucketing bucketing = of(child, foldContext);
                 if (bucketing != null) {
                     buckets.put(alias.id(), bucketing);
                 }
@@ -79,24 +80,24 @@ public final class ColumnIntervals {
         return intervals;
     }
 
-    private static Bucketing of(Expression e) {
+    private static Bucketing of(Expression e, FoldContext foldContext) {
         if (e instanceof Bucket bucket) {
-            return bucket.field().dataType().isDate() ? of(bucket) : null;
+            return bucket.field().dataType().isDate() ? of(bucket, foldContext) : null;
         }
         if (e instanceof TBucket tbucket) {
             boolean bounded = tbucket.buckets().dataType().isWholeNumber() == false || (tbucket.from() != null && tbucket.to() != null);
-            return bounded && constant(tbucket.buckets(), tbucket.from(), tbucket.to()) && tbucket.surrogate() instanceof Bucket bucket
-                ? of(bucket)
-                : null;
+            return bounded
+                && constant(foldContext, tbucket.buckets(), tbucket.from(), tbucket.to())
+                && tbucket.surrogate() instanceof Bucket bucket ? of(bucket, foldContext) : null;
         }
         if (e instanceof TStep tstep) {
-            return constant(tstep.stepOrBuckets(), tstep.from(), tstep.to())
+            return constant(foldContext, tstep.stepOrBuckets(), tstep.from(), tstep.to())
                 && tstep.from() != null
                 && tstep.to() != null
-                && tstep.surrogate() instanceof Bucket bucket ? of(bucket) : null;
+                && tstep.surrogate() instanceof Bucket bucket ? of(bucket, foldContext) : null;
         }
         if (e instanceof DateTrunc dateTrunc) {
-            return of(dateTrunc.timeBucketSpecRef());
+            return of(dateTrunc.timeBucketSpecRef(), foldContext);
         }
         return null;
     }
@@ -104,8 +105,8 @@ public final class ColumnIntervals {
     /**
      * The rounding {@code _meta.bucket} reports for the same bucket, or null when its arguments are not constant.
      */
-    private static Bucketing of(Bucket bucket) {
-        Rounding rounding = bucket.dateRounding(FoldContext.small());
+    private static Bucketing of(Bucket bucket, FoldContext foldContext) {
+        Rounding rounding = bucket.dateRounding(foldContext);
         if (rounding == null) {
             return null;
         }
@@ -116,9 +117,9 @@ public final class ColumnIntervals {
     /**
      * Whether every given argument is either absent or a non-null constant.
      */
-    private static boolean constant(Expression... args) {
+    private static boolean constant(FoldContext foldContext, Expression... args) {
         for (Expression arg : args) {
-            if (arg != null && (arg.foldable() == false || arg.fold(FoldContext.small()) == null)) {
+            if (arg != null && (arg.foldable() == false || arg.fold(foldContext) == null)) {
                 return false;
             }
         }

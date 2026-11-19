@@ -505,7 +505,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 datasetColumns,
                 ColumnUnits.collect(describe.child(), semantics),
                 timeColumns,
-                ColumnIntervals.collect(describe.child())
+                ColumnIntervals.collect(describe.child(), context.configuration().newFoldContext())
             );
         }
 

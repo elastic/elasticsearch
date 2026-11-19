@@ -95,6 +95,68 @@ public class SequencePitNarrowingIT extends AbstractSequenceIntegTestCase {
         }
     }
 
+    public void testEachStageUsesItsOwnMembershipList() {
+        createPair();
+        String starts = "sequence-pit-start-list";
+        String ends = "sequence-pit-end-list";
+        createIndex(starts, "date");
+        createIndex(ends, "date");
+        seed(starts, "allow-a", BASE.toString(), "A");
+        seed(ends, "allow-b", BASE.toString(), "B");
+        refresh(starts, ends);
+        String query = """
+            SEQUENCE BY key WITHIN 30s PRIMARY 2
+            (FROM %s METADATA _id | WHERE phase IN (FROM %s | KEEP phase)),
+            (FROM %s METADATA _id | WHERE phase IN (FROM %s | KEEP phase))
+            | EVAL start_id = MEMBER(1, _id), start_phase = MEMBER(1, phase)
+            | KEEP key, start_id, _id, start_phase, phase | SORT key | LIMIT 10
+            """.formatted(FIRST, starts, SECOND, ends);
+        var expected = List.of(List.of("shared", "A", "B", "A", "B"));
+        try (var response = run(query)) {
+            assertFalse(response.isPartial());
+            assertEquals(expected, getValuesList(response));
+        }
+        // Each decoy has a complete chain. One fails only the first list, the other only the second.
+        for (String key : List.of("wrong-start", "wrong-end")) {
+            client(coordinator).prepareIndex(FIRST)
+                .setId(key + "-a")
+                .setSource("@timestamp", BASE.toString(), "key", key, "phase", key.equals("wrong-start") ? "X" : "A")
+                .get();
+            client(coordinator).prepareIndex(SECOND)
+                .setId(key + "-b")
+                .setSource("@timestamp", BASE.plusMillis(1).toString(), "key", key, "phase", key.equals("wrong-end") ? "Y" : "B")
+                .get();
+        }
+        refresh(FIRST, SECOND);
+        try (var response = run(query)) {
+            assertFalse(response.isPartial());
+            assertEquals(expected, getValuesList(response));
+        }
+    }
+
+    public void testRuntimeEmptyMembershipPreservesSchemaWithoutEventReads() {
+        createPair();
+        String allow = "sequence-pit-empty-allow";
+        createIndex(allow, "date");
+        String predicate = " | WHERE key IN (FROM " + allow + " | KEEP key)";
+        for (int stages : List.of(3, 1, 2)) {
+            String query = """
+                SEQUENCE BY key WITHIN 30s PRIMARY 2
+                (FROM %s%s), (FROM %s%s)
+                | KEEP sequence_provenance | LIMIT 10
+                """.formatted(FIRST, (stages & 1) == 0 ? "" : predicate, SECOND, (stages & 2) == 0 ? "" : predicate);
+            logger.info("Part B runtime-empty stage mask={}", stages);
+            try (var gate = new Gate(); var response = run(query)) {
+                assertFalse(response.isPartial());
+                assertColumnNames(response.columns(), List.of("sequence_provenance"));
+                assertColumnTypes(response.columns(), List.of("keyword"));
+                assertEquals(List.of(), getValuesList(response));
+                assertNull("the runtime-empty stage should skip PIT open", gate.openIndices.get());
+                assertTrue("the runtime-empty stage should skip sequence event searches", gate.pagePrefilters.isEmpty());
+            }
+        }
+    }
+
     private static EsqlQueryRequest request(String source) {
         return syncEsqlQueryRequest("""
             SEQUENCE BY key WITHIN 30s PRIMARY 1

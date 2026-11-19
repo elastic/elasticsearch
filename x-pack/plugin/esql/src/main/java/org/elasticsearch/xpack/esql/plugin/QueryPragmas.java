@@ -270,6 +270,12 @@ public final class QueryPragmas implements Writeable {
     /** Hidden override for optional source key pruning. */
     private static final Setting<Boolean> SEQUENCE_KEY_FILTER = Setting.boolSetting("sequence_key_filter", true);
 
+    /** Explicitly enable shard search profiling for SEQUENCE key-filter decisions. */
+    private static final Setting<Boolean> SEQUENCE_KEY_FILTER_SHARD_PROFILE = Setting.boolSetting(
+        "sequence_key_filter_shard_profile",
+        false
+    );
+
     private static final Setting<Boolean> SEQUENCE_WILDCARD_PREFILTER = Setting.boolSetting("sequence_wildcard_prefilter", true);
 
     public static final QueryPragmas EMPTY = new QueryPragmas(Settings.EMPTY);
@@ -303,6 +309,7 @@ public final class QueryPragmas implements Writeable {
         SEQUENCE_MAX_CANDIDATES,
         SEQUENCE_URI_PARTS,
         SEQUENCE_KEY_FILTER,
+        SEQUENCE_KEY_FILTER_SHARD_PROFILE,
         SEQUENCE_WILDCARD_PREFILTER,
         PlannerSettings.TIME_SERIES_TARGET_CHUNK_ROWS,
         PlannerSettings.AGG_PARTITIONING_COUNT_THRESHOLD,
@@ -349,6 +356,10 @@ public final class QueryPragmas implements Writeable {
     /** Bounded waiting-key pruning is enabled by default and can be disabled per request. */
     public boolean sequenceKeyFilter() {
         return SEQUENCE_KEY_FILTER.get(settings);
+    }
+
+    public boolean sequenceKeyFilterShardProfile() {
+        return SEQUENCE_KEY_FILTER_SHARD_PROFILE.get(settings);
     }
 
     public boolean sequenceWildcardPrefilter() {

@@ -106,7 +106,9 @@ public final class EsqlSequenceKeyFilterProfileHeaders {
                     throw invalid();
                 }
             }
-            if (result.size() != COUNTS.size() + BUCKETS.size() || parser.nextToken() != null) {
+            boolean coordinatorOnly = result.keySet().equals(Set.of("built_searches", "coordinator_fallbacks"));
+            boolean withShards = result.size() == COUNTS.size() + BUCKETS.size();
+            if ((coordinatorOnly == false && withShards == false) || parser.nextToken() != null) {
                 throw invalid();
             }
             return Map.copyOf(result);

@@ -334,7 +334,14 @@ final class SequenceHitReader {
             return (double) hit.getScore();
         }
         DocumentField field = hit.field(name);
-        return field == null || field.getValues().isEmpty() ? null : field.getValues();
+        if (field == null || field.getValues().isEmpty()) {
+            return null;
+        }
+        // mapper-size stores a single long; ES|QL declares this metadata column as INTEGER.
+        if (name.equals("_size")) {
+            return Math.toIntExact(((Number) field.getValue()).longValue());
+        }
+        return field.getValues();
     }
 
     private static String fieldName(Attribute attribute) {

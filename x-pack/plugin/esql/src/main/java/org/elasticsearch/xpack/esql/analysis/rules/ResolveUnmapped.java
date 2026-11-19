@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.Sequence;
+import org.elasticsearch.xpack.esql.plan.logical.SequenceCondition;
 import org.elasticsearch.xpack.esql.plan.logical.SequenceMatchOutput.BindingReference;
 import org.elasticsearch.xpack.esql.plan.logical.SequenceMatchOutput.MemberReference;
 import org.elasticsearch.xpack.esql.plan.logical.SequenceMatchOutput.Scope;
@@ -108,7 +109,11 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
 
     @Override
     public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
-        return applyScoped(plan, context.unmappedResolution(), null, context);
+        // ImplicitCasting may have completed an earlier stage since ResolveRefs last bound MEMBER.
+        LogicalPlan rebound = context.unmappedResolution().loadsUnmappedFields()
+            ? ViewUtils.transformUpOutsideViews(plan, Sequence.class, Sequence::resolveConditions)
+            : plan;
+        return applyScoped(rebound, context.unmappedResolution(), null, context);
     }
 
     /**
@@ -189,7 +194,8 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
             // MEMBER's display name is a scoped diagnostic, never a physical field name to load from every source.
             for (List<UnresolvedAttribute> attributes : unresolvedByName.values()) {
                 for (UnresolvedAttribute attribute : attributes) {
-                    if (attribute instanceof MemberReference member) {
+                    if (attribute instanceof MemberReference member
+                        && (member.customMessage() || plan instanceof SequenceCondition == false)) {
                         throw new VerificationException(
                             List.of(
                                 Failure.fail(
@@ -202,6 +208,12 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
                         );
                     }
                 }
+                // Defer incomplete MEMBER binding to the next ResolveRefs pass.
+                attributes.removeIf(MemberReference.class::isInstance);
+            }
+            unresolvedByName.values().removeIf(List::isEmpty);
+            if (unresolvedByName.isEmpty()) {
+                return plan;
             }
         }
 
@@ -302,17 +314,31 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
                     if (primary == stageNumber) field = ua.name();
                     else if (primary < 0 && ua.name().startsWith(prefix)) field = ua.name().substring(prefix.length());
                 }
-                if (field != null && MetadataAttribute.isSupported(field) == false && branchCanSurfaceLoadedField(admission, field)) {
+                if (field != null && MetadataAttribute.isSupported(field) == false && sequenceStageCanSurfaceNull(admission, field)) {
                     fields.putIfAbsent(field, new UnresolvedAttribute(ua.source(), field));
                 }
             }
-            LogicalPlan child = fields.isEmpty() ? stage.child() : nullify(stage.child(), new LinkedHashSet<>(fields.values()));
+            LogicalPlan child = fields.isEmpty()
+                ? stage.child()
+                : patchMergePlans(nullify(stage.child(), new LinkedHashSet<>(fields.values())));
             if (child != stage.child()) {
                 children.set(stageNumber, stage.replaceChild(child));
                 changed = true;
             }
         }
         return changed ? sequence.replaceChildren(children).resolveSchema() : sequence.resolveSchema();
+    }
+
+    private static boolean sequenceStageCanSurfaceNull(LogicalPlan plan, String field) {
+        return branchCanSurfaceLoadedField(
+            plan,
+            field,
+            merge -> merge instanceof UnionAll
+                && merge.children()
+                    .stream()
+                    .map(ResolveUnmapped::withoutMergeAlignment)
+                    .anyMatch(branch -> sequenceStageCanSurfaceNull(branch, field))
+        );
     }
 
     /**

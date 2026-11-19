@@ -215,7 +215,9 @@ public class SequenceKeyFilterLogsdbIT extends AbstractSequenceIntegTestCase {
     }
 
     private Observed observe(String query, boolean enabled) {
-        var pragmas = new QueryPragmas(Settings.builder().put("sequence_key_filter", enabled).build());
+        var pragmas = new QueryPragmas(
+            Settings.builder().put("sequence_key_filter", enabled).put("sequence_key_filter_shard_profile", true).build()
+        );
         try (var response = run(syncEsqlQueryRequest(query).allowPartialResults(false).profile(true).pragmas(pragmas))) {
             assertFalse(response.isPartial());
             assertNotNull(response.profile());

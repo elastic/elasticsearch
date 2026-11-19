@@ -184,10 +184,7 @@
           },
           "required" : [
             "built_searches",
-            "applied_shard_searches",
-            "coordinator_fallbacks",
-            "rejected_shard_searches",
-            "index_modes"
+            "coordinator_fallbacks"
           ],
           "additionalProperties" : false
         },

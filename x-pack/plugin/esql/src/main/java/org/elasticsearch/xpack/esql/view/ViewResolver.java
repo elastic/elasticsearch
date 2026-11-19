@@ -427,7 +427,7 @@ public class ViewResolver {
                     boundaryPreservation,
                     planSize,
                     planListener.delegateFailureAndWrap((l, result) -> {
-                        plan.forEachDown(resolvedPlans::add);
+                        mergePlan.forEachDown(resolvedPlans::add);
                         result.forEachDown(resolvedPlans::add);
                         l.onResponse(result);
                     })
@@ -557,7 +557,7 @@ public class ViewResolver {
                     boundaryPreservation,
                     planSize,
                     planListener.delegateFailureAndWrap((l, result) -> {
-                        plan.forEachDown(resolvedPlans::add);
+                        ur.forEachDown(resolvedPlans::add);
                         // Also mark the resolved result subtree so transformDown does not
                         // re-process view-body nodes the UnresolvedRelation was replaced with.
                         result.forEachDown(resolvedPlans::add);

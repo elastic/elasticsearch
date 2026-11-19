@@ -7,11 +7,13 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -41,7 +43,8 @@ public final class SequenceStageProjection {
 
     /** Only exact source searches can be removed from the coordinator, which has no index to recheck them. */
     public static boolean isExactSourceSearchPredicate(Filter filter, Expression predicate) {
-        return filter.child() instanceof EsRelation source
+        EsRelation source = exactSearchSource(filter.child());
+        return source != null
             && predicate instanceof FullTextFunction function
             && function.isRuntimeSearch() == false
             && function instanceof Knn == false
@@ -49,6 +52,28 @@ public final class SequenceStageProjection {
             && predicate.references().stream().noneMatch(MetadataAttribute::isScoreAttribute)
             && TranslationAware.translatable(predicate, LucenePushdownPredicates.DEFAULT)
                 .finish() == TranslationAware.FinishedTranslatable.YES;
+    }
+
+    private static EsRelation exactSearchSource(LogicalPlan plan) {
+        if (plan instanceof EsRelation relation) {
+            return relation;
+        }
+        if (plan instanceof Project project
+            && project.child() instanceof Eval eval
+            && eval.child() instanceof EsRelation relation
+            && project.source().equals(relation.source())
+            && eval.source().equals(relation.source())
+            && eval.fields().isEmpty() == false
+            && eval.fields().stream().allMatch(alias -> switch (alias.name()) {
+                case MetadataAttribute.RELATION_CLASS -> alias.child() instanceof Literal literal
+                    && new BytesRef(relation.relationClass().value()).equals(literal.value());
+                case MetadataAttribute.RELATION_NAME -> alias.child() instanceof MetadataAttribute name
+                    && name.name().equals(MetadataAttribute.INDEX);
+                default -> false;
+            })) {
+            return relation;
+        }
+        return null;
     }
 
     /** Returns only event sources; membership subquery sources retain their ordinary ES|QL execution. */
@@ -251,7 +276,7 @@ public final class SequenceStageProjection {
             return new BoundPlan(new LocalRelation(relation.source(), attributes, EmptyLocalSupplier.EMPTY), false, List.of());
         }
         LogicalPlan result = plan.replaceChildren(children);
-        if (active && plan instanceof Filter filter && filter.child() == selected) {
+        if (active && plan instanceof Filter filter && exactSearchSource(filter.child()) == selected) {
             List<Expression> conjuncts = Predicates.splitAnd(filter.condition());
             List<Expression> remaining = conjuncts.stream()
                 .filter(predicate -> isExactSourceSearchPredicate(filter, predicate) == false)
@@ -271,7 +296,9 @@ public final class SequenceStageProjection {
                     projections.add(value);
                 }
             }
-            projections.add(marker);
+            if (included.add(marker.id())) {
+                projections.add(marker);
+            }
             result = project.withProjections(projections);
         }
         return new BoundPlan(result, active, conditionValues);

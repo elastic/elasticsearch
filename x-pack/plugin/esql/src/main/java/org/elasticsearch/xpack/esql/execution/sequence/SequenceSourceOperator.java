@@ -84,6 +84,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.Instant;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -114,6 +116,7 @@ import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
  * Retained output uses the values from its authorized source read without an additional search.
  */
 public final class SequenceSourceOperator extends SourceOperator {
+    private static final DateTimeFormatter INCLUSIVE_TIMESTAMP_BOUND = new DateTimeFormatterBuilder().appendInstant(9).toFormatter();
     private static final Logger logger = LogManager.getLogger(SequenceSourceOperator.class);
     private static final TimeValue DEFAULT_KEEP_ALIVE = TimeValue.timeValueMinutes(5);
     private static final int SEARCH_PAGE_SIZE = 256;
@@ -280,6 +283,7 @@ public final class SequenceSourceOperator extends SourceOperator {
     private final int candidateBound;
     private final Warnings.Budget stageWarningsBudget = new Warnings.Budget();
     private final List<Cursor> cursors = new ArrayList<>();
+    private boolean emptyRequiredStage;
     private SubscribableListener<Void> wakeup = new SubscribableListener<>();
     private Completion completion;
     private boolean pending;
@@ -343,7 +347,10 @@ public final class SequenceSourceOperator extends SourceOperator {
         profiler = new SequenceRuntimeProfiler(factory.configuration.profile(), sequence.children().size());
         keyFilterProfile = factory.configuration.profile()
             && factory.configuration.pragmas().sequenceKeyFilter()
-            && factory.executionInfo != null ? factory.executionInfo.queryProfile().prepareSequenceKeyFilterProfile() : null;
+            && factory.executionInfo != null
+                ? factory.executionInfo.queryProfile()
+                    .prepareSequenceKeyFilterProfile(factory.configuration.pragmas().sequenceKeyFilterShardProfile())
+                : null;
         if (latestValid == null) {
             if (sequence.hasConditions()) {
                 throw new IllegalStateException("SEQUENCE conditions require a prepared production configuration");
@@ -399,6 +406,7 @@ public final class SequenceSourceOperator extends SourceOperator {
                 // Includes the canonical demand projection and its temporary identity set/list overlap.
                 reserve(256L + 128L * demands.size());
                 var selection = SequenceStageInput.selection(logical, payloads, demands, this::reserve, stage + 1);
+                emptyRequiredStage |= selection.sourceCount() == 0;
                 for (int branch = 0; branch < selection.sourceCount(); branch++) {
                     reserve(1024);
                     cursors.add(new Cursor(stage, branch, selection, logical.keys(), demands));
@@ -451,6 +459,9 @@ public final class SequenceSourceOperator extends SourceOperator {
                 return null;
             }
             if (pit == null) {
+                if (emptyRequiredStage) {
+                    return endInput();
+                }
                 prepareSnapshot();
                 return null;
             }
@@ -573,13 +584,19 @@ public final class SequenceSourceOperator extends SourceOperator {
         if (pending || completion != null) {
             return false;
         }
+        int finalStage = sequence.children().size() - 1;
+        boolean firstHasRows = false;
+        boolean finalHasRows = false;
         for (Cursor cursor : cursors) {
-            if (cursor.stage == 0 && (cursor.exhausted == false || cursor.offset < cursor.rows.size())) {
-                return false;
+            if (cursor.exhausted == false || cursor.offset < cursor.rows.size()) {
+                firstHasRows |= cursor.stage == 0;
+                finalHasRows |= cursor.stage == finalStage;
+                if (firstHasRows && finalHasRows) {
+                    return false;
+                }
             }
         }
-        // Only unused first-stage rows can keep another match possible.
-        return matcher.possibleMatch() == false;
+        return finalHasRows == false || (firstHasRows == false && matcher.possibleMatch() == false);
     }
 
     private Page endInput() throws IOException {
@@ -796,7 +813,8 @@ public final class SequenceSourceOperator extends SourceOperator {
                 && (nanos == false || upper.isAfter(DateUtils.MAX_NANOSECOND_INSTANT) == false)) {
                 QueryBuilder upperBound = nanos && upper.isBefore(Instant.EPOCH)
                     ? new MatchNoneQueryBuilder()
-                    : rangeQuery("@timestamp").lte(upper.toString()).format("strict_date_optional_time_nanos");
+                    : rangeQuery("@timestamp").lte(upper.getNano() == 0 ? INCLUSIVE_TIMESTAMP_BOUND.format(upper) : upper.toString())
+                        .format("strict_date_optional_time_nanos");
                 source.query(boolQuery().filter(source.query()).filter(upperBound));
             }
         }

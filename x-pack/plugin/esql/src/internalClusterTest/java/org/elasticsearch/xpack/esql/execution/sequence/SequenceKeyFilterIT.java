@@ -440,7 +440,10 @@ public class SequenceKeyFilterIT extends AbstractSequenceIntegTestCase {
     }
 
     private Observed observe(String query, @Nullable Boolean enabled, String preference) {
-        Settings.Builder settings = Settings.builder().put("field_extract_preference", preference).put("sequence_max_candidates", 128);
+        Settings.Builder settings = Settings.builder()
+            .put("field_extract_preference", preference)
+            .put("sequence_max_candidates", 128)
+            .put("sequence_key_filter_shard_profile", true);
         Observed observed = observe(query, enabled, settings, null);
         assertEquals(0L, observed.status().latestValidCounters().candidatesDroppedAtBound());
         assertEquals(0L, observed.status().latestValidCounters().searchesAbandonedAtWorkLimit());

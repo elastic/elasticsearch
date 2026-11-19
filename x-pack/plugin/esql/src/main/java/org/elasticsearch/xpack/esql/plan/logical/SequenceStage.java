@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -237,6 +238,14 @@ public final class SequenceStage extends UnaryPlan implements PostAnalysisPlanVe
         return KEY_TYPES.contains(type);
     }
 
+    private static void verifyLocalSource(EsRelation relation, Failures failures, boolean membershipList) {
+        // A skipped cluster may contribute no field-caps response or alias entry to a membership list.
+        if (relation.originalIndices().keySet().stream().anyMatch(alias -> alias.isEmpty() == false)
+            || (membershipList && RemoteClusterAware.getRemoteIndexExpressions(relation.indexPattern().split(",")).isEmpty() == false)) {
+            failures.add(fail(relation, "Cross-cluster sources are not supported inside a SEQUENCE stage"));
+        }
+    }
+
     private static void verifyEventPlan(LogicalPlan plan, Failures failures) {
         verifyEventPlan(plan, failures, false);
     }
@@ -251,13 +260,12 @@ public final class SequenceStage extends UnaryPlan implements PostAnalysisPlanVe
         // Membership subqueries are predicates on the left event stream. Their right side may legitimately aggregate.
         if (plan instanceof AbstractSubqueryJoin join) {
             verifyEventPlan(join.left(), failures, uriParts);
+            join.right().forEachDown(EsRelation.class, relation -> verifyLocalSource(relation, failures, true));
             return;
         }
         verifySourceSearchPlacement(plan, failures);
         if (plan instanceof EsRelation relation) {
-            if (relation.originalIndices().keySet().stream().anyMatch(alias -> alias.isEmpty() == false)) {
-                failures.add(fail(relation, "Cross-cluster sources are not supported inside a SEQUENCE stage"));
-            }
+            verifyLocalSource(relation, failures, false);
             Attribute timestamp = relation.output().stream().filter(a -> a.name().equals("@timestamp")).findFirst().orElse(null);
             if (timestamp == null || (timestamp.dataType() != DataType.DATETIME && timestamp.dataType() != DataType.DATE_NANOS)) {
                 failures.add(fail(relation, "SEQUENCE stages require a source [@timestamp] of type [date] or [date_nanos]"));

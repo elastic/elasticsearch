@@ -28,12 +28,13 @@ public final class SequenceKeyFilterProfile {
         (builder, value, params) -> builder.map(value.snapshot())
     )
         .required("built_searches", ProfileSchema.integer())
-        .required("applied_shard_searches", ProfileSchema.integer())
+        .optional("applied_shard_searches", ProfileSchema.integer())
         .required("coordinator_fallbacks", ProfileSchema.dynamicObject(ProfileSchema.integer()))
-        .required("rejected_shard_searches", ProfileSchema.dynamicObject(ProfileSchema.integer()))
-        .required("index_modes", ProfileSchema.dynamicObject(ProfileSchema.integer()))
+        .optional("rejected_shard_searches", ProfileSchema.dynamicObject(ProfileSchema.integer()))
+        .optional("index_modes", ProfileSchema.dynamicObject(ProfileSchema.integer()))
         .build();
 
+    private final boolean shardDetails;
     private boolean failed;
     private long builtSearches;
     private long appliedShardSearches;
@@ -41,14 +42,20 @@ public final class SequenceKeyFilterProfile {
     private final Map<String, Long> rejectedShardSearches = new HashMap<>();
     private final Map<String, Long> indexModes = new HashMap<>();
 
+    public SequenceKeyFilterProfile(boolean shardDetails) {
+        this.shardDetails = shardDetails;
+    }
+
     synchronized boolean startSearch(ThreadContext context) {
         if (failed) {
             return false;
         }
         try {
-            context.putHeader(SequenceKeyFilterShardProfile.REQUEST_HEADER, "1");
+            if (shardDetails) {
+                context.putHeader(SequenceKeyFilterShardProfile.REQUEST_HEADER, "1");
+            }
             builtSearches = plus(builtSearches, 1);
-            return true;
+            return shardDetails;
         } catch (RuntimeException e) {
             discard(e);
             return false;
@@ -107,6 +114,10 @@ public final class SequenceKeyFilterProfile {
     public synchronized Map<String, Object> snapshot() {
         if (failed || (builtSearches == 0 && coordinatorFallbacks.isEmpty())) {
             return null;
+        }
+        // The coordinator knows which filters it built, but shard results are unavailable without opt-in.
+        if (shardDetails == false) {
+            return Map.of("built_searches", builtSearches, "coordinator_fallbacks", Map.copyOf(coordinatorFallbacks));
         }
         return Map.of(
             "built_searches",

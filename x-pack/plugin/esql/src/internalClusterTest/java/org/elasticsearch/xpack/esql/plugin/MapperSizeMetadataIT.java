@@ -14,6 +14,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugin.mapper.MapperSizePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.junit.Before;
 
 import java.util.Collection;
@@ -21,6 +22,7 @@ import java.util.List;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 
 /**
  *  Tests for the _size metadata value when the mapper-size plugin is installed.
@@ -64,6 +66,39 @@ public class MapperSizeMetadataIT extends AbstractEsqlIntegTestCase {
             assertColumnNames(resp.columns(), List.of("id"));
             assertColumnTypes(resp.columns(), List.of("integer"));
             assertValues(resp.values(), List.of(List.of(2)));
+        }
+    }
+
+    public void testSequenceReadsMapperSizeAsInteger() {
+        assumeTrue("requires native SEQUENCE", EsqlCapabilities.Cap.SEQUENCE_COMMAND.isEnabled());
+        for (String index : List.of("sequence-size-a", "sequence-size-b")) {
+            assertAcked(
+                client().admin()
+                    .indices()
+                    .prepareCreate(index)
+                    .setSettings(indexSettings(1, 0))
+                    .setMapping("@timestamp", "type=date", "key", "type=keyword", "_size", "enabled=true")
+            );
+        }
+        var bulk = client().prepareBulk()
+            .add(new IndexRequest("sequence-size-a").id("a").source("@timestamp", "2026-01-01T00:00:00Z", "key", "k"))
+            .add(new IndexRequest("sequence-size-b").id("b").source("@timestamp", "2026-01-01T00:00:01Z", "key", "k"))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        assertFalse(bulk.get().hasFailures());
+        List<List<Object>> expected;
+        try (var control = run("FROM sequence-size-b METADATA _size | KEEP _size | LIMIT 10")) {
+            assertColumnTypes(control.columns(), List.of("integer"));
+            expected = getValuesList(control);
+            assertEquals(1, expected.size());
+            assertTrue(expected.getFirst().getFirst() instanceof Integer);
+        }
+        try (var response = run("""
+            SEQUENCE BY key WITHIN 1m PRIMARY 2
+            (FROM sequence-size-a), (FROM sequence-size-b METADATA _size)
+            | KEEP _size | LIMIT 10
+            """)) {
+            assertColumnTypes(response.columns(), List.of("integer"));
+            assertEquals(expected, getValuesList(response));
         }
     }
 

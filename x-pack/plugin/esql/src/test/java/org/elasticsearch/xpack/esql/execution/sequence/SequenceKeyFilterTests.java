@@ -218,6 +218,16 @@ public class SequenceKeyFilterTests extends ESTestCase {
         assertEquals(0, breaker.getUsed());
     }
 
+    public void testIneligibleKeysDoNotNeedBreakerAdmission() {
+        var tiny = breaker("1kb");
+        var ip = field("ip", DataType.IP);
+        var raw = field("key", DataType.KEYWORD);
+        var computed = field("key", DataType.KEYWORD);
+        assertNull(SequenceKeyFilter.create(List.of(ip), List.of(ip), tiny, () -> {}));
+        assertNull(SequenceKeyFilter.create(List.of(computed), List.of(raw), tiny, () -> {}));
+        assertEquals(0, tiny.getUsed());
+    }
+
     public void testEnabledByDefaultAndExplicitSettingsAreHonored() {
         assertTrue(new QueryPragmas(Settings.EMPTY).sequenceKeyFilter());
         assertFalse(new QueryPragmas(Settings.builder().put("sequence_key_filter", false).build()).sequenceKeyFilter());

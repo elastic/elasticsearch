@@ -922,6 +922,67 @@ public class SequenceSourceOperatorTests extends ESTestCase {
         }
     }
 
+    public void testDefaultKeyFilterProfileDoesNotProfileShardSearch() {
+        var executionInfo = new EsqlExecutionInfo(Predicates.never(), EsqlExecutionInfo.IncludeExecutionMetadata.ALWAYS);
+        try (var harness = Harness.withKeyFilter(executionInfo, false, false)) {
+            var search = harness.prepareFilteredSearch();
+            assertFalse(((SearchRequest) search.request).source().profile());
+            assertEquals(
+                Map.of("built_searches", 1L, "coordinator_fallbacks", Map.of()),
+                executionInfo.queryProfile().sequenceKeyFilterSnapshot()
+            );
+            harness.respond(search, 1);
+            assertFilteredMatchAndFinish(harness);
+        }
+    }
+
+    public void testIneligibleKeyAtBreakerBoundaryFallsBackWithoutReservation() {
+        var executionInfo = new EsqlExecutionInfo(Predicates.never(), EsqlExecutionInfo.IncludeExecutionMetadata.ALWAYS);
+        Sequence computed = plan("""
+            sequence by key WITHIN 30 seconds PRIMARY 1
+            (from a | eval key=TO_LOWER(key), captured_payload=CONCAT(key,"/captured") | keep key,captured_payload),
+            (from b | eval key=TO_LOWER(key) | keep key)
+            | keep key,captured_payload | limit 1
+            """);
+        try (
+            var harness = new Harness(
+                true,
+                null,
+                executionInfo,
+                computed,
+                null,
+                null,
+                false,
+                DriverContext.WarningsMode.COLLECT,
+                true,
+                PlannerSettings.SEQUENCE_MAX_MEMORY.getDefault(Settings.EMPTY).getBytes(),
+                true,
+                false,
+                false
+            )
+        ) {
+            harness.prepareFirstSearch();
+            long used = harness.breaker.getUsed();
+            long limit = harness.breaker.getLimit();
+            double overhead = harness.breaker.getOverhead();
+            org.mockito.Mockito.clearInvocations(harness.breaker);
+            harness.breaker.setLimitAndOverhead(used + 2048, 1);
+            try {
+                assertNull(harness.source.getOutput());
+            } finally {
+                harness.breaker.setLimitAndOverhead(limit, overhead);
+            }
+            var search = harness.client.take(TransportSearchAction.TYPE);
+            assertFalse(((SearchRequest) search.request).source().query().toString().contains("__esql_sequence_waiting_keys_v1"));
+            var profile = executionInfo.queryProfile().sequenceKeyFilterSnapshot();
+            harness.respond(search, 1);
+            assertFilteredMatchAndFinish(harness);
+            assertEquals(Map.of("built_searches", 0L, "coordinator_fallbacks", Map.of("non_pushable_key", 1L)), profile);
+            org.mockito.Mockito.verify(harness.breaker, org.mockito.Mockito.never())
+                .addEstimateBytesAndMaybeBreak(org.mockito.ArgumentMatchers.anyLong(), eq("esql_sequence_key_filter"));
+        }
+    }
+
     public void testKeyFilterProfileHeaderFailureStillDispatchesFilteredSearch() {
         var executionInfo = new EsqlExecutionInfo(Predicates.never(), EsqlExecutionInfo.IncludeExecutionMetadata.ALWAYS);
         try (var harness = Harness.withKeyFilter(executionInfo, true)) {
@@ -1997,32 +2058,36 @@ public class SequenceSourceOperatorTests extends ESTestCase {
     /** Long middle-stage streams do not move U beyond the last unused stage-1 timestamp. */
     public void testLatestValidLongMiddleTailKeepsStartBound() {
         Sequence sequence = latestThreeStagePlan();
-        try (var harness = new Harness(sequence, latestConfig(sequence))) {
-            harness.prepareLatestOpen();
-            AtomicInteger middleReads = new AtomicInteger();
-            List<List<List<String>>> rows = drainLatest(harness, request -> {
-                String index = request.getPointInTimeAuthorizationScope().indices()[0];
-                if (index.equals("a")) {
-                    return latestPage("a", 0, List.of(new LatestRow(0, 0, "shared", List.of())));
-                }
-                if (index.equals("b")) {
-                    assertTimestampUpperBound(request, latestTime(10_000));
-                    int read = middleReads.incrementAndGet();
-                    assertTrue("the fixed start bounds middle-stage paging", read <= 2);
-                    List<LatestRow> events = new ArrayList<>();
-                    if (read == 1) {
-                        for (int row = 0; row < 256; row++) {
-                            events.add(new LatestRow(8_000 + row, row, "shared", List.of()));
-                        }
+        for (boolean pendingFinal : List.of(false, true)) {
+            try (var harness = new Harness(sequence, latestConfig(sequence))) {
+                harness.prepareLatestOpen();
+                AtomicInteger middleReads = new AtomicInteger();
+                List<List<List<String>>> rows = drainLatest(harness, request -> {
+                    String index = request.getPointInTimeAuthorizationScope().indices()[0];
+                    if (index.equals("a")) {
+                        var start = new LatestRow(0, 0, "shared", List.of());
+                        return latestPage("a", 0, pendingFinal ? List.of(start, new LatestRow(0, 1, "other", List.of())) : List.of(start));
                     }
-                    return latestPage("b", 1, events);
-                }
-                return latestPage("c", 2, List.of());
-            });
-            assertTrue(rows.isEmpty());
-            assertEquals(2, middleReads.get());
-            assertEquals(4L, harness.source.status().candidateSearchRequests());
-            finishLatest(harness);
+                    if (index.equals("b")) {
+                        assertTimestampUpperBound(request, latestTime(10_000));
+                        int read = middleReads.incrementAndGet();
+                        assertTrue("the fixed start bounds middle-stage paging", read <= 2);
+                        List<LatestRow> events = new ArrayList<>();
+                        if (read == 1) {
+                            for (int row = 0; row < 256; row++) {
+                                events.add(new LatestRow(8_000 + row, row, "shared", List.of()));
+                            }
+                        }
+                        return latestPage("b", 1, events);
+                    }
+                    // This key has a start but no middle, so neither arm can complete a match.
+                    return latestPage("c", 2, pendingFinal ? List.of(new LatestRow(9_000, 0, "other", List.of())) : List.of());
+                });
+                assertTrue(rows.isEmpty());
+                assertEquals(pendingFinal ? 2 : 1, middleReads.get());
+                assertEquals(pendingFinal ? 4L : 3L, harness.source.status().candidateSearchRequests());
+                finishLatest(harness);
+            }
         }
     }
 
@@ -2936,7 +3001,7 @@ public class SequenceSourceOperatorTests extends ESTestCase {
     private static boolean containsTimestampUpperBound(Object value, String expected) {
         if (value instanceof Map<?, ?> map) {
             if (map.get("range") instanceof Map<?, ?> ranges && ranges.get("@timestamp") instanceof Map<?, ?> range) {
-                if (expected.equals(range.get("lte"))) {
+                if (range.get("lte") instanceof String upper && java.time.Instant.parse(expected).equals(java.time.Instant.parse(upper))) {
                     assertFalse("time horizon must remain inclusive", range.containsKey("lt"));
                     return true;
                 }
@@ -3208,6 +3273,10 @@ public class SequenceSourceOperatorTests extends ESTestCase {
         }
 
         private static Harness withKeyFilter(EsqlExecutionInfo executionInfo, boolean duplicateProfileHeader) {
+            return withKeyFilter(executionInfo, duplicateProfileHeader, true);
+        }
+
+        private static Harness withKeyFilter(EsqlExecutionInfo executionInfo, boolean duplicateProfileHeader, boolean shardProfile) {
             return new Harness(
                 true,
                 null,
@@ -3220,7 +3289,8 @@ public class SequenceSourceOperatorTests extends ESTestCase {
                 true,
                 PlannerSettings.SEQUENCE_MAX_MEMORY.getDefault(Settings.EMPTY).getBytes(),
                 true,
-                duplicateProfileHeader
+                duplicateProfileHeader,
+                shardProfile
             );
         }
 
@@ -3320,6 +3390,7 @@ public class SequenceSourceOperatorTests extends ESTestCase {
                 profile,
                 memoryLimit,
                 false,
+                false,
                 false
             );
         }
@@ -3336,7 +3407,8 @@ public class SequenceSourceOperatorTests extends ESTestCase {
             boolean profile,
             long memoryLimit,
             boolean keyFilter,
-            boolean duplicateProfileHeader
+            boolean duplicateProfileHeader,
+            boolean shardProfile
         ) {
             realThreadPool = queue == null ? new TestThreadPool("sequence-callbacks") : null;
             threadPool = queue == null ? realThreadPool : queue.getThreadPool();
@@ -3376,7 +3448,14 @@ public class SequenceSourceOperatorTests extends ESTestCase {
                 }
                 var configuration = new ConfigurationBuilder(EsqlTestUtils.TEST_CFG).profile(profile);
                 if (keyFilter) {
-                    configuration.pragmas(new QueryPragmas(Settings.builder().put("sequence_key_filter", true).build()));
+                    configuration.pragmas(
+                        new QueryPragmas(
+                            Settings.builder()
+                                .put("sequence_key_filter", true)
+                                .put("sequence_key_filter_shard_profile", shardProfile)
+                                .build()
+                        )
+                    );
                 }
                 operatorFactory = new SequenceSourceOperator.Factory(
                     new SequenceExec(sequence.source(), sequence, requestFilter),

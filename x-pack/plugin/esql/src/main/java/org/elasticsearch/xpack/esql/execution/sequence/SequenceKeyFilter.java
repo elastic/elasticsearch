@@ -61,19 +61,8 @@ final class SequenceKeyFilter implements Releasable {
             keys = new HashSet<>(256);
             for (Attribute key : attributes) {
                 checkCancelled.run();
-                if (SUPPORTED.contains(key.dataType()) == false) {
-                    return;
-                }
-                FieldAttribute original = null;
-                for (Attribute candidate : raw) {
-                    if (candidate instanceof FieldAttribute field && field.id().equals(key.id()) && field.dataType() == key.dataType()) {
-                        original = field;
-                        break;
-                    }
-                }
-                if (original == null) {
-                    return;
-                }
+                FieldAttribute original = originalField(key, raw);
+                assert original != null;
                 fields.add(new Field(original.fieldName().string(), key.dataType()));
             }
         } catch (RuntimeException | Error failure) {
@@ -88,12 +77,23 @@ final class SequenceKeyFilter implements Releasable {
         if (attributes.isEmpty() || 16384L + 256L * attributes.size() > MAX_BYTES) {
             return null;
         }
-        SequenceKeyFilter owner = new SequenceKeyFilter(attributes, raw, breaker, checkCancelled);
-        if (owner.fields.size() != attributes.size()) {
-            owner.close();
-            return null;
+        for (Attribute key : attributes) {
+            checkCancelled.run();
+            if (SUPPORTED.contains(key.dataType()) == false || originalField(key, raw) == null) {
+                return null;
+            }
         }
-        return owner;
+        return new SequenceKeyFilter(attributes, raw, breaker, checkCancelled);
+    }
+
+    @Nullable
+    private static FieldAttribute originalField(Attribute key, List<Attribute> raw) {
+        for (Attribute candidate : raw) {
+            if (candidate instanceof FieldAttribute field && field.id().equals(key.id()) && field.dataType() == key.dataType()) {
+                return field;
+            }
+        }
+        return null;
     }
 
     /** Copies admitted canonical bytes; false invalidates the whole snapshot instead of publishing a prefix. */

@@ -981,6 +981,33 @@ public class SequenceTimeBoundIT extends AbstractSequenceIntegTestCase {
         }
     }
 
+    public void testWholeSecondUpperBoundDoesNotRoundUp() throws Exception {
+        assertWholeSecondUpperBound("date");
+    }
+
+    public void testWholeSecondUpperBoundNearNanosMaximumDoesNotRoundUp() throws Exception {
+        assertWholeSecondUpperBound("date_nanos");
+    }
+
+    private void assertWholeSecondUpperBound(String type) throws Exception {
+        boolean nanos = type.equals("date_nanos");
+        Instant upper = nanos ? Instant.parse("2262-04-11T23:47:16Z") : BASE.truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
+        create(type, 1, A, B);
+        try {
+            var bulk = client().prepareBulk();
+            add(bulk, A, "start", upper.minusSeconds(1).toString(), "key", "yes", "7");
+            add(bulk, B, "at-bound", upper.toString(), "key", "yes", "7");
+            add(bulk, B, "after-bound", (nanos ? upper.plusNanos(1) : upper.plusMillis(1)).toString(), "key", "yes", "7");
+            finishSeed(bulk, A, B);
+            UpperOutcome result = observeUpper(upperSequence("1s", stage(A), stage(B)));
+            assertRows(List.of(List.of("key", "start", "at-bound")), result.outcome);
+            assertEquals("the later timestamp must be excluded by the candidate search", 2L, result.outcome.status.candidateRowsFetched());
+            assertUpperRequests(result, B, upper);
+        } finally {
+            cleanup();
+        }
+    }
+
     /** Ordinary epoch-millis addition may overflow its long domain; a populated target must remain readable. */
     public void testUpperBoundOmitsOrSaturatesOrdinaryMillisOverflow() throws Exception {
         create("date", "epoch_millis", 1, A, B);
@@ -1105,7 +1132,7 @@ public class SequenceTimeBoundIT extends AbstractSequenceIntegTestCase {
         List<CandidateRequest> requests = outcome.requests.stream().filter(r -> r.indices.contains(index)).toList();
         assertFalse("expected actual candidate request for [" + index + "]", requests.isEmpty());
         for (CandidateRequest request : requests) {
-            assertEquals(request.query, List.of(expected.toString()), timestampUppers(request.query));
+            assertEquals(request.query, List.of(expected), timestampUppers(request.query).stream().map(Instant::parse).toList());
         }
     }
 

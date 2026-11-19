@@ -916,9 +916,9 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
         }
     }
 
-    public synchronized SequenceKeyFilterProfile prepareSequenceKeyFilterProfile() {
+    public synchronized SequenceKeyFilterProfile prepareSequenceKeyFilterProfile(boolean shardDetails) {
         if (sequenceKeyFilter == null) {
-            sequenceKeyFilter = new SequenceKeyFilterProfile();
+            sequenceKeyFilter = new SequenceKeyFilterProfile(shardDetails);
         }
         return sequenceKeyFilter;
     }

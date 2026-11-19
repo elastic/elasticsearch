@@ -103,6 +103,24 @@ public class SequencePortableAnalyzerIT extends AbstractSequenceIntegTestCase {
         assertRefused(query + " | WHERE MATCH(message,\"alpha\") | KEEP key | LIMIT 10");
     }
 
+    public void testHighlightWithoutAnalyzerAfterSequenceIsRefused() {
+        String query = base(stage(STANDARD, "", "message"), STANDARD, 1) + " | HIGHLIGHT \"Alpha\" ON message | LIMIT 10";
+        Exception failure = expectThrows(Exception.class, () -> { try (var ignored = run(query)) {} });
+        assertThat(ExceptionsHelper.unwrapCause(failure), instanceOf(VerificationException.class));
+        assertThat(failure.getMessage(), containsString("HIGHLIGHT after SEQUENCE requires an explicit analyzer"));
+    }
+
+    public void testStageSourceMatchWithRelationMetadata() {
+        String query = """
+            SEQUENCE BY key WITHIN 10s PRIMARY 2
+            (FROM %s | WHERE phase == "A"),
+            (FROM %s METADATA _class, _name | WHERE MATCH(message, "%s"))
+            | KEEP _class, _name | LIMIT 10
+            """;
+        assertRows(query.formatted(STANDARD, STANDARD, "finish"), List.of(List.of("index", STANDARD)));
+        assertRows(query.formatted(STANDARD, STANDARD, "absent"), List.of());
+    }
+
     /** A direct EVAL copy must preserve whitespace's case sensitivity across PRIMARY and MEMBER output. */
     public void testMappedAnalyzerSurvivesStageEvalAlias() {
         assertAlias(" | EVAL copied=message");

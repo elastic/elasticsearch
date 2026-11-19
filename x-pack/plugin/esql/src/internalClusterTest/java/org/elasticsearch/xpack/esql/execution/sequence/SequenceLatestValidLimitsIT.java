@@ -428,6 +428,33 @@ public class SequenceLatestValidLimitsIT extends AbstractSequenceIntegTestCase {
         assertEquals(List.of(), observed.warnings());
     }
 
+    public void testFinalStageDrainsEveryReaderAndKeepsEarlierDropWarning() {
+        createIndices(3);
+        var bulk = client().prepareBulk();
+        for (int i = 0; i < 9; i++) {
+            addLimitRow(bulk, "a", i, "start-" + i, i);
+        }
+        addLimitRow(bulk, "c", 9, "finish", 8);
+        assertFalse(bulk.get().hasFailures());
+        refresh(PREFIX + "a", PREFIX + "b", PREFIX + "c");
+        for (String finalReaders : List.of(
+            "(FROM sequence-limits-b), (FROM sequence-limits-c)",
+            "(FROM sequence-limits-c), (FROM sequence-limits-b)"
+        )) {
+            var observed = observe("""
+                SEQUENCE BY key WITHIN 30s PRIMARY 2
+                (FROM sequence-limits-a), (FROM %s)
+                | EVAL start_label = MEMBER(1, label) | KEEP start_label, label | LIMIT 10
+                """.formatted(finalReaders));
+            assertEquals(List.of(List.of("start-8", "finish")), observed.values());
+            assertEquals(1L, observed.status().latestValidCounters().candidatesDroppedAtBound());
+            assertEquals(
+                List.of("SEQUENCE dropped [1] candidates at the limit of [8] per stage and key; matches may be missing"),
+                observed.warnings()
+            );
+        }
+    }
+
     public void testOnlyMatchingStartEvictedAtBoundStillWarns() {
         createIndices(2);
         var bulk = client().prepareBulk();

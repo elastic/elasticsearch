@@ -115,6 +115,34 @@ public class SequenceUnmappedFieldsIT extends AbstractSequenceIntegTestCase {
         }
     }
 
+    public void testLoadWaitsForEarlierMemberStageToResolve() {
+        String query = """
+            SET unmapped_fields = "LOAD";
+            SEQUENCE BY key WITHIN 30s PRIMARY 2
+            (FROM %s | WHERE @timestamp > "2025-01-01T00:00:00Z"),
+            (FROM %s | WHERE MEMBER(1, %s) == "first")
+            | KEEP label | LIMIT 10
+            """;
+        try (var response = run(query.formatted(A, B, "label"))) {
+            assertFalse(response.isPartial());
+            assertEquals(List.of(List.of("second")), getValuesList(response));
+        }
+        Exception failure = expectThrows(Exception.class, () -> { try (var ignored = run(query.formatted(A, B, "absent_optional"))) {} });
+        assertThat(failure.getMessage(), containsString("Cannot load missing field [absent_optional]"));
+    }
+
+    public void testNullifyMissingPrimaryAndMemberThroughUnion() {
+        String union = "(FROM (FROM " + A + "), (FROM " + B + "))";
+        String prefix = NULLIFY + "SEQUENCE BY key WITHIN 30s PRIMARY ";
+        assertValue(prefix + "1 " + union + ", (FROM " + B + ") | EVAL observed = absent_optional | LIMIT 10", null);
+        assertValue(prefix + "2 " + union + ", (FROM " + B + ") | EVAL observed = MEMBER(1, absent_optional) | LIMIT 10", null);
+        for (String projection : List.of("KEEP key", "DROP label", "RENAME label AS renamed")) {
+            String projectedUnion = "(FROM (FROM " + A + " | " + projection + "), (FROM " + B + " | " + projection + "))";
+            assertRemoved(prefix + "1 " + projectedUnion + ", (FROM " + B + ") | EVAL observed = label | LIMIT 10", "label");
+            assertRemoved(prefix + "2 " + projectedUnion + ", (FROM " + B + ") | EVAL observed = MEMBER(1, label) | LIMIT 10", "label");
+        }
+    }
+
     private void assertValue(String query, Object expected) {
         assertValue(query, expected, expected == null ? "null" : null);
     }

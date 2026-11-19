@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
+import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
@@ -688,19 +689,52 @@ public class SequenceAnalyzerTests extends ESTestCase {
     }
 
     public void testCrossClusterEventStageIsRejectedDuringVerification() {
-        var remote = new EsIndex(
-            "remote:logs",
-            mapping(),
-            Map.of("remote:logs", new IndexProperties(IndexMode.STANDARD, 1)),
-            Map.of("remote", List.of("logs")),
-            Map.of("remote", List.of("logs"))
-        );
-        String message = configured().addIndex(remote).statementError("""
+        String message = configured().addIndex(remoteIndex("logs")).statementError("""
             sequence by host.id WITHIN 30s PRIMARY 1
             (from remote:logs | keep host.id), (from b | keep host.id)
             | limit 1
             """, containsString("Cross-cluster sources are not supported inside a SEQUENCE stage"));
         assertThat(message, containsString("line 2:"));
+    }
+
+    public void testCrossClusterListIsRejectedOnlyInsideSequenceStage() {
+        var analyzer = configured().addIndex(remoteIndex("list"));
+        for (String predicate : List.of(
+            "host.id IN (FROM remote:list | KEEP host.id)",
+            "host.id NOT IN (FROM remote:list | KEEP host.id)",
+            "host.id IN (FROM b | WHERE host.id IN (FROM remote:list | KEEP host.id) | KEEP host.id)"
+        )) {
+            analyzer.statementError("""
+                SEQUENCE BY host.id WITHIN 30s PRIMARY 1
+                (FROM a | WHERE %s), (FROM b)
+                | KEEP host.id | LIMIT 1
+                """.formatted(predicate), containsString("Cross-cluster sources are not supported inside a SEQUENCE stage"));
+        }
+        var plan = analyzer.statement("""
+            SEQUENCE BY host.id WITHIN 30s PRIMARY 1 (FROM a), (FROM b)
+            | WHERE host.id IN (FROM remote:list | KEEP host.id)
+            | KEEP host.id | LIMIT 1
+            """);
+        assertTrue(plan.anyMatch(p -> p instanceof EsRelation r && r.originalIndices().containsKey("remote")));
+    }
+
+    public void testEmptyRemoteListResolutionIsRejected() {
+        configured().addIndex(IndexResolution.empty("remote:list")).statementError("""
+            SEQUENCE BY host.id WITHIN 30s PRIMARY 1
+            (FROM a | WHERE host.id NOT IN (FROM remote:list | EVAL k = "decoy" | KEEP k)), (FROM b)
+            | KEEP host.id | LIMIT 1
+            """, containsString("Cross-cluster sources are not supported inside a SEQUENCE stage"));
+    }
+
+    private static EsIndex remoteIndex(String name) {
+        String pattern = "remote:" + name;
+        return new EsIndex(
+            pattern,
+            mapping(),
+            Map.of(pattern, new IndexProperties(IndexMode.STANDARD, 1)),
+            Map.of("remote", List.of(name)),
+            Map.of("remote", List.of(name))
+        );
     }
 
     public void testConflictingKeyTypes() {

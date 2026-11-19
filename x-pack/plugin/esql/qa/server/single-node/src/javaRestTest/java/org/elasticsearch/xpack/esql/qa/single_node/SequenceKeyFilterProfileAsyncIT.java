@@ -56,11 +56,27 @@ public class SequenceKeyFilterProfileAsyncIT extends ESRestTestCase {
     public void testStoredAsyncGetPreservesProfileAndWarnings() throws Exception {
         assumeTrue("requires native SEQUENCE", hasCapabilities(adminClient(), List.of(SEQUENCE_COMMAND.capabilityName())));
         seed();
+        assertStoredAsyncProfile(false);
+        assertStoredAsyncProfile(true);
+    }
+
+    private void assertStoredAsyncProfile(boolean shardDetails) throws Exception {
         var sync = query(
             "/_query",
-            Map.of("query", QUERY, "profile", true, "accept_pragma_risks", true, "pragma", Map.of("sequence_key_filter", true))
+            Map.of(
+                "query",
+                QUERY,
+                "profile",
+                true,
+                "accept_pragma_risks",
+                true,
+                "pragma",
+                shardDetails
+                    ? Map.of("sequence_key_filter", true, "sequence_key_filter_shard_profile", true)
+                    : Map.of("sequence_key_filter", true)
+            )
         );
-        Map<?, ?> expected = checkProfile(sync);
+        Map<?, ?> expected = checkProfile(sync, shardDetails);
         var submit = query(
             "/_query/async",
             Map.of(
@@ -71,7 +87,9 @@ public class SequenceKeyFilterProfileAsyncIT extends ESRestTestCase {
                 "accept_pragma_risks",
                 true,
                 "pragma",
-                Map.of("sequence_key_filter", true),
+                shardDetails
+                    ? Map.of("sequence_key_filter", true, "sequence_key_filter_shard_profile", true)
+                    : Map.of("sequence_key_filter", true),
                 "keep_on_completion",
                 true,
                 "wait_for_completion_timeout",
@@ -83,7 +101,7 @@ public class SequenceKeyFilterProfileAsyncIT extends ESRestTestCase {
         try (Closeable ignored = () -> assertOK(client().performRequest(new Request("DELETE", "/_query/async/" + id)))) {
             String running = submit.getHeader("X-Elasticsearch-Async-Is-Running");
             if ("?0".equals(running)) {
-                assertEquals(expected, checkProfile(submit));
+                assertEquals(expected, checkProfile(submit, shardDetails));
             } else {
                 assertEquals("?1", running);
                 var task = new Request("GET", "/_tasks/" + AsyncExecutionId.decode(id).getTaskId());
@@ -97,7 +115,7 @@ public class SequenceKeyFilterProfileAsyncIT extends ESRestTestCase {
             var stored = perform(get);
             assertEquals("?0", stored.getHeader("X-Elasticsearch-Async-Is-Running"));
             assertEquals(id, stored.getHeader("X-Elasticsearch-Async-Id"));
-            assertEquals(expected, checkProfile(stored));
+            assertEquals(expected, checkProfile(stored, shardDetails));
         }
     }
 
@@ -137,7 +155,7 @@ public class SequenceKeyFilterProfileAsyncIT extends ESRestTestCase {
         return response;
     }
 
-    private static Map<?, ?> checkProfile(Response response) throws IOException {
+    private static Map<?, ?> checkProfile(Response response, boolean shardDetails) throws IOException {
         assertNull(response.getHeader(PRIVATE_HEADER));
         var warnings = Arrays.stream(response.getHeaders())
             .filter(header -> "Warning".equalsIgnoreCase(header.getName()))
@@ -151,8 +169,12 @@ public class SequenceKeyFilterProfileAsyncIT extends ESRestTestCase {
         Map<?, ?> stats = (Map<?, ?>) profile.get("sequence_key_filter");
         assertNotNull(stats);
         assertEquals(1L, ((Number) stats.get("built_searches")).longValue());
-        assertEquals(1L, ((Number) stats.get("applied_shard_searches")).longValue());
-        assertEquals(1L, ((Number) ((Map<?, ?>) stats.get("index_modes")).get("standard")).longValue());
+        if (shardDetails) {
+            assertEquals(1L, ((Number) stats.get("applied_shard_searches")).longValue());
+            assertEquals(1L, ((Number) ((Map<?, ?>) stats.get("index_modes")).get("standard")).longValue());
+        } else {
+            assertEquals(java.util.Set.of("built_searches", "coordinator_fallbacks"), stats.keySet());
+        }
         return stats;
     }
 }

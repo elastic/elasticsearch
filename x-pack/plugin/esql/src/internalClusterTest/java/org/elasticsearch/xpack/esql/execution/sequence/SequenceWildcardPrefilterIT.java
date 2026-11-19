@@ -312,6 +312,7 @@ public class SequenceWildcardPrefilterIT extends AbstractSequenceIntegTestCase {
         String coordinator = internalCluster().getNodeNames()[1];
         var settings = Settings.builder()
             .put("sequence_key_filter", keys)
+            .put("sequence_key_filter_shard_profile", true)
             .put("sequence_wildcard_prefilter", wildcard)
             .put("field_extract_preference", preference)
             .build();

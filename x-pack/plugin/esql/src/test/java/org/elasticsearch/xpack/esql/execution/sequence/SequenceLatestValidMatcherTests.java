@@ -99,6 +99,26 @@ public class SequenceLatestValidMatcherTests extends ESTestCase {
         }
     }
 
+    public void testUsedMiddleKeepsEvictedUnusedStartReachable() {
+        var config = SequenceLatestValidConfig.defaults(List.of(List.of(VALUE), List.of(), List.of(VALUE)), List.of(equal(2, 0)));
+        assertEquals(8, config.maxCandidates().orElseThrow());
+        try (Harness h = new Harness(config, 60_000, null, () -> false)) {
+            h.add(0, 1, 1, "k", "a-y", 1);
+            h.add(0, 2, 2, "k", "a-x", 2);
+            h.add(1, 3, 3, "k", "b0", null);
+            h.add(2, 4, 4, "k", "c1", 1);
+            assertEquals(List.of("a-y b0 c1"), h.matches);
+
+            // Using b0 must leave it holding a-x after the start list evicts a-x.
+            for (int time = 5; time <= 12; time++) {
+                h.add(0, time, time, "k", "later-" + time, 9);
+            }
+            h.add(1, 13, 13, "k", "b1", null);
+            h.add(2, 14, 14, "k", "c2", 2);
+            assertEquals(List.of("a-y b0 c1", "a-x b1 c2"), h.matches);
+        }
+    }
+
     public void testSameOrdinalFirstArrivalIsNewestAndCanSelfDrop() {
         for (int bound : BOUNDS) {
             try (Harness h = new Harness(config(bound, 2, false, List.of()), 10, null, () -> false)) {

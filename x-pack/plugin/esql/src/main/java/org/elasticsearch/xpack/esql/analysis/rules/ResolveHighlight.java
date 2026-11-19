@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.esql.analysis.rules;
 
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.AnalyzerRule;
+import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -15,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Sequence;
 import org.elasticsearch.xpack.esql.plan.logical.highlight.HighlightSupport;
 
 import java.util.List;
@@ -34,6 +37,10 @@ public class ResolveHighlight extends AnalyzerRule<Highlight> {
     protected LogicalPlan rule(Highlight highlight) {
         if (highlight.childrenResolved() == false) {
             return highlight;
+        }
+
+        if (highlight.hasAnalyzerOption() == false && highlight.child().anyMatch(Sequence.class::isInstance)) {
+            throw new VerificationException(List.of(Failure.fail(highlight, "HIGHLIGHT after SEQUENCE requires an explicit analyzer")));
         }
 
         Expression query = highlight.query();

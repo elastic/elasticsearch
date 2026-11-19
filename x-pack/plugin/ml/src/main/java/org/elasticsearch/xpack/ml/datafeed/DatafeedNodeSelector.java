@@ -192,6 +192,12 @@ public class DatafeedNodeSelector {
             // We cannot verify remote indices
             .filter(i -> RemoteClusterLicenseChecker.isRemoteIndex(i) == false)
             .toArray(String[]::new);
+        // Nothing local to verify: ES|QL datafeeds use an empty index list (sources are resolved at query time, #160858)
+        // and remote-only datafeeds have every pattern filtered out above. Resolving an empty expression list would expand
+        // to every local index, which is expensive on the master and ties assignment to unrelated local shards.
+        if (index.length == 0) {
+            return null;
+        }
 
         final String[] concreteIndices;
 

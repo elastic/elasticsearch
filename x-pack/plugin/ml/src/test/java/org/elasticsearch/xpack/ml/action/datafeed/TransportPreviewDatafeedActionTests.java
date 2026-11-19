@@ -388,6 +388,20 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
         verify(dataExtractor).destroy();
     }
 
+    public void testEsqlRowsOnSeparateLinesWithLeadingSpaceShouldReturnJsonArray() throws IOException {
+        // The ES|QL extractor writes one row per line and the JSON generator prefixes each row after the first with a space.
+        String streamAsString = "{\"a\":1}\n {\"b\":2}\n {\"c\":3}\n";
+        InputStream stream = new ByteArrayInputStream(streamAsString.getBytes(StandardCharsets.UTF_8));
+        when(dataExtractor.hasNext()).thenReturn(true);
+        when(dataExtractor.next()).thenReturn(new DataExtractor.Result(SearchIntervalTests.createRandom(), Optional.of(stream), List.of()));
+
+        TransportPreviewDatafeedAction.previewDatafeed(dataExtractor, actionListener);
+
+        assertThat(capturedResponse, equalTo("[{\"a\":1},{\"b\":2},{\"c\":3}]"));
+        assertThat(capturedFailure, is(nullValue()));
+        verify(dataExtractor).destroy();
+    }
+
     public void testPreviewDatafeed_GivenFailure() throws IOException {
         when(dataExtractor.hasNext()).thenReturn(true);
         doThrow(new RuntimeException("failed")).when(dataExtractor).next();

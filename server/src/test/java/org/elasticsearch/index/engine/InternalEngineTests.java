@@ -146,6 +146,7 @@ import org.elasticsearch.sourcebatch.MappedColumns;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -651,6 +652,26 @@ public class InternalEngineTests extends EngineTestCase {
         doc = testParsedDocument("2", null, testDocumentWithTextField(), SOURCE);
         indexDoc(engine, indexForDoc(doc));
         engine.flush();
+    }
+
+    public void testFlushListenerCompletesWhenReportingFlushFailureFails() throws IOException {
+        engine.close();
+        final FlushMetrics failingMetrics = new FlushMetrics(TelemetryProvider.NOOP.getMeterRegistry()) {
+            @Override
+            public void onFailure(IndexMode indexMode, Throwable error) {
+                throw new IllegalStateException("simulated metrics failure");
+            }
+        };
+        engine = new InternalEngine(EngineConfig.builder(engine.config()).flushMetrics(failingMetrics).build()) {
+            @Override
+            protected void ensureCanFlush() {
+                throw new IllegalArgumentException("simulated flush failure");
+            }
+        };
+
+        final PlainActionFuture<Engine.FlushResult> future = new PlainActionFuture<>();
+        engine.flush(true, true, future);
+        assertThat(expectThrows(IllegalArgumentException.class, future::actionGet).getMessage(), equalTo("simulated flush failure"));
     }
 
     public void testTranslogMultipleOperationsSameDocument() throws IOException {

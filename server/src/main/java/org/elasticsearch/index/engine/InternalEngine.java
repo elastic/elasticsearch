@@ -4182,10 +4182,16 @@ public class InternalEngine extends Engine {
      * on an engine that has not failed and is not closing comes from a tragically closed index writer or translog and is counted.
      */
     private void reportFlushFailure(Exception e) {
-        final boolean closedCleanly = failedEngine.get() == null && (isClosed.get() || isClosing());
-        final boolean expectedClose = closedCleanly && e instanceof AlreadyClosedException;
-        if (expectedClose == false && e instanceof PendingTranslogRecoveryException == false) {
-            engineConfig.getFlushMetrics().onFailure(engineConfig.getIndexSettings().getMode(), e);
+        try {
+            final boolean closedCleanly = failedEngine.get() == null && (isClosed.get() || isClosing());
+            final boolean expectedClose = closedCleanly && e instanceof AlreadyClosedException;
+            if (expectedClose == false && e instanceof PendingTranslogRecoveryException == false) {
+                engineConfig.getFlushMetrics().onFailure(engineConfig.getIndexSettings().getMode(), e);
+            }
+        } catch (Exception inner) {
+            // must not stop the flush listener from completing
+            inner.addSuppressed(e);
+            logger.warn("failed to report flush failure", inner);
         }
     }
 

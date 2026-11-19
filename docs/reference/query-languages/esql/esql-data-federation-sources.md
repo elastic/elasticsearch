@@ -3,7 +3,7 @@ navigation_title: "Data sources"
 description: "Connect Elasticsearch to external storage with ES|QL Data Federation. Create and manage data sources, choose an authentication model, and grant read access to your data."
 applies_to:
   stack: preview 9.6+, experimental =9.5
-  serverless: unavailable
+  serverless: preview
 products:
   - id: elasticsearch
 ---
@@ -39,7 +39,7 @@ A data source authenticates to its store with one of the following models. The m
 |---|---|---|
 | Static credentials | `static_credentials` | A fixed access key and secret key. The common form for a service account. To set one up, refer to [connect with static credentials](esql-data-federation-static-credentials.md). |
 | Anonymous | `anonymous` | For public data that needs no credentials. The [quickstart](esql-data-federation-quickstart.md) walks through this method. |
-| Federated identity | `federated_identity` | Keyless. {{es}} exchanges a short-lived OIDC token for temporary AWS credentials via STS, so no static keys are stored. To set it up, refer to [connect with federated identity](esql-data-federation-federated-identity.md).<br><br>Available on {{ech}} on AWS, Azure, and Google Cloud. Not available on IBM Cloud, in special environments such as AWS GovCloud, or on self-managed, {{ece}}, or {{eck}} deployments. |
+| Federated identity | `federated_identity` | Keyless. {{es}} exchanges a short-lived OIDC token for temporary AWS credentials via STS, so no static keys are stored. To set it up, refer to [connect with federated identity](esql-data-federation-federated-identity.md).<br><br>Available on {{ech}} and {{serverless-short}} on AWS, Azure, and Google Cloud. Not available on IBM Cloud, in special environments such as AWS GovCloud, or on self-managed, {{ece}}, or {{eck}} deployments. |
 | Managed identity | `managed_identity` | Keyless. Uses the {{es}} node's own cloud identity, for example an EC2 instance IAM role. Operator-only and API-only, and not available in serverless.<br><br>Requires the [`esql.external.managed_identity.enabled`](esql-data-federation-cluster-settings.md#esql-external-managed-identity-enabled) cluster setting. |
 
 :::{warning}

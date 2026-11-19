@@ -3,7 +3,7 @@ navigation_title: "File formats"
 description: "Compare the file formats, extensions, compression codecs, and schema sources supported by ES|QL Data Federation datasets."
 applies_to:
   stack: preview 9.6+, experimental =9.5
-  serverless: unavailable
+  serverless: preview
 products:
   - id: elasticsearch
 ---
@@ -16,7 +16,7 @@ The following table compares the supported file formats:
 
 | Format | Recognized extensions | Schema source | Compression |
 |---|---|---|---|
-| Parquet | `.parquet`<br>{applies_to}`stack: preview 9.6+` `.parq` | File metadata | Internal per column chunk |
+| Parquet | `.parquet`<br>{applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview` `.parq` | File metadata | Internal per column chunk |
 | NDJSON | `.ndjson`, `.jsonl`, `.json` | Sampled rows | Uncompressed, gzip, or zstd |
 | CSV | `.csv` | Sampled rows | Uncompressed, gzip, or zstd |
 | TSV | `.tsv` | Sampled rows | Uncompressed, gzip, or zstd |

@@ -3,7 +3,7 @@ navigation_title: "Resource patterns"
 description: "Reference for ES|QL Data Federation resource pattern syntax, including wildcards, character classes, alternation, numeric ranges, and file exclusions."
 applies_to:
   stack: preview 9.6+
-  serverless: unavailable
+  serverless: preview
 products:
   - id: elasticsearch
 ---

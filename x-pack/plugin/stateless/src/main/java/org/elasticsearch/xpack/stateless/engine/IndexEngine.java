@@ -1141,16 +1141,6 @@ public class IndexEngine extends InternalEngine {
                     warmer.onMergeStarted(info, this);
                 }
             }
-
-            // the index writer aborts the running merges before it waits for them, e.g. on rollback when the engine closes
-            @Override
-            public void setAborted() {
-                super.setAborted();
-                final var mergeInfo = getMergeInfo();
-                if (warmer != null && mergeInfo != null) {
-                    warmer.onMergeAborted(mergeInfo);
-                }
-            }
         });
     }
 

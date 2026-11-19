@@ -24,6 +24,9 @@ import java.util.function.BooleanSupplier;
 /// It reports a failure by failing the listener, never by throwing: a throw is treated as a failure, so any work it started would then
 /// run after the segment is released.
 ///
+/// The segment is valid until the listener is completed, including when the merge is aborted meanwhile: an abort does not stop the merge
+/// thread from waiting. A merge that is already aborted when its segment is warmed is discarded without notifying the listener.
+///
 /// If the merge thread is interrupted while it waits, the merge is aborted and the segment is released although the listener is still
 /// pending: the listener must still be completed, and the segment must not be used after it is released.
 ///
@@ -40,7 +43,8 @@ public interface MergedSegmentListener {
     MergedSegmentListener NOOP = (segment, isAborted, listener) -> listener.onResponse(null);
 
     /// @param segment   the reader of the segment produced by the merge, whose files are complete. It must not be retained.
-    /// @param isAborted whether the merge is aborted, e.g. because the engine is closing. The listener must still be completed.
+    /// @param isAborted whether the merge is aborted, e.g. because the engine is closing. The listener should stop early if it is, since
+    ///                  the merge thread keeps waiting, but it must still be completed.
     /// @param listener  completed once the segment can be committed, or with the failure if what had to happen first could not
     void onNewSegmentMerged(SegmentReader segment, BooleanSupplier isAborted, ActionListener<Void> listener);
 }

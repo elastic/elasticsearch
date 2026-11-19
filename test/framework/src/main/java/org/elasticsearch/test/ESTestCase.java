@@ -217,6 +217,7 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.TimeZone;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
@@ -3140,6 +3141,22 @@ public abstract class ESTestCase extends LuceneTestCase {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             fail(e, "safeJoin: interrupted waiting for Thread to die");
+        }
+    }
+
+    /**
+     * Retrieve and remove the head of the given {@link BlockingQueue}, waiting up to {@link #SAFE_AWAIT_TIMEOUT} for an element to become
+     * available, preserving the thread's interrupt status flag and asserting that an element was indeed available before the timeout.
+     */
+    public static <T> T safePoll(BlockingQueue<T> queue) {
+        try {
+            final var element = queue.poll(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+            assertNotNull("safePoll: no element available within the timeout", element);
+            return element;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            fail(e, "safePoll: interrupted waiting for an element of the queue");
+            return null;
         }
     }
 

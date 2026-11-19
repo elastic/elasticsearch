@@ -18,7 +18,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
@@ -30,7 +29,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
@@ -114,7 +112,7 @@ public class MergedSegmentWarmerTests extends AbstractEngineTestCase {
             listener.onResponse(null);
         })) {
             indexDocs(engine, between(4, 20));
-            assertNotNull(notified.poll(30, TimeUnit.SECONDS));
+            safePoll(notified);
 
             forceMerge(engine);
             final var segments = segmentNames(engine);
@@ -126,46 +124,63 @@ public class MergedSegmentWarmerTests extends AbstractEngineTestCase {
     public void testMergedSegmentIsNotVisibleUntilTheListenerIsCompleted() throws Exception {
         final var notifications = new LinkedBlockingQueue<Notification>();
         try (var engine = newEngine(recordingTo(notifications))) {
+            Notification notification = null;
             try {
                 indexDocs(engine, 2);
-                final var notification = notifications.poll(30, TimeUnit.SECONDS);
-                assertNotNull(notification);
+                notification = safePoll(notifications);
                 assertThat(segmentNames(engine), not(hasItem(notification.segmentName())));
 
-                notification.listener().onResponse(null);
-                assertBusy(() -> assertThat(segmentNames(engine), hasItem(notification.segmentName())));
+                final var segmentName = notification.segmentName();
+                final var completing = notification;
+                notification = null;
+                completing.listener().onResponse(null);
+                assertBusy(() -> assertThat(segmentNames(engine), hasItem(segmentName)));
             } finally {
-                Notification pending;
-                while ((pending = notifications.poll()) != null) {
-                    pending.listener().onResponse(null);
+                // a listener polled but not yet completed must not be left pending, or closing the engine blocks
+                if (notification != null) {
+                    notification.listener().onResponse(null);
                 }
+                completePending(notifications);
             }
         }
     }
 
-    public void testEngineCloseDoesNotWaitForAPendingListener() throws Exception {
+    public void testEngineCloseWaitsForAPendingListener() throws Exception {
         final var notifications = new LinkedBlockingQueue<Notification>();
         final var engine = newEngine(recordingTo(notifications));
         final var closed = new PlainActionFuture<Void>();
+        Notification notification = null;
         try {
             indexDocs(engine, 2);
-            final var notification = notifications.poll(30, TimeUnit.SECONDS);
-            assertNotNull(notification);
+            notification = safePoll(notifications);
             assertFalse(notification.isAborted().getAsBoolean());
 
-            // the listener is never completed before the engine is closed
+            // the listener is not completed before the engine is closed
+            final var listenerCompleted = new AtomicBoolean();
             new Thread(() -> ActionListener.run(closed, l -> {
                 engine.close();
+                assertTrue("the engine was closed before the listener was completed", listenerCompleted.get());
                 l.onResponse(null);
             })).start();
-            closed.actionGet(TimeValue.timeValueSeconds(10));
-            assertTrue(notification.isAborted().getAsBoolean());
+
+            final var completing = notification;
+            notification = null;
+            listenerCompleted.set(true);
+            completing.listener().onResponse(null);
+            safeGet(closed);
         } finally {
-            Notification pending;
-            while ((pending = notifications.poll()) != null) {
-                pending.listener().onResponse(null);
+            if (notification != null) {
+                notification.listener().onResponse(null);
             }
-            closed.actionGet(TimeValue.timeValueSeconds(30));
+            completePending(notifications);
+            safeGet(closed);
+        }
+    }
+
+    private static void completePending(LinkedBlockingQueue<Notification> notifications) {
+        Notification pending;
+        while ((pending = notifications.poll()) != null) {
+            pending.listener().onResponse(null);
         }
     }
 
@@ -211,11 +226,9 @@ public class MergedSegmentWarmerTests extends AbstractEngineTestCase {
                 });
                 mergeThread.start();
 
-                final var listener = pendingListeners.poll(30, TimeUnit.SECONDS);
-                assertNotNull(listener);
+                final var listener = safePoll(pendingListeners);
                 mergeThread.interrupt();
-                mergeThread.join(TimeUnit.SECONDS.toMillis(30));
-                assertFalse(mergeThread.isAlive());
+                safeJoin(mergeThread);
 
                 assertThat(thrown.get(), instanceOf(MergePolicy.MergeAbortedException.class));
                 assertTrue(interrupted.get());

@@ -65,6 +65,9 @@ public final class SpecialFunctionGeneratorRegistry {
     /** Positive bucket sizes for numeric {@code round_to} calls. */
     private static final double[] ROUND_TO_BUCKETS = { 0.1, 0.5, 1.0, 2.0, 5.0, 10.0, 25.0, 50.0, 100.0 };
 
+    /** Valid CIDR literals for {@code cidr_match}. */
+    private static final String[] CIDR_BLOCKS = { "10.0.0.0/8", "192.168.0.0/16", "172.16.0.0/12", "0.0.0.0/0" };
+
     // --- registry ------------------------------------------------------------
 
     private static final Map<String, SpecialFunctionGenerator> REGISTRY = buildRegistry();
@@ -222,6 +225,15 @@ public final class SpecialFunctionGeneratorRegistry {
             String ipField = recurse.recurse("ip", cols, unmapped, depth - 1);
             if (ipField == null) return null;
             return name + "(" + ipField + ", " + randomIntBetween(8, 32) + ", " + randomIntBetween(48, 128) + ")";
+        });
+
+        // cidr_match(ip, blockX, ...): CIDR blocks must be ip/prefix literals. Analysis accepts
+        // keyword/text, so the generic builder would pick an arbitrary string field and fail at
+        // runtime. Mirror ip_prefix: recurse for the IP, emit a literal for the block.
+        r.put("cidr_match", (name, sig, cols, unmapped, depth, recurse) -> {
+            String ipField = recurse.recurse("ip", cols, unmapped, depth - 1);
+            if (ipField == null) return null;
+            return name + "(" + ipField + ", \"" + randomFrom(CIDR_BLOCKS) + "\")";
         });
 
         // ---- Math functions -------------------------------------------------

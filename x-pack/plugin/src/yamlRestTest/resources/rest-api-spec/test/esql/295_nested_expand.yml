@@ -209,7 +209,7 @@ setup:
   - match: { values.2: ["2", null, null] }
 
 ---
-"Pages smaller than the objects of a parent still give every object once, in order":
+"Pages smaller than the objects of a parent still give every object once":
   - do:
       bulk:
         refresh: true

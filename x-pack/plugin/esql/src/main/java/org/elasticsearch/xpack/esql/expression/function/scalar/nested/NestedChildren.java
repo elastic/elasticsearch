@@ -483,8 +483,8 @@ public final class NestedChildren implements Releasable {
             IntVector docVector = null;
             DocVector childDocs = null;
             try {
-                shardVector = blockFactory.newIntArrayVector(Arrays.copyOf(childShards, children), children);
-                segmentVector = blockFactory.newIntArrayVector(Arrays.copyOf(childSegments, children), children);
+                shardVector = sameOrArray(childShards);
+                segmentVector = sameOrArray(childSegments);
                 docVector = blockFactory.newIntArrayVector(Arrays.copyOf(docs, children), children);
                 // The parent page holds the shards while its children are read. A parent repeated by a join or an expansion
                 // repeats its children.
@@ -502,6 +502,19 @@ public final class NestedChildren implements Releasable {
             } finally {
                 Releasables.closeExpectNoException(shardVector, segmentVector, docVector, childDocs);
             }
+        }
+
+        /**
+         * The first {@link #children} of {@code values}, as a constant vector when they are all the same. The reader only
+         * splits the children it loads into pages of bounded bytes when their shards and segments are constant.
+         */
+        private IntVector sameOrArray(int[] values) {
+            for (int i = 1; i < children; i++) {
+                if (values[i] != values[0]) {
+                    return context.blockFactory().newIntArrayVector(Arrays.copyOf(values, children), children);
+                }
+            }
+            return context.blockFactory().newConstantIntVector(values[0], children);
         }
 
         @Override

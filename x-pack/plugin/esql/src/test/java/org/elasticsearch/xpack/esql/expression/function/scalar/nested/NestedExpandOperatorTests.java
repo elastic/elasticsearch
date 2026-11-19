@@ -32,6 +32,7 @@ import java.util.List;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class NestedExpandOperatorTests extends NestedIndexOperatorTestCase {
@@ -263,9 +264,21 @@ public class NestedExpandOperatorTests extends NestedIndexOperatorTestCase {
         assertThat(context.breaker().getUsed(), equalTo(0L));
     }
 
-    public void testCrankyBreakerWithSmallPages() {
-        pageSize = 3;
-        testSimpleWithCranky();
+    /**
+     * The reader gives one child per page, so after the first output page it still holds the rest of the children it
+     * was asked for. Closing the operator then must release them too.
+     */
+    public void testCloseWhileReaderHoldsChildrenReleasesEverything() {
+        PlannerSettings oneChildPerReadPage = PlannerSettings.DEFAULTS.valuesLoadingJumboSize(ByteSizeValue.ofBytes(1));
+        var context = driverContext();
+        Operator operator = factory(64, oneChildPerReadPage).get(context);
+        operator.addInput(parents(context.blockFactory(), 0, 100));
+        Page first = operator.getOutput();
+        assertThat(first.getPositionCount(), lessThan(64));
+        assertThat(operator.canProduceMoreDataWithoutExtraInput(), is(true));
+        first.releaseBlocks();
+        operator.close();
+        assertThat(context.breaker().getUsed(), equalTo(0L));
     }
 
     private static List<Integer> range(int from, int to) {

@@ -458,7 +458,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     /**
-     * Rejects an INTO whose producer is not supported when {@code DESCRIBE} is about to replace that producer.
+     * Rejects an INTO whose producer is not ROW when {@code DESCRIBE} is about to replace that producer.
      * A producer that verification can still see fails in {@link Into#postAnalysisVerification}, which
      * {@code analyzeWithoutVerification} skips.
      */
@@ -471,8 +471,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         @Override
         protected LogicalPlan rule(Into into) {
-            if (into.child().anyMatch(Describe.class::isInstance) && Into.unsupportedSource(into.child(), false)) {
-                throw new VerificationException(List.of(Failure.fail(into, Into.UNSUPPORTED_SOURCE)));
+            if (into.child().anyMatch(Describe.class::isInstance) && Into.unsupportedSourceBelowDescribe(into.child())) {
+                throw new VerificationException(List.of(Failure.fail(into, Into.UNSUPPORTED_SOURCE_BELOW_DESCRIBE)));
             }
             return into;
         }

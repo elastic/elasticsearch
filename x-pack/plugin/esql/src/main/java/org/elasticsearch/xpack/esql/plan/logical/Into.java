@@ -45,6 +45,8 @@ public class Into extends UnaryPlan
         PostAnalysisPlanVerificationAware,
         PostAnalysisVerificationAware {
     public static final String UNSUPPORTED_SOURCE = "INTO currently only supports ROW or local FROM as a source, without FORK";
+    public static final String UNSUPPORTED_SOURCE_BELOW_DESCRIBE =
+        "INTO after DESCRIBE currently only supports ROW as a source, without FORK";
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Into", Into::new);
 
@@ -130,30 +132,23 @@ public class Into extends UnaryPlan
         };
     }
 
-    /**
-     * A {@link LocalRelation} is a ROW producer that analysis already materialized, for example {@code DESCRIBE}.
-     * Pass {@code false} while the original producer is still in the plan.
-     */
-    public static boolean unsupportedSource(LogicalPlan child, boolean allowMaterializedRow) {
-        return child.anyMatch(p -> {
-            if (p instanceof MergePlan) {
-                return true;
-            }
-            if (p instanceof LeafPlan == false || isSupportedSource(p)) {
-                return false;
-            }
-            if (allowMaterializedRow && p instanceof LocalRelation) {
-                return false;
-            }
-            return true;
-        });
+    /** A {@link LocalRelation} is a ROW producer that analysis already materialized, for example {@code DESCRIBE}. */
+    public static boolean unsupportedSource(LogicalPlan child) {
+        return child.anyMatch(
+            p -> p instanceof MergePlan || (p instanceof LeafPlan && isSupportedSource(p) == false && p instanceof LocalRelation == false)
+        );
+    }
+
+    /** {@code DESCRIBE} replaces its producer with a {@link LocalRelation}, so only a ROW producer is accepted below it. */
+    public static boolean unsupportedSourceBelowDescribe(LogicalPlan child) {
+        return child.anyMatch(p -> p instanceof MergePlan || (p instanceof LeafPlan && p instanceof Row == false));
     }
 
     @Override
     public void postAnalysisVerification(Failures failures) {
         // TODO: before INTO leaves snapshot, gate Into on a minimum TransportVersion in Verifier for mixed-version clusters
         // RejectUnsupportedIntoSource already saw the original producer. DESCRIBE has since replaced it with a LocalRelation.
-        if (unsupportedSource(child(), true)) {
+        if (unsupportedSource(child())) {
             failures.add(fail(this, UNSUPPORTED_SOURCE));
         }
     }

@@ -140,6 +140,7 @@ import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.engine.FlushMetrics;
 import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.mapper.DefaultRootObjectMapperNamespaceValidator;
 import org.elasticsearch.index.mapper.MapperMetrics;
@@ -224,7 +225,7 @@ import org.elasticsearch.plugins.internal.ReloadAwarePlugin;
 import org.elasticsearch.plugins.internal.RestExtension;
 import org.elasticsearch.plugins.internal.RestoreProjectCustomUpdater;
 import org.elasticsearch.plugins.internal.SettingsExtension;
-import org.elasticsearch.plugins.internal.ShardGenerationListener;
+import org.elasticsearch.plugins.internal.ShardGenerationSizeListener;
 import org.elasticsearch.readiness.ReadinessService;
 import org.elasticsearch.repositories.LocalPrimarySnapshotShardContextFactory;
 import org.elasticsearch.repositories.RepositoriesModule;
@@ -831,9 +832,9 @@ class NodeConstruction {
         BigArrays bigArrays = serviceProvider.newBigArrays(pluginsService, pageCacheRecycler, circuitBreakerService);
 
         final RecoverySettings recoverySettings = new RecoverySettings(settings, settingsModule.getClusterSettings());
-        final ShardGenerationListener shardGenerationListener = pluginsService.loadSingletonServiceProvider(
-            ShardGenerationListener.class,
-            () -> ShardGenerationListener.NOOP
+        final ShardGenerationSizeListener shardGenerationSizeListener = pluginsService.loadSingletonServiceProvider(
+            ShardGenerationSizeListener.class,
+            () -> ShardGenerationSizeListener.NOOP
         );
         RepositoriesModule repositoriesModule = new RepositoriesModule(
             environment,
@@ -845,7 +846,7 @@ class NodeConstruction {
             xContentRegistry,
             recoverySettings,
             telemetryProvider,
-            shardGenerationListener
+            shardGenerationSizeListener
         );
         RepositoriesService repositoriesService = repositoriesModule.getRepositoryService();
         SnapshotMetrics snapshotMetrics = repositoriesModule.getSnapshotMetrics();
@@ -939,6 +940,7 @@ class NodeConstruction {
         MapperMetrics mapperMetrics = new MapperMetrics(sourceFieldMetrics);
 
         MergeMetrics mergeMetrics = new MergeMetrics(telemetryProvider.getMeterRegistry());
+        FlushMetrics flushMetrics = new FlushMetrics(telemetryProvider.getMeterRegistry());
 
         final List<SearchOperationListener> searchOperationListeners = List.of(
             new ShardSearchPhaseAPMMetrics(telemetryProvider.getMeterRegistry())
@@ -1004,6 +1006,7 @@ class NodeConstruction {
             .requestCacheKeyDifferentiator(searchModule.getRequestCacheKeyDifferentiator())
             .mapperMetrics(mapperMetrics)
             .mergeMetrics(mergeMetrics)
+            .flushMetrics(flushMetrics)
             .searchOperationListeners(searchOperationListeners)
             .loggingFieldsProvider(loggingFieldsProvider)
             .throttlingRecoveryService(throttlingRecoveryService)

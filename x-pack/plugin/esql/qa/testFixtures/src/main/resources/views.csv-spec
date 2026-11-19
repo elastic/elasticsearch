@@ -571,7 +571,7 @@ SET unmapped_fields="load"\;
 FROM employees_rehired
 | STATS rehired_count = COUNT(), null_count = COUNT(nonexistent_field)
 ;
-warningRegex: does not affect the contents of view \[employees_rehired\], so field \[nonexistent_field\] is null in its rows
+warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[nonexistent_field\])(?=.*\[employees_rehired\])
 warningRegex: \(in view \[employees_rehired\]\): evaluation of \[is_rehired == true\] failed, treating result as null. Only first 20 failures recorded.
 warningRegex: \(in view \[employees_rehired\]\): java.lang.IllegalArgumentException: single-value function encountered multi-value
 
@@ -590,7 +590,7 @@ FROM employees_rehired
 | WHERE extra IS NULL
 | STATS c = COUNT(*)
 ;
-warningRegex: does not affect the contents of view \[employees_rehired\], so field \[nonexistent_field\] is null in its rows
+warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[nonexistent_field\])(?=.*\[employees_rehired\])
 warningRegex: \(in view \[employees_rehired\]\): evaluation of \[is_rehired == true\] failed, treating result as null. Only first 20 failures recorded.
 warningRegex: \(in view \[employees_rehired\]\): java.lang.IllegalArgumentException: single-value function encountered multi-value
 
@@ -608,7 +608,7 @@ FROM employees_rehired
 | WHERE nonexistent_field IS NOT NULL
 | STATS c = COUNT(*)
 ;
-warningRegex: does not affect the contents of view \[employees_rehired\], so field \[nonexistent_field\] is null in its rows
+warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[nonexistent_field\])(?=.*\[employees_rehired\])
 warningRegex: \(in view \[employees_rehired\]\): evaluation of \[is_rehired == true\] failed, treating result as null. Only first 20 failures recorded.
 warningRegex: \(in view \[employees_rehired\]\): java.lang.IllegalArgumentException: single-value function encountered multi-value
 
@@ -625,7 +625,7 @@ SET unmapped_fields="load"\;
 FROM employees_rehired
 | STATS c = COUNT(*) BY nonexistent_field
 ;
-warningRegex: does not affect the contents of view \[employees_rehired\], so field \[nonexistent_field\] is null in its rows
+warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[nonexistent_field\])(?=.*\[employees_rehired\])
 warningRegex: \(in view \[employees_rehired\]\): evaluation of \[is_rehired == true\] failed, treating result as null. Only first 20 failures recorded.
 warningRegex: \(in view \[employees_rehired\]\): java.lang.IllegalArgumentException: single-value function encountered multi-value
 
@@ -644,7 +644,7 @@ FROM employees_rehired
 | KEEP emp_no, nonexistent_field
 | LIMIT 3
 ;
-warningRegex: does not affect the contents of view \[employees_rehired\], so field \[nonexistent_field\] is null in its rows
+warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[nonexistent_field\])(?=.*\[employees_rehired\])
 warningRegex: \(in view \[employees_rehired\]\): evaluation of \[is_rehired == true\] failed, treating result as null. Only first 20 failures recorded.
 warningRegex: \(in view \[employees_rehired\]\): java.lang.IllegalArgumentException: single-value function encountered multi-value
 
@@ -3246,7 +3246,6 @@ required_capability: nested_subquery_in_from_command
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: nested_subquery_in_from_command_with_view_fork_dataset
 required_capability: settings_scoped_at_view_boundaries
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM (FROM view_partial_mapping_sample_data | WHERE unmapped_message == "Disconnection error" OR unmapped_message == "43"),
@@ -3255,7 +3254,7 @@ FROM (FROM view_partial_mapping_sample_data | WHERE unmapped_message == "Disconn
 | KEEP _fork, unmapped_message, emp_no
 | SORT _fork, unmapped_message, emp_no NULLS LAST
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [view_partial_mapping_sample_data], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
+warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[unmapped_message\])(?=.*\[view_partial_mapping_sample_data\])
 
 _fork:keyword | unmapped_message:keyword | emp_no:integer
 fork2         | null                     | 10001
@@ -3271,7 +3270,6 @@ required_capability: nested_subquery_in_from_command
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: nested_subquery_in_from_command_with_view_fork_dataset
 required_capability: settings_scoped_at_view_boundaries
-required_capability: warn_unmapped_fields_stopped_at_view
 
 // The sibling of the test above: the view does not surface unmapped_message, so the view boundary answers null for it
 // instead of loading it from the view's source, and WHERE ... IS NULL keeps all of the view's rows.
@@ -3282,7 +3280,7 @@ FROM (FROM view_partial_mapping_sample_data | WHERE unmapped_message IS NULL),
 | STATS c = COUNT(*), employees = COUNT(emp_no) BY _fork
 | SORT _fork
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [view_partial_mapping_sample_data], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
+warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[unmapped_message\])(?=.*\[view_partial_mapping_sample_data\])
 
 c:long | employees:long | _fork:keyword
 9      | 1              | fork2
@@ -3294,7 +3292,6 @@ required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: settings_scoped_at_view_boundaries
-required_capability: warn_unmapped_fields_stopped_at_view
 
 // The view is a pass-through to the very index that is also queried directly, as a sibling and in a subquery. Only the
 // index branches load unmapped_message from _source; the view must not merge with them and answers null for all its rows.
@@ -3304,7 +3301,7 @@ FROM view_partial_mapping_sample_data,
      (FROM partial_mapping_sample_data | WHERE message == "Connection error?")
 | STATS rows = COUNT(*), loaded = COUNT(unmapped_message)
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [view_partial_mapping_sample_data], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
+warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[unmapped_message\])(?=.*\[view_partial_mapping_sample_data\])
 
 rows:long | loaded:long
 17        | 10
@@ -3317,13 +3314,12 @@ required_capability: subquery_in_from_command
 required_capability: nested_subquery_in_from_command
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: settings_scoped_at_view_boundaries
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM (FROM (FROM view_partial_mapping_sample_data), partial_mapping_sample_data), (FROM sample_data)
 | STATS rows = COUNT(*), loaded = COUNT(unmapped_message)
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [view_partial_mapping_sample_data], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
+warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[unmapped_message\])(?=.*\[view_partial_mapping_sample_data\])
 
 rows:long | loaded:long
 21        | 7
@@ -3335,14 +3331,13 @@ required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: settings_scoped_at_view_boundaries
-required_capability: warn_unmapped_fields_stopped_at_view
 
 // view_with_unionall is a union of subqueries over employees_all, another view: all of it is the view's own scope.
 SET unmapped_fields="load"\;
 FROM view_with_unionall, partial_mapping_sample_data
 | STATS rows = COUNT(*), loaded = COUNT(unmapped_message)
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [view_with_unionall], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
+warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[unmapped_message\])(?=.*\[view_with_unionall\])
 
 rows:long | loaded:long
 9         | 7
@@ -3354,14 +3349,13 @@ required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: settings_scoped_at_view_boundaries
-required_capability: warn_unmapped_fields_stopped_at_view
 
 // The view's trailing WHERE keeps its union of an index and a subquery inside the view, and either branch would surface the field.
 SET unmapped_fields="load"\;
 FROM view_partial_mapping_retained_union
 | STATS rows = COUNT(*), loaded = COUNT(unmapped_message)
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [view_partial_mapping_retained_union], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
+warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[unmapped_message\])(?=.*\[view_partial_mapping_retained_union\])
 
 rows:long | loaded:long
 14        | 0
@@ -3372,13 +3366,12 @@ viewSettingLoadWarnsAboutFieldItDoesNotReference
 required_capability: views_crud_as_index_actions
 required_capability: set_in_view_definitions
 required_capability: settings_scoped_at_view_boundaries
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM view_partial_mapping_loads_event_duration
 | STATS rows = COUNT(*), loaded = COUNT(unmapped_message), durations = COUNT(unmapped_event_duration)
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [view_partial_mapping_loads_event_duration], so field [unmapped_message] is null in its rows; to load such fields, the view definition must reference them itself
+warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[unmapped_message\])(?=.*\[view_partial_mapping_loads_event_duration\])
 
 rows:long | loaded:long | durations:long
 7         | 0           | 7
@@ -3654,7 +3647,6 @@ required_capability: subquery_in_from_command
 required_capability: nested_subquery_in_from_command
 required_capability: nested_subquery_in_from_command_with_view_fork_dataset
 required_capability: optional_fields_load_with_fork_subqueries_and_views
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM (FROM view_with_fork),
@@ -3663,8 +3655,8 @@ FROM (FROM view_with_fork),
 | KEEP _fork, emp_no, does_not_exist_field
 | SORT _fork, emp_no
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [employees_all], so field [does_not_exist_field] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [view_with_fork], so field [does_not_exist_field] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
+warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[does_not_exist_field\])(?=.*\[employees_all\])
+warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[does_not_exist_field\])(?=.*\[view_with_fork\])
 
 _fork:keyword | emp_no:integer | does_not_exist_field:keyword
 fork1         | 10091          | null

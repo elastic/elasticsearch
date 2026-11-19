@@ -245,9 +245,13 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         IntObjectHashMap<ScoreDoc> dedupByDoc = new IntObjectHashMap<>(results.scoreDocs.length * 4 / 3);
         for (ScoreDoc scoreDoc : results.scoreDocs) {
             int globalDoc = scoreDoc.doc + ctx.docBase;
-            if (dedupByDoc.containsKey(globalDoc) == false) {
+            ScoreDoc existing = dedupByDoc.get(globalDoc);
+            if (existing == null) {
                 scoreDoc.doc = globalDoc;
                 dedupByDoc.put(globalDoc, scoreDoc);
+            } else if (scoreDoc.score > existing.score) {
+                // SOAR overspill copies of a doc score differently; keep the best
+                existing.score = scoreDoc.score;
             }
         }
         ScoreDoc[] deduplicatedScoreDocs = new ScoreDoc[dedupByDoc.size()];

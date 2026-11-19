@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.planner.mapper;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -99,7 +100,6 @@ public class Mapper {
     }
 
     public PhysicalPlan map(Versioned<LogicalPlan> versionedPlan) {
-        NestedExpand.rejectUntilSupported(versionedPlan.inner());
         // We ignore the version for now, but it's fine to use later for plans that work
         // differently from some version and up.
         return mapInner(versionedPlan.inner());
@@ -233,6 +233,14 @@ public class Mapper {
         if (unary instanceof TsInfo tsInfo) {
             mappedChild = addExchangeForFragment(tsInfo, mappedChild);
             return new TsInfoExec(tsInfo.source(), mappedChild, tsInfo.output(), tsInfo.output(), TsInfoExec.Mode.FINAL, tsInfo.limit());
+        }
+
+        // Child documents are read from the parent row, so the command has to stay inside the data-node fragment.
+        if (unary instanceof NestedExpand) {
+            throw new VerificationException(
+                "NESTED_EXPAND must run on the data nodes, so it cannot follow [{}]",
+                unary.child().sourceText()
+            );
         }
 
         // Into: two-phase WRITE (data nodes or coordinator) then MERGE_STATS (coordinator).

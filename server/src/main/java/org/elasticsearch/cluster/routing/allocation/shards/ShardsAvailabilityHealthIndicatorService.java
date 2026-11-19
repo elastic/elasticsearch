@@ -14,6 +14,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -497,6 +499,12 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
             ShardRouting primary = state.routingTable(projectId).shardRoutingTable(routing.shardId()).primaryShard();
             int localRecoveryRetriesForPrimary = localRecoveryRetries(primary, localRecoveryRetriesHealthInfoByNode);
             if (!primary.active() && getInactivePrimaryHealth(primary, localRecoveryRetriesForPrimary > 0) == ClusterHealthStatus.YELLOW) {
+                return true;
+            }
+            // A target shard replica doesn't start serving search requests until the target shard is in the SPLIT state
+            IndexReshardingMetadata resharding = state.metadata().getProject(projectId).index(routing.index()).getReshardingMetadata();
+            if (IndexReshardingMetadata.isSplitTarget(routing.shardId(), resharding)
+                && resharding.getSplit().targetStateAtLeast(routing.id(), IndexReshardingState.Split.TargetShardState.SPLIT) == false) {
                 return true;
             }
         }

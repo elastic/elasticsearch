@@ -12,10 +12,12 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.bulk.EscfBulkService;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -182,6 +184,8 @@ import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedChildren;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedExpandOperator;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
@@ -233,6 +237,7 @@ import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MMRExec;
 import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
+import org.elasticsearch.xpack.esql.plan.physical.NestedExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PackDimsExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -280,6 +285,7 @@ import java.util.Optional;
 import java.util.SequencedMap;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
@@ -325,6 +331,10 @@ public class LocalExecutionPlanner {
     private final LookupFromIndexService lookupFromIndexService;
     private final InferenceService inferenceService;
     private final Client client;
+    // INTO writes through ESCF batches; null in planners that never plan an INTO
+    @Nullable
+    private final EscfBulkService escfBulkService;
+    private final BooleanSupplier batchIndexingSupported;
     private final UserAgentParserRegistry userAgentParserRegistry;
     private final IpLocationService ipLocationService;
     private final ProjectResolver projectResolver;
@@ -391,7 +401,9 @@ public class LocalExecutionPlanner {
         MatcherWatchdog grokMatcherWatchdog,
         TransportVersion minTransportVersion,
         Client client,
-        ExternalComputeContext externalCompute
+        ExternalComputeContext externalCompute,
+        @Nullable EscfBulkService escfBulkService,
+        BooleanSupplier batchIndexingSupported
     ) {
 
         this.sessionId = sessionId;
@@ -422,6 +434,8 @@ public class LocalExecutionPlanner {
         this.minTransportVersion = minTransportVersion;
         this.client = client;
         this.externalCompute = externalCompute;
+        this.escfBulkService = escfBulkService;
+        this.batchIndexingSupported = batchIndexingSupported;
     }
 
     /**
@@ -558,6 +572,8 @@ public class LocalExecutionPlanner {
             return planLimit(limit, context);
         } else if (node instanceof MvExpandExec mvExpand) {
             return planMvExpand(mvExpand, context);
+        } else if (node instanceof NestedExpandExec nestedExpand) {
+            return planNestedExpand(nestedExpand, context);
         } else if (node instanceof TimeSeriesCollapseExec tsCollapse) {
             return planTimeSeriesCollapse(tsCollapse, context);
         } else if (node instanceof HighlightExec highlight) {
@@ -1040,11 +1056,18 @@ public class LocalExecutionPlanner {
         Layout outputLayout = new Layout.Builder().append(into.output()).build();
         return switch (into.mode()) {
             case WRITE -> {
+                String target = IndexNameExpressionResolver.resolveDateMathExpression(into.destination());
+                boolean discard = configuration.explainOnly();
+                if (discard == false) {
+                    IntoPageWriter.Factory.requireBatchDestination(batchIndexingSupported.getAsBoolean(), projectMetadata, target);
+                }
                 IntoPageWriter.Factory sink = IntoPageWriter.Factory.createFactory(
+                    escfBulkService,
                     client,
-                    into.destination(),
+                    blockFactory.breaker(),
+                    target,
                     into.sourceAttributes(),
-                    configuration.explainOnly() ? IntoPageWriter.Factory.Indexing.DISCARD : IntoPageWriter.Factory.Indexing.INDEX
+                    discard ? IntoPageWriter.Factory.Indexing.DISCARD : IntoPageWriter.Factory.Indexing.INDEX
                 );
                 yield source.with(
                     new IntoOperator.Factory(sink, alignPageToAttributes(into.sourceAttributes(), source.layout)),
@@ -2959,6 +2982,34 @@ public class LocalExecutionPlanner {
             new MvExpandOperator.Factory(source.layout.get(mvExpandExec.target().id()).channel(), blockSize),
             layout.build()
         );
+    }
+
+    private PhysicalOperation planNestedExpand(NestedExpandExec expand, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(expand.child(), context);
+        int docChannel = -1;
+        for (Attribute attribute : expand.child().output()) {
+            if (EsQueryExec.isDocAttribute(attribute)) {
+                docChannel = source.layout.get(attribute.id()).channel();
+                break;
+            }
+        }
+        if (docChannel < 0) {
+            throw new IllegalStateException("NESTED_EXPAND requires [_doc]");
+        }
+        Layout.Builder layout = source.layout.builder();
+        layout.append(expand.expanded());
+        List<DataType> types = expand.expanded().stream().map(Attribute::dataType).toList();
+        // Enumeration does not depend on how many child columns remain after pruning.
+        NestedChildren.Factory children = NestedChildren.factory(
+            context.shardContexts,
+            expand.path(),
+            expand.paths(),
+            types,
+            expand.expanded().stream().map(EsPhysicalOperationProviders::findUnionTypes).toList(),
+            context.plannerSettings,
+            configuration
+        );
+        return source.with(new NestedExpandOperator.Factory(docChannel, children, expand.path(), types), layout.build());
     }
 
     private PhysicalOperation planTimeSeriesCollapse(TimeSeriesCollapseExec collapse, LocalExecutionPlannerContext context) {

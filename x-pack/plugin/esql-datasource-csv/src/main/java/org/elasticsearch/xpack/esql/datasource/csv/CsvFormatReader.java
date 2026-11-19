@@ -88,6 +88,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
+import org.elasticsearch.xpack.esql.datasources.spi.StripeStatsSink;
 import org.elasticsearch.xpack.esql.datasources.spi.WidenedColumn;
 import org.elasticsearch.xpack.esql.datasources.spi.WithinFileWideningWarnings;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
@@ -2736,6 +2737,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             chunkMode ? context.statsStripeSize() : -1L,
             context.statsFileFinal(),
             context.statsColumnScope(),
+            context.statsStripeSink(),
             context.informationalWarningSink()
         );
     }
@@ -4527,6 +4529,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             long statsStripeSize,
             boolean statsFileFinal,
             StripeColumnScope statsColumnScope,
+            @Nullable StripeStatsSink statsStripeSink,
             @Nullable Consumer<String> warningSink
         ) {
             this.reader = reader;
@@ -4560,7 +4563,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             this.statsStripeSize = statsStripeSize;
             this.statsColumnScope = statsColumnScope != null ? statsColumnScope : StripeColumnScope.PROJECTED;
             this.statsFileFinal = statsFileFinal;
-            this.stripeHarvester = statsStripeSize > 0 ? new StripeStatsHarvester(statsStripeSize, statsFileFinal) : null;
+            this.stripeHarvester = statsStripeSize > 0 ? new StripeStatsHarvester(statsStripeSize, statsFileFinal, statsStripeSink) : null;
             // Same fallback as SkipWarnings, so a read context without a sink (tests, benchmarks) does not silence one
             // read-time channel while the other still reaches HeaderWarning. Production read paths always supply one.
             this.warningSink = warningSink != null ? warningSink : message -> HeaderWarning.addWarning(message);
@@ -6681,8 +6684,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 case DOUBLE -> {
                     // Parse the double straight from the record's char range, skipping the substring.
                     // jackson-core's fast parser is bit-identical to Double.parseDouble on accepted
-                    // inputs; on rejection we fall back to the shared conversion path, which itself
-                    // uses Double.parseDouble, so the accepted/rejected boundary matches the baseline.
+                    // inputs. Text outside the plain number grammar (type suffix, hex float, non-ASCII) and any
+                    // rejection go to the shared conversion path, which refuses or parses it by the same rule.
+                    if (DeclaredTypeCoercions.isPlainNumberText(buf, start, len) == false) {
+                        return emitConvertedStageField(new String(buf, start, len), bufIdx, dt);
+                    }
                     try {
                         stageDoubleValue(bufIdx, NumberInput.parseDouble(buf, start, len, true));
                         return true;
@@ -7506,7 +7512,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             // stringToDouble (StringUtils.parseDouble) rejects NaN/Infinity that the direct-block fast path
             // (NumberInput.parseDouble) accepts - routing here would break the direct-block parity contract.
             try {
-                return Double.parseDouble(value);
+                return DeclaredTypeCoercions.parseDoubleText(value);
             } catch (NumberFormatException e) {
                 lastFieldError = cannotRead(value, DataType.DOUBLE);
                 return null;

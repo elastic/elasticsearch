@@ -415,6 +415,17 @@ These queries will run in serverless just like a normal {{esql}} query. With som
 :::{include} _snippets/common/cps_view_limitations.md
 :::
 
+### Federated datasets across projects
+
+```{applies_to}
+serverless: preview
+```
+
+[Federated datasets](/reference/query-languages/esql/esql-data-federation-datasets.md) resolve only in the origin project:
+
+* Datasets in linked projects are invisible to the query, including through qualified expressions such as `FROM linked-project:dataset`.
+* An unqualified expression that matches a dataset in the origin project also matches indices with the same name in linked projects. CPS returns results from both.
+
 
 ## Related pages
 

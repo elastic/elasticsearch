@@ -1,0 +1,112 @@
+// NESTED_EXPAND over nested_orders: order 1 has items a and b and one event, order 2 has neither, order 3 has item c and two events.
+
+expandEachObject
+required_capability: nested_expand
+
+FROM nested_orders
+| NESTED_EXPAND items
+| KEEP id, items.sku, items.qty
+| SORT id, items.sku
+;
+
+id:keyword | items.sku:keyword | items.qty:long
+1          | a                 | 1
+1          | b                 | 2
+2          | null              | null
+3          | c                 | 5
+;
+
+filterOnChild
+required_capability: nested_expand
+
+FROM nested_orders
+| NESTED_EXPAND items
+| WHERE items.qty > 1
+| KEEP id, items.sku
+| SORT id
+;
+
+id:keyword | items.sku:keyword
+1          | b
+3          | c
+;
+
+filterOnParent
+required_capability: nested_expand
+
+FROM nested_orders
+| NESTED_EXPAND items
+| WHERE id == "1"
+| KEEP id, items.sku
+| SORT items.sku
+;
+
+id:keyword | items.sku:keyword
+1          | a
+1          | b
+;
+
+evalOnChild
+required_capability: nested_expand
+
+FROM nested_orders
+| NESTED_EXPAND items
+| EVAL total = items.qty * 10
+| KEEP id, total
+| SORT id, total
+;
+
+id:keyword | total:long
+1          | 10
+1          | 20
+2          | null
+3          | 50
+;
+
+statsAfter
+required_capability: nested_expand
+
+FROM nested_orders
+| NESTED_EXPAND items
+| STATS qty = SUM(items.qty), rows = COUNT(*), skus = COUNT(items.sku) BY id
+| SORT id
+;
+
+qty:long | rows:long | skus:long | id:keyword
+3        | 2         | 2         | 1
+null     | 1         | 0         | 2
+5        | 1         | 1         | 3
+;
+
+limitAfter
+required_capability: nested_expand
+
+FROM nested_orders
+| NESTED_EXPAND items
+| SORT items.qty DESC NULLS LAST
+| LIMIT 2
+| KEEP id, items.qty
+;
+
+id:keyword | items.qty:long
+3          | 5
+1          | 2
+;
+
+twoCollections
+required_capability: nested_expand
+
+FROM nested_orders
+| NESTED_EXPAND items
+| NESTED_EXPAND events
+| KEEP id, items.sku, events.start
+| SORT id, items.sku, events.start
+;
+
+id:keyword | items.sku:keyword | events.start:integer
+1          | a                 | 10
+1          | b                 | 10
+2          | null              | null
+3          | c                 | 30
+3          | c                 | 31
+;

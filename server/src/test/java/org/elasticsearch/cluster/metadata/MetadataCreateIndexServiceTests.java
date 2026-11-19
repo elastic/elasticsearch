@@ -59,6 +59,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService;
@@ -199,6 +200,16 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         int x = target / source;
         assert source < target : source + " >= " + target;
         return source * x == target;
+    }
+
+    public void testResizeCannotChangeSortExpression() {
+        ClusterState state = createClusterState("source", 2, 0, Settings.builder().put("index.blocks.write", true).build());
+        Settings targetSettings = Settings.builder().put("index.number_of_shards", 1).put("index.sort", "field1 DESC").build();
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> validateShrinkIndex(state, "source", "target", targetSettings)
+        );
+        assertEquals("can't change setting [index.sort] during resize", e.getMessage());
     }
 
     public void testValidateShrinkIndex() {
@@ -895,6 +906,28 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
         assertThat(aggregatedIndexSettings.get("template_setting"), equalTo("value1"));
         assertThat(aggregatedIndexSettings.get("request_setting"), equalTo("value2"));
+    }
+
+    public void testAggregateSettingsKeepsSortExpression() {
+        IndexTemplateMetadata templateMetadata = addMatchingTemplate(builder -> builder.settings(Settings.builder().put("a", "b")));
+        ProjectMetadata projectMetadata = ProjectMetadata.builder(projectId).templates(Map.of("template_1", templateMetadata)).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(projectMetadata).build();
+        request.settings(Settings.builder().put("index.sort", "field1 DESC, field2").build());
+
+        Settings aggregatedIndexSettings = aggregateIndexSettings(
+            clusterState,
+            request,
+            templateMetadata.settings(),
+            null,
+            null,
+            Settings.EMPTY,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet()
+        );
+
+        assertThat(aggregatedIndexSettings.get("index.sort"), equalTo("field1 DESC, field2"));
+        assertThat(IndexSortConfig.INDEX_SORT_FIELD_SETTING.exists(aggregatedIndexSettings), equalTo(false));
     }
 
     public void testAggregateSettingsProviderOverrulesSettingsFromRequest() {

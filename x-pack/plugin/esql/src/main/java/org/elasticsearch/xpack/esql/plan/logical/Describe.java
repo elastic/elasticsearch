@@ -14,6 +14,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.analysis.ColumnIntervals;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
@@ -54,6 +55,8 @@ public class Describe extends UnaryPlan implements TelemetryAware {
         new Column("origin", DataType.KEYWORD),
         new Column("metric_type", DataType.KEYWORD),
         new Column("unit", DataType.KEYWORD),
+        new Column("interval", DataType.KEYWORD),
+        new Column("time_zone", DataType.KEYWORD),
         new Column("description", DataType.KEYWORD)
     );
 
@@ -103,12 +106,14 @@ public class Describe extends UnaryPlan implements TelemetryAware {
      * @param units          the unit of every column whose unit is known, or every unit when its sources disagree,
      *                       keyed by attribute id
      * @param timeColumns    the ids of the columns that hold time but read no mapped field
+     * @param intervals      the interval of every date bucket with a constant interval, keyed by attribute id
      */
     public LocalRelation describe(
         Map<NameId, FieldSemantics> semantics,
         Map<NameId, Attribute> datasetColumns,
         Map<NameId, List<String>> units,
-        Set<NameId> timeColumns
+        Set<NameId> timeColumns,
+        Map<NameId, ColumnIntervals.Interval> intervals
     ) {
         List<Attribute> columns = child().output().stream().filter(a -> a.synthetic() == false).toList();
         ElementType[] elementTypes = new ElementType[COLUMNS.size()];
@@ -123,6 +128,7 @@ public class Describe extends UnaryPlan implements TelemetryAware {
                 Attribute datasetColumn = datasetColumns.get(column.id());
                 FieldSemantics.Role role = role(column, field, timeColumns);
                 String metricType = field == null ? null : field.metricType();
+                ColumnIntervals.Interval interval = intervals.get(column.id());
                 Object[] row = new Object[] {
                     column.name(),
                     column.dataType().outputType(),
@@ -131,6 +137,8 @@ public class Describe extends UnaryPlan implements TelemetryAware {
                     origin(column, field, datasetColumn),
                     metricType,
                     units.get(column.id()),
+                    interval == null ? null : interval.interval(),
+                    interval == null ? null : interval.timeZone(),
                     field == null || field.descriptions().isEmpty() ? null : List.copyOf(field.descriptions()) };
                 for (int i = 0; i < row.length; i++) {
                     append(builders[i], row[i], elementTypes[i]);

@@ -475,7 +475,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
                 .get();
             RestoreInfo restoreInfo = resp.getRestoreInfo();
             if (restoreInfo == null) {
-                return;
+                throw new ElasticsearchException("DLM failed to mount snapshot [{}] because the restore info was missing", snapshotName);
             }
             if (restoreInfo.failedShards() > 0 || restoreInfo.successfulShards() == 0) {
                 throw new ElasticsearchException(

@@ -31,12 +31,13 @@ import static org.hamcrest.Matchers.sameInstance;
 /**
  * A finished page that is still referenced, because the callback that asks for the next page captures it, must not keep its hits
  * reachable. Releasing a hit is not enough: a hit that came from a remote cluster keeps its source after release, so the page has to
- * forget the hits themselves. What the next search needs (scroll id, search-after values, PIT id) has to stay readable.
+ * forget the hits themselves. The cursor fields (scroll id, search-after values, PIT id) and the page level facts stay readable on the
+ * response, so anything that reads them after the drop still sees what the page carried.
  */
 public class PaginatedHitSourceDropHitsTests extends ESTestCase {
 
     /**
-     * The scroll id, search-after values and PIT id the next search is built from.
+     * The scroll id, search-after values and PIT id a page carries.
      */
     record Cursor(String scrollId, Object[] searchAfter, BytesReference pitId) {
         static Cursor random() {
@@ -53,7 +54,8 @@ public class PaginatedHitSourceDropHitsTests extends ESTestCase {
         private final PaginatedHitSource.Response response;
         private final Runnable continuation;
         final AtomicInteger doneCalls = new AtomicInteger();
-        volatile Cursor cursorSeenByDone;
+        /** What {@link #done} read off the response when it was called, which is after the page was dropped in the tests that drop it. */
+        volatile Cursor cursorReadByDone;
 
         HeldAsyncResponse(PaginatedHitSource.Response response, Runnable continuation) {
             this.response = response;
@@ -68,8 +70,9 @@ public class PaginatedHitSourceDropHitsTests extends ESTestCase {
         @Override
         public void done(TimeValue extraKeepAlive) {
             doneCalls.incrementAndGet();
-            // The next search is built from these and nothing else on the page.
-            cursorSeenByDone = new Cursor(response.getScrollId(), response.getSearchAfterValues(), response.getPitId());
+            // This stand-in reads the cursor off the response so the tests can see what a later reader of it gets. The real done()
+            // takes its cursor from the hit source, so this is not how production builds the next search.
+            cursorReadByDone = new Cursor(response.getScrollId(), response.getSearchAfterValues(), response.getPitId());
             continuation.run();
         }
     }
@@ -181,10 +184,10 @@ public class PaginatedHitSourceDropHitsTests extends ESTestCase {
     }
 
     /**
-     * The next search is built from the scroll id, the search-after values and the PIT id, so dropping the hits must not lose any
-     * of them, nor the page level facts the final response reports.
+     * Dropping the hits forgets only the hits. The scroll id, the search-after values and the PIT id stay readable on the response,
+     * and so do the page level facts the final response reports.
      */
-    public void testDroppingHitsKeepsWhatTheNextSearchNeeds() {
+    public void testDroppingHitsKeepsTheCursorAndPageLevelFacts() {
         Cursor cursor = Cursor.random();
         int hitCount = between(1, 10);
         boolean timedOut = randomBoolean();
@@ -219,7 +222,7 @@ public class PaginatedHitSourceDropHitsTests extends ESTestCase {
 
     /**
      * A remote PIT response carries no explicit search-after values, they are the sort values of its last hit. A caller that reads
-     * them after the page was dropped still has to get those values, because the next PIT search cannot be built without them.
+     * them after the page was dropped still sees those values, because dropping the hits keeps the last hit's sort values rather than losing them with the hits.
      */
     public void testSearchAfterValuesTakenFromTheLastHitSurviveDroppingHits() {
         int hitCount = between(1, 10);
@@ -266,7 +269,7 @@ public class PaginatedHitSourceDropHitsTests extends ESTestCase {
 
     /**
      * The worker holds the consumable page, and through it the response. Once every hit is consumed and released, dropping the page
-     * leaves neither the page nor the response able to reach a hit or its source, and the cursor is still there for {@code done}.
+     * leaves neither the page nor the response able to reach a hit or its source, and the cursor is still readable from the response.
      */
     public void testDroppingAConsumedPageMakesHitsUnreachableThroughThePageAndTheResponse() throws Exception {
         List<WeakReference<Object>> weak = new ArrayList<>();
@@ -287,18 +290,18 @@ public class PaginatedHitSourceDropHitsTests extends ESTestCase {
         page.dropHits();
 
         assertUnreachable("a hit or source of the dropped page", weak);
-        assertThat(page.remainingHits(), equalTo(0));
+        assertFalse(page.hasRemainingHits());
         assertThat(page.response().getHits(), empty());
         assertThat(held[0].response().getHits(), empty());
         assertThat(page.response().getScrollId(), equalTo(cursor.scrollId()));
         assertThat(page.response().getSearchAfterValues(), equalTo(cursor.searchAfter()));
         assertThat(page.response().getPitId(), equalTo(cursor.pitId()));
-        // done is still usable and sees the same cursor.
+        // done can still be called after the drop, and a reader of the response at that point sees the same cursor.
         page.done(TimeValue.ZERO);
         assertThat(held[0].doneCalls.get(), equalTo(1));
-        assertThat(held[0].cursorSeenByDone.scrollId(), equalTo(cursor.scrollId()));
-        assertThat(held[0].cursorSeenByDone.searchAfter(), equalTo(cursor.searchAfter()));
-        assertThat(held[0].cursorSeenByDone.pitId(), equalTo(cursor.pitId()));
+        assertThat(held[0].cursorReadByDone.scrollId(), equalTo(cursor.scrollId()));
+        assertThat(held[0].cursorReadByDone.searchAfter(), equalTo(cursor.searchAfter()));
+        assertThat(held[0].cursorReadByDone.pitId(), equalTo(cursor.pitId()));
     }
 
     /**

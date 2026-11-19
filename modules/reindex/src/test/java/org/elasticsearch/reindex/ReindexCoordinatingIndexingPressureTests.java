@@ -864,7 +864,7 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
      * fills the coordinating budget, so the reserve for the next page is refused and the worker waits. The callback that asks for the
      * next page is queued for that wait and the hit source's own response is still held, so the page stays referenced. The wait must
      * hold no page bytes, and neither the hits nor their sources may be reachable, or the page sits in memory uncharged. The search
-     * still has to continue once the reserve fits, with the cursor the finished page carried.
+     * still has to continue once the reserve fits, and the response the hit source holds still shows the cursor the page carried.
      */
     private void assertRefusedReserveHoldsNoHitSources(AbstractBulkByPaginatedSearchRequest<?> request, int pageSize, long version)
         throws Exception {
@@ -908,9 +908,9 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
         harness.queue.advanceTime();
 
         assertThat(held.get().doneCalls.get(), equalTo(1));
-        assertThat(held.get().cursorSeenByDone.scrollId(), equalTo(cursor.scrollId()));
-        assertThat(held.get().cursorSeenByDone.searchAfter(), equalTo(cursor.searchAfter()));
-        assertThat(held.get().cursorSeenByDone.pitId(), equalTo(cursor.pitId()));
+        assertThat(held.get().cursorReadByDone.scrollId(), equalTo(cursor.scrollId()));
+        assertThat(held.get().cursorReadByDone.searchAfter(), equalTo(cursor.searchAfter()));
+        assertThat(held.get().cursorReadByDone.pitId(), equalTo(cursor.pitId()));
         BulkByPaginatedSearchResponse response = harness.listener.actionGet(TimeValue.ZERO);
         assertThat(response.getUpdated() + response.getDeleted() + response.getCreated(), equalTo(hitCount + 1L));
         assertThat(following.releases.get(), equalTo(1));

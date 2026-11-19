@@ -11,7 +11,6 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
-import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOFunction;
 import org.apache.lucene.util.UnicodeUtil;
@@ -668,6 +667,9 @@ public final class UnmappedFields {
      * given back after it.
      */
     private static final class ChargingByteArrayOutputStream extends ByteArrayOutputStream {
+        /** The largest array to grow to by doubling; past it growth falls back to what is needed, as {@link ByteArrayOutputStream} does. */
+        private static final int MAX_LENGTH = Integer.MAX_VALUE - 8;
+
         private final HeldValues charge;
 
         ChargingByteArrayOutputStream(HeldValues charge) {
@@ -691,13 +693,16 @@ public final class UnmappedFields {
          * Grows the array so it holds {@code needed} bytes, charging the new capacity before the copy and releasing the old one after it.
          * {@link ByteArrayOutputStream#write} then finds the array large enough and never grows it, so the charge does not depend on its
          * growth policy. Does nothing if the array already holds {@code needed}.
+         * <p>
+         * It grows by doubling, as {@link ByteArrayOutputStream} does, so the bytes copied over a whole walk stay close to the final size
+         * rather than a multiple of it. A smaller factor would recopy a large result many times over as it grows.
          */
         private void ensureCapacity(long needed) {
             if (needed <= buf.length) {
                 return;
             }
             int oldLength = buf.length;
-            int grown = ArrayUtil.oversize(Math.toIntExact(needed), Byte.BYTES);
+            int grown = Math.toIntExact(Math.max(needed, Math.min((long) oldLength * 2, MAX_LENGTH)));
             charge.add(grown);
             buf = Arrays.copyOf(buf, grown);
             charge.release(oldLength);

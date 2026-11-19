@@ -32,9 +32,9 @@ class ForbiddenPatternsPrecommitPluginFuncTest extends AbstractGradleInternalPlu
         assertOutputContains(result.getOutput(), "Problems report is available at")
 
         and: "problems report contains forbidden-patterns group with correct problem"
-        assertProblemsReportContains("forbidden-patterns")
-        assertProblemsReportContains("elasticsearch-build")
-        assertProblemsReportContains("precommit")
+        assertProblemsReportContains("Forbidden Patterns")
+        assertProblemsReportContains("Verification")
+        assertProblemsReportContains("Elasticsearch Precommit")
     }
 
     def "detects nocommit violations and reports structured problems"() {
@@ -52,7 +52,7 @@ class ForbiddenPatternsPrecommitPluginFuncTest extends AbstractGradleInternalPlu
         assertOutputContains(result.getOutput(), "invalid pattern")
 
         and: "problems report contains nocommit problem"
-        assertProblemsReportContains("forbidden-patterns")
+        assertProblemsReportContains("Forbidden Patterns")
         def diagnostics = problemsReportDiagnostics()
         diagnostics.any { it.contextualLabel?.contains("nocommit") }
     }
@@ -73,7 +73,7 @@ class ForbiddenPatternsPrecommitPluginFuncTest extends AbstractGradleInternalPlu
 
         and: "problems report has at least 2 diagnostics (one per file)"
         assertProblemsReportHasAtLeast(2)
-        assertProblemsReportSeverity("tab", "ERROR")
+        assertProblemsReportSeverity("Forbidden pattern", "ERROR")
     }
 
     def "multiple rule violations in same file reported as separate problems"() {

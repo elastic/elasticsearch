@@ -54,6 +54,13 @@ public class RestThreadPoolAction extends AbstractCatAction {
 
     private static final Set<String> RESPONSE_PARAMS = addToCopy(AbstractCatAction.RESPONSE_PARAMS, "thread_pool_patterns");
 
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = addToCopy(
+        COMMON_QUERY_PARAMETERS,
+        RestUtils.REST_MASTER_TIMEOUT_PARAM,
+        "local"
+    );
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS = addToCopy(SUPPORTED_QUERY_PARAMETERS, "thread_pool_patterns");
+
     @Override
     public List<Route> routes() {
         return List.of(new Route(GET, "/_cat/thread_pool"), new Route(GET, "/_cat/thread_pool/{thread_pool_patterns}"));
@@ -62,6 +69,16 @@ public class RestThreadPoolAction extends AbstractCatAction {
     @Override
     public String getName() {
         return "cat_threadpool_action";
+    }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return SUPPORTED_QUERY_PARAMETERS;
+    }
+
+    @Override
+    public Set<String> allSupportedParameters() {
+        return ALL_SUPPORTED_PARAMETERS;
     }
 
     @Override

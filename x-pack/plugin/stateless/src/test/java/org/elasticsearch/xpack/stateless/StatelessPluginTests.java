@@ -12,6 +12,7 @@ import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
+import org.elasticsearch.cluster.routing.allocation.SnapshotRestoreAllocationSettings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Setting;
@@ -137,6 +138,10 @@ public class StatelessPluginTests extends ESTestCase {
             plugin.additionalSettings().get(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey()),
             equalTo("false")
         );
+        assertThat(
+            plugin.additionalSettings().get(SnapshotRestoreAllocationSettings.SNAPSHOT_RESTORE_ALLOCATION_ENABLED.getKey()),
+            equalTo("true")
+        );
 
         final var nodeInvalidSettings = Settings.builder()
             .put(STATELESS_ENABLED.getKey(), true)
@@ -191,6 +196,15 @@ public class StatelessPluginTests extends ESTestCase {
             .build();
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> createStatelessPlugin(nodeInvalidSettings));
         assertThat(ex.getMessage(), containsString("does not support setting data_streams.lifecycle_only.mode to false"));
+    }
+
+    public void testBloomFilterForDataStreamTimestampIndicesIsEnabled() {
+        final var plugin = createStatelessPlugin(Settings.builder().put(STATELESS_ENABLED.getKey(), true).build());
+        assertThat(
+            plugin.additionalSettings().get(StatelessPlugin.BLOOM_FILTER_ID_FIELD_WITH_DATA_STREAM_TIMESTAMP_ENABLED.getKey()),
+            equalTo("true")
+        );
+        assertThat(plugin.getSettings(), hasItem(StatelessPlugin.BLOOM_FILTER_ID_FIELD_WITH_DATA_STREAM_TIMESTAMP_ENABLED));
     }
 
     public void testIdLookupPrewarmEnabledSettingIsRegistered() {

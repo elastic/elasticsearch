@@ -95,10 +95,10 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
 
     public final void testMinimalSerializesToItself() throws IOException {
         XContentBuilder orig = JsonXContent.contentBuilder().startObject();
-        createMapperService(runtimeFieldMapping(this::minimalMapping)).documentMapper().mapping().toXContent(orig, ToXContent.EMPTY_PARAMS);
+        mappingToXContent(createMapperService(runtimeFieldMapping(this::minimalMapping)), orig, ToXContent.EMPTY_PARAMS);
         orig.endObject();
         XContentBuilder parsedFromOrig = JsonXContent.contentBuilder().startObject();
-        createMapperService(orig).documentMapper().mapping().toXContent(parsedFromOrig, ToXContent.EMPTY_PARAMS);
+        mappingToXContent(createMapperService(orig), parsedFromOrig, ToXContent.EMPTY_PARAMS);
         parsedFromOrig.endObject();
         assertEquals(Strings.toString(orig), Strings.toString(parsedFromOrig));
     }
@@ -134,10 +134,10 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
 
     public final void testMinimalMappingToMaximal() throws IOException {
         XContentBuilder orig = JsonXContent.contentBuilder().startObject();
-        createMapperService(runtimeFieldMapping(this::minimalMapping)).documentMapper().mapping().toXContent(orig, INCLUDE_DEFAULTS);
+        mappingToXContent(createMapperService(runtimeFieldMapping(this::minimalMapping)), orig, INCLUDE_DEFAULTS);
         orig.endObject();
         XContentBuilder parsedFromOrig = JsonXContent.contentBuilder().startObject();
-        createMapperService(orig).documentMapper().mapping().toXContent(parsedFromOrig, INCLUDE_DEFAULTS);
+        mappingToXContent(createMapperService(orig), parsedFromOrig, INCLUDE_DEFAULTS);
         parsedFromOrig.endObject();
         assertEquals(Strings.toString(orig), Strings.toString(parsedFromOrig));
     }

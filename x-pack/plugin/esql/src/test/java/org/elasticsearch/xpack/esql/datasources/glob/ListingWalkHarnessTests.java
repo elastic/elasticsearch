@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
+import org.junit.After;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -53,7 +54,7 @@ import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.t
 
 /**
  * Named-tree harness: listing must match a flat prefix listing plus {@code PartitionValueMatcher} and
- * {@code PartitionSpec.overlaps}. LIST pins document today's request counts; do not "fix" them here.
+ * {@code PartitionSpec.overlaps}. LIST pins record request counts under the request-count finish rule.
  *
  * <p>Documented holes (flipped by later PRs):
  * <ul>
@@ -69,6 +70,11 @@ public class ListingWalkHarnessTests extends ESTestCase {
      * Between unpruned 61×8=488 and one-sided Oct 14–31 18×8=144. Cross-month 7 days is 56.
      */
     private static final int LOWERED_CAP = 200;
+    /**
+     * Enough objects per day that 7 survivors beat one prefix listing: {@code 7 <= ceil(62 * 200 / 1000)}.
+     */
+    private static final int DENSE_FILES_PER_DAY = 200;
+    private static final String LOGS_LIST_PREFIX = "s3://bucket/logs/";
 
     private static final Instant LAST_DAY = Instant.parse("2026-10-14T00:00:00Z");
     private static final Instant DAYS_3 = Instant.parse("2026-10-12T00:00:00Z");
@@ -79,6 +85,11 @@ public class ListingWalkHarnessTests extends ESTestCase {
     private static final Instant NOV_START = Instant.parse("2026-11-01T00:00:00Z");
     private static final Instant CROSS_START = Instant.parse("2026-09-28T00:00:00Z");
     private static final Instant CROSS_END = Instant.parse("2026-10-05T00:00:00Z");
+
+    @After
+    public void clearFinishMode() {
+        PartitionPruningWalk.clearFinishMode();
+    }
 
     public void testListObjectsPagesAtOneThousand() throws IOException {
         List<StorageEntry> files = new ArrayList<>(2500);
@@ -92,7 +103,7 @@ public class ListingWalkHarnessTests extends ESTestCase {
         assertEquals(3, provider.listObjectPages.get());
         assertEquals(0, provider.listChildrenRequests.get());
         assertEquals(3, provider.requestCount());
-        assertEquals(LIST_PAGE_SIZE, 1000);
+        assertEquals(PartitionPruningWalk.LIST_PAGE_SIZE, LIST_PAGE_SIZE);
     }
 
     public void testChildrenUnsupportedForcesOnePrefixList() throws IOException {
@@ -128,7 +139,6 @@ public class ListingWalkHarnessTests extends ESTestCase {
     }
 
     public void testInMonthSevenDaysMatchesReference() throws IOException {
-        // Grain INs already pick the 7 October days; the 4/0.2 finish rule may still flatten (PR 2).
         assertWalkAndFlatMatch(fieldShapedTree(), LOGS_GLOB, List.of(window(DAYS_7_IN_MONTH, NOW)), DAY_SPEC);
     }
 
@@ -247,42 +257,138 @@ public class ListingWalkHarnessTests extends ESTestCase {
         assertEquals(0, ref.excludedByNameFilter());
     }
 
-    // --- LIST pins: today's request counts. Do not "fix" them in this PR. ---
+    // --- LIST pins: request-count finish vs flat. Sparse tree (k=8) flattens multi-day windows. ---
 
     public void testListPinLastDay() throws IOException {
-        assertListPin(window(LAST_DAY, NOW), 5, FILES_PER_DAY);
+        // S=1 always finishes. Same 5 as the 4/0.2 rule.
+        assertListPin(window(LAST_DAY, NOW), 5, FILES_PER_DAY, false);
     }
 
     public void testListPinThreeDays() throws IOException {
-        assertListPin(window(DAYS_3, NOW), 7, 3 * FILES_PER_DAY);
+        // k=8: remaining 2 pages > 1 prefix page, so flatten after measuring the first day.
+        assertListPin(window(DAYS_3, NOW), 6, 3 * FILES_PER_DAY, true);
     }
 
     public void testListPinSixDays() throws IOException {
-        assertListPin(window(DAYS_6, NOW), 10, 6 * FILES_PER_DAY);
+        assertListPin(window(DAYS_6, NOW), 6, 6 * FILES_PER_DAY, true);
     }
 
     public void testListPinSevenDaysInMonth() throws IOException {
-        assertListPin(window(DAYS_7_IN_MONTH, NOW), 5, 7 * FILES_PER_DAY);
+        // Sparse k=8 still flattens; one wasted LIST of the first day then the prefix.
+        assertListPin(window(DAYS_7_IN_MONTH, NOW), 6, 7 * FILES_PER_DAY, true);
     }
 
     public void testListPinFourteenDays() throws IOException {
-        assertListPin(window(DAYS_14, NOW), 5, 14 * FILES_PER_DAY);
+        assertListPin(window(DAYS_14, NOW), 6, 14 * FILES_PER_DAY, true);
     }
 
     public void testListPinCalendarMonth() throws IOException {
-        assertListPin(window(OCT_START, NOV_START), 5, 31 * FILES_PER_DAY);
+        assertListPin(window(OCT_START, NOV_START), 6, 31 * FILES_PER_DAY, true);
     }
 
     public void testListPinSevenDayCrossMonth() throws IOException {
-        assertListPin(window(CROSS_START, CROSS_END), 5, 7 * FILES_PER_DAY);
+        assertListPin(window(CROSS_START, CROSS_END), 6, 7 * FILES_PER_DAY, true);
     }
 
-    private static void assertListPin(Expression filter, int expectedRequests, int expectedFiles) throws IOException {
+    /**
+     * 7 of 31 October days with {@link #DENSE_FILES_PER_DAY} objects: finish is cheaper than flattening
+     * ~62 day-folders, so the prefix is never listObjects'd.
+     */
+    public void testListPinSevenDaysInMonthDoesNotFlatListDenseTree() throws IOException {
+        ListingWalkHarness provider = new ListingWalkHarness(fieldShapedTree(DENSE_FILES_PER_DAY));
+        List<Expression> filters = List.of(window(DAYS_7_IN_MONTH, NOW));
+        FileList result = expand(provider, LOGS_GLOB, listingHints(filters, DAY_SPEC), MAX, folderRange(filters, DAY_SPEC));
+        assertEquals(7 * DENSE_FILES_PER_DAY, result.fileCount());
+        assertFalse("7-day must not flat-list the prefix", provider.listedPrefixes.contains(LOGS_LIST_PREFIX));
+        assertEquals("4 listChildren (root, year, peek Sep, Oct) + 7 day listings", 11, provider.requestCount());
+        int dayListings = 0;
+        for (String prefix : provider.listedPrefixes) {
+            if (prefix.contains("/day=")) {
+                dayListings++;
+            }
+        }
+        assertEquals(7, dayListings);
+    }
+
+    public void testAlwaysFlatAlwaysFinishAndRuleKeepTheSameFiles() throws IOException {
+        List<Expression> windows = List.of(window(LAST_DAY, NOW), window(DAYS_7_IN_MONTH, NOW), window(OCT_START, NOV_START));
+        for (Expression filter : windows) {
+            List<StorageEntry> tree = fieldShapedTree();
+            List<Expression> filters = List.of(filter);
+            List<PartitionFilterHint> hints = listingHints(filters, DAY_SPEC);
+            FolderRangePredicate pred = folderRange(filters, DAY_SPEC);
+            ListingWalkHarness.Reference ref = reference(tree, LOGS_GLOB, hints, DAY_SPEC, temporalHints(filters, DAY_SPEC), HIVE_ON);
+
+            ListingWalkHarness ruleProvider = new ListingWalkHarness(tree);
+            FileList rule = expand(ruleProvider, LOGS_GLOB, hints, MAX, pred);
+            assertObserved(rule, ref);
+
+            ListingWalkHarness flatProvider = new ListingWalkHarness(tree);
+            FileList flat = PartitionPruningWalk.withFinishMode(
+                PartitionPruningWalk.FinishMode.ALWAYS_FLAT,
+                () -> expand(flatProvider, LOGS_GLOB, hints, MAX, pred)
+            );
+            assertObserved(flat, ref);
+            assertEquals(pathsOf(rule), pathsOf(flat));
+
+            ListingWalkHarness childrenOff = new ListingWalkHarness(tree);
+            childrenOff.childrenUnsupported = true;
+            FileList forcedFlat = expand(childrenOff, LOGS_GLOB, hints, MAX, pred);
+            assertObserved(forcedFlat, ref);
+            assertEquals(pathsOf(rule), pathsOf(forcedFlat));
+
+            ListingWalkHarness finishProvider = new ListingWalkHarness(tree);
+            FileList finish = PartitionPruningWalk.withFinishMode(
+                PartitionPruningWalk.FinishMode.ALWAYS_FINISH,
+                () -> expand(finishProvider, LOGS_GLOB, hints, MAX, pred)
+            );
+            assertObserved(finish, ref);
+            assertEquals(pathsOf(rule), pathsOf(finish));
+        }
+        assertFinishModeChangesListShape();
+    }
+
+    /** RULE flattens 7-day (k=8); ALWAYS_FINISH lists the 7 days; ALWAYS_FLAT prefix-lists without measuring. */
+    private static void assertFinishModeChangesListShape() throws IOException {
+        List<StorageEntry> tree = fieldShapedTree();
+        List<Expression> filters = List.of(window(DAYS_7_IN_MONTH, NOW));
+        List<PartitionFilterHint> hints = listingHints(filters, DAY_SPEC);
+        FolderRangePredicate pred = folderRange(filters, DAY_SPEC);
+
+        ListingWalkHarness rule = new ListingWalkHarness(tree);
+        expand(rule, LOGS_GLOB, hints, MAX, pred);
+        assertTrue("RULE measures then flattens", rule.listedPrefixes.contains(LOGS_LIST_PREFIX));
+
+        ListingWalkHarness alwaysFlat = new ListingWalkHarness(tree);
+        PartitionPruningWalk.withFinishMode(
+            PartitionPruningWalk.FinishMode.ALWAYS_FLAT,
+            () -> expand(alwaysFlat, LOGS_GLOB, hints, MAX, pred)
+        );
+        assertEquals(List.of(LOGS_LIST_PREFIX), alwaysFlat.listedPrefixes);
+
+        ListingWalkHarness alwaysFinish = new ListingWalkHarness(tree);
+        PartitionPruningWalk.withFinishMode(
+            PartitionPruningWalk.FinishMode.ALWAYS_FINISH,
+            () -> expand(alwaysFinish, LOGS_GLOB, hints, MAX, pred)
+        );
+        assertFalse(alwaysFinish.listedPrefixes.contains(LOGS_LIST_PREFIX));
+        int days = 0;
+        for (String prefix : alwaysFinish.listedPrefixes) {
+            if (prefix.contains("/day=")) {
+                days++;
+            }
+        }
+        assertEquals(7, days);
+    }
+
+    private static void assertListPin(Expression filter, int expectedRequests, int expectedFiles, boolean flatListedPrefix)
+        throws IOException {
         ListingWalkHarness provider = new ListingWalkHarness(fieldShapedTree());
         List<Expression> filters = List.of(filter);
         FileList result = expand(provider, LOGS_GLOB, listingHints(filters, DAY_SPEC), MAX, folderRange(filters, DAY_SPEC));
-        assertEquals("LIST pin (today's number; do not 'fix' here)", expectedRequests, provider.requestCount());
+        assertEquals("LIST pin", expectedRequests, provider.requestCount());
         assertEquals(expectedFiles, result.fileCount());
+        assertEquals(flatListedPrefix, provider.listedPrefixes.contains(LOGS_LIST_PREFIX));
     }
 
     private static void assertWalkAndFlatMatch(List<StorageEntry> tree, String glob, List<Expression> filters, PartitionSpec spec)

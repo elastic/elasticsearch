@@ -12,6 +12,7 @@ package org.elasticsearch.sourcebatch;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentString;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 
@@ -79,7 +80,15 @@ public final class SourceRowToXContent {
             // holds for any value stored as FLOAT.
             case SourceValueType.FLOAT -> builder.field(leafName, (double) row.getFloatValue(leafIdx));
             case SourceValueType.LONG -> builder.field(leafName, row.getLongValue(leafIdx));
-            case SourceValueType.DOUBLE -> builder.field(leafName, row.getDoubleValue(leafIdx));
+            case SourceValueType.DOUBLE -> {
+                if (builder.contentType() == XContentType.JSON) {
+                    // The client's spelling when the column kept one, else the canonical rendering: either is a JSON
+                    // number token. Only the JSON generator writes a raw token.
+                    builder.field(leafName).rawValue(row.getStringValue(leafIdx).string());
+                } else {
+                    builder.field(leafName, row.getDoubleValue(leafIdx));
+                }
+            }
             case SourceValueType.STRING -> {
                 builder.field(leafName);
                 row.getStringValue(leafIdx).toXContent(builder, null);

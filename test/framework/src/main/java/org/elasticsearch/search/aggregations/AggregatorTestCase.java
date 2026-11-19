@@ -192,6 +192,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -540,11 +542,35 @@ public abstract class AggregatorTestCase extends ESTestCase {
         when(ctx.newSourceLoader(null)).thenAnswer(inv -> searchExecutionContext.newSourceLoader(null, false));
         when(ctx.newIdLoader()).thenReturn(IdLoader.fromLeafStoredFieldLoader());
         when(ctx.innerHits()).thenReturn(new InnerHitsContext());
+        doAnswer(inv -> {
+            registerTopHitsForRelease(inv.getArgument(0));
+            return null;
+        }).when(ctx).registerTopHitsForRelease(any());
         // SearchService gives the SubSearchContext the query of the search. Without it, anything that needs the query, like
         // track_scores on a top_hits that is sorted, finds none.
-        var res = new SubSearchContext(ctx).parsedQuery(new ParsedQuery(query));
+        var res = newSubSearchContext(ctx).parsedQuery(new ParsedQuery(query));
         releasables.add(res); // TODO: nasty workaround for not getting the standard resource handling behavior of a real search context
         return res;
+    }
+
+    /**
+     * Builds the {@link SubSearchContext} that aggregations like {@code top_hits} copy. A test can return a subclass to see what the
+     * copies register on it.
+     */
+    protected SubSearchContext newSubSearchContext(SearchContext context) {
+        return new SubSearchContext(context);
+    }
+
+    /**
+     * Takes a reference to the hits of a {@code top_hits} bucket and holds it until the test ends, as the shard result of a search does.
+     * The fetch context they come from is closed right after they are registered.
+     */
+    protected void registerTopHitsForRelease(SearchHits hits) {
+        hits.incRef();
+        // Each slice builds its buckets on its own search thread, so hits can be registered concurrently.
+        synchronized (releasables) {
+            releasables.add(hits::decRef);
+        }
     }
 
     protected IndexSettings createIndexSettings() {

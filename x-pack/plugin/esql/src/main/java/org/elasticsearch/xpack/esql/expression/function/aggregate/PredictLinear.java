@@ -68,10 +68,10 @@ public class PredictLinear extends TimeSeriesAggregateFunction implements Timest
                 + "Negative and fractional prediction horizons are supported. "
                 + "Duration literals retain millisecond precision: `500ms` is equivalent to `0.5` seconds."
         )
-        .differenceFromPrometheus(
-            "The prediction horizon must be a number, a duration literal, or arithmetic on literals. "
-                + "Scalar functions such as `time()` and `scalar(...)` are not supported. "
-                + "A single Elasticsearch field has a fixed type, so mixed float and native histogram ranges cannot be represented."
+        .stdDivergence(
+            "A horizon computed by a function, such as `predict_linear(x[1h], time())` or `predict_linear(x[1h], scalar(y))`, "
+                + "isn't supported yet. Use a number, a duration literal, or arithmetic on literals. A single {{es}} field has a "
+                + "fixed type, so a range that mixes float and native histogram samples cannot be represented."
         )
         .example("predict_linear(node_filesystem_free_bytes[1h], 3600)")
         .stack(PromqlFunctionDefinition.STACK_GA_9_7)

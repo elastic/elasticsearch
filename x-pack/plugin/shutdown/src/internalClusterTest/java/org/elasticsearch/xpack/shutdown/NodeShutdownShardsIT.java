@@ -15,6 +15,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -383,11 +384,11 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         // All shards for the index should be allocated
         ensureGreen("myindex");
 
-        Map<String, ShardRouting.RecoveryPriority> recoveryPriorities = retrieveRecoveryPrioritiesByTargetNodeName("myindex", 0);
+        Map<String, RecoveryPriority> recoveryPriorities = retrieveRecoveryPrioritiesByTargetNodeName("myindex", 0);
         // Node B got the original replica shard, which should be recovered with UNASSIGNED_EXPECTED priority:
-        assertThat(recoveryPriorities.get(nodeB), equalTo(ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED));
+        assertThat(recoveryPriorities.get(nodeB), equalTo(RecoveryPriority.UNASSIGNED_EXPECTED));
         // Node C got the replica shard after node A shutdown and its shard failed, so it should be recovered with UNASSIGNED_UNEXPECTED:
-        assertThat(recoveryPriorities.get(nodeC), equalTo(ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED));
+        assertThat(recoveryPriorities.get(nodeC), equalTo(RecoveryPriority.UNASSIGNED_UNEXPECTED));
     }
 
     public void testReallocationForReplicaDuringNodeReplaceAfterShutdownOfReplica() throws Exception {
@@ -416,11 +417,11 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         // All shards for the index should be allocated
         ensureGreen("myindex");
 
-        Map<String, ShardRouting.RecoveryPriority> recoveryPriorities = retrieveRecoveryPrioritiesByTargetNodeName("myindex", 0);
+        Map<String, RecoveryPriority> recoveryPriorities = retrieveRecoveryPrioritiesByTargetNodeName("myindex", 0);
         // Node A got the original primary shard, which should be recovered with UNASSIGNED_NEW_PRIMARY priority:
-        assertThat(recoveryPriorities.get(nodeA), equalTo(ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY));
+        assertThat(recoveryPriorities.get(nodeA), equalTo(RecoveryPriority.UNASSIGNED_NEW_PRIMARY));
         // Node C got the replica shard after node B shutdown and its shard failed, so it should be recovered with UNASSIGNED_UNEXPECTED:
-        assertThat(recoveryPriorities.get(nodeC), equalTo(ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED));
+        assertThat(recoveryPriorities.get(nodeC), equalTo(RecoveryPriority.UNASSIGNED_UNEXPECTED));
     }
 
     /**
@@ -646,7 +647,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         assertThat(response.getSetting(index, setting), equalTo(expectedValue));
     }
 
-    private static Map<String, ShardRouting.RecoveryPriority> retrieveRecoveryPrioritiesByTargetNodeName(String index, int id) {
+    private static Map<String, RecoveryPriority> retrieveRecoveryPrioritiesByTargetNodeName(String index, int id) {
         return admin().indices()
             .prepareRecoveries(index)
             .get()

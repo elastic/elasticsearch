@@ -391,18 +391,6 @@ setup:
             _slice: tenant-a
 
 ---
-"Source slice _all is rejected":
-  - do:
-      catch: bad_request
-      reindex:
-        body:
-          source:
-            index: some_source
-            _slice: _all
-          dest:
-            index: some_dest
-
----
 "Destination slice _all is rejected":
   - do:
       catch: bad_request

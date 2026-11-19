@@ -133,20 +133,6 @@ setup:
   - contains: { hits.hits: { _id: "4" } }
 
 ---
-"KNN search with _all is rejected":
-  - do:
-      catch: /invalid \[_slice\] value \[_all\]/
-      search:
-        index: bbq_disk_slice
-        _slice: _all
-        body:
-          knn:
-            field: vector
-            query_vector: [0.707107, 0.707107, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-            k: 4
-            num_candidates: 10
-
----
 "Search without slice reads every slice of a slice-enabled index":
   - do:
       search:

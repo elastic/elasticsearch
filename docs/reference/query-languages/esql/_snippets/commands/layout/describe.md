@@ -15,7 +15,7 @@ DESCRIBE
 
 `DESCRIBE` takes no arguments. It describes the columns the query has at that point, after views, renames and computations are resolved, and reads no data. Its output is a table like any other, so the rest of the query can filter, sort or aggregate it.
 
-`DESCRIBE` returns the following columns:
+`DESCRIBE` returns the following columns. New columns can be added in future versions, so use [`KEEP`](/reference/query-languages/esql/commands/keep.md) to select the ones you need rather than relying on their position.
 
 `name`
 :   The name of the column.
@@ -24,7 +24,7 @@ DESCRIBE
 :   The {{esql}} type of the column.
 
 `role`
-:   How the field the column reads is meant to be used: `time`, `dimension`, `metric`, `attribute`, `numeric`, `text`, `semantic`, `vector`, `metadata` or `other`. `dimension` and `metric` come from time series mappings. The others follow from the field type, and `time` is the `@timestamp` field. `mixed` means the indices disagree. `null` for a computed column.
+:   How the field the column reads is meant to be used: `time`, `dimension`, `metric`, `attribute`, `numeric`, `text`, `semantic`, `vector`, `metadata` or `other`. `dimension` and `metric` come from time series mappings. The others follow from the field type, and `time` is the `@timestamp` field. `mixed` means the indices disagree. A computed column is `time` when it rounds or converts a time column, for example with `BUCKET` or `DATE_TRUNC`, and `null` otherwise.
 
 `field`
 :   The field or dataset column the column reads, or `null` if it is computed.
@@ -45,6 +45,12 @@ DESCRIBE
 `unit`
 :   The unit of the column, from the `unit` in the field's `meta`. A computed column has the unit that follows from the computation when there is one, for example `bytes/s` for the rate of a field in `bytes`. When the indices or the branches of a query disagree, the column lists every unit.
 
+`interval`
+:   The interval of a date bucket, such as `1 hour` or `1 month`, when the column is computed by `BUCKET`, `TBUCKET`, `TSTEP` or `DATE_TRUNC` with constant arguments. For a target number of buckets, it's the interval that was picked.
+
+`time_zone`
+:   The time zone the buckets of `interval` are aligned in.
+
 `description`
 :   The `description` in the field's `meta`. When the indices or the branches of a query disagree, the column lists every description. The listed units and descriptions are collected independently, so their positions don't match.
 
@@ -58,6 +64,11 @@ Describe the fields of an index:
 Follow a column back to the field it reads:
 
 :::{include} ../../generated/x-pack-esql/commands/examples/describe.csv-spec/describeLineage.md
+:::
+
+Report the interval and time zone of date buckets:
+
+:::{include} ../../generated/x-pack-esql/commands/examples/describe.csv-spec/describeIntervals.md
 :::
 
 Summarize the fields of an index by role:

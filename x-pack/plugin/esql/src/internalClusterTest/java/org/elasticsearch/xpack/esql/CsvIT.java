@@ -32,6 +32,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
@@ -358,16 +359,12 @@ public class CsvIT extends ESTestCase {
             new NodeConfigurationSource() {
                 @Override
                 public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-                    Settings.Builder settings = Settings.builder()
+                    return Settings.builder()
                         .put("xpack.security.enabled", false)
                         .put("xpack.license.self_generated.type", "trial")
                         .put("ingest.geoip.downloader.enabled", false)
-                        .put(PlannerSettings.PARALLEL_OPERATOR_PROMOTION_THRESHOLD_ROWS.getKey(), 0);
-                    if (BatchIndexingEnabled.FEATURE_FLAG.isEnabled()) {
-                        // The test cluster randomly turns this kill switch off, but INTO only writes through batch indexing.
-                        settings.put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), true);
-                    }
-                    return settings.build();
+                        .put(PlannerSettings.PARALLEL_OPERATOR_PROMOTION_THRESHOLD_ROWS.getKey(), 0)
+                        .build();
                 }
 
                 @Override
@@ -417,6 +414,39 @@ public class CsvIT extends ESTestCase {
         Analyzer.ResolveRefs.resetNameIndexThreshold();
     }
 
+    @After
+    public void resetBatchIndexing() {
+        if (batchIndexingForced) {
+            batchIndexingForced = false;
+            setBatchIndexing(null);
+        }
+    }
+
+    private boolean batchIndexingForced;
+
+    /**
+     * The test cluster randomly turns the {@code indices.batch_indexing} kill switch off to cover the non-batch path, but INTO only
+     * writes through batch indexing. Turn it on for the INTO tests alone so the other tests keep that coverage.
+     */
+    private void forceBatchIndexingForInto() {
+        if (BatchIndexingEnabled.FEATURE_FLAG.isEnabled()
+            && testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.INTO_COMMAND.capabilityName())) {
+            batchIndexingForced = true;
+            setBatchIndexing(true);
+        }
+    }
+
+    private static void setBatchIndexing(Boolean enabled) {
+        Settings.Builder settings = Settings.builder();
+        settings.put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), enabled == null ? null : enabled.toString());
+        cluster.client()
+            .admin()
+            .cluster()
+            .prepareUpdateSettings(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS)
+            .setPersistentSettings(settings)
+            .get();
+    }
+
     public final void test() throws Throwable {
         assumeTrueLogging("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
         assumeFalseLogging(
@@ -446,6 +476,7 @@ public class CsvIT extends ESTestCase {
         CsvTestUtils.checkMissingTestCapabilities(ENABLED_CAPS, testCase.missingCapabilitiesLocalCluster);
         CsvTestUtils.checkPragma(testCase.pragmas);
 
+        forceBatchIndexingForInto();
         Analyzer.ResolveRefs.setNameIndexThresholdForTests(randomBoolean() ? 0 : Integer.MAX_VALUE);
 
         currentGroupName = groupName;

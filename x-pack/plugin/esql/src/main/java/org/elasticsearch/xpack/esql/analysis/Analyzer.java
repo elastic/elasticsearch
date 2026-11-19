@@ -499,11 +499,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             resolutions.addAll(context.lookupResolution().values());
             Map<NameId, FieldSemantics> semantics = ColumnSemantics.collect(describe.child(), resolutions);
             Map<NameId, Attribute> datasetColumns = ColumnSemantics.datasetColumns(describe.child());
+            Set<NameId> timeColumns = ColumnSemantics.timeColumns(describe.child(), semantics, datasetColumns);
             return describe.describe(
                 semantics,
                 datasetColumns,
                 ColumnUnits.collect(describe.child(), semantics),
-                ColumnSemantics.timeColumns(describe.child(), semantics, datasetColumns)
+                timeColumns,
+                ColumnIntervals.collect(describe.child(), context.configuration().newFoldContext())
             );
         }
 

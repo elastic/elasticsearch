@@ -117,7 +117,7 @@ public abstract class MetricDocumentTestCase extends ESTestCase {
                 .build()
         );
 
-        dataPointGroupingContext.consume(dataPointGroup -> {
+        dataPointGroupingContext.forEachGroup(dataPointGroup -> {
             Document document = buildDocument(MappingHints.DEFAULT_TDIGEST, dataPointGroup);
             ObjectPath doc = document.doc();
             Map<String, String> dynamicTemplates = document.dynamicTemplates();
@@ -181,7 +181,7 @@ public abstract class MetricDocumentTestCase extends ESTestCase {
         );
         dataPointGroupingContext.groupDataPoints(metricsRequest);
         assertThat(dataPointGroupingContext.totalItems(), equalTo(1));
-        dataPointGroupingContext.consume(dataPointGroup -> {
+        dataPointGroupingContext.forEachGroup(dataPointGroup -> {
             ObjectPath doc = buildDocument(MappingHints.DEFAULT_TDIGEST, dataPointGroup).doc();
 
             assertThat(doc.evaluate("resource.attributes.string_attr"), equalTo("string_value"));
@@ -204,7 +204,7 @@ public abstract class MetricDocumentTestCase extends ESTestCase {
         ExportMetricsServiceRequest metricsRequest = ExportMetricsServiceRequest.newBuilder().addResourceMetrics(resourceMetrics).build();
         dataPointGroupingContext.groupDataPoints(metricsRequest);
         assertThat(dataPointGroupingContext.totalItems(), equalTo(1));
-        dataPointGroupingContext.consume(dataPointGroup -> {
+        dataPointGroupingContext.forEachGroup(dataPointGroup -> {
             Document document = buildDocument(MappingHints.DEFAULT_TDIGEST, dataPointGroup);
             ObjectPath doc = document.doc();
 
@@ -233,7 +233,7 @@ public abstract class MetricDocumentTestCase extends ESTestCase {
         );
         dataPointGroupingContext.groupDataPoints(metricsRequest);
         assertThat(dataPointGroupingContext.totalItems(), equalTo(1));
-        dataPointGroupingContext.consume(dataPointGroup -> {
+        dataPointGroupingContext.forEachGroup(dataPointGroup -> {
             Document document = buildDocument(MappingHints.DEFAULT_TDIGEST, dataPointGroup);
             ObjectPath doc = document.doc();
             Map<String, String> dynamicTemplates = document.dynamicTemplates();
@@ -258,7 +258,7 @@ public abstract class MetricDocumentTestCase extends ESTestCase {
         );
         dataPointGroupingContext.groupDataPoints(metricsRequest);
         assertThat(dataPointGroupingContext.totalItems(), equalTo(1));
-        dataPointGroupingContext.consume(dataPointGroup -> {
+        dataPointGroupingContext.forEachGroup(dataPointGroup -> {
             Document document = buildDocument(MappingHints.DEFAULT_TDIGEST, dataPointGroup);
             ObjectPath doc = document.doc();
             Map<String, String> dynamicTemplates = document.dynamicTemplates();
@@ -289,7 +289,7 @@ public abstract class MetricDocumentTestCase extends ESTestCase {
         );
         dataPointGroupingContext.groupDataPoints(metricsRequest);
         assertThat(dataPointGroupingContext.totalItems(), equalTo(1));
-        dataPointGroupingContext.consume(dataPointGroup -> {
+        dataPointGroupingContext.forEachGroup(dataPointGroup -> {
             Document document = buildDocument(MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM, dataPointGroup);
             ObjectPath doc = document.doc();
             Map<String, String> dynamicTemplates = document.dynamicTemplates();
@@ -324,7 +324,7 @@ public abstract class MetricDocumentTestCase extends ESTestCase {
         );
         dataPointGroupingContext.groupDataPoints(metricsRequest);
         assertThat(dataPointGroupingContext.totalItems(), equalTo(1));
-        dataPointGroupingContext.consume(dataPointGroup -> {
+        dataPointGroupingContext.forEachGroup(dataPointGroup -> {
             Document document = buildDocument(MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM, dataPointGroup);
             ObjectPath doc = document.doc();
             Map<String, String> dynamicTemplates = document.dynamicTemplates();
@@ -348,7 +348,7 @@ public abstract class MetricDocumentTestCase extends ESTestCase {
         );
         dataPointGroupingContext.groupDataPoints(metricsRequest);
         assertThat(dataPointGroupingContext.totalItems(), equalTo(1));
-        dataPointGroupingContext.consume(dataPointGroup -> {
+        dataPointGroupingContext.forEachGroup(dataPointGroup -> {
             Document document = buildDocument(MappingHints.DEFAULT_TDIGEST, dataPointGroup);
             ObjectPath doc = document.doc();
             Map<String, String> dynamicTemplates = document.dynamicTemplates();
@@ -371,7 +371,7 @@ public abstract class MetricDocumentTestCase extends ESTestCase {
         );
         dataPointGroupingContext.groupDataPoints(metricsRequest);
         assertThat(dataPointGroupingContext.totalItems(), equalTo(1));
-        dataPointGroupingContext.consume(dataPointGroup -> {
+        dataPointGroupingContext.forEachGroup(dataPointGroup -> {
             Document document = buildDocument(MappingHints.DEFAULT_TDIGEST, dataPointGroup);
             ObjectPath doc = document.doc();
 
@@ -395,7 +395,7 @@ public abstract class MetricDocumentTestCase extends ESTestCase {
         );
         dataPointGroupingContext.groupDataPoints(metricsRequest);
         assertThat(dataPointGroupingContext.totalItems(), equalTo(1));
-        dataPointGroupingContext.consume(dataPointGroup -> {
+        dataPointGroupingContext.forEachGroup(dataPointGroup -> {
             Document document = buildDocument(MappingHints.DEFAULT_TDIGEST, dataPointGroup);
             ObjectPath doc = document.doc();
             Map<String, String> dynamicTemplates = document.dynamicTemplates();
@@ -421,7 +421,7 @@ public abstract class MetricDocumentTestCase extends ESTestCase {
         );
         dataPointGroupingContext.groupDataPoints(metricsRequest);
         assertThat(dataPointGroupingContext.totalItems(), equalTo(1));
-        dataPointGroupingContext.consume(dataPointGroup -> {
+        dataPointGroupingContext.forEachGroup(dataPointGroup -> {
             Document document = buildDocument(MappingHints.DEFAULT_TDIGEST, dataPointGroup);
             ObjectPath doc = document.doc();
             Map<String, String> dynamicTemplates = document.dynamicTemplates();
@@ -446,7 +446,7 @@ public abstract class MetricDocumentTestCase extends ESTestCase {
         );
         dataPointGroupingContext.groupDataPoints(metricsRequest);
         assertThat(dataPointGroupingContext.totalItems(), equalTo(1));
-        dataPointGroupingContext.consume(dataPointGroup -> {
+        dataPointGroupingContext.forEachGroup(dataPointGroup -> {
             Document document = buildDocument(MappingHints.DEFAULT_TDIGEST, dataPointGroup);
             ObjectPath doc = document.doc();
             Map<String, String> dynamicTemplates = document.dynamicTemplates();
@@ -474,7 +474,7 @@ public abstract class MetricDocumentTestCase extends ESTestCase {
         );
         dataPointGroupingContext.groupDataPoints(metricsRequest);
         assertThat(dataPointGroupingContext.totalItems(), equalTo(1));
-        dataPointGroupingContext.consume(dataPointGroup -> {
+        dataPointGroupingContext.forEachGroup(dataPointGroup -> {
             Document document = buildDocument(MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM, dataPointGroup);
             ObjectPath doc = document.doc();
             Map<String, String> dynamicTemplates = document.dynamicTemplates();
@@ -506,7 +506,7 @@ public abstract class MetricDocumentTestCase extends ESTestCase {
         );
         dataPointGroupingContext.groupDataPoints(metricsRequest);
         assertThat(dataPointGroupingContext.totalItems(), equalTo(1));
-        dataPointGroupingContext.consume(dataPointGroup -> {
+        dataPointGroupingContext.forEachGroup(dataPointGroup -> {
             Document document = buildDocument(MappingHints.DEFAULT_TDIGEST, dataPointGroup);
             ObjectPath doc = document.doc();
             Map<String, String> dynamicTemplates = document.dynamicTemplates();

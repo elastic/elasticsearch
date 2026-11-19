@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -34,12 +36,23 @@ class RetryableStorageProvider extends DelegatingStorageProvider {
     private final StorageProvider delegate;
     private final RetryScheduler retryScheduler;
     private final Function<StoragePath, RetryPolicy> policyForScope;
+    @Nullable
+    private final ThreadContext threadContext;
 
     RetryableStorageProvider(StorageProvider delegate, RetryPolicy retryPolicy) {
         this(delegate, RetryScheduler.DIRECT, fixed(retryPolicy));
     }
 
     RetryableStorageProvider(StorageProvider delegate, RetryScheduler retryScheduler, Function<StoragePath, RetryPolicy> policyForScope) {
+        this(delegate, retryScheduler, policyForScope, null);
+    }
+
+    RetryableStorageProvider(
+        StorageProvider delegate,
+        RetryScheduler retryScheduler,
+        Function<StoragePath, RetryPolicy> policyForScope,
+        @Nullable ThreadContext threadContext
+    ) {
         if (delegate == null) {
             throw new IllegalArgumentException("delegate cannot be null");
         }
@@ -52,6 +65,7 @@ class RetryableStorageProvider extends DelegatingStorageProvider {
         this.delegate = delegate;
         this.retryScheduler = retryScheduler;
         this.policyForScope = policyForScope;
+        this.threadContext = threadContext;
     }
 
     /** A scope lookup that returns the same fixed policy for every path (no per-scope backoff). */
@@ -79,22 +93,27 @@ class RetryableStorageProvider extends DelegatingStorageProvider {
 
     @Override
     public StorageObject newObject(StoragePath path) {
-        return new RetryableStorageObject(delegate.newObject(path), policyFor(path), retryScheduler);
+        return new RetryableStorageObject(delegate.newObject(path), policyFor(path), retryScheduler, threadContext);
     }
 
     @Override
     public StorageObject newObject(StoragePath path, long length) {
-        return new RetryableStorageObject(delegate.newObject(path, length), policyFor(path), retryScheduler);
+        return new RetryableStorageObject(delegate.newObject(path, length), policyFor(path), retryScheduler, threadContext);
     }
 
     @Override
     public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
-        return new RetryableStorageObject(delegate.newObject(path, length, lastModified), policyFor(path), retryScheduler);
+        return new RetryableStorageObject(delegate.newObject(path, length, lastModified), policyFor(path), retryScheduler, threadContext);
     }
 
     @Override
     public StorageObject newObject(StoragePath path, long length, Instant lastModified, String version) {
-        return new RetryableStorageObject(delegate.newObject(path, length, lastModified, version), policyFor(path), retryScheduler);
+        return new RetryableStorageObject(
+            delegate.newObject(path, length, lastModified, version),
+            policyFor(path),
+            retryScheduler,
+            threadContext
+        );
     }
 
     @Override

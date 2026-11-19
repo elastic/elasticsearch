@@ -27,6 +27,8 @@ public class TsdbDocValuesProducer extends EmptyDocValuesProducer {
 
     public final DocValuesConsumerUtil.MergeStats mergeStats;
     private final DocValuesProducer actual;
+    /** Set at flush for a single-valued numeric field, see {@link MaterializedNumericValues}. */
+    private MaterializedNumericValues materialized;
 
     public TsdbDocValuesProducer(DocValuesConsumerUtil.MergeStats mergeStats) {
         this.mergeStats = mergeStats;
@@ -40,6 +42,18 @@ public class TsdbDocValuesProducer extends EmptyDocValuesProducer {
             mergeStats = DocValuesConsumerUtil.UNSUPPORTED;
         }
         this.actual = valuesProducer;
+    }
+
+    /**
+     * The field's values already read into arrays, or {@code null} when the writer has to walk {@link #getSortedNumeric} instead.
+     * When present, it holds exactly the values {@link #getSortedNumeric} would return, and the field is single-valued.
+     */
+    MaterializedNumericValues materialized() {
+        return materialized;
+    }
+
+    void materialized(MaterializedNumericValues materialized) {
+        this.materialized = materialized;
     }
 
     @Override

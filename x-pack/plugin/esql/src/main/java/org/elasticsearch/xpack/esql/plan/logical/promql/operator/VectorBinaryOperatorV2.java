@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
@@ -696,7 +697,8 @@ public final class VectorBinaryOperatorV2 {
     private JoinSide emitJoinSide(TranslationContextV2 context, IntermediateResult input, boolean oneSide) {
         PromqlCommand cmd = context.cmd();
         var evals = new ArrayList<Alias>();
-        // The join keys by the signature as a whole, which scalarization keeps whole.
+        // The join keys by the signature packed: a label of several values keys as a whole, and scalarization substitutes what
+        // the pack reads.
         Alias signature = new Alias(cmd.source(), SIGNATURE, signature(input.labels()));
         evals.add(signature);
         Attribute labels = null;
@@ -707,8 +709,9 @@ public final class VectorBinaryOperatorV2 {
             evals.add(alias);
             labels = alias.toAttribute();
         }
-        LogicalPlan plan = new Eval(cmd.source(), input.plan(), evals);
-        List<Attribute> fields = List.of(input.step(), signature.toAttribute());
+        PackDims pack = TranslationContextV2.packLabels(cmd.source(), new Eval(cmd.source(), input.plan(), evals), signature.toAttribute());
+        LogicalPlan plan = pack;
+        List<Attribute> fields = List.of(input.step(), pack.packed());
         Attribute step = input.step();
         Attribute value = input.valueColumn();
         if (needsLayoutPin(input)) {

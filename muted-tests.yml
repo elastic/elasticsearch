@@ -179,6 +179,11 @@ tests:
   - :x-pack:plugin:ml:internalClusterTest
   method: testFailOverBasics
   issue: https://github.com/elastic/elasticsearch/issues/166576
+- class: org.elasticsearch.xpack.logsdb.qa.BulkDynamicMappingChallengeRestIT
+  tasks:
+  - :x-pack:plugin:logsdb:javaRestTest
+  method: testTermsQuery
+  issue: https://github.com/elastic/elasticsearch/issues/166581
 
 # Examples:
 #

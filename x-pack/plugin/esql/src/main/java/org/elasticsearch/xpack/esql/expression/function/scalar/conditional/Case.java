@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.compute.data.AbstractDelegatingCompoundBlock;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -523,7 +524,8 @@ public final class Case extends EsqlScalarFunction {
         if (conditionsFactories.size() == 1
             && conditionsFactories.get(0).value.eagerEvalSafeInLazy()
             && elseValueFactory.eagerEvalSafeInLazy()) {
-            return new CaseEagerEvaluatorFactory(resultType, conditionsFactories.get(0), elseValueFactory);
+            boolean elseIsNull = elseValue instanceof Literal lit && lit.value() == null;
+            return new CaseEagerEvaluatorFactory(resultType, conditionsFactories.get(0), elseValueFactory, elseIsNull);
         }
         return new CaseLazyEvaluatorFactory(resultType, conditionsFactories, elseValueFactory);
     }
@@ -898,7 +900,8 @@ public final class Case extends EsqlScalarFunction {
     private record CaseEagerEvaluatorFactory(
         ElementType resultType,
         ConditionEvaluatorSupplier conditionFactory,
-        ExpressionEvaluator.Factory elseValueFactory
+        ExpressionEvaluator.Factory elseValueFactory,
+        boolean elseIsNull
     ) implements ExpressionEvaluator.Factory {
         @Override
         public ExpressionEvaluator get(DriverContext context) {
@@ -906,7 +909,13 @@ public final class Case extends EsqlScalarFunction {
             ExpressionEvaluator elseValue = null;
             try {
                 elseValue = elseValueFactory.get(context);
-                ExpressionEvaluator result = new CaseEagerEvaluator(resultType, context.blockFactory(), conditionEvaluator, elseValue);
+                ExpressionEvaluator result = new CaseEagerEvaluator(
+                    resultType,
+                    context.blockFactory(),
+                    conditionEvaluator,
+                    elseValue,
+                    elseIsNull
+                );
                 conditionEvaluator = null;
                 elseValue = null;
                 return result;
@@ -925,7 +934,8 @@ public final class Case extends EsqlScalarFunction {
         ElementType resultType,
         BlockFactory blockFactory,
         ConditionEvaluator condition,
-        ExpressionEvaluator elseVal
+        ExpressionEvaluator elseVal,
+        boolean elseIsNull
     ) implements ExpressionEvaluator {
 
         private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(CaseEagerEvaluator.class);
@@ -943,24 +953,36 @@ public final class Case extends EsqlScalarFunction {
                         return elseVal.eval(page);
                     }
                 }
-                try (
-                    Block lhs = condition.value.eval(page);
-                    Block rhs = elseVal.eval(page);
-                    Block.Builder builder = resultType.newBlockBuilder(lhs.getTotalValueCount(), blockFactory)
-                ) {
-                    for (int p = 0; p < lhs.getPositionCount(); p++) {
-                        if (lhsOrRhs.mask().getBoolean(p)) {
-                            // TODO Copy the per-type specialization that COALESCE has.
-                            // There’s also a slowdown because copying from a block checks to see if there are any nulls and that’s slow.
-                            // Vectors do not, so this still shows as fairly fast. But not as fast as the per-type unrolling.
-                            builder.copyFrom(lhs, p, p + 1);
-                        } else {
-                            builder.copyFrom(rhs, p, p + 1);
+                try (Block lhs = condition.value.eval(page)) {
+                    if (elseIsNull && canKeepMask(lhs)) {
+                        return lhs.keepMask(lhsOrRhs.mask());
+                    }
+                    try (Block rhs = elseVal.eval(page)) {
+                        if (rhs.areAllValuesNull() && canKeepMask(lhs)) {
+                            return lhs.keepMask(lhsOrRhs.mask());
+                        }
+                        try (Block.Builder builder = resultType.newBlockBuilder(lhs.getTotalValueCount(), blockFactory)) {
+                            for (int p = 0; p < lhs.getPositionCount(); p++) {
+                                if (lhsOrRhs.mask().getBoolean(p)) {
+                                    // TODO Copy the per-type specialization that COALESCE has.
+                                    // There’s also a slowdown because copying from a block checks to see if there are any nulls and that’s
+                                    // slow.
+                                    // Vectors do not, so this still shows as fairly fast. But not as fast as the per-type unrolling.
+                                    builder.copyFrom(lhs, p, p + 1);
+                                } else {
+                                    builder.copyFrom(rhs, p, p + 1);
+                                }
+                            }
+                            return builder.build();
                         }
                     }
-                    return builder.build();
                 }
             }
+        }
+
+        private static boolean canKeepMask(Block block) {
+            // AbstractDelegatingCompoundBlock#keepMask does not support multi-valued blocks yet.
+            return block instanceof AbstractDelegatingCompoundBlock<?> == false || block.mayHaveMultivaluedFields() == false;
         }
 
         @Override

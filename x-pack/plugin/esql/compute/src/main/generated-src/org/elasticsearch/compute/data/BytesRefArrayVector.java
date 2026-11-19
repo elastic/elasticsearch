@@ -131,7 +131,6 @@ public final class BytesRefArrayVector extends AbstractVector implements BytesRe
         }
         BytesRef scratch = new BytesRef();
         try (BytesRefBlock.Builder builder = blockFactory().newBytesRefBlockBuilder(getPositionCount())) {
-            // TODO if X-ArrayBlock used BooleanVector for it's null mask then we could shuffle references here.
             for (int p = 0; p < getPositionCount(); p++) {
                 if (mask.getBoolean(p)) {
                     builder.appendBytesRef(getBytesRef(p, scratch));

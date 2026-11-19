@@ -49,7 +49,7 @@ public final class BytesRefArrayBlock extends AbstractArrayBlock implements Byte
         );
     }
 
-    private BytesRefArrayBlock(
+    BytesRefArrayBlock(
         BytesRefArrayVector vector, // stylecheck
         int positionCount,
         int[] firstValueIndexes,
@@ -227,7 +227,7 @@ public final class BytesRefArrayBlock extends AbstractArrayBlock implements Byte
         }
     }
 
-    private long ramBytesUsedOnlyBlock() {
+    long ramBytesUsedOnlyBlock() {
         return BASE_RAM_BYTES_USED + BlockRamUsageEstimator.sizeOf(firstValueIndexes) + BlockRamUsageEstimator.sizeOfBitSet(nullsMask);
     }
 

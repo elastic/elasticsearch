@@ -18,6 +18,7 @@ import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
+import java.util.BitSet;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 // end generated imports
@@ -122,16 +123,35 @@ public final class BooleanArrayVector extends AbstractVector implements BooleanV
             }
             return (BooleanBlock) blockFactory().newConstantNullBlock(getPositionCount());
         }
-        try (BooleanBlock.Builder builder = blockFactory().newBooleanBlockBuilder(getPositionCount())) {
-            // TODO if X-ArrayBlock used BooleanVector for it's null mask then we could shuffle references here.
-            for (int p = 0; p < getPositionCount(); p++) {
-                if (mask.getBoolean(p)) {
-                    builder.appendBoolean(getBoolean(p));
-                } else {
-                    builder.appendNull();
+        int positionCount = getPositionCount();
+        long reserved = BlockRamUsageEstimator.sizeOfBitSet(positionCount);
+        blockFactory().adjustBreaker(reserved);
+        try {
+            BitSet nulls = new BitSet(positionCount);
+            int nullCount = 0;
+            for (int p = 0; p < positionCount; p++) {
+                if (mask.getBoolean(p) == false) {
+                    nulls.set(p);
+                    nullCount++;
                 }
             }
-            return builder.build();
+            if (nullCount == 0) {
+                incRef();
+                return new BooleanVectorBlock(this);
+            }
+            if (nullCount == positionCount) {
+                return (BooleanBlock) blockFactory().newConstantNullBlock(positionCount);
+            }
+            BooleanArrayBlock result = new BooleanArrayBlock(this, positionCount, null, nulls, Block.MvOrdering.UNORDERED);
+            blockFactory().adjustBreaker(result.ramBytesUsedOnlyBlock() - reserved);
+            reserved = 0;
+            // incRef after adjusting the breaker so we don't leak the vector if the breaker trips.
+            incRef();
+            return result;
+        } finally {
+            if (reserved != 0) {
+                blockFactory().adjustBreaker(-reserved);
+            }
         }
     }
 

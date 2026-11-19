@@ -1034,6 +1034,25 @@ public abstract class BlockTestCase<B extends Block, BB extends Block.Builder, V
                     assertValues(castBlock(masked), maskedExpected);
                 }
             }
+            // Non-constant all-true and all-false masks (e.g. from BooleanArrayVector)
+            try (
+                BooleanVector.FixedBuilder allTrue = block.blockFactory().newBooleanVectorFixedBuilder(expected.size());
+                BooleanVector.FixedBuilder allFalse = block.blockFactory().newBooleanVectorFixedBuilder(expected.size())
+            ) {
+                for (int p = 0; p < expected.size(); p++) {
+                    allTrue.appendBoolean(p, true);
+                    allFalse.appendBoolean(p, false);
+                }
+                try (
+                    BooleanVector trueMask = allTrue.build();
+                    BooleanVector falseMask = allFalse.build();
+                    Block keptAll = block.keepMask(trueMask);
+                    Block keptNone = block.keepMask(falseMask)
+                ) {
+                    assertValues(castBlock(keptAll), expected);
+                    assertValues(castBlock(keptNone), allNull(expected.size()));
+                }
+            }
         }
     }
 

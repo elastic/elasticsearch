@@ -55,7 +55,7 @@ public final class $Type$ArrayBlock extends AbstractArrayBlock implements $Type$
         );
     }
 
-    private $Type$ArrayBlock(
+    $Type$ArrayBlock(
         $Type$ArrayVector vector, // stylecheck
         int positionCount,
         int[] firstValueIndexes,
@@ -195,6 +195,42 @@ $endif$
         }
 $if(BytesRef)$
         BytesRef scratch = new BytesRef();
+$else$
+        if (firstValueIndexes == null) {
+            int positionCount = getPositionCount();
+            long reserved = BlockRamUsageEstimator.sizeOfBitSet(positionCount);
+            blockFactory().adjustBreaker(reserved);
+            try {
+                BitSet nulls = new BitSet(positionCount);
+                if (nullsMask != null) {
+                    nulls.or(nullsMask);
+                }
+                boolean modified = false;
+                for (int p = 0; p < positionCount; p++) {
+                    if (mask.getBoolean(p) == false && nulls.get(p) == false) {
+                        nulls.set(p);
+                        modified = true;
+                    }
+                }
+                if (modified == false) {
+                    incRef();
+                    return this;
+                }
+                if (nulls.cardinality() == positionCount) {
+                    return ($Type$Block) blockFactory().newConstantNullBlock(positionCount);
+                }
+                $Type$ArrayBlock result = new $Type$ArrayBlock(vector, positionCount, null, nulls, mvOrdering());
+                blockFactory().adjustBreaker(result.ramBytesUsedOnlyBlock() - reserved);
+                reserved = 0;
+                // incRef after adjusting the breaker so we don't leak the vector if the breaker trips.
+                vector.incRef();
+                return result;
+            } finally {
+                if (reserved != 0) {
+                    blockFactory().adjustBreaker(-reserved);
+                }
+            }
+        }
 $endif$
         try ($Type$Block.Builder builder = blockFactory().new$Type$BlockBuilder(getPositionCount())) {
             // TODO if X-ArrayBlock used BooleanVector for it's null mask then we could shuffle references here.
@@ -267,7 +303,7 @@ $endif$
         }
     }
 
-    private long ramBytesUsedOnlyBlock() {
+    long ramBytesUsedOnlyBlock() {
         return BASE_RAM_BYTES_USED + BlockRamUsageEstimator.sizeOf(firstValueIndexes) + BlockRamUsageEstimator.sizeOfBitSet(nullsMask);
     }
 

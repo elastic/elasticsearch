@@ -46,7 +46,7 @@ public final class BooleanArrayBlock extends AbstractArrayBlock implements Boole
         );
     }
 
-    private BooleanArrayBlock(
+    BooleanArrayBlock(
         BooleanArrayVector vector, // stylecheck
         int positionCount,
         int[] firstValueIndexes,
@@ -156,6 +156,41 @@ public final class BooleanArrayBlock extends AbstractArrayBlock implements Boole
             }
             return (BooleanBlock) blockFactory().newConstantNullBlock(getPositionCount());
         }
+        if (firstValueIndexes == null) {
+            int positionCount = getPositionCount();
+            long reserved = BlockRamUsageEstimator.sizeOfBitSet(positionCount);
+            blockFactory().adjustBreaker(reserved);
+            try {
+                BitSet nulls = new BitSet(positionCount);
+                if (nullsMask != null) {
+                    nulls.or(nullsMask);
+                }
+                boolean modified = false;
+                for (int p = 0; p < positionCount; p++) {
+                    if (mask.getBoolean(p) == false && nulls.get(p) == false) {
+                        nulls.set(p);
+                        modified = true;
+                    }
+                }
+                if (modified == false) {
+                    incRef();
+                    return this;
+                }
+                if (nulls.cardinality() == positionCount) {
+                    return (BooleanBlock) blockFactory().newConstantNullBlock(positionCount);
+                }
+                BooleanArrayBlock result = new BooleanArrayBlock(vector, positionCount, null, nulls, mvOrdering());
+                blockFactory().adjustBreaker(result.ramBytesUsedOnlyBlock() - reserved);
+                reserved = 0;
+                // incRef after adjusting the breaker so we don't leak the vector if the breaker trips.
+                vector.incRef();
+                return result;
+            } finally {
+                if (reserved != 0) {
+                    blockFactory().adjustBreaker(-reserved);
+                }
+            }
+        }
         try (BooleanBlock.Builder builder = blockFactory().newBooleanBlockBuilder(getPositionCount())) {
             // TODO if X-ArrayBlock used BooleanVector for it's null mask then we could shuffle references here.
             for (int p = 0; p < getPositionCount(); p++) {
@@ -227,7 +262,7 @@ public final class BooleanArrayBlock extends AbstractArrayBlock implements Boole
         }
     }
 
-    private long ramBytesUsedOnlyBlock() {
+    long ramBytesUsedOnlyBlock() {
         return BASE_RAM_BYTES_USED + BlockRamUsageEstimator.sizeOf(firstValueIndexes) + BlockRamUsageEstimator.sizeOfBitSet(nullsMask);
     }
 

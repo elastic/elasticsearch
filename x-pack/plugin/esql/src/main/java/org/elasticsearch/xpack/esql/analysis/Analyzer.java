@@ -1639,10 +1639,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             // References against the stored labels (childrenOutput): a vector selector always matches on the labels as they
             // are stored, regardless of any relabeling applied downstream.
-            Function<UnresolvedAttribute, Expression> storedScope = ua -> ResolveRefs.maybeResolveAttribute(ua, childrenOutput, log);
+            Function<UnresolvedAttribute, Expression> storedScope = ua -> promqlLabel(
+                ua.name(),
+                ResolveRefs.maybeResolveAttribute(ua, childrenOutput, log),
+                childrenOutput
+            );
 
             if (derived.isEmpty()) {
-                return promql.withPromqlPlan(promqlPlan.transformExpressionsDown(UnresolvedAttribute.class, storedScope))
+                return promql.withPromqlPlan(promqlPlan.transformDown(node -> resolvePromqlNode(node, storedScope, childrenOutput)))
                     .transformExpressionsOnly(UnresolvedAttribute.class, storedScope);
             }
 
@@ -1657,16 +1661,55 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // list, so this is local to this command.
             LogicalPlan resolvedPlan = promqlPlan.transformDown(node -> {
                 if (node instanceof Selector) {
-                    return node.transformExpressionsOnly(UnresolvedAttribute.class, storedScope);
+                    return resolvePromqlNode(node, storedScope, childrenOutput);
                 }
                 List<Attribute> scope = shadowedResolutionScope(childrenOutput, activeDerivedLabels(node));
-                return node.transformExpressionsOnly(UnresolvedAttribute.class, ua -> ResolveRefs.maybeResolveAttribute(ua, scope, log));
+                return node.transformExpressionsOnly(
+                    UnresolvedAttribute.class,
+                    ua -> promqlLabel(ua.name(), ResolveRefs.maybeResolveAttribute(ua, scope, log), scope)
+                );
             });
 
             // The command's own output contract sees the full derived label set: every derived label, same nearest-wins collapse.
             List<Attribute> outputScope = shadowedResolutionScope(childrenOutput, collapseByName(derived));
             return promql.withPromqlPlan(resolvedPlan)
                 .transformExpressionsOnly(UnresolvedAttribute.class, ua -> ResolveRefs.maybeResolveAttribute(ua, outputScope, log));
+        }
+
+        /**
+         * Resolves a PromQL node's references: a selector's metric against the stored fields as they are, every other
+         * reference as a label (see {@link #promqlLabel}).
+         */
+        private static LogicalPlan resolvePromqlNode(
+            LogicalPlan node,
+            Function<UnresolvedAttribute, Expression> labelScope,
+            List<Attribute> childrenOutput
+        ) {
+            if (node instanceof Selector selector && selector.series() instanceof UnresolvedAttribute series) {
+                return node.transformExpressionsOnly(
+                    UnresolvedAttribute.class,
+                    ua -> ua == series ? ResolveRefs.maybeResolveAttribute(ua, childrenOutput, log) : labelScope.apply(ua)
+                );
+            }
+            return node.transformExpressionsOnly(UnresolvedAttribute.class, labelScope);
+        }
+
+        /**
+         * A PromQL label reference that resolved to a metric binds to the dimension of that label name instead: Prometheus remote
+         * write maps both labels and metrics as passthrough objects, with metrics on top, so a metric named like a label
+         * ({@code status}) would otherwise shadow the label under its bare name.
+         */
+        private static Expression promqlLabel(String name, Expression resolved, List<Attribute> scope) {
+            if (resolved instanceof FieldAttribute field && field.isMetric()) {
+                for (Attribute candidate : scope) {
+                    if (candidate instanceof FieldAttribute dimension
+                        && dimension.isDimension()
+                        && PromqlLabels.labelName(dimension).equals(name)) {
+                        return dimension;
+                    }
+                }
+            }
+            return resolved;
         }
 
         /**

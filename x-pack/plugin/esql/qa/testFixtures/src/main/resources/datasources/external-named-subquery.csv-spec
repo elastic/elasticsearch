@@ -1,0 +1,201 @@
+letDatasetSingleBinding
+required_capability: named_subquery_let
+required_capability: dataset_in_from_command
+dataset: employees_no_mv: "{{employees_no_mv}}"
+
+LET top_emps = (FROM employees_no_mv | SORT salary DESC | LIMIT 5)\;
+FROM top_emps
+| KEEP emp_no, first_name, last_name, salary
+| SORT emp_no
+;
+
+emp_no:integer | first_name:keyword | last_name:keyword | salary:integer
+10007          | "Tzvetan"          | "Zielinski"       | 74572
+10019          | "Lillian"          | "Haddadi"         | 73717
+10027          | "Divier"           | "Reistad"         | 73851
+10029          | "Otmar"            | "Herbst"          | 74999
+10045          | "Moss"             | "Shanbhogue"      | 74970
+;
+
+letDatasetWithStatsInBody
+required_capability: named_subquery_let
+required_capability: dataset_in_from_command
+dataset: employees_no_mv: "{{employees_no_mv}}"
+
+LET emp_count = (FROM employees_no_mv | STATS cnt = COUNT(*))\;
+FROM emp_count
+| KEEP cnt
+;
+
+cnt:long
+100
+;
+
+letDatasetWithWhereInBody
+required_capability: named_subquery_let
+required_capability: dataset_in_from_command
+dataset: employees_no_mv: "{{employees_no_mv}}"
+
+LET high_earners = (FROM employees_no_mv | WHERE salary > 70000 | KEEP emp_no, salary)\;
+FROM high_earners
+| KEEP emp_no, salary
+| SORT emp_no
+;
+
+emp_no:integer | salary:integer
+10007          | 74572
+10019          | 73717
+10027          | 73851
+10029          | 74999
+10033          | 70011
+10045          | 74970
+10097          | 71165
+10099          | 73578
+;
+
+letDatasetChainedBindings
+required_capability: named_subquery_let
+required_capability: dataset_in_from_command
+dataset: employees_no_mv: "{{employees_no_mv}}"
+
+LET females = (FROM employees_no_mv | WHERE gender == "F")\;
+LET top_females = (FROM females | SORT emp_no | LIMIT 3)\;
+FROM top_females
+| KEEP emp_no, first_name, gender
+| SORT emp_no
+;
+
+emp_no:integer | first_name:keyword | gender:keyword
+10002          | "Bezalel"          | "F"
+10006          | "Anneke"           | "F"
+10007          | "Tzvetan"          | "F"
+;
+
+letTwoDatasetUnion
+required_capability: named_subquery_let
+required_capability: dataset_in_from_command
+dataset: emp_a: "{{employees_no_mv}}"
+dataset: emp_b: "{{employees_no_mv}}"
+
+LET a = (FROM emp_a)\;
+LET b = (FROM emp_b)\;
+FROM a, b
+| STATS cnt = COUNT(*)
+;
+
+cnt:long
+200
+;
+
+letDatasetOuterWithIndexBindingInIn
+required_capability: named_subquery_let
+required_capability: dataset_in_from_command
+required_capability: where_in_subquery_without_view
+dataset: employees_no_mv: "{{employees_no_mv}}"
+
+LET lang_codes = (FROM languages | KEEP language_code)\;
+FROM employees_no_mv
+| WHERE languages IN (FROM lang_codes)
+| STATS cnt = COUNT(*)
+;
+
+cnt:long
+69
+;
+
+letIndexOuterWithDatasetBindingInIn
+required_capability: named_subquery_let
+required_capability: dataset_in_from_command
+required_capability: where_in_subquery_without_view
+dataset: employees_no_mv: "{{employees_no_mv}}"
+
+LET high_earner_langs = (FROM employees_no_mv | WHERE salary > 70000 | KEEP languages)\;
+FROM languages
+| WHERE language_code IN (FROM high_earner_langs)
+| KEEP language_code, language_name
+| SORT language_code
+;
+
+language_code:integer | language_name:keyword
+1                     | English
+2                     | French
+3                     | Spanish
+4                     | German
+;
+
+letDatasetInFromAndInSubquery
+required_capability: named_subquery_let
+required_capability: dataset_in_from_command
+required_capability: where_in_subquery_without_view
+dataset: employees_no_mv: "{{employees_no_mv}}"
+
+LET high_earners = (FROM employees_no_mv | WHERE salary > 70000 | KEEP emp_no)\;
+FROM employees_no_mv
+| WHERE emp_no IN (FROM high_earners)
+| KEEP emp_no
+| SORT emp_no
+;
+
+emp_no:integer
+10007
+10019
+10027
+10029
+10033
+10045
+10097
+10099
+;
+
+letDatasetMultiColumnIn
+required_capability: named_subquery_let
+required_capability: dataset_in_from_command
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+dataset: employees_no_mv: "{{employees_no_mv}}"
+
+LET pairs = (FROM employees_no_mv | WHERE emp_no <= 10003 | KEEP gender, languages)\;
+FROM employees_no_mv
+| WHERE (gender, languages) IN (FROM pairs)
+| STATS cnt = COUNT(*) BY gender, languages
+| SORT gender, languages
+;
+
+cnt:long | gender:keyword | languages:integer
+9        | "F"            | 5
+11       | "M"            | 2
+11       | "M"            | 4
+;
+
+letDatasetBindingMixedWithIndex
+required_capability: named_subquery_let
+required_capability: dataset_in_from_command
+dataset: employees_no_mv: "{{employees_no_mv}}"
+
+LET emp_lang1 = (FROM employees_no_mv | WHERE languages == 1 | EVAL language_code = languages | KEEP language_code)\;
+FROM emp_lang1, languages
+| STATS cnt = COUNT(*) BY language_code
+| SORT language_code
+;
+
+cnt:long | language_code:integer
+16       | 1
+1        | 2
+1        | 3
+1        | 4
+;
+
+// The ROW binding shadows the registered dataset of the same name; the dataset is not read.
+letBindingShadowsDataset
+required_capability: named_subquery_let
+required_capability: dataset_in_from_command
+dataset: employees_no_mv: "{{employees_no_mv}}"
+
+LET employees_no_mv = (ROW emp_no = 0, first_name = "None")\;
+FROM employees_no_mv
+| KEEP emp_no, first_name
+;
+
+emp_no:integer | first_name:keyword
+0              | "None"
+;

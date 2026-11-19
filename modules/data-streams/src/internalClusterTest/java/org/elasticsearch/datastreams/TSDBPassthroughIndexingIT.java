@@ -196,7 +196,7 @@ public class TSDBPassthroughIndexingIT extends ESSingleNodeTestCase {
         // maybe force merge
         if (randomBoolean()) {
             var forceMergeResponse = client().admin().indices().forceMerge(new ForceMergeRequest("k8s").maxNumSegments(1)).actionGet();
-            assertEquals(0, forceMergeResponse.getShardFailures().length);
+            assertEquals(0, forceMergeResponse.getShardFailures().size());
         }
 
         // validate index:

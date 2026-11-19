@@ -10,7 +10,11 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -55,9 +59,36 @@ public class Logstash extends Plugin implements SystemIndexPlugin {
     public static final String LOGSTASH_INDEX_NAME_PATTERN = LOGSTASH_CONCRETE_INDEX_NAME + "*";
     public static final int LOGSTASH_INDEX_MAPPINGS_VERSION = 1;
 
+    /**
+     * Maximum allowed size in bytes for a Logstash pipeline body. Protects against OOM caused by
+     * unbounded pipeline uploads. Configurable as an escape hatch; contact support to raise the
+     * limit on Elastic Cloud.
+     */
+    public static final Setting<ByteSizeValue> PIPELINE_MAX_SIZE = Setting.byteSizeSetting(
+        "logstash.pipeline.max_size",
+        ByteSizeValue.ofMb(5),
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
     static final LicensedFeature.Momentary LOGSTASH_FEATURE = LicensedFeature.momentary(null, "logstash", License.OperationMode.STANDARD);
 
+    private volatile ByteSizeValue pipelineMaxSize;
+
     public Logstash() {}
+
+    @Override
+    public Collection<?> createComponents(PluginServices services) {
+        ClusterService clusterService = services.clusterService();
+        this.pipelineMaxSize = PIPELINE_MAX_SIZE.get(clusterService.getSettings());
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(PIPELINE_MAX_SIZE, v -> this.pipelineMaxSize = v);
+        return List.of();
+    }
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        return List.of(PIPELINE_MAX_SIZE);
+    }
 
     @Override
     public List<ActionHandler> getActions() {
@@ -76,7 +107,7 @@ public class Logstash extends Plugin implements SystemIndexPlugin {
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
-        return List.of(new RestPutPipelineAction(), new RestGetPipelineAction(), new RestDeletePipelineAction());
+        return List.of(new RestPutPipelineAction(() -> pipelineMaxSize), new RestGetPipelineAction(), new RestDeletePipelineAction());
     }
 
     @Override

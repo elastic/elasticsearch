@@ -1429,7 +1429,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         long realBytes = request.ramBytesUsed() + threadPool.getThreadContext().estimatedRequestContextBytes();
         long reserved = charge.currentBytes();
         if (realBytes > reserved) {
-            charge.raise(realBytes - reserved);
+            charge.increaseBytes(realBytes - reserved);
         } else if (realBytes < reserved) {
             charge.reduceBytes(reserved - realBytes);
         }

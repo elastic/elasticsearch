@@ -427,7 +427,7 @@ public class IndexingPressure implements IndexingPressureMonitor {
          * @param bytes additional bytes to hold
          * @throws EsRejectedExecutionException when this reservation's own size would exceed the coordinating limit
          */
-        public void raise(long bytes) {
+        public void increaseBytes(long bytes) {
             assert closed.get() == false;
             assert bytes >= 0 : bytes;
             if (bytes == 0) {
@@ -450,7 +450,7 @@ public class IndexingPressure implements IndexingPressureMonitor {
                 );
             }
             currentOperationsSize = newSize;
-            logger.trace(() -> Strings.format("raising coordinating reservation by [%d] bytes to [%d]", bytes, newSize));
+            logger.trace(() -> Strings.format("increasing coordinating reservation by [%d] bytes to [%d]", bytes, newSize));
             currentCombinedCoordinatingAndPrimaryBytes.getAndAdd(bytes);
             currentCoordinatingBytes.getAndAdd(bytes);
             totalCombinedCoordinatingAndPrimaryBytes.getAndAdd(bytes);

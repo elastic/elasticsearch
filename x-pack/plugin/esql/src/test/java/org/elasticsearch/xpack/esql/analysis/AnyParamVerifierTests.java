@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 
 /**
- * While nothing drops or replaces the parameters that stand for "Any", they stay in the plan as unresolvable markers, and the
+ * The parameters that stand for "Any" and that nothing drops or replaces stay in the plan as unresolvable markers, and the
  * {@code Verifier} reports them like any other unresolved expression: as a 400 that names the parameter, and never as the
  * server error that asking the type of an unresolved expression would be.
  */
@@ -46,7 +46,7 @@ public class AnyParamVerifierTests extends ESTestCase {
 
     public void testMarkerInAComparisonIsReported() {
         analyzer().error(
-            "FROM test | WHERE emp_no == ?x",
+            "FROM test | WHERE emp_no > ?x",
             containsString(anyMessage("?x", "here")),
             new QueryParams(List.of(paramAsConstant("x", ANY)))
         );
@@ -54,12 +54,12 @@ public class AnyParamVerifierTests extends ESTestCase {
 
     public void testMarkerAsAFieldIsReported() {
         analyzer().error(
-            "FROM test | WHERE ??f == 1",
+            "FROM test | WHERE ??f > 1",
             containsString(anyMessage("??f", "here")),
             new QueryParams(List.of(paramAsConstant("f", ANY)))
         );
         analyzer().error(
-            "FROM test | WHERE ?f == 1",
+            "FROM test | WHERE ?f > 1",
             containsString(anyMessage("?f", "here")),
             new QueryParams(List.of(paramAsIdentifier("f", ANY)))
         );
@@ -81,7 +81,7 @@ public class AnyParamVerifierTests extends ESTestCase {
     public void testMarkerInsideFunctionsIsReported() {
         QueryParams params = new QueryParams(List.of(paramAsConstant("x", ANY)));
         analyzer().error("FROM test | EVAL y = TO_UPPER(?x)", containsString(anyMessage("?x", "here")), params);
-        analyzer().error("FROM test | WHERE emp_no IN (1, ?x)", containsString(anyMessage("?x", "here")), params);
+        analyzer().error("FROM test | WHERE emp_no IN (1, ?x + 1)", containsString(anyMessage("?x", "here")), params);
         analyzer().error("FROM test | WHERE emp_no > 1 AND emp_no < ?x", containsString(anyMessage("?x", "here")), params);
     }
 
@@ -107,10 +107,10 @@ public class AnyParamVerifierTests extends ESTestCase {
             "FROM test | EVAL y = ??g",
             "FROM test | WHERE ?x",
             "FROM test | WHERE NOT ?x",
-            "FROM test | WHERE emp_no == ?x AND emp_no > 1",
-            "FROM test | WHERE emp_no IN (?x)",
+            "FROM test | WHERE emp_no > ?x AND emp_no > 1",
+            "FROM test | WHERE emp_no IN (?x + 1)",
             "FROM test | WHERE emp_no IS NULL OR ?x",
-            "FROM test | WHERE first_name LIKE \"a*\" AND emp_no == ?x",
+            "FROM test | WHERE first_name LIKE \"a*\" AND emp_no > ?x",
             "FROM test | WHERE MATCH(first_name, ?x)",
             "FROM test | SORT ?x",
             "FROM test | SORT emp_no + ?x DESC",
@@ -125,7 +125,7 @@ public class AnyParamVerifierTests extends ESTestCase {
             "FROM test | INLINE STATS c = SUM(emp_no) WHERE emp_no > ?x",
             "FROM test | LIMIT 5 BY ?x",
             "FROM test | LIMIT 5 BY ??g",
-            "FROM test | LIMIT 5 BY emp_no == ?x"
+            "FROM test | LIMIT 5 BY emp_no > ?x"
         )) {
             try {
                 analyzer().error(query, containsString("stands for \"Any\""), params);
@@ -138,7 +138,7 @@ public class AnyParamVerifierTests extends ESTestCase {
 
     public void testEveryMarkerIsReported() {
         analyzer().error(
-            "FROM test | WHERE emp_no == ?x OR languages == ?y",
+            "FROM test | WHERE emp_no > ?x OR languages > ?y",
             containsString(anyMessage("?y", "here")),
             new QueryParams(List.of(paramAsConstant("x", ANY), paramAsConstant("y", ANY)))
         );

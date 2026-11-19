@@ -99,3 +99,162 @@ ROW a = "__ANY__"
 c:long | a:keyword
 1      | __ANY__
 ;
+
+anyConditionsMatchEverythingIncludingMissingValues
+required_capability: param_any_value_v3
+param: n = "__ANY__"
+FROM employees
+| WHERE first_name == ?n
+| STATS total = COUNT(*), withName = COUNT(first_name)
+;
+
+total:long | withName:long
+100        | 90
+;
+
+everySupportedConditionMatchesEverything
+required_capability: param_any_value_v3
+param: n = "__ANY__"
+FROM employees
+| STATS
+    equals = COUNT(*) WHERE first_name == ?n,
+    reversed = COUNT(*) WHERE ?n == first_name,
+    in = COUNT(*) WHERE first_name IN ("Georgi", ?n),
+    contains = COUNT(*) WHERE MV_CONTAINS(job_positions, ?n),
+    intersects = COUNT(*) WHERE MV_INTERSECTS(job_positions, ?n),
+    isNull = COUNT(*) WHERE ?n IS NULL
+;
+
+equals:long | reversed:long | in:long | contains:long | intersects:long | isNull:long
+100         | 100           | 100     | 100           | 100             | 100
+;
+
+anyIdentifierParametersMatchEverything
+required_capability: param_any_value_v3
+param: f = "__ANY__"
+param: i = {"identifier": "__ANY__"}
+FROM employees
+| WHERE ??f == ?f AND ?i == "Georgi"
+| STATS c = COUNT(*)
+;
+
+c:long
+100
+;
+
+anyConditionNextToOthersKeepsTheOthers
+required_capability: param_any_value_v3
+param: n = "__ANY__"
+FROM employees
+| WHERE first_name == ?n AND emp_no < 10003 AND languages IN (?n)
+| KEEP emp_no
+| SORT emp_no
+;
+
+emp_no:integer
+10001
+10002
+;
+
+anyConditionInAnEvalAndAGroupingIsTrue
+required_capability: param_any_value_v3
+param: n = "__ANY__"
+FROM employees
+| WHERE emp_no < 10003
+| EVAL matches = first_name == ?n
+| STATS c = COUNT(*) BY matches, all = emp_no > 0 AND first_name == ?n
+;
+
+c:long | matches:boolean | all:boolean
+2      | true            | true
+;
+
+theOldGuardMatchesEverythingOrTheValue
+required_capability: param_any_value_v3
+param: job = "__ANY__"
+FROM employees
+| WHERE ?job IS NULL OR MV_INTERSECTS(job_positions, ?job)
+| STATS c = COUNT(*)
+;
+
+c:long
+100
+;
+
+theOldGuardWithAValue
+required_capability: param_any_value_v3
+param: job = "Accountant"
+FROM employees
+| WHERE ?job IS NULL OR MV_INTERSECTS(job_positions, ?job)
+| STATS c = COUNT(*)
+;
+
+c:long
+18
+;
+
+anyMatchesMissingFields
+required_capability: param_any_value_v3
+required_capability: optional_fields_nullify_tech_preview
+param: n = "__ANY__"
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| WHERE missing_field == ?n
+| STATS c = COUNT(*)
+;
+
+c:long
+100
+;
+
+aListOfTheReservedValueTwiceIsNotAny
+required_capability: param_any_value_v3
+param: n = ["__ANY__", "__ANY__"]
+FROM employees
+| WHERE first_name IN ?n
+| STATS c = COUNT(*)
+;
+
+c:long
+0
+;
+
+aLiteralWithTheReservedValueIsNotAny
+required_capability: param_any_value_v3
+FROM employees
+| WHERE first_name == "__ANY__" OR first_name IN ("__ANY__")
+| STATS c = COUNT(*)
+;
+
+c:long
+0
+;
+
+aCustomReservedValueIsAny
+required_capability: param_any_value_v3
+param: n = "ALL"
+
+SET param_any_value="ALL"\;
+FROM employees
+| WHERE first_name == ?n
+| STATS c = COUNT(*)
+;
+
+c:long
+100
+;
+
+theDefaultReservedValueIsAnOrdinaryValueWithACustomOne
+required_capability: param_any_value_v3
+param: n = "__ANY__"
+
+SET param_any_value="ALL"\;
+FROM employees
+| WHERE first_name == ?n
+| STATS c = COUNT(*)
+;
+
+c:long
+0
+;

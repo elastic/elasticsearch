@@ -5023,6 +5023,13 @@ public class EsqlCapabilities {
          */
         PARAM_ANY_VALUE_V2(Build.current().isSnapshot()),
 
+        /**
+         * Adds to {@link #PARAM_ANY_VALUE_V2} that a condition that compares with a parameter that stands for "Any" is replaced
+         * with {@code true}: {@code ==}, {@code IN}, {@code MV_CONTAINS}, {@code MV_INTERSECTS} and {@code IS NULL}, as long as
+         * they aren't under a {@code NOT}. Snapshot-only while the setting is.
+         */
+        PARAM_ANY_VALUE_V3(Build.current().isSnapshot()),
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

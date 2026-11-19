@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.esql.CsvTestUtils;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
-import org.elasticsearch.xpack.esql.plan.logical.SourceCommand;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import org.junit.AfterClass;
 import org.junit.ClassRule;
@@ -466,8 +465,6 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
         return clones;
     }
 
-    private static final Pattern LEADING_SET_STATEMENTS = Pattern.compile("^(\\s*SET\\b[^;]+;)+", Pattern.CASE_INSENSITIVE);
-
     /**
      * Whether the query parameters are used in the source command, like {@code PROMQL index=?idx ...}. The conversion to remote
      * indices parses the source command without the parameters, and can't rewrite an index name passed as a parameter.
@@ -476,9 +473,9 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
         if (testCase.params.isEmpty()) {
             return false;
         }
-        String firstCommand = LEADING_SET_STATEMENTS.matcher(testCase.query.split("\\|")[0]).replaceFirst("").trim();
+        String sourceCommand = EsqlTestUtils.sourceCommand(testCase.query);
         // Also true for a "?" inside a string literal: a rare case, where it only skips a test that could run.
-        return SourceCommand.isSourceCommand(firstCommand.split("\\s+", 2)[0]) && firstCommand.contains("?");
+        return sourceCommand != null && sourceCommand.contains("?");
     }
 
     /**

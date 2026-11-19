@@ -494,6 +494,10 @@ public class CsvColumnarIT extends CsvIT {
         if (testCase.skipColumnar != null) {
             return false;
         }
+        // The dataset resolution below doesn't see an index name in a parameter's value.
+        if (testCase.hasPromqlIndexParam()) {
+            return true;
+        }
         // Wildcard view patterns (e.g. view_k8s_max_*) are not resolvable via the exact-key
         // VIEW_BACKING_DATASETS lookup in resolveAllDatasets; check them first against the known
         // TS-backed view set via glob matching. Normalise (strip quotes / ::suffix) so that

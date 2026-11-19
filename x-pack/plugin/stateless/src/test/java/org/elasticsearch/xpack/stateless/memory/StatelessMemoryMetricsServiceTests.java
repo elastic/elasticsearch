@@ -1215,6 +1215,13 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         assertThat(StatelessMemoryMetricsService.heapRequiredForOperation(absolute, operationSize), equalTo(0L));
     }
 
+    public void testOtherPercentageUsesCeilOfOperationDividedByPercent() {
+        final long operationSize = 1_000L;
+        final Settings fifteenPercent = Settings.builder().put(IndexingPressure.MAX_OPERATION_SIZE.getKey(), "15%").build();
+        // ceil(1000 * 100 / 15) = 6667, which is not ten times the operation.
+        assertThat(StatelessMemoryMetricsService.heapRequiredForOperation(fifteenPercent, operationSize), equalTo(6_667L));
+    }
+
     public void testValidRequirementsReportConvertedRawSizeThenLargerLegacyHeap() {
         final AtomicLong now = new AtomicLong(0L);
         final StatelessMemoryMetricsService timed = new StatelessMemoryMetricsService(now::get, clusterService);

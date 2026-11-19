@@ -141,6 +141,10 @@ public class EsqlDatafeedQueryParserTests extends ESTestCase {
         return parserFor(clusterService).parse(query);
     }
 
+    private ParsedEsqlQuery parseWithoutViewCheck(String query) {
+        return parserFor(clusterService).parseWithoutViewCheck(query);
+    }
+
     public void testServicesFileShouldRegisterParser() {
         SPIClassIterator<EsqlQueryParser> providers = SPIClassIterator.get(EsqlQueryParser.class, getClass().getClassLoader());
         List<Class<? extends EsqlQueryParser>> classes = new ArrayList<>();
@@ -541,6 +545,21 @@ public class EsqlDatafeedQueryParserTests extends ESTestCase {
         // The view is named exactly even when it is listed with other sources.
         expectThrows(ParsingException.class, () -> parse("FROM logs, my_view | STATS c = COUNT(*)"));
         assertThat(parse("FROM logs | STATS c = COUNT(*)").indexPatterns(), contains("logs"));
+    }
+
+    public void testViewShouldNotBeLookedUpWithoutViewCheck() {
+        ClusterServiceUtils.setState(
+            clusterService,
+            ClusterState.builder(clusterService.state())
+                .putProjectMetadata(
+                    ProjectMetadata.builder(clusterService.state().metadata().getProject(ProjectId.DEFAULT))
+                        .views(Map.of("my_view", new View("my_view", "FROM logs")))
+                )
+                .build()
+        );
+        // The check before a caller's access is known must not tell whether a view exists.
+        assertThat(parseWithoutViewCheck("FROM my_view | STATS c = COUNT(*)").indexPatterns(), contains("my_view"));
+        expectThrows(ParsingException.class, () -> parse("FROM my_view | STATS c = COUNT(*)"));
     }
 
     public void testLimitShouldBeRejectedBelowStats() {

@@ -221,6 +221,15 @@ public class EsqlDatafeedQueryParser implements EsqlQueryParser {
      */
     @Override
     public ParsedEsqlQuery parse(String query) {
+        return parse(query, true);
+    }
+
+    @Override
+    public ParsedEsqlQuery parseWithoutViewCheck(String query) {
+        return parse(query, false);
+    }
+
+    private ParsedEsqlQuery parse(String query, boolean rejectViews) {
         Services services = this.services.get();
         ClusterService clusterService = services.clusterService();
         ClusterState clusterState = clusterService.state();
@@ -273,7 +282,9 @@ public class EsqlDatafeedQueryParser implements EsqlQueryParser {
             .indexes()
             .keySet()
             .forEach(pattern -> indexPatterns.addAll(List.of(Strings.splitStringByCommaToArray(pattern.indexPattern()))));
-        rejectViews(indexPatterns, services, clusterState);
+        if (rejectViews) {
+            rejectViews(indexPatterns, services, clusterState);
+        }
         return new Parsed(
             query,
             statement.settings().stream().map(setting -> setting.source().text()).collect(Collectors.joining("\n")),

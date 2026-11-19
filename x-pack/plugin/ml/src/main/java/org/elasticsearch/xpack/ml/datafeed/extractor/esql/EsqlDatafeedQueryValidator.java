@@ -121,7 +121,8 @@ public class EsqlDatafeedQueryValidator {
     ) {
         EsqlDatafeedQuery query;
         try {
-            query = EsqlDatafeedQuery.parse(parser, esqlQuery);
+            // No view check yet: the probe below runs as the caller, and ES|QL answers a caller without access with the denial.
+            query = EsqlDatafeedQuery.parseWithoutViewCheck(parser, esqlQuery);
         } catch (Exception e) {
             listener.onFailure(e);
             return;
@@ -132,6 +133,8 @@ public class EsqlDatafeedQueryValidator {
         ActionListener<EsqlQueryResponse> responseListener = ActionListener.wrap(response -> {
             try {
                 checkRequiredColumns(response.response().columns(), timeField, summaryCountField, datafeedId);
+                // The caller can read the source, so naming a view in the error discloses nothing they could not see.
+                EsqlDatafeedQuery.parse(parser, esqlQuery);
             } catch (Exception e) {
                 listener.onFailure(e);
                 return;
@@ -165,7 +168,7 @@ public class EsqlDatafeedQueryValidator {
     ) {
         EsqlQueryWithParams probeQuery;
         try {
-            probeQuery = EsqlDatafeedQuery.parse(parser, esqlQuery).sourceTimeFieldProbeQuery(sourceTimeField);
+            probeQuery = EsqlDatafeedQuery.parseWithoutViewCheck(parser, esqlQuery).sourceTimeFieldProbeQuery(sourceTimeField);
         } catch (Exception e) {
             listener.onFailure(e);
             return;
@@ -202,7 +205,7 @@ public class EsqlDatafeedQueryValidator {
         if (esqlQuery == null) {
             return;
         }
-        ParsedEsqlQuery query = EsqlDatafeedQuery.parse(parser, esqlQuery).parsed();
+        ParsedEsqlQuery query = EsqlDatafeedQuery.parseWithoutViewCheck(parser, esqlQuery).parsed();
         if (crossProjectEnabled) {
             return;
         }

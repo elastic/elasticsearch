@@ -40,7 +40,18 @@ public final class EsqlDatafeedQuery {
 
     /** Parses {@code query}; throws a 400 if it is not valid ES|QL, uses an unsupported construct, or has no index source. */
     public static EsqlDatafeedQuery parse(EsqlQueryParser parser, String query) {
-        ParsedEsqlQuery parsed = parser.parse(query);
+        return of(parser.parse(query), query);
+    }
+
+    /**
+     * Like {@link #parse}, but a source that names a view is not rejected, because that lookup would tell a caller whose access is
+     * not yet checked that the view exists. Use it before the access probe and {@link #parse} after.
+     */
+    public static EsqlDatafeedQuery parseWithoutViewCheck(EsqlQueryParser parser, String query) {
+        return of(parser.parseWithoutViewCheck(query), query);
+    }
+
+    private static EsqlDatafeedQuery of(ParsedEsqlQuery parsed, String query) {
         // Checked here, at the boundary every execution path parses through, so a saved or inline query cannot skip them.
         if (parsed.setsProjectRoutingInQuery()) {
             throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.DATAFEED_ESQL_PROJECT_ROUTING_SETTING_NOT_SUPPORTED));

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ml.datafeed.extractor.esql;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -38,6 +39,7 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.ml.datafeed.crossproject.NoMatchingProjectTestMessages;
 import org.elasticsearch.xpack.ml.datafeed.esql.EsqlParserTestSupport;
 import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryParser;
+import org.elasticsearch.xpack.ml.datafeed.esql.spi.ParsedEsqlQuery;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -1393,6 +1395,57 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         );
         assertThat(failure.get(), notNullValue());
         return failure.get();
+    }
+
+    /** Rejects a view only in the full parse, as the ES|QL parser does. */
+    private static final EsqlQueryParser VIEW_REJECTING_PARSER = new EsqlQueryParser() {
+        @Override
+        public ParsedEsqlQuery parse(String query) {
+            throw new ElasticsearchStatusException("[my_view] is a view", RestStatus.BAD_REQUEST);
+        }
+
+        @Override
+        public ParsedEsqlQuery parseWithoutViewCheck(String query) {
+            return PARSER.parse(query);
+        }
+    };
+
+    public void testViewShouldNotBeDisclosedWhenTheProbeIsDenied() {
+        ElasticsearchSecurityException denied = new ElasticsearchSecurityException("action is unauthorized", RestStatus.FORBIDDEN);
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        new EsqlDatafeedQueryValidator(VIEW_REJECTING_PARSER, (client, query, filter, headers, projectRouting, params, listener) -> {
+            listener.onFailure(denied);
+        }).validateQuery(
+            null,
+            Collections.emptyMap(),
+            ESQL_QUERY,
+            null,
+            TIME_FIELD,
+            null,
+            ActionListener.wrap(ok -> fail("expected the denial"), failure::set)
+        );
+
+        assertThat(failure.get(), sameInstance(denied));
+    }
+
+    public void testViewShouldBeRejectedOnceTheProbeSucceeds() {
+        List<ColumnInfo> columns = List.of(mockColumn(TIME_FIELD, "date"));
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        new EsqlDatafeedQueryValidator(VIEW_REJECTING_PARSER, (client, query, filter, headers, projectRouting, params, listener) -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<RefCounted> refCountedListener = (ActionListener<RefCounted>) (ActionListener<?>) listener;
+            ActionListener.respondAndRelease(refCountedListener, buildResponse(columns));
+        }).validateQuery(
+            null,
+            Collections.emptyMap(),
+            ESQL_QUERY,
+            null,
+            TIME_FIELD,
+            null,
+            ActionListener.wrap(ok -> fail("expected the view rejection"), failure::set)
+        );
+
+        assertThat(failure.get().getMessage(), containsString("[my_view] is a view"));
     }
 
     private static final class ValidatorHarness {

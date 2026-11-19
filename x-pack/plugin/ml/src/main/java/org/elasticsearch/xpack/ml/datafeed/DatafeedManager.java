@@ -668,8 +668,8 @@ public class DatafeedManager {
                 false,
                 false
             );
-            // After the access check, because parsing resolves views whose existence must not be disclosed to a caller without access,
-            // and before the cloud credential is minted, so a query ML rejects does not mint a key only to revoke it.
+            // Before the cloud credential is minted, so a query ML rejects does not mint a key only to revoke it. ES|QL feeds have no
+            // DSL indices, so no source access is checked here: this check skips the view lookup, which runs after the access probe.
             if (validateEsqlQueryStructure(request, listener) == false) {
                 return;
             }

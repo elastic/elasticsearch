@@ -332,6 +332,14 @@ public class EsqlSession {
     private volatile List<String> externalSourceWarnings = List.of();
 
     /**
+     * Deferred warnings from analysis, set once it passes verification. On the exemplars path they include those of the metrics
+     * query that the exemplars query replaces. Analysis often runs on the thread that completed index resolution, not the one
+     * that goes on to build the response, so a warning written to its thread context can be lost. {@link #withPlanningWarnings}
+     * carries them in {@link DriverCompletionInfo} instead, for {@code toResponse} to emit.
+     */
+    private volatile List<String> analysisWarnings = List.of();
+
+    /**
      * Mutable state accumulated during EXPLAIN mode execution. All fields are written before
      * {@link #createExplainListener}'s callback fires (sequential callback chain).
      */
@@ -746,7 +754,7 @@ public class EsqlSession {
                                     List.of(),
                                     Map.of(),
                                     finalConfiguration,
-                                    DriverCompletionInfo.EMPTY,
+                                    withPlanningWarnings(DriverCompletionInfo.EMPTY),
                                     executionInfo,
                                     null
                                 ),
@@ -1042,6 +1050,13 @@ public class EsqlSession {
         return metadata;
     }
 
+    /**
+     * Adds the warnings planning collected as data rather than in the thread context, for every response the session builds.
+     */
+    private DriverCompletionInfo withPlanningWarnings(DriverCompletionInfo completionInfo) {
+        return completionInfo.withAdditionalWarnings(analysisWarnings).withAdditionalWarnings(externalSourceWarnings);
+    }
+
     private Versioned<Result> attachAdditionalData(
         Result result,
         Map<NameId, Map<String, Object>> columnMetadata,
@@ -1052,7 +1067,7 @@ public class EsqlSession {
         if (completionInfo == null) {
             completionInfo = DriverCompletionInfo.EMPTY;
         }
-        completionInfo = completionInfo.withAdditionalWarnings(externalSourceWarnings);
+        completionInfo = withPlanningWarnings(completionInfo);
         return new Versioned<>(
             new Result(
                 result.schema(),
@@ -3669,6 +3684,7 @@ public class EsqlSession {
             );
         }
         plan.setAnalyzed();
+        analysisWarnings = analyzer.warnings();
         // TODO: when the plan contains an INTO node, validate the destination's mapping in projectMetadata
         // (including column/field type mismatches against the INTO child's output) after authorizing write privileges
         // during pre-analysis.

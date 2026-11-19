@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 165306
+pr: 165949
+summary: Fix analysis warnings sometimes missing from the response
+type: bug

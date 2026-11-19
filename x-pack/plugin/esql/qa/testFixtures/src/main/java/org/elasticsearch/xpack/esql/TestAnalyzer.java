@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
@@ -1121,7 +1122,10 @@ public class TestAnalyzer {
             @Override
             public LogicalPlan analyze(LogicalPlan plan) {
                 resolveEnrichResolution(plan);
-                return super.analyze(plan);
+                LogicalPlan analyzed = super.analyze(plan);
+                // Production carries these in the query result; tests assert them from the thread context.
+                warnings().forEach(HeaderWarning::addWarning);
+                return analyzed;
             }
         };
         return lastAnalyzer;

@@ -518,6 +518,9 @@ public class MetadataMappingService {
                 )
             )
             // Step 2: await async updates
+            // NB even if the publication was not fully acknowledged, we still wait here. The node(s) which did not ack the publication may
+            // have died, and in that case we still want to delay the response until the surviving nodes have completed applying the state.
+            // We read the state from the `clusterService` which may yield a fresher state than the one we just committed, which is ok.
             .<AcknowledgedResponse>andThen((l, response) -> {
                 // TODO group (by timeout) the requests in the batch and only await once
                 // TODO re-use code between here and MetadataUpdateSettingsService

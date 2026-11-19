@@ -4509,7 +4509,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             });
 
             boolean generatedUnionFields = state.unionFieldAttributes.size() > alreadyAddedUnionFieldAttributes;
-            if (generatedUnionFields == false && plan.equals(beforeConverts) == false) {
+            if (generatedUnionFields == false && plan.equals(beforeConverts) == false && referencesMissingFromInputs(plan)) {
                 // The cast reused a field an earlier cast created, so no field was generated to carry through the projects between
                 // the two. Bind it for this node within the scope. Only projects below this node are touched, so the scope's final
                 // projection is not widened.
@@ -4539,6 +4539,21 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 state.isAfterAggregate = true;
             }
             return plan;
+        }
+
+        /**
+         * Whether {@code plan} references a synthetic attribute that its children do not output, which is what a reused conversion
+         * leaves behind when a projection between the two casts dropped it. Checked first so that a chain of casts over the same field
+         * does not walk the subtree below every cast.
+         */
+        private static boolean referencesMissingFromInputs(LogicalPlan plan) {
+            AttributeSet inputs = plan.inputSet();
+            for (Attribute reference : plan.references()) {
+                if (reference.synthetic() && inputs.contains(reference) == false) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         /**

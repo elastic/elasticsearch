@@ -1163,7 +1163,6 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
      * TO_DEGREES of the partially unmapped [foo] is rejected; the caller's default mode would convert it.
      */
     public void testUnionTypeCastAboveRewrittenNodeInsideLoadViewUsesTheViewsMode() {
-        assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
         partiallyUnmappedFoo().addView("v", """
             SET unmapped_fields="load";
             FROM idx* | EVAL s = TO_STRING(foo) | EVAL d = TO_DEGREES(foo)
@@ -1175,7 +1174,6 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
      * and the subquery nodes above them.
      */
     public void testUnionTypeCastInInSubqueryInsideLoadViewUsesTheViewsMode() {
-        assumeTrue("Requires IN subquery with view support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_VIEW.isEnabled());
         partiallyUnmappedFoo().addView("v", """
             SET unmapped_fields="load";
             FROM idx* | EVAL s = TO_STRING(foo) | WHERE k IN (FROM idx* | EVAL s = TO_STRING(foo) | EVAL d = TO_DEGREES(foo) | KEEP k)

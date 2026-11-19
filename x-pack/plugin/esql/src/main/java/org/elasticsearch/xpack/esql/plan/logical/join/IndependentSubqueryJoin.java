@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.join;
 
+import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.List;
@@ -14,9 +15,12 @@ import java.util.List;
 /**
  * A join whose right side is a separate query. That query runs on its own, before the main query, and only its result reaches the
  * join. None of its sources, aggregations, limits, sorts or fields feed the main query's rows, so plan walks that reason about the
- * main query must not descend into it. The right side is always child {@code 1}.
+ * main query must not descend into it. The right side is always child {@link #SUBQUERY_CHILD_INDEX}.
  */
 public interface IndependentSubqueryJoin {
+
+    /** The position of the right side among the join's children. */
+    int SUBQUERY_CHILD_INDEX = 1;
 
     LogicalPlan left();
 
@@ -35,6 +39,6 @@ public interface IndependentSubqueryJoin {
      * Shaped for {@code Node#transformUpSkipBranch}.
      */
     static boolean isSubqueryBranch(LogicalPlan parent, int childIndex) {
-        return parent instanceof IndependentSubqueryJoin && childIndex == 1;
+        return parent instanceof IndependentSubqueryJoin && parent instanceof BinaryPlan && childIndex == SUBQUERY_CHILD_INDEX;
     }
 }

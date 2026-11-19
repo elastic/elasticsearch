@@ -186,7 +186,7 @@ FROM k8s
 | EVAL day = DATE_TRUNC(1 day, @timestamp)
 | STATS c = COUNT(*) BY b = BUCKET(@timestamp, 1 hour), day
 | RENAME b AS hour
-| EVAL month = DATE_TRUNC(1 month, hour), ninety = DATE_TRUNC(90 minutes, hour), bucketed_by_count = BUCKET(hour, 20, "2024-05-10T00:00:00Z", "2024-05-11T00:00:00Z")
+| EVAL month = DATE_TRUNC(1 month, hour), ninety = DATE_TRUNC(90 minutes, hour)
 | DESCRIBE
 | KEEP name, role, interval, time_zone
 ;
@@ -197,7 +197,59 @@ hour              | time         | 1 hour           | UTC
 day               | time         | 1 day            | UTC
 month             | time         | 1 month          | UTC
 ninety            | time         | 90 minutes       | UTC
-bucketed_by_count | time         | 3 hours          | UTC
+;
+
+describeIntervalOfBucketCount
+required_capability: describe_command
+required_capability: describe_interval
+
+FROM k8s
+| EVAL lo = "2024-05-10T00:00:00Z", hi = "2024-05-11T00:00:00Z"
+| STATS c = COUNT(*) BY by_count = BUCKET(@timestamp, 20, "2024-05-10T00:00:00Z", "2024-05-11T00:00:00Z"), by_aliased_count = BUCKET(@timestamp, 20, lo, hi), by_null_bound = BUCKET(@timestamp, 20, null, hi)
+| DESCRIBE
+| KEEP name, role, interval, time_zone
+;
+
+name:keyword     | role:keyword | interval:keyword | time_zone:keyword
+c                | null         | null             | null
+by_count         | time         | 3 hours          | UTC
+by_aliased_count | time         | 3 hours          | UTC
+by_null_bound    | time         | null             | null
+;
+
+describeIntervalOfTStep
+required_capability: describe_command
+required_capability: describe_interval
+required_capability: tstep_explicit_bounds
+required_capability: tstep_bucket_count
+
+FROM k8s
+| STATS c = COUNT(*) BY step = TSTEP(1 hour, "2024-05-10T00:15:00Z", "2024-05-11T00:00:00Z"), by_count = TSTEP(2, "2024-05-10T00:00:00Z", "2024-05-10T02:00:00Z")
+| DESCRIBE
+| KEEP name, role, interval, time_zone
+;
+
+name:keyword | role:keyword | interval:keyword | time_zone:keyword
+c            | null         | null             | null
+step         | time         | 1 hour           | UTC
+by_count     | time         | 1 hour           | UTC
+;
+
+describeIntervalThroughFork
+required_capability: describe_command
+required_capability: describe_interval
+
+FROM k8s
+| FORK (EVAL same = DATE_TRUNC(1 hour, @timestamp), day = DATE_TRUNC(1 day, @timestamp))
+       (EVAL same = DATE_TRUNC(1 hour, @timestamp), day = DATE_TRUNC(24 hours, @timestamp))
+| KEEP same, day
+| DESCRIBE
+| KEEP name, role, interval, time_zone
+;
+
+name:keyword | role:keyword | interval:keyword | time_zone:keyword
+same         | time         | 1 hour           | UTC
+day          | time         | null             | null
 ;
 
 describeIntervalOfOtherDates
@@ -229,6 +281,22 @@ TS k8s
 name:keyword | role:keyword | interval:keyword | time_zone:keyword
 rate         | null         | null             | null
 bucket       | time         | 5 minutes        | UTC
+;
+
+describeIntervalOfUnboundedTBucketCount
+required_capability: describe_command
+required_capability: describe_interval
+skip_flattened_rewrite: describe_sees_rewritten_field_as_computed
+
+TS k8s
+| STATS rate = SUM(RATE(network.total_bytes_in)) BY bucket = TBUCKET(20)
+| DESCRIBE
+| KEEP name, role, interval, time_zone
+;
+
+name:keyword | role:keyword | interval:keyword | time_zone:keyword
+rate         | null         | null             | null
+bucket       | time         | null             | null
 ;
 
 describeIntervalTimeZone

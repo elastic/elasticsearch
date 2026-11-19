@@ -1149,11 +1149,13 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
     }
 
     /**
-     * The interval of a date bucket, or null when its arguments are not constant or make no sense.
+     * The rounding of a date bucket, or null when its arguments are not constant or make no sense.
      */
     @Nullable
-    public Rounding.Interval dateInterval(FoldContext foldContext) {
-        if ((buckets.foldable() && (from == null || from.foldable()) && (to == null || to.foldable())) == false) {
+    public Rounding dateRounding(FoldContext foldContext) {
+        if ((constant(buckets, foldContext)
+            && (from == null || constant(from, foldContext))
+            && (to == null || constant(to, foldContext))) == false) {
             return null;
         }
         // Auto-mode date BUCKET (whole-number bucket count + range): a non-positive count is nonsensical.
@@ -1163,7 +1165,11 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         if (buckets.dataType().isWholeNumber() && ((Number) buckets.fold(foldContext)).longValue() <= 0) {
             return null;
         }
-        return getDateRounding(foldContext).getUnprepared().getInterval();
+        return getDateRounding(foldContext).getUnprepared();
+    }
+
+    private static boolean constant(Expression e, FoldContext foldContext) {
+        return e.foldable() && e.fold(foldContext) != null;
     }
 
     protected Map<String, Object> getIntervalMetadata(FoldContext foldContext) {
@@ -1172,8 +1178,12 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         }
         DataType fieldType = field.dataType();
         if (fieldType == DataType.DATETIME || fieldType == DataType.DATE_NANOS) {
-            Rounding.Interval interval = dateInterval(foldContext);
-            return interval == null ? null : Map.of("bucket", Map.of("interval", interval.size(), "unit", interval.unit()));
+            Rounding rounding = dateRounding(foldContext);
+            if (rounding == null) {
+                return null;
+            }
+            Rounding.Interval interval = rounding.getInterval();
+            return Map.of("bucket", Map.of("interval", interval.size(), "unit", interval.unit()));
         }
         if (fieldType.isNumeric() || isSupportedHistogramType(fieldType)) {
             double roundTo = getNumberRoundTo(foldContext);

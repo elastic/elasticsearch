@@ -13,8 +13,10 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
+import org.elasticsearch.xpack.esql.expression.function.grouping.TStep;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -36,35 +38,62 @@ public final class ColumnIntervals {
      */
     public record Interval(String interval, String timeZone) {}
 
+    /**
+     * The rounding of a bucket, which tells a fixed {@code 24 hours} from a calendar {@code 1 day}.
+     */
+    private record Bucketing(Rounding rounding, String timeZone) {}
+
     private ColumnIntervals() {}
 
     /**
      * Returns the interval of every column of {@code plan} that buckets dates with a constant interval, keyed by
-     * attribute id. Renames keep it, and so do merges whose branches agree on it.
+     * attribute id. Renames keep it, and so do merges whose branches bucket the same way.
      */
     public static Map<NameId, Interval> collect(LogicalPlan plan) {
-        Map<NameId, Interval> intervals = new HashMap<>();
+        Map<NameId, Expression> constants = new HashMap<>();
+        Map<NameId, Bucketing> buckets = new HashMap<>();
         plan.forEachUp(node -> {
             node.forEachExpression(Alias.class, alias -> {
-                Interval interval = alias.child() instanceof Attribute source ? intervals.get(source.id()) : of(alias.child());
-                if (interval != null) {
-                    intervals.put(alias.id(), interval);
+                if (alias.child() instanceof Attribute source) {
+                    Bucketing bucketing = buckets.get(source.id());
+                    if (bucketing != null) {
+                        buckets.put(alias.id(), bucketing);
+                    }
+                    return;
+                }
+                Expression child = alias.child().transformUp(ReferenceAttribute.class, r -> constants.getOrDefault(r.id(), r));
+                if (child.foldable()) {
+                    constants.put(alias.id(), child);
+                }
+                Bucketing bucketing = of(child);
+                if (bucketing != null) {
+                    buckets.put(alias.id(), bucketing);
                 }
             });
             if (node instanceof MergePlan merge) {
-                ColumnSemantics.mergeBranches(merge, intervals, (a, b) -> a.equals(b) ? a : null);
+                ColumnSemantics.mergeBranches(merge, buckets, (a, b) -> a.equals(b) ? a : null);
             }
         });
+        Map<NameId, Interval> intervals = new HashMap<>();
+        buckets.forEach((id, b) -> intervals.put(id, new Interval(format(b.rounding().getInterval()), b.timeZone())));
         return intervals;
     }
 
-    private static Interval of(Expression e) {
+    private static Bucketing of(Expression e) {
         if (e instanceof Bucket bucket) {
             return bucket.field().dataType().isDate() ? of(bucket) : null;
         }
         if (e instanceof TBucket tbucket) {
             boolean bounded = tbucket.buckets().dataType().isWholeNumber() == false || (tbucket.from() != null && tbucket.to() != null);
-            return bounded && tbucket.surrogate() instanceof Bucket bucket ? of(bucket) : null;
+            return bounded && constant(tbucket.buckets(), tbucket.from(), tbucket.to()) && tbucket.surrogate() instanceof Bucket bucket
+                ? of(bucket)
+                : null;
+        }
+        if (e instanceof TStep tstep) {
+            return constant(tstep.stepOrBuckets(), tstep.from(), tstep.to())
+                && tstep.from() != null
+                && tstep.to() != null
+                && tstep.surrogate() instanceof Bucket bucket ? of(bucket) : null;
         }
         if (e instanceof DateTrunc dateTrunc) {
             return of(dateTrunc.timeBucketSpecRef());
@@ -73,15 +102,27 @@ public final class ColumnIntervals {
     }
 
     /**
-     * The interval {@code _meta.bucket} reports for the same bucket, or null when its arguments are not constant.
+     * The rounding {@code _meta.bucket} reports for the same bucket, or null when its arguments are not constant.
      */
-    private static Interval of(Bucket bucket) {
-        Rounding.Interval interval = bucket.dateInterval(FoldContext.small());
-        if (interval == null) {
+    private static Bucketing of(Bucket bucket) {
+        Rounding rounding = bucket.dateRounding(FoldContext.small());
+        if (rounding == null) {
             return null;
         }
         ZoneId zone = QuerySettings.TIME_ZONE.get(bucket.configuration().resolvedSettings());
-        return new Interval(format(interval), zone.equals(ZoneOffset.UTC) ? "UTC" : zone.getId());
+        return new Bucketing(rounding, zone.equals(ZoneOffset.UTC) ? "UTC" : zone.getId());
+    }
+
+    /**
+     * Whether every given argument is either absent or a non-null constant.
+     */
+    private static boolean constant(Expression... args) {
+        for (Expression arg : args) {
+            if (arg != null && (arg.foldable() == false || arg.fold(FoldContext.small()) == null)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     static String format(Rounding.Interval interval) {

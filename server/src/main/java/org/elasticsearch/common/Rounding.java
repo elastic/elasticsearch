@@ -1831,11 +1831,13 @@ public abstract class Rounding implements Writeable {
         };
     }
 
+    private static final List<TimeUnit> FIXED_INTERVAL_UNITS = List.of(TimeUnit.DAYS, TimeUnit.HOURS, TimeUnit.MINUTES, TimeUnit.SECONDS);
+
     /**
      * A fixed interval in the largest unit that divides it, so that 90 minutes stays {@code (90, minute)}.
      */
     private static Interval fixedInterval(long millis) {
-        for (TimeUnit unit : List.of(TimeUnit.DAYS, TimeUnit.HOURS, TimeUnit.MINUTES, TimeUnit.SECONDS)) {
+        for (TimeUnit unit : FIXED_INTERVAL_UNITS) {
             long unitMillis = unit.toMillis(1);
             if (millis % unitMillis == 0) {
                 String name = unit.name();

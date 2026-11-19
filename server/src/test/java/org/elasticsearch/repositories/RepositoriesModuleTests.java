@@ -17,7 +17,7 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.RepositoryPlugin;
-import org.elasticsearch.plugins.internal.ShardGenerationListener;
+import org.elasticsearch.plugins.internal.ShardGenerationSizeListener;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -103,7 +103,7 @@ public class RepositoriesModuleTests extends ESTestCase {
             contentRegistry,
             recoverySettings,
             TelemetryProvider.NOOP,
-            ShardGenerationListener.NOOP
+            ShardGenerationSizeListener.NOOP
         );
     }
 
@@ -143,7 +143,7 @@ public class RepositoriesModuleTests extends ESTestCase {
                 contentRegistry,
                 recoverySettings,
                 TelemetryProvider.NOOP,
-                ShardGenerationListener.NOOP
+                ShardGenerationSizeListener.NOOP
             )
         );
 
@@ -170,7 +170,7 @@ public class RepositoriesModuleTests extends ESTestCase {
                 contentRegistry,
                 recoverySettings,
                 TelemetryProvider.NOOP,
-                ShardGenerationListener.NOOP
+                ShardGenerationSizeListener.NOOP
             )
         );
 
@@ -205,7 +205,7 @@ public class RepositoriesModuleTests extends ESTestCase {
                 contentRegistry,
                 recoverySettings,
                 TelemetryProvider.NOOP,
-                ShardGenerationListener.NOOP
+                ShardGenerationSizeListener.NOOP
             )
         );
 

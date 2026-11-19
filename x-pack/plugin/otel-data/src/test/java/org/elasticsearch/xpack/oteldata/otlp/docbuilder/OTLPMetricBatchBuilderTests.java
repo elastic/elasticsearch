@@ -148,7 +148,7 @@ public class OTLPMetricBatchBuilderTests extends MetricDocumentTestCase {
             BytesRefRecycler.NON_RECYCLING_INSTANCE,
             MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM
         );
-        context.consume(group -> {
+        context.forEachGroup(group -> {
             Map<String, String> templates = new HashMap<>();
             Map<String, Map<String, String>> templateParams = new HashMap<>();
             assertTrue(batchBuilder.buildMetricRow(group, templates, templateParams));
@@ -193,7 +193,7 @@ public class OTLPMetricBatchBuilderTests extends MetricDocumentTestCase {
             BytesRefRecycler.NON_RECYCLING_INSTANCE,
             MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM
         );
-        context.consume(group -> { assertTrue(batchBuilder.buildMetricRow(group, new HashMap<>(), new HashMap<>())); });
+        context.forEachGroup(group -> { assertTrue(batchBuilder.buildMetricRow(group, new HashMap<>(), new HashMap<>())); });
         EscfBatch batch = batchBuilder.build();
 
         assertEquals(2, batch.docCount());
@@ -245,7 +245,7 @@ public class OTLPMetricBatchBuilderTests extends MetricDocumentTestCase {
             BytesRefRecycler.NON_RECYCLING_INSTANCE,
             MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM
         );
-        context.consume(group -> { assertTrue(batchBuilder.buildMetricRow(group, new HashMap<>(), new HashMap<>())); });
+        context.forEachGroup(group -> { assertTrue(batchBuilder.buildMetricRow(group, new HashMap<>(), new HashMap<>())); });
         EscfBatch batch = batchBuilder.build();
 
         assertEquals(1, batch.docCount());
@@ -299,7 +299,7 @@ public class OTLPMetricBatchBuilderTests extends MetricDocumentTestCase {
             BytesRefRecycler.NON_RECYCLING_INSTANCE,
             MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM
         );
-        context.consume(group -> { assertTrue(batchBuilder.buildMetricRow(group, new HashMap<>(), new HashMap<>())); });
+        context.forEachGroup(group -> { assertTrue(batchBuilder.buildMetricRow(group, new HashMap<>(), new HashMap<>())); });
         EscfBatch batch = batchBuilder.build();
 
         assertEquals(1, batch.docCount());
@@ -328,7 +328,7 @@ public class OTLPMetricBatchBuilderTests extends MetricDocumentTestCase {
             BytesRefRecycler.NON_RECYCLING_INSTANCE,
             MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM
         );
-        context.consume(group -> { assertTrue(batchBuilder.buildMetricRow(group, new HashMap<>(), new HashMap<>())); });
+        context.forEachGroup(group -> { assertTrue(batchBuilder.buildMetricRow(group, new HashMap<>(), new HashMap<>())); });
         EscfBatch batch = batchBuilder.build();
 
         assertEquals(1, batch.docCount());
@@ -384,7 +384,7 @@ public class OTLPMetricBatchBuilderTests extends MetricDocumentTestCase {
             BytesRefRecycler.NON_RECYCLING_INSTANCE,
             MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM
         );
-        context.consume(group -> assertTrue(batchBuilder.buildMetricRow(group, new HashMap<>(), new HashMap<>())));
+        context.forEachGroup(group -> assertTrue(batchBuilder.buildMetricRow(group, new HashMap<>(), new HashMap<>())));
         return batchBuilder.build();
     }
 
@@ -396,7 +396,7 @@ public class OTLPMetricBatchBuilderTests extends MetricDocumentTestCase {
             BytesRefRecycler.NON_RECYCLING_INSTANCE,
             MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM
         );
-        context.consume(group -> assertFalse(batchBuilder.buildMetricRow(group, new HashMap<>(), new HashMap<>())));
+        context.forEachGroup(group -> assertFalse(batchBuilder.buildMetricRow(group, new HashMap<>(), new HashMap<>())));
         assertEquals(0, batchBuilder.docCount());
     }
 

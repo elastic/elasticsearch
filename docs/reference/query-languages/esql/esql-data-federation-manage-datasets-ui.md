@@ -3,16 +3,13 @@ navigation_title: "Manage in UI"
 description: "Create, view, and edit ES|QL Data Federation datasets with the Add dataset wizard in Kibana."
 applies_to:
   stack: preview 9.6+, experimental =9.5
-  serverless: unavailable
+  serverless: preview
 products:
   - id: elasticsearch
   - id: kibana
 ---
 
 # Create and manage datasets in the {{kib}} UI
-
-:::{include} _snippets/data-federation/experimental-warning.md
-:::
 
 In the {{kib}} UI, you create and manage datasets from the **Datasets** tab under **Data management** > **{{esql}} Data Federation**.
 

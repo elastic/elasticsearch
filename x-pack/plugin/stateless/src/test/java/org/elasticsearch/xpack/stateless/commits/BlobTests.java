@@ -27,8 +27,8 @@ public class BlobTests extends ESTestCase {
     /// A random blob for each implementation of [Blob]. [#testEveryImplementationIsTested()] fails if a new implementation is not added
     /// here.
     private static final Map<Class<? extends Blob>, Supplier<Blob>> RANDOM_BLOBS = Map.of(
-        BlobFile.class,
-        BlobTests::randomBlobFile,
+        BccBlob.class,
+        BlobTests::randomBccBlob,
         MergeBlob.class,
         BlobTests::randomMergeBlob
     );
@@ -65,9 +65,9 @@ public class BlobTests extends ESTestCase {
         }
     }
 
-    private static BlobFile randomBlobFile() {
+    private static BccBlob randomBccBlob() {
         final long generation = randomNonZeroPositiveLong();
-        return new BlobFile(
+        return new BccBlob(
             BatchedCompoundCommit.blobNameFromGeneration(generation),
             new PrimaryTermAndGeneration(randomNonNegativeLong(), generation)
         );

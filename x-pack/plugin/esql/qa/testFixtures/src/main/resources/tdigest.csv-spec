@@ -1127,6 +1127,36 @@ time:datetime            | first_count:long | last_count:long
 ;
 
 // -------------------------------------------------------------------------------
+
+// FIRST, LAST, EARLIEST and LATEST return one sample of each series, the same as with FROM.
+// COUNT of a merged tdigest would count every value of the series: 8841, 3250 and 3380.
+timeseriesFirstAndLastReturnSampleTDigest
+required_capability: ts_command_v0
+required_capability: tdigest_time_series_metric
+required_capability: count_of_histogram_types
+required_capability: earliest_latest_aggs
+required_capability: first_agg_extended_types_2
+required_capability: last_agg_extended_types
+required_capability: fix_ts_first_last_samples
+
+TS tdigest_timeseries_index
+ | WHERE NOT STARTS_WITH(instance, "hand-rolled") AND instance != "multi-row-td"
+ | STATS first_td = FIRST(responseTime, @timestamp), earliest_td = EARLIEST(responseTime),
+         last_td = LAST(responseTime, @timestamp), latest_td = LATEST(responseTime)
+         BY instance
+ | STATS first_count = COUNT(first_td), earliest_count = COUNT(earliest_td),
+         last_count = COUNT(last_td), latest_count = COUNT(latest_td)
+         BY instance
+ | SORT instance
+;
+
+first_count:long | earliest_count:long | last_count:long | latest_count:long | instance:keyword
+69               | 69                  | 93              | 93                | instance-0
+32               | 32                  | 23              | 23                | instance-1
+34               | 34                  | 26              | 26                | instance-2
+;
+
+// -------------------------------------------------------------------------------
 // Documentation examples for aggregations with tdigest
 // -------------------------------------------------------------------------------
 

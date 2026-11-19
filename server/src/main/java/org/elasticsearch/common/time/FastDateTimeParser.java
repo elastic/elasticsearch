@@ -128,6 +128,17 @@ class FastDateTimeParser implements DateTimeParser {
     }
 
     /**
+     * Parses UTF-8 bytes to an epoch value without building a String or java.time objects. Handles a full date with an optional
+     * time to the second, fraction, and {@code Z} or {@code +hh:mm} offset. Returns {@link DateFormatter#DECLINED} for any other
+     * input.
+     *
+     * @param nanosResolution {@code true} for nanos since the epoch, {@code false} for millis
+     */
+    long tryParseEpoch(byte[] bytes, int offset, int length, boolean nanosResolution) {
+        return timezone == null ? parser.tryParseEpoch(bytes, offset, length, nanosResolution) : DateFormatter.DECLINED;
+    }
+
+    /**
      * Parses datetimes in ISO8601 format (and subsequences thereof), as well as some substantially similar
      * (but not technically 8601) formats.
      * <p>
@@ -548,6 +559,150 @@ class FastDateTimeParser implements DateTimeParser {
 
             // still chars left at the end - string is not valid
             return ParseResult.error(pos);
+        }
+
+        /** Accepts only input that {@link #parse} accepts, with the same result. Keep it in step when {@link #parse} changes. */
+        long tryParseEpoch(byte[] b, int off, int len, boolean nanosResolution) {
+            final long declined = DateFormatter.DECLINED;
+            if (defaults.isEmpty() == false
+                || len < 10
+                || maxAllowedField == ChronoField.YEAR
+                || maxAllowedField == ChronoField.MONTH_OF_YEAR) {
+                return declined;
+            }
+            int year = digits(b, off, 4);
+            int month = digits(b, off + 5, 2);
+            int day = digits(b, off + 8, 2);
+            if (year < 0 || month < 1 || month > 12 || day < 1 || b[off + 4] != '-' || b[off + 7] != '-') {
+                return declined;
+            }
+            if (day > lengthOfMonth(year, month)) {
+                return declined;
+            }
+            long epochDay = epochDay(year, month, day);
+            if (len == 10) {
+                return optionalTime || isOptional(ChronoField.HOUR_OF_DAY) ? toEpoch(epochDay * 86_400L, 0, nanosResolution) : declined;
+            }
+            if (len < 19
+                || b[off + 10] != dateTimeSeparator
+                || b[off + 13] != ':'
+                || b[off + 16] != ':'
+                || maxAllowedField == ChronoField.DAY_OF_MONTH
+                || maxAllowedField == ChronoField.HOUR_OF_DAY
+                || maxAllowedField == ChronoField.MINUTE_OF_HOUR) {
+                return declined;
+            }
+            int hour = digits(b, off + 11, 2);
+            int minute = digits(b, off + 14, 2);
+            int second = digits(b, off + 17, 2);
+            if (hour < 0 || hour > 23 || minute < 0 || minute > 59 || second < 0 || second > 59) {
+                return declined;
+            }
+            long seconds = epochDay * 86_400L + hour * 3_600L + minute * 60L + second;
+            if (len == 19) {
+                return isOptional(ChronoField.NANO_OF_SECOND) && timezonePresence != TimezonePresence.MANDATORY
+                    ? toEpoch(seconds, 0, nanosResolution)
+                    : declined;
+            }
+            final int end = off + len;
+            int pos = off + 19;
+            int nanos = 0;
+            if (isZoneStart(b[pos]) == false) {
+                if (checkDecimalSeparator((char) b[pos]) == false || maxAllowedField == ChronoField.SECOND_OF_MINUTE) {
+                    return declined;
+                }
+                final int start = ++pos;
+                while (pos < end && pos - start < 9) {
+                    int d = b[pos] - '0';
+                    if (d < 0 || d > 9) {
+                        break;
+                    }
+                    nanos = nanos * 10 + d;
+                    pos++;
+                }
+                if (pos == start) {
+                    return declined;
+                }
+                nanos *= NANO_MULTIPLICANDS[9 - (pos - start)];
+                if (pos == end) {
+                    return timezonePresence != TimezonePresence.MANDATORY ? toEpoch(seconds, nanos, nanosResolution) : declined;
+                }
+            }
+            if (timezonePresence == TimezonePresence.FORBIDDEN) {
+                return declined;
+            }
+            if (b[pos] == 'Z' && pos + 1 == end) {
+                return toEpoch(seconds, nanos, nanosResolution);
+            }
+            if ((b[pos] == '+' || b[pos] == '-') && end - pos == 6 && b[pos + 3] == ':') {
+                int offsetHours = digits(b, pos + 1, 2);
+                int offsetMinutes = digits(b, pos + 4, 2);
+                if (offsetHours < 0 || offsetHours > 23 || offsetMinutes < 0 || offsetMinutes > 59) {
+                    return declined;
+                }
+                int offsetSeconds = offsetHours * 3_600 + offsetMinutes * 60;
+                if (offsetSeconds > 18 * 3_600) {
+                    return declined;
+                }
+                seconds -= b[pos] == '+' ? offsetSeconds : -offsetSeconds;
+                return toEpoch(seconds, nanos, nanosResolution);
+            }
+            return declined;
+        }
+
+        private static final long MAX_NANOS_EPOCH_SECOND = Long.MAX_VALUE / 1_000_000_000L;
+        private static final int MAX_NANOS_NANO_OF_SECOND = (int) (Long.MAX_VALUE % 1_000_000_000L);
+
+        /** Converts to millis like {@link java.time.Instant#toEpochMilli}, or to nanos when they fit, else declines. */
+        private static long toEpoch(long epochSecond, int nanoOfSecond, boolean nanosResolution) {
+            if (nanosResolution == false) {
+                return epochSecond * 1_000L + nanoOfSecond / 1_000_000;
+            }
+            if (epochSecond < 0
+                || epochSecond > MAX_NANOS_EPOCH_SECOND
+                || (epochSecond == MAX_NANOS_EPOCH_SECOND && nanoOfSecond > MAX_NANOS_NANO_OF_SECOND)) {
+                // DateUtils.toLong rejects these with its own message
+                return DateFormatter.DECLINED;
+            }
+            return epochSecond * 1_000_000_000L + nanoOfSecond;
+        }
+
+        private static boolean isZoneStart(byte c) {
+            return c == '+' || c == '-' || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z');
+        }
+
+        /** Returns the value of {@code count} ASCII digits, or -1 if one is not a digit. */
+        private static int digits(byte[] b, int start, int count) {
+            int result = 0;
+            for (int i = start; i < start + count; i++) {
+                int d = b[i] - '0';
+                if (d < 0 || d > 9) {
+                    return -1;
+                }
+                result = result * 10 + d;
+            }
+            return result;
+        }
+
+        private static int lengthOfMonth(int year, int month) {
+            return switch (month) {
+                case 2 -> ((year & 3) == 0 && (year % 100 != 0 || year % 400 == 0)) ? 29 : 28;
+                case 4, 6, 9, 11 -> 30;
+                default -> 31;
+            };
+        }
+
+        /**
+         * Returns the days since 1970-01-01 for a valid proleptic Gregorian date. See
+         * <a href="https://howardhinnant.github.io/date_algorithms.html#days_from_civil">days_from_civil</a>.
+         */
+        private static long epochDay(int year, int month, int day) {
+            int y = month <= 2 ? year - 1 : year;
+            int era = (y >= 0 ? y : y - 399) / 400;
+            int yearOfEra = y - era * 400;
+            int dayOfYear = (153 * (month + (month > 2 ? -3 : 9)) + 2) / 5 + day - 1;
+            int dayOfEra = yearOfEra * 365 + yearOfEra / 4 - yearOfEra / 100 + dayOfYear;
+            return era * 146_097L + dayOfEra - 719_468;
         }
 
         private boolean checkDecimalSeparator(char separator) {

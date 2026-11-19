@@ -40,11 +40,11 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
@@ -881,8 +881,8 @@ public class ViewSettingsIT extends AbstractEsqlIntegTestCase {
             try (var resp = run(query)) {
                 List<List<Object>> values = getValuesList(resp);
                 assertThat(query, values.stream().map(row -> row.get(0)).toList(), equalTo(List.of(1, 2, 3)));
-                assertThat(query, values.get(0).get(1), notNullValue());
-                assertThat(query, values.get(1).get(1), notNullValue());
+                assertThat(query, (Double) values.get(0).get(1), closeTo(Math.toDegrees(1.5), 1e-9));
+                assertThat(query, (Double) values.get(1).get(1), closeTo(Math.toDegrees(2), 1e-9));
                 assertThat(query, values.get(2).get(1), nullValue());
             }
             assertThat(

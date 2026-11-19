@@ -237,7 +237,8 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
                     }
                     MappedFieldType rightFieldType = context.getFieldType(rightAttribute.name());
 
-                    if (extractChannelOffset != -1 && SearchContextStats.holdsValuesAsTerms(context, rightAttribute.name())) {
+                    // the lookup seeks under the name of the field type, so a key that is an alias works too
+                    if (extractChannelOffset != -1 && SearchContextStats.holdsValuesAsTerms(rightFieldType)) {
                         // special handle Equals operator on keyword fields
                         // we can apply as a BulkKeywordLookup for better performance
                         if (binaryComparison instanceof Equals) {

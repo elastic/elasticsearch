@@ -237,6 +237,8 @@ public class LookupPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     public void testBulkLookupFollowsTheMappingOfTheKey() throws IOException {
         assertBulkLookup(true, """
             { "_doc": { "properties": { "language_name": { "type": "keyword" } } } }""");
+        assertBulkLookup(true, """
+            { "_doc": { "properties": { "language_name": { "type": "keyword", "doc_values": false } } } }""");
         assertBulkLookup(false, """
             { "_doc": { "properties": { "language_name": { "type": "keyword", "index": false } } } }""");
         assertBulkLookup(false, """

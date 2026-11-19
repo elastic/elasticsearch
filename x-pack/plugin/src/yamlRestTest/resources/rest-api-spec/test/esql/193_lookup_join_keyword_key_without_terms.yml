@@ -64,6 +64,26 @@ setup:
                 type: keyword
   - do:
       indices.create:
+        index: lookup_normalized_no_doc_values
+        body:
+          settings:
+            index:
+              mode: lookup
+              analysis:
+                normalizer:
+                  lower:
+                    type: custom
+                    filter: [ lowercase ]
+          mappings:
+            properties:
+              host:
+                type: keyword
+                normalizer: lower
+                doc_values: false
+              threat_level:
+                type: keyword
+  - do:
+      indices.create:
         index: lookup_alias
         body:
           settings:
@@ -110,6 +130,15 @@ setup:
   - do:
       bulk:
         index: lookup_normalized
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "host": "Bravo", "threat_level": "high" }
+          - { "index": { } }
+          - { "host": "CHARLIE", "threat_level": "medium" }
+  - do:
+      bulk:
+        index: lookup_normalized_no_doc_values
         refresh: true
         body:
           - { "index": { } }
@@ -169,6 +198,15 @@ setup:
         body:
           query: 'FROM firewall | LOOKUP JOIN lookup_normalized ON host | KEEP ip, threat_level | SORT ip | LIMIT 10'
   - match: { values: [ [ "192.0.2.1", null ], [ "198.51.100.2", "medium" ], [ "203.0.113.5", "high" ] ] }
+
+---
+"keyword key with a normalizer and no doc values matches keys that are already normalized":
+  # Term queries can't run without doc values, so the key is still looked up in the terms dictionary as it is.
+  - do:
+      esql.query:
+        body:
+          query: 'FROM firewall | LOOKUP JOIN lookup_normalized_no_doc_values ON host | KEEP ip, threat_level | SORT ip | LIMIT 10'
+  - match: { values: [ [ "192.0.2.1", null ], [ "198.51.100.2", "medium" ], [ "203.0.113.5", null ] ] }
 
 ---
 "keyword key that is an alias":

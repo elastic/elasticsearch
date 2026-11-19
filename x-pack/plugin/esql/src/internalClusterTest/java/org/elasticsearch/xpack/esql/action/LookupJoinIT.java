@@ -16,6 +16,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
@@ -421,16 +422,24 @@ public class LookupJoinIT extends AbstractEsqlIntegTestCase {
      * which finds nothing for a {@code keyword} with {@code index: false}.
      */
     public void testExpressionJoinOnKeyWithoutTermsStreamingDisabled() {
+        assertExpressionJoinStreamingDisabled("ip", "ip", "type=keyword,index=false");
+    }
+
+    public void testExpressionJoinOnAliasKeyStreamingDisabled() {
+        assertExpressionJoinStreamingDisabled("ip_real", "ip_real", "type=keyword", "ip", "type=alias,path=ip_real");
+    }
+
+    private void assertExpressionJoinStreamingDisabled(String indexedAs, String... keyMapping) {
         assertAcked(prepareCreate("firewall").setMapping("ip", "type=keyword"));
         assertAcked(
             prepareCreate("threats").setSettings(Settings.builder().put("index.mode", "lookup").put("index.number_of_shards", 1))
-                .setMapping("ip", "type=keyword,index=false", "threat_level", "type=keyword")
+                .setMapping(ArrayUtils.concat(keyMapping, new String[] { "threat_level", "type=keyword" }))
         );
         indexRandom(
             true,
             prepareIndex("firewall").setSource("ip", "192.0.2.1"),
             prepareIndex("firewall").setSource("ip", "203.0.113.5"),
-            prepareIndex("threats").setSource("ip", "203.0.113.5", "threat_level", "high")
+            prepareIndex("threats").setSource(indexedAs, "203.0.113.5", "threat_level", "high")
         );
 
         String query = """

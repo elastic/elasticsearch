@@ -22,6 +22,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.tsdb.PartitionedDocValues;
 import org.elasticsearch.index.mapper.AbstractScriptFieldType;
 import org.elasticsearch.index.mapper.ConstantFieldType;
@@ -509,15 +510,25 @@ public class SearchContextStats implements SearchStats {
 
     /**
      * Whether seeking a value under {@code field} in the terms dictionary of the shard of {@code context} finds the documents
-     * a term query for it would: {@code field} is the name of an indexed {@code keyword} with no normalizer. A runtime field
-     * or a {@code keyword} with {@code index: false} has no terms, an alias has none under its own name, and a normalizer
-     * changes the value before indexing it.
+     * a term query for it would. An alias has no terms under its own name, so it doesn't, whatever it points to.
      */
     public static boolean holdsValuesAsTerms(SearchExecutionContext context, String field) {
-        return context.getFieldType(field) instanceof KeywordFieldMapper.KeywordFieldType keyword
-            && keyword.name().equals(field)
+        MappedFieldType fieldType = context.getFieldType(field);
+        return fieldType != null && fieldType.name().equals(field) && holdsValuesAsTerms(fieldType);
+    }
+
+    /**
+     * Whether seeking a value under the name of {@code fieldType} in the terms dictionary finds the documents a term query
+     * for it would: an indexed {@code keyword} with no normalizer. A runtime field or a {@code keyword} with
+     * {@code index: false} has no terms, and a normalizer changes the value before indexing it.
+     * <p>
+     * A normalized {@code keyword} without doc values counts too, although only values that are already normalized are
+     * found: the lookup can't run term queries on it, because it needs doc values to leave out multivalued keys.
+     */
+    public static boolean holdsValuesAsTerms(@Nullable MappedFieldType fieldType) {
+        return fieldType instanceof KeywordFieldMapper.KeywordFieldType keyword
             && keyword.indexType().hasTerms()
-            && keyword.hasNormalizer() == false;
+            && (keyword.hasNormalizer() == false || keyword.hasDocValues() == false);
     }
 
     @Override

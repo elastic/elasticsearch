@@ -857,6 +857,25 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
         );
     }
 
+    /** The listing reads a bare number as milliseconds, so a bound in nanoseconds must not reach it after analysis either. */
+    public void testResolvedNanosecondBoundOnFileModifiedEmitsNothing() {
+        Literal nanos = new Literal(SRC, 1_700_000_000_123_456_789L, DataType.DATE_NANOS);
+        Set<String> requested = Set.of(FileMetadataColumns.MODIFIED);
+        Expression modified = fileMeta(FileMetadataColumns.MODIFIED);
+
+        Expression nanosBound = new GreaterThanOrEqual(SRC, modified, nanos);
+        assertTrue(PartitionFilterHintExtractor.fromConjuncts(List.of(nanosBound), requested, Set.of()).isEmpty());
+        Expression nanosIn = new In(SRC, modified, List.of(datetimeLiteral(1L), nanos));
+        assertTrue(PartitionFilterHintExtractor.fromConjuncts(List.of(nanosIn), requested, Set.of()).isEmpty());
+
+        // A bound in milliseconds beside it is still a hint.
+        Expression millisBound = new LessThan(SRC, modified, datetimeLiteral(2L));
+        assertEquals(
+            List.of(new PartitionFilterHint(FileMetadataColumns.MODIFIED, Operator.LESS_THAN, List.of(2L))),
+            PartitionFilterHintExtractor.fromConjuncts(List.of(nanosBound, millisBound), requested, Set.of())
+        );
+    }
+
     public void testUnresolvedEqualsIsEmptyOnResolvedFromConjuncts() {
         assertTrue(
             PartitionFilterHintExtractor.fromConjuncts(

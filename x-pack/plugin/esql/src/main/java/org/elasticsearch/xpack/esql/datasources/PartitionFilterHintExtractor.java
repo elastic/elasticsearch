@@ -155,14 +155,21 @@ public final class PartitionFilterHintExtractor {
      * key and must not join the listing cache identity. Prefix predicates become a GTE/LT range.
      * {@code MV_IN_RANGE} is always a closed GTE+LTE (inclusivity is not read). {@code MV_GREATER}/{@code MV_LESS}
      * are GTE/LTE ({@code include_bound} is not read). {@code Range} keeps {@code includeLower}/{@code includeUpper}
-     * as written. {@code RLIKE}, {@code NOT}, and {@code OR} emit nothing. Bounds use {@link #LISTING}.
+     * as written. {@code RLIKE}, {@code NOT}, and {@code OR} emit nothing. Bounds use {@link #LISTING}, which keeps
+     * no units, so a conjunct with a {@code date_nanos} constant emits nothing either.
      */
     public static List<PartitionFilterHint> fromConjuncts(
         List<Expression> conjuncts,
         Set<String> requestedMetadata,
         Set<String> partitionKeys
     ) {
-        return fromConjuncts(conjuncts, requestedMetadata, partitionKeys, LISTING);
+        List<Expression> listable = new ArrayList<>(conjuncts.size());
+        for (Expression conjunct : conjuncts) {
+            if (conjunct.anyMatch(e -> e instanceof Literal literal && hasListingUnits(literal) == false) == false) {
+                listable.add(conjunct);
+            }
+        }
+        return fromConjuncts(listable, requestedMetadata, partitionKeys, LISTING);
     }
 
     /**
@@ -619,7 +626,7 @@ public final class PartitionFilterHintExtractor {
     }
 
     /**
-     * Whether a literal of the parsed plan can be a hint value. A hint carries the bare value and the listing reads
+     * Whether a literal can be a hint value of the listing. A hint carries the bare value and the listing reads
      * a {@code Long} as milliseconds since the epoch, so a {@code date_nanos} constant would be taken for a time a
      * million times later and prune files that match. Such a comparison is left to the query.
      */

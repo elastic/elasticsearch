@@ -1928,6 +1928,31 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
+    /**
+     * The final flush when a shard closes, as on relocation or shutdown, completes a no-op listener, so the metric is the only signal
+     * that it failed.
+     */
+    public void testFinalFlushFailureOnCloseIsCounted() throws IOException {
+        AtomicReference<RuntimeException> engineFailure = new AtomicReference<>();
+        IndexShard shard = newStartedShard(true, Settings.EMPTY, config -> new InternalEngine(config) {
+            @Override
+            protected void ensureCanFlush() {
+                super.ensureCanFlush();
+                RuntimeException e = engineFailure.getAndSet(null);
+                if (e != null) {
+                    throw e;
+                }
+            }
+        });
+        indexDoc(shard, "_doc", "1");
+        engineFailure.set(new IllegalStateException("unexpected"));
+
+        IOUtils.close(() -> flushAndCloseShardNoCheck(shard), shard.store());
+
+        assertThat("the final flush must reach the engine", engineFailure.get(), nullValue());
+        assertFlushFailureCount(1L);
+    }
+
     private Exception flushFailure(IndexShard shard) {
         AtomicReference<Exception> failure = new AtomicReference<>();
         shard.flush(

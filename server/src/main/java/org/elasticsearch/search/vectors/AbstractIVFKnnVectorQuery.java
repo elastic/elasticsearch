@@ -189,7 +189,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         // Also shared by the named slices a sliced query searches within a single leaf, so created even when only one
         // leaf has the field. Formats that do not transform the query, and byte queries, leave it unused, which costs
         // only this allocation.
-        final SharedQueryTransforms sharedQueryTransforms = new SharedQueryTransforms();
+        final SharedQueryTransforms sharedQueryTransforms = SharedQueryTransforms.perQuery();
         final int maxLeafBudget = leafCollectorBudget(maxRescoreOversampleAcrossLeaves);
 
         List<Callable<TopDocs>> tasks = new ArrayList<>(leafReaderContexts.size());
@@ -449,15 +449,15 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
         /**
          * @param sharedScore minimum competitive score shared across leaves, or {@code null} when there is nothing to share
-         * @param sharedQueryTransforms transformations of the query vector shared across leaves, see
-         *                              {@link SharedQueryTransforms}, or {@code null} when there is nothing to share. Only
-         *                              handed to the search strategies of leaves that search with the query's own vector,
-         *                              see {@link #newSearchStrategy}.
+         * @param sharedQueryTransforms transformations of the query vector shared across leaves, or
+         *                              {@link SharedQueryTransforms#NONE} when there is nothing to share. Only handed to
+         *                              the search strategies of leaves that search with the query's own vector, see
+         *                              {@link #newSearchStrategy}.
          */
-        IVFCollectorManager(int k, @Nullable SharedMinCompetitiveScore sharedScore, @Nullable SharedQueryTransforms sharedQueryTransforms) {
+        IVFCollectorManager(int k, @Nullable SharedMinCompetitiveScore sharedScore, SharedQueryTransforms sharedQueryTransforms) {
             this.k = k;
             this.sharedScore = sharedScore;
-            this.sharedQueryTransforms = sharedQueryTransforms;
+            this.sharedQueryTransforms = Objects.requireNonNull(sharedQueryTransforms);
         }
 
         /**
@@ -468,7 +468,13 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
          * @param searchesQueryVector whether the leaf searches with the query's own vector
          */
         IVFKnnSearchStrategy newSearchStrategy(float visitRatio, int numCands, int queryK, boolean searchesQueryVector) {
-            return new IVFKnnSearchStrategy(visitRatio, numCands, queryK, sharedScore, searchesQueryVector ? sharedQueryTransforms : null);
+            return new IVFKnnSearchStrategy(
+                visitRatio,
+                numCands,
+                queryK,
+                sharedScore,
+                searchesQueryVector ? sharedQueryTransforms : SharedQueryTransforms.NONE
+            );
         }
 
         @Override

@@ -20,22 +20,23 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.AcceptDocs;
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopKnnCollector;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
-import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
+import org.elasticsearch.index.codec.vectors.VectorTestUtils;
+import org.elasticsearch.search.vectors.CountingSharedQueryTransforms;
 import org.elasticsearch.search.vectors.IVFKnnSearchStrategy;
 import org.elasticsearch.search.vectors.SharedQueryTransforms;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Before;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
@@ -45,21 +46,11 @@ import static org.hamcrest.Matchers.hasSize;
 public class ESNextDiskASHSharedProjectionTests extends ESTestCase {
 
     private static final String FIELD = "f";
-    // ASH defaults project 128 dims to 64, learning W from a sample of up to 10 * 128 vectors
     private static final int DIMS = 128;
-    private static final int FULL_SAMPLE = 10 * DIMS;
 
-    private int queryBitsPerDim;
-
-    @Before
-    public void randomizeQueryBits() {
-        // both the float scoring path (0) and the integer one, whose quantized query is shared too
-        queryBitsPerDim = randomFrom(0, IvfSegmentConfig.AshConfig.DEFAULT_QUERY_BITS_PER_DIM);
-    }
-
-    private IndexWriterConfig writerConfig() {
+    private static IndexWriterConfig writerConfig() {
         IndexWriterConfig iwc = new IndexWriterConfig();
-        iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(ESNextDiskASHTestFixture.ashFormat(queryBitsPerDim, null)));
+        iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(ESNextDiskASHTestFixture.ashFormat(null, -1)));
         // keep each flush its own segment
         iwc.setMergePolicy(NoMergePolicy.INSTANCE);
         iwc.setMaxBufferedDocs(IndexWriterConfig.DISABLE_AUTO_FLUSH);
@@ -67,43 +58,19 @@ public class ESNextDiskASHSharedProjectionTests extends ESTestCase {
         return iwc;
     }
 
-    /** A low-rank basis, so that the learned projection keeps most of the vectors. */
-    private static float[][] basis() {
-        float[][] basis = new float[16][DIMS];
-        for (float[] b : basis) {
-            for (int d = 0; d < DIMS; d++) {
-                b[d] = randomFloat() * 2 - 1;
-            }
-        }
-        return basis;
-    }
-
-    private static float[] vector(float[][] basis) {
-        float[] v = new float[DIMS];
-        for (float[] b : basis) {
-            float w = randomFloat() * 2 - 1;
-            for (int d = 0; d < DIMS; d++) {
-                v[d] += w * b[d];
-            }
-        }
-        for (int d = 0; d < DIMS; d++) {
-            v[d] += (randomFloat() - 0.5f) * 0.1f;
-        }
-        return v;
-    }
-
-    private static void flush(IndexWriter w, float[][] basis, int docs) throws IOException {
+    private static void flush(IndexWriter w) throws IOException {
+        int docs = randomIntBetween(500, 1000);
         for (int i = 0; i < docs; i++) {
             Document doc = new Document();
-            doc.add(new KnnFloatVectorField(FIELD, vector(basis), VectorSimilarityFunction.EUCLIDEAN));
+            doc.add(new KnnFloatVectorField(FIELD, VectorTestUtils.randomFloatVector(DIMS), VectorSimilarityFunction.EUCLIDEAN));
             w.addDocument(doc);
         }
         w.commit();
     }
 
-    /** The projection matrix ids of the segments, in segment order. */
-    private static List<UUID> segmentMatrixIds(DirectoryReader reader) {
-        List<UUID> ids = new ArrayList<>();
+    /** The distinct projection matrix ids of the segments. */
+    private static Set<UUID> distinctMatrixIds(DirectoryReader reader) {
+        Set<UUID> ids = new HashSet<>();
         for (LeafReaderContext ctx : reader.leaves()) {
             FieldInfo fieldInfo = ctx.reader().getFieldInfos().fieldInfo(FIELD);
             ids.add(ESNextDiskASHTestFixture.ashReader(ctx.reader(), FIELD).getProjectionMatrix(fieldInfo).id());
@@ -112,10 +79,9 @@ public class ESNextDiskASHSharedProjectionTests extends ESTestCase {
     }
 
     public void testQueryIsProjectedOncePerSharedProjection() throws IOException {
-        float[][] basis = basis();
         try (Directory source = newDirectory(); Directory dir = newDirectory()) {
             try (IndexWriter w = new IndexWriter(source, writerConfig())) {
-                flush(w, basis, FULL_SAMPLE + randomIntBetween(0, 100));
+                flush(w);
             }
             int copies = randomIntBetween(2, 4);
             try (IndexWriter w = new IndexWriter(dir, writerConfig())) {
@@ -125,57 +91,54 @@ public class ESNextDiskASHSharedProjectionTests extends ESTestCase {
                 }
                 try (DirectoryReader reader = DirectoryReader.open(w)) {
                     assertThat(reader.leaves(), hasSize(copies));
-                    assertEquals(1, new HashSet<>(segmentMatrixIds(reader)).size());
-                    for (int q = 0; q < 5; q++) {
-                        float[] query = vector(basis);
-                        SharedQueryTransforms transforms = new SharedQueryTransforms();
-                        for (LeafReaderContext ctx : reader.leaves()) {
-                            assertSameResults(search(ctx.reader(), query, null), search(ctx.reader(), query, transforms));
-                        }
-                        assertEquals("one projection for all the segments sharing W", 1, transforms.size());
-                    }
+                    assertThat(distinctMatrixIds(reader), hasSize(1));
+                    assertProjectedOncePerDistinctMatrix(reader, 1);
                 }
             }
         }
     }
 
     public void testQueryIsProjectedPerDistinctProjection() throws IOException {
-        float[][] basis = basis();
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, writerConfig())) {
             int segments = randomIntBetween(2, 4);
             for (int s = 0; s < segments; s++) {
-                flush(w, basis, FULL_SAMPLE);
+                flush(w);
             }
             try (DirectoryReader reader = DirectoryReader.open(w)) {
                 assertThat(reader.leaves(), hasSize(segments));
-                int distinct = new HashSet<>(segmentMatrixIds(reader)).size();
-                assertEquals("each flush learns its own projection", segments, distinct);
-                float[] query = vector(basis);
-                SharedQueryTransforms transforms = new SharedQueryTransforms();
-                for (LeafReaderContext ctx : reader.leaves()) {
-                    assertSameResults(search(ctx.reader(), query, null), search(ctx.reader(), query, transforms));
-                }
-                assertEquals(distinct, transforms.size());
+                assertThat("each flush learns its own projection", distinctMatrixIds(reader), hasSize(segments));
+                assertProjectedOncePerDistinctMatrix(reader, segments);
             }
         }
     }
 
     public void testSegmentSearchedRepeatedlyProjectsOnce() throws IOException {
         // a sliced query searches a segment once for each named slice it requests, with the same query
-        float[][] basis = basis();
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, writerConfig())) {
-            flush(w, basis, randomIntBetween(FULL_SAMPLE / 2, FULL_SAMPLE));
+            flush(w);
             try (DirectoryReader reader = DirectoryReader.open(w)) {
                 LeafReader leafReader = reader.leaves().get(0).reader();
-                float[] query = vector(basis);
-                TopDocs expected = search(leafReader, query, null);
-                SharedQueryTransforms transforms = new SharedQueryTransforms();
+                float[] query = VectorTestUtils.randomFloatVector(DIMS);
+                TopDocs expected = search(leafReader, query, SharedQueryTransforms.NONE);
+                CountingSharedQueryTransforms transforms = new CountingSharedQueryTransforms();
                 int searches = randomIntBetween(2, 5);
                 for (int i = 0; i < searches; i++) {
                     assertSameResults(expected, search(leafReader, query, transforms));
                 }
-                assertEquals(1, transforms.size());
+                assertThat(transforms.computed(), equalTo(1));
             }
+        }
+    }
+
+    /** Searches every segment with and without shared transforms, and checks results and the number of projections. */
+    private static void assertProjectedOncePerDistinctMatrix(DirectoryReader reader, int distinctMatrices) throws IOException {
+        for (int q = 0; q < 5; q++) {
+            float[] query = VectorTestUtils.randomFloatVector(DIMS);
+            CountingSharedQueryTransforms transforms = new CountingSharedQueryTransforms();
+            for (LeafReaderContext ctx : reader.leaves()) {
+                assertSameResults(search(ctx.reader(), query, SharedQueryTransforms.NONE), search(ctx.reader(), query, transforms));
+            }
+            assertThat(transforms.computed(), equalTo(distinctMatrices));
         }
     }
 
@@ -188,10 +151,13 @@ public class ESNextDiskASHSharedProjectionTests extends ESTestCase {
     }
 
     private static void assertSameResults(TopDocs expected, TopDocs actual) {
-        assertEquals(expected.scoreDocs.length, actual.scoreDocs.length);
+        assertThat(expected.scoreDocs.length, equalTo(10));
+        assertThat(actual.scoreDocs.length, equalTo(expected.scoreDocs.length));
         for (int i = 0; i < expected.scoreDocs.length; i++) {
-            assertEquals(expected.scoreDocs[i].doc, actual.scoreDocs[i].doc);
-            assertEquals(expected.scoreDocs[i].score, actual.scoreDocs[i].score, 0f);
+            ScoreDoc e = expected.scoreDocs[i];
+            ScoreDoc a = actual.scoreDocs[i];
+            assertThat(a.doc, equalTo(e.doc));
+            assertThat(a.score, equalTo(e.score));
         }
     }
 }

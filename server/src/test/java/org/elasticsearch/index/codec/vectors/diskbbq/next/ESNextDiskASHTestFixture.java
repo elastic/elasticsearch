@@ -31,20 +31,16 @@ public final class ESNextDiskASHTestFixture {
     private ESNextDiskASHTestFixture() {}
 
     /**
-     * The ASH format with the default projection, bits per dimension and clustering, and the given query bits.
+     * The ASH format with the default projection, bits and clustering, to write with. Lucene opens the reader of a
+     * segment through SPI, so searches use the reader's default query bits whatever this format is configured with.
      *
-     * @param queryBitsPerDim bits per dimension of the quantized query, 0 for the float scoring path
      * @param sliceField the field to slice segments by, or {@code null} for an unsliced index
+     * @param flatVectorThreshold the most vectors a named slice is written as a flat posting list with, rather than
+     *                            clustered: -1 for the default, 0 to always cluster
      */
-    public static ESNextDiskASHVectorsFormat ashFormat(int queryBitsPerDim, @Nullable String sliceField) {
-        IvfSegmentConfig.AshConfig ashConfig = IvfSegmentConfig.AshConfig.of(
-            IvfSegmentConfig.AshConfig.DEFAULT_BITS_PER_DIM,
-            queryBitsPerDim,
-            IvfSegmentConfig.AshConfig.DEFAULT_PROJECTED_DIMS_FRACTION,
-            IvfSegmentConfig.AshConfig.DEFAULT_MAX_PROJECTED_DIMS
-        );
+    public static ESNextDiskASHVectorsFormat ashFormat(@Nullable String sliceField, int flatVectorThreshold) {
         return new ESNextDiskASHVectorsFormat(
-            AshConfigResolver.fixed(ashConfig),
+            AshConfigResolver.fixed(IvfSegmentConfig.AshConfig.defaults()),
             ESNextDiskASHVectorsFormat.MIN_VECTORS_PER_CLUSTER,
             ESNextDiskASHVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
             DenseVectorFieldMapper.ElementType.FLOAT,
@@ -52,7 +48,7 @@ public final class ESNextDiskASHTestFixture {
             null,
             1,
             null,
-            -1,
+            flatVectorThreshold,
             sliceField,
             IvfFlushConfigSource.empty(),
             IvfMergeConfigResolver.useCodecDefault(),
@@ -68,5 +64,10 @@ public final class ESNextDiskASHTestFixture {
         }
         assertThat(vectorReader, instanceOf(ESNextDiskASHVectorsReader.class));
         return (ESNextDiskASHVectorsReader) vectorReader;
+    }
+
+    /** Returns the number of named slices {@code field} has centroids for in the segment of {@code leafReader}. */
+    public static int numSlices(LeafReader leafReader, String field) {
+        return ashReader(leafReader, field).getNumSlicesForTest(leafReader.getFieldInfos().fieldInfo(field));
     }
 }

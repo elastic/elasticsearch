@@ -24,27 +24,26 @@ public class IVFKnnSearchStrategy extends KnnSearchStrategy {
 
     /**
      * @param sharedScore minimum competitive score shared across leaves, or {@code null} when there is nothing to share
-     * @param sharedQueryTransforms transformations of the query vector shared across leaves, or {@code null} when there is
-     *                              nothing to share. Only pass it to a search with the query's own vector: a search with
-     *                              another vector, such as one preconditioned for its segment, would be handed the
-     *                              transformations of the query's vector.
+     * @param sharedQueryTransforms transformations of the query vector shared across leaves, or
+     *                              {@link SharedQueryTransforms#NONE} when there is nothing to share. Only pass shared
+     *                              transformations to a search with the query's own vector: a search with another vector,
+     *                              such as one preconditioned for its segment, would be handed those of the query's vector.
      */
     public IVFKnnSearchStrategy(
         float visitRatio,
         int numCands,
         int k,
         @Nullable SharedMinCompetitiveScore sharedScore,
-        @Nullable SharedQueryTransforms sharedQueryTransforms
+        SharedQueryTransforms sharedQueryTransforms
     ) {
         this.visitRatio = visitRatio;
         this.numCands = numCands;
         this.k = k;
         this.sharedScore = sharedScore;
-        this.sharedQueryTransforms = sharedQueryTransforms;
+        this.sharedQueryTransforms = Objects.requireNonNull(sharedQueryTransforms);
     }
 
-    /** Returns the transformations of the query vector shared across the leaves of the query, or {@code null}. */
-    @Nullable
+    /** Returns the transformations of the query vector shared across the leaves of the query. */
     public SharedQueryTransforms getSharedQueryTransforms() {
         return sharedQueryTransforms;
     }

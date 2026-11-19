@@ -31,7 +31,6 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.vectors.GenericFlatVectorReaders;
 import org.elasticsearch.index.codec.vectors.cluster.ClusteringFloatVectorValues;
 import org.elasticsearch.index.codec.vectors.cluster.ClusteringVectorValues;
@@ -71,10 +70,10 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
          * A float vector query target.
          *
          * @param sharedTransforms transformations of {@code vector} shared with the other leaves of the same query, or
-         *                         {@code null} if there are none to share. Byte queries have none: they are widened into
+         *                         {@link SharedQueryTransforms#NONE} if there are none to share. Byte queries have none: they are widened into
          *                         a new float vector per segment.
          */
-        record FloatQuery(float[] vector, @Nullable SharedQueryTransforms sharedTransforms) implements QueryTarget {
+        record FloatQuery(float[] vector, SharedQueryTransforms sharedTransforms) implements QueryTarget {
 
             public int dimension() {
                 return vector.length;
@@ -400,7 +399,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
     @Override
     public final void search(String field, float[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
         if (hasIvfStructure(field)) {
-            doSearch(field, new QueryTarget.FloatQuery(target, null), knnCollector, acceptDocs);
+            doSearch(field, new QueryTarget.FloatQuery(target, SharedQueryTransforms.NONE), knnCollector, acceptDocs);
         } else {
             getReaderForField(field).search(field, target, knnCollector, acceptDocs);
         }
@@ -474,7 +473,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         int k = knnCollector.k();
         int numCands = k;
         float visitRatio = dynamicVisitRatio;
-        SharedQueryTransforms sharedTransforms = null;
+        SharedQueryTransforms sharedTransforms = SharedQueryTransforms.NONE;
         // Search strategy may be null if this is being called from checkIndex (e.g. from a test)
         if (knnCollector.getSearchStrategy() instanceof IVFKnnSearchStrategy ivfSearchStrategy) {
             visitRatio = ivfSearchStrategy.getVisitRatio();
@@ -483,7 +482,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
             sharedTransforms = ivfSearchStrategy.getSharedQueryTransforms();
         }
         // the query target, with the transformations of its vector shared across the leaves of the query, if any
-        final QueryTarget queryTarget = sharedTransforms != null && target instanceof QueryTarget.FloatQuery fq
+        final QueryTarget queryTarget = target instanceof QueryTarget.FloatQuery fq
             ? new QueryTarget.FloatQuery(fq.vector(), sharedTransforms)
             : target;
 

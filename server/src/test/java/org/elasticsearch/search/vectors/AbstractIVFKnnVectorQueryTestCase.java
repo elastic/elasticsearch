@@ -1032,7 +1032,7 @@ public abstract class AbstractIVFKnnVectorQueryTestCase<V> extends LuceneTestCas
             captured.add(sharedScore);
             IVFCollectorManager manager = super.getKnnCollectorManager(k, sharedScore, sharedQueryTransforms);
             assertSame(sharedQueryTransforms, manager.newSearchStrategy(1f, k, k, true).getSharedQueryTransforms());
-            assertNull(manager.newSearchStrategy(1f, k, k, false).getSharedQueryTransforms());
+            assertSame(SharedQueryTransforms.NONE, manager.newSearchStrategy(1f, k, k, false).getSharedQueryTransforms());
             capturedTransforms.add(sharedQueryTransforms);
             return manager;
         }

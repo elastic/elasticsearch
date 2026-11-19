@@ -147,7 +147,8 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
      * @param queryBitsPerDim bits per dimension for query quantization (0 for float path)
      * @param centroidReader function mapping centroid ordinal to float[] centroid vector
      * @param sharedTransforms the query's transformations shared across segments, to reuse the projected query of another
-     *                         segment with the same projection matrix, or {@code null} to project it for this segment alone
+     *                         segment with the same projection matrix, or {@link SharedQueryTransforms#NONE} to project it
+     *                         for this segment alone
      * @return a configured visitor for the appropriate scoring path
      */
     public static AshPostingsVisitor<?> create(
@@ -159,7 +160,7 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
         int bitsPerDim,
         int queryBitsPerDim,
         CheckedIntFunction<float[], IOException> centroidReader,
-        @Nullable SharedQueryTransforms sharedTransforms
+        SharedQueryTransforms sharedTransforms
     ) throws IOException {
         return createVisitor(
             matrix,
@@ -191,8 +192,8 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
      * @param startDoc inclusive start of the slice doc range
      * @param endDoc exclusive end of the slice doc range
      * @param sharedTransforms the query's transformations shared across segments and slices, to reuse the projected query
-     *                         of another segment or named slice with the same projection matrix, or {@code null} to
-     *                         project it for this named slice alone
+     *                         of another segment or named slice with the same projection matrix, or
+     *                         {@link SharedQueryTransforms#NONE} to project it for this named slice alone
      * @return a configured sliced visitor for the appropriate scoring path
      */
     public static AshPostingsVisitor<?> createSliced(
@@ -207,7 +208,7 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
         KnnVectorValues vectorValues,
         int startDoc,
         int endDoc,
-        @Nullable SharedQueryTransforms sharedTransforms
+        SharedQueryTransforms sharedTransforms
     ) throws IOException {
         AshPostingsVisitor<?> base = createVisitor(
             matrix,
@@ -258,18 +259,12 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
         int bitsPerDim,
         int queryBitsPerDim,
         CheckedIntFunction<float[], IOException> centroidReader,
-        @Nullable SharedQueryTransforms sharedTransforms
+        SharedQueryTransforms sharedTransforms
     ) throws IOException {
-        final ProjectedQuery projectedQuery;
-        if (sharedTransforms == null) {
-            projectedQuery = projectQuery(matrix, query, queryBitsPerDim, bitsPerDim);
-        } else {
-            projectedQuery = sharedTransforms.computeIfAbsent(
-                query,
-                ProjectedQueryKey.of(matrix.id(), queryBitsPerDim, bitsPerDim),
-                () -> projectQuery(matrix, query, queryBitsPerDim, bitsPerDim)
-            );
-        }
+        ProjectedQuery projectedQuery = sharedTransforms.computeIfAbsent(
+            ProjectedQueryKey.of(matrix.id(), queryBitsPerDim, bitsPerDim),
+            () -> projectQuery(matrix, query, queryBitsPerDim, bitsPerDim)
+        );
         float[] queryTransformed = projectedQuery.projected();
 
         if (queryBitsPerDim > 0) {

@@ -16,7 +16,7 @@ public class IVFKnnSearchStrategyTests extends ESTestCase {
 
     public void testMaxScorePropagation() {
         SharedMinCompetitiveScore sharedScore = new SharedMinCompetitiveScore();
-        IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(0.5f, 100, 10, sharedScore, null);
+        IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(0.5f, 100, 10, sharedScore, SharedQueryTransforms.NONE);
         MaxScoreTopKnnCollector collector = new MaxScoreTopKnnCollector(2, 1000, strategy);
         strategy.setCollector(collector);
 
@@ -45,7 +45,7 @@ public class IVFKnnSearchStrategyTests extends ESTestCase {
 
     public void testReadOnlySharedScoreIsNotPublishedTo() {
         SharedMinCompetitiveScore sharedScore = new SharedMinCompetitiveScore();
-        IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(0.5f, 100, 10, sharedScore.readOnly(), null);
+        IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(0.5f, 100, 10, sharedScore.readOnly(), SharedQueryTransforms.NONE);
         MaxScoreTopKnnCollector collector = new MaxScoreTopKnnCollector(2, 1000, strategy);
         strategy.setCollector(collector);
 

@@ -246,6 +246,14 @@ public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVe
         return fields.get(fieldInfo.number).ashBitsPerDim();
     }
 
+    /**
+     * Returns the number of named slices the given field has centroids for in this segment, for tests: -1 if the segment
+     * is not sliced, 0 if it is a single flat posting list.
+     */
+    int getNumSlicesForTest(FieldInfo fieldInfo) {
+        return fields.get(fieldInfo.number).numSlices();
+    }
+
     @Override
     public PostingVisitor getPostingVisitor(
         FieldInfo fieldInfo,
@@ -268,7 +276,9 @@ public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVe
             }
         };
         // A widened byte query is a new array per segment, so there is nothing to share for it
-        SharedQueryTransforms sharedTransforms = queryTarget instanceof QueryTarget.FloatQuery fq ? fq.sharedTransforms() : null;
+        SharedQueryTransforms sharedTransforms = queryTarget instanceof QueryTarget.FloatQuery fq
+            ? fq.sharedTransforms()
+            : SharedQueryTransforms.NONE;
 
         var ashMatrix = getAshProjectionMatrix(fieldInfo);
         int dimension = fieldInfo.getVectorDimension();
@@ -418,7 +428,7 @@ public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVe
             fieldInfo,
             values,
             entry.postingListSlice(ivfClusters.clone()),
-            new QueryTarget.FloatQuery(query, null),
+            new QueryTarget.FloatQuery(query, SharedQueryTransforms.NONE),
             null,
             entry.centroidSlice(ivfCentroids.clone()),
             acceptDocs

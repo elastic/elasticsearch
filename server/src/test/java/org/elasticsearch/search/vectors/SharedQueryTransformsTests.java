@@ -9,55 +9,43 @@
 
 package org.elasticsearch.search.vectors;
 
-import org.elasticsearch.core.Assertions;
-import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.hamcrest.Matchers.equalTo;
+
+/**
+ * Computing each transformation once is {@link org.elasticsearch.common.util.CachedSupplier}'s job, tested with it; this
+ * tests what {@link SharedQueryTransforms} adds on top.
+ */
 public class SharedQueryTransformsTests extends ESTestCase {
 
     private record Key(String name) implements SharedQueryTransforms.Key<String> {}
 
-    private record ObjectKey(String name) implements SharedQueryTransforms.Key<Object> {}
-
-    public void testComputesOncePerKey() {
-        SharedQueryTransforms transforms = new SharedQueryTransforms();
-        float[] query = VectorTestUtils.randomFloatVector(randomIntBetween(1, 16));
-        AtomicInteger computed = new AtomicInteger();
-        String a = transforms.computeIfAbsent(query, new Key("a"), () -> "a" + computed.incrementAndGet());
-        assertEquals("a1", a);
-        assertSame(a, transforms.computeIfAbsent(query, new Key("a"), () -> "a" + computed.incrementAndGet()));
-        assertEquals("b2", transforms.computeIfAbsent(query, new Key("b"), () -> "b" + computed.incrementAndGet()));
-        assertEquals(2, computed.get());
-        assertEquals(2, transforms.size());
+    public void testPerQuerySharesByKey() {
+        SharedQueryTransforms transforms = SharedQueryTransforms.perQuery();
+        assertThat(transforms.computeIfAbsent(new Key("a"), () -> "a"), equalTo("a"));
+        assertThat("computed once for an equal key", transforms.computeIfAbsent(new Key("a"), () -> "other"), equalTo("a"));
+        assertThat(transforms.computeIfAbsent(new Key("b"), () -> "b"), equalTo("b"));
     }
 
-    public void testConcurrentLeavesComputeOnce() {
-        SharedQueryTransforms transforms = new SharedQueryTransforms();
-        float[] query = VectorTestUtils.randomFloatVector(randomIntBetween(1, 16));
-        int threads = randomIntBetween(2, 8);
+    public void testNoneSharesNothing() {
         AtomicInteger computed = new AtomicInteger();
-        Object[] results = new Object[threads];
-        startInParallel(threads, i -> results[i] = transforms.computeIfAbsent(query, new ObjectKey("key"), () -> {
-            computed.incrementAndGet();
-            return new Object();
-        }));
-        assertEquals(1, computed.get());
-        for (Object result : results) {
-            assertSame(results[0], result);
+        for (int i = 0; i < 3; i++) {
+            SharedQueryTransforms.NONE.computeIfAbsent(new Key("a"), () -> "a" + computed.incrementAndGet());
         }
+        assertThat(computed.get(), equalTo(3));
     }
 
     public void testComputingOneKeyDoesNotHoldUpAnother() {
-        SharedQueryTransforms transforms = new SharedQueryTransforms();
-        float[] query = VectorTestUtils.randomFloatVector(randomIntBetween(1, 16));
+        SharedQueryTransforms transforms = SharedQueryTransforms.perQuery();
         CountDownLatch computing = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
         runInParallel(2, i -> {
             if (i == 0) {
-                transforms.computeIfAbsent(query, new Key("slow"), () -> {
+                transforms.computeIfAbsent(new Key("slow"), () -> {
                     computing.countDown();
                     safeAwait(release);
                     return "slow";
@@ -68,39 +56,13 @@ public class SharedQueryTransformsTests extends ESTestCase {
                     // whatever bin of the map they share with "slow", other keys are computed while "slow" still is
                     for (int k = 0; k < 64; k++) {
                         String name = "other" + k;
-                        assertEquals(name, transforms.computeIfAbsent(query, new Key(name), () -> name));
+                        assertThat(transforms.computeIfAbsent(new Key(name), () -> name), equalTo(name));
                     }
                 } finally {
                     release.countDown();
                 }
             }
         });
-        assertEquals("slow", transforms.computeIfAbsent(query, new Key("slow"), () -> "again"));
-    }
-
-    public void testFailedComputationIsRetried() {
-        SharedQueryTransforms transforms = new SharedQueryTransforms();
-        float[] query = VectorTestUtils.randomFloatVector(randomIntBetween(1, 16));
-        AtomicInteger calls = new AtomicInteger();
-        expectThrows(IllegalStateException.class, () -> transforms.computeIfAbsent(query, new Key("key"), () -> {
-            if (calls.incrementAndGet() == 1) {
-                throw new IllegalStateException("boom");
-            }
-            return "value";
-        }));
-        // the first caller's supplier is retried, so all suppliers for a key must compute the same value
-        assertEquals("value", transforms.computeIfAbsent(query, new Key("key"), () -> "other"));
-        assertEquals(2, calls.get());
-    }
-
-    public void testUseWithAnotherVectorTripsAssertion() {
-        assumeTrue("checked by assertions only", Assertions.ENABLED);
-        SharedQueryTransforms transforms = new SharedQueryTransforms();
-        float[] query = VectorTestUtils.randomFloatVector(randomIntBetween(1, 16));
-        transforms.computeIfAbsent(query, new Key("key"), () -> "value");
-        // an equal copy is still another vector, as a preconditioned one would be
-        float[] other = randomBoolean() ? query.clone() : VectorTestUtils.randomFloatVector(query.length);
-        AssertionError e = expectThrows(AssertionError.class, () -> transforms.computeIfAbsent(other, new Key("key"), () -> "other"));
-        assertEquals("query transformations shared with a search that uses another vector", e.getMessage());
+        assertThat(transforms.computeIfAbsent(new Key("slow"), () -> "again"), equalTo("slow"));
     }
 }

@@ -185,10 +185,15 @@ public class AnalyzerNestedAnyTests extends AnalyzerTestCase {
         );
     }
 
-    public void testUnsupportedChildTypeIsRejected() {
+    public void testSpatialChildIsReadLikeAnyOtherColumn() {
+        LogicalPlan plan = nestedAnalyzer().query("FROM ne | WHERE NESTED_ANY(items.loc IS NOT NULL)");
+        assertThat(predicate(plan).inputs().stream().map(Attribute::dataType).toList(), equalTo(List.of(DataType.GEO_POINT)));
+    }
+
+    public void testTypeMismatchInTheBodyReportsTheComparison() {
         nestedAnalyzer().error(
-            "FROM ne | WHERE NESTED_ANY(items.loc IS NOT NULL)",
-            containsString("NESTED_ANY does not support child type [GEO_POINT] for [items.loc]")
+            "FROM ne | WHERE NESTED_ANY(items.sku > 5) | KEEP id",
+            containsString("first argument of [items.sku > 5] is [keyword] so second argument must also be [keyword] but was [integer]")
         );
     }
 

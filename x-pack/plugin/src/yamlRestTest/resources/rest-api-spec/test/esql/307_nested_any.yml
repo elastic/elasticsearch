@@ -147,3 +147,57 @@ setup:
       esql.query:
         body:
           query: 'FROM nested_any | STATS c = COUNT(*) | WHERE NESTED_ANY(items.sku == "a") | KEEP c'
+
+---
+"NESTED_ANY reads a mapped child of any type like a column":
+  - do:
+      indices.create:
+        index: nested_any_types
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              id:
+                type: keyword
+              items:
+                type: nested
+                properties:
+                  g: { type: geo_point }
+                  dn: { type: date_nanos }
+                  ul: { type: unsigned_long }
+                  ver: { type: version }
+                  f: { type: float }
+                  hf: { type: half_float }
+                  sf: { type: scaled_float, scaling_factor: 100 }
+                  d: { type: date }
+                  ip: { type: ip }
+                  b: { type: boolean }
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "nested_any_types", "_id": "1" } }
+          - { "id": "1", "items": [ { "g": "1.0,1.0", "dn": "2021-01-01T00:00:00Z", "ul": 10, "ver": "2.0.0", "f": 2.5, "hf": 2.5, "sf": 2.5, "d": "2021-01-01T00:00:00Z", "ip": "10.0.0.1", "b": true } ] }
+          - { "index": { "_index": "nested_any_types", "_id": "2" } }
+          - { "id": "2", "items": [ { "g": "50.0,50.0", "dn": "2019-01-01T00:00:00Z", "ul": 1, "ver": "0.5.0", "f": 0.5, "hf": 0.5, "sf": 0.5, "d": "2019-01-01T00:00:00Z", "ip": "192.168.0.1", "b": false } ] }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: >
+            FROM nested_any_types
+            | WHERE NESTED_ANY(ST_DISTANCE(items.g, TO_GEOPOINT("POINT(1 1)")) < 1000)
+              AND NESTED_ANY(items.dn > TO_DATE_NANOS("2020-01-01T00:00:00Z"))
+              AND NESTED_ANY(items.ul > TO_UNSIGNED_LONG(5))
+              AND NESTED_ANY(items.ver > TO_VERSION("1.0.0"))
+              AND NESTED_ANY(items.f > 1.5)
+              AND NESTED_ANY(items.hf > 1.5)
+              AND NESTED_ANY(items.sf > 1.5)
+              AND NESTED_ANY(items.d > TO_DATETIME("2020-01-01T00:00:00Z"))
+              AND NESTED_ANY(CIDR_MATCH(items.ip, "10.0.0.0/8"))
+              AND NESTED_ANY(items.b)
+            | KEEP id
+            | SORT id
+  - match: { values: [["1"]] }

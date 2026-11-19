@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.analysis.rules;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.common.Failure;
+import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -140,7 +141,7 @@ public final class BindNestedAny extends ParameterizedRule<LogicalPlan, LogicalP
             if (scope.kind() != NestedScopeField.Kind.VALUE) {
                 throw error(nested, "NESTED_ANY requires a predicate over nested fields, not [" + publicName(field) + "]");
             }
-            if (SUPPORTED.contains(attribute.dataType()) == false) {
+            if (DataType.isRepresentableInExpression(attribute.dataType()) == false) {
                 throw error(
                     nested,
                     "NESTED_ANY does not support child type [" + attribute.dataType() + "] for [" + publicName(field) + "]"
@@ -159,20 +160,14 @@ public final class BindNestedAny extends ParameterizedRule<LogicalPlan, LogicalP
             replacement.put(attribute.id(), ref);
             paths.add(attribute.name().substring(NestedScopeField.PREFIX.length() + path.length() + 1));
         }
+        body.forEachUp(e -> {
+            if (e instanceof Unresolvable == false && e.childrenResolved() && e.typeResolved().unresolved()) {
+                throw error(e, e.typeResolved().message());
+            }
+        });
         Expression bound = body.transformUp(Attribute.class, attribute -> replacement.getOrDefault(attribute.id(), attribute));
         return new NestedPredicate(nested.source(), path, bound, channels, paths, configuration);
     }
-
-    private static final java.util.Set<DataType> SUPPORTED = java.util.Set.of(
-        DataType.BOOLEAN,
-        DataType.INTEGER,
-        DataType.LONG,
-        DataType.DOUBLE,
-        DataType.KEYWORD,
-        DataType.TEXT,
-        DataType.DATETIME,
-        DataType.IP
-    );
 
     /** The named collection, or {@code null} when the predicate's fields name the path. */
     private static String collection(NestedAny nested, LogicalPlan input) {

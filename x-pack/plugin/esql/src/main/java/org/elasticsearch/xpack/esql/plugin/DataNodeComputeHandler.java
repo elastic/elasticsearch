@@ -216,7 +216,18 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
 
                 final AtomicLong pagesFetched = new AtomicLong();
                 // TODO: once FROM supports INTO, do not retry requests whose writer has already sent a bulk
-                var listener = ActionListener.wrap(nodeListener::onResponse, e -> nodeListener.onFailure(e, pagesFetched.get() > 0));
+                // Set once the open succeeded, to what the failure of the data node request, if any, says about the node. A failure
+                // of the open reaches the listener as the transport delivered it and is classified there. One of the compute comes
+                // out of a ComputeListener, unwrapped and possibly another one than the request's, so it is classified on arrival.
+                final AtomicReference<DataNodeRequestSender.NodeFailure> computeNodeFailure = new AtomicReference<>();
+                var listener = ActionListener.wrap(nodeListener::onResponse, e -> {
+                    final DataNodeRequestSender.NodeFailure nodeFailure = computeNodeFailure.get();
+                    if (nodeFailure == null) {
+                        nodeListener.onFailure(e, pagesFetched.get() > 0);
+                    } else {
+                        nodeListener.onFailure(e, pagesFetched.get() > 0, nodeFailure);
+                    }
+                });
                 final Transport.Connection connection;
                 try {
                     connection = transportService.getConnection(node);
@@ -228,13 +239,17 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 var childSessionId = computeService.newChildSession(sessionId);
                 // For each target node, first open a remote exchange on the remote node, then link the exchange source to
                 // the new remote exchange sink, and initialize the computation on the target node via data-node-request.
+                // The open is refusable: a node that is shutting down may turn it away, and this sender then retries the shards
+                // elsewhere (see DataNodeRequestSender).
                 ExchangeService.openExchange(
                     transportService,
                     connection,
                     childSessionId,
                     queryPragmas.exchangeBufferSize(),
+                    true,
                     searchExecutor,
                     listener.delegateFailureAndWrap((l, unused) -> {
+                        computeNodeFailure.set(DataNodeRequestSender.NodeFailure.OTHER);
                         final Runnable onGroupFailure;
                         final CancellableTask groupTask;
                         if (configuration.allowPartialResults()) {
@@ -244,6 +259,9 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                     () -> "compute group: data-node [" + node.getName() + "], shards [" + shards + "]"
                                 );
                             } catch (TaskCancelledException e) {
+                                // No compute request will claim the sink just opened: remove it now rather than leave it to the
+                                // target's inactive-sink reaper, which would also hold back a shutdown of the target that waits for it.
+                                exchangeService.finishUnusedRemoteSink(transportService, connection, childSessionId);
                                 l.onFailure(e);
                                 return;
                             }
@@ -280,20 +298,23 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                             ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
                             final var sinkPart = computeService.remoteSinkPart(computeService.queryId(parentTask), groupTask);
                             final var remoteSink = computeService.newRemoteSink(groupTask, childSessionId, connection, sinkPart);
+                            final ActionListener<DataNodeComputeResponse> dataNodeListener = ComputeService.finishRemoteSinkIfNotSent(
+                                remoteSink,
+                                computeListener.acquireCompute().map(r -> {
+                                    nodeResponseRef.set(r);
+                                    return r.completionInfo();
+                                })
+                            );
                             transportService.sendChildRequest(
                                 connection,
                                 ComputeService.DATA_ACTION_NAME,
                                 dataNodeRequest,
                                 groupTask,
                                 computeService.planRequestOptions(),
-                                new ActionListenerResponseHandler<>(
-                                    ComputeService.finishRemoteSinkIfNotSent(remoteSink, computeListener.acquireCompute().map(r -> {
-                                        nodeResponseRef.set(r);
-                                        return r.completionInfo();
-                                    })),
-                                    in -> new DataNodeComputeResponse(in, threadContext),
-                                    searchExecutor
-                                )
+                                new ActionListenerResponseHandler<>(dataNodeListener.delegateResponse((dl, e) -> {
+                                    computeNodeFailure.set(DataNodeRequestSender.classifyNodeFailure(e));
+                                    dl.onFailure(e);
+                                }), in -> new DataNodeComputeResponse(in, threadContext), searchExecutor)
                             );
                             exchangeSource.addRemoteSink(
                                 remoteSink,
@@ -486,6 +507,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         connection,
                         childSessionId,
                         queryPragmas.exchangeBufferSize(),
+                        false,
                         searchExecutor,
                         openExchangeListenerWithNodeCompletion
                     );
@@ -1082,6 +1104,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     next.connection(),
                     childSessionId,
                     queryPragmas.exchangeBufferSize(),
+                    false,
                     searchExecutor,
                     opened
                 );

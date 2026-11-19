@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
@@ -394,6 +395,9 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
     private final SetOnce<EsqlCapabilities> capabilities = new SetOnce<>();
 
+    /** Set by {@link #createComponents}; closes its admission in {@link #startDrainOnShutdown()}. */
+    private final SetOnce<ExchangeService> exchangeService = new SetOnce<>();
+
     /** Closed by {@link #close()} on node shutdown to release S3/Azure workload-identity resources. */
     private volatile DataSourceModule dataSourceModule;
 
@@ -660,6 +664,14 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             services.clusterService(),
             inventoryCounters
         );
+        exchangeService.set(
+            new ExchangeService(
+                services.clusterService().getSettings(),
+                services.threadPool(),
+                ThreadPool.Names.SEARCH,
+                blockFactoryProvider.blockFactory()
+            )
+        );
 
         return List.of(
             new PlanExecutor(
@@ -679,12 +691,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 maxGlobExpansion::get,
                 maxListedObjects::get
             ),
-            new ExchangeService(
-                services.clusterService().getSettings(),
-                services.threadPool(),
-                ThreadPool.Names.SEARCH,
-                blockFactoryProvider.blockFactory()
-            ),
+            exchangeService.get(),
             new ComputeExecutor(services.threadPool().executor(ESQL_WORKER_THREAD_POOL_NAME), services.threadPool().getThreadContext()),
             blockFactoryProvider,
             dataSourceModule,
@@ -860,6 +867,22 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             EnrichLookupService.LOOKUP_ACTION_NAME,
             LookupFromIndexService.LOOKUP_ACTION_NAME
         );
+    }
+
+    /**
+     * Stops admitting the exchanges that a coordinator opens here for shard-backed data node work, and completes once those already
+     * admitted have finished. Such an exchange is opened by one request and used by the data node request that follows; until the
+     * latter arrives no task represents it, so {@link #getActionsToAwaitOnShutdown()} alone could close the node in between. A
+     * coordinator whose open is refused resolves the shards again and retries them on another node. Any data node request that is still
+     * running when the exchanges have finished is covered by the task wait that follows.
+     * <p>
+     * Exchanges that their coordinator cannot retry elsewhere (cross-cluster, external sources, or opened by nodes that predate this)
+     * are still admitted and are not waited for here.
+     */
+    @Override
+    public SubscribableListener<Void> startDrainOnShutdown() {
+        ExchangeService service = exchangeService.get();
+        return service == null ? SubscribableListener.nullSuccess() : service.closeAdmission();
     }
 
     @Override

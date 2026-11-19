@@ -107,6 +107,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
             cluster.connection,
             childSessionId,
             queryPragmas.exchangeBufferSize(),
+            false,
             searchExecutor,
             listener.delegateFailure((l, unused) -> {
                 final CancellableTask groupTask;

@@ -34,11 +34,15 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.RemoteTransportException;
+import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
@@ -105,6 +109,17 @@ abstract class DataNodeRequestSender {
     private final Queue<ShardId> pendingShardIds = ConcurrentCollections.newQueue();
     private final Map<DiscoveryNode, Semaphore> nodePermits = new HashMap<>();
     private final Map<ShardId, ShardFailure> shardFailures = ConcurrentCollections.newConcurrentMap();
+    /**
+     * The nodes that {@link NodeFailure#REFUSED refused} a request of this query. Such a node is shutting down and stays closed to
+     * these requests, so it is left out for every shard that is resolved again, also where the routing still places a copy on it.
+     */
+    private final Set<DiscoveryNode> refusedNodes = ConcurrentCollections.newConcurrentSet();
+    /**
+     * The nodes that were {@link NodeFailure#UNREACHABLE unreachable} for a request of this query, by the shards of that request.
+     * Left out when one of those shards is resolved again. Unlike a refusal, a lost connection may be transient, so other shards
+     * that are resolved onto such a node may still try it.
+     */
+    private final Map<ShardId, Set<DiscoveryNode>> unreachableNodes = ConcurrentCollections.newConcurrentMap();
     private final AtomicInteger skippedShards = new AtomicInteger();
     private final AtomicBoolean changed = new AtomicBoolean();
     private boolean reportedFailure = false; // guarded by sendingLock
@@ -226,7 +241,13 @@ abstract class DataNodeRequestSender {
                         }
                         if (pendingRetries.isEmpty() == false && remainingUnavailableShardResolutionAttempts.decrementAndGet() >= 0) {
                             for (var entry : resolveShards(pendingRetries).entrySet()) {
-                                targetShards.getShard(entry.getKey()).remainingNodes.addAll(entry.getValue());
+                                List<DiscoveryNode> remainingNodes = targetShards.getShard(entry.getKey()).remainingNodes;
+                                Set<DiscoveryNode> unreachable = unreachableNodes.getOrDefault(entry.getKey(), Set.of());
+                                for (DiscoveryNode node : entry.getValue()) {
+                                    if (refusedNodes.contains(node) == false && unreachable.contains(node) == false) {
+                                        remainingNodes.add(node);
+                                    }
+                                }
                             }
                         }
                         for (ShardId shardId : pendingShardIds) {
@@ -236,6 +257,7 @@ abstract class DataNodeRequestSender {
                                     shardId,
                                     (k, v) -> new ShardFailure(
                                         true,
+                                        false,
                                         v == null ? new NoShardAvailableActionException(shardId, "no shard copies found") : v.failure
                                     )
                                 );
@@ -324,7 +346,8 @@ abstract class DataNodeRequestSender {
                     }
                     for (var entry : response.shardLevelFailures().entrySet()) {
                         final ShardId shardId = entry.getKey();
-                        trackShardLevelFailure(shardId, false, entry.getValue());
+                        // The node answered, so a failure of one of its shards says nothing about the node, whatever its type.
+                        trackShardLevelFailure(shardId, false, entry.getValue(), NodeFailure.OTHER);
                         pendingShardIds.add(shardId);
                     }
                     onAfterRequest();
@@ -337,11 +360,17 @@ abstract class DataNodeRequestSender {
             }
 
             @Override
-            public void onFailure(Exception e, boolean receivedData) {
+            public void onFailure(Exception e, boolean receivedData, NodeFailure nodeFailure) {
                 try {
+                    if (nodeFailure == NodeFailure.REFUSED) {
+                        refusedNodes.add(request.node);
+                    }
                     for (var shard : request.shards) {
                         ShardId shardId = shard.shardId();
-                        trackShardLevelFailure(shardId, receivedData, e);
+                        if (nodeFailure == NodeFailure.UNREACHABLE) {
+                            unreachableNodes.computeIfAbsent(shardId, k -> ConcurrentCollections.newConcurrentSet()).add(request.node);
+                        }
+                        trackShardLevelFailure(shardId, receivedData, e, nodeFailure);
                         pendingShardIds.add(shardId);
                     }
                     onAfterRequest();
@@ -380,9 +409,34 @@ abstract class DataNodeRequestSender {
     interface NodeListener {
         void onResponse(DataNodeComputeResponse response);
 
-        void onFailure(Exception e, boolean receivedData);
+        /**
+         * Fails the request with a failure as the transport delivered it, which is what {@link #classifyNodeFailure} needs.
+         */
+        default void onFailure(Exception e, boolean receivedData) {
+            onFailure(e, receivedData, classifyNodeFailure(e));
+        }
+
+        /**
+         * Fails the request with a failure that may not be the one the transport delivered, e.g. because a {@link ComputeListener}
+         * unwrapped it or picked it among several.
+         *
+         * @param nodeFailure what the failure of the request, as the transport delivered it, said about the node
+         */
+        void onFailure(Exception e, boolean receivedData, NodeFailure nodeFailure);
 
         void onSkip();
+    }
+
+    /**
+     * What a failed request says about the node it was sent to, see {@link #classifyNodeFailure}.
+     */
+    enum NodeFailure {
+        /** The node turned the request away because it is shutting down. */
+        REFUSED,
+        /** The node could not be reached. */
+        UNREACHABLE,
+        /** Anything else, which says nothing about whether the node is available. */
+        OTHER
     }
 
     private static Exception unwrapFailure(ShardId shardId, Exception e) {
@@ -396,19 +450,47 @@ abstract class DataNodeRequestSender {
         }
     }
 
-    private void trackShardLevelFailure(ShardId shardId, boolean fatal, Exception originalEx) {
+    /**
+     * Tells whether the target node turned the request away because it is shutting down, or could not be reached. Either way another
+     * copy of the shards may serve them, so the shards are resolved again, without that node.
+     * <p>
+     * This only works on the failure as the transport delivered it, before {@link #unwrapFailure} or a {@link ComputeListener} took the
+     * wrapper off. A refusal is a {@link NodeClosedException} that the target sends back, so it arrives inside a
+     * {@link RemoteTransportException}. A coordinator that is itself closing fails its pending requests with a
+     * {@link NodeClosedException} of its own inside a {@link SendRequestTransportException}, which says nothing about the target;
+     * unwrapped, the two would look the same. A {@link ConnectTransportException} inside a {@link RemoteTransportException} is about a
+     * connection of the target to some other node, so it does not count either.
+     */
+    static NodeFailure classifyNodeFailure(Exception e) {
+        if (e instanceof RemoteTransportException) {
+            return ExceptionsHelper.unwrapCause(e) instanceof NodeClosedException ? NodeFailure.REFUSED : NodeFailure.OTHER;
+        }
+        if (e instanceof ConnectTransportException
+            || (e instanceof SendRequestTransportException && e.getCause() instanceof ConnectTransportException)) {
+            return NodeFailure.UNREACHABLE;
+        }
+        return NodeFailure.OTHER;
+    }
+
+    private void trackShardLevelFailure(ShardId shardId, boolean fatal, Exception originalEx, NodeFailure nodeFailure) {
         final Exception e = unwrapFailure(shardId, originalEx);
         final boolean isTaskCanceledException = ExceptionsHelper.unwrap(e, TaskCancelledException.class) != null;
         final boolean isCircuitBreakerException = ExceptionsHelper.unwrap(e, CircuitBreakingException.class) != null;
+        final boolean resolvable = switch (nodeFailure) {
+            case REFUSED, UNREACHABLE -> true;
+            case OTHER -> e instanceof NoShardAvailableActionException;
+        };
         shardFailures.compute(shardId, (k, current) -> {
             boolean mergedFatal = fatal || isTaskCanceledException || isCircuitBreakerException;
             return current == null
-                ? new ShardFailure(mergedFatal, e)
+                ? new ShardFailure(mergedFatal, resolvable, e)
                 : new ShardFailure(
                     mergedFatal || current.fatal,
+                    // a shard is resolved again only if every failure seen for it allows that
+                    resolvable && current.resolvable,
                     // Retain only one meaningful exception and avoid suppressing previous failures to minimize memory usage,
                     // especially when handling many shards.
-                    isTaskCanceledException || e instanceof NoShardAvailableActionException ? current.failure : e
+                    isTaskCanceledException || resolvable ? current.failure : e
                 );
         });
     }
@@ -440,10 +522,16 @@ abstract class DataNodeRequestSender {
 
     record NodeRequest(DiscoveryNode node, List<DataNodeRequest.Shard> shards, Map<Index, AliasFilter> aliasFilters) {}
 
-    private record ShardFailure(boolean fatal, Exception failure) {}
+    /**
+     * @param fatal      the shard is not tried again
+     * @param resolvable the shard may be resolved again once its remaining copies have been tried: every failure seen for it was a
+     *                   {@link NoShardAvailableActionException}, or said that its node {@link NodeFailure#REFUSED refused} the
+     *                   request or was {@link NodeFailure#UNREACHABLE unreachable}
+     */
+    private record ShardFailure(boolean fatal, boolean resolvable, Exception failure) {}
 
     private static boolean isRetryableFailure(ShardFailure failure) {
-        return failure != null && failure.fatal == false && failure.failure instanceof NoShardAvailableActionException;
+        return failure != null && failure.fatal == false && failure.resolvable;
     }
 
     /**

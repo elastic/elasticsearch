@@ -11,6 +11,8 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.SubscribableListener;
@@ -40,19 +42,26 @@ import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.MockBlockFactory;
 import org.elasticsearch.core.ReleasableRef;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancellationService;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableTransport;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
+import org.elasticsearch.transport.AbstractTransportRequest;
+import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.junit.After;
 import org.junit.Before;
@@ -61,8 +70,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -79,6 +90,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class ExchangeServiceTests extends ESTestCase {
 
@@ -983,12 +995,353 @@ public class ExchangeServiceTests extends ESTestCase {
         }
     }
 
+    /**
+     * A refusable open that arrives after admission closed is refused with a {@link NodeClosedException} from the target and leaves no
+     * sink. Opens that cannot be retried elsewhere, through either action name, are still admitted after the cutoff and are not waited
+     * for by the drain.
+     */
+    public void testAdmissionClosedRefusesOnlyRefusableOpens() {
+        MockTransportService node0 = newTransportService();
+        ExchangeService exchange0 = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR, blockFactory());
+        exchange0.registerTransportHandler(node0);
+        MockTransportService node1 = newTransportService();
+        ExchangeService exchange1 = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR, blockFactory());
+        exchange1.registerTransportHandler(node1);
+        AbstractSimpleTransportTestCase.connectToNode(node0, node1.getLocalNode());
+        try (exchange0; exchange1; node0; node1) {
+            Transport.Connection connection = node0.getConnection(node1.getLocalNode());
+            SubscribableListener<Void> drained = exchange1.closeAdmission();
+            assertTrue("nothing was admitted, so the drain completes right away", drained.isDone());
+            assertTrue(exchange1.isAdmissionClosed());
+
+            PlainActionFuture<Void> refused = new PlainActionFuture<>();
+            ExchangeService.openExchange(node0, connection, "refused", randomExchangeBuffer(), true, threadPool.generic(), refused);
+            // get() rather than actionGet(), which would unwrap the remote exception the coordinator classifies
+            Throwable e = expectThrows(ExecutionException.class, () -> refused.get(10, TimeUnit.SECONDS)).getCause();
+            assertThat(e, instanceOf(RemoteTransportException.class));
+            assertThat(ExceptionsHelper.unwrapCause(e), instanceOf(NodeClosedException.class));
+            assertTrue("a refused open must not create a sink", exchange1.isEmpty());
+
+            PlainActionFuture<Void> admitted = new PlainActionFuture<>();
+            ExchangeService.openExchange(node0, connection, "admitted", randomExchangeBuffer(), false, threadPool.generic(), admitted);
+            admitted.actionGet(10, TimeUnit.SECONDS);
+
+            PlainActionFuture<ActionResponse.Empty> admittedForCcs = new PlainActionFuture<>();
+            node0.sendRequest(
+                connection,
+                ExchangeService.OPEN_EXCHANGE_ACTION_NAME_FOR_CCS,
+                new ExchangeService.OpenExchangeRequest("admitted-ccs", randomExchangeBuffer(), false),
+                TransportRequestOptions.EMPTY,
+                new ActionListenerResponseHandler<>(admittedForCcs, in -> ActionResponse.Empty.INSTANCE, threadPool.generic())
+            );
+            admittedForCcs.actionGet(10, TimeUnit.SECONDS);
+            assertThat(exchange1.sinkKeys(), equalTo(Set.of("admitted", "admitted-ccs")));
+            assertThat(exchange1.closeAdmission(), sameInstance(drained));
+
+            finishSink(exchange1, "admitted");
+            finishSink(exchange1, "admitted-ccs");
+        }
+    }
+
+    /**
+     * The drain waits for every refusable exchange admitted before the cutoff, and only for those. Repeated closes return the same
+     * listener.
+     */
+    public void testDrainWaitsForAdmittedRefusableExchanges() {
+        try (ExchangeService exchange = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR, blockFactory())) {
+            assertTrue(exchange.admitOpen("refusable-1", randomExchangeBuffer(), true));
+            assertTrue(exchange.admitOpen("refusable-2", randomExchangeBuffer(), true));
+            assertTrue(exchange.admitOpen("non-refusable", randomExchangeBuffer(), false));
+            assertFalse(exchange.isAdmissionClosed());
+
+            SubscribableListener<Void> drained = exchange.closeAdmission();
+            assertFalse(drained.isDone());
+            assertThat(exchange.closeAdmission(), sameInstance(drained));
+            assertFalse("refused after the cutoff", exchange.admitOpen("late", randomExchangeBuffer(), true));
+            assertFalse(exchange.sinkKeys().contains("late"));
+            assertTrue("still admitted after the cutoff", exchange.admitOpen("late-non-refusable", randomExchangeBuffer(), false));
+
+            finishSink(exchange, "refusable-1");
+            assertFalse(drained.isDone());
+            finishSink(exchange, "non-refusable");
+            finishSink(exchange, "refusable-1"); // a second finish of the same exchange is a no-op
+            assertFalse(drained.isDone());
+            finishSink(exchange, "refusable-2");
+            assertTrue(drained.isDone());
+            assertThat(exchange.sinkKeys(), equalTo(Set.of("late-non-refusable")));
+            finishSink(exchange, "late-non-refusable");
+        }
+    }
+
+    /**
+     * Opens, finishes and the cutoff race. Every open is either admitted, with a sink, or refused, without one, and the drain completes
+     * only once every admitted refusable exchange is gone.
+     */
+    public void testCloseAdmissionRacesOpensAndFinishes() throws InterruptedException {
+        try (ExchangeService exchange = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR, blockFactory())) {
+            int numOpeners = between(2, 8);
+            int opensPerThread = between(10, 200);
+            int closeAfter = between(0, numOpeners * opensPerThread / 2);
+            AtomicInteger opens = new AtomicInteger();
+            Set<String> admittedRefusable = ConcurrentCollections.newConcurrentSet();
+            AtomicInteger refused = new AtomicInteger();
+            AtomicBoolean closed = new AtomicBoolean();
+            CyclicBarrier barrier = new CyclicBarrier(numOpeners + 1);
+            List<Thread> threads = new ArrayList<>();
+            for (int t = 0; t < numOpeners; t++) {
+                int thread = t;
+                threads.add(new Thread(() -> {
+                    safeAwait(barrier);
+                    for (int i = 0; i < opensPerThread; i++) {
+                        String id = "exchange-" + thread + "-" + i;
+                        boolean refusable = randomBoolean();
+                        boolean closedBefore = closed.get();
+                        opens.incrementAndGet();
+                        if (exchange.admitOpen(id, randomExchangeBuffer(), refusable)) {
+                            assertFalse("admitted a refusable open after the cutoff", refusable && closedBefore);
+                            if (refusable) {
+                                admittedRefusable.add(id);
+                            }
+                            if (randomBoolean()) {
+                                Thread.yield();
+                            }
+                            finishSink(exchange, id);
+                        } else {
+                            assertTrue("refused an open that cannot be retried", refusable);
+                            assertFalse("a refused open must not create a sink", exchange.sinkKeys().contains(id));
+                            refused.incrementAndGet();
+                        }
+                    }
+                }));
+            }
+            threads.forEach(Thread::start);
+            safeAwait(barrier);
+            // an opener that died on a failed assertion must not leave this waiting for opens that will not come
+            while (opens.get() < closeAfter && threads.stream().anyMatch(Thread::isAlive)) {
+                Thread.onSpinWait();
+            }
+            SubscribableListener<Void> drained = exchange.closeAdmission();
+            // only set once the cutoff is in place, so an opener that sees it must be refused
+            closed.set(true);
+            drained.addListener(ActionListener.running(() -> {
+                for (String id : admittedRefusable) {
+                    assertFalse("drain completed while [" + id + "] was still open", exchange.sinkKeys().contains(id));
+                }
+            }));
+            for (Thread thread : threads) {
+                thread.join();
+            }
+            assertTrue(drained.isDone());
+            safeAwait(drained);
+            assertTrue(exchange.isEmpty());
+            logger.info("admitted [{}] refusable exchanges, refused [{}]", admittedRefusable.size(), refused.get());
+        }
+    }
+
+    /**
+     * An admitted exchange whose compute request never arrives is removed by the inactive-sink reaper, which completes the drain.
+     */
+    public void testReaperRemovesUnclaimedAdmittedExchange() throws Exception {
+        Settings settings = Settings.builder().put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMillis(100)).build();
+        try (ExchangeService exchange = new ExchangeService(settings, threadPool, ESQL_TEST_EXECUTOR, blockFactory())) {
+            assertTrue(exchange.admitOpen("unclaimed", randomExchangeBuffer(), true));
+            SubscribableListener<Void> drained = exchange.closeAdmission();
+            safeAwait(drained);
+            assertTrue(exchange.isEmpty());
+        }
+    }
+
+    /**
+     * A coordinator that gives up on an exchange it opened removes the sink on the target without a parent task, so the target's drain
+     * does not wait for the inactive-sink reaper.
+     */
+    public void testFinishUnusedRemoteSinkCompletesDrain() {
+        MockTransportService node0 = newTransportService();
+        ExchangeService exchange0 = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR, blockFactory());
+        exchange0.registerTransportHandler(node0);
+        MockTransportService node1 = newTransportService();
+        ExchangeService exchange1 = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR, blockFactory());
+        exchange1.registerTransportHandler(node1);
+        AbstractSimpleTransportTestCase.connectToNode(node0, node1.getLocalNode());
+        try (exchange0; exchange1; node0; node1) {
+            Transport.Connection connection = node0.getConnection(node1.getLocalNode());
+            PlainActionFuture<Void> opened = new PlainActionFuture<>();
+            ExchangeService.openExchange(node0, connection, "unused", randomExchangeBuffer(), true, threadPool.generic(), opened);
+            opened.actionGet(10, TimeUnit.SECONDS);
+            SubscribableListener<Void> drained = exchange1.closeAdmission();
+            assertFalse(drained.isDone());
+
+            exchange0.finishUnusedRemoteSink(node0, connection, "unused");
+            safeAwait(drained);
+            assertTrue(exchange1.isEmpty());
+        }
+    }
+
+    /**
+     * Closing a remote sink whose task is cancelled still reaches the target and removes the sink there, even though the target
+     * holds a ban on that task. The close ({@code sourcesFinished=true}) masks its parent task, so neither the coordinator's
+     * refusal of new child connections nor the target's ban applies to it. The close is reached either directly or through a fetch
+     * that fails because the task is cancelled.
+     */
+    public void testCloseUnderCancelledParentReachesTarget() throws Exception {
+        MockTransportService node0 = newTransportService();
+        ExchangeService exchange0 = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR, blockFactory());
+        exchange0.registerTransportHandler(node0);
+        MockTransportService node1 = newTransportService();
+        ExchangeService exchange1 = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR, blockFactory());
+        exchange1.registerTransportHandler(node1);
+        AbstractSimpleTransportTestCase.connectToNode(node0, node1.getLocalNode());
+        // A fetch for "holder" is held on the target and never answered until the end, so the target keeps the ban on the parent task
+        // for the rest of the test: the ban is lifted once no child request of the task is outstanding.
+        PlainActionFuture<TransportChannel> heldFetch = new PlainActionFuture<>();
+        node1.addRequestHandlingBehavior(ExchangeService.EXCHANGE_ACTION_NAME, (handler, request, channel, task) -> {
+            if (request instanceof ExchangeRequest r && r.exchangeId().equals("holder") && r.sourcesFinished() == false) {
+                heldFetch.onResponse(channel);
+            } else {
+                handler.messageReceived(request, channel, task);
+            }
+        });
+        try (exchange0; exchange1; node0; node1) {
+            Transport.Connection connection = node0.getConnection(node1.getLocalNode());
+            for (String exchangeId : List.of("holder", "closed")) {
+                PlainActionFuture<Void> opened = new PlainActionFuture<>();
+                ExchangeService.openExchange(node0, connection, exchangeId, randomExchangeBuffer(), true, threadPool.generic(), opened);
+                opened.actionGet(10, TimeUnit.SECONDS);
+            }
+            CancellableTask parent = (CancellableTask) node0.getTaskManager().register("transport", "test", new CancellableTestRequest());
+            try {
+                RemoteSink holder = exchange0.newRemoteSink(parent, "holder", node0, connection);
+                PlainActionFuture<ExchangeResponse> holderFetch = new PlainActionFuture<>();
+                holder.fetchPageAsync(false, holderFetch);
+                TransportChannel holderChannel = heldFetch.get(10, TimeUnit.SECONDS);
+
+                node0.getTaskManager().cancelTaskAndDescendants(parent, "test", false, ActionListener.noop());
+                TaskId parentId = new TaskId(node0.getLocalNode().getId(), parent.getId());
+                assertBusy(() -> assertTrue(node1.getTaskManager().getBannedTaskIds().contains(parentId)));
+                assertTrue(parent.isCancelled());
+
+                SubscribableListener<Void> drained = exchange1.closeAdmission();
+                assertFalse(drained.isDone());
+                RemoteSink closed = exchange0.newRemoteSink(parent, "closed", node0, connection);
+                if (randomBoolean()) {
+                    PlainActionFuture<Void> closeDone = new PlainActionFuture<>();
+                    closed.close(closeDone);
+                    closeDone.actionGet(10, TimeUnit.SECONDS);
+                } else {
+                    // The fetch is a child request of the cancelled task, so the coordinator refuses to send it and closes the sink.
+                    PlainActionFuture<ExchangeResponse> fetch = new PlainActionFuture<>();
+                    closed.fetchPageAsync(false, fetch);
+                    Exception e = expectThrows(ExecutionException.class, () -> fetch.get(10, TimeUnit.SECONDS));
+                    assertNotNull(ExceptionsHelper.unwrap(e, TaskCancelledException.class));
+                }
+                assertTrue(
+                    "the ban must still be in place when the close arrives",
+                    node1.getTaskManager().getBannedTaskIds().contains(parentId)
+                );
+                assertThat(exchange1.sinkKeys(), equalTo(Set.of("holder")));
+
+                holderChannel.sendResponse(new TaskCancelledException("test"));
+                expectThrows(ExecutionException.class, () -> holderFetch.get(10, TimeUnit.SECONDS));
+                finishSink(exchange1, "holder");
+                safeAwait(drained);
+                assertTrue(exchange1.isEmpty());
+            } finally {
+                node0.getTaskManager().unregister(parent);
+            }
+        }
+    }
+
+    /**
+     * Registers a {@link CancellableTask} on the coordinator to stand in for the query's task.
+     */
+    private static class CancellableTestRequest extends AbstractTransportRequest {
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, "test", parentTaskId, headers);
+        }
+    }
+
+    /**
+     * A sender from before the refusable flag never sends it, so its opens are admitted after the cutoff and the drain does not wait
+     * for them.
+     */
+    public void testOpenFromOlderSenderIsAdmittedAfterCutoff() throws Exception {
+        assertOpenOverOlderTransportVersionIsAdmittedAfterCutoff(true);
+    }
+
+    /**
+     * A target from before the refusable flag never reads it: the sender leaves it out, and the open is admitted as before.
+     */
+    public void testOpenToOlderTargetIsAdmittedAfterCutoff() throws Exception {
+        assertOpenOverOlderTransportVersionIsAdmittedAfterCutoff(false);
+    }
+
+    /**
+     * Opens a refusable exchange over a real connection that negotiated the transport version before the flag. The older side runs
+     * the current code at that version, which is how the wire format of an older node is checked here.
+     */
+    private void assertOpenOverOlderTransportVersionIsAdmittedAfterCutoff(boolean olderSender) throws Exception {
+        TransportVersion before = TransportVersionUtils.getPreviousVersion(ExchangeService.ESQL_REFUSABLE_OPEN_EXCHANGE);
+        MockTransportService node0 = newTransportService(olderSender ? before : TransportVersion.current());
+        ExchangeService exchange0 = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR, blockFactory());
+        exchange0.registerTransportHandler(node0);
+        MockTransportService node1 = newTransportService(olderSender ? TransportVersion.current() : before);
+        ExchangeService exchange1 = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR, blockFactory());
+        exchange1.registerTransportHandler(node1);
+        AbstractSimpleTransportTestCase.connectToNode(node0, node1.getLocalNode());
+        try (exchange0; exchange1; node0; node1) {
+            Transport.Connection connection = node0.getConnection(node1.getLocalNode());
+            assertThat(connection.getTransportVersion(), equalTo(before));
+            SubscribableListener<Void> drained = exchange1.closeAdmission();
+            assertTrue(drained.isDone());
+
+            PlainActionFuture<Void> opened = new PlainActionFuture<>();
+            ExchangeService.openExchange(node0, connection, "older", randomExchangeBuffer(), true, threadPool.generic(), opened);
+            opened.actionGet(10, TimeUnit.SECONDS);
+            assertThat(exchange1.sinkKeys(), equalTo(Set.of("older")));
+
+            exchange0.finishUnusedRemoteSink(node0, connection, "older");
+            assertBusy(() -> assertTrue(exchange1.isEmpty()));
+        }
+    }
+
+    public void testOpenExchangeRequestSerialization() throws IOException {
+        NamedWriteableRegistry registry = new NamedWriteableRegistry(List.of());
+        String sessionId = randomAlphaOfLength(10);
+        int exchangeBuffer = randomExchangeBuffer();
+        boolean refusable = randomBoolean();
+        var request = new ExchangeService.OpenExchangeRequest(sessionId, exchangeBuffer, refusable);
+
+        var current = copyWriteable(request, registry, ExchangeService.OpenExchangeRequest::new, TransportVersion.current());
+        assertThat(current.sessionId(), equalTo(sessionId));
+        assertThat(current.exchangeBuffer(), equalTo(exchangeBuffer));
+        assertThat(current.refusable(), equalTo(refusable));
+
+        // A node that predates the flag neither sends nor reads it: its opens are always admitted.
+        TransportVersion before = TransportVersionUtils.getPreviousVersion(ExchangeService.ESQL_REFUSABLE_OPEN_EXCHANGE);
+        var old = copyWriteable(request, registry, ExchangeService.OpenExchangeRequest::new, before);
+        assertThat(old.sessionId(), equalTo(sessionId));
+        assertThat(old.exchangeBuffer(), equalTo(exchangeBuffer));
+        assertFalse(old.refusable());
+    }
+
+    /**
+     * Removes the sink as its compute would; the failure finishes a sink that no driver used.
+     */
+    private static void finishSink(ExchangeService exchange, String exchangeId) {
+        exchange.finishSinkHandler(exchangeId, new TaskCancelledException("test"));
+    }
+
     private MockTransportService newTransportService() {
+        return newTransportService(TransportVersion.current());
+    }
+
+    private MockTransportService newTransportService(TransportVersion transportVersion) {
         List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>(ClusterModule.getNamedWriteables());
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(namedWriteables);
         MockTransportService service = MockTransportService.createNewService(
             Settings.EMPTY,
-            MockTransportService.newMockTransport(Settings.EMPTY, TransportVersion.current(), threadPool, namedWriteableRegistry),
+            MockTransportService.newMockTransport(Settings.EMPTY, transportVersion, threadPool, namedWriteableRegistry),
             VersionInformation.CURRENT,
             threadPool,
             null,

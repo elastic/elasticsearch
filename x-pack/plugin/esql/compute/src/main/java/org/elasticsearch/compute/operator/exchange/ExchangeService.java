@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
@@ -32,6 +33,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -45,6 +47,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.Transports;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -69,7 +72,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
     public static final String EXCHANGE_ACTION_NAME_FOR_CCS = "cluster:internal:data/read/esql/exchange";
 
     public static final String OPEN_EXCHANGE_ACTION_NAME = "internal:data/read/esql/open_exchange";
-    private static final String OPEN_EXCHANGE_ACTION_NAME_FOR_CCS = "cluster:internal:data/read/esql/open_exchange";
+    static final String OPEN_EXCHANGE_ACTION_NAME_FOR_CCS = "cluster:internal:data/read/esql/open_exchange";
 
     public static final String BATCH_EXCHANGE_STATUS_ACTION_NAME = "internal:data/read/esql/batch_exchange_status";
 
@@ -79,6 +82,8 @@ public final class ExchangeService extends AbstractLifecycleComponent {
      */
     public static final String INACTIVE_SINKS_INTERVAL_SETTING = "esql.exchange.sink_inactive_interval";
     public static final TimeValue INACTIVE_SINKS_INTERVAL_DEFAULT = TimeValue.timeValueMinutes(5);
+
+    static final TransportVersion ESQL_REFUSABLE_OPEN_EXCHANGE = TransportVersion.fromName("esql_refusable_open_exchange");
 
     private final ThreadPool threadPool;
     private final Executor executor;
@@ -97,6 +102,20 @@ public final class ExchangeService extends AbstractLifecycleComponent {
     private final Map<String, LocalExchange> localExchanges = ConcurrentCollections.newConcurrentMap();
     // Registry for bidirectional batch exchange servers, keyed by serverToClientId
     private final Map<String, BidirectionalBatchExchangeServer> batchExchangeServers = ConcurrentCollections.newConcurrentMap();
+
+    /**
+     * Makes the admission decision for an open that its sender can retry on another node atomic with creating its sink, and
+     * {@link #closeAdmission()} atomic with capturing the exchanges admitted before it. Without that, an open could pass the check, the
+     * drain could find nothing outstanding and complete, and the sink would then be created on a node that is about to close.
+     * It also guards the removal of {@link #sinks}, so that a sink cannot leave the map between its creation and its being recorded.
+     */
+    private final Object admissionMutex = new Object();
+    /** Set once by {@link #closeAdmission()}, and never cleared: the node is shutting down. */
+    private boolean admissionClosed; // guarded by admissionMutex
+    /** The exchanges admitted through a refusable open whose sink is still registered. */
+    private final Set<String> admittedRefusableExchanges = new HashSet<>(); // guarded by admissionMutex
+    /** Completes once admission is closed and every exchange in {@link #admittedRefusableExchanges} has been removed. */
+    private final SubscribableListener<Void> admittedExchangesFinished = new SubscribableListener<>();
 
     public ExchangeService(Settings settings, ThreadPool threadPool, String executorName, BlockFactory blockFactory) {
         this.threadPool = threadPool;
@@ -117,7 +136,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
             OPEN_EXCHANGE_ACTION_NAME,
             this.executor,
             OpenExchangeRequest::new,
-            new OpenExchangeRequestHandler()
+            new OpenExchangeRequestHandler(transportService)
         );
 
         // This allows the system user access this action when executed over CCS and the API key based security model is in use
@@ -131,7 +150,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
             OPEN_EXCHANGE_ACTION_NAME_FOR_CCS,
             this.executor,
             OpenExchangeRequest::new,
-            new OpenExchangeRequestHandler()
+            new OpenExchangeRequestHandler(transportService)
         );
 
         // Register batch exchange status handler once (singleton pattern)
@@ -233,30 +252,104 @@ public final class ExchangeService extends AbstractLifecycleComponent {
      * W will abort the sink handler if the given failure is not null.
      */
     public void finishSinkHandler(String exchangeId, @Nullable Exception failure) {
-        final ExchangeSinkHandler sinkHandler = sinks.remove(exchangeId);
+        final ExchangeSinkHandler sinkHandler;
+        final boolean lastAdmittedExchange;
+        synchronized (admissionMutex) {
+            sinkHandler = sinks.remove(exchangeId);
+            lastAdmittedExchange = sinkHandler != null
+                && admittedRefusableExchanges.remove(exchangeId)
+                && admissionClosed
+                && admittedRefusableExchanges.isEmpty();
+        }
         if (sinkHandler != null) {
             if (failure != null) {
                 sinkHandler.onFailure(failure);
             }
             assert sinkHandler.isFinished() : "Exchange sink " + exchangeId + " wasn't finished yet";
         }
+        if (lastAdmittedExchange) {
+            logger.debug("all admitted exchanges finished after admission was closed");
+            admittedExchangesFinished.onResponse(null);
+        }
+    }
+
+    /**
+     * Creates the sink of an exchange that a peer opens, unless the peer can retry it on another node ({@code refusable}) and
+     * admission has been closed by {@link #closeAdmission()}. A refusable exchange that is admitted is tracked until its sink is
+     * removed, so the drain waits for it; a non-refusable one is not, since nothing on the sender's side would retry it.
+     *
+     * @return {@code false} if the open was refused, in which case no sink was created
+     */
+    boolean admitOpen(String exchangeId, int maxBufferSize, boolean refusable) {
+        if (refusable == false) {
+            createSinkHandler(exchangeId, maxBufferSize);
+            return true;
+        }
+        synchronized (admissionMutex) {
+            if (admissionClosed) {
+                return false;
+            }
+            createSinkHandler(exchangeId, maxBufferSize);
+            admittedRefusableExchanges.add(exchangeId);
+            return true;
+        }
+    }
+
+    /**
+     * Stops admitting the exchanges that peers can retry on another node, and returns a listener that completes once all of those
+     * admitted so far have been removed. Called when the node shuts down gracefully, once its shards can be served elsewhere; admission
+     * is not reopened. The exchanges are removed when their compute finishes, when the coordinator finishes them early, or, for one
+     * whose compute request never arrives, by the inactive-sink reaper, so the listener always completes eventually.
+     * <p>
+     * Opens that cannot be retried (cross-cluster, external sources, or from nodes that predate this) are still admitted and are not
+     * waited for. Repeated calls return the same listener.
+     */
+    public SubscribableListener<Void> closeAdmission() {
+        final boolean firstCall;
+        final int outstanding;
+        synchronized (admissionMutex) {
+            firstCall = admissionClosed == false;
+            admissionClosed = true;
+            outstanding = admittedRefusableExchanges.size();
+        }
+        if (firstCall) {
+            logger.info("stopped admitting new exchanges, waiting for [{}] admitted exchanges to finish", outstanding);
+        }
+        if (outstanding == 0) {
+            admittedExchangesFinished.onResponse(null);
+        }
+        return admittedExchangesFinished;
+    }
+
+    /**
+     * Whether {@link #closeAdmission()} has been called.
+     */
+    public boolean isAdmissionClosed() {
+        synchronized (admissionMutex) {
+            return admissionClosed;
+        }
     }
 
     /**
      * Opens a remote sink handler on the remote node for the given session ID.
+     *
+     * @param refusable whether the caller can retry the exchange on another node if the remote node refuses it because it is shutting
+     *                  down, see {@link #closeAdmission()}. A refusal fails the listener with a {@link NodeClosedException} from
+     *                  the remote node. Nodes that predate this flag admit every open.
      */
     public static void openExchange(
         TransportService transportService,
         Transport.Connection connection,
         String sessionId,
         int exchangeBuffer,
+        boolean refusable,
         Executor responseExecutor,
         ActionListener<Void> listener
     ) {
         transportService.sendRequest(
             connection,
             OPEN_EXCHANGE_ACTION_NAME,
-            new OpenExchangeRequest(sessionId, exchangeBuffer),
+            new OpenExchangeRequest(sessionId, exchangeBuffer, refusable),
             TransportRequestOptions.EMPTY,
             new ActionListenerResponseHandler<>(listener.map(unused -> null), in -> ActionResponse.Empty.INSTANCE, responseExecutor)
         );
@@ -309,19 +402,26 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         listener.onResponse(Boolean.FALSE);
     }
 
-    private static class OpenExchangeRequest extends AbstractTransportRequest {
+    static final class OpenExchangeRequest extends AbstractTransportRequest {
         private final String sessionId;
         private final int exchangeBuffer;
+        /**
+         * Whether the sender can retry the exchange on another node, see {@link #openExchange}. Not sent to nodes that predate it,
+         * and read as {@code false} from them, so that such an open is always admitted.
+         */
+        private final boolean refusable;
 
-        OpenExchangeRequest(String sessionId, int exchangeBuffer) {
+        OpenExchangeRequest(String sessionId, int exchangeBuffer, boolean refusable) {
             this.sessionId = sessionId;
             this.exchangeBuffer = exchangeBuffer;
+            this.refusable = refusable;
         }
 
         OpenExchangeRequest(StreamInput in) throws IOException {
             super(in);
             this.sessionId = in.readString();
             this.exchangeBuffer = in.readVInt();
+            this.refusable = in.getTransportVersion().supports(ESQL_REFUSABLE_OPEN_EXCHANGE) && in.readBoolean();
         }
 
         @Override
@@ -329,13 +429,40 @@ public final class ExchangeService extends AbstractLifecycleComponent {
             super.writeTo(out);
             out.writeString(sessionId);
             out.writeVInt(exchangeBuffer);
+            if (out.getTransportVersion().supports(ESQL_REFUSABLE_OPEN_EXCHANGE)) {
+                out.writeBoolean(refusable);
+            }
+        }
+
+        String sessionId() {
+            return sessionId;
+        }
+
+        int exchangeBuffer() {
+            return exchangeBuffer;
+        }
+
+        boolean refusable() {
+            return refusable;
         }
     }
 
+    /**
+     * Handles both the local and the cross-cluster variant of the open; only the shard-backed sender in the local cluster marks its
+     * opens refusable.
+     */
     private class OpenExchangeRequestHandler implements TransportRequestHandler<OpenExchangeRequest> {
+        private final TransportService transportService;
+
+        OpenExchangeRequestHandler(TransportService transportService) {
+            this.transportService = transportService;
+        }
+
         @Override
         public void messageReceived(OpenExchangeRequest request, TransportChannel channel, Task task) throws Exception {
-            createSinkHandler(request.sessionId, request.exchangeBuffer);
+            if (admitOpen(request.sessionId, request.exchangeBuffer, request.refusable) == false) {
+                throw new NodeClosedException(transportService.getLocalNode());
+            }
             channel.sendResponse(ActionResponse.Empty.INSTANCE);
         }
     }
@@ -442,6 +569,32 @@ public final class ExchangeService extends AbstractLifecycleComponent {
             }
             expireSourcesFinishedSinks();
         }
+    }
+
+    /**
+     * Asks the remote node to remove the sink of an exchange that the caller opened there but will not use, e.g. because its query was
+     * cancelled before the compute request was sent. No {@link RemoteSink} exists for the exchange at that point, so this sends the
+     * {@code sourcesFinished} request that {@link RemoteSink#close} would. That request carries no parent task
+     * ({@link ExchangeRequest#getParentTask()}), so it reaches the remote node even though the query's task is cancelled. Best effort:
+     * if the request fails, the remote node's inactive-sink reaper removes the sink.
+     */
+    public void finishUnusedRemoteSink(TransportService transportService, Transport.Connection connection, String exchangeId) {
+        transportService.sendRequest(
+            connection,
+            EXCHANGE_ACTION_NAME,
+            new ExchangeRequest(exchangeId, true),
+            TransportRequestOptions.EMPTY,
+            new ActionListenerResponseHandler<>(ActionListener.wrap(r -> {
+                final Page page = r.takePage();
+                if (page != null) {
+                    page.releaseBlocks();
+                }
+            }, e -> logger.debug("failed to finish unused exchange sink [{}] on [{}]", exchangeId, connection.getNode(), e)), in -> {
+                try (BlockStreamInput bsi = new BlockStreamInput(in, blockFactory)) {
+                    return new ExchangeResponse(bsi);
+                }
+            }, executor)
+        );
     }
 
     /**

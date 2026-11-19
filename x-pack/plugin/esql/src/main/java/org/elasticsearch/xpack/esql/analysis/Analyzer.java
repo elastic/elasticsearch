@@ -4441,13 +4441,20 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (convert instanceof ToGauge && ToGauge.isNoOpOnAllUnionTypes(tcf)) {
                     return fa;
                 }
+                boolean lenient = context.minimumVersion().supports(ESQL_LENIENT_UNION_CAST);
+                if (lenient) {
+                    // The per-type conversions substitute surrogates, which drops invalid options instead of rejecting them.
+                    Expression invalid = invalidOtherArguments(convert);
+                    if (invalid != null) {
+                        return invalid;
+                    }
+                }
                 tcf.types().forEach(type -> {
                     if (supportedTypes.contains(type.widenSmallNumeric())) {
                         typeResolutions(convert, type, fa, tcf, typeResolutions);
                     }
                 });
 
-                boolean lenient = context.minimumVersion().supports(ESQL_LENIENT_UNION_CAST);
                 boolean allResolved = typeResolutions.size() == tcf.getTypesToIndices().size() && tcf.hasUnsupportedTypes() == false;
                 boolean unmappedKeywordSupported = tcf.isPotentiallyUnmapped() && supportedTypes.contains(KEYWORD);
                 // Lenient casts succeed when at least one mapped type converts, or the unmapped keyword leg does.
@@ -4468,10 +4475,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     return createIfDoesNotAlreadyExist(fa, resolvedField, unionFieldAttributes);
                 }
                 if (lenient) {
-                    Expression invalid = invalidOtherArguments(convert);
-                    if (invalid != null) {
-                        return invalid;
-                    }
                     // No type converts, so the cast is null in every index.
                     warnLenientDroppedTypes(context, fa.name(), tcf, supportedTypes, convertExpression);
                     return new Literal(convertExpression.source(), null, convertExpression.dataType());
@@ -4492,10 +4495,17 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         return createIfDoesNotAlreadyExist(fa, fa.field(), unionFieldAttributes);
                     }
 
+                    boolean lenient = context.minimumVersion().supports(ESQL_LENIENT_UNION_CAST);
+                    if (lenient) {
+                        // The conversions stored in the field substitute surrogates, which drops invalid options instead of rejecting them.
+                        Expression invalid = invalidOtherArguments(convert);
+                        if (invalid != null) {
+                            return invalid;
+                        }
+                    }
                     Set<DataType> supportedTypes = convert.supportedTypes();
                     UnionTypeEsField castField = unionTypeEsField;
                     if (areMappedTypesSupported(unionTypeEsField, supportedTypes) == false) {
-                        boolean lenient = context.minimumVersion().supports(ESQL_LENIENT_UNION_CAST);
                         boolean anyMapped = anyMappedTypeSupported(unionTypeEsField, supportedTypes);
                         Expression unmappedExprForSupport = unionTypeEsField.getUnmappedConversionExpression();
                         boolean unmappedKeywordSupported = unmappedExprForSupport instanceof AbstractConvertFunction
@@ -4508,10 +4518,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             );
                         }
                         if (anyMapped == false && unmappedKeywordSupported == false) {
-                            Expression invalid = invalidOtherArguments(convert);
-                            if (invalid != null) {
-                                return invalid;
-                            }
                             // No type converts, so the cast is null in every index.
                             warnLenientDroppedUnionTypes(context, fa.name(), unionTypeEsField, supportedTypes, convertExpression);
                             if (unmappedExprForSupport != null) {
@@ -4537,7 +4543,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         } else {
                             // At the moment this path is exercised by TO_DEGREES/TO_RADIANS for single-type PUNKs under LOAD.
                             // Function cannot consume keyword, so keep mapped branches and nullify unmapped ones. See #150378.
-                            if (context.minimumVersion().supports(ESQL_LENIENT_UNION_CAST)) {
+                            if (lenient) {
                                 warnLenientDroppedSourceKeyword(context, fa.name(), convertExpression);
                             }
                             rewrapped = rewrapped.withPotentiallyUnmappedExpression(null);

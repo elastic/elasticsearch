@@ -736,7 +736,7 @@ setup:
   - match: { values.0: [4, null, 1] }
 
 ---
-"invalid option on a union where no type converts still errors":
+"invalid option on a union cast still errors":
   - requires:
       capabilities:
         - method: POST
@@ -751,6 +751,20 @@ setup:
           query: 'FROM lenient_long,lenient_bool | EVAL x = TO_IP(f, {"leading_zeros": "abcdef"}) | KEEP x'
   - match: { error.type: verification_exception }
   - contains: { error.reason: "abcdef" }
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'FROM lenient_keyword,lenient_long | EVAL x = TO_IP(f, {"leading_zeros": "abcdef"}) | KEEP x'
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: "abcdef" }
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM lenient_rank,lenient_unmapped_f | EVAL x = TO_IP(f, {"unknown": "x"}) | KEEP x'
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: "unknown" }
 
 ---
 "impossible cast after STATS returns null":

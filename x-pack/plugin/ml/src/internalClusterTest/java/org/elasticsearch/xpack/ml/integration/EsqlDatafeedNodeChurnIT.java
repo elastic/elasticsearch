@@ -44,6 +44,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.NodeRoles.onlyRoles;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 /**
  * Proves that the ES|QL datafeed node-failure retry (see {@code EsqlQueryRunner#isRetryableNodeFailure})
@@ -102,13 +103,15 @@ public class EsqlDatafeedNodeChurnIT extends BaseMlIntegTestCase {
      * once (visible as a DEBUG log line from the query runner); since the source index has no replica, the
      * retry itself cannot find another shard copy and the cycle fails cleanly (WARN, not ERROR) rather
      * than looping or crashing. A 1s bucket span, grouping interval and frequency keep the real-time schedule short enough to
-     * observe the next cycle querying the healed node.
+     * observe the next cycle after the node heals. That cycle must succeed: the job processes records and logs no further
+     * extraction failure, and the datafeed stays STARTED.
      */
-    public void testMidQueryNodeChurnShouldLogAtDebugAndKeepDatafeedStarted() throws Exception {
+    public void testMidQueryNodeChurnShouldRecoverAndKeepDatafeedStarted() throws Exception {
         ChurnScenario scenario = setUpChurnScenario();
         String datafeedId = scenario.datafeedId();
         String victimNode = scenario.victimNode();
         long windowStart = scenario.windowStart();
+        String jobId = scenario.jobId();
 
         MockTransportService victimTransport = MockTransportService.getInstance(victimNode);
         CountDownLatch requestReceived = new CountDownLatch(1);
@@ -152,6 +155,13 @@ public class EsqlDatafeedNodeChurnIT extends BaseMlIntegTestCase {
             mockLog.addExpectation(failedCycleLoggedAtWarn);
             mockLog.addExpectation(noErrorLogged);
 
+            MockLog.UnseenEventExpectation noFurtherExtractionFailure = new MockLog.UnseenEventExpectation(
+                "no extraction failure after the node healed",
+                DATAFEED_JOB_LOGGER,
+                Level.WARN,
+                "*error while extracting data*"
+            );
+
             try {
                 client().execute(
                     StartDatafeedAction.INSTANCE,
@@ -177,6 +187,8 @@ public class EsqlDatafeedNodeChurnIT extends BaseMlIntegTestCase {
                 churnLoggedAtDebug.awaitMatched(TimeValue.timeValueSeconds(30).millis());
                 // Heal only after the failed cycle has completed; healing right after the DEBUG line would let the retry succeed.
                 failedCycleLoggedAtWarn.awaitMatched(TimeValue.timeValueSeconds(30).millis());
+                // Nothing may have been processed while the only shard copy was unreachable.
+                assertThat(getDataCounts(jobId).getProcessedRecordCount(), equalTo(0L));
             } finally {
                 releaseRequest.countDown();
                 if (networkDisruption != null) {
@@ -186,7 +198,9 @@ public class EsqlDatafeedNodeChurnIT extends BaseMlIntegTestCase {
             }
 
             // A single churned cycle must not wedge the datafeed: a later scheduled cycle has to run its query again,
-            // which is visible as a new data-node request reaching the healed node.
+            // which is visible as a new data-node request reaching the healed node, and has to succeed.
+            // Only failures logged from here on count against the resumed cycle.
+            mockLog.addExpectation(noFurtherExtractionFailure);
             CountDownLatch resumedQueryReachedVictim = new CountDownLatch(1);
             victimTransport.addRequestHandlingBehavior(ESQL_DATA_ACTION_NAME, (handler, request, channel, task) -> {
                 resumedQueryReachedVictim.countDown();
@@ -194,6 +208,9 @@ public class EsqlDatafeedNodeChurnIT extends BaseMlIntegTestCase {
             });
             safeAwait(resumedQueryReachedVictim, TimeValue.timeValueSeconds(60));
             victimTransport.clearAllRules();
+
+            // The failed cycle did not advance time, so records can only be processed by a successful post-heal cycle.
+            assertBusy(() -> assertThat(getDataCounts(jobId).getProcessedRecordCount(), greaterThan(0L)), 30, TimeUnit.SECONDS);
 
             assertBusy(() -> assertThat(getDatafeedState(datafeedId), equalTo(DatafeedState.STARTED)), 30, TimeUnit.SECONDS);
 
@@ -208,7 +225,7 @@ public class EsqlDatafeedNodeChurnIT extends BaseMlIntegTestCase {
      * single-shard, zero-replica source index pinned to the "victim" node, distinct from the node
      * running the job's persistent task.
      */
-    private record ChurnScenario(String datafeedId, String victimNode, long windowStart) {}
+    private record ChurnScenario(String jobId, String datafeedId, String victimNode, long windowStart) {}
 
     /**
      * Starts a 3-node cluster (1 master-only, 2 data+ml), opens a job, pins a zero-replica source
@@ -245,7 +262,7 @@ public class EsqlDatafeedNodeChurnIT extends BaseMlIntegTestCase {
 
         setMlIndicesDelayedNodeLeftTimeoutToZero();
 
-        return new ChurnScenario(datafeedId, victimNode, windowStart);
+        return new ChurnScenario(jobId, datafeedId, victimNode, windowStart);
     }
 
     private static Job.Builder buildEsqlJobBuilder(String jobId) {

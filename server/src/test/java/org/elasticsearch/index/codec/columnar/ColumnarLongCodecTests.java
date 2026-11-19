@@ -20,6 +20,7 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.columnar.ColumnarFormat;
+import org.elasticsearch.columnar.numeric.NumericBinaryValues;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -72,6 +73,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.columnar.numeric.NumericBinaryValues.INITIAL_DECODE_CAPACITY;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.containsString;
@@ -352,8 +354,7 @@ public class ColumnarLongCodecTests extends ESSingleNodeTestCase {
                     case 0 -> null;
                     case 1 -> List.of();
                     case 2 -> Arrays.asList(randomValue(), null, randomValue());
-                    // More values than the payload decode buffer starts with.
-                    case 3 -> randomList(9, 20, ColumnarLongCodecTests::randomValue);
+                    case 3 -> randomList(INITIAL_DECODE_CAPACITY + 1, INITIAL_DECODE_CAPACITY * 2, ColumnarLongCodecTests::randomValue);
                     case 4 -> randomList(2, 5, ColumnarLongCodecTests::randomValue);
                     default -> List.of(randomValue());
                 };
@@ -426,7 +427,7 @@ public class ColumnarLongCodecTests extends ESSingleNodeTestCase {
     }
 
     /**
-     * Arrays longer than the eight values the payload decode buffer starts with, sorted first from the indexing buffer's
+     * Arrays longer than {@link NumericBinaryValues#INITIAL_DECODE_CAPACITY}, sorted first from the indexing buffer's
      * payloads and then, merged with a second segment, from the column. Their minimum and maximum put them in different orders.
      */
     public void testIndexSortedByColumnarLongWithManyValues() throws IOException {

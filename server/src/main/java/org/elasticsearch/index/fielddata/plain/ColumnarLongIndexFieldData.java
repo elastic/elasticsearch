@@ -196,7 +196,7 @@ public class ColumnarLongIndexFieldData extends IndexNumericFieldData {
 
     /** One document's values, sorted, read out of a buffer that {@link #advanceExact} fills. */
     private abstract static class SortedValues extends SortedNumericLongValues {
-        private long[] values = new long[1];
+        private long[] values = new long[NumericBinaryValues.INITIAL_DECODE_CAPACITY];
         private int count;
         private int upto;
 

@@ -52,7 +52,7 @@ public class ColumnarNumericSortFieldTests extends ESTestCase {
         new Doc(List.of(Long.MAX_VALUE, Long.MIN_VALUE), Long.MIN_VALUE, Long.MAX_VALUE),
         new Doc(List.of(4L, 4L), 4L, 4L),
         new Doc(List.of(-1L), -1L, -1L),
-        // More values than the payload decode buffer starts with.
+        // More values than NumericBinaryValues.INITIAL_DECODE_CAPACITY.
         new Doc(List.of(12L, 11L, 10L, 20L, 13L, 14L, 15L, 16L, 17L, 18L, -2L), -2L, 20L)
     );
 

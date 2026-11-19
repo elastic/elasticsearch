@@ -24,6 +24,9 @@ import java.io.IOException;
  */
 public abstract class NumericBinaryValues extends DocIdSetIterator {
 
+    /** How many values the buffer a document's payload is decoded into holds before it first has to grow. */
+    public static final int INITIAL_DECODE_CAPACITY = 8;
+
     /** The values of {@code binary}, which must hold a {@link NumericBinaryPayload} per document. */
     public static NumericBinaryValues of(BinaryDocValues binary) {
         return binary instanceof ColumnarNumericBinaryDocValues columnar ? new Column(columnar) : new Payloads(binary);
@@ -100,7 +103,7 @@ public abstract class NumericBinaryValues extends DocIdSetIterator {
     /** Decodes each document's payload the first time one of its values is asked for. */
     private static final class Payloads extends NumericBinaryValues {
         private final BinaryDocValues binary;
-        private final long[][] decoded = { new long[8] };
+        private final long[][] decoded = { new long[INITIAL_DECODE_CAPACITY] };
         private int decodedDoc = -1;
         private int count;
 

@@ -184,10 +184,10 @@ public final class ColumnarNumericSortField extends SortField {
         public SortField readSortField(DataInput in) throws IOException {
             String field = in.readString();
             Type type = Type.valueOf(in.readString());
-            boolean reverse = in.readInt() == 1;
-            boolean maxMode = in.readInt() == 1;
+            boolean reverse = readFlag(in);
+            boolean maxMode = readFlag(in);
             Object missingValue = null;
-            if (in.readInt() == 1) {
+            if (readFlag(in)) {
                 missingValue = switch (type) {
                     case LONG -> in.readLong();
                     default -> throw new IllegalArgumentException("ColumNAR doesn't store [" + type + "] numeric fields");
@@ -202,17 +202,24 @@ public final class ColumnarNumericSortField extends SortField {
             ColumnarNumericSortField sortField = (ColumnarNumericSortField) sf;
             out.writeString(sortField.getField());
             out.writeString(sortField.getType().name());
-            out.writeInt(sortField.getReverse() ? 1 : 0);
-            out.writeInt(sortField.maxMode ? 1 : 0);
-            if (sortField.getMissingValue() == null) {
-                out.writeInt(0);
-            } else {
-                out.writeInt(1);
+            writeFlag(out, sortField.getReverse());
+            writeFlag(out, sortField.maxMode);
+            writeFlag(out, sortField.getMissingValue() != null);
+            if (sortField.getMissingValue() != null) {
                 switch (sortField.getType()) {
                     case LONG -> out.writeLong((Long) sortField.getMissingValue());
                     default -> throw new AssertionError("unsupported numeric type [" + sortField.getType() + "]");
                 }
             }
+        }
+
+        /** The order, the mode and whether a missing value follows are each written as an int, {@code 1} for true. */
+        private static void writeFlag(DataOutput out, boolean flag) throws IOException {
+            out.writeInt(flag ? 1 : 0);
+        }
+
+        private static boolean readFlag(DataInput in) throws IOException {
+            return in.readInt() == 1;
         }
     }
 }

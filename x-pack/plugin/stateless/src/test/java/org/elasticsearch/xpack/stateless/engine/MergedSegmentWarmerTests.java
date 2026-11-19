@@ -14,9 +14,11 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LogDocMergePolicy;
 import org.apache.lucene.index.MergePolicy;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
@@ -24,11 +26,14 @@ import org.elasticsearch.index.shard.ShardId;
 import org.junit.After;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.hasItem;
@@ -38,9 +43,14 @@ import static org.hamcrest.Matchers.not;
 
 public class MergedSegmentWarmerTests extends AbstractEngineTestCase {
 
-    private record Notification(String segmentName, ActionListener<Void> listener) {}
+    private record Notification(String segmentName, BooleanSupplier isAborted, ActionListener<Void> listener) {}
+
+    private static MergedSegmentListener recordingTo(LinkedBlockingQueue<Notification> notifications) {
+        return (segment, isAborted, listener) -> notifications.add(new Notification(segment.getSegmentName(), isAborted, listener));
+    }
 
     private boolean engineCreated = false;
+    private final List<MergedSegmentWarmer> warmers = new ArrayList<>();
 
     @After
     public void assertWarningHeaders() {
@@ -53,6 +63,19 @@ public class MergedSegmentWarmerTests extends AbstractEngineTestCase {
         }
     }
 
+    @After
+    public void assertNoTrackedMerges() {
+        for (var warmer : warmers) {
+            assertFalse(warmer.hasTrackedMerges());
+        }
+    }
+
+    private MergedSegmentWarmer newWarmer(ShardId shardId, MergedSegmentListener listener) {
+        final var warmer = new MergedSegmentWarmer(shardId, listener);
+        warmers.add(warmer);
+        return warmer;
+    }
+
     private IndexEngine newEngine(MergedSegmentListener listener) throws IOException {
         engineCreated = true;
         final var mergePolicy = new LogDocMergePolicy();
@@ -62,9 +85,7 @@ public class MergedSegmentWarmerTests extends AbstractEngineTestCase {
         final var nodeSettings = Settings.builder()
             .put(ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING.getKey(), "0s");
         final var config = indexConfig(Settings.EMPTY, nodeSettings.build(), () -> 1L, mergePolicy);
-        return newIndexEngine(
-            EngineConfig.builder(config).mergedSegmentWarmer(new MergedSegmentWarmer(config.getShardId(), listener)).build()
-        );
+        return newIndexEngine(EngineConfig.builder(config).mergedSegmentWarmer(newWarmer(config.getShardId(), listener)).build());
     }
 
     /**
@@ -88,7 +109,7 @@ public class MergedSegmentWarmerTests extends AbstractEngineTestCase {
 
     public void testMergedSegmentsAreNotified() throws Exception {
         final var notified = new LinkedBlockingQueue<String>();
-        try (var engine = newEngine((segment, listener) -> {
+        try (var engine = newEngine((segment, isAborted, listener) -> {
             notified.add(segment.getSegmentName());
             listener.onResponse(null);
         })) {
@@ -104,7 +125,7 @@ public class MergedSegmentWarmerTests extends AbstractEngineTestCase {
 
     public void testMergedSegmentIsNotVisibleUntilTheListenerIsCompleted() throws Exception {
         final var notifications = new LinkedBlockingQueue<Notification>();
-        try (var engine = newEngine((segment, listener) -> notifications.add(new Notification(segment.getSegmentName(), listener)))) {
+        try (var engine = newEngine(recordingTo(notifications))) {
             try {
                 indexDocs(engine, 2);
                 final var notification = notifications.poll(30, TimeUnit.SECONDS);
@@ -122,11 +143,37 @@ public class MergedSegmentWarmerTests extends AbstractEngineTestCase {
         }
     }
 
+    public void testEngineCloseDoesNotWaitForAPendingListener() throws Exception {
+        final var notifications = new LinkedBlockingQueue<Notification>();
+        final var engine = newEngine(recordingTo(notifications));
+        final var closed = new PlainActionFuture<Void>();
+        try {
+            indexDocs(engine, 2);
+            final var notification = notifications.poll(30, TimeUnit.SECONDS);
+            assertNotNull(notification);
+            assertFalse(notification.isAborted().getAsBoolean());
+
+            // the listener is never completed before the engine is closed
+            new Thread(() -> ActionListener.run(closed, l -> {
+                engine.close();
+                l.onResponse(null);
+            })).start();
+            closed.actionGet(TimeValue.timeValueSeconds(10));
+            assertTrue(notification.isAborted().getAsBoolean());
+        } finally {
+            Notification pending;
+            while ((pending = notifications.poll()) != null) {
+                pending.listener().onResponse(null);
+            }
+            closed.actionGet(TimeValue.timeValueSeconds(30));
+        }
+    }
+
     public void testFailingListenerDoesNotFailTheMerge() throws Exception {
         final var failure = new IllegalStateException("simulated");
         final boolean throwsFailure = randomBoolean();
         final Set<String> notified = ConcurrentCollections.newConcurrentSet();
-        try (var engine = newEngine((segment, listener) -> {
+        try (var engine = newEngine((segment, isAborted, listener) -> {
             notified.add(segment.getSegmentName());
             if (throwsFailure) {
                 throw failure;
@@ -145,7 +192,7 @@ public class MergedSegmentWarmerTests extends AbstractEngineTestCase {
 
     public void testInterruptWhileWaitingAbortsTheMerge() throws Exception {
         final var pendingListeners = new LinkedBlockingQueue<ActionListener<Void>>();
-        final var warmer = new MergedSegmentWarmer(new ShardId("index", "_na_", 0), (segment, listener) -> pendingListeners.add(listener));
+        final var warmer = newWarmer(new ShardId("index", "_na_", 0), (segment, isAborted, listener) -> pendingListeners.add(listener));
         try (var directory = newDirectory()) {
             try (var writer = new IndexWriter(directory, new IndexWriterConfig())) {
                 writer.addDocument(new Document());

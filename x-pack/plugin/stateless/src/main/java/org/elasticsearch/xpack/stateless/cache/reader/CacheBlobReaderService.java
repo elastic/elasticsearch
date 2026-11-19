@@ -80,7 +80,7 @@ public class CacheBlobReaderService {
      *
      * @param shardId                       the shard id
      * @param blobContainer                 the blob container where the blob can be read from
-     * @param bccBlob                      the blob file
+     * @param bccBlob                       the blob file
      * @param tracker                       the tracker to determine if the blob has been uploaded to the object store
      * @param totalBytesReadFromObjectStore counts how many bytes were read from object store
      * @param totalBytesReadFromIndexing    counts how many bytes were read from indexing nodes

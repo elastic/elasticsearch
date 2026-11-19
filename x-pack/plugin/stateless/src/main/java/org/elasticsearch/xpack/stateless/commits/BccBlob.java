@@ -73,7 +73,7 @@ public record BccBlob(String blobName, PrimaryTermAndGeneration termAndGeneratio
 
     @Override
     public String toString() {
-        return "BlobFile[term=" + primaryTerm() + ", name=" + blobName() + ']';
+        return "BccBlob[term=" + primaryTerm() + ", name=" + blobName() + ']';
     }
 
     /// Parses the generation from the name of a [BatchedCompoundCommit] blob, and throws an [IllegalArgumentException] if the blob name is

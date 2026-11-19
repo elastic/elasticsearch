@@ -191,7 +191,7 @@ public class StatelessIndexNodeRecoveryListener extends AbstractStatelessRecover
         final long readIndexingShardStateStartMillis = threadPool.relativeTimeInMillis();
         SubscribableListener.<ObjectStoreService.IndexingShardState>newForked(l -> {
             if (hollowRecoveryState != null) {
-                assert sourceBlobsInfo != null && sourceBlobsInfo.latestBccBlob().equals(hollowRecoveryState.commit().toBlobFile())
+                assert sourceBlobsInfo != null && sourceBlobsInfo.latestBccBlob().equals(hollowRecoveryState.commit().toBccBlob())
                     : sourceBlobsInfo + " vs " + hollowRecoveryState.commit();
                 ActionListener.completeWith(
                     l,

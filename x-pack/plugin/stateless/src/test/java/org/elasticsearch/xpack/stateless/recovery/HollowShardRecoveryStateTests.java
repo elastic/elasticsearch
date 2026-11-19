@@ -146,10 +146,10 @@ public class HollowShardRecoveryStateTests extends ESTestCase {
                 ),
                 RetentionLeases.EMPTY,
                 Map.of(),
-                new BlobFileWithLength(bcc.toBlobFile(), bcc.calculateBccBlobLength()),
+                new BlobFileWithLength(bcc.toBccBlob(), bcc.calculateBccBlobLength()),
                 Set.of(),
                 false,
-                Set.of(bcc.toBlobFile()),
+                Set.of(bcc.toBccBlob()),
                 true,
                 hollowRecoveryState
             );

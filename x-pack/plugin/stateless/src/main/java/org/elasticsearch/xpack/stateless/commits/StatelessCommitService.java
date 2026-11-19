@@ -1430,7 +1430,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
      * including blobs pending async deletion. Blobs created after relocation started are never uploaded
      * ({@link ShardCommitState#pauseUpload}) and can be excluded by the caller passing the latest uploaded BCC generation.
      */
-    public Set<BccBlob> getTrackedUploadedBlobFilesUpTo(ShardId shardId, long maxUploadedGeneration) {
+    public Set<BccBlob> getTrackedUploadedBccBlobsUpTo(ShardId shardId, long maxUploadedGeneration) {
         Set<BccBlob> bccBlobs = new HashSet<>();
         ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
         // The order of loops is the reverse of BlobReference#closeInternal to avoid missing pending deletes.

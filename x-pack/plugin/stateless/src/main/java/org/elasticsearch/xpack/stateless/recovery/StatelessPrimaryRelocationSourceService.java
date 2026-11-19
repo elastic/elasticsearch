@@ -303,7 +303,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
                     request.targetNode(),
                     new TransportStatelessPrimaryRelocationPrewarmAction.Request(
                         shardId,
-                        new BlobFileWithLength(latestBcc.toBlobFile(), latestBcc.calculateBccBlobLength()),
+                        new BlobFileWithLength(latestBcc.toBccBlob(), latestBcc.calculateBccBlobLength()),
                         hasRecentIdLookup
                     )
                 ),
@@ -587,13 +587,13 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
                     final BatchedCompoundCommit latestBcc = statelessCommitService.getLatestUploadedBcc(shardId);
                     assert latestBcc != null : "no uploaded BCC for shard " + shardId;
                     final long blobLength = latestBcc.calculateBccBlobLength();
-                    final BccBlob latestBccBlob = latestBcc.toBlobFile();
+                    final BccBlob latestBccBlob = latestBcc.toBccBlob();
                     final var lastCommitBlobs = latestBcc.lastCompoundCommit().getBlobFiles();
                     final var lastCommitIsHollow = latestBcc.lastCompoundCommit().hollow();
                     // This happens after markRelocating() has triggered the listener. The latest uploaded BCC will be the last. No new
                     // BCCs will be uploaded after that. However, there could still be VBCCs after the last BCC that we need to ignore.
                     // Thus, we pass the generation of the last BCC.
-                    final Set<BccBlob> otherBccBlobs = statelessCommitService.getTrackedUploadedBlobFilesUpTo(
+                    final Set<BccBlob> otherBccBlobs = statelessCommitService.getTrackedUploadedBccBlobsUpTo(
                         shardId,
                         latestBcc.primaryTermAndGeneration().generation()
                     );

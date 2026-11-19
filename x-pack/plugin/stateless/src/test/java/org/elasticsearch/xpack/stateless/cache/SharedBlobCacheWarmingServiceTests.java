@@ -1906,7 +1906,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 fakeNode.searchDirectory,
                 mock(WarmingRatioProvider.class),
                 Map.of(
-                    vbcc.getFrozenBatchedCompoundCommit().toBlobFile(),
+                    vbcc.getFrozenBatchedCompoundCommit().toBccBlob(),
                     SharedBlobCacheWarmingService.WarmTarget.withUnknownTimestamp(
                         frozenBcc.calculateBccBlobLength(),
                         frozenBcc.calculateBccBlobLength()

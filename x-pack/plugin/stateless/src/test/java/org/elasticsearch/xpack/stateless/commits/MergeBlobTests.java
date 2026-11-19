@@ -110,7 +110,7 @@ public class MergeBlobTests extends AbstractWireSerializingTestCase<MergeBlob> {
     }
 
     /// Reading a [BccBlob] where a [MergeBlob] is expected must fail cleanly. The opposite case is tested in [BccBlobTests].
-    public void testReadRejectsBlobFileName() {
+    public void testReadRejectsBccBlobFileName() {
         var blobFile = new BccBlob(BatchedCompoundCommit.blobNameFromGeneration(randomNonZeroPositiveLong()), randomNonNegativeLong());
         Writeable.Reader<Writeable> reader = in -> Blob.reader(MergeBlob.class).read(in);
         var exception = expectThrows(

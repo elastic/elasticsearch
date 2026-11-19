@@ -23,12 +23,12 @@ import java.util.Objects;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
- * Represents a file embedded in a {@code BlobFile} stored in the blobstore.
+ * Represents a file embedded in a {@link BccBlob} stored in the blobstore.
  *
  * In order to save costs for uploading multiple files (such as compound commits)
- * to the blobstore they are merged into a single {@code BlobFile}.
+ * to the blobstore they are merged into a single {@link BccBlob}}.
  *
- * Each of the original files could be located in {@code BlobFile} using offset and fileLength.
+ * Each of the original files could be located in {@link BccBlob}} using offset and fileLength.
  *
  * @param bccBlob the blob file containing this location
  * @param offset the offset inside the blob file where the file is written

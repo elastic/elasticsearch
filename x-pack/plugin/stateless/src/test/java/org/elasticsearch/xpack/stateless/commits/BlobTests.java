@@ -28,7 +28,7 @@ public class BlobTests extends ESTestCase {
     /// here.
     private static final Map<Class<? extends Blob>, Supplier<Blob>> RANDOM_BLOBS = Map.of(
         BccBlob.class,
-        BlobTests::randomBlobFile,
+        BlobTests::randomBccBlob,
         MergeBlob.class,
         BlobTests::randomMergeBlob
     );
@@ -65,7 +65,7 @@ public class BlobTests extends ESTestCase {
         }
     }
 
-    private static BccBlob randomBlobFile() {
+    private static BccBlob randomBccBlob() {
         final long generation = randomNonZeroPositiveLong();
         return new BccBlob(
             BatchedCompoundCommit.blobNameFromGeneration(generation),

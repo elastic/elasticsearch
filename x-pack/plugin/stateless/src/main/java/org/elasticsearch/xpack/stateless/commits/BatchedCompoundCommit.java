@@ -88,7 +88,7 @@ public record BatchedCompoundCommit(PrimaryTermAndGeneration primaryTermAndGener
         return blobLength;
     }
 
-    public BccBlob toBlobFile() {
+    public BccBlob toBccBlob() {
         String blobName = blobNameFromGeneration(primaryTermAndGeneration.generation());
         return new BccBlob(blobName, primaryTermAndGeneration);
     }

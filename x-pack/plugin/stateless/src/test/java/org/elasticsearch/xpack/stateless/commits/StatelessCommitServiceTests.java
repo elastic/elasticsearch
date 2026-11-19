@@ -790,7 +790,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 .primaryTermAndGeneration()
                 .generation();
 
-            Set<BccBlob> trackedUploadedBccBlobs = testHarness.commitService.getTrackedUploadedBlobFilesUpTo(
+            Set<BccBlob> trackedUploadedBccBlobs = testHarness.commitService.getTrackedUploadedBccBlobsUpTo(
                 testHarness.shardId,
                 maxUploadedGeneration
             );

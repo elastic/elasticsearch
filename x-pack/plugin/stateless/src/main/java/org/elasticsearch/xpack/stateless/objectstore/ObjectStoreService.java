@@ -1413,7 +1413,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     }
 
     /**
-     * Computes a map of blobs ({@code BlobFile}) referenced from the passed-in {@param commitFiles} where the map values
+     * Computes a map of blobs ({@link BccBlob}) referenced from the passed-in {@param commitFiles} where the map values
      * contain the set of file names, together with their maximum offset, in the blob file.
      */
     private static Map<BccBlob, ReferencedFilesAndMaxBlobOffset> groupReferencedFilesByBlob(Map<String, BlobLocation> commitFiles) {

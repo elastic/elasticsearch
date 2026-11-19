@@ -28,10 +28,10 @@ public class BccBlobTests extends AbstractWireSerializingTestCase<BccBlob> {
 
     @Override
     protected BccBlob createTestInstance() {
-        return randomBlobFile();
+        return randomBccBlob();
     }
 
-    private BccBlob randomBlobFile() {
+    private BccBlob randomBccBlob() {
         var termAndGen = randomTermAndGeneration();
         return new BccBlob(blobNameFromGeneration(termAndGen.generation()), termAndGen);
     }

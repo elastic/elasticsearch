@@ -432,7 +432,7 @@ public class IndexingShardRelocationAvoidListIT extends AbstractStatelessPluginI
                 handler.messageReceived(request, channel, task);
             });
 
-        // Set up latches on the source node's plugin to pause inside getTrackedUploadedBlobFilesUpTo.
+        // Set up latches on the source node's plugin to pause inside getTrackedUploadedBccBlobsUpTo.
         // At that point markRelocating() has already set state=RELOCATING and maxGenerationToUpload,
         // so any new commit from a force merge will create a phantom entry.
         final var plugin = findPlugin(indexNodeA, AvoidListTestStatelessPlugin.class);
@@ -517,14 +517,14 @@ public class IndexingShardRelocationAvoidListIT extends AbstractStatelessPluginI
                 telemetryProvider
             ) {
                 @Override
-                public Set<BccBlob> getTrackedUploadedBlobFilesUpTo(ShardId shardId, long maxUploadedGeneration) {
+                public Set<BccBlob> getTrackedUploadedBccBlobsUpTo(ShardId shardId, long maxUploadedGeneration) {
                     CountDownLatch entered = getTrackedBlobFilesEnteredLatch.get();
                     CountDownLatch blocker = getTrackedBlobFilesBlockerLatch.get();
                     if (entered != null && blocker != null) {
                         entered.countDown();
                         safeAwait(blocker);
                     }
-                    return super.getTrackedUploadedBlobFilesUpTo(shardId, maxUploadedGeneration);
+                    return super.getTrackedUploadedBccBlobsUpTo(shardId, maxUploadedGeneration);
                 }
             };
         }

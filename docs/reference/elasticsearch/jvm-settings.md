@@ -141,7 +141,7 @@ If you are running {{es}} as a Windows service, you can change the heap size usi
 
 Depending on your stack version, {{es}} configures the JVM to dump the heap on out of memory exceptions to the following location by default:
 
-* {applies_to}`stack: ga 9.1+` The default logs directory 
+* {applies_to}`stack: ga 9.1+` The default logs directory
 * {applies_to}`stack: ga =9.0` The default data directory
 
 Directory location:
@@ -203,9 +203,9 @@ These are logs produced by the JVM when it encounters a fatal error, such as a s
 
 ## DNS cache settings [networkaddress-cache-ttl]
 
-{{es}} runs with a security manager in place. With a security manager in place, the JVM defaults to caching positive hostname resolutions indefinitely and defaults to caching negative hostname resolutions for ten seconds. 
+{{es}} runs with a security manager in place. With a security manager in place, the JVM defaults to caching positive hostname resolutions indefinitely and defaults to caching negative hostname resolutions for ten seconds.
 
-{{es}} overrides this behavior with default values to cache positive lookups for sixty seconds, and to cache negative lookups for ten seconds. These values should be suitable for most environments, including environments where DNS resolutions vary with time. 
+{{es}} overrides this behavior with default values to cache positive lookups for sixty seconds, and to cache negative lookups for ten seconds. These values should be suitable for most environments, including environments where DNS resolutions vary with time.
 
 If these default values are not suitable, you can edit them:
 * Cache positive lookups: `es.networkaddress.cache.ttl`
@@ -215,13 +215,21 @@ The values [`networkaddress.cache.ttl=<timeout>`](https://docs.oracle.com/javase
 
 ## glibc malloc settings [glibc-malloc-settings]
 
-On Linux with glibc, you can tune native memory allocation with environment variables such as `MALLOC_ARENA_MAX`, but glibc reads them only at process start.
-{{es}} allows you to set them as JVM options (e.g. from `jvm.options` or `ES_JAVA_OPTS`) with prefix `es.glibc.env.` (e.g. `es.glibc.env.MALLOC_ARENA_MAX`). The {{es}} launcher will set the corresponding variable in the environment of the server process. For example:
+{applies_to}`stack: ga 9.7+` On Linux with glibc, you can tune native memory allocation with environment variables such as `MALLOC_ARENA_MAX`, but glibc reads them only at process start.
+{{es}} allows you to set them as JVM options (e.g. from a custom `.options` file in `jvm.options.d/`, or `ES_JAVA_OPTS`) with prefix `es.glibc.env.` (e.g. `es.glibc.env.MALLOC_ARENA_MAX`). The {{es}} launcher will set the corresponding variable in the environment of the server process. For example:
 
 ```
 -Des.glibc.env.MALLOC_ARENA_MAX=96
 ```
 
-Supported variables: `MALLOC_ARENA_MAX`, `MALLOC_ARENA_TEST`, `MALLOC_MMAP_THRESHOLD_` (at most 33554432, corresponding to 32MB), `MALLOC_TRIM_THRESHOLD_`, `MALLOC_TOP_PAD_` and `MALLOC_MMAP_MAX_`. {{es}} fails to start if the name is not supported or the value is not a decimal number in the allowed range.
+Supported variables and their allowed values:
+- `MALLOC_ARENA_MAX` (1 or more),
+- `MALLOC_ARENA_TEST` (1 or more),
+- `MALLOC_MMAP_THRESHOLD_` (0 to 33554432, corresponding to 32MB),
+- `MALLOC_TRIM_THRESHOLD_` (0 or more),
+- `MALLOC_TOP_PAD_` (0 or more),
+- `MALLOC_MMAP_MAX_` (0 to 2147483647).
+
+{{es}} fails to start if the name is not supported or the value is not a decimal number in the allowed range. An option without a value (no `=`) is ignored.
 
 Setting either threshold turns off glibc's automatic adjustment of both, so it is advisable to set `MALLOC_MMAP_THRESHOLD_` and `MALLOC_TRIM_THRESHOLD_` together.

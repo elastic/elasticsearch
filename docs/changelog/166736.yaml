@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 166736
-summary: Assert gzip resume `abortStream` of failed GET
-type: enhancement

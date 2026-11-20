@@ -204,7 +204,7 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
         int maxRoundingInterval = Arrays.stream(roundings, 0, roundings.length - 1)
             .map(rounding -> rounding.innerIntervals)
             .flatMapToInt(Arrays::stream)
-            .reduce(Integer::max)
+            .max()
             .orElse(1);
         Settings settings = context.getIndexSettings().getNodeSettings();
         int maxBuckets = MultiBucketConsumerService.MAX_BUCKET_SETTING.get(settings);

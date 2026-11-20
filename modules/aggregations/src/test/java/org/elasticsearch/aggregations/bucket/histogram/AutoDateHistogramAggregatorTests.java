@@ -145,11 +145,6 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
         );
     }
 
-    /**
-     * {@code year} is the coarsest allowed {@code minimum_interval}, so only a single rounding remains once the roundings are sliced.
-     * Building the aggregator used to fail with a {@link java.util.NoSuchElementException} (a 500 for the user) instead of
-     * producing the yearly buckets.
-     */
     public void testMinimumIntervalYear() throws IOException {
         Map<String, Integer> expectedDocCount = new TreeMap<>();
         expectedDocCount.put("2010-01-01T00:00:00.000Z", 2);

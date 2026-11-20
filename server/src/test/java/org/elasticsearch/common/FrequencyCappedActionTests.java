@@ -53,8 +53,7 @@ public class FrequencyCappedActionTests extends ESTestCase {
     public void testConcurrentCallersExecuteOncePerInterval() {
         var executions = new AtomicLong(0);
         var currentTime = new AtomicLong();
-        var action = new FrequencyCappedAction(currentTime::get, TimeValue.ZERO);
-        action.setMinInterval(TimeValue.timeValueMinutes(1));
+        var action = new FrequencyCappedAction(currentTime::get, TimeValue.ZERO, TimeValue.timeValueMinutes(1));
 
         startInParallel(between(2, 10), i -> action.maybeExecute(executions::incrementAndGet));
 

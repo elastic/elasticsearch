@@ -26,8 +26,12 @@ public class FrequencyCappedAction {
     private final AtomicLong next;
 
     public FrequencyCappedAction(LongSupplier currentTimeMillisSupplier, TimeValue initialDelay) {
+        this(currentTimeMillisSupplier, initialDelay, TimeValue.MAX_VALUE);
+    }
+
+    public FrequencyCappedAction(LongSupplier currentTimeMillisSupplier, TimeValue initialDelay, TimeValue minInterval) {
         this.currentTimeMillisSupplier = currentTimeMillisSupplier;
-        this.minInterval = TimeValue.MAX_VALUE;
+        this.minInterval = minInterval;
         this.next = new AtomicLong(currentTimeMillisSupplier.getAsLong() + initialDelay.getMillis());
     }
 

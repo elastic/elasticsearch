@@ -100,8 +100,10 @@ exists hits, size 0 total and count agree on a match_only_text field:
           sort: [ _doc ]
           track_total_hits: true
           _source: false
+          aggs: { matched: { value_count: { field: _seq_no } } }
 
   - set: { hits.total.value: total }
+  - match: { aggregations.matched.value: $total }
 
   - do:
       search:
@@ -227,8 +229,10 @@ exists hits, size 0 total and count agree on a match_only_text field after a del
           sort: [ _doc ]
           track_total_hits: true
           _source: false
+          aggs: { matched: { value_count: { field: _seq_no } } }
 
   - set: { hits.total.value: total }
+  - match: { aggregations.matched.value: $total }
 
   - do:
       search:
@@ -281,8 +285,10 @@ exists hits, size 0 total and count agree on a match_only_text field after a mer
           sort: [ _doc ]
           track_total_hits: true
           _source: false
+          aggs: { matched: { value_count: { field: _seq_no } } }
 
   - set: { hits.total.value: total }
+  - match: { aggregations.matched.value: $total }
 
   - do:
       search:

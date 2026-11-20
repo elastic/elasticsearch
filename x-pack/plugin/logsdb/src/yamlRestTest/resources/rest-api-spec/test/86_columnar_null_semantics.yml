@@ -97,8 +97,10 @@ exists hits and size 0 total agree on an indexed keyword field:
           sort: [ { "@timestamp": asc } ]
           track_total_hits: true
           _source: false
+          aggs: { matched: { value_count: { field: _seq_no } } }
 
   - set: { hits.total.value: total }
+  - match: { aggregations.matched.value: $total }
 
   - do:
       search:

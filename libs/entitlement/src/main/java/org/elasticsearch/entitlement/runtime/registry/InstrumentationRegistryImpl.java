@@ -60,6 +60,11 @@ public class InstrumentationRegistryImpl implements InternalInstrumentationRegis
     }
 
     @Override
+    public PolicyChecker policyChecker() {
+        return policyChecker;
+    }
+
+    @Override
     public Map<String, Map<MethodSignature, InstrumentationInfo>> getInstrumentedMethods() {
         return Collections.unmodifiableMap(rulesByClass);
     }

@@ -27,6 +27,8 @@ import static org.elasticsearch.entitlement.runtime.policy.PolicyManagerTests.TE
 import static org.elasticsearch.entitlement.runtime.policy.PolicyManagerTests.createEmptyTestServerPolicy;
 import static org.elasticsearch.entitlement.runtime.policy.PolicyManagerTests.makeClassInItsOwnModule;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class PolicyCheckerImplTests extends ESTestCase {
     public void testRequestingClassFastPath() throws IOException, ClassNotFoundException {
@@ -60,6 +62,31 @@ public class PolicyCheckerImplTests extends ESTestCase {
             "Non-modular caller frames are not supported",
             NullPointerException.class,
             () -> checker.findRequestingFrame(Stream.of(entitlementsClass, null).map(PolicyManagerTests.MockFrame::new))
+        );
+    }
+
+    public void testFirstUntrustedFrame() throws IOException, ClassNotFoundException {
+        var entitlementsClass = makeClassInItsOwnModule();    // A class in the entitlements library itself
+        var trustedClass = makeClassInItsOwnModule();         // Stands in for a JDK class
+        var requestingClass = makeClassInItsOwnModule();      // This guy is always the right answer
+        var ignorableClass = makeClassInItsOwnModule();
+
+        // a mock, because a real PolicyManager only trusts classes of the running JDK, and the test needs its own trusted class
+        PolicyManager policyManager = mock(PolicyManager.class);
+        when(policyManager.isTriviallyAllowed(trustedClass)).thenReturn(true);
+        var checker = checker(entitlementsClass.getModule(), policyManager, TEST_PATH_LOOKUP);
+
+        assertEquals(
+            "Skip entitlement library and trusted frames",
+            requestingClass,
+            checker.findFirstUntrustedFrame(
+                Stream.of(entitlementsClass, trustedClass, entitlementsClass, trustedClass, requestingClass, ignorableClass)
+                    .map(PolicyManagerTests.MockFrame::new)
+            ).map(StackWalker.StackFrame::getDeclaringClass).orElse(null)
+        );
+        assertTrue(
+            "No untrusted frame",
+            checker.findFirstUntrustedFrame(Stream.of(entitlementsClass, trustedClass).map(PolicyManagerTests.MockFrame::new)).isEmpty()
         );
     }
 

@@ -12049,8 +12049,74 @@ public class ParquetFormatReaderTests extends ESTestCase {
         assertAllNaNRowGroupColumnHasNoFileBounds(ColumnOrder.typeDefined());
     }
 
-    public void testFileBoundsOfMultiRowGroupColumnWithAllNaNRowGroupAreNotServedUnderTotalOrder() throws Exception {
-        assertAllNaNRowGroupColumnHasNoFileBounds(ColumnOrder.ieee754TotalOrder());
+    public void testFileBoundsOfMultiRowGroupColumnSkipAllNaNRowGroupUnderTotalOrder() throws Exception {
+        int rowsPerGroup = rowGroupRowCounts(createDoubleColumnFile(ColumnOrder.ieee754TotalOrder(), new double[4800])).get(0).intValue();
+        int phase = 2 * rowsPerGroup;
+        double[] values = new double[3 * phase];
+        for (int i = 0; i < values.length; i++) {
+            values[i] = i >= phase && i < 2 * phase ? Double.NaN : i + 1.0;
+        }
+        byte[] parquetData = createDoubleColumnFile(ColumnOrder.ieee754TotalOrder(), values);
+        assertThat("row groups must align with the phases", rowGroupRowCounts(parquetData), everyItem(equalTo((long) rowsPerGroup)));
+
+        SourceStatistics.ColumnStatistics d = fileColumnStatistics(parquetData);
+
+        assertEquals(Optional.of(1.0), d.minValue());
+        assertEquals(Optional.of((double) values.length), d.maxValue());
+    }
+
+    public void testFileBoundsOfMultiRowGroupColumnSkipLeadingAllNaNRowGroupUnderTotalOrder() throws Exception {
+        int rowsPerGroup = rowGroupRowCounts(createDoubleColumnFile(ColumnOrder.ieee754TotalOrder(), new double[4800])).get(0).intValue();
+        int nanRows = 2 * rowsPerGroup;
+        double[] values = new double[3 * nanRows];
+        for (int i = 0; i < values.length; i++) {
+            values[i] = i < nanRows ? Double.NaN : i + 1.0;
+        }
+        byte[] parquetData = createDoubleColumnFile(ColumnOrder.ieee754TotalOrder(), values);
+        assertThat("row groups must align with the NaN rows", rowGroupRowCounts(parquetData), everyItem(equalTo((long) rowsPerGroup)));
+
+        SourceStatistics.ColumnStatistics d = fileColumnStatistics(parquetData);
+
+        assertEquals(Optional.of(nanRows + 1.0), d.minValue());
+        assertEquals(Optional.of((double) values.length), d.maxValue());
+    }
+
+    public void testFileBoundsOfTotalOrderColumnOfOnlyNaNAreNaN() throws Exception {
+        double[] values = new double[2400];
+        Arrays.fill(values, Double.NaN);
+        byte[] parquetData = createDoubleColumnFile(ColumnOrder.ieee754TotalOrder(), values);
+        assertThat("the fixture must span several row groups", rowGroupRowCounts(parquetData).size(), greaterThan(2));
+
+        SourceStatistics.ColumnStatistics d = fileColumnStatistics(parquetData);
+
+        assertEquals(Optional.of(Double.NaN), d.minValue());
+        assertEquals(Optional.of(Double.NaN), d.maxValue());
+    }
+
+    public void testRowGroupBoundsOfOnlyNaNAreServableOnlyUnderTotalOrderAndOneSign() {
+        double negativeNaN = Double.longBitsToDouble(0xfff8000000000000L);
+        float negativeFloatNaN = Float.intBitsToFloat(0xffc00000);
+        PrimitiveType totalOrder = Types.optional(PrimitiveType.PrimitiveTypeName.DOUBLE)
+            .columnOrder(ColumnOrder.ieee754TotalOrder())
+            .named("x");
+        PrimitiveType typeDefined = Types.optional(PrimitiveType.PrimitiveTypeName.DOUBLE)
+            .columnOrder(ColumnOrder.typeDefined())
+            .named("x");
+
+        assertFalse(ParquetFormatReader.isUnservableFloatingBounds(Double.NaN, Double.NaN, totalOrder));
+        assertFalse(ParquetFormatReader.isUnservableFloatingBounds(negativeNaN, negativeNaN, totalOrder));
+        assertFalse(ParquetFormatReader.isUnservableFloatingBounds(Float.NaN, Float.NaN, totalOrder));
+        assertFalse(ParquetFormatReader.isUnservableFloatingBounds(negativeFloatNaN, negativeFloatNaN, totalOrder));
+        assertTrue(ParquetFormatReader.isUnservableFloatingBounds(negativeNaN, Double.NaN, totalOrder));
+        assertTrue(ParquetFormatReader.isUnservableFloatingBounds(negativeFloatNaN, Float.NaN, totalOrder));
+        assertTrue(ParquetFormatReader.isUnservableFloatingBounds(1.0, Double.NaN, totalOrder));
+        assertTrue(ParquetFormatReader.isUnservableFloatingBounds(Double.NaN, 1.0, totalOrder));
+        assertTrue(ParquetFormatReader.isUnservableFloatingBounds(Double.NaN, Double.NaN, typeDefined));
+        assertTrue(ParquetFormatReader.isUnservableFloatingBounds(1.0, Double.NaN, typeDefined));
+        assertFalse(ParquetFormatReader.isUnservableFloatingBounds(1.0, 2.0, totalOrder));
+        assertFalse(ParquetFormatReader.isUnservableFloatingBounds(1.0, 2.0, typeDefined));
+        assertTrue(ParquetFormatReader.isUnservableFloatingBounds(0.0, 2.0, typeDefined));
+        assertFalse(ParquetFormatReader.isUnservableFloatingBounds(0.0, 2.0, totalOrder));
     }
 
     public void testFileBoundsSkipNaNWhenEveryRowGroupHoldsAFiniteValue() throws Exception {

@@ -1927,15 +1927,23 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     Object maxVal = normalizeStatValue(stats.genericGetMax(), pt);
                     if (minVal == null || maxVal == null) {
                         poisonedTemporalStats.add(colName);
-                    } else if (isUnservableFloatingBound(minVal, pt) || isUnservableFloatingBound(maxVal, pt)) {
+                    } else if (isUnservableFloatingBounds(minVal, maxVal, pt)) {
                         poisonedBounds.add(colName);
                     } else {
                         mins.merge(colName, new Comparable[] { (Comparable) minVal }, (a, b) -> {
-                            if (compareStatExtremum(a[0], b[0]) > 0) a[0] = b[0];
+                            if (isNaNBound(a[0])) {
+                                a[0] = b[0];
+                            } else if (isNaNBound(b[0]) == false && compareStatExtremum(a[0], b[0]) > 0) {
+                                a[0] = b[0];
+                            }
                             return a;
                         });
                         maxs.merge(colName, new Comparable[] { (Comparable) maxVal }, (a, b) -> {
-                            if (compareStatExtremum(a[0], b[0]) < 0) a[0] = b[0];
+                            if (isNaNBound(a[0])) {
+                                a[0] = b[0];
+                            } else if (isNaNBound(b[0]) == false && compareStatExtremum(a[0], b[0]) < 0) {
+                                a[0] = b[0];
+                            }
                             return a;
                         });
                     }
@@ -2305,7 +2313,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     // null count so MIN/MAX/COUNT fall back to a scan for this column. Map values may not be
                     // null anyway (Map.copyOf below rejects nulls).
                     stats.remove(SourceStatisticsSerializer.columnNullCountKey(colName));
-                } else if (isUnservableFloatingBound(minVal, pt) == false && isUnservableFloatingBound(maxVal, pt) == false) {
+                } else if (isUnservableFloatingBounds(minVal, maxVal, pt) == false) {
                     stats.put(SourceStatisticsSerializer.columnMinKey(colName), minVal);
                     stats.put(SourceStatisticsSerializer.columnMaxKey(colName), maxVal);
                 }
@@ -2334,6 +2342,31 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             return true;
         }
         return value == 0.0 && isTotalOrder(primitiveType) == false;
+    }
+
+    /**
+     * True when a row group's floating-point footer bounds cannot stand for the scan's {@code MIN}/{@code MAX}. As
+     * {@link #isUnservableFloatingBound} for each bound, except that under {@code IEEE_754_TOTAL_ORDER} a minimum and a
+     * maximum that are both NaN of the same sign describe a row group holding only NaN, which {@code MIN}/{@code MAX}
+     * skip. Such bounds stay servable so that the fold across row groups can pass over them. A NaN on one side only, or
+     * NaN bounds of opposite signs, may hide finite values and are not servable.
+     */
+    static boolean isUnservableFloatingBounds(Object minBound, Object maxBound, PrimitiveType primitiveType) {
+        if (isNaNBound(minBound) && isNaNBound(maxBound) && isTotalOrder(primitiveType)) {
+            return isNegativeNaN(minBound) != isNegativeNaN(maxBound);
+        }
+        return isUnservableFloatingBound(minBound, primitiveType) || isUnservableFloatingBound(maxBound, primitiveType);
+    }
+
+    private static boolean isNaNBound(Object bound) {
+        return (bound instanceof Double d && d.isNaN()) || (bound instanceof Float f && f.isNaN());
+    }
+
+    private static boolean isNegativeNaN(Object nanBound) {
+        if (nanBound instanceof Float f) {
+            return Float.floatToRawIntBits(f) < 0;
+        }
+        return Double.doubleToRawLongBits((Double) nanBound) < 0;
     }
 
     private static boolean isTotalOrder(PrimitiveType primitiveType) {

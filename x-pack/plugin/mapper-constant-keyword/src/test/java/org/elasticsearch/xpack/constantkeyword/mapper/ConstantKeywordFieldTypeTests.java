@@ -156,6 +156,31 @@ public class ConstantKeywordFieldTypeTests extends ConstantFieldTypeTestCase {
         assertEquals(0L, breaker.getUsed());
     }
 
+    /**
+     * The pattern is run against the one value, not compiled into a run automaton first. That is a table with an entry for
+     * every state and every character class of the pattern; for this pattern it would have more entries than an array holds.
+     */
+    public void testPatternIsRunWithoutARunTable() {
+        String pattern = distinctCharacters(33_000);
+        ConstantKeywordFieldType matching = new ConstantKeywordFieldType("f", pattern);
+        ConstantKeywordFieldType other = new ConstantKeywordFieldType("f", "foo");
+
+        assertEquals(Queries.ALL_DOCS_INSTANCE, matching.regexpQuery(pattern, RegExp.ALL, 0, 10_000, null, null));
+        assertEquals(Queries.NO_DOCS_INSTANCE, other.regexpQuery(pattern, RegExp.ALL, 0, 10_000, null, null));
+
+        assertEquals(Queries.ALL_DOCS_INSTANCE, matching.wildcardQuery(pattern, null, false, null));
+        assertEquals(Queries.NO_DOCS_INSTANCE, other.wildcardQuery(pattern, null, false, null));
+    }
+
+    /** {@code count} characters that are neither adjacent nor special in a pattern, so each is a character class of its own. */
+    private static String distinctCharacters(int count) {
+        StringBuilder characters = new StringBuilder(2 * count);
+        for (int i = 0; i < count; i++) {
+            characters.appendCodePoint(0x10000 + 2 * i);
+        }
+        return characters.toString();
+    }
+
     public void testFetchValue() throws Exception {
         MappedFieldType fieldType = new ConstantKeywordFieldMapper.ConstantKeywordFieldType("field", null);
         ValueFetcher fetcher = fieldType.valueFetcher(null, null);

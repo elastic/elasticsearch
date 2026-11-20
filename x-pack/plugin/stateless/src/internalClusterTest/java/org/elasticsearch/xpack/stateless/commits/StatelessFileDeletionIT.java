@@ -1110,6 +1110,14 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         verifyBlobDeletionDeferredDuringRelocation(true);
     }
 
+    @TestIssueLogging(
+        issueUrl = "https://github.com/elastic/elasticsearch/issues/166242",
+        value = "org.elasticsearch.xpack.stateless.commits.StatelessCommitService:TRACE,"
+            + "org.elasticsearch.xpack.stateless.commits.StatelessCommitCleaner:DEBUG,"
+            + "org.elasticsearch.xpack.stateless.cluster.coordination.StatelessClusterConsistencyService:DEBUG,"
+            + "org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService:DEBUG,"
+            + "org.elasticsearch.xpack.stateless.engine.IndexEngine:TRACE"
+    )
     public void testBlobsNotDeletedDuringFailedRelocation() throws Exception {
         verifyBlobDeletionDeferredDuringRelocation(false);
     }
@@ -1197,8 +1205,19 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         safeAwait(handOffStarted);
 
         // Step 4: Release local readers of old commits while the shard is RELOCATING. Commits deletion should be deferred.
+        // The engine's own readers share this tracker with the mock readers. One that still references a pre-merge BCC keeps that blob
+        // alive after the mock readers are released, so log what every open reader references (see #166242).
+        logger.info(
+            "--> BCCs referenced by open local readers before releasing the [{}] mock readers: {}",
+            readers.size(),
+            shardLocalReadersTracker.getOpenReaders().values()
+        );
         logger.info("--> releasing local readers of old commits");
         readers.forEach(shardLocalReadersTracker::onLocalReaderClosed);
+        logger.info(
+            "--> BCCs referenced by open local readers after releasing the mock readers: {}",
+            shardLocalReadersTracker.getOpenReaders().values()
+        );
         final Set<String> bccBlobsAfterReleasingLocalReaders = listBccBlobNames(shardCommitsContainer);
         logger.info("--> BCC blobs after releasing local readers: {}", bccBlobsAfterReleasingLocalReaders);
         assertThat(bccBlobsAfterReleasingLocalReaders, hasItems(bccBlobsBeforeMerge.toArray(new String[0])));
@@ -1218,14 +1237,25 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
             );
         } else {
             // The old primary reprocesses deferred stale blob deletions on failed relocation and deletes old commits
-            assertBusy(() -> {
-                final var remaining = listBccBlobNames(shardCommitsContainer);
-                assertThat(
-                    remaining + " still contains some of " + bccBlobsBeforeMerge,
-                    Sets.intersection(remaining, bccBlobsBeforeMerge),
-                    empty()
+            try {
+                assertBusy(() -> {
+                    final var remaining = listBccBlobNames(shardCommitsContainer);
+                    assertThat(
+                        remaining + " still contains some of " + bccBlobsBeforeMerge,
+                        Sets.intersection(remaining, bccBlobsBeforeMerge),
+                        empty()
+                    );
+                });
+            } catch (AssertionError e) {
+                // Report which reference still holds each surviving blob before failing. A blob that is still in the object store but
+                // no longer in the index node view has been released and is stuck in the delete path instead (see #166242).
+                logger.info(
+                    "--> BCCs referenced by open local readers after the failed relocation: {}",
+                    shardLocalReadersTracker.getOpenReaders().values()
                 );
-            });
+                logBlobRetention("after the failed relocation", commitService, indexShard.shardId(), shardCommitsContainer);
+                throw e;
+            }
         }
 
         assertHitCount(prepareSearch(indexName).setQuery(matchAllQuery()), totalDocs);

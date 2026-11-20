@@ -828,15 +828,17 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             // split says "within a split" over an ordinal that is in fact the file's: a weaker statement than
             // the truth, never a wrong one.
             //
-            // The other cell they disagree in is firstSplit=false with splitStartByte==0, where CsvFormatReader
-            // withholds and this does not. The byte printed there is splitStartByte plus whatever skipFirstLine
-            // discarded, which the iterator folds into the decoder's message offset -- the file-global start of
-            // the first full record, so it is accurate, and sharper than CSV's, because a split beginning at
-            // byte zero IS the file's own start. The divergence therefore costs a weaker message in one cell and
-            // buys a stronger one in the other, and neither reader states a byte it does not mean. Unifying the
-            // two means giving NdJsonPageIterator the same long messageStartByte CsvBatchIterator takes instead
-            // of this boolean, which changes that constructor's contract; it is sized with the rest of the
-            // row-ordinal work rather than carried here, since no message is wrong without it.
+            // The other cell they disagree in, firstSplit=false with splitStartByte==0, is unreachable, so the
+            // divergence costs only the weaker message above. AsyncExternalSourceOperatorFactory derives both
+            // from one FileSplit -- firstSplit from FileSplitProvider.isFirstInFile, whose body is
+            // ("true".equals(config.get(FIRST_SPLIT_KEY)) || split.offset() == 0), and splitStartByte from
+            // split.offset() -- so a split that is not the file's first has a non-zero offset, and the parallel
+            // coordinators are handed that same pair. Were it ever produced, this would print splitStartByte plus
+            // whatever skipFirstLine discarded, the file-global start of the first whole record, which is
+            // accurate; the invariant is the producer's, and the expression is written so that breaking it costs
+            // nothing here. Unifying the two readers means giving NdJsonPageIterator the same long
+            // messageStartByte CsvBatchIterator takes instead of this boolean, which changes that constructor's
+            // contract; it is sized with the rest of the row-ordinal work rather than carried here.
             context.recordAligned() == false && context.splitStartByte() != 0L,
             context.readCounters() instanceof NdJsonReaderCounters c ? c : null,
             context.splitStartByte(),

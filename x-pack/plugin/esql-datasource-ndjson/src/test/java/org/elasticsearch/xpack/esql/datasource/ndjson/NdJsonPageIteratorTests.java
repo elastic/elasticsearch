@@ -555,6 +555,13 @@ public class NdJsonPageIteratorTests extends ESTestCase {
      * objects in one glob that each lose an oversized line report it once between them and the second is silently
      * dropped. A {@code containsString} on the byte count would pass with the clause gone again, which is the
      * regression the clause exists to prevent.
+     * <p>
+     * What it does not fix is two splits of the SAME object discarding the same number of bytes: this message
+     * carries neither an ordinal nor a byte, so those two still collapse into one. The byte is absent on purpose
+     * rather than by omission — {@code NdJsonFormatReader} arms this stream only where {@code recordAligned} is
+     * false, which is also where the decoder withholds its message start byte as a compressed-axis offset, so a
+     * byte here would be the very one the rest of this change withholds. Telling those two apart needs the
+     * decompressed position, which this stream is not given.
      */
     public void testTheDiscardWarningNamesTheObject() throws IOException {
         int maxRecordBytes = 8;

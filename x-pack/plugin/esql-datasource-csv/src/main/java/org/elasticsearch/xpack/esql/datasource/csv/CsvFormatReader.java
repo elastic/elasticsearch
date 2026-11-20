@@ -1728,14 +1728,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
             String headerLine = consumeHeaderLine(recordReader);
             if (headerLine == null) {
-                // Names the format the user asked for, not the reader's class — see displayName.
-                // Includes the object name when known so the user can identify which file in a glob caused the error.
-                throw new IOException(
-                    displayName(format)
-                        + " file"
-                        + RowLocation.objectClause("", sourceLocation)
-                        + " has no schema line: the object is empty or contains only comments"
-                );
+                throw noSchemaLineError(format, sourceLocation);
             }
             List<Attribute> typedSchema = parseSchema(headerLine);
             if (typedSchema != null) {
@@ -1831,7 +1824,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         );
         try {
             if (sample.rows().isEmpty()) {
-                throw new IOException(displayName(format) + " file" + RowLocation.objectClause("", sourceLocation) + " has no data rows");
+                throw noDataRowsError(format, sourceLocation);
             }
             maybeHintUndecodedNullMarker(sample.rows(), sourceLocation, warningSink);
             int columns = syntheticColumnCount(sample.rows());
@@ -1959,10 +1952,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * Infers a schema for a headerless sample, naming columns from {@code prefix}: counts the widest
      * sample row, synthesizes the names, and runs type inference. Pure on its inputs — does not touch
      * the circuit breaker. Both call sites must guarantee {@code sampleRows} is non-empty, and they
-     * answer an empty sample differently rather than sharing one contract: metadata inference throws
-     * the user-facing "&lt;format&gt; file [object] has no data rows" {@link IOException}, while the
-     * read path releases the sample and returns {@code null}, which ends the batch with no error
-     * because an empty split is not one. The assertion here is only a programmer-error guard.
+     * answer an empty sample differently rather than sharing one contract: metadata inference raises
+     * {@link #noDataRowsError}, while the read path releases the sample and returns {@code null}, which
+     * ends the batch with no error because an empty split is not one. The assertion here is only a
+     * programmer-error guard.
      */
     static List<Attribute> inferSyntheticSchema(
         List<String[]> sampleRows,
@@ -2344,8 +2337,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * {@code ExternalFailures.forwardableDetail} has passed the whole message through its storage-path guard,
      * and that guard matches a bare storage host anywhere in the text — so once this message names the object,
      * an object legitimately called {@code logs.amazonaws.com.csv} loses the whole sentence, the remedy with
-     * it. An {@link ExternalClientException} is returned whole by that path instead, which is why its five
-     * schema-path siblings already use it.
+     * it. An {@link ExternalClientException} is returned whole by that path instead, which is why every one of
+     * its six schema-path siblings uses it — {@code testEverySchemaPathFailureNamesTheObject} walks the set.
      * <p>
      * It does not make the name safe everywhere, and nothing here does. The same predicate is an assertion
      * inside {@code ExternalFailures.classify}, which walks the chain and tests every message including the
@@ -2366,6 +2359,41 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 + "] before reading a complete record; declare a schema"
         );
         return limitEx;
+    }
+
+    /**
+     * The refusal for an object a headerless read finds no data rows in.
+     * <p>
+     * Typed for the reason {@link #sampleLimitError} sets out, and it applies the moment the message names the
+     * object: these two were the last schema-path refusals raised as plain {@link IOException}s, which
+     * {@code FileSourceFactory.resolveMetadata} catches and re-raises as an untyped
+     * {@link IllegalArgumentException}. The resolver forwards one of those only if the storage-path guard
+     * passes the whole text, so an object legitimately called {@code logs.amazonaws.com.csv} was answered
+     * {@code Failed to resolve external source [logs.amazonaws.com.csv] (IllegalArgumentException)} with the
+     * diagnosis gone — and gone to protect a basename the very next clause prints anyway.
+     */
+    private static ExternalClientException noDataRowsError(String format, String sourceLocation) {
+        ExternalClientException noRows = new ExternalClientException(ExternalException.Condition.MALFORMED_DATA, StoragePath.NONE, "", "");
+        noRows.setDetail(displayName(format) + " file" + RowLocation.objectClause("", sourceLocation) + " has no data rows");
+        return noRows;
+    }
+
+    /** The headed sibling of {@link #noDataRowsError}, typed for the same reason. */
+    private static ExternalClientException noSchemaLineError(String format, String sourceLocation) {
+        ExternalClientException noHeader = new ExternalClientException(
+            ExternalException.Condition.MALFORMED_DATA,
+            StoragePath.NONE,
+            "",
+            ""
+        );
+        // Names the format the user asked for, not the reader's class — see displayName.
+        noHeader.setDetail(
+            displayName(format)
+                + " file"
+                + RowLocation.objectClause("", sourceLocation)
+                + " has no schema line: the object is empty or contains only comments"
+        );
+        return noHeader;
     }
 
     private static ExternalClientException failFastSamplingError(long row, Throwable cause, String format, String sourceLocation) {

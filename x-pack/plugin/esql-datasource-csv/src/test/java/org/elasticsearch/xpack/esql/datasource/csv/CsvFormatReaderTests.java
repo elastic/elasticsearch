@@ -6553,11 +6553,17 @@ public class CsvFormatReaderTests extends ESTestCase {
      */
     public void testEverySchemaPathFailureNamesTheObject() {
         CsvFormatReader headerless = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false));
-        IOException noRows = expectThrows(IOException.class, () -> headerless.schema(createStorageObject("", "sales-2026.csv")));
+        ExternalClientException noRows = expectThrows(
+            ExternalClientException.class,
+            () -> headerless.schema(createStorageObject("", "sales-2026.csv"))
+        );
         assertThat(noRows.getMessage(), containsString("file [sales-2026.csv] has no data rows"));
 
         CsvFormatReader headed = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true));
-        IOException noHeader = expectThrows(IOException.class, () -> headed.schema(createStorageObject("", "events.csv")));
+        ExternalClientException noHeader = expectThrows(
+            ExternalClientException.class,
+            () -> headed.schema(createStorageObject("", "events.csv"))
+        );
         assertThat(noHeader.getMessage(), containsString("file [events.csv] has no schema line"));
 
         String alwaysMalformed = unterminatedRows(CsvFormatReader.MAX_CONSECUTIVE_SAMPLING_FAILURES + 4);
@@ -6665,6 +6671,39 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertThat(onTheReadPath.getMessage(), containsString("storage path leaked in ExternalException"));
     }
 
+    /**
+     * The empty-object diagnosis survives an object named after a storage host, which is why it is typed. Naming
+     * the object in this message is what put a user-chosen string into it; raised as a plain {@link IOException}
+     * it reached the user as {@code Failed to resolve external source [logs.amazonaws.com.csv]
+     * (IllegalArgumentException)} with the sentence gone, because {@code FileSourceFactory} re-raises an
+     * {@link IOException} untyped and the resolver forwards an untyped message only past the storage-path guard.
+     * The type is the whole fix: {@code ExternalSourceResolver} unwraps an {@link ExternalClientException} before
+     * that arm and returns it as it stands. {@link CsvFormatReader#sampleLimitError} carries the reasoning.
+     */
+    public void testTheEmptyObjectDiagnosisSurvivesAStorageHostName() {
+        CsvFormatReader headerless = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false));
+        ExternalClientException noRows = expectThrows(
+            ExternalClientException.class,
+            () -> headerless.schema(createStorageObject("", "logs.amazonaws.com.csv"))
+        );
+        assertThat(noRows.getMessage(), containsString("file [logs.amazonaws.com.csv] has no data rows"));
+
+        CsvFormatReader headed = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true));
+        ExternalClientException noHeader = expectThrows(
+            ExternalClientException.class,
+            () -> headed.schema(createStorageObject("", "logs.amazonaws.com.csv"))
+        );
+        assertThat(noHeader.getMessage(), containsString("file [logs.amazonaws.com.csv] has no schema line"));
+
+        // What each would have cost the user untyped: the sentence, whole, with nothing in its place.
+        for (ExternalClientException refusal : List.of(noRows, noHeader)) {
+            assertNull(
+                "an object the user is entitled to name this way must not cost them the diagnosis",
+                ExternalFailures.forwardableDetail(new IllegalArgumentException(refusal.getMessage()))
+            );
+        }
+    }
+
     /** Rows that every CSV parse fails on, for the sampling paths that need a file they cannot read. */
     private static String unterminatedRows(long count) {
         StringBuilder csv = new StringBuilder();
@@ -6692,16 +6731,16 @@ public class CsvFormatReaderTests extends ESTestCase {
         StorageObject object = createStorageObject("");
         CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false));
 
-        IOException ex = expectThrows(IOException.class, () -> reader.schema(object));
+        ExternalClientException ex = expectThrows(ExternalClientException.class, () -> reader.schema(object));
         assertThat(ex.getMessage().toLowerCase(Locale.ROOT), Matchers.containsString("no data rows"));
     }
 
     public void testHeaderlessCommentsOnlyInputThrows() {
-        // Filtered by comment prefix so no data rows remain — must surface the same clean IOException.
+        // Filtered by comment prefix so no data rows remain — must surface the same clean refusal.
         StorageObject object = createStorageObject("// only comments\n// another\n");
         CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false));
 
-        IOException ex = expectThrows(IOException.class, () -> reader.schema(object));
+        ExternalClientException ex = expectThrows(ExternalClientException.class, () -> reader.schema(object));
         assertThat(ex.getMessage().toLowerCase(Locale.ROOT), Matchers.containsString("no data rows"));
     }
 
@@ -6904,7 +6943,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             Map.of("skip_rows", CsvFormatReader.SKIP_ROWS_MAX)
         );
         // Cap is accepted at parse time; applying it to a short file exhausts the file before a header.
-        IOException ex = expectThrows(IOException.class, () -> reader.schema(createStorageObject("id:long\n1\n")));
+        ExternalClientException ex = expectThrows(ExternalClientException.class, () -> reader.schema(createStorageObject("id:long\n1\n")));
         assertThat(ex.getMessage(), Matchers.containsString("no schema line"));
     }
 
@@ -6912,7 +6951,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         String csv = "only one content line\n";
         StorageObject object = createStorageObject(csv);
         CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("skip_rows", 2, "header_row", true));
-        IOException ex = expectThrows(IOException.class, () -> reader.schema(object));
+        ExternalClientException ex = expectThrows(ExternalClientException.class, () -> reader.schema(object));
         assertThat(ex.getMessage(), Matchers.containsString("no schema line"));
     }
 

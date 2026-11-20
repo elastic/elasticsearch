@@ -419,10 +419,13 @@ final class NdJsonPageIterator extends BufferingPageIterator {
                 // under-counted partial result is never published to the stats cache. The decoder has
                 // already emitted the client-facing partial-results warning.
                 if (pageDecoder.truncated()) {
+                    // The field itself keys stats and stays verbatim; what goes to the log layout is escaped,
+                    // because a key holding a newline would otherwise forge a second log line here exactly as
+                    // it would in the row clause.
                     logger.warn(
                         "Record at byte [{}] in [{}] exceeds the record limit; results are partial",
                         pageDecoder.truncatedAtByte(),
-                        sourceLocation
+                        RowLocation.escapedForDisplay(sourceLocation)
                     );
                 } else {
                     naturallyExhausted = true;

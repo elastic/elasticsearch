@@ -52,6 +52,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.not;
 
 /**
@@ -346,7 +347,7 @@ public class NdJsonFormatReaderTests extends ESTestCase {
         // at all, having no failing NDJSON probe.
         //
         // Such a probe is not out of reach, only unwritten: the budget has no dataset setting to lower it, so over a
-        // single object it needs a first line past the 32 MB default, but schema inference divides the budget across
+        // single object it needs a first line past the 32 MiB default, but schema inference divides the budget across
         // the files of a glob down to a floor of MIN_SHARED_SCHEMA_SAMPLE_BYTES (1 MiB), which a far smaller fixture
         // clears. Either way nothing on the surface watches this condition today, which is why the move it made had
         // to be caught by reading.
@@ -559,29 +560,74 @@ public class NdJsonFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * The widening warning prints the source location inside a bracket, and schema inference takes that
-     * location straight from the store, so it is subject to the same two hazards as any other displayed
-     * name: unbounded width in a response header, and a bracket that closes its own field and renders as
-     * another object's clause, which {@code InformationalWarningBudget} then deduplicates away. CSV's
-     * schema path was routed through {@link RowLocation#displayObjectName} and this one was not, so the
-     * asymmetry is pinned on both readers rather than left to the next reader to notice. What the two
-     * readers still name differently -- CSV the object, this one the redacted location -- is deliberate and
-     * recorded on {@code displayObjectName}.
+     * Two objects of one glob whose locations differ only between the head and the tail a width cap would
+     * keep. The widening warning is the whole deduplication key on both sinks -- the coordinator's
+     * {@code NoticeBuffer} and the read path's {@code InformationalWarningBudget} both drop an exact repeat
+     * -- so reducing the location to a fixed width deletes the second object's warning outright rather than
+     * shortening it. The location is the one thing telling these two apart: they share a basename, which is
+     * the collision {@code displayObjectName} already accepts and the prefix exists to resolve.
      */
-    public void testSchemaWideningWarningCapsAndEscapesTheLocation() throws IOException {
+    public void testTwoObjectsOfAGlobKeepDistinctWideningWarnings() throws IOException {
+        byte[] bytes = "{\"a\":1}\n{\"a\":2}\n{\"a\":\"oops\"}\n".getBytes(StandardCharsets.UTF_8);
+        String east = "s3://acme-prod-logs/region=us-east-1/svc=checkout/part-00000.ndjson";
+        String west = "s3://acme-prod-logs/region=us-west-2/svc=checkout/part-00000.ndjson";
+
+        NdJsonFormatReader reader = new NdJsonFormatReader(null, blockFactory);
+        String eastWarning = String.join(" ", reader.metadata(new LocatedBytesObject(bytes, east)).warnings());
+        String westWarning = String.join(" ", reader.metadata(new LocatedBytesObject(bytes, west)).warnings());
+
+        assertThat("the east object's warning must name it", eastWarning, containsString("us-east-1"));
+        assertThat("the west object's warning must name it", westWarning, containsString("us-west-2"));
+        assertThat(
+            "two objects of one glob must not reduce to one warning, or the second is deduplicated away",
+            eastWarning,
+            not(equalTo(westWarning))
+        );
+    }
+
+    /**
+     * The widening warning prints the source location inside a bracket and schema inference takes it straight
+     * from the store, so a key holding a bracket closes its own field and renders as another object's clause,
+     * which the deduplication then collapses into one warning. The escape closes that. The width cap does not
+     * come with it -- see {@link RowLocation#escapedForDisplay} and the glob case above, which a cap would break.
+     */
+    /**
+     * The column name is printed first inside the same bracketed sentence as the location, and an NDJSON field
+     * name is an arbitrary JSON key taken verbatim from the data. So escaping only the location would leave the
+     * sentence forgeable by whoever writes the file: a key can spell a complete second detail line, which the
+     * exact-string deduplication then collapses against a real one.
+     */
+    public void testAFieldNameCannotForgeTheWideningDetail() throws IOException {
+        String hostileField = "x] at sample record [1] of [victim.ndjson]: value [0] forced type [keyword] (was [long]";
+        String json = "{\"" + hostileField + "\":1}\n{\"" + hostileField + "\":2}\n{\"" + hostileField + "\":\"oops\"}\n";
+        SourceMetadata metadata = new NdJsonFormatReader(null, blockFactory).metadata(
+            new LocatedBytesObject(json.getBytes(StandardCharsets.UTF_8), "mem://bucket/real.ndjson")
+        );
+
+        String joined = String.join(" ", metadata.warnings());
+        assertFalse("the field must widen, or this test asserts nothing", metadata.warnings().isEmpty());
+        assertThat("the field name is escaped where it is printed", joined, containsString(RowLocation.escapedForDisplay(hostileField)));
+        assertThat("so it cannot close its own bracket", joined, not(containsString("[" + hostileField + "]")));
+        assertThat("and cannot forge another object's clause", joined, not(containsString("of [victim.ndjson]")));
+    }
+
+    public void testSchemaWideningWarningEscapesTheLocationWithoutCuttingIt() throws IOException {
         byte[] bytes = "{\"a\":1}\n{\"a\":2}\n{\"a\":\"oops\"}\n".getBytes(StandardCharsets.UTF_8);
         HostileNameBytesObject object = new HostileNameBytesObject(bytes);
         SourceMetadata metadata = new NdJsonFormatReader(null, blockFactory).metadata(object);
 
         String rawLocation = object.path().toString();
-        String token = RowLocation.displayObjectName(rawLocation);
-        assertThat("the location is reduced, or this test is not exercising the cap", token, not(equalTo(rawLocation)));
-        assertThat("and the bracket is escaped, or it is not exercising the escape", token, containsString("\\u005D"));
+        String token = RowLocation.escapedForDisplay(rawLocation);
+        assertThat("the bracket is escaped, or this test is not exercising the escape", token, containsString("\\u005D"));
+        assertThat(
+            "and the location is kept whole, which is the contract a cap would break",
+            token.length(),
+            greaterThan(RowLocation.MAX_OBJECT_NAME_CHARS)
+        );
 
         String joined = String.join(" ", metadata.warnings());
         assertFalse("a field type disagreement must be reported as a warning", metadata.warnings().isEmpty());
-        assertThat("the widening warning carries the reduced location", joined, containsString("[" + token + "]"));
-        assertThat("and never the raw one", joined, not(containsString(rawLocation)));
+        assertThat("the widening warning carries the escaped location", joined, containsString("[" + token + "]"));
         assertThat("so a name cannot close its own bracket", joined, not(containsString("a]b")));
     }
 
@@ -893,6 +939,21 @@ public class NdJsonFormatReaderTests extends ESTestCase {
         @Override
         public StoragePath path() {
             return StoragePath.of("mem://bucket/wide-first-line.ndjson");
+        }
+    }
+
+    /** A fixture whose whole location the caller chooses, for the glob-distinctness cases. */
+    private static final class LocatedBytesObject extends BytesObject {
+        private final String location;
+
+        LocatedBytesObject(byte[] bytes, String location) {
+            super(bytes);
+            this.location = location;
+        }
+
+        @Override
+        public StoragePath path() {
+            return StoragePath.of(location);
         }
     }
 

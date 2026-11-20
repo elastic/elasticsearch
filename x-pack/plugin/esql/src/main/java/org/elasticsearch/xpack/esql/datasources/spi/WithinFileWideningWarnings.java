@@ -44,8 +44,11 @@ public final class WithinFileWideningWarnings {
         SkipWarnings keywordWarnings = null;
         SkipWarnings precisionWarnings = null;
         for (WidenedColumn widened : widenedColumns) {
+            // The column name is store-supplied too -- an NDJSON field name is an arbitrary JSON key -- and it is
+            // printed first inside this same bracketed sentence, so leaving it raw would let it forge the whole
+            // detail that follows and defeat the escape applied to the location.
             String detail = "column ["
-                + widened.columnName()
+                + RowLocation.escapedForDisplay(widened.columnName())
                 + "] at sample "
                 + sampleUnitNoun
                 + " ["

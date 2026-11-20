@@ -346,8 +346,8 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
      * alone. A client matching a whole reason string sees a different one; a client reading the diagnosis inside it
      * does not. This map pins the type, and no map here pins the reason -- the reason is held only to the invariants
      * above, which refuse a collision between conditions and a JVM type name, and a prefix breaks neither.
-     * They read {@code illegal_argument_exception} because
-     * the refusal behind them was a bare {@code IOException}, which {@code FileSourceFactory} re-raises
+     * They used to read {@code illegal_argument_exception}, and this same change is what moved them: the refusal
+     * behind them was a bare {@code IOException}, which {@code FileSourceFactory} re-raised
      * untyped; the resolver forwards an untyped message only past its storage-path guard, so an object a user is
      * entitled to call {@code logs.amazonaws.com.csv} lost the whole diagnosis to a substring match on a basename
      * the replacement message prints anyway. Typing them lines them up with the CSV reader's other refusals, not

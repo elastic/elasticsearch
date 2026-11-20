@@ -12518,6 +12518,35 @@ public class CsvFormatReaderTests extends ESTestCase {
      * is withheld. The clause still has to say that the ordinal was counted inside a split, because the wording
      * left over otherwise is the wording of a read from byte zero, whose ordinal IS the file's.
      */
+    /**
+     * The byte expression's first arm asks whether this is the file's own first split, not whether the offset is
+     * zero. Every other fixture here sets both together, so swapping one for the other reddens nothing and the
+     * arm is pinned by luck. Production cannot currently produce the disagreeing cell -- {@code
+     * FileSplitProvider.isFirstInFile} calls an offset-zero split the first one -- but the reader's expression
+     * is what this file is pinning, so the cell is built directly: first split, non-zero offset. A byte counted
+     * from the file's start is zero whatever the split's offset says.
+     */
+    public void testTheFirstSplitCountsFromZeroEvenAtANonZeroOffset() throws IOException {
+        List<Attribute> schema = splitSchema();
+        FormatReadContext ctx = FormatReadContext.builder()
+            .batchSize(10)
+            .errorPolicy(new ErrorPolicy(100, true))
+            .firstSplit(true)
+            .lastSplit(true)
+            .recordAligned(true)
+            .splitStartByte(4096L)
+            .readSchema(schema)
+            .fileHeaderColumns(List.of("id", "name"))
+            .build();
+        String detail = soleDetailWarning(
+            new CsvFormatReader(blockFactory).withSchema(schema),
+            createStorageObject("id,name\nbad_id,Carol\n4,Dan\n"),
+            ctx
+        );
+        assertThat("the file's first split counts from zero, so no byte clause is printed", detail, not(containsString("byte [4096]")));
+        assertThat("and it is not reported as counted inside a split", detail, not(containsString("counted within a split")));
+    }
+
     public void testABlockAlignedSplitWithholdsTheByteAndSaysSo() throws IOException {
         List<Attribute> schema = splitSchema();
         FormatReadContext ctx = FormatReadContext.builder()

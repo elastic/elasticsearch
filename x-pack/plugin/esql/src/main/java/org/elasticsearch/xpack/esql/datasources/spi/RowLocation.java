@@ -162,15 +162,40 @@ public final class RowLocation {
      * {@link ErrorExcerpts#summarize}, without its character count: the count tells a user how much of a VALUE
      * they cannot see, which is actionable, whereas the length of a key they chose is not.
      * <p>
-     * Takes a whole source location as readily as one name, which is what the NDJSON schema-inference widening
-     * warnings hand it: both are store-supplied text printed inside a bracket, so both can forge the structure
-     * around them and both are unbounded in width. What a caller passes is left to the caller, and the two
-     * readers deliberately differ -- CSV names the object, NDJSON the redacted location -- because a folder of
-     * objects sharing a basename is the collision this cannot resolve, so dropping NDJSON's prefix to match CSV
-     * would spend real information to buy symmetry.
+     * For a bare object name only. A whole location goes through {@link #escapedForDisplay} instead, which escapes
+     * without capping, because the cap's accepted collision is the wrong trade there.
      */
     public static String displayObjectName(String objectName) {
         return objectName == null ? "" : shorten(objectName);
+    }
+
+    /**
+     * The escape alone, for store-supplied text that is about to be printed inside brackets, and deliberately
+     * no cap. A whole source location is the main caller; a column name is the other.
+     * <p>
+     * {@link #displayObjectName} accepts that two names agreeing on the kept head and tail reduce to one token,
+     * because the alternative is an unbounded name in a response header and because the names it reduces are
+     * already ambiguous: a folder of objects sharing a basename collides through {@link StoragePath#objectName()}
+     * before any cap applies. A location is the string that RESOLVES that collision, so capping it destroys the
+     * one distinction it was being printed for. The discriminating segment of a path sits wherever the layout
+     * puts it -- a region, a date, a partition key -- which is to say inside the window a fixed-width cut
+     * removes, and the warning text is itself the deduplication key on both sinks, so the collision is not a
+     * shortened message but a deleted one. {@code NdJsonFormatReaderTests} pins a glob of two objects whose
+     * locations differ only there.
+     * <p>
+     * What this does not buy is a bound on width, and that is the honest cost: a key may be any length a store
+     * permits, so a location in a response header is as long as the store made it. The escape is the half that
+     * closes a defect -- a name cannot forge the bracket structure around it either way -- while the cap only
+     * ever traded width for ambiguity, which is a trade worth making for a name and not for a location.
+     * <p>
+     * The cost, which is real and accepted: a location whose authority is an IPv6 literal carries brackets the
+     * URI grammar contributed rather than the key, and they are escaped too, so {@code https://[2001:db8::1]/b/x}
+     * renders ten characters wider. Once a location is one string those brackets are the same characters a key
+     * can spell, so telling them apart means trusting a parse of the very text this is protecting; the address
+     * stays legible escaped, and an unescaped prefix would reopen the forgery for a container name.
+     */
+    public static String escapedForDisplay(String storeSuppliedText) {
+        return storeSuppliedText == null ? "" : escapeImpersonatingCharacters(storeSuppliedText);
     }
 
     private static String shorten(String objectName) {
@@ -202,11 +227,18 @@ public final class RowLocation {
      * ANYWHERE in a Java source file, comments included, so writing one here would have the compiler substitute
      * the character it names before anyone could read about it. Two such characters, for two different channels.
      * <p>
-     * A control character, because this clause is the one piece of a name that reaches the node log: the readers
-     * hand the whole rendered location to the node log beside the client warning, so the operator reading the log
-     * and the user reading the response see the same row of the same object. They do not log it at the same level
-     * -- CSV at {@code warn}, NDJSON at {@code info} or {@code debug} by the error policy -- which changes who
-     * sees it by default but not that a name reaching a log layout can forge a line in it. A name is store-supplied
+     * A control character, because this clause reaches the node log: the readers hand the whole rendered location
+     * to the log beside the client warning, so the operator reading the log and the user reading the response see
+     * the same row of the same object. They do not log it at the same level -- CSV at {@code warn}, NDJSON at
+     * {@code info} or {@code debug} by the error policy -- which changes who sees it by default but not that a
+     * name reaching a log layout can forge a line in it.
+     * <p>
+     * This clause is not the only path a store-supplied string takes to that log, and saying so would invite the
+     * next log site to skip the escape. {@code NdJsonPageIterator}'s truncated-record branch logs a location at
+     * {@code warn} and three sites log one at {@code debug}; the first of those now goes through
+     * {@link #escapedForDisplay} for this reason, while the {@code debug} sites are left as they are. What this
+     * class is responsible for is the clause, and any other site printing a store-supplied string owes itself
+     * the same escape. A name is store-supplied
      * text — an S3 key may hold any UTF-8, newline included, and this class's parser keeps the last path segment
      * verbatim — and the console and legacy log layouts write a message as it stands, so an embedded newline
      * would let a key counterfeit a second log line. The response channel is already safe and stays so:
@@ -267,6 +299,6 @@ public final class RowLocation {
      * The column goes after the location so the two kinds of message share a prefix and sort together.
      */
     public static String of(long row, String objectName, long readStartByte, String column) {
-        return of(row, objectName, readStartByte) + ", column [" + column + "]";
+        return of(row, objectName, readStartByte) + ", column [" + escapedForDisplay(column) + "]";
     }
 }

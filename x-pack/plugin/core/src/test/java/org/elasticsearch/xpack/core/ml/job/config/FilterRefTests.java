@@ -21,7 +21,14 @@ public class FilterRefTests extends AbstractXContentSerializingTestCase<FilterRe
 
     @Override
     protected FilterRef mutateInstance(FilterRef instance) {
-        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+        String filterId = instance.getFilterId();
+        FilterRef.FilterType filterType = instance.getFilterType();
+        switch (between(0, 1)) {
+            case 0 -> filterId = randomValueOtherThan(filterId, () -> randomAlphaOfLength(20));
+            case 1 -> filterType = randomValueOtherThan(filterType, () -> randomFrom(FilterRef.FilterType.values()));
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new FilterRef(filterId, filterType);
     }
 
     @Override

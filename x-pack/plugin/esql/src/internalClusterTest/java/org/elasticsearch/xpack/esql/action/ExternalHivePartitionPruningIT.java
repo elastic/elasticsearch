@@ -702,6 +702,28 @@ public class ExternalHivePartitionPruningIT extends AbstractExternalDataSourceIT
     }
 
     /**
+     * An {@code OR} over partition columns narrows the listing to the folders its branches name. The whole filter is one
+     * {@code OR}, so before the extractor read disjunctions no hint reached the listing. With
+     * {@code max_discovered_files} at the four files the {@code OR} needs, a listing that ignored it would see all eight
+     * and fail.
+     */
+    public void testKeyedGlobOrOfPartitionArmsNarrowsTheListing() throws Exception {
+        String dataset = registerKeyedTree("csv_keyed_or", "csv");
+        updateClusterSettings(Settings.builder().put("esql.external.max_discovered_files", 4));
+        try {
+            assertPrune(
+                dataset,
+                "WHERE (year == 2025 AND month == 1) OR (year == 2025 AND month == 6)",
+                TOTAL_FILES,
+                4,
+                idsWhere((y, m, d) -> y == 2025)
+            );
+        } finally {
+            updateClusterSettings(Settings.builder().putNull("esql.external.max_discovered_files"));
+        }
+    }
+
+    /**
      * The listing layer's cardinality guard, end to end. {@code SORT id | LIMIT 4 | WHERE year == 2025} takes the four
      * lowest ids — all from 2024 — and filters them afterwards, so the answer is <b>no rows</b>. If the hint were
      * allowed to rewrite the glob, only 2025's folders would be listed, the limit window would refill from them, and

@@ -183,6 +183,139 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
         assertEquals(Operator.IN, pathHints.get(1).operator());
     }
 
+    public void testOrOnOneColumnBecomesIn() {
+        Expression condition = new Or(SRC, unresolvedEquals("hour", 5), unresolvedEquals("hour", 7));
+        assertEquals(List.of(new PartitionFilterHint("hour", Operator.IN, List.of(5, 7))), hintsOf(condition));
+    }
+
+    /**
+     * Two hours on two different days, the shape ES|QL can only write as an {@code OR}. Each column gets the union of
+     * the values its branches name: a superset of the two hours, but four folders rather than the whole dataset.
+     */
+    public void testOrAcrossColumnsBecomesOneInPerColumn() {
+        Expression condition = new Or(
+            SRC,
+            new And(SRC, unresolvedEquals("day", 17), unresolvedEquals("hour", 23)),
+            new And(SRC, unresolvedEquals("day", 18), unresolvedEquals("hour", 0))
+        );
+        assertEquals(
+            List.of(
+                new PartitionFilterHint("day", Operator.IN, List.of(17, 18)),
+                new PartitionFilterHint("hour", Operator.IN, List.of(23, 0))
+            ),
+            hintsOf(condition)
+        );
+    }
+
+    public void testOrWithOneValueAcrossBranchesKeepsEquals() {
+        Expression condition = new Or(
+            SRC,
+            new And(SRC, unresolvedEquals("day", 18), unresolvedEquals("hour", 5)),
+            new And(SRC, unresolvedEquals("day", 18), unresolvedEquals("hour", 7))
+        );
+        assertEquals(
+            List.of(
+                new PartitionFilterHint("day", Operator.EQUALS, List.of(18)),
+                new PartitionFilterHint("hour", Operator.IN, List.of(5, 7))
+            ),
+            hintsOf(condition)
+        );
+    }
+
+    /** A branch that leaves {@code hour} open can match any hour, so only {@code day} may narrow the listing. */
+    public void testOrColumnOpenInOneBranchGetsNoHint() {
+        Expression condition = new Or(
+            SRC,
+            new And(SRC, unresolvedEquals("day", 17), unresolvedEquals("hour", 23)),
+            unresolvedEquals("day", 18)
+        );
+        assertEquals(List.of(new PartitionFilterHint("day", Operator.IN, List.of(17, 18))), hintsOf(condition));
+    }
+
+    /** No column is pinned by both branches, so nothing may narrow the listing. */
+    public void testOrWithBranchesOnDifferentColumnsEmitsNothing() {
+        Expression condition = new Or(SRC, unresolvedEquals("year", 2025), unresolvedEquals("id", 20240101));
+        assertTrue(PartitionFilterHintExtractor.extract(filterAboveExternal(condition, PATH)).isEmpty());
+    }
+
+    /** A range is not a finite set of folders, so a branch that uses one leaves its column open. */
+    public void testOrWithARangeBranchEmitsNothing() {
+        Expression condition = new Or(SRC, unresolvedEquals("hour", 5), new GreaterThan(SRC, unresolved("hour"), intLiteral(20)));
+        assertTrue(PartitionFilterHintExtractor.extract(filterAboveExternal(condition, PATH)).isEmpty());
+    }
+
+    public void testOrMergesInValuesWithoutDuplicates() {
+        Expression condition = new Or(
+            SRC,
+            new Or(SRC, new In(SRC, unresolved("hour"), List.of(intLiteral(1), intLiteral(2))), unresolvedEquals("hour", 2)),
+            unresolvedEquals("hour", 3)
+        );
+        assertEquals(List.of(new PartitionFilterHint("hour", Operator.IN, List.of(1, 2, 3))), hintsOf(condition));
+    }
+
+    /** A branch is read like a whole condition, so an {@code OR} nested inside a branch contributes its own values. */
+    public void testOrNestedInsideABranch() {
+        Expression condition = new Or(
+            SRC,
+            new And(SRC, unresolvedEquals("day", 17), new Or(SRC, unresolvedEquals("hour", 1), unresolvedEquals("hour", 2))),
+            new And(SRC, unresolvedEquals("day", 18), unresolvedEquals("hour", 3))
+        );
+        assertEquals(
+            List.of(
+                new PartitionFilterHint("day", Operator.IN, List.of(17, 18)),
+                new PartitionFilterHint("hour", Operator.IN, List.of(1, 2, 3))
+            ),
+            hintsOf(condition)
+        );
+    }
+
+    public void testOrNextToOtherConjuncts() {
+        Expression condition = new And(
+            SRC,
+            unresolvedEquals("year", 2026),
+            new Or(SRC, unresolvedEquals("hour", 5), unresolvedEquals("hour", 7))
+        );
+        assertEquals(
+            List.of(
+                new PartitionFilterHint("year", Operator.EQUALS, List.of(2026)),
+                new PartitionFilterHint("hour", Operator.IN, List.of(5, 7))
+            ),
+            hintsOf(condition)
+        );
+    }
+
+    /** {@code hour == 5 AND hour == 6} matches nothing, so that branch adds no values to the union. */
+    public void testOrUnsatisfiableBranchAddsNoValues() {
+        Expression condition = new Or(
+            SRC,
+            new And(SRC, unresolvedEquals("hour", 5), unresolvedEquals("hour", 6)),
+            unresolvedEquals("hour", 7)
+        );
+        assertEquals(List.of(new PartitionFilterHint("hour", Operator.EQUALS, List.of(7))), hintsOf(condition));
+    }
+
+    /** When every branch matches nothing there is no value to list by, and no hint is the safe answer. */
+    public void testOrOfUnsatisfiableBranchesEmitsNothing() {
+        Expression condition = new Or(
+            SRC,
+            new And(SRC, unresolvedEquals("hour", 5), unresolvedEquals("hour", 6)),
+            new And(SRC, unresolvedEquals("hour", 7), unresolvedEquals("hour", 8))
+        );
+        assertTrue(PartitionFilterHintExtractor.extract(filterAboveExternal(condition, PATH)).isEmpty());
+    }
+
+    /** The same {@code OR} yields the same hint in every occurrence, so {@code FORK} branches that share it keep it. */
+    public void testForkBranchesWithTheSameOrKeepTheHint() {
+        UnresolvedExternalRelation rel = externalRelation(PATH);
+        Expression condition = new Or(SRC, unresolvedEquals("hour", 5), unresolvedEquals("hour", 7));
+        LogicalPlan fork = new Fork(SRC, List.of(new Filter(SRC, rel, condition), new Filter(SRC, rel, condition)), List.of());
+
+        assertEquals(
+            List.of(new PartitionFilterHint("hour", Operator.IN, List.of(5, 7))),
+            PartitionFilterHintExtractor.extract(fork).get(PATH)
+        );
+    }
+
     public void testNoFilterReturnsEmpty() {
         UnresolvedExternalRelation rel = new UnresolvedExternalRelation(SRC, Literal.keyword(SRC, "s3://bucket/data/*.parquet"), Map.of());
 
@@ -1057,6 +1190,40 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
         assertTrue(PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(FileMetadataColumns.NAME), Set.of()).isEmpty());
     }
 
+    public void testResolvedOrAcrossPartitionKeysBecomesOneInPerColumn() {
+        Expression filter = new Or(
+            SRC,
+            new And(SRC, new Equals(SRC, intField("day"), intLiteral(17)), new Equals(SRC, intField("hour"), intLiteral(23))),
+            new And(SRC, new Equals(SRC, intField("day"), intLiteral(18)), new Equals(SRC, intField("hour"), intLiteral(0)))
+        );
+        assertEquals(
+            List.of(
+                new PartitionFilterHint("day", Operator.IN, List.of(17, 18)),
+                new PartitionFilterHint("hour", Operator.IN, List.of(23, 0))
+            ),
+            PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(), Set.of("day", "hour"))
+        );
+    }
+
+    /** A data column is not a listing key, so inside a branch it is ignored and the partition key still narrows. */
+    public void testResolvedOrIgnoresDataColumnsInsideBranches() {
+        Expression filter = new Or(
+            SRC,
+            new And(SRC, new Equals(SRC, intField("day"), intLiteral(17)), new Equals(SRC, intField("id"), intLiteral(1))),
+            new And(SRC, new Equals(SRC, intField("day"), intLiteral(18)), new Equals(SRC, intField("id"), intLiteral(2)))
+        );
+        assertEquals(
+            List.of(new PartitionFilterHint("day", Operator.IN, List.of(17, 18))),
+            PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(), Set.of("day"))
+        );
+    }
+
+    /** A branch on a data column alone can match any file, so the {@code OR} must not narrow the listing. */
+    public void testResolvedOrWithADataColumnBranchEmitsNothing() {
+        Expression filter = new Or(SRC, new Equals(SRC, intField("day"), intLiteral(17)), new Equals(SRC, intField("id"), intLiteral(1)));
+        assertTrue(PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(), Set.of("day")).isEmpty());
+    }
+
     public void testResolvedOrOfTwoPrefixesEmitsNothing() {
         // Walking OR would AND two GTE/LT ranges in matchesAllFileHints and drop every file.
         Expression filter = new Or(
@@ -1213,6 +1380,15 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
 
     private static UnresolvedAttribute unresolved(String name) {
         return new UnresolvedAttribute(SRC, name);
+    }
+
+    private static Expression unresolvedEquals(String column, int value) {
+        return new Equals(SRC, unresolved(column), intLiteral(value));
+    }
+
+    /** The hints a single filter over {@link #PATH} yields. */
+    private static List<PartitionFilterHint> hintsOf(Expression condition) {
+        return PartitionFilterHintExtractor.extract(filterAboveExternal(condition, PATH)).get(PATH);
     }
 
     private static FieldAttribute intField(String name) {

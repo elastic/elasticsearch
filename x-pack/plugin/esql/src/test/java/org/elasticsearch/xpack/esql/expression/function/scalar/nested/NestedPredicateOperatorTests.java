@@ -13,9 +13,4 @@ public class NestedPredicateOperatorTests extends NestedPredicateOperatorTestCas
     NestedPredicate predicate() {
         return nested(priceAboveThreshold(), null);
     }
-
-    @Override
-    boolean matches(int parent) {
-        return highestPrice(parent) > THRESHOLD;
-    }
 }

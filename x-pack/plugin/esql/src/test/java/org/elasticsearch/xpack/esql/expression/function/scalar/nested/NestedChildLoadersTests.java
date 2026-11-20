@@ -64,6 +64,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -265,8 +266,8 @@ public class NestedChildLoadersTests extends ComputeTestCase {
             List.of("qty"),
             List.of(DataType.LONG)
         );
-        assertThat(rows.stream().filter(row -> row.get(0).equals(0)).count(), equalTo((long) children));
-        assertThat(rows.stream().filter(row -> row.get(0).equals(1)).count(), equalTo(2L));
+        assertThat(qtysOf(rows, 0), equalTo(LongStream.range(0, children).boxed().toList()));
+        assertThat(qtysOf(rows, 1), equalTo(List.of(0L, 1L)));
     }
 
     public void testStopsReadingAParentsChildrenOnceItNeedsNoMore() throws IOException {
@@ -279,8 +280,12 @@ public class NestedChildLoadersTests extends ComputeTestCase {
             List.of(DataType.LONG),
             read -> read.isEmpty() == false
         );
-        assertThat(rows.stream().filter(row -> row.get(0).equals(0)).count(), equalTo((long) NestedChildren.PAGE_SIZE));
-        assertThat(rows.stream().filter(row -> row.get(0).equals(1)).count(), equalTo(2L));
+        assertThat(qtysOf(rows, 0), equalTo(LongStream.range(0, NestedChildren.PAGE_SIZE).boxed().toList()));
+        assertThat(qtysOf(rows, 1), equalTo(List.of(0L, 1L)));
+    }
+
+    private static List<Long> qtysOf(List<List<Object>> rows, int parent) {
+        return rows.stream().filter(row -> row.get(0).equals(parent)).map(row -> (Long) row.get(1)).toList();
     }
 
     private static String qtyMapping() {

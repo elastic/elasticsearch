@@ -8,14 +8,16 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
 import org.apache.lucene.search.join.ScoreMode;
-import org.elasticsearch.Build;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedPredicate;
@@ -27,82 +29,144 @@ import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
+import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerNestedExpandTests.nestedAnalyzer;
+import static org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedPredicateSerializationTests.analyzedPredicate;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class NestedPredicateLuceneTests extends ESTestCase {
     private static final LucenePushdownPredicates CHILDREN = PushNestedPredicateToSource.childFields(new EsqlFlags(true));
+    private static final String EQUALS_A = "items.sku == \"a\"";
 
-    public void testAQueryableChildTranslatesToANestedQueryThatIsExact() {
+    public void testAQueryableChildTranslatesToAnExactNestedQuery() {
+        NestedPredicate predicate = predicate(EQUALS_A);
+
         PushNestedPredicateToSource.Translation translation = PushNestedPredicateToSource.translate(
-            predicate("items.sku == \"a\""),
+            predicate,
             CHILDREN,
-            stats(Set.of("items.sku"))
+            stats(queryableAsRead(predicate))
         );
-        assertThat(translation, is(notNullValue()));
+
         assertThat(translation.exact(), is(true));
-        assertThat(translation.query(), instanceOf(NestedQueryBuilder.class));
-        NestedQueryBuilder nested = (NestedQueryBuilder) translation.query();
-        assertThat(nested.path(), equalTo("items"));
-        assertThat(nested.scoreMode(), equalTo(ScoreMode.None));
-        assertThat(nested.ignoreUnmapped(), is(true));
+        assertIsTheNestedQueryForSkuA(translation.query());
     }
 
     public void testAChildTheShardsCannotQueryDoesNotTranslate() {
-        assertThat(PushNestedPredicateToSource.translate(predicate("items.sku == \"a\""), CHILDREN, stats(Set.of())), is(nullValue()));
+        assertThat(PushNestedPredicateToSource.translate(predicate(EQUALS_A), CHILDREN, stats(Map.of())), is(nullValue()));
+    }
+
+    public void testAChildQueryableOnlyAsAnotherTypeDoesNotTranslate() {
+        NestedPredicate predicate = predicate(EQUALS_A);
+        Map<String, DataType> asAnotherType = Map.of("items.sku", DataType.INTEGER);
+
+        assertThat(PushNestedPredicateToSource.translate(predicate, CHILDREN, stats(asAnotherType)), is(nullValue()));
     }
 
     public void testAnUntranslatablePredicateDoesNotTranslate() {
         NestedPredicate predicate = predicate("items.qty + 1 > 2");
-        assertThat(PushNestedPredicateToSource.translate(predicate, CHILDREN, stats(Set.of("items.qty"))), is(nullValue()));
+        assertThat(PushNestedPredicateToSource.translate(predicate, CHILDREN, stats(queryableAsRead(predicate))), is(nullValue()));
+    }
+
+    public void testANegatedExactTranslationIsPushedAsMustNot() {
+        NestedPredicate predicate = predicate(EQUALS_A);
+
+        PushNestedPredicateToSource.Pushed pushed = PushNestedPredicateToSource.push(
+            predicate,
+            true,
+            CHILDREN,
+            stats(queryableAsRead(predicate))
+        );
+
+        assertThat(pushed.exact(), is(true));
+        assertThat(pushed.query(), instanceOf(BoolQueryBuilder.class));
+        BoolQueryBuilder negated = (BoolQueryBuilder) pushed.query();
+        assertThat(negated.mustNot(), hasSize(1));
+        assertIsTheNestedQueryForSkuA(negated.mustNot().getFirst());
+        assertThat(negated.must(), is(empty()));
+        assertThat(negated.filter(), is(empty()));
+    }
+
+    public void testAnUnnegatedExactTranslationIsPushedAsTheNestedQuery() {
+        NestedPredicate predicate = predicate(EQUALS_A);
+
+        PushNestedPredicateToSource.Pushed pushed = PushNestedPredicateToSource.push(
+            predicate,
+            false,
+            CHILDREN,
+            stats(queryableAsRead(predicate))
+        );
+
+        assertThat(pushed.exact(), is(true));
+        assertIsTheNestedQueryForSkuA(pushed.query());
+    }
+
+    public void testAPredicateTheShardsCannotQueryIsNotPushed() {
+        assertThat(PushNestedPredicateToSource.push(predicate(EQUALS_A), false, CHILDREN, stats(Map.of())), is(nullValue()));
     }
 
     public void testEvalOfAnExactPredicateIsEvaluatedByLucene() {
-        NestedPredicate predicate = predicate("items.sku == \"a\"");
-        EvalExec eval = eval(predicate);
-
-        PhysicalPlan planned = new EvaluateNestedPredicateInLucene().apply(eval, context(Set.of("items.sku")));
-
-        NestedPredicate lucene = only(planned);
-        assertThat(lucene.queryBuilder(), is(notNullValue()));
-        assertThat(lucene.queryBuilder(), instanceOf(NestedQueryBuilder.class));
+        NestedPredicate predicate = predicate(EQUALS_A);
+        assertEvaluatedByTheNestedQuery(eval(predicate), predicate);
     }
 
     public void testFilterOfAnExactPredicateIsEvaluatedByLucene() {
-        NestedPredicate predicate = predicate("items.sku == \"a\"");
-        FilterExec filter = new FilterExec(Source.EMPTY, source(), predicate);
-
-        PhysicalPlan planned = new EvaluateNestedPredicateInLucene().apply(filter, context(Set.of("items.sku")));
-
-        assertThat(only(planned).queryBuilder(), is(notNullValue()));
+        NestedPredicate predicate = predicate(EQUALS_A);
+        assertEvaluatedByTheNestedQuery(new FilterExec(Source.EMPTY, source(), predicate), predicate);
     }
 
     public void testAPredicateTheShardsCannotQueryIsLeftToTheChildren() {
-        EvalExec eval = eval(predicate("items.sku == \"a\""));
-        assertThat(new EvaluateNestedPredicateInLucene().apply(eval, context(Set.of())), equalTo(eval));
+        EvalExec eval = eval(predicate(EQUALS_A));
+        assertThat(new EvaluateNestedPredicateInLucene().apply(eval, context(Map.of())), equalTo(eval));
     }
 
-    public void testPlanningTwiceChangesNothing() {
-        EvaluateNestedPredicateInLucene rule = new EvaluateNestedPredicateInLucene();
-        LocalPhysicalOptimizerContext context = context(Set.of("items.sku"));
-        PhysicalPlan once = rule.apply(eval(predicate("items.sku == \"a\"")), context);
-        assertThat(rule.apply(once, context), equalTo(once));
+    public void testAPredicateThatAlreadyHasAQueryKeepsIt() {
+        NestedPredicate predicate = predicate(EQUALS_A);
+        QueryBuilder existing = QueryBuilders.matchAllQuery();
+        EvalExec eval = eval(predicate.withQueryBuilder(existing));
+
+        PhysicalPlan planned = new EvaluateNestedPredicateInLucene().apply(eval, context(queryableAsRead(predicate)));
+
+        assertThat(only(planned).queryBuilder(), sameInstance(existing));
+    }
+
+    private static void assertEvaluatedByTheNestedQuery(PhysicalPlan plan, NestedPredicate predicate) {
+        PhysicalPlan planned = new EvaluateNestedPredicateInLucene().apply(plan, context(queryableAsRead(predicate)));
+
+        NestedPredicate lucene = only(planned);
+        assertIsTheNestedQueryForSkuA(lucene.queryBuilder());
+        assertThat(lucene, not(equalTo(predicate)));
+    }
+
+    private static void assertIsTheNestedQueryForSkuA(QueryBuilder query) {
+        assertThat(query, instanceOf(NestedQueryBuilder.class));
+        NestedQueryBuilder nested = (NestedQueryBuilder) query;
+        assertThat(nested.path(), equalTo("items"));
+        assertThat(nested.scoreMode(), equalTo(ScoreMode.None));
+        assertThat(nested.ignoreUnmapped(), is(true));
+        assertThat(nested.boost(), equalTo(Query.NO_SCORE_BOOST));
+        assertThat(nested.query(), instanceOf(SingleValueQuery.Builder.class));
+        SingleValueQuery.Builder child = (SingleValueQuery.Builder) nested.query();
+        assertThat(child.field(), equalTo("items.sku"));
+        assertThat(child.next(), equalTo(QueryBuilders.termQuery("items.sku", "a").boost(Query.NO_SCORE_BOOST)));
     }
 
     private static NestedPredicate only(PhysicalPlan plan) {
         List<NestedPredicate> found = new ArrayList<>();
         plan.forEachExpression(NestedPredicate.class, found::add);
-        assertThat(found.size(), equalTo(1));
+        assertThat(found, hasSize(1));
         return found.getFirst();
     }
 
@@ -114,7 +178,7 @@ public class NestedPredicateLuceneTests extends ESTestCase {
         return new LocalSourceExec(Source.EMPTY, List.of(), EmptyLocalSupplier.EMPTY);
     }
 
-    private static LocalPhysicalOptimizerContext context(Set<String> queryable) {
+    private static LocalPhysicalOptimizerContext context(Map<String, DataType> queryable) {
         return new LocalPhysicalOptimizerContext(
             PlannerSettings.DEFAULTS,
             new EsqlFlags(true),
@@ -124,21 +188,28 @@ public class NestedPredicateLuceneTests extends ESTestCase {
         );
     }
 
-    private static SearchStats stats(Set<String> queryable) {
+    /**
+     * {@link SearchStats} that a real shard answers from its mappings, which this test does not need: only the answer to whether a
+     * child field is queryable as a given type.
+     */
+    private static SearchStats stats(Map<String, DataType> queryable) {
         return new SearchStats.UnsupportedSearchStats() {
             @Override
             public boolean nestedFieldIsQueryable(FieldAttribute.FieldName field, DataType type) {
-                return queryable.contains(field.string());
+                return queryable.get(field.string()) == type;
             }
         };
     }
 
+    private static Map<String, DataType> queryableAsRead(NestedPredicate predicate) {
+        Map<String, DataType> queryable = new HashMap<>();
+        for (int i = 0; i < predicate.inputs().size(); i++) {
+            queryable.put(predicate.fieldNames().get(i), predicate.inputs().get(i).dataType());
+        }
+        return queryable;
+    }
+
     private static NestedPredicate predicate(String body) {
-        assumeTrue("NESTED_ANY is snapshot-only", Build.current().isSnapshot());
-        assumeTrue("NESTED_EXPAND is snapshot-only", EsqlCapabilities.Cap.NESTED_EXPAND.isEnabled());
-        List<NestedPredicate> found = new ArrayList<>();
-        nestedAnalyzer(NestedPredicate.VERSION).query("FROM ne | WHERE NESTED_ANY(" + body + ") | LIMIT 10")
-            .forEachExpressionDown(NestedPredicate.class, found::add);
-        return found.getFirst();
+        return analyzedPredicate("FROM ne | WHERE NESTED_ANY(" + body + ") | LIMIT 10");
     }
 }

@@ -230,8 +230,19 @@ public class AnalyzerNestedAnyTests extends AnalyzerTestCase {
         );
     }
 
-    public void testParentFieldAloneLeavesNoNestedFieldToBind() {
+    public void testParentFieldAloneIsRejected() {
         nestedAnalyzer().error("FROM ne | WHERE NESTED_ANY(id == \"1\")", containsString("Field [id] is outside the nested scope"));
+    }
+
+    public void testPredicateWithoutAnyFieldIsRejected() {
+        nestedAnalyzer().error("FROM ne | WHERE NESTED_ANY(true)", containsString("NESTED_ANY requires a mapped nested field"));
+    }
+
+    public void testCollectionReadAsAValueIsRejected() {
+        nestedAnalyzer().error(
+            "FROM ne | WHERE NESTED_ANY(items IS NOT NULL)",
+            containsString("NESTED_ANY requires a predicate over nested fields, not [items]")
+        );
     }
 
     public void testNameUnderTheNestedPathIsNotAChild() {

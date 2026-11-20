@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedPredicateSerializationTests.analyzedPredicate;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -63,8 +64,8 @@ public class NestedPredicateTests extends ESTestCase {
 
     public void testInputsAreNotReferencesOfTheParentRow() {
         NestedPredicate predicate = analyzedPredicate(QUERY);
-        assertThat(predicate.body().references().isEmpty(), is(false));
-        assertThat(predicate.references().isEmpty(), is(true));
+        assertThat(predicate.body().references(), is(not(empty())));
+        assertThat(predicate.references(), is(empty()));
     }
 
     public void testReplacingTheChildKeepsEveryOtherArgument() {
@@ -79,6 +80,16 @@ public class NestedPredicateTests extends ESTestCase {
         assertThat(replaced.relativePaths(), equalTo(predicate.relativePaths()));
         assertThat(replaced.queryBuilder(), equalTo(predicate.queryBuilder()));
         assertThat(replaced.configuration(), equalTo(predicate.configuration()));
+    }
+
+    public void testAQueryChangesWhatThePredicateEqualsAndHashes() {
+        NestedPredicate predicate = analyzedPredicate(QUERY);
+        NestedPredicate withQuery = predicate.withQueryBuilder(QueryBuilders.matchAllQuery());
+
+        assertThat(withQuery, not(equalTo(predicate)));
+        assertThat(withQuery.hashCode(), not(equalTo(predicate.hashCode())));
+        assertThat(withQuery, equalTo(predicate.withQueryBuilder(QueryBuilders.matchAllQuery())));
+        assertThat(withQuery.hashCode(), equalTo(predicate.withQueryBuilder(QueryBuilders.matchAllQuery()).hashCode()));
     }
 
     public void testRewritingTheChildrenToTheSameExpressionsChangesNothing() {

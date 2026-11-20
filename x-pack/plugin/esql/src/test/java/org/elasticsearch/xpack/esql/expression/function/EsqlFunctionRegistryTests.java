@@ -334,8 +334,7 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.math.AbsSerializationTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.math.AbsTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersectionErrorTests is missing")
-                // TODO: NESTED_ANY is lowered to NestedPredicate during analysis and never evaluated or serialized as itself;
-                // AnalyzerNestedAnyTests and NestedPredicateSerializationTests cover it
+                // NESTED_ANY is lowered to NestedPredicate during analysis and is never evaluated or serialized as itself
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedAnyErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedAnySerializationTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedAnyTests is missing")

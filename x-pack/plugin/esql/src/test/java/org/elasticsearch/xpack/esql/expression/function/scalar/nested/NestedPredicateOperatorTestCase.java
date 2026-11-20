@@ -38,14 +38,16 @@ import static org.hamcrest.Matchers.startsWith;
  * through the inherited tests, so a predicate that leaks a block on a failure is caught.
  */
 abstract class NestedPredicateOperatorTestCase extends NestedIndexOperatorTestCase {
-    static final long THRESHOLD = 5_000L;
+    /** Parent 501 has one child priced exactly this, so a {@code >=} in place of the {@code >} changes its result. */
+    static final long THRESHOLD = 5_010L;
     static final ReferenceAttribute PRICE = new ReferenceAttribute(Source.EMPTY, "items.price", DataType.LONG);
 
     /** The predicate under test, built on the parent page whose block 0 is the parents' documents. */
     abstract NestedPredicate predicate();
 
-    /** Whether parent {@code i} is expected to match. */
-    abstract boolean matches(int parent);
+    static boolean matches(int parent) {
+        return highestPrice(parent) > THRESHOLD;
+    }
 
     static Expression priceAbove(Expression bound) {
         return new GreaterThan(Source.EMPTY, PRICE, bound);

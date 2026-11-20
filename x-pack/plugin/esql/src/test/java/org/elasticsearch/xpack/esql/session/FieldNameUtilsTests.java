@@ -95,9 +95,25 @@ public class FieldNameUtilsTests extends ESTestCase {
         assertThat(nestedScope(query), is(true));
     }
 
+    public void testNestedPredicateIsRecognizedInAnyCase() {
+        String query = "from test | where NESTED_ANY(items.price > 1) | keep id";
+        assertFieldNames(query, Set.of("id", "id.*", "items.price", "items.price.*", "items", "items.*", "_index"));
+        assertThat(nestedScope(query), is(true));
+    }
+
+    public void testNestedPredicateOverACollectionAsksForTheCollection() {
+        String query = "from test | where nested_any(items, true) | keep id";
+        assertFieldNames(query, Set.of("id", "id.*", "items", "items.*", "_index"));
+        assertThat(nestedScope(query), is(true));
+    }
+
+    public void testAQueryWithoutNestedPredicatesIsNotNestedScoped() {
+        assertThat(nestedScope("from test | where id > 1 | keep id"), is(false));
+    }
+
     public void testNestedWithoutNarrowingAsksForAllFields() {
         String query = "from test | where nested_any(items.price > 1)";
-        assertFieldNames(query, Set.of("*"));
+        assertFieldNames(query, ALL_FIELDS);
         assertThat(nestedScope(query), is(true));
     }
 

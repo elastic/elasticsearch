@@ -24,6 +24,7 @@ public interface UsageReporter extends Closeable {
     /** One cycle. Public so that tests drive it with a fake clock. */
     void tick(Instant now);
 
+    /** Final flush attempt, then stop. Called once by the node but must be idempotent, as it can also be called on a close. */
     @Override
     void close();
 }

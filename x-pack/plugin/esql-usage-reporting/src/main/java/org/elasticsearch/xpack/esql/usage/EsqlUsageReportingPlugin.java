@@ -8,13 +8,13 @@
 package org.elasticsearch.xpack.esql.usage;
 
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.ssl.SslProfile;
 
-import java.io.IOException;
 import java.time.Clock;
 import java.util.Collection;
 import java.util.List;
@@ -29,7 +29,10 @@ import java.util.List;
  * <p>
  * Life cycle: the {@link UsageListener} is created by ES|QL's extension loader before anything else and asks this plugin for the
  * {@link #accumulator()}, a no-op until {@link #createComponents} has built the real pieces. That happens only when the plugin
- * is enabled and its settings are complete; if they are not, one ERROR names what is missing and the plugin stays inactive.
+ * is enabled and its settings are complete; if they are not, one ERROR lists what is wrong and the plugin stays inactive.
+ * The reporter and the publisher are returned from {@code createComponents} as one {@link UsageReportingLifecycle}, so that the
+ * node, not this plugin, starts the reporter once the node starts, stops it (final flush) while the node is still running, and
+ * closes the publisher.
  */
 public class EsqlUsageReportingPlugin extends Plugin {
 
@@ -37,8 +40,6 @@ public class EsqlUsageReportingPlugin extends Plugin {
 
     private volatile UsageAccumulator accumulator = NoopUsageAccumulator.INSTANCE;
     private volatile boolean reportExempt;
-    private volatile UsageReporter reporter = NoopUsageReporter.INSTANCE;
-    private volatile UsagePublisher publisher = NoopUsagePublisher.INSTANCE;
 
     @Override
     public List<Setting<?>> getSettings() {
@@ -58,18 +59,18 @@ public class EsqlUsageReportingPlugin extends Plugin {
         }
         // Like missing settings, a failure to build the pieces must not stop the node: it stays inactive.
         try {
-            activate(settings, services);
+            return List.of(activate(settings, services));
         } catch (Exception e) {
             logger.error("usage reporting failed to start: it stays inactive and nothing is reported", e);
+            return List.of();
         }
-        return List.of();
     }
 
     /**
-     * Builds the pieces and, only when all of them are built and the reporter has started, makes them visible to the listener, so
-     * that a failure leaves the plugin inactive.
+     * Builds the pieces and, only when all of them are built, makes the accumulator visible to the listener, so that a failure
+     * leaves the plugin inactive. Nothing runs yet: the reporter starts with the node.
      */
-    void activate(UsageReportingSettings settings, PluginServices services) {
+    UsageReportingLifecycle activate(UsageReportingSettings settings, PluginServices services) {
         // The node id comes from the node environment: the cluster service has no local node until the node has started,
         // which is after createComponents.
         SourceIdentity identity = new SourceIdentity(
@@ -81,31 +82,39 @@ public class EsqlUsageReportingPlugin extends Plugin {
         );
         UsageAccumulator newAccumulator = UsageComponents.newAccumulator(settings);
         UsagePublisher newPublisher = buildPublisher(settings);
-        UsageReporter newReporter = null;
-        boolean started = false;
+        UsageReporter newReporter;
         try {
             newReporter = buildReporter(settings, newAccumulator, newPublisher, identity, services);
-            newReporter.start();
-            started = true;
-        } finally {
-            if (started == false) {
-                // The reporter first: its final flush uses the publisher.
-                IOUtils.closeWhileHandlingException(newReporter);
-                Releasables.closeWhileHandlingException(newPublisher);
-            }
+        } catch (RuntimeException e) {
+            Releasables.closeWhileHandlingException(newPublisher);
+            throw e;
         }
         this.reportExempt = settings.reportExempt();
         this.accumulator = newAccumulator;
-        this.publisher = newPublisher;
-        this.reporter = newReporter;
+        return new UsageReportingLifecycle(newReporter, newPublisher, this::deactivate);
+    }
+
+    /** The reporter could not start: the listener goes back to a no-op accumulator, and the node keeps running. */
+    private void deactivate() {
+        this.accumulator = NoopUsageAccumulator.INSTANCE;
+        this.reportExempt = false;
     }
 
     /** Builds the publisher; a seam so that tests can observe when it is closed. */
     UsagePublisher buildPublisher(UsageReportingSettings settings) {
-        return UsageComponents.newPublisher(settings, UsageSslProfile.current());
+        return UsageComponents.newPublisher(settings, sslProfile());
     }
 
-    /** Builds the reporter with the other pieces; a seam so that tests can make the start of the reporter fail. */
+    /**
+     * The profile of {@code xpack.esql.usage_reporting.ssl}. X-pack-core builds its SSL service, which resolves the prefix declared
+     * by {@link UsageSslProfile}, before this plugin's {@code createComponents}. A seam, because there is no SSL service in a unit
+     * test.
+     */
+    SslProfile sslProfile() {
+        return XPackPlugin.getSharedSslService().profile(UsageReportingSettings.SSL_PREFIX);
+    }
+
+    /** Builds the reporter with the other pieces; a seam so that tests can make the reporter fail. */
     UsageReporter buildReporter(
         UsageReportingSettings settings,
         UsageAccumulator accumulator,
@@ -133,17 +142,5 @@ public class EsqlUsageReportingPlugin extends Plugin {
     /** Whether the usage of queries that did not succeed is to be accumulated, as exempt. */
     boolean reportExempt() {
         return reportExempt;
-    }
-
-    @Override
-    public void close() throws IOException {
-        UsagePublisher publisherToClose = publisher;
-        UsageReporter reporterToClose = reporter;
-        // The reporter is closed first (resources close in reverse order): its final flush uses the publisher. The publisher is
-        // closed even if the reporter throws anything, an Error included, and if both fail the reporter's exception is thrown with
-        // the publisher's attached to it.
-        try (publisherToClose; reporterToClose) {
-            // nothing to do: closing is the point
-        }
     }
 }

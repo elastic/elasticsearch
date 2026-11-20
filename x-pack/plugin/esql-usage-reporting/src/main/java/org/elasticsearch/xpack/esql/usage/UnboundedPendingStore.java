@@ -17,8 +17,9 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * A {@link PendingStore} backed by a plain list, for tests and for the reporter before the bounded store exists. Not for
- * production: it can grow without bound.
+ * A {@link PendingStore} backed by a plain list, for tests and for the reporter before the bounded store exists. It is the default
+ * of {@link UsageComponents#newPendingStore} only until the store change replaces it, and that change must merge before, or
+ * together with, the reporter: a reporter that fills this store while the publisher keeps failing would grow it without bound.
  */
 public final class UnboundedPendingStore implements PendingStore {
 

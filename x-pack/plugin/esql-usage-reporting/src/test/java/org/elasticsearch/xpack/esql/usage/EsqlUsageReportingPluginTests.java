@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.usage;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -19,12 +20,16 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ssl.SslProfile;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
@@ -44,11 +49,19 @@ public class EsqlUsageReportingPluginTests extends ESTestCase {
             .put(UsageReportingSettings.SSL_PREFIX + ".key", "client.key");
     }
 
+    /** A unit test has no SSL service of x-pack-core to resolve the profile from, and the no-op publisher does not need one. */
+    private static class TestPlugin extends EsqlUsageReportingPlugin {
+        @Override
+        SslProfile sslProfile() {
+            return null;
+        }
+    }
+
     /**
      * Runs {@code createComponents} with real settings, environment, thread pool and cluster service. Only the
      * {@link Plugin.PluginServices} interface is mocked: it has sixteen accessors of which the plugin reads four.
      */
-    private void createComponents(EsqlUsageReportingPlugin plugin, Settings settings) throws Exception {
+    private Collection<?> createComponents(EsqlUsageReportingPlugin plugin, Settings settings) throws Exception {
         ThreadPool threadPool = new TestThreadPool(getTestName());
         try (
             ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
@@ -62,72 +75,20 @@ public class EsqlUsageReportingPluginTests extends ESTestCase {
             when(services.clusterService()).thenReturn(clusterService);
             when(services.nodeEnvironment()).thenReturn(nodeEnvironment);
             when(services.threadPool()).thenReturn(threadPool);
-            plugin.createComponents(services);
+            return plugin.createComponents(services);
         } finally {
             terminate(threadPool);
         }
     }
 
-    public void testDisabledByDefaultBuildsNothing() throws Exception {
-        try (MockLog mockLog = MockLog.capture(EsqlUsageReportingPlugin.class)) {
-            mockLog.addExpectation(
-                new MockLog.UnseenEventExpectation("no error", EsqlUsageReportingPlugin.class.getCanonicalName(), Level.ERROR, "*")
-            );
-            EsqlUsageReportingPlugin plugin = new EsqlUsageReportingPlugin();
-            createComponents(plugin, Settings.EMPTY);
-            assertThat(plugin.accumulator(), sameInstance(NoopUsageAccumulator.INSTANCE));
-            assertThat(plugin.reportExempt(), is(false));
-            mockLog.assertAllExpectationsMatched();
-            plugin.close();
-        }
-    }
-
-    public void testEnabledAndCompleteBuildsComponents() throws Exception {
-        try (MockLog mockLog = MockLog.capture(EsqlUsageReportingPlugin.class)) {
-            mockLog.addExpectation(
-                new MockLog.UnseenEventExpectation("no error", EsqlUsageReportingPlugin.class.getCanonicalName(), Level.ERROR, "*")
-            );
-            EsqlUsageReportingPlugin plugin = new EsqlUsageReportingPlugin();
-            createComponents(plugin, complete().put(UsageReportingSettings.REPORT_EXEMPT.getKey(), true).build());
-            assertThat(plugin.reportExempt(), is(true));
-            mockLog.assertAllExpectationsMatched();
-            plugin.close();
-        }
-    }
-
-    public void testFailureToBuildLogsOneErrorAndStaysInactive() throws Exception {
-        try (MockLog mockLog = MockLog.capture(EsqlUsageReportingPlugin.class)) {
-            mockLog.addExpectation(
-                new MockLog.SeenEventExpectation(
-                    "failed to start",
-                    EsqlUsageReportingPlugin.class.getCanonicalName(),
-                    Level.ERROR,
-                    "usage reporting failed to start: it stays inactive and nothing is reported"
-                )
-            );
-            EsqlUsageReportingPlugin plugin = new EsqlUsageReportingPlugin() {
-                @Override
-                void activate(UsageReportingSettings settings, PluginServices services) {
-                    throw new IllegalStateException("boom");
-                }
-            };
-            createComponents(plugin, complete().put(UsageReportingSettings.REPORT_EXEMPT.getKey(), true).build());
-            assertThat(plugin.accumulator(), sameInstance(NoopUsageAccumulator.INSTANCE));
-            assertThat(plugin.reportExempt(), is(false));
-            mockLog.assertAllExpectationsMatched();
-            plugin.close();
-        }
-    }
-
     /**
-     * A plugin whose reporter and publisher only record when they are closed, because the real ones do not exist yet and the order
+     * A plugin whose reporter and publisher only record what is done to them, because the real ones do not exist yet and the order
      * matters: the final flush of the reporter needs the publisher.
      */
-    private static class RecordingPlugin extends EsqlUsageReportingPlugin {
+    private static class RecordingPlugin extends TestPlugin {
         final List<String> events = new ArrayList<>();
         private final boolean failToBuildReporter;
         private final boolean failToStartReporter;
-        boolean failOnClose;
         boolean reporterCloseError;
 
         RecordingPlugin(boolean failToBuildReporter, boolean failToStartReporter) {
@@ -146,9 +107,6 @@ public class EsqlUsageReportingPluginTests extends ESTestCase {
                 @Override
                 public void close() {
                     events.add("publisher closed");
-                    if (failOnClose) {
-                        throw new IllegalStateException("publisher close failed");
-                    }
                 }
             };
         }
@@ -167,6 +125,7 @@ public class EsqlUsageReportingPluginTests extends ESTestCase {
             return new UsageReporter() {
                 @Override
                 public void start() {
+                    events.add("reporter started");
                     if (failToStartReporter) {
                         throw new IllegalStateException("cannot start");
                     }
@@ -181,58 +140,130 @@ public class EsqlUsageReportingPluginTests extends ESTestCase {
                     if (reporterCloseError) {
                         throw new AssertionError("reporter close error");
                     }
-                    if (failOnClose) {
-                        throw new IllegalStateException("reporter close failed");
-                    }
                 }
             };
         }
     }
 
-    public void testFailureToStartTheReporterClosesItBeforeThePublisherAndStaysInactive() throws Exception {
-        RecordingPlugin plugin = new RecordingPlugin(false, true);
-        createComponents(plugin, complete().put(UsageReportingSettings.REPORT_EXEMPT.getKey(), true).build());
-        assertThat(plugin.events, equalTo(List.of("reporter closed", "publisher closed")));
-        assertThat(plugin.accumulator(), sameInstance(NoopUsageAccumulator.INSTANCE));
-        assertThat(plugin.reportExempt(), is(false));
-        plugin.close();
-        assertThat(plugin.events, equalTo(List.of("reporter closed", "publisher closed")));
+    private static LifecycleComponent lifecycleOf(Collection<?> components) {
+        assertThat(components.size(), equalTo(1));
+        Object component = components.iterator().next();
+        assertThat(component, instanceOf(LifecycleComponent.class));
+        return (LifecycleComponent) component;
+    }
+
+    public void testDisabledByDefaultBuildsNothing() throws Exception {
+        try (MockLog mockLog = MockLog.capture(EsqlUsageReportingPlugin.class)) {
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation("no error", EsqlUsageReportingPlugin.class.getCanonicalName(), Level.ERROR, "*")
+            );
+            EsqlUsageReportingPlugin plugin = new TestPlugin();
+            assertThat(createComponents(plugin, Settings.EMPTY), empty());
+            assertThat(plugin.accumulator(), sameInstance(NoopUsageAccumulator.INSTANCE));
+            assertThat(plugin.reportExempt(), is(false));
+            mockLog.assertAllExpectationsMatched();
+        }
+    }
+
+    public void testEnabledAndCompleteReturnsALifecycleComponent() throws Exception {
+        try (MockLog mockLog = MockLog.capture(EsqlUsageReportingPlugin.class)) {
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation("no error", EsqlUsageReportingPlugin.class.getCanonicalName(), Level.ERROR, "*")
+            );
+            EsqlUsageReportingPlugin plugin = new TestPlugin();
+            LifecycleComponent component = lifecycleOf(
+                createComponents(plugin, complete().put(UsageReportingSettings.REPORT_EXEMPT.getKey(), true).build())
+            );
+            assertThat(plugin.reportExempt(), is(true));
+            component.start();
+            component.close();
+            mockLog.assertAllExpectationsMatched();
+        }
+    }
+
+    public void testFailureToBuildLogsOneErrorAndStaysInactive() throws Exception {
+        try (MockLog mockLog = MockLog.capture(EsqlUsageReportingPlugin.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "failed to start",
+                    EsqlUsageReportingPlugin.class.getCanonicalName(),
+                    Level.ERROR,
+                    "usage reporting failed to start: it stays inactive and nothing is reported"
+                )
+            );
+            EsqlUsageReportingPlugin plugin = new TestPlugin() {
+                @Override
+                UsageReportingLifecycle activate(UsageReportingSettings settings, PluginServices services) {
+                    throw new IllegalStateException("boom");
+                }
+            };
+            assertThat(createComponents(plugin, complete().put(UsageReportingSettings.REPORT_EXEMPT.getKey(), true).build()), empty());
+            assertThat(plugin.accumulator(), sameInstance(NoopUsageAccumulator.INSTANCE));
+            assertThat(plugin.reportExempt(), is(false));
+            mockLog.assertAllExpectationsMatched();
+        }
     }
 
     public void testFailureToBuildTheReporterClosesThePublisher() throws Exception {
         RecordingPlugin plugin = new RecordingPlugin(true, false);
-        createComponents(plugin, complete().build());
+        assertThat(createComponents(plugin, complete().build()), empty());
         assertThat(plugin.events, equalTo(List.of("publisher closed")));
         assertThat(plugin.accumulator(), sameInstance(NoopUsageAccumulator.INSTANCE));
     }
 
-    public void testCloseClosesTheReporterBeforeThePublisher() throws Exception {
+    /** Nothing runs while the components are built: the node starts the reporter, stops it, and then closes the publisher. */
+    public void testTheNodeStartsAndStopsTheReporterAndClosesThePublisherLast() throws Exception {
         RecordingPlugin plugin = new RecordingPlugin(false, false);
-        createComponents(plugin, complete().build());
-        assertThat(plugin.events, equalTo(List.of()));
-        plugin.close();
+        LifecycleComponent component = lifecycleOf(createComponents(plugin, complete().build()));
+        assertThat(plugin.events, empty());
+        component.start();
+        assertThat(plugin.events, equalTo(List.of("reporter started")));
+        component.stop();
+        assertThat(plugin.events, equalTo(List.of("reporter started", "reporter closed")));
+        component.close();
+        assertThat(plugin.events, equalTo(List.of("reporter started", "reporter closed", "publisher closed")));
+    }
+
+    public void testCloseWithoutStartClosesTheReporterThenThePublisher() throws Exception {
+        RecordingPlugin plugin = new RecordingPlugin(false, false);
+        lifecycleOf(createComponents(plugin, complete().build())).close();
         assertThat(plugin.events, equalTo(List.of("reporter closed", "publisher closed")));
     }
 
-    /** The failure of the final flush must stay visible when closing the publisher fails too. */
-    public void testCloseKeepsTheReporterFailureAndAttachesThePublisherFailure() throws Exception {
-        RecordingPlugin plugin = new RecordingPlugin(false, false);
-        createComponents(plugin, complete().build());
-        plugin.failOnClose = true;
-        Exception e = expectThrows(Exception.class, plugin::close);
-        assertThat(e.getMessage(), equalTo("reporter close failed"));
-        assertThat(e.getSuppressed().length, equalTo(1));
-        assertThat(e.getSuppressed()[0].getMessage(), equalTo("publisher close failed"));
-        assertThat(plugin.events, equalTo(List.of("reporter closed", "publisher closed")));
+    /** A reporter that cannot start must not stop the node: one ERROR, and the plugin is inactive again. */
+    public void testFailureToStartTheReporterIsLoggedAndTheNodeKeepsRunning() throws Exception {
+        try (MockLog mockLog = MockLog.capture(UsageReportingLifecycle.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "failed to start",
+                    UsageReportingLifecycle.class.getCanonicalName(),
+                    Level.ERROR,
+                    "usage reporting failed to start: it stays inactive and nothing is reported"
+                )
+            );
+            RecordingPlugin plugin = new RecordingPlugin(false, true);
+            LifecycleComponent component = lifecycleOf(
+                createComponents(plugin, complete().put(UsageReportingSettings.REPORT_EXEMPT.getKey(), true).build())
+            );
+            assertThat(plugin.reportExempt(), is(true));
+            component.start();
+            assertThat(plugin.reportExempt(), is(false));
+            assertThat(plugin.accumulator(), sameInstance(NoopUsageAccumulator.INSTANCE));
+            mockLog.assertAllExpectationsMatched();
+            component.close();
+            assertThat(plugin.events, equalTo(List.of("reporter started", "reporter closed", "publisher closed")));
+        }
     }
 
     /** Not only exceptions: the publisher must be closed even if the final flush of the reporter throws an Error. */
-    public void testPublisherIsClosedEvenIfTheReporterThrowsAnError() throws Exception {
+    public void testPublisherIsClosedEvenIfStoppingTheReporterThrowsAnError() throws Exception {
         RecordingPlugin plugin = new RecordingPlugin(false, false);
-        createComponents(plugin, complete().build());
+        LifecycleComponent component = lifecycleOf(createComponents(plugin, complete().build()));
+        component.start();
         plugin.reporterCloseError = true;
-        expectThrows(AssertionError.class, plugin::close);
-        assertThat(plugin.events, equalTo(List.of("reporter closed", "publisher closed")));
+        expectThrows(AssertionError.class, component::stop);
+        component.close();
+        assertThat(plugin.events, equalTo(List.of("reporter started", "reporter closed", "publisher closed")));
     }
 
     public void testEnabledButIncompleteLogsOneErrorAndStaysInactive() throws Exception {
@@ -246,16 +277,15 @@ public class EsqlUsageReportingPluginTests extends ESTestCase {
                         + "[xpack.esql.usage_reporting.url, xpack.esql.usage_reporting.region]; it stays inactive"
                 )
             );
-            EsqlUsageReportingPlugin plugin = new EsqlUsageReportingPlugin();
+            EsqlUsageReportingPlugin plugin = new TestPlugin();
             Settings incomplete = complete().putNull(UsageReportingSettings.URL.getKey())
                 .putNull(UsageReportingSettings.REGION.getKey())
                 .put(UsageReportingSettings.REPORT_EXEMPT.getKey(), true)
                 .build();
-            createComponents(plugin, incomplete);
+            assertThat(createComponents(plugin, incomplete), empty());
             assertThat(plugin.accumulator(), sameInstance(NoopUsageAccumulator.INSTANCE));
             assertThat(plugin.reportExempt(), is(false));
             mockLog.assertAllExpectationsMatched();
-            plugin.close();
         }
     }
 }

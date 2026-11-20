@@ -17,23 +17,10 @@ import java.util.Set;
  * connection to the Usage API. It is an {@link SslProfileExtension} rather than ad hoc settings so that the configuration is
  * validated at node startup and the profile is reloaded when its files change, with no restart.
  * <p>
- * The profile is kept in a static holder, because this class is created by the extension loader before the plugin can give it
- * anything; the publisher reads {@link #current()} and registers a reload listener on it.
+ * It keeps no state. The plugin resolves the profile from the shared SSL service of x-pack-core, which avoids a JVM-global holder
+ * (with several nodes in one JVM, such as internal test clusters, the last node would win).
  */
 public final class UsageSslProfile implements SslProfileExtension {
-
-    // Static because the extension loader creates this class before the plugin can hand it anything. With several nodes in one
-    // JVM (internal test clusters) the last profile applied wins.
-    private static volatile SslProfile current;
-
-    /**
-     * The profile, or null before x-pack-core has loaded its SSL configurations. It is not null merely because the settings are
-     * absent: core applies every extension prefix, with the default trust configuration and no client certificate, so a missing
-     * certificate is not detectable from here.
-     */
-    public static SslProfile current() {
-        return current;
-    }
 
     @Override
     public Set<String> getSettingPrefixes() {
@@ -42,6 +29,6 @@ public final class UsageSslProfile implements SslProfileExtension {
 
     @Override
     public void applyProfile(String prefix, SslProfile profile) {
-        current = profile;
+        // Nothing to do: see the class javadoc.
     }
 }
